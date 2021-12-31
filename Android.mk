@@ -1,9 +1,6 @@
-ifneq ($(TARGET_BOARD_PLATFORM),qssi)
-ST54SPI_GPIO_PLATFORMS_LIST := lahaina
-ST54SPI_GPIO_PLATFORMS_LIST := taro
+#Build rules to create ST54SPI_GPIO_PLATFORM_DRIVER
 
-ifeq ($(call is-board-platform-in-list, $(ST54SPI_GPIO_PLATFORMS_LIST)),true)
-#Make file to create ST54SPI_GPIO_PLATFORMS_LIST
+ifeq ($(strip $(TARGET_USES_ST_ESE)),true)
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -12,13 +9,9 @@ LOCAL_CLANG :=true
 
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE := stm_st54se_gpio.ko
-LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
-
-
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
-
-endif #End of Check for target
-endif #End of Check for qssi target
+endif #end of check for TARGET_USES_ST_ESE flag
