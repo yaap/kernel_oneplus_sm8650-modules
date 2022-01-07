@@ -1,10 +1,10 @@
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 
-KBUILD_OPTIONS += MODNAME?=st21nfc
+KBUILD_OPTIONS+= NFC_ROOT=$(KERNEL_SRC)/$(M)
 M ?= $(shell pwd)
 
 all:
-	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS) $(KBUILD_EXTRA_SYMBOLS)
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS)
 
 modules_install:
 	$(MAKE) INSTALL_MOD_STRIP=1 -C $(KERNEL_SRC) M=$(M) modules_install
