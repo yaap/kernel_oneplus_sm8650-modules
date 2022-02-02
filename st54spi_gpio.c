@@ -2,6 +2,7 @@
 /*
  * ST54SPI GPIO driver
  * Copyright (C) 2021 ST Microelectronics S.A.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -29,6 +30,14 @@
 #include <linux/uaccess.h>
 #include <linux/cdev.h>
 #include <linux/types.h>
+
+/* Flag ESE_CONF_GPIO_OPEN_RELEASE is to configure nRESET GPIO in
+   open function and freeing GPIO in release function */
+#define ESE_CONF_GPIO_OPEN_RELEASE
+
+/* Flag ESE_CONF_GPIO_PROBE_REMOVE is to configure
+   nRESET GPIO in probe function */
+//#define ESE_CONF_GPIO_PROBE_REMOVE
 
 #define ST54SPI_GPIO__MAGIC  0xEB
 #define ST54SPI_GET_GPIO	_IOW(ST54SPI_GPIO__MAGIC, 0x01, unsigned int)
@@ -86,6 +95,9 @@ long st54spi_gpio_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long 
 
 static int st54spi_gpio_dev_open(struct inode *inode, struct file *pfile)
 {
+#ifdef ESE_CONF_GPIO_OPEN_RELEASE
+	int rc;
+#endif
 	struct st54spi_gpio_device *st54spi_gpio_dev = container_of(inode->i_cdev,
 					struct st54spi_gpio_device, c_dev);
 
@@ -94,6 +106,20 @@ static int st54spi_gpio_dev_open(struct inode *inode, struct file *pfile)
 		pr_err("%s ENODEV NULL\n", __func__);
 		return -ENODEV;
 	}
+#ifdef ESE_CONF_GPIO_OPEN_RELEASE
+	rc = gpio_request(st54spi_gpio_dev->gpiod_reset, "gpio-power_nreset");
+	if (rc < 0) {
+		pr_err("%s: request gpio failed: %d\n", __func__, rc);
+		return -EFAULT;
+	}
+
+	rc = gpio_direction_output(st54spi_gpio_dev->gpiod_reset, 0);
+	if (rc < 0) {
+		pr_err("%s: gpio cannot set the output %d\n", __func__, rc);
+		gpio_free(st54spi_gpio_dev->gpiod_reset);
+		return -EFAULT;
+	}
+#endif
 
 	pfile->private_data = st54spi_gpio_dev;
 	return 0;
@@ -103,6 +129,12 @@ static int st54spi_gpio_dev_open(struct inode *inode, struct file *pfile)
 
 static int st54spi_gpio_dev_release(struct inode *inode, struct file *pfile)
 {
+#ifdef ESE_CONF_GPIO_OPEN_RELEASE
+	struct st54spi_gpio_device *st54spi_gpio_dev = pfile->private_data;
+
+	if (gpio_is_valid(st54spi_gpio_dev->gpiod_reset))
+		gpio_free(st54spi_gpio_dev->gpiod_reset);
+#endif
 	pr_info("%s: Device File Closed\n", __func__);
 	pfile->private_data = NULL;
 	return 0;
@@ -138,21 +170,21 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 	/* Create device node */
 	rc = alloc_chrdev_region(&st54spi_gpio_dev->st54spi_gpio_dev_t, 0, 1, "st54spi_gpio");
 	if (rc < 0) {
-		pr_err("alloc_chrdev_region() failed\n");
+		pr_err("%s: alloc_chrdev_region() failed\n", __func__);
 		return rc;
 	}
 
 	st54spi_gpio_dev->class = class_create(THIS_MODULE, "st54spi_gpio");
 	if (IS_ERR(st54spi_gpio_dev->class)) {
 		rc = PTR_ERR(st54spi_gpio_dev->class);
-		pr_err("Error creating st54spi_gpio_dev->class: %d\n", rc);
+		pr_err("%s: Error creating st54spi_gpio_dev->class: %d\n", __func__, rc);
 		goto fail_class_create;
 	}
 
 	cdev_init(&st54spi_gpio_dev->c_dev, &st54spi_gpio_dev_fops);
 	rc = cdev_add(&st54spi_gpio_dev->c_dev, st54spi_gpio_dev->st54spi_gpio_dev_t, 1);
 	if (rc) {
-		pr_err("Error calling cdev_add: %d\n", rc);
+		pr_err("%s: Error calling cdev_add: %d\n", __func__, rc);
 		goto fail_cdev_add;
 	}
 
@@ -161,7 +193,7 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 							st54spi_gpio_dev, "st54spi_gpio");
 	if (IS_ERR(st54spi_gpio_dev->device)) {
 		rc = PTR_ERR(st54spi_gpio_dev->device);
-		pr_err("device_create failed: %d\n", rc);
+		pr_err("%s: device_create failed: %d\n", __func__, rc);
 		goto fail_device_create;
 	}
 
@@ -173,26 +205,30 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 		goto fail_gpiod_get;
 	}
 
+#ifdef ESE_CONF_GPIO_PROBE_REMOVE
 	rc = gpio_request(st54spi_gpio_dev->gpiod_reset, "gpio-power_nreset");
 	if (rc < 0) {
-		pr_err("request gpio failed, cannot wake up controller: %d\n", __func__, rc);
+		pr_err("%s: request gpio failed: %d\n", __func__, rc);
 		rc = -EFAULT;
 		goto fail_gpiod_get;
 	}
 
 	rc = gpio_direction_output(st54spi_gpio_dev->gpiod_reset, 0);
 	if (rc < 0) {
-		pr_err("gpio cannot set the output %d\n", __func__, rc);
+		pr_err("%s: gpio cannot set the output %d\n", __func__, rc);
 		rc = -EFAULT;
 		goto fail_gpiod_request;
 	}
+#endif
 
 	platform_set_drvdata(pdev, st54spi_gpio_dev);
 
 	return 0;
 
+#ifdef ESE_CONF_GPIO_PROBE_REMOVE
 fail_gpiod_request:
 	gpio_free(st54spi_gpio_dev->gpiod_reset);
+#endif
 fail_gpiod_get:
 	device_destroy(st54spi_gpio_dev->class, st54spi_gpio_dev->st54spi_gpio_dev_t);
 fail_device_create:
@@ -220,9 +256,11 @@ static int st54spi_gpio_remove(struct platform_device *pdev)
 	cdev_del(&st54spi_gpio_dev->c_dev);
 	devm_kfree(dev, st54spi_gpio_dev);
 	dev_set_drvdata(dev, NULL);
+#ifdef ESE_CONF_GPIO_PROBE_REMOVE
 	if (gpio_is_valid(st54spi_gpio_dev->gpiod_reset))
 		gpio_free(st54spi_gpio_dev->gpiod_reset);
 
+#endif
 	return 0;
 }
 
