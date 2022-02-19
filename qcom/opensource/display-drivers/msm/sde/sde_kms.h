@@ -21,7 +21,6 @@
 #define __SDE_KMS_H__
 
 #include <linux/pm_domain.h>
-#include <linux/pm_qos.h>
 #include <drm/drm_framebuffer.h>
 
 #include "msm_drv.h"
@@ -330,11 +329,6 @@ struct sde_kms {
 	bool qdss_enabled;
 	bool pm_suspend_clk_dump;
 	bool freeze_late;
-
-	cpumask_t irq_cpu_mask;
-	atomic_t irq_vote_count;
-	struct dev_pm_qos_request pm_qos_irq_req[NR_CPUS];
-	struct irq_affinity_notify affinity_notify;
 
 	struct sde_vm *vm;
 
@@ -743,14 +737,6 @@ void sde_kms_timeline_status(struct drm_device *dev);
  * return: 0 on success; error code otherwise
  */
 int sde_kms_handle_recovery(struct drm_encoder *encoder);
-
-/**
- * sde_kms_cpu_vote_for_irq() - API to keep pm_qos latency vote on cpu
- * where mdss_irq is scheduled
- * @sde_kms: pointer to sde_kms structure
- * @enable: true if enable request, false otherwise.
- */
-void sde_kms_cpu_vote_for_irq(struct sde_kms *sde_kms, bool enable);
 
 /**
  * sde_kms_get_io_resources() - reads associated register range
