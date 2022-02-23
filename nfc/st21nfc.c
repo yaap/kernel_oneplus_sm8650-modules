@@ -58,6 +58,8 @@
 
 static bool enable_debug_log;
 
+bool clk_pin_voting;
+
 /*The enum is used to index a pw_states array, the values matter here*/
 enum st21nfc_power_state {
 	ST21NFC_IDLE = 0,
@@ -642,6 +644,11 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 	case ST21NFC_SET_POLARITY_HIGH:
 	case ST21NFC_LEGACY_SET_POLARITY_HIGH:
 		pr_info(" ### ST21NFC_SET_POLARITY_HIGH ###\n");
+		if(clk_pin_voting == true) {
+			ret = st21nfc_clock_select(st21nfc_dev);
+			if (ret < 0)
+				pr_err("%s : st21nfc_clock_select failed\n", __func__);
+		}
 		st21nfc_loc_set_polaritymode(st21nfc_dev, IRQF_TRIGGER_HIGH);
 		break;
 
@@ -767,6 +774,15 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 		if (enable_debug_log)
 			pr_debug("%s use ESE %d : %d\n", __func__, ret, tmp);
 		break;
+
+	case ST21NFC_CLK_DISABLE_UNPREPARE:
+		if(clk_pin_voting == true) {
+			ret = st21nfc_clock_deselect(st21nfc_dev);
+			if (ret < 0)
+				pr_err("%s : st21nfc_clock_deselect failed\n", __func__);
+		}
+		break;
+
 	default:
 		pr_err("%s bad ioctl %u\n", __func__, cmd);
 		ret = -EINVAL;
@@ -1055,9 +1071,8 @@ static int st21nfc_probe(struct i2c_client *client,
 
 	st21nfc_dev->gpiod_clkreq = devm_gpiod_get(dev, "clkreq", GPIOD_IN);
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_clkreq)) {
-		pr_warn("[OPTIONAL] %s : Unable to request clkreq-gpios\n",
-			__func__);
-		ret = 0;
+		clk_pin_voting = true;
+		st21nfc_dev->clk_run = false;
 	} else {
 		if (!device_property_read_bool(dev, "st,clk_pinctrl")) {
 			pr_debug("[dsc]%s:[OPTIONAL] clk_pinctrl not set\n",
@@ -1073,11 +1088,7 @@ static int st21nfc_probe(struct i2c_client *client,
 		if (st21nfc_dev->pinctrl_en != 0)
 			st21nfc_dev->clk_run = true;
 
-		ret = st21nfc_clock_select(st21nfc_dev);
-		if (ret < 0) {
-			pr_err("%s : st21nfc_clock_select failed\n", __func__);
-			goto err_sysfs_power_stats;
-		}
+		clk_pin_voting = false;
 	}
 
 	client->irq = gpiod_to_irq(st21nfc_dev->gpiod_irq);
@@ -1126,7 +1137,6 @@ err_sysfs_create_group_failed:
 err_misc_register:
 	mutex_destroy(&st21nfc_dev->read_mutex);
 	mutex_destroy(&st21nfc_dev->irq_dir_mutex);
-err_sysfs_power_stats:
 	if (!IS_ERR_OR_NULL(st21nfc_dev->gpiod_pidle)) {
 		sysfs_remove_file(&client->dev.kobj,
 				  &dev_attr_power_stats.attr);

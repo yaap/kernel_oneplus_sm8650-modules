@@ -21,6 +21,8 @@
 #define ST21NFC_RECOVERY _IO(ST21NFC_MAGIC, 0x08)
 #define ST21NFC_USE_ESE _IOW(ST21NFC_MAGIC, 0x09, unsigned int)
 
+#define ST21NFC_CLK_DISABLE_UNPREPARE _IO(ST21NFC_MAGIC, 0x0A)
+
 // Keep compatibility with older user applications.
 #define ST21NFC_LEGACY_GET_WAKEUP _IOR(ST21NFC_MAGIC, 0x01, unsigned int)
 #define ST21NFC_LEGACY_PULSE_RESET _IOR(ST21NFC_MAGIC, 0x02, unsigned int)
