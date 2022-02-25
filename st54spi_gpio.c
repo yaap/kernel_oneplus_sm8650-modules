@@ -283,7 +283,7 @@ static struct platform_driver st54spi_gpio_driver = {
 /* module load/unload record keeping */
 static int __init st54spi_gpio_dev_init(void)
 {
-	pr_err("%s : Loading st54spi gpio_driver 1.0\n", __func__);
+	pr_info("%s : Loading st54spi gpio_driver 1.0\n", __func__);
 	return platform_driver_register(&st54spi_gpio_driver);
 }
 
