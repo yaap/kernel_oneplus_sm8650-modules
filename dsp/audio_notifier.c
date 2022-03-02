@@ -25,7 +25,7 @@
 #define NO_SERVICE -2
 #define UNINIT_SERVICE -1
 
-static bool service_early_down = false;
+static bool service_early_down;
 static struct platform_device *adsp_private;
 
 struct adsp_notify_private {
