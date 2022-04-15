@@ -22,6 +22,7 @@
 #include <linux/notifier.h>
 #include <linux/msm_drm_notify.h>
 #include <soc/oplus/device_info.h>
+#include "../../../../../sm8650/drivers/input/touchscreen/oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h"
 #include "dsi_pwr.h"
 #include "oplus_display_panel.h"
 
@@ -82,6 +83,8 @@ u32 oplus_backlight_delta = 0;
 unsigned int oplus_dsi_log_type = OPLUS_DEBUG_LOG_DISABLED;
 unsigned int oplus_display_trace_enable = OPLUS_DISPLAY_DISABLE_TRACE;
 int dsi_cmd_panel_debug = 0;
+
+struct touchpanel_event fp_state = {0};
 
 EXPORT_SYMBOL(oplus_dimlayer_bl_alpha);
 EXPORT_SYMBOL(oplus_dimlayer_bl_enable_real);
@@ -2660,6 +2663,14 @@ static ssize_t oplus_display_set_trace_enable_attr(struct kobject *obj,
 
 	return count;
 }
+
+static ssize_t oplus_display_get_fp_state(struct kobject *obj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d,%d,%d\n", fp_state.x, fp_state.y, fp_state.touch_state);
+	
+}
+
 static struct kobject *oplus_display_kobj;
 
 static OPLUS_ATTR(audio_ready, S_IRUGO | S_IWUSR, NULL,
@@ -2717,6 +2728,7 @@ static OPLUS_ATTR(panel_pwr, S_IRUGO | S_IWUSR, oplus_display_get_panel_pwr,
 		oplus_display_set_panel_pwr);
 static OPLUS_ATTR(dsi_log_switch, S_IRUGO | S_IWUSR, oplus_display_get_dsi_log_switch,
 		oplus_display_set_dsi_log_switch);
+static OPLUS_ATTR(fp_state, S_IRUGO, oplus_display_get_fp_state, NULL);
 static OPLUS_ATTR(trace_enable, S_IRUGO | S_IWUSR, oplus_display_get_trace_enable_attr, oplus_display_set_trace_enable_attr);
 static OPLUS_ATTR(backlight_smooth, S_IRUGO|S_IWUSR, oplus_backlight_smooth_get_debug,
 		oplus_backlight_smooth_set_debug);
@@ -2801,6 +2813,7 @@ static struct attribute *oplus_display_attrs[] = {
 #endif /* OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION */
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	&oplus_attr_fp_type.attr,
+	&oplus_attr_fp_state.attr,
 	&oplus_attr_hbm.attr,
 	&oplus_attr_aor.attr,
 	&oplus_attr_dimlayer_hbm.attr,
@@ -2832,6 +2845,23 @@ int oplus_display_get_resolution(unsigned int *xres, unsigned int *yres)
 }
 EXPORT_SYMBOL(oplus_display_get_resolution);
 
+static int oplus_input_event_notify(struct notifier_block *self, unsigned long action, void *data) {
+	struct touchpanel_event *event = (struct touchpanel_event*)data;
+
+	if (event && action == EVENT_ACTION_FOR_FINGPRINT) {
+		fp_state.x = event->x;
+		fp_state.y = event->y;
+		fp_state.touch_state = event->touch_state;
+		sysfs_notify(kernel_kobj, "oplus_display", oplus_attr_fp_state.attr.name);
+	}
+
+	return NOTIFY_DONE;
+}
+
+struct notifier_block oplus_input_event_notifier = {
+	.notifier_call = oplus_input_event_notify,
+};
+
 int oplus_display_private_api_init(void)
 {
 	struct dsi_display *display = get_main_display();
@@ -2861,6 +2891,12 @@ int oplus_display_private_api_init(void)
 		goto error_remove_sysfs_group;
 	}
 
+	retval = touchpanel_event_register_notifier(&oplus_input_event_notifier);
+
+	if (retval) {
+		goto error_remove_sysfs_group;
+	}
+
 	return 0;
 
 error_remove_sysfs_group:
@@ -2874,6 +2910,7 @@ error_remove_kobj:
 
 void  oplus_display_private_api_exit(void)
 {
+	touchpanel_event_unregister_notifier(&oplus_input_event_notifier);
 	sysfs_remove_link(oplus_display_kobj, "panel");
 	sysfs_remove_group(oplus_display_kobj, &oplus_display_attr_group);
 	kobject_put(oplus_display_kobj);
