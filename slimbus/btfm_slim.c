@@ -21,6 +21,8 @@
 #include "btpower.h"
 #include "btfm_slim.h"
 #include "btfm_slim_slave.h"
+#include "btfm_slim_hw_interface.h"
+
 #define DELAY_FOR_PORT_OPEN_MS (200)
 #define SLIM_MANF_ID_QCOM	0x217
 #define SLIM_PROD_CODE		0x221
@@ -520,7 +522,12 @@ static int btfm_slim_status(struct slim_device *sdev,
 	struct device *dev = &sdev->dev;
 	struct btfmslim *btfm_slim;
 	btfm_slim = dev_get_drvdata(dev);
+
+#if IS_ENABLED(CONFIG_BTFM_SLIM)
 	ret = btfm_slim_register_codec(btfm_slim);
+#else
+	ret = btfm_slim_register_hw_ep(btfm_slim);
+#endif
 	if (ret)
 		BTFMSLIM_ERR("error, registering slimbus codec failed");
 	return ret;
@@ -534,7 +541,8 @@ static int btfm_slim_probe(struct slim_device *slim)
 	pr_info("%s: name = %s\n", __func__, dev_name(&slim->dev));
 	/*this as true during the probe then slimbus won't check for logical address*/
 	slim->is_laddr_valid = true;
-	dev_set_name(&slim->dev, "%s", "btfmslim_slave");
+
+	dev_set_name(&slim->dev, "%s", BTFMSLIM_DEV_NAME);
 	pr_info("%s: name = %s\n", __func__, dev_name(&slim->dev));
 
 	BTFMSLIM_DBG("");
@@ -565,7 +573,11 @@ static int btfm_slim_probe(struct slim_device *slim)
 	btfm_slim->dev = &slim->dev;
 	ret = btpower_register_slimdev(&slim->dev);
 	if (ret < 0) {
+#if IS_ENABLED(CONFIG_BTFM_SLIM)
 		btfm_slim_unregister_codec(&slim->dev);
+#else
+		btfm_slim_unregister_hwep();
+#endif
 		ret = -EPROBE_DEFER;
 		goto dealloc;
 	}
