@@ -38,7 +38,6 @@
 struct sde_fence {
 	struct dma_fence base;
 	struct sde_fence_context *ctx;
-	char name[SDE_FENCE_NAME_SIZE];
 	struct list_head fence_list;
 	int fd;
 	struct sde_hw_ctl *hwfence_out_ctl;
@@ -275,10 +274,6 @@ static int sde_fence_create_hw_fence(struct sde_hw_ctl *hw_ctl, struct sde_fence
 		/* store ctl and index for this fence */
 		sde_fence->hwfence_out_ctl = hw_ctl;
 		sde_fence->hwfence_index = hwfence_index;
-
-		SDE_DEBUG("create hfence index:%llu ctl:%d ctx:%llu seqno:%llu name:%s\n",
-			sde_fence->hwfence_index, ctl_id, sde_fence->base.context,
-			sde_fence->base.seqno, sde_fence->name);
 	}
 
 	return ret;
@@ -657,9 +652,6 @@ static void _sde_hw_fence_release(struct sde_fence *f)
 		return;
 	}
 
-	SDE_DEBUG("destroy hw fence ctl_id:%d ctx:%llu seqno:%llu name:%s\n",
-		ctl_id, f->base.context, f->base.seqno, f->name);
-
 	/* Delete the HW fence */
 	ret = msm_hw_fence_destroy(data->hw_fence_handle, &f->base);
 	if (ret)
@@ -874,9 +866,7 @@ static inline struct sde_fence *to_sde_fence(struct dma_fence *fence)
 
 static const char *sde_fence_get_driver_name(struct dma_fence *fence)
 {
-	struct sde_fence *f = to_sde_fence(fence);
-
-	return f->name;
+	return "sde_fence";
 }
 
 static const char *sde_fence_get_timeline_name(struct dma_fence *fence)
@@ -972,8 +962,6 @@ static int _sde_fence_create_fd(void *fence_ctx, uint32_t val, struct sde_hw_ctl
 		return -ENOMEM;
 
 	sde_fence->ctx = fence_ctx;
-	snprintf(sde_fence->name, SDE_FENCE_NAME_SIZE, "sde_fence:%s:%u",
-						sde_fence->ctx->name, val);
 	dma_fence_init(&sde_fence->base, &sde_fence_ops, &ctx->lock,
 		ctx->context, val);
 	kref_get(&ctx->kref);
@@ -983,8 +971,8 @@ static int _sde_fence_create_fd(void *fence_ctx, uint32_t val, struct sde_hw_ctl
 	/* create fd */
 	fd = get_unused_fd_flags(0);
 	if (fd < 0) {
-		SDE_ERROR("failed to get_unused_fd_flags(), %s\n",
-							sde_fence->name);
+		SDE_ERROR("failed to get_unused_fd_flags(), sde_fence:%s:%u\n",
+			  sde_fence->ctx->name, val);
 		dma_fence_put(&sde_fence->base);
 		goto exit;
 	}
@@ -994,7 +982,8 @@ static int _sde_fence_create_fd(void *fence_ctx, uint32_t val, struct sde_hw_ctl
 	if (sync_file == NULL) {
 		put_unused_fd(fd);
 		fd = -EINVAL;
-		SDE_ERROR("couldn't create fence, %s\n", sde_fence->name);
+		SDE_ERROR("couldn't create fence, sde_fence:%s:%u\n",
+			sde_fence->ctx->name, val);
 		dma_fence_put(&sde_fence->base);
 		goto exit;
 	}
