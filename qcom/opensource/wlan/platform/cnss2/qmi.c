@@ -8,6 +8,7 @@
 #include <linux/soc/qcom/qmi.h>
 
 #include "bus.h"
+#include "cnss_utils.h"
 #include "debug.h"
 #include "main.h"
 #include "qmi.h"
@@ -3708,6 +3709,11 @@ int cnss_qmi_get_dms_mac(struct cnss_plat_data *plat_priv)
 	plat_priv->dms.mac_valid = true;
 	memcpy(plat_priv->dms.mac, resp.mac_address, QMI_WLFW_MAC_ADDR_SIZE_V01);
 	cnss_pr_info("Received DMS MAC: [%pM]\n", plat_priv->dms.mac);
+	ret = cnss_utils_set_wlan_mac_address(plat_priv->dms.mac, QMI_WLFW_MAC_ADDR_SIZE_V01);
+	if (ret < 0) {
+		cnss_pr_err("Failed to set cnss utils wlan mac address (non-fatal), err: %d\n", ret);
+	}
+
 out:
 	return ret;
 }
