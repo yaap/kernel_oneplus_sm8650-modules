@@ -53,6 +53,7 @@ int msm_vidc_adjust_session_priority(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_roi_info(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_all_intra(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl);
 
 int msm_vidc_set_header_mode(void *instance,
