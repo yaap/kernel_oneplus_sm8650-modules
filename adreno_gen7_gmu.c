@@ -861,9 +861,6 @@ void gen7_gmu_register_config(struct adreno_device *adreno_dev)
 	gmu_core_regwrite(device, GEN7_GPU_GMU_CX_GMU_CX_FALNEXT_INTF, 0x1);
 	gmu_core_regwrite(device, GEN7_GPU_GMU_CX_GMU_CX_FAL_INTF, 0x1);
 
-	/* Turn on TCM retention */
-	adreno_cx_misc_regwrite(adreno_dev, GEN7_GPU_CX_MISC_TCM_RET_CNTL, 1);
-
 	/* Clear init result to make sure we are getting fresh value */
 	gmu_core_regwrite(device, GEN7_GMU_CM3_FW_INIT_RESULT, 0);
 	gmu_core_regwrite(device, GEN7_GMU_CM3_BOOT_CONFIG, 0x2);
