@@ -333,7 +333,6 @@ struct smcinvoke_mem_obj {
 	uint64_t p_addr;
 	size_t p_addr_len;
 	struct list_head list;
-	bool is_smcinvoke_created_shmbridge;
 	uint64_t shmbridge_handle;
 	struct smcinvoke_server_info *server;
 	int32_t mem_obj_user_fd;
@@ -809,7 +808,6 @@ static void queue_mem_obj_pending_async_locked(struct smcinvoke_mem_obj *mem_obj
 static inline void free_mem_obj_locked(struct smcinvoke_mem_obj *mem_obj)
 {
 	int ret = 0;
-	bool is_bridge_created = mem_obj->is_smcinvoke_created_shmbridge;
 	struct dma_buf *dmabuf_to_free = mem_obj->dma_buf;
 	uint64_t shmbridge_handle = mem_obj->shmbridge_handle;
 	struct smcinvoke_shmbridge_deregister_pending_list *entry = NULL;
@@ -820,7 +818,7 @@ static inline void free_mem_obj_locked(struct smcinvoke_mem_obj *mem_obj)
 	mem_obj = NULL;
 	mutex_unlock(&g_smcinvoke_lock);
 
-	if (is_bridge_created)
+	if (shmbridge_handle)
 		ret = qtee_shmbridge_deregister(shmbridge_handle);
 	if (ret) {
 		pr_err("Error:%d delete bridge failed leaking memory 0x%x\n",
@@ -1159,16 +1157,10 @@ static int smcinvoke_create_bridge(struct smcinvoke_mem_obj *mem_obj)
   ret = qtee_shmbridge_register(phys, size, vmid_list, perms_list, nelems,
       tz_perm, &mem_obj->shmbridge_handle);
 
-  if (ret == 0) {
-    /* In case of ret=0/success handle has to be freed in memobj release */
-    mem_obj->is_smcinvoke_created_shmbridge = true;
-  } else if (ret == -EEXIST) {
-    ret = 0;
-    goto exit;
-  } else {
-    pr_err("creation of shm bridge for mem_region_id %d failed ret %d\n",
-        mem_obj->mem_region_id, ret);
-    goto exit;
+  if (ret) {
+	  pr_err("creation of shm bridge for mem_region_id %d failed ret %d\n",
+			  mem_obj->mem_region_id, ret);
+	  goto exit;
   }
 
   trace_smcinvoke_create_bridge(mem_obj->shmbridge_handle, mem_obj->mem_region_id);
