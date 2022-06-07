@@ -24,7 +24,6 @@ struct msm_vidc_venus_ops {
 	int (*reset_ahb2axi_bridge)(struct msm_vidc_core *core);
 	int (*clock_config_on_enable)(struct msm_vidc_core *core);
 	int (*interrupt_init)(struct msm_vidc_core *core);
-	int (*setup_ucregion_memmap)(struct msm_vidc_core *core);
 	int (*raise_interrupt)(struct msm_vidc_core *core);
 	int (*clear_interrupt)(struct msm_vidc_core *core);
 	int (*prepare_pc)(struct msm_vidc_core *core);

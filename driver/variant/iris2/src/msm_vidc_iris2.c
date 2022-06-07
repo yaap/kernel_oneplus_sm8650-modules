@@ -943,6 +943,10 @@ static int __boot_firmware_iris2(struct msm_vidc_core *vidc_core)
 		return 0;
 	}
 
+	rc = __setup_ucregion_memory_map_iris2(core);
+	if (rc)
+		return rc;
+
 	ctrl_init_val = BIT(0);
 
 	rc = __write_register(core, CTRL_INIT_IRIS2, ctrl_init_val);
@@ -1182,7 +1186,6 @@ static struct msm_vidc_venus_ops iris2_ops = {
 	.interrupt_init = __interrupt_init_iris2,
 	.raise_interrupt = __raise_interrupt_iris2,
 	.clear_interrupt = __clear_interrupt_iris2,
-	.setup_ucregion_memmap = __setup_ucregion_memory_map_iris2,
 	.clock_config_on_enable = NULL,
 	.reset_ahb2axi_bridge = __reset_ahb2axi_bridge,
 	.power_on = __power_on_iris2,

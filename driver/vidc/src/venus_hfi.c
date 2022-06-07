@@ -1797,8 +1797,6 @@ static int __resume(struct msm_vidc_core *core)
 	 */
 	__hand_off_regulators(core);
 
-	call_venus_op(core, setup_ucregion_memmap, core);
-
 	/* Wait for boot completion */
 	rc = call_venus_op(core, boot_firmware, core);
 	if (rc) {
@@ -1988,15 +1986,7 @@ int __load_fw(struct msm_vidc_core *core)
 	__hand_off_regulators(core);
 	trace_msm_v4l2_vidc_fw_load("END");
 
-	/* configure interface_queues memory to firmware */
-	rc = call_venus_op(core, setup_ucregion_memmap, core);
-	if (rc) {
-		d_vpr_e("%s: failed to setup ucregion\n");
-		goto fail_setup_ucregion;
-	}
-
 	return rc;
-fail_setup_ucregion:
 fail_protect_mem:
 	if (core->dt->fw_cookie)
 		qcom_scm_pas_shutdown(core->dt->fw_cookie);
