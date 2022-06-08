@@ -776,7 +776,7 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 	 */
 	__set_registers(core);
 
-	call_venus_op(core, interrupt_init, core);
+	__interrupt_init_iris3(core);
 	core->intr_status = 0;
 	enable_irq(core->dt->irq);
 
@@ -1261,7 +1261,6 @@ adjust:
 
 static struct msm_vidc_venus_ops iris3_ops = {
 	.boot_firmware = __boot_firmware_iris3,
-	.interrupt_init = __interrupt_init_iris3,
 	.raise_interrupt = __raise_interrupt_iris3,
 	.clear_interrupt = __clear_interrupt_iris3,
 	.clock_config_on_enable = NULL,
