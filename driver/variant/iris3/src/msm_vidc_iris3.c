@@ -1263,7 +1263,6 @@ static struct msm_vidc_venus_ops iris3_ops = {
 	.boot_firmware = __boot_firmware_iris3,
 	.raise_interrupt = __raise_interrupt_iris3,
 	.clear_interrupt = __clear_interrupt_iris3,
-	.clock_config_on_enable = NULL,
 	.reset_ahb2axi_bridge = __reset_ahb2axi_bridge,
 	.power_on = __power_on_iris3,
 	.power_off = __power_off_iris3,

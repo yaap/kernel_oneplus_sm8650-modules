@@ -1185,7 +1185,6 @@ static struct msm_vidc_venus_ops iris2_ops = {
 	.boot_firmware = __boot_firmware_iris2,
 	.raise_interrupt = __raise_interrupt_iris2,
 	.clear_interrupt = __clear_interrupt_iris2,
-	.clock_config_on_enable = NULL,
 	.reset_ahb2axi_bridge = __reset_ahb2axi_bridge,
 	.power_on = __power_on_iris2,
 	.power_off = __power_off_iris2,
