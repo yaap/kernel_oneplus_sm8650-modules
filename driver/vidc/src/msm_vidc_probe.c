@@ -229,6 +229,7 @@ video_reg_failed:
 	return rc;
 }
 
+#ifdef CONFIG_MSM_MMRM
 static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
 	int rc = 0;
@@ -250,6 +251,19 @@ exit:
 	d_vpr_h("%s: %d\n", __func__, core->capabilities[MMRM].value);
 	return rc;
 }
+#else
+static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
+{
+	if (!core || !core->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	core->capabilities[MMRM].value = 0;
+
+	return 0;
+}
+#endif
 
 static int msm_vidc_deinitialize_core(struct msm_vidc_core *core)
 {

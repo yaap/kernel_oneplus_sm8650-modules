@@ -176,202 +176,6 @@
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW			0x00011238
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH		0x0001123C
 
-
-static int __disable_unprepare_clock_iris3(struct msm_vidc_core *core,
-		const char *clk_name)
-{
-	int rc = 0;
-	struct clock_info *cl;
-	bool found;
-
-	if (!core || !clk_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_clock(core, cl) {
-		if (!cl->clk) {
-			d_vpr_e("%s: invalid clock %s\n", __func__, cl->name);
-			return -EINVAL;
-		}
-		if (strcmp(cl->name, clk_name))
-			continue;
-		found = true;
-		clk_disable_unprepare(cl->clk);
-		if (cl->has_scaling)
-			__set_clk_rate(core, cl, 0);
-		cl->prev = 0;
-		d_vpr_h("%s: clock %s disable unprepared\n", __func__, cl->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: clock %s not found\n", __func__, clk_name);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
-static int __prepare_enable_clock_iris3(struct msm_vidc_core *core,
-		const char *clk_name)
-{
-	int rc = 0;
-	struct clock_info *cl;
-	bool found;
-	u64 rate = 0;
-
-	if (!core || !clk_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_clock(core, cl) {
-		if (!cl->clk) {
-			d_vpr_e("%s: invalid clock\n", __func__);
-			return -EINVAL;
-		}
-		if (strcmp(cl->name, clk_name))
-			continue;
-		found = true;
-		/*
-		 * For the clocks we control, set the rate prior to preparing
-		 * them.  Since we don't really have a load at this point, scale
-		 * it to the lowest frequency possible
-		 */
-		if (cl->has_scaling) {
-			rate = clk_round_rate(cl->clk, 0);
-			/**
-			 * source clock is already multipled with scaling ratio and __set_clk_rate
-			 * attempts to multiply again. So divide scaling ratio before calling
-			 * __set_clk_rate.
-			 */
-			rate = rate / MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
-			__set_clk_rate(core, cl, rate);
-		}
-
-		rc = clk_prepare_enable(cl->clk);
-		if (rc) {
-			d_vpr_e("%s: failed to enable clock %s\n",
-				__func__, cl->name);
-			return rc;
-		}
-		if (!__clk_is_enabled(cl->clk)) {
-			d_vpr_e("%s: clock %s not enabled\n",
-				__func__, cl->name);
-			clk_disable_unprepare(cl->clk);
-			if (cl->has_scaling)
-				__set_clk_rate(core, cl, 0);
-			return -EINVAL;
-		}
-		d_vpr_h("%s: clock %s prepare enabled\n", __func__, cl->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: clock %s not found\n", __func__, clk_name);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
-static int __disable_regulator_iris3(struct msm_vidc_core *core,
-		const char *reg_name)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-	bool found;
-
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(core, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
-			continue;
-		found = true;
-
-		rc = __acquire_regulator(core, rinfo);
-		if (rc) {
-			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			/* Bring attention to this issue */
-			WARN_ON(true);
-			return rc;
-		}
-		core->handoff_done = false;
-
-		rc = regulator_disable(rinfo->regulator);
-		if (rc) {
-			d_vpr_e("%s: failed to disable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			return rc;
-		}
-		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
-static int __enable_regulator_iris3(struct msm_vidc_core *core,
-		const char *reg_name)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-	bool found;
-
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(core, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
-			continue;
-		found = true;
-
-		rc = regulator_enable(rinfo->regulator);
-		if (rc) {
-			d_vpr_e("%s: failed to enable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			return rc;
-		}
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: regulator %s not enabled\n",
-				__func__, rinfo->name);
-			regulator_disable(rinfo->regulator);
-			return -EINVAL;
-		}
-		d_vpr_h("%s: enabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
 static int __interrupt_init_iris3(struct msm_vidc_core *vidc_core)
 {
 	struct msm_vidc_core *core = vidc_core;
@@ -465,6 +269,7 @@ static bool is_iris3_hw_power_collapsed(struct msm_vidc_core *core)
 
 static int __power_off_iris3_hardware(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0, i;
 	u32 value = 0;
 	bool pwr_collapsed = false;
@@ -556,12 +361,13 @@ static int __power_off_iris3_hardware(struct msm_vidc_core *core)
 
 disable_power:
 	/* power down process */
-	rc = __disable_regulator_iris3(core, "vcodec");
+	rc = res_ops->gdsc_off(core, "vcodec");
 	if (rc) {
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
 	}
-	rc = __disable_unprepare_clock_iris3(core, "vcodec_clk");
+
+	rc = res_ops->clk_disable(core, "vcodec_clk");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
 		rc = 0;
@@ -572,6 +378,7 @@ disable_power:
 
 static int __power_off_iris3_controller(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	/*
@@ -632,14 +439,14 @@ static int __power_off_iris3_controller(struct msm_vidc_core *core)
 		return rc;
 
 	/* Turn off MVP MVS0C core clock */
-	rc = __disable_unprepare_clock_iris3(core, "core_clk");
+	rc = res_ops->clk_disable(core, "core_clk");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
 		rc = 0;
 	}
 
 	/* power down process */
-	rc = __disable_regulator_iris3(core, "iris-ctl");
+	rc = res_ops->gdsc_off(core, "iris-ctl");
 	if (rc) {
 		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
 		rc = 0;
@@ -650,6 +457,7 @@ static int __power_off_iris3_controller(struct msm_vidc_core *core)
 
 static int __power_off_iris3(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core || !core->capabilities) {
@@ -664,7 +472,7 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 	 * Reset video_cc_mvs0_clk_src value to resolve MMRM high video
 	 * clock projection issue.
 	 */
-	rc = __set_clocks(core, 0);
+	rc = res_ops->set_clks(core, 0);
 	if (rc)
 		d_vpr_e("%s: resetting clocks failed\n", __func__);
 
@@ -674,7 +482,7 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 	if (__power_off_iris3_controller(core))
 		d_vpr_e("%s: failed to power off controller\n", __func__);
 
-	if (__unvote_buses(core))
+	if (res_ops->set_bw(core, 0, 0))
 		d_vpr_e("%s: failed to unvote buses\n", __func__);
 
 	if (!(core->intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS3))
@@ -688,64 +496,69 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 
 static int __power_on_iris3_controller(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
-	rc = __enable_regulator_iris3(core, "iris-ctl");
+	rc = res_ops->gdsc_on(core, "iris-ctl");
 	if (rc)
 		goto fail_regulator;
 
-	rc = call_venus_op(core, reset_ahb2axi_bridge, core);
+	rc = res_ops->reset_bridge(core);
 	if (rc)
 		goto fail_reset_ahb2axi;
 
-	rc = __prepare_enable_clock_iris3(core, "gcc_video_axi0");
+	rc = res_ops->clk_enable(core, "gcc_video_axi0");
 	if (rc)
 		goto fail_clk_axi;
 
-	rc = __prepare_enable_clock_iris3(core, "core_clk");
+	rc = res_ops->clk_enable(core, "core_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	__disable_unprepare_clock_iris3(core, "gcc_video_axi0");
+	res_ops->clk_disable(core, "gcc_video_axi0");
 fail_clk_axi:
 fail_reset_ahb2axi:
-	__disable_regulator_iris3(core, "iris-ctl");
+	res_ops->gdsc_off(core, "iris-ctl");
 fail_regulator:
 	return rc;
 }
 
 static int __power_on_iris3_hardware(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
-	rc = __enable_regulator_iris3(core, "vcodec");
+	rc = res_ops->gdsc_on(core, "vcodec");
 	if (rc)
 		goto fail_regulator;
 
-	rc = __prepare_enable_clock_iris3(core, "vcodec_clk");
+	rc = res_ops->clk_enable(core, "vcodec_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	__disable_regulator_iris3(core, "vcodec");
+	res_ops->gdsc_off(core, "vcodec");
 fail_regulator:
 	return rc;
 }
 
 static int __power_on_iris3(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
+	struct allowed_clock_rates_table *clk_tbl;
+	u32 freq = 0;
 	int rc = 0;
 
 	if (core->power_enabled)
 		return 0;
 
 	/* Vote for all hardware resources */
-	rc = __vote_buses(core, INT_MAX, INT_MAX);
+	rc = res_ops->set_bw(core, INT_MAX, INT_MAX);
 	if (rc) {
 		d_vpr_e("%s: failed to vote buses, rc %d\n", __func__, rc);
 		goto fail_vote_buses;
@@ -765,7 +578,11 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 	/* video controller and hardware powered on successfully */
 	core->power_enabled = true;
 
-	rc = __scale_clocks(core);
+	clk_tbl = core->dt->allowed_clks_tbl;
+	freq = core->power.clk_freq ? core->power.clk_freq :
+				      clk_tbl[0].clock_rate;
+
+	rc = res_ops->set_clks(core, freq);
 	if (rc) {
 		d_vpr_e("%s: failed to scale clocks\n", __func__);
 		rc = 0;
@@ -774,7 +591,7 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 	 * Re-program all of the registers that get reset as a result of
 	 * regulator_disable() and _enable()
 	 */
-	__set_registers(core);
+	res_ops->set_regs(core);
 
 	__interrupt_init_iris3(core);
 	core->intr_status = 0;
@@ -785,7 +602,7 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 fail_power_on_hardware:
 	__power_off_iris3_controller(core);
 fail_power_on_controller:
-	__unvote_buses(core);
+	res_ops->set_bw(core, 0, 0);
 fail_vote_buses:
 	core->power_enabled = false;
 	return rc;
@@ -1263,7 +1080,6 @@ static struct msm_vidc_venus_ops iris3_ops = {
 	.boot_firmware = __boot_firmware_iris3,
 	.raise_interrupt = __raise_interrupt_iris3,
 	.clear_interrupt = __clear_interrupt_iris3,
-	.reset_ahb2axi_bridge = __reset_ahb2axi_bridge,
 	.power_on = __power_on_iris3,
 	.power_off = __power_off_iris3,
 	.prepare_pc = __prepare_pc_iris3,
@@ -1292,6 +1108,7 @@ int msm_vidc_init_iris3(struct msm_vidc_core *core)
 	d_vpr_h("%s()\n", __func__);
 	core->venus_ops = &iris3_ops;
 	core->session_ops = &msm_session_ops;
+	core->res_ops = get_resources_ops();
 
 	return 0;
 }

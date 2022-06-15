@@ -8,8 +8,6 @@
 #include <linux/qcom_scm.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/irqreturn.h>
-#include <linux/reset.h>
-#include <linux/interconnect.h>
 #include <linux/of_address.h>
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
@@ -56,18 +54,6 @@ enum tzbsp_video_state {
 	TZBSP_VIDEO_STATE_RESUME = 1,
 	TZBSP_VIDEO_STATE_RESTORE_THRESHOLD = 2,
 };
-
-enum reset_state {
-	INIT = 1,
-	ASSERT,
-	DEASSERT,
-};
-
-/* Less than 50MBps is treated as trivial BW change */
-#define TRIVIAL_BW_THRESHOLD 50000
-#define TRIVIAL_BW_CHANGE(a, b) \
-	((a) > (b) ? (a) - (b) < TRIVIAL_BW_THRESHOLD : \
-		(b) - (a) < TRIVIAL_BW_THRESHOLD)
 
 /**
  * Utility function to enforce some of our assumptions.  Spam calls to this
@@ -158,7 +144,7 @@ bool __core_in_valid_state(struct msm_vidc_core *core)
 	return core->state != MSM_VIDC_CORE_DEINIT;
 }
 
-bool is_sys_cache_present(struct msm_vidc_core *core)
+static bool is_sys_cache_present(struct msm_vidc_core *core)
 {
 	return core->dt->sys_cache_present;
 }
@@ -365,244 +351,6 @@ static void __cancel_power_collapse_work(struct msm_vidc_core *core)
 	cancel_delayed_work(&core->pm_work);
 }
 
-int __acquire_regulator(struct msm_vidc_core *core,
-	struct regulator_info *rinfo)
-{
-	int rc = 0;
-
-	if (!core || !rinfo) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (rinfo->has_hw_power_collapse) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator\n", __func__);
-			rc = -EINVAL;
-			goto exit;
-		}
-
-		if (regulator_get_mode(rinfo->regulator) ==
-				REGULATOR_MODE_NORMAL) {
-			core->handoff_done = false;
-			d_vpr_h("Skip acquire regulator %s\n", rinfo->name);
-			goto exit;
-		}
-
-		rc = regulator_set_mode(rinfo->regulator,
-				REGULATOR_MODE_NORMAL);
-		if (rc) {
-			/*
-			 * This is somewhat fatal, but nothing we can do
-			 * about it. We can't disable the regulator w/o
-			 * getting it back under s/w control
-			 */
-			d_vpr_e("Failed to acquire regulator control: %s\n",
-				rinfo->name);
-			goto exit;
-		} else {
-			core->handoff_done = false;
-			d_vpr_h("Acquired regulator control from HW: %s\n",
-					rinfo->name);
-
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: Regulator is not enabled %s\n",
-				__func__, rinfo->name);
-			__fatal_error(true);
-		}
-	}
-
-exit:
-	return rc;
-}
-
-static int __acquire_regulators(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-
-	venus_hfi_for_each_regulator(core, rinfo)
-		__acquire_regulator(core, rinfo);
-
-	return rc;
-}
-
-static int __hand_off_regulator(struct msm_vidc_core *core,
-	struct regulator_info *rinfo)
-{
-	int rc = 0;
-
-	if (rinfo->has_hw_power_collapse) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator\n", __func__);
-			return -EINVAL;
-		}
-
-		rc = regulator_set_mode(rinfo->regulator,
-				REGULATOR_MODE_FAST);
-		if (rc) {
-			d_vpr_e("Failed to hand off regulator control: %s\n",
-				rinfo->name);
-			return rc;
-		} else {
-			core->handoff_done = true;
-			d_vpr_h("Hand off regulator control to HW: %s\n",
-					rinfo->name);
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: Regulator is not enabled %s\n",
-				__func__, rinfo->name);
-			__fatal_error(true);
-		}
-	}
-
-	return rc;
-}
-
-static int __hand_off_regulators(struct msm_vidc_core *core)
-{
-	struct regulator_info *rinfo;
-	int rc = 0, c = 0;
-
-	venus_hfi_for_each_regulator(core, rinfo) {
-		rc = __hand_off_regulator(core, rinfo);
-		/*
-		 * If one regulator hand off failed, driver should take
-		 * the control for other regulators back.
-		 */
-		if (rc)
-			goto err_reg_handoff_failed;
-		c++;
-	}
-
-	return rc;
-err_reg_handoff_failed:
-	venus_hfi_for_each_regulator_reverse_continue(core, rinfo, c)
-		__acquire_regulator(core, rinfo);
-
-	return rc;
-}
-
-int __set_registers(struct msm_vidc_core *core)
-{
-	struct reg_set *reg_set;
-	int i, rc = 0;
-
-	if (!core || !core->dt) {
-		d_vpr_e("core resources null, cannot set registers\n");
-		return -EINVAL;
-	}
-
-	reg_set = &core->dt->reg_set;
-	for (i = 0; i < reg_set->count; i++) {
-		rc = __write_register_masked(core, reg_set->reg_tbl[i].reg,
-				reg_set->reg_tbl[i].value,
-				reg_set->reg_tbl[i].mask);
-		if (rc)
-			return rc;
-	}
-
-	return rc;
-}
-
-static int __vote_bandwidth(struct bus_info *bus,
-	unsigned long bw_kbps)
-{
-	int rc = 0;
-
-	if (!bus->path) {
-		d_vpr_e("%s: invalid bus\n", __func__);
-		return -EINVAL;
-	}
-
-	d_vpr_p("Voting bus %s to ab %lu kBps\n", bus->name, bw_kbps);
-	rc = icc_set_bw(bus->path, bw_kbps, 0);
-	if (rc)
-		d_vpr_e("Failed voting bus %s to ab %lu, rc=%d\n",
-				bus->name, bw_kbps, rc);
-
-	return rc;
-}
-
-int __unvote_buses(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct bus_info *bus = NULL;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	core->power.bw_ddr = 0;
-	core->power.bw_llcc = 0;
-
-	venus_hfi_for_each_bus(core, bus) {
-		rc = __vote_bandwidth(bus, 0);
-		if (rc)
-			goto err_unknown_device;
-	}
-
-err_unknown_device:
-	return rc;
-}
-
-int __vote_buses(struct msm_vidc_core *core,
-		unsigned long bw_ddr, unsigned long bw_llcc)
-{
-	int rc = 0;
-	struct bus_info *bus = NULL;
-	unsigned long bw_kbps = 0, bw_prev = 0;
-	enum vidc_bus_type type;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	venus_hfi_for_each_bus(core, bus) {
-		if (bus && bus->path) {
-			type = get_type_frm_name(bus->name);
-
-			if (type == DDR) {
-				bw_kbps = bw_ddr;
-				bw_prev = core->power.bw_ddr;
-			} else if (type == LLCC) {
-				bw_kbps = bw_llcc;
-				bw_prev = core->power.bw_llcc;
-			} else {
-				bw_kbps = bus->range[1];
-				bw_prev = core->power.bw_ddr ?
-						bw_kbps : 0;
-			}
-
-			/* ensure freq is within limits */
-			bw_kbps = clamp_t(typeof(bw_kbps), bw_kbps,
-				bus->range[0], bus->range[1]);
-
-			if (TRIVIAL_BW_CHANGE(bw_kbps, bw_prev) && bw_prev) {
-				d_vpr_l("Skip voting bus %s to %lu kBps\n",
-					bus->name, bw_kbps);
-				continue;
-			}
-
-			rc = __vote_bandwidth(bus, bw_kbps);
-
-			if (type == DDR)
-				core->power.bw_ddr = bw_kbps;
-			else if (type == LLCC)
-				core->power.bw_llcc = bw_kbps;
-		} else {
-			d_vpr_e("No BUS to Vote\n");
-		}
-	}
-
-	return rc;
-}
-
 static int __tzbsp_set_video_state(enum tzbsp_video_state state)
 {
 	int tzbsp_rsp = qcom_scm_set_remote_state(state, 0);
@@ -614,101 +362,6 @@ static int __tzbsp_set_video_state(enum tzbsp_video_state state)
 		return -EINVAL;
 	}
 
-	return 0;
-}
-
-int __set_clk_rate(struct msm_vidc_core *core,
-		struct clock_info *cl, u64 rate)
-{
-	int rc = 0;
-	struct mmrm_client_data client_data;
-	struct mmrm_client *client;
-
-	/* not registered */
-	if (!core || !cl || !core->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (core->capabilities[MMRM].value && !cl->mmrm_client) {
-		d_vpr_e("%s: invalid mmrm client\n", __func__);
-		return -EINVAL;
-	}
-
-	/*
-	 * This conversion is necessary since we are scaling clock values based on
-	 * the branch clock. However, mmrm driver expects source clock to be registered
-	 * and used for scaling.
-	 * TODO: Remove this scaling if using source clock instead of branch clock.
-	 */
-	rate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
-
-	/* bail early if requested clk rate is not changed */
-	if (rate == cl->prev)
-		return 0;
-
-	d_vpr_p("Scaling clock %s to %llu, prev %llu\n", cl->name, rate, cl->prev);
-
-	if (core->capabilities[MMRM].value) {
-		/* set clock rate to mmrm driver */
-		client = cl->mmrm_client;
-		memset(&client_data, 0, sizeof(client_data));
-		client_data.num_hw_blocks = 1;
-		rc = mmrm_client_set_value(client, &client_data, rate);
-		if (rc) {
-			d_vpr_e("%s: Failed to set mmrm clock rate %llu %s: %d\n",
-				__func__, rate, cl->name, rc);
-			return rc;
-		}
-	} else {
-		/* set clock rate to clock driver */
-		rc = clk_set_rate(cl->clk, rate);
-		if (rc) {
-			d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-				__func__, rate, cl->name, rc);
-			return rc;
-		}
-	}
-	cl->prev = rate;
-	return rc;
-}
-
-int __set_clocks(struct msm_vidc_core *core, u32 freq)
-{
-	int rc = 0;
-	struct clock_info *cl;
-
-	venus_hfi_for_each_clock(core, cl) {
-		if (cl->has_scaling) {/* has_scaling */
-			rc = __set_clk_rate(core, cl, freq);
-			if (rc)
-				return rc;
-		}
-	}
-
-	return 0;
-}
-
-int __scale_clocks(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct allowed_clock_rates_table *allowed_clks_tbl;
-	u32 freq = 0;
-
-	if (!core || !core->dt) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	allowed_clks_tbl = core->dt->allowed_clks_tbl;
-	freq = core->power.clk_freq ? core->power.clk_freq :
-		allowed_clks_tbl[0].clock_rate;
-
-	rc = __set_clocks(core, freq);
-	if (rc)
-		return rc;
-
-	core->power.clk_freq = freq;
 	return 0;
 }
 
@@ -1016,467 +669,6 @@ err_create_pkt:
 }
 #endif
 
-
-
-static void __deinit_clocks(struct msm_vidc_core *core)
-{
-	struct clock_info *cl;
-
-	core->power.clk_freq = 0;
-	venus_hfi_for_each_clock_reverse(core, cl) {
-		if (cl->clk) {
-			clk_put(cl->clk);
-			cl->clk = NULL;
-		}
-	}
-}
-
-static int __init_clocks(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct clock_info *cl = NULL;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	venus_hfi_for_each_clock(core, cl) {
-		d_vpr_h("%s: scalable? %d, count %d\n",
-				cl->name, cl->has_scaling, cl->count);
-	}
-
-	venus_hfi_for_each_clock(core, cl) {
-		if (!cl->clk) {
-			cl->clk = clk_get(&core->pdev->dev, cl->name);
-			if (IS_ERR_OR_NULL(cl->clk)) {
-				d_vpr_e("Failed to get clock: %s\n", cl->name);
-				rc = PTR_ERR(cl->clk) ?
-					PTR_ERR(cl->clk) : -EINVAL;
-				cl->clk = NULL;
-				goto err_clk_get;
-			}
-		}
-	}
-	core->power.clk_freq = 0;
-	return 0;
-
-err_clk_get:
-	__deinit_clocks(core);
-	return rc;
-}
-
-static void __deregister_mmrm(struct msm_vidc_core *core)
-{
-	struct clock_info *cl;
-
-	if (!core || !core->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
-	if (!core->capabilities[MMRM].value) {
-		d_vpr_h("%s: MMRM not supported\n", __func__);
-		return;
-	}
-
-	venus_hfi_for_each_clock(core, cl) {
-		if (cl->has_scaling && cl->mmrm_client) {
-			mmrm_client_deregister(cl->mmrm_client);
-			cl->mmrm_client = NULL;
-		}
-	}
-}
-
-static int __register_mmrm(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct clock_info *cl;
-
-	if (!core ||!core->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (!core->capabilities[MMRM].value) {
-		d_vpr_h("%s: MMRM not supported\n", __func__);
-		return 0;
-	}
-
-	venus_hfi_for_each_clock(core, cl) {
-		struct mmrm_client_desc desc;
-		char *name = (char *)desc.client_info.desc.name;
-
-		// TODO: set notifier data vals
-		struct mmrm_client_notifier_data notifier_data = {
-			MMRM_CLIENT_RESOURCE_VALUE_CHANGE,
-			{{0, 0}},
-			NULL};
-
-		// TODO: add callback fn
-		desc.notifier_callback_fn = NULL;
-
-		if (!cl->has_scaling)
-			continue;
-
-		if (IS_ERR_OR_NULL(cl->clk)) {
-			d_vpr_e("%s: Invalid clock: %s\n", __func__, cl->name);
-			rc = PTR_ERR(cl->clk) ? PTR_ERR(cl->clk) : -EINVAL;
-			goto err_register_mmrm;
-		}
-
-		desc.client_type = MMRM_CLIENT_CLOCK;
-		desc.client_info.desc.client_domain = MMRM_CLIENT_DOMAIN_VIDEO;
-		desc.client_info.desc.client_id = cl->clk_id;
-		strlcpy(name, cl->name, sizeof(desc.client_info.desc.name));
-		desc.client_info.desc.clk = cl->clk;
-		desc.priority = MMRM_CLIENT_PRIOR_LOW;
-		desc.pvt_data = notifier_data.pvt_data;
-
-		d_vpr_h("%s: domain(%d) cid(%d) name(%s) clk(%pK)\n",
-			__func__,
-			desc.client_info.desc.client_domain,
-			desc.client_info.desc.client_id,
-			desc.client_info.desc.name,
-			desc.client_info.desc.clk);
-
-		d_vpr_h("%s: type(%d) pri(%d) pvt(%pK) notifier(%pK)\n",
-			__func__,
-			desc.client_type,
-			desc.priority,
-			desc.pvt_data,
-			desc.notifier_callback_fn);
-
-		cl->mmrm_client = mmrm_client_register(&desc);
-		if (!cl->mmrm_client) {
-			d_vpr_e("%s: Failed to register clk(%s): %d\n",
-				__func__, cl->name, rc);
-			rc = -EINVAL;
-			goto err_register_mmrm;
-		}
-	}
-
-	return 0;
-
-err_register_mmrm:
-	__deregister_mmrm(core);
-	return rc;
-}
-
-static int __handle_reset_clk(struct msm_vidc_core *core,
-			int reset_index, enum reset_state state)
-{
-	int rc = 0;
-	struct msm_vidc_dt *dt = core->dt;
-	struct reset_control *rst;
-	struct reset_set *rst_set = &dt->reset_set;
-
-	if (!rst_set->reset_tbl)
-		return 0;
-
-	rst = rst_set->reset_tbl[reset_index].rst;
-	d_vpr_h("reset_clk: name %s reset_state %d rst %pK\n",
-		rst_set->reset_tbl[reset_index].name, state, rst);
-
-	switch (state) {
-	case INIT:
-		if (rst)
-			goto skip_reset_init;
-
-		rst = devm_reset_control_get(&core->pdev->dev,
-				rst_set->reset_tbl[reset_index].name);
-		if (IS_ERR(rst))
-			rc = PTR_ERR(rst);
-
-		rst_set->reset_tbl[reset_index].rst = rst;
-		break;
-	case ASSERT:
-		if (!rst) {
-			rc = PTR_ERR(rst);
-			goto failed_to_reset;
-		}
-
-		rc = reset_control_assert(rst);
-		break;
-	case DEASSERT:
-		if (!rst) {
-			rc = PTR_ERR(rst);
-			goto failed_to_reset;
-		}
-		rc = reset_control_deassert(rst);
-		break;
-	default:
-		d_vpr_e("%s: invalid reset request\n", __func__);
-		if (rc)
-			goto failed_to_reset;
-	}
-
-	return 0;
-
-skip_reset_init:
-failed_to_reset:
-	return rc;
-}
-
-int __reset_ahb2axi_bridge(struct msm_vidc_core *core)
-{
-	int rc, i;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < core->dt->reset_set.count; i++) {
-		rc = __handle_reset_clk(core, i, ASSERT);
-		if (rc) {
-			d_vpr_e("failed to assert reset clocks\n");
-			goto failed_to_reset;
-		}
-
-		/* wait for deassert */
-		usleep_range(1000, 1100);
-	}
-
-	for (i = 0; i < core->dt->reset_set.count; i++) {
-		rc = __handle_reset_clk(core, i, DEASSERT);
-		if (rc) {
-			d_vpr_e("failed to deassert reset clocks\n");
-			goto failed_to_reset;
-		}
-	}
-
-	return 0;
-
-failed_to_reset:
-	return rc;
-}
-
-static void __deinit_bus(struct msm_vidc_core *core)
-{
-	struct bus_info *bus = NULL;
-
-	if (!core)
-		return;
-
-	core->power.bw_ddr = 0;
-	core->power.bw_llcc = 0;
-
-	venus_hfi_for_each_bus_reverse(core, bus) {
-		if (!bus->path)
-			continue;
-		icc_put(bus->path);
-		bus->path = NULL;
-	}
-}
-
-static int __init_bus(struct msm_vidc_core *core)
-{
-	struct bus_info *bus = NULL;
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid param\n", __func__);
-		return -EINVAL;
-	}
-
-	venus_hfi_for_each_bus(core, bus) {
-		if (!strcmp(bus->name, "venus-llcc")) {
-			if (msm_vidc_syscache_disable) {
-				d_vpr_h("Skipping LLC bus init: %s\n",
-					bus->name);
-				continue;
-			}
-		}
-		bus->path = of_icc_get(bus->dev, bus->name);
-		if (IS_ERR_OR_NULL(bus->path)) {
-			rc = PTR_ERR(bus->path) ?
-				PTR_ERR(bus->path) : -EBADHANDLE;
-
-			d_vpr_e("Failed to register bus %s: %d\n",
-					bus->name, rc);
-			bus->path = NULL;
-			goto err_add_dev;
-		}
-	}
-
-	return 0;
-
-err_add_dev:
-	__deinit_bus(core);
-	return rc;
-}
-
-static void __deinit_regulators(struct msm_vidc_core *core)
-{
-	struct regulator_info *rinfo = NULL;
-
-	venus_hfi_for_each_regulator_reverse(core, rinfo) {
-		if (rinfo->regulator) {
-			regulator_put(rinfo->regulator);
-			rinfo->regulator = NULL;
-		}
-	}
-}
-
-static int __init_regulators(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct regulator_info *rinfo = NULL;
-
-	venus_hfi_for_each_regulator(core, rinfo) {
-		rinfo->regulator = regulator_get(&core->pdev->dev,
-				rinfo->name);
-		if (IS_ERR_OR_NULL(rinfo->regulator)) {
-			rc = PTR_ERR(rinfo->regulator) ?
-				PTR_ERR(rinfo->regulator) : -EBADHANDLE;
-			d_vpr_e("Failed to get regulator: %s\n", rinfo->name);
-			rinfo->regulator = NULL;
-			goto err_reg_get;
-		}
-	}
-
-	return 0;
-
-err_reg_get:
-	__deinit_regulators(core);
-	return rc;
-}
-
-static void __deinit_subcaches(struct msm_vidc_core *core)
-{
-	struct subcache_info *sinfo = NULL;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		goto exit;
-	}
-
-	if (!is_sys_cache_present(core))
-		goto exit;
-
-	venus_hfi_for_each_subcache_reverse(core, sinfo) {
-		if (sinfo->subcache) {
-			d_vpr_h("deinit_subcaches: %s\n", sinfo->name);
-			llcc_slice_putd(sinfo->subcache);
-			sinfo->subcache = NULL;
-		}
-	}
-
-exit:
-	return;
-}
-
-static int __init_subcaches(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct subcache_info *sinfo = NULL;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (!is_sys_cache_present(core))
-		return 0;
-
-	venus_hfi_for_each_subcache(core, sinfo) {
-		if (!strcmp("vidsc0", sinfo->name)) {
-			sinfo->subcache = llcc_slice_getd(LLCC_VIDSC0);
-		} else if (!strcmp("vidsc1", sinfo->name)) {
-			sinfo->subcache = llcc_slice_getd(LLCC_VIDSC1);
-		} else if (!strcmp("vidscfw", sinfo->name)) {
-			sinfo->subcache = llcc_slice_getd(LLCC_VIDFW);
-		} else if (!strcmp("vidvsp", sinfo->name)) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,15,0))
-			sinfo->subcache = llcc_slice_getd(LLCC_VIDVSP);
-#endif
-		} else {
-			d_vpr_e("Invalid subcache name %s\n",
-					sinfo->name);
-		}
-		if (IS_ERR_OR_NULL(sinfo->subcache)) {
-			rc = PTR_ERR(sinfo->subcache) ?
-				PTR_ERR(sinfo->subcache) : -EBADHANDLE;
-			d_vpr_e("init_subcaches: invalid subcache: %s rc %d\n",
-				sinfo->name, rc);
-			sinfo->subcache = NULL;
-			goto err_subcache_get;
-		}
-		d_vpr_h("init_subcaches: %s\n", sinfo->name);
-	}
-
-	return 0;
-
-err_subcache_get:
-	__deinit_subcaches(core);
-	return rc;
-}
-
-static int __init_resources(struct msm_vidc_core *core)
-{
-	int i, rc = 0;
-
-	rc = __init_regulators(core);
-	if (rc) {
-		d_vpr_e("Failed to get all regulators\n");
-		return -ENODEV;
-	}
-
-	rc = __init_clocks(core);
-	if (rc) {
-		d_vpr_e("Failed to init clocks\n");
-		rc = -ENODEV;
-		goto err_init_clocks;
-	}
-
-	rc = __register_mmrm(core);
-	if (rc) {
-		d_vpr_e("Failed to register mmrm\n");
-		rc = -ENODEV;
-		goto err_init_mmrm;
-	}
-
-	for (i = 0; i < core->dt->reset_set.count; i++) {
-		rc = __handle_reset_clk(core, i, INIT);
-		if (rc) {
-			d_vpr_e("Failed to init reset clocks\n");
-			rc = -ENODEV;
-			goto err_init_reset_clk;
-		}
-	}
-
-	rc = __init_bus(core);
-	if (rc) {
-		d_vpr_e("Failed to init bus: %d\n", rc);
-		goto err_init_bus;
-	}
-
-	rc = __init_subcaches(core);
-	if (rc)
-		d_vpr_e("Failed to init subcaches: %d\n", rc);
-
-	return rc;
-
-err_init_reset_clk:
-err_init_bus:
-	__deregister_mmrm(core);
-err_init_mmrm:
-	__deinit_clocks(core);
-err_init_clocks:
-	__deinit_regulators(core);
-	return rc;
-}
-
-static void __deinit_resources(struct msm_vidc_core *core)
-{
-	__deinit_subcaches(core);
-	__deinit_bus(core);
-	__deregister_mmrm(core);
-	__deinit_clocks(core);
-	__deinit_regulators(core);
-}
-
 static int __release_subcaches(struct msm_vidc_core *core)
 {
 	int rc = 0;
@@ -1538,66 +730,9 @@ static int __release_subcaches(struct msm_vidc_core *core)
 	return 0;
 }
 
-static int __disable_subcaches(struct msm_vidc_core *core)
-{
-	struct subcache_info *sinfo;
-	int rc = 0;
-
-	if (msm_vidc_syscache_disable || !is_sys_cache_present(core))
-		return 0;
-
-	/* De-activate subcaches */
-	venus_hfi_for_each_subcache_reverse(core, sinfo) {
-		if (sinfo->isactive) {
-			d_vpr_h("De-activate subcache %s\n",
-				sinfo->name);
-			rc = llcc_slice_deactivate(sinfo->subcache);
-			if (rc) {
-				d_vpr_e("Failed to de-activate %s: %d\n",
-					sinfo->name, rc);
-			}
-			sinfo->isactive = false;
-		}
-	}
-
-	return 0;
-}
-
-static int __enable_subcaches(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	u32 c = 0;
-	struct subcache_info *sinfo;
-
-	if (msm_vidc_syscache_disable || !is_sys_cache_present(core))
-		return 0;
-
-	/* Activate subcaches */
-	venus_hfi_for_each_subcache(core, sinfo) {
-		rc = llcc_slice_activate(sinfo->subcache);
-		if (rc) {
-			d_vpr_e("Failed to activate %s: %d\n",
-				sinfo->name, rc);
-			__fatal_error(true);
-			goto err_activate_fail;
-		}
-		sinfo->isactive = true;
-		d_vpr_h("Activated subcache %s\n", sinfo->name);
-		c++;
-	}
-
-	d_vpr_h("Activated %d Subcaches to Venus\n", c);
-
-	return 0;
-
-err_activate_fail:
-	__release_subcaches(core);
-	__disable_subcaches(core);
-	return rc;
-}
-
 static int __set_subcaches(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 	struct subcache_info *sinfo;
 	struct hfi_buffer buf;
@@ -1659,7 +794,7 @@ static int __set_subcaches(struct msm_vidc_core *core)
 	return 0;
 
 err_fail_set_subacaches:
-	__disable_subcaches(core);
+	res_ops->llcc(core, false);
 	return rc;
 }
 
@@ -1722,6 +857,7 @@ static int __venus_power_on(struct msm_vidc_core *core)
 
 static int __suspend(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -1744,7 +880,7 @@ static int __suspend(struct msm_vidc_core *core)
 		goto err_tzbsp_suspend;
 	}
 
-	__disable_subcaches(core);
+	res_ops->llcc(core, false);
 
 	__venus_power_off(core);
 	d_vpr_h("Venus power off\n");
@@ -1756,6 +892,7 @@ err_tzbsp_suspend:
 
 static int __resume(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -1795,7 +932,7 @@ static int __resume(struct msm_vidc_core *core)
 	 * (s/w triggered) to fast (HW triggered) unless the h/w vote is
 	 * present.
 	 */
-	__hand_off_regulators(core);
+	res_ops->gdsc_hw_ctrl(core);
 
 	/* Wait for boot completion */
 	rc = call_venus_op(core, boot_firmware, core);
@@ -1806,7 +943,7 @@ static int __resume(struct msm_vidc_core *core)
 
 	__sys_set_debug(core, (msm_vidc_debug & FW_LOGMASK) >> FW_LOGSHIFT);
 
-	rc = __enable_subcaches(core);
+	rc = res_ops->llcc(core, true);
 	if (rc) {
 		d_vpr_e("Failed to activate subcache\n");
 		goto err_reset_core;
@@ -1816,7 +953,7 @@ static int __resume(struct msm_vidc_core *core)
 	rc = __sys_set_power_control(core, true);
 	if (rc) {
 		d_vpr_e("%s: set power control failed\n", __func__);
-		__acquire_regulators(core);
+		res_ops->gdsc_sw_ctrl(core);
 		rc = 0;
 	}
 
@@ -1939,6 +1076,7 @@ exit:
 
 int __load_fw(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	d_vpr_h("%s\n", __func__);
@@ -1947,9 +1085,9 @@ int __load_fw(struct msm_vidc_core *core)
 	core->cpu_watchdog = false;
 
 	trace_msm_v4l2_vidc_fw_load("START");
-	rc = __init_resources(core);
+	rc = res_ops->get(core);
 	if (rc) {
-		d_vpr_e("%s: Failed to init resources: %d\n", __func__, rc);
+		d_vpr_e("%s: Failed to get resources: %d\n", __func__, rc);
 		goto fail_init_res;
 	}
 
@@ -1983,7 +1121,7 @@ int __load_fw(struct msm_vidc_core *core)
 	* (s/w triggered) to fast (HW triggered) unless the h/w vote is
 	* present.
 	*/
-	__hand_off_regulators(core);
+	res_ops->gdsc_hw_ctrl(core);
 	trace_msm_v4l2_vidc_fw_load("END");
 
 	return rc;
@@ -1994,7 +1132,7 @@ fail_protect_mem:
 fail_load_fw:
 	__venus_power_off(core);
 fail_venus_power_on:
-	__deinit_resources(core);
+	res_ops->put(core);
 fail_init_res:
 	trace_msm_v4l2_vidc_fw_load("END");
 	return rc;
@@ -2002,6 +1140,7 @@ fail_init_res:
 
 void __unload_fw(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core->dt->fw_cookie)
@@ -2015,7 +1154,7 @@ void __unload_fw(struct msm_vidc_core *core)
 	core->dt->fw_cookie = 0;
 
 	__venus_power_off(core);
-	__deinit_resources(core);
+	res_ops->put(core);
 
 	core->cpu_watchdog = false;
 
@@ -2177,6 +1316,7 @@ static int __sys_image_version(struct msm_vidc_core *core)
 
 int venus_hfi_core_init(struct msm_vidc_core *core)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -2201,7 +1341,7 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	if (rc)
 		goto error;
 
-	rc = __enable_subcaches(core);
+	rc = res_ops->llcc(core, true);
 	if (rc)
 		goto error;
 
@@ -2224,7 +1364,7 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	rc = __sys_set_power_control(core, true);
 	if (rc) {
 		d_vpr_e("%s: set power control failed\n", __func__);
-		__acquire_regulators(core);
+		res_ops->gdsc_sw_ctrl(core);
 		rc = 0;
 	}
 
@@ -2238,6 +1378,7 @@ error:
 
 int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 {
+	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -2253,7 +1394,8 @@ int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 		return 0;
 	__resume(core);
 	__flush_debug_queue(core, (!force ? core->packet : NULL), core->packet_size);
-	__disable_subcaches(core);
+	__release_subcaches(core);
+	res_ops->llcc(core, false);
 	__unload_fw(core);
 	/**
 	 * coredump need to be called after firmware unload, coredump also
@@ -3280,6 +2422,7 @@ unlock:
 
 int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 {
+	const struct msm_vidc_resources_ops *res_ops;
 	int rc = 0;
 	struct msm_vidc_core* core;
 
@@ -3288,6 +2431,7 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 		return -EINVAL;
 	}
 	core = inst->core;
+	res_ops = core->res_ops;
 
 	core_lock(core, __func__);
 	rc = __resume(core);
@@ -3295,7 +2439,7 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 		i_vpr_e(inst, "%s: Resume from power collapse failed\n", __func__);
 		goto exit;
 	}
-	rc = __set_clocks(core, freq);
+	rc = res_ops->set_clks(core, freq);
 	if (rc)
 		goto exit;
 
@@ -3307,6 +2451,7 @@ exit:
 
 int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 {
+	const struct msm_vidc_resources_ops *res_ops;
 	int rc = 0;
 	struct msm_vidc_core* core;
 
@@ -3315,6 +2460,7 @@ int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 		return -EINVAL;
 	}
 	core = inst->core;
+	res_ops = core->res_ops;
 
 	core_lock(core, __func__);
 	rc = __resume(core);
@@ -3322,7 +2468,7 @@ int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 		i_vpr_e(inst, "%s: Resume from power collapse failed\n", __func__);
 		goto exit;
 	}
-	rc = __vote_buses(core, bw_ddr, bw_llcc);
+	rc = res_ops->set_bw(core, bw_ddr, bw_llcc);
 	if (rc)
 		goto exit;
 

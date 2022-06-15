@@ -135,7 +135,9 @@ struct clock_info {
 	bool has_scaling;
 	bool has_mem_retention;
 	u64 prev;
+#ifdef CONFIG_MSM_MMRM
 	struct mmrm_client *mmrm_client;
+#endif
 };
 
 struct clock_set {

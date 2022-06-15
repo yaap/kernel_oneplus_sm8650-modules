@@ -10,6 +10,7 @@
 
 #include "msm_vidc_internal.h"
 #include "venus_hfi_queue.h"
+#include "resources.h"
 
 struct msm_vidc_core;
 
@@ -21,7 +22,6 @@ struct msm_vidc_core;
 
 struct msm_vidc_venus_ops {
 	int (*boot_firmware)(struct msm_vidc_core *core);
-	int (*reset_ahb2axi_bridge)(struct msm_vidc_core *core);
 	int (*raise_interrupt)(struct msm_vidc_core *core);
 	int (*clear_interrupt)(struct msm_vidc_core *core);
 	int (*prepare_pc)(struct msm_vidc_core *core);
@@ -108,6 +108,7 @@ struct msm_vidc_core {
 	struct vb2_mem_ops                    *vb2_mem_ops;
 	struct v4l2_m2m_ops                   *v4l2_m2m_ops;
 	struct msm_vidc_venus_ops             *venus_ops;
+	const struct msm_vidc_resources_ops   *res_ops;
 	struct msm_vidc_session_ops           *session_ops;
 	struct msm_vidc_memory_ops            *mem_ops;
 	struct media_device_ops               *media_device_ops;

@@ -80,27 +80,7 @@ int __write_register(struct msm_vidc_core *core,
 int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value);
 int __read_register_with_poll_timeout(struct msm_vidc_core *core,
 	u32 reg, u32 mask, u32 exp_val, u32 sleep_us, u32 timeout_us);
-int __set_clocks(struct msm_vidc_core *core, u32 freq);
-int __scale_clocks(struct msm_vidc_core *core);
-int __set_clk_rate(struct msm_vidc_core *core,
-	struct clock_info *cl, u64 rate);
-int __acquire_regulator(struct msm_vidc_core *core,
-	struct regulator_info *rinfo);
-int __unvote_buses(struct msm_vidc_core *core);
-int __vote_buses(struct msm_vidc_core *core, unsigned long bw_ddr,
-	unsigned long bw_llcc);
 int __prepare_pc(struct msm_vidc_core *core);
-int __set_registers(struct msm_vidc_core *core);
-
-int __reset_ahb2axi_bridge(struct msm_vidc_core *core);
-int __clock_config_on_enable(struct msm_vidc_core *core);
-int __interrupt_init(struct msm_vidc_core *core);
-int __setup_ucregion_memmap(struct msm_vidc_core *core);
-int __raise_interrupt(struct msm_vidc_core *core);
-int __power_on(struct msm_vidc_core *core);
-int __power_off(struct msm_vidc_core *core);
 bool __core_in_valid_state(struct msm_vidc_core *core);
-int __load_fw(struct msm_vidc_core *core);
-void __unload_fw(struct msm_vidc_core *core);
 
 #endif // _VENUS_HFI_H_
