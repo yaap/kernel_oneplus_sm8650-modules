@@ -26,8 +26,7 @@
 #include "venus_hfi_response.h"
 #include "venus_hfi_queue.h"
 #include "msm_vidc_events.h"
-
-#define MAX_FIRMWARE_NAME_SIZE 128
+#include "firmware.h"
 
 #define update_offset(offset, val)		((offset) += (val))
 #define update_timestamp(ts, val) \
@@ -41,19 +40,6 @@ extern struct msm_vidc_core *g_core;
 
 static int __resume(struct msm_vidc_core *core);
 static int __suspend(struct msm_vidc_core *core);
-
-struct tzbsp_memprot {
-	u32 cp_start;
-	u32 cp_size;
-	u32 cp_nonpixel_start;
-	u32 cp_nonpixel_size;
-};
-
-enum tzbsp_video_state {
-	TZBSP_VIDEO_STATE_SUSPEND = 0,
-	TZBSP_VIDEO_STATE_RESUME = 1,
-	TZBSP_VIDEO_STATE_RESTORE_THRESHOLD = 2,
-};
 
 /**
  * Utility function to enforce some of our assumptions.  Spam calls to this
@@ -351,20 +337,6 @@ static void __cancel_power_collapse_work(struct msm_vidc_core *core)
 	cancel_delayed_work(&core->pm_work);
 }
 
-static int __tzbsp_set_video_state(enum tzbsp_video_state state)
-{
-	int tzbsp_rsp = qcom_scm_set_remote_state(state, 0);
-
-	d_vpr_l("Set state %d, resp %d\n", state, tzbsp_rsp);
-	if (tzbsp_rsp) {
-		d_vpr_e("Failed to set video core state to suspend: %d\n",
-			tzbsp_rsp);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static void __flush_debug_queue(struct msm_vidc_core *core,
 	u8 *packet, u32 packet_size)
 {
@@ -571,51 +543,6 @@ skip_power_off:
 	return -EAGAIN;
 }
 
-static int __protect_cp_mem(struct msm_vidc_core *core)
-{
-
-	struct tzbsp_memprot memprot;
-	int rc = 0;
-	struct context_bank_info *cb;
-
-	if (!core)
-		return -EINVAL;
-
-	memprot.cp_start = 0x0;
-	memprot.cp_size = 0x0;
-	memprot.cp_nonpixel_start = 0x0;
-	memprot.cp_nonpixel_size = 0x0;
-
-	list_for_each_entry(cb, &core->dt->context_banks, list) {
-		if (!strcmp(cb->name, "venus_ns")) {
-			memprot.cp_size = cb->addr_range.start;
-
-			d_vpr_h("%s: memprot.cp_size: %#x\n",
-				__func__, memprot.cp_size);
-		}
-
-		if (!strcmp(cb->name, "venus_sec_non_pixel")) {
-			memprot.cp_nonpixel_start = cb->addr_range.start;
-			memprot.cp_nonpixel_size = cb->addr_range.size;
-
-			d_vpr_h("%s: cp_nonpixel_start: %#x size: %#x\n",
-				__func__, memprot.cp_nonpixel_start,
-				memprot.cp_nonpixel_size);
-		}
-	}
-
-	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
-			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
-
-	if (rc)
-		d_vpr_e("Failed to protect memory(%d)\n", rc);
-
-	trace_venus_hfi_var_done(
-		memprot.cp_start, memprot.cp_size,
-		memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
-
-	return rc;
-}
 #if 0 // TODO
 static int __core_set_resource(struct msm_vidc_core *core,
 		struct vidc_resource_hdr *resource_hdr, void *resource_value)
@@ -874,7 +801,7 @@ static int __suspend(struct msm_vidc_core *core)
 
 	d_vpr_h("Entering suspend\n");
 
-	rc = __tzbsp_set_video_state(TZBSP_VIDEO_STATE_SUSPEND);
+	rc = fw_suspend(core);
 	if (rc) {
 		d_vpr_e("Failed to suspend video core %d\n", rc);
 		goto err_tzbsp_suspend;
@@ -920,7 +847,7 @@ static int __resume(struct msm_vidc_core *core)
 	}
 
 	/* Reboot the firmware */
-	rc = __tzbsp_set_video_state(TZBSP_VIDEO_STATE_RESUME);
+	rc = fw_resume(core);
 	if (rc) {
 		d_vpr_e("Failed to resume video core %d\n", rc);
 		goto err_set_video_state;
@@ -964,113 +891,11 @@ exit:
 	//	core->skip_pc_count = 0;
 	return rc;
 err_reset_core:
-	__tzbsp_set_video_state(TZBSP_VIDEO_STATE_SUSPEND);
+	fw_suspend(core);
 err_set_video_state:
 	__venus_power_off(core);
 err_venus_power_on:
 	d_vpr_e("Failed to resume from power collapse\n");
-	return rc;
-}
-
-static int __load_fw_to_memory(struct platform_device *pdev,
-	const char *fw_name)
-{
-	int rc = 0;
-	const struct firmware *firmware = NULL;
-	char firmware_name[MAX_FIRMWARE_NAME_SIZE] = { 0 };
-	struct device_node *node = NULL;
-	struct resource res = { 0 };
-	phys_addr_t phys = 0;
-	size_t res_size = 0;
-	ssize_t fw_size = 0;
-	void *virt = NULL;
-	int pas_id = 0;
-
-	if (!fw_name || !(*fw_name) || !pdev) {
-		d_vpr_e("%s: Invalid inputs\n", __func__);
-		return -EINVAL;
-	}
-	if (strlen(fw_name) >= MAX_FIRMWARE_NAME_SIZE - 4) {
-		d_vpr_e("%s: Invalid fw name\n", __func__);
-		return -EINVAL;
-	}
-	scnprintf(firmware_name, ARRAY_SIZE(firmware_name), "%s.mbn", fw_name);
-
-	rc = of_property_read_u32(pdev->dev.of_node, "pas-id", &pas_id);
-	if (rc) {
-		d_vpr_e("%s: failed to read \"pas-id\". error %d\n",
-			__func__, rc);
-		goto exit;
-	}
-
-	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
-	if (!node) {
-		d_vpr_e("%s: failed to read \"memory-region\"\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	rc = of_address_to_resource(node, 0, &res);
-	if (rc) {
-		d_vpr_e("%s: failed to read \"memory-region\", error %d\n",
-			__func__, rc);
-		goto exit;
-	}
-	phys = res.start;
-	res_size = (size_t)resource_size(&res);
-
-	rc = request_firmware(&firmware, firmware_name, &pdev->dev);
-	if (rc) {
-		d_vpr_e("%s: failed to request fw \"%s\", error %d\n",
-			__func__, firmware_name, rc);
-		goto exit;
-	}
-
-	fw_size = qcom_mdt_get_size(firmware);
-	if (fw_size < 0 || res_size < (size_t)fw_size) {
-		rc = -EINVAL;
-		d_vpr_e("%s: out of bound fw image fw size: %ld, res_size: %lu",
-			__func__, fw_size, res_size);
-		goto exit;
-	}
-
-	virt = memremap(phys, res_size, MEMREMAP_WC);
-	if (!virt) {
-		d_vpr_e("%s: failed to remap fw memory phys %pa[p]\n",
-				__func__, phys);
-		return -ENOMEM;
-	}
-
-	/* prevent system suspend during fw_load */
-	pm_stay_awake(pdev->dev.parent);
-	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name,
-		pas_id, virt, phys, res_size, NULL);
-	pm_relax(pdev->dev.parent);
-	if (rc) {
-		d_vpr_e("%s: error %d loading fw \"%s\"\n",
-			__func__, rc, firmware_name);
-		goto exit;
-	}
-	rc = qcom_scm_pas_auth_and_reset(pas_id);
-	if (rc) {
-		d_vpr_e("%s: error %d authenticating fw \"%s\"\n",
-			__func__, rc, firmware_name);
-		goto exit;
-	}
-
-	memunmap(virt);
-	release_firmware(firmware);
-	d_vpr_h("%s: firmware \"%s\" loaded successfully\n",
-					__func__, firmware_name);
-
-	return pas_id;
-
-exit:
-	if (virt)
-		memunmap(virt);
-	if (firmware)
-		release_firmware(firmware);
-
 	return rc;
 }
 
@@ -1097,23 +922,9 @@ int __load_fw(struct msm_vidc_core *core)
 		goto fail_venus_power_on;
 	}
 
-	if (!core->dt->fw_cookie) {
-		core->dt->fw_cookie = __load_fw_to_memory(core->pdev,
-							core->dt->fw_name);
-		if (core->dt->fw_cookie <= 0) {
-			d_vpr_e("%s: firmware download failed %d\n",
-					__func__, core->dt->fw_cookie);
-			core->dt->fw_cookie = 0;
-			rc = -ENOMEM;
-			goto fail_load_fw;
-		}
-	}
-
-	rc = __protect_cp_mem(core);
-	if (rc) {
-		d_vpr_e("%s: protect memory failed\n", __func__);
-		goto fail_protect_mem;
-	}
+	rc = fw_load(core);
+	if (rc)
+		goto fail_load_fw;
 
 	/*
 	* Hand off control of regulators to h/w _after_ loading fw.
@@ -1125,10 +936,6 @@ int __load_fw(struct msm_vidc_core *core)
 	trace_msm_v4l2_vidc_fw_load("END");
 
 	return rc;
-fail_protect_mem:
-	if (core->dt->fw_cookie)
-		qcom_scm_pas_shutdown(core->dt->fw_cookie);
-	core->dt->fw_cookie = 0;
 fail_load_fw:
 	__venus_power_off(core);
 fail_venus_power_on:
@@ -1147,12 +954,7 @@ void __unload_fw(struct msm_vidc_core *core)
 		return;
 
 	cancel_delayed_work(&core->pm_work);
-	rc = qcom_scm_pas_shutdown(core->dt->fw_cookie);
-	if (rc)
-		d_vpr_e("Firmware unload failed rc=%d\n", rc);
-
-	core->dt->fw_cookie = 0;
-
+	rc = fw_unload(core);
 	__venus_power_off(core);
 	res_ops->put(core);
 

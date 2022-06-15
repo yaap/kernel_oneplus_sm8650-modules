@@ -68,6 +68,7 @@ msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
                   driver/vidc/src/msm_vidc_probe.o \
                   driver/vidc/src/msm_vidc_dt.o \
                   driver/vidc/src/resources.o \
+                  driver/vidc/src/firmware.o \
                   driver/vidc/src/msm_vidc_debug.o \
                   driver/vidc/src/msm_vidc_memory.o \
                   driver/vidc/src/msm_vidc_fence.o \
