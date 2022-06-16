@@ -443,28 +443,6 @@ static int __enable_regulator(struct msm_vidc_core *core, const char *reg_name)
 	return rc;
 }
 
-static int __set_registers(struct msm_vidc_core *core)
-{
-	struct reg_set *reg_set;
-	int i, rc = 0;
-
-	if (!core || !core->dt) {
-		d_vpr_e("core resources null, cannot set registers\n");
-		return -EINVAL;
-	}
-
-	reg_set = &core->dt->reg_set;
-	for (i = 0; i < reg_set->count; i++) {
-		rc = __write_register_masked(core, reg_set->reg_tbl[i].reg,
-					     reg_set->reg_tbl[i].value,
-					     reg_set->reg_tbl[i].mask);
-		if (rc)
-			return rc;
-	}
-
-	return rc;
-}
-
 #ifdef CONFIG_MSM_MMRM
 static void __deregister_mmrm(struct msm_vidc_core *core)
 {
@@ -1139,7 +1117,6 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.set_clks = __set_clocks,
 	.clk_enable = __prepare_enable_clock,
 	.clk_disable = __disable_unprepare_clock,
-	.set_regs = __set_registers,
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void)

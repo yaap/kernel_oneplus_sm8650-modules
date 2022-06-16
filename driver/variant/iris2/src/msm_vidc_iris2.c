@@ -15,6 +15,7 @@
 #include "msm_vidc_buffer.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_control.h"
+#include "msm_vidc_variant.h"
 
 #define VIDEO_ARCH_LX 1
 
@@ -549,7 +550,7 @@ static int __power_on_iris2(struct msm_vidc_core *core)
 	 * Re-program all of the registers that get reset as a result of
 	 * regulator_disable() and _enable()
 	 */
-	res_ops->set_regs(core);
+	__set_registers(core);
 
 	__interrupt_init_iris2(core);
 	core->intr_status = 0;

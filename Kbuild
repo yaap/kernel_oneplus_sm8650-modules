@@ -22,6 +22,7 @@ endif
 
 LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/vidc/inc \
                    -I$(VIDEO_ROOT)/driver/platform/common/inc \
+                   -I$(VIDEO_ROOT)/driver/variant/common/inc \
                    -I$(VIDEO_ROOT)/include/uapi/vidc
 
 USERINCLUDE     += -I$(VIDEO_ROOT)/include/uapi/vidc/media \
@@ -76,4 +77,5 @@ msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
                   driver/vidc/src/venus_hfi_queue.o \
                   driver/vidc/src/hfi_packet.o \
                   driver/vidc/src/venus_hfi_response.o \
-                  driver/platform/common/src/msm_vidc_platform.o
+                  driver/platform/common/src/msm_vidc_platform.o \
+                  driver/variant/common/src/msm_vidc_variant.o

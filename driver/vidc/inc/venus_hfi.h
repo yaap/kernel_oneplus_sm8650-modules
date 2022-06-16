@@ -73,13 +73,6 @@ void venus_hfi_pm_work_handler(struct work_struct *work);
 irqreturn_t venus_hfi_isr(int irq, void *data);
 irqreturn_t venus_hfi_isr_handler(int irq, void *data);
 
-int __write_register_masked(struct msm_vidc_core *core,
-		u32 reg, u32 value, u32 mask);
-int __write_register(struct msm_vidc_core *core,
-		u32 reg, u32 value);
-int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value);
-int __read_register_with_poll_timeout(struct msm_vidc_core *core,
-	u32 reg, u32 mask, u32 exp_val, u32 sleep_us, u32 timeout_us);
 int __prepare_pc(struct msm_vidc_core *core);
 bool __core_in_valid_state(struct msm_vidc_core *core);
 

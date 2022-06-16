@@ -26,8 +26,6 @@ struct msm_vidc_resources_ops {
 
 	int (*clk_disable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_enable)(struct msm_vidc_core *core, const char *name);
-
-	int (*set_regs)(struct msm_vidc_core *core);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);
