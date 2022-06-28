@@ -38,7 +38,7 @@ static void msm_vidc_dma_fence_release(struct dma_fence *df)
 	if (df) {
 		fence = container_of(df, struct msm_vidc_fence, dma_fence);
 		d_vpr_l("%s: name %s\n", __func__, fence->name);
-		kfree(fence);
+		msm_vidc_vmem_free((void **)&fence);
 	} else {
 		d_vpr_e("%s: invalid fence\n", __func__);
 	}
@@ -52,24 +52,21 @@ static const struct dma_fence_ops msm_vidc_dma_fence_ops = {
 
 struct msm_vidc_fence *msm_vidc_fence_create(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_fence *fence;
+	struct msm_vidc_fence *fence = NULL;
+	int rc = 0;
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return NULL;
 	}
 
-	fence = kzalloc(sizeof(*fence), GFP_KERNEL);
-	if (!fence) {
-		i_vpr_e(inst, "%s: failed to allocate memory for fence\n",
-			__func__);
+	rc = msm_vidc_vmem_alloc(sizeof(*fence), (void **)&fence, __func__);
+	if (rc)
 		return NULL;
-	}
 
 	fence->fd = INVALID_FD;
-	spin_lock_init(&fence->lock);
 	dma_fence_init(&fence->dma_fence, &msm_vidc_dma_fence_ops,
-		&fence->lock, inst->fence_context.ctx_num,
+		&inst->fence_context.lock, inst->fence_context.ctx_num,
 		++inst->fence_context.seq_num);
 	snprintf(fence->name, sizeof(fence->name), "%s: %llu",
 		inst->fence_context.name, inst->fence_context.seq_num);
@@ -95,18 +92,6 @@ int msm_vidc_create_fence_fd(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	/*
-	 * Acquire inst->lock for fence fd creation
-	 * to avoid sync_file_create() and sync_file_poll()
-	 * race conditions in e2e playback usecase.
-	 */
-	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	inst_lock(inst, __func__);
-
 	fence->fd = get_unused_fd_flags(0);
 	if (fence->fd < 0) {
 		i_vpr_e(inst, "%s: getting fd (%d) failed\n", __func__,
@@ -125,15 +110,11 @@ int msm_vidc_create_fence_fd(struct msm_vidc_inst *inst,
 	i_vpr_l(inst, "%s: created fd %d for fence %s\n", __func__,
 		fence->fd, fence->name);
 
-	inst_unlock(inst, __func__);
-	put_inst(inst);
 	return 0;
 
 err_sync_file:
 	put_unused_fd(fence->fd);
 err_fd:
-	inst_unlock(inst, __func__);
-	put_inst(inst);
 	return rc;
 }
 
@@ -173,16 +154,16 @@ int msm_vidc_fence_signal(struct msm_vidc_inst *inst, u32 fence_id)
 
 	fence = msm_vidc_get_fence_from_id(inst, fence_id);
 	if (!fence) {
-		i_vpr_e(inst, "%s: no fence available to signal with id: %u",
+		i_vpr_e(inst, "%s: no fence available to signal with id: %u\n",
 			__func__, fence_id);
 		rc = -EINVAL;
 		goto exit;
 	}
 
 	i_vpr_l(inst, "%s: fence %s\n", __func__, fence->name);
+	list_del_init(&fence->list);
 	dma_fence_signal(&fence->dma_fence);
 	dma_fence_put(&fence->dma_fence);
-	list_del_init(&fence->list);
 
 exit:
 	return rc;
@@ -204,10 +185,10 @@ void msm_vidc_fence_destroy(struct msm_vidc_inst *inst, u32 fence_id)
 	}
 
 	i_vpr_e(inst, "%s: fence %s\n", __func__, fence->name);
+	list_del_init(&fence->list);
 	dma_fence_set_error(&fence->dma_fence, -EINVAL);
 	dma_fence_signal(&fence->dma_fence);
 	dma_fence_put(&fence->dma_fence);
-	list_del_init(&fence->list);
 }
 
 int msm_vidc_fence_init(struct msm_vidc_inst *inst)
@@ -220,6 +201,7 @@ int msm_vidc_fence_init(struct msm_vidc_inst *inst)
 	}
 
 	inst->fence_context.ctx_num = dma_fence_context_alloc(1);
+	spin_lock_init(&inst->fence_context.lock);
 	snprintf(inst->fence_context.name, sizeof(inst->fence_context.name),
 		"msm_vidc_fence: %s: %llu", inst->debug_str,
 		inst->fence_context.ctx_num);

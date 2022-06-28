@@ -63,7 +63,10 @@
 #define MAX_SUPPORTED_MIN_QUALITY            70
 #define MIN_CHROMA_QP_OFFSET                -12
 #define MAX_CHROMA_QP_OFFSET                  0
+#define MIN_QP_10BIT                        -11
+#define MIN_QP_8BIT                           1
 #define INVALID_FD                           -1
+#define INVALID_CLIENT_ID                    -1
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -82,7 +85,7 @@
 #define VIDC_IFACEQ_MIN_PKT_SIZE                8
 #define VIDC_IFACEQ_VAR_SMALL_PKT_SIZE          100
 #define VIDC_IFACEQ_VAR_LARGE_PKT_SIZE          512
-#define VIDC_IFACEQ_VAR_HUGE_PKT_SIZE          (1024*12)
+#define VIDC_IFACEQ_VAR_HUGE_PKT_SIZE          (1024*4)
 
 #define NUM_MBS_PER_SEC(__height, __width, __fps) \
 	(NUM_MBS_PER_FRAME(__height, __width) * __fps)
@@ -383,6 +386,8 @@ enum msm_vidc_inst_capability_type {
 	META_EVA_STATS,
 	META_ROI_INFO,
 	META_SALIENCY_INFO,
+	META_TRANSCODING_STAT_INFO,
+	META_DOLBY_RPU,
 	META_CAP_MAX,
 	/* end of metadata caps */
 	FRAME_WIDTH,
@@ -412,6 +417,7 @@ enum msm_vidc_inst_capability_type {
 	MB_CYCLES_LP,
 	MB_CYCLES_FW,
 	MB_CYCLES_FW_VPP,
+	CLIENT_ID,
 	SECURE_MODE,
 	FENCE_ID,
 	FENCE_FD,
@@ -490,6 +496,10 @@ enum msm_vidc_inst_capability_type {
 	INPUT_META_VIA_REQUEST,
 	ENC_IP_CR,
 	COMPLEXITY,
+	CABAC_MAX_BITRATE,
+	CAVLC_MAX_BITRATE,
+	ALLINTRA_MAX_BITRATE,
+	LOWLATENCY_MAX_BITRATE,
 	/* place all root(no parent) enums before this line */
 
 	PROFILE,
@@ -762,6 +772,7 @@ struct msm_vidc_subscription_params {
 struct msm_vidc_hfi_frame_info {
 	u32                    picture_type;
 	u32                    no_output;
+	u32                    subframe_input;
 	u32                    cr;
 	u32                    cf;
 	u32                    data_corrupt;
@@ -827,16 +838,16 @@ struct msm_vidc_power {
 };
 
 struct msm_vidc_fence_context {
-        char name[MAX_NAME_LENGTH];
-        u64 ctx_num;
-        u64 seq_num;
+	char                      name[MAX_NAME_LENGTH];
+	u64                       ctx_num;
+	u64                       seq_num;
+	spinlock_t                lock;
 };
 
 struct msm_vidc_fence {
 	struct list_head            list;
 	struct dma_fence            dma_fence;
 	char                        name[MAX_NAME_LENGTH];
-	spinlock_t                  lock;
 	struct sync_file            *sync_file;
 	int                         fd;
 };
