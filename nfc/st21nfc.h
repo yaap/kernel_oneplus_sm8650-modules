@@ -22,6 +22,7 @@
 #define ST21NFC_USE_ESE _IOW(ST21NFC_MAGIC, 0x09, unsigned int)
 
 #define ST21NFC_CLK_DISABLE_UNPREPARE _IO(ST21NFC_MAGIC, 0x0A)
+#define NFC_SECURE_ZONE _IO(ST21NFC_MAGIC, 0x0B)
 
 // Keep compatibility with older user applications.
 #define ST21NFC_LEGACY_GET_WAKEUP _IOR(ST21NFC_MAGIC, 0x01, unsigned int)

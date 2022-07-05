@@ -55,7 +55,7 @@
 
 #define I2C_ID_NAME "st21nfc"
 
-
+static int secure_zone = 1; /*Initialized with value 1; for boooting the device in secure zone mandatorily*/
 static bool enable_debug_log;
 
 bool clk_pin_voting;
@@ -607,6 +607,53 @@ void st21nfc_unregister_st54spi_cb(void)
 	st21nfc_st54spi_data = NULL;
 }
 
+/**
+ * nfc_dynamic_protection_ioctl() - dynamic protection control
+ * @nfc_dev:    nfc device data structure
+ * @sec_zone_trans:    mode that we want to move to
+ * If sec_zone_trans = 1; transition from non-secure zone to secure zone
+ * If sec_zone_trans = 0; transition from secure zone to non - secure zone
+ *
+ * nfc  periheral  dynamic protection control. Depending on the sec_zone_trans value, device moves to
+ * secure zone and non-secure  zone
+ *
+ * Return: -ENOIOCTLCMD if sec_zone_trans val is not supported, 0 if Success(or no issue)
+ * and error ret code otherwise
+ */
+int nfc_dynamic_protection_ioctl(struct st21nfc_device *st21nfc_dev, unsigned long sec_zone_trans)
+{
+	int ret = 0;
+	static int init_flag=1;
+	struct i2c_client *client = st21nfc_dev->client;
+	struct device *dev = &client->dev;
+
+	if(sec_zone_trans == 1) {
+		pr_debug("%s: value %d\n", __func__, gpiod_get_value(st21nfc_dev->gpiod_reset));
+		gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
+		secure_zone=1;
+		pr_info("Driver Secure flag set successful\n");
+	} else if(sec_zone_trans == 0) {
+		secure_zone=0;
+		if(init_flag) {
+			/*Initialize once,only during the  first non-secure entry*/
+			st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+			if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_reset)) {
+				pr_warn("%s : Unable to request reset-gpios\n", __func__);
+				ret = -ENODEV;
+			} else
+				init_flag=0;
+		}
+		else {
+			if (!gpiod_get_value(st21nfc_dev->gpiod_reset))
+				gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
+		}
+		pr_info("Driver Secure flag clear successful\n");
+	} else {
+		pr_info("INVALID ARG\n");
+		ret = -ENOIOCTLCMD;
+	}
+	return ret;
+}
 static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 			      unsigned long arg)
 {
@@ -633,6 +680,13 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 				 _IOC_SIZE(cmd));
 	if (ret)
 		return -EFAULT;
+
+	if(secure_zone) {
+		if(cmd!=NFC_SECURE_ZONE) {
+			pr_debug("Func nfc_dev_ioctl failed\n");
+			return -1;
+		}
+	}
 
 	switch (cmd) {
 	case ST21NFC_SET_POLARITY_RISING:
@@ -781,6 +835,10 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 			if (ret < 0)
 				pr_err("%s : st21nfc_clock_deselect failed\n", __func__);
 		}
+		break;
+
+	case NFC_SECURE_ZONE:
+		ret = nfc_dynamic_protection_ioctl(st21nfc_dev, arg);
 		break;
 
 	default:
@@ -1019,12 +1077,6 @@ static int st21nfc_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-// QCOM and MTK54 use standard GPIO definition
-	st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
-	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_reset)) {
-		pr_warn("%s : Unable to request reset-gpios\n", __func__);
-		return -ENODEV;
-	}
 
 // QCOM and MTK54 use standard GPIO definition
 	st21nfc_dev->gpiod_pidle = devm_gpiod_get(dev, "pidle", GPIOD_IN);
