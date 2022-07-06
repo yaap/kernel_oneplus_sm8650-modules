@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
 
-KBUILD_OPTIONS+= DISPLAY_ROOT=$(KERNEL_SRC)/$(M)/../
+DISPLAY_SELECT := CONFIG_DRM_MSM=m
+
+KBUILD_OPTIONS += DISPLAY_ROOT=$(KERNEL_SRC)/$(M)/../
+KBUILD_OPTIONS += BOARD_PLATFORM=pineapple
+KBUILD_OPTIONS += $(DISPLAY_SELECT)
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(OUT_DIR)/../sm8650-modules/qcom/opensource/mmrm-driver/Module.symvers
 
 all: modules
 
