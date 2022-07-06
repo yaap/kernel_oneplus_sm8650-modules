@@ -10,11 +10,7 @@ endif
 
 ifeq ($(TARGET_DATARMNET_ENABLE), true)
 	#Build rmnet core
-	DATA_DLKM_BOARD_PLATFORMS_LIST := lahaina
-	DATA_DLKM_BOARD_PLATFORMS_LIST += taro
-	DATA_DLKM_BOARD_PLATFORMS_LIST += sa2150p
-	DATA_DLKM_BOARD_PLATFORMS_LIST += kalama
-	DATA_DLKM_BOARD_PLATFORMS_LIST += bengal
+	DATA_DLKM_BOARD_PLATFORMS_LIST := pineapple
 
 	ifneq ($(TARGET_BOARD_AUTO),true)
 		ifeq ($(call is-board-platform-in-list,$(DATA_DLKM_BOARD_PLATFORMS_LIST)),true)

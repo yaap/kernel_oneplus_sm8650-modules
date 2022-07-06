@@ -15,10 +15,8 @@
 	#endif
 #elif defined(__arch_um__)
 	#define TRACE_INCLUDE_PATH ../../datarmnet/core
-#elif defined(RMNET_TRACE_INCLUDE_LE)
-	#define TRACE_INCLUDE_PATH ../../../../../../../datarmnet/core
 #else
-	#define TRACE_INCLUDE_PATH ../../../../../../../src/datarmnet/core
+	#define TRACE_INCLUDE_PATH ../../../../../../../datarmnet/core
 #endif /* defined(RMNET_LA_PLATFORM) */
 
 #define TRACE_INCLUDE_FILE wda
