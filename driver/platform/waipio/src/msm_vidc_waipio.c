@@ -10,7 +10,7 @@
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_control_ext.h"
 #include "hfi_property.h"
 #include "hfi_command.h"
 

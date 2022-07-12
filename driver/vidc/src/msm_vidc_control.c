@@ -227,7 +227,7 @@ static inline bool is_root(struct msm_vidc_inst_cap *cap)
 	return !has_parents(cap);
 }
 
-static inline bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
+bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
 {
 	return cap_id > INST_CAP_NONE && cap_id < INST_CAP_MAX;
 }
@@ -326,7 +326,7 @@ static int swap_node(struct msm_vidc_inst_cap *rcap,
 	return 0;
 }
 
-static int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
+int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id, u32 payload_type,
 	void *hfi_val, u32 payload_size, const char *func)
 {
@@ -365,7 +365,7 @@ static int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-static enum msm_vidc_inst_capability_type msm_vidc_get_cap_id(
+enum msm_vidc_inst_capability_type msm_vidc_get_cap_id(
 	struct msm_vidc_inst *inst, u32 id)
 {
 	enum msm_vidc_inst_capability_type i = INST_CAP_NONE + 1;
@@ -430,7 +430,7 @@ static int msm_vidc_add_children(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-static bool is_parent_available(struct msm_vidc_inst *inst,
+bool is_parent_available(struct msm_vidc_inst *inst,
 	u32 cap_id, u32 check_parent, const char *func)
 {
 	int i = 0;
@@ -1478,72 +1478,6 @@ int msm_vidc_adjust_mark_ltr(void *instance, struct v4l2_ctrl *ctrl)
 	}
 
 	msm_vidc_update_cap_value(inst, MARK_LTR,
-		adjusted_value, __func__);
-
-	return 0;
-}
-
-int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
-{
-	struct msm_vidc_inst_capability *capability;
-	s32 adjusted_value, all_intra = 0, roi_enable = 0,
-		pix_fmts = MSM_VIDC_FMT_NONE;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	capability = inst->capabilities;
-
-	adjusted_value = ctrl ? ctrl->val : capability->cap[IR_PERIOD].value;
-
-	if (msm_vidc_get_parent_value(inst, IR_PERIOD, ALL_INTRA,
-		&all_intra, __func__) ||
-		msm_vidc_get_parent_value(inst, IR_PERIOD, META_ROI_INFO,
-		&roi_enable, __func__))
-		return -EINVAL;
-
-	if (all_intra) {
-		adjusted_value = 0;
-		i_vpr_h(inst, "%s: intra refresh unsupported, all intra: %d\n",
-			__func__, all_intra);
-		goto exit;
-	}
-
-	if (roi_enable) {
-		i_vpr_h(inst,
-			"%s: intra refresh unsupported with roi metadata\n",
-			__func__);
-		adjusted_value = 0;
-		goto exit;
-	}
-
-	if (inst->codec == MSM_VIDC_HEVC) {
-		if (msm_vidc_get_parent_value(inst, IR_PERIOD,
-			PIX_FMTS, &pix_fmts, __func__))
-			return -EINVAL;
-
-		if (is_10bit_colorformat(pix_fmts)) {
-			i_vpr_h(inst,
-				"%s: intra refresh is supported only for 8 bit\n",
-				__func__);
-			adjusted_value = 0;
-			goto exit;
-		}
-	}
-
-	/*
-	 * BITRATE_MODE dependency is NOT common across all chipsets.
-	 * Hence, do not return error if not specified as one of the parent.
-	 */
-	if (is_parent_available(inst, IR_PERIOD, BITRATE_MODE, __func__) &&
-		inst->hfi_rc_type != HFI_RC_CBR_CFR &&
-		inst->hfi_rc_type != HFI_RC_CBR_VFR)
-		adjusted_value = 0;
-
-exit:
-	msm_vidc_update_cap_value(inst, IR_PERIOD,
 		adjusted_value, __func__);
 
 	return 0;
@@ -2943,52 +2877,6 @@ int msm_vidc_adjust_roi_info(void *instance, struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
-int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
-{
-	struct msm_vidc_inst_capability *capability;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	u32 adjusted_value = 0;
-
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (is_encode_session(inst)) {
-		d_vpr_e("%s: adjust framerate invalid for enc\n", __func__);
-		return -EINVAL;
-	}
-
-	capability = inst->capabilities;
-	adjusted_value = ctrl ? ctrl->val : capability->cap[FRAME_RATE].value;
-	msm_vidc_update_cap_value(inst, FRAME_RATE, adjusted_value, __func__);
-
-	return 0;
-}
-
-int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
-{
-	struct msm_vidc_inst_capability *capability;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	u32 adjusted_value = 0;
-
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (is_encode_session(inst)) {
-		d_vpr_e("%s: adjust operating rate invalid for enc\n", __func__);
-		return -EINVAL;
-	}
-
-	capability = inst->capabilities;
-	adjusted_value = ctrl ? ctrl->val : capability->cap[OPERATING_RATE].value;
-	msm_vidc_update_cap_value(inst, OPERATING_RATE, adjusted_value, __func__);
-
-	return 0;
-}
-
 int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst_capability *capability;
@@ -3015,43 +2903,6 @@ int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 	}
 
 	msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
-		adjusted_value, __func__);
-
-	return 0;
-}
-
-int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
-{
-	struct msm_vidc_inst_capability *capability;
-	s32 adjusted_value;
-	s32 slice_mode = -1;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (is_decode_session(inst))
-		return 0;
-
-	capability = inst->capabilities;
-
-	adjusted_value = ctrl ? ctrl->val : capability->cap[DELIVERY_MODE].value;
-
-	if (msm_vidc_get_parent_value(inst, DELIVERY_MODE, SLICE_MODE,
-		&slice_mode, __func__))
-		return -EINVAL;
-
-	/* Slice encode delivery mode is only supported for Max MB slice mode */
-	if (slice_mode != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB) {
-		if (inst->codec == MSM_VIDC_HEVC)
-			adjusted_value = V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED;
-		else if (inst->codec == MSM_VIDC_H264)
-			adjusted_value = V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED;
-	}
-
-	msm_vidc_update_cap_value(inst, DELIVERY_MODE,
 		adjusted_value, __func__);
 
 	return 0;
@@ -4307,48 +4158,6 @@ int msm_vidc_set_level(void *instance,
 		&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;
-
-	return rc;
-}
-
-int msm_vidc_set_ir_period(void *instance,
-	enum msm_vidc_inst_capability_type cap_id)
-{
-	int rc = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
-	u32 ir_type = 0;
-	struct msm_vidc_core *core;
-
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	core = inst->core;
-
-	if (inst->capabilities->cap[IR_TYPE].value ==
-	    V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM) {
-		if (inst->bufq[OUTPUT_PORT].vb2q->streaming) {
-			i_vpr_h(inst, "%s: dynamic random intra refresh not allowed\n",
-				__func__);
-			return 0;
-		}
-		ir_type = HFI_PROP_IR_RANDOM_PERIOD;
-	} else if (inst->capabilities->cap[IR_TYPE].value ==
-		   V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC) {
-		ir_type = HFI_PROP_IR_CYCLIC_PERIOD;
-	} else {
-		i_vpr_e(inst, "%s: invalid ir_type %d\n",
-			__func__, inst->capabilities->cap[IR_TYPE]);
-		return -EINVAL;
-	}
-
-	rc = venus_hfi_set_ir_period(inst, ir_type, cap_id);
-	if (rc) {
-		i_vpr_e(inst, "%s: failed to set ir period %d\n",
-			__func__, inst->capabilities->cap[IR_PERIOD].value);
-		return rc;
-	}
 
 	return rc;
 }
