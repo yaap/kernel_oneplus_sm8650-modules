@@ -4287,8 +4287,8 @@ int msm_vidc_v4l2_menu_to_hfi(struct msm_vidc_inst *inst,
 {
 	struct msm_vidc_inst_capability *capability = inst->capabilities;
 
-	switch (capability->cap[cap_id].v4l2_id) {
-	case V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE:
+	switch (cap_id) {
+	case ENTROPY_MODE:
 		switch (capability->cap[cap_id].value) {
 		case V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC:
 			*value = 1;
@@ -4301,30 +4301,31 @@ int msm_vidc_v4l2_menu_to_hfi(struct msm_vidc_inst *inst,
 			goto set_default;
 		}
 		return 0;
-	case V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE:
-		switch (capability->cap[cap_id].value) {
-		case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED:
-			*value = 0;
-			break;
-		case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED:
-			*value = 1;
-			break;
-		default:
-			*value = 0;
-			goto set_default;
-		}
-		return 0;
-	case V4L2_CID_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE:
-		switch (capability->cap[cap_id].value) {
-		case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED:
-			*value = 0;
-			break;
-		case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED:
-			*value = 1;
-			break;
-		default:
-			*value = 0;
-			goto set_default;
+	case DELIVERY_MODE:
+		if (inst->codec == MSM_VIDC_H264) {
+			switch (capability->cap[cap_id].value) {
+			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED:
+				*value = 0;
+				break;
+			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED:
+				*value = 1;
+				break;
+			default:
+				*value = 0;
+				goto set_default;
+			}
+		} else if (inst->codec == MSM_VIDC_HEVC) {
+			switch (capability->cap[cap_id].value) {
+			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED:
+				*value = 0;
+				break;
+			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED:
+				*value = 1;
+				break;
+			default:
+				*value = 0;
+				goto set_default;
+			}
 		}
 		return 0;
 	default:
@@ -4347,38 +4348,34 @@ int msm_vidc_v4l2_to_hfi_enum(struct msm_vidc_inst *inst,
 {
 	struct msm_vidc_inst_capability *capability = inst->capabilities;
 
-	switch (capability->cap[cap_id].v4l2_id) {
-	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:
+	switch (cap_id) {
+	case BITRATE_MODE:
 		*value = inst->hfi_rc_type;
 		return 0;
-	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
-	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
-	case V4L2_CID_MPEG_VIDEO_VP9_PROFILE:
-	case V4L2_CID_MPEG_VIDEO_AV1_PROFILE:
-	case V4L2_CID_MPEG_VIDEO_HEVC_LEVEL:
-	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
-	case V4L2_CID_MPEG_VIDEO_VP9_LEVEL:
-	case V4L2_CID_MPEG_VIDEO_AV1_LEVEL:
-	case V4L2_CID_MPEG_VIDEO_HEVC_TIER:
-	case V4L2_CID_MPEG_VIDEO_AV1_TIER:
-	case V4L2_CID_MPEG_VIDC_VIDEO_BLUR_TYPES:
+	case PROFILE:
+	case LEVEL:
+	case HEVC_TIER:
+	case AV1_TIER:
+	case BLUR_TYPES:
 		*value = capability->cap[cap_id].value;
 		return 0;
-	case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_TYPE:
-		switch (capability->cap[cap_id].value) {
-		case V4L2_MPEG_VIDEO_HEVC_HIERARCHICAL_CODING_B:
-			*value = HFI_HIER_B;
-			break;
-		case V4L2_MPEG_VIDEO_HEVC_HIERARCHICAL_CODING_P:
-			//TODO (AS): check if this is right mapping
-			*value = HFI_HIER_P_SLIDING_WINDOW;
-			break;
-		default:
-			*value = HFI_HIER_P_SLIDING_WINDOW;
-			goto set_default;
+	case LAYER_TYPE:
+		if (inst->codec == MSM_VIDC_HEVC) {
+			switch (capability->cap[cap_id].value) {
+			case V4L2_MPEG_VIDEO_HEVC_HIERARCHICAL_CODING_B:
+				*value = HFI_HIER_B;
+				break;
+			case V4L2_MPEG_VIDEO_HEVC_HIERARCHICAL_CODING_P:
+				//TODO (AS): check if this is right mapping
+				*value = HFI_HIER_P_SLIDING_WINDOW;
+				break;
+			default:
+				*value = HFI_HIER_P_SLIDING_WINDOW;
+				goto set_default;
+			}
 		}
 		return 0;
-	case V4L2_CID_ROTATE:
+	case ROTATION:
 		switch (capability->cap[cap_id].value) {
 		case 0:
 			*value = HFI_ROTATION_NONE;
@@ -4397,39 +4394,40 @@ int msm_vidc_v4l2_to_hfi_enum(struct msm_vidc_inst *inst,
 			goto set_default;
 		}
 		return 0;
-	case V4L2_CID_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE:
-		switch (capability->cap[cap_id].value) {
-		case V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_ENABLED:
-			*value = HFI_DEBLOCK_ALL_BOUNDARY;
-			break;
-		case V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_DISABLED:
-			*value = HFI_DEBLOCK_DISABLE;
-			break;
-		case DB_HEVC_DISABLE_SLICE_BOUNDARY:
-			*value = HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY;
-			break;
-		default:
-			*value = HFI_DEBLOCK_ALL_BOUNDARY;
-			goto set_default;
+	case LF_MODE:
+		if (inst->codec == MSM_VIDC_HEVC) {
+			switch (capability->cap[cap_id].value) {
+			case V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_ENABLED:
+				*value = HFI_DEBLOCK_ALL_BOUNDARY;
+				break;
+			case V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_DISABLED:
+				*value = HFI_DEBLOCK_DISABLE;
+				break;
+			case DB_HEVC_DISABLE_SLICE_BOUNDARY:
+				*value = HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY;
+				break;
+			default:
+				*value = HFI_DEBLOCK_ALL_BOUNDARY;
+				goto set_default;
+			}
+		} else if (inst->codec == MSM_VIDC_H264) {
+			switch (capability->cap[cap_id].value) {
+			case V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_ENABLED:
+				*value = HFI_DEBLOCK_ALL_BOUNDARY;
+				break;
+			case V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED:
+				*value = HFI_DEBLOCK_DISABLE;
+				break;
+			case DB_H264_DISABLE_SLICE_BOUNDARY:
+				*value = HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY;
+				break;
+			default:
+				*value = HFI_DEBLOCK_ALL_BOUNDARY;
+				goto set_default;
+			}
 		}
 		return 0;
-	case V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_MODE:
-		switch (capability->cap[cap_id].value) {
-		case V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_ENABLED:
-			*value = HFI_DEBLOCK_ALL_BOUNDARY;
-			break;
-		case V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED:
-			*value = HFI_DEBLOCK_DISABLE;
-			break;
-		case DB_H264_DISABLE_SLICE_BOUNDARY:
-			*value = HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY;
-			break;
-		default:
-			*value = HFI_DEBLOCK_ALL_BOUNDARY;
-			goto set_default;
-		}
-		return 0;
-	case V4L2_CID_MPEG_VIDEO_HEVC_SIZE_OF_LENGTH_FIELD:
+	case NAL_LENGTH_FIELD:
 		switch (capability->cap[cap_id].value) {
 		case V4L2_MPEG_VIDEO_HEVC_SIZE_4:
 			*value = HFI_NAL_LENGTH_SIZE_4;
