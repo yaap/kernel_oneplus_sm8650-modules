@@ -499,7 +499,8 @@ struct msm_vidc_inst *get_inst(struct msm_vidc_core *core,
 		u32 session_id);
 void put_inst(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_s_fmt(struct msm_vidc_inst *inst, u32 type);
-bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst, u32 id);
+bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst,
+	enum msm_vidc_inst_capability_type cap_id);
 bool msm_vidc_allow_metadata_delivery(struct msm_vidc_inst *inst,
 	u32 cap_id, u32 port);
 bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst,

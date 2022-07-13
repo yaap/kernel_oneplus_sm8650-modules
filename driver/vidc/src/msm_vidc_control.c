@@ -1178,15 +1178,15 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	i_vpr_h(inst, FMT_STRING_SET_CTRL,
 		__func__, state_name(inst->state), ctrl->name, ctrl->id, ctrl->val);
 
-	if (!msm_vidc_allow_s_ctrl(inst, ctrl->id)) {
-		rc = -EINVAL;
-		goto unlock;
-	}
-
 	cap_id = msm_vidc_get_cap_id(inst, ctrl->id);
 	if (!is_valid_cap_id(cap_id)) {
 		i_vpr_e(inst, "%s: could not find cap_id for ctrl %s\n",
 			__func__, ctrl->name);
+		rc = -EINVAL;
+		goto unlock;
+	}
+
+	if (!msm_vidc_allow_s_ctrl(inst, cap_id)) {
 		rc = -EINVAL;
 		goto unlock;
 	}

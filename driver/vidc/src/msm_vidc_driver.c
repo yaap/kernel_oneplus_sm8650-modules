@@ -1379,11 +1379,12 @@ exit:
 	return allow;
 }
 
-bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst, u32 id)
+bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst,
+	enum msm_vidc_inst_capability_type cap_id)
 {
 	bool allow = false;
 
-	if (!inst) {
+	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return false;
 	}
@@ -1391,26 +1392,22 @@ bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst, u32 id)
 		allow = true;
 		goto exit;
 	}
+
+	if (!inst->capabilities->cap[cap_id].cap_id ||
+	    !inst->capabilities->cap[cap_id].v4l2_id) {
+		allow = false;
+		goto exit;
+	}
+
 	if (is_decode_session(inst)) {
 		if (!inst->bufq[INPUT_PORT].vb2q->streaming) {
 			allow = true;
 			goto exit;
 		}
 		if (inst->bufq[INPUT_PORT].vb2q->streaming) {
-			switch (id) {
-			case V4L2_CID_MPEG_VIDC_CODEC_CONFIG:
-			case V4L2_CID_MPEG_VIDC_PRIORITY:
-			case V4L2_CID_MPEG_VIDC_LOWLATENCY_REQUEST:
-			case V4L2_CID_MPEG_VIDC_INPUT_METADATA_FD:
-			case V4L2_CID_MPEG_VIDC_FRAME_RATE:
-			case V4L2_CID_MPEG_VIDC_OPERATING_RATE:
-			case V4L2_CID_MPEG_VIDC_SW_FENCE_ID:
+			if (inst->capabilities->cap[cap_id].flags &
+			    CAP_FLAG_DYNAMIC_ALLOWED)
 				allow = true;
-				break;
-			default:
-				allow = false;
-				break;
-			}
 		}
 	} else if (is_encode_session(inst)) {
 		if (!inst->bufq[OUTPUT_PORT].vb2q->streaming) {
@@ -1418,56 +1415,16 @@ bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst, u32 id)
 			goto exit;
 		}
 		if (inst->bufq[OUTPUT_PORT].vb2q->streaming) {
-			switch (id) {
-			case V4L2_CID_MPEG_VIDEO_BITRATE:
-			case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
-			case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
-			case V4L2_CID_HFLIP:
-			case V4L2_CID_VFLIP:
-			case V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_LAYER:
-			case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_LAYER:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L0_BR:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L1_BR:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L2_BR:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L3_BR:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L4_BR:
-			case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_L5_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L0_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L1_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L2_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L3_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L4_BR:
-			case V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L5_BR:
-			case V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES:
-			case V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX:
-			case V4L2_CID_MPEG_VIDC_VIDEO_BLUR_TYPES:
-			case V4L2_CID_MPEG_VIDC_VIDEO_BLUR_RESOLUTION:
-			case V4L2_CID_MPEG_VIDEO_CONSTANT_QUALITY:
-			case V4L2_CID_MPEG_VIDC_ENC_INPUT_COMPRESSION_RATIO:
-			case V4L2_CID_MPEG_VIDEO_BITRATE_PEAK:
-			case V4L2_CID_MPEG_VIDC_PRIORITY:
-			case V4L2_CID_MPEG_VIDC_INPUT_METADATA_FD:
-			case V4L2_CID_MPEG_VIDC_INTRA_REFRESH_PERIOD:
-			case V4L2_CID_MPEG_VIDC_RESERVE_DURATION:
+			if (inst->capabilities->cap[cap_id].flags &
+			    CAP_FLAG_DYNAMIC_ALLOWED)
 				allow = true;
-				break;
-			default:
-				allow = false;
-				break;
-			}
 		}
 	}
 
 exit:
 	if (!allow)
-		i_vpr_e(inst, "%s: id %#x not allowed in state %s\n",
-			__func__, id, state_name(inst->state));
+		i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
+			__func__, cap_id, state_name(inst->state));
 	return allow;
 }
 
