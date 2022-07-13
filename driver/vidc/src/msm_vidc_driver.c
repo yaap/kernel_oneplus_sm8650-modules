@@ -2304,29 +2304,37 @@ exit:
 int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
+	enum msm_vidc_inst_capability_type cap_id;
 
 	if (!inst || !ctrl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	switch (ctrl->id) {
-	case V4L2_CID_MIN_BUFFERS_FOR_CAPTURE:
+	cap_id = msm_vidc_get_cap_id(inst, ctrl->id);
+	if (!is_valid_cap_id(cap_id)) {
+		i_vpr_e(inst, "%s: could not find cap_id for ctrl %s\n",
+		__func__, ctrl->name);
+		return -EINVAL;
+	}
+
+	switch (cap_id) {
+	case MIN_BUFFERS_OUTPUT:
 		ctrl->val = inst->buffers.output.min_count +
 			inst->buffers.output.extra_count;
 		i_vpr_h(inst, "g_min: output buffers %d\n", ctrl->val);
 		break;
-	case V4L2_CID_MIN_BUFFERS_FOR_OUTPUT:
+	case MIN_BUFFERS_INPUT:
 		ctrl->val = inst->buffers.input.min_count +
 			inst->buffers.input.extra_count;
 		i_vpr_h(inst, "g_min: input buffers %d\n", ctrl->val);
 		break;
-	case V4L2_CID_MPEG_VIDC_AV1D_FILM_GRAIN_PRESENT:
+	case FILM_GRAIN:
 		ctrl->val = inst->capabilities->cap[FILM_GRAIN].value;
 		i_vpr_h(inst, "%s: film grain present: %d\n",
 			 __func__, ctrl->val);
 		break;
-	case V4L2_CID_MPEG_VIDC_SW_FENCE_FD:
+	case FENCE_FD:
 		rc = msm_vidc_get_fence_fd(inst, &ctrl->val);
 		if (!rc)
 			i_vpr_l(inst, "%s: fence fd: %d\n",

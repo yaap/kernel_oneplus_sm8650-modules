@@ -945,26 +945,24 @@ error:
 }
 
 static int msm_vidc_update_buffer_count_if_needed(struct msm_vidc_inst* inst,
-	struct v4l2_ctrl *ctrl)
+	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
 	bool update_input_port = false, update_output_port = false;
 
-	if (!inst || !ctrl) {
+	if (!inst) {
 		d_vpr_e("%s: invalid parameters\n", __func__);
 		return -EINVAL;
 	}
 
-	switch (ctrl->id) {
-	case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_TYPE:
-	case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_TYPE:
-	case V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_LAYER:
-	case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING:
-	case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_LAYER:
+	switch (cap_id) {
+	case LAYER_TYPE:
+	case ENH_LAYER_COUNT:
+	case LAYER_ENABLE:
 		update_input_port = true;
 		break;
-	case V4L2_CID_MPEG_VIDC_THUMBNAIL_MODE:
-	case V4L2_CID_MPEG_VIDC_PRIORITY:
+	case THUMBNAIL_MODE:
+	case PRIORITY:
 		update_input_port = true;
 		update_output_port = true;
 		break;
@@ -1077,13 +1075,13 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 	/* update value to db */
 	msm_vidc_update_cap_value(inst, cap_id, ctrl->val, __func__);
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_CLIENT_ID) {
+	if (cap_id == CLIENT_ID) {
 		rc = msm_vidc_update_debug_str(inst);
 		if (rc)
 			return rc;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_SECURE) {
+	if (cap_id == SECURE_MODE) {
 		if (ctrl->val) {
 			rc = msm_vidc_allow_secure_session(inst);
 			if (rc)
@@ -1091,7 +1089,7 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 		}
 	}
 
-	if (ctrl->id == V4L2_CID_ROTATE) {
+	if (cap_id == ROTATION) {
 		struct v4l2_format *output_fmt;
 
 		output_fmt = &inst->fmts[OUTPUT_PORT];
@@ -1100,8 +1098,7 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 			return rc;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE ||
-		ctrl->id == V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE) {
+	if (cap_id == DELIVERY_MODE) {
 		struct v4l2_format *output_fmt;
 
 		output_fmt = &inst->fmts[OUTPUT_PORT];
@@ -1110,23 +1107,23 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 			return rc;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_MIN_BITSTREAM_SIZE_OVERWRITE) {
+	if (cap_id == BITSTREAM_SIZE_OVERWRITE) {
 		rc = msm_vidc_update_bitstream_buffer_size(inst);
 		if (rc)
 			return rc;
 	}
 
 	/* call this explicitly to adjust client priority */
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_PRIORITY) {
+	if (cap_id == PRIORITY) {
 		rc = msm_vidc_adjust_session_priority(inst, ctrl);
 		if (rc)
 			return rc;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_CRITICAL_PRIORITY)
+	if (cap_id == CRITICAL_PRIORITY)
 		msm_vidc_update_cap_value(inst, PRIORITY, 0, __func__);
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_LAYER) {
+	if (cap_id == ENH_LAYER_COUNT && inst->codec == MSM_VIDC_HEVC) {
 		u32 enable;
 
 		/* enable LAYER_ENABLE cap if HEVC_HIER enh layers > 0 */
@@ -1143,7 +1140,7 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 			return rc;
 	}
 
-	rc = msm_vidc_update_buffer_count_if_needed(inst, ctrl);
+	rc = msm_vidc_update_buffer_count_if_needed(inst, cap_id);
 	if (rc)
 		return rc;
 
@@ -1191,7 +1188,7 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 		goto unlock;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDC_INPUT_METADATA_FD) {
+	if (cap_id == INPUT_METADATA_FD) {
 		if (ctrl->val == INVALID_FD || ctrl->val == INT_MAX) {
 			i_vpr_e(inst,
 				"%s: client configured invalid input metadata fd %d\n",
