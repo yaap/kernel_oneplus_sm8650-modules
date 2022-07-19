@@ -69,18 +69,6 @@ static struct msm_platform_core_capability core_data_waipio[] = {
 	{HW_RESPONSE_TIMEOUT, HW_RESPONSE_TIMEOUT_VALUE}, /* 1000 ms */
 	{SW_PC_DELAY,         SW_PC_DELAY_VALUE        }, /* 1500 ms (>HW_RESPONSE_TIMEOUT)*/
 	{FW_UNLOAD_DELAY,     FW_UNLOAD_DELAY_VALUE    }, /* 3000 ms (>SW_PC_DELAY)*/
-	// TODO: review below entries, and if required rename as PREFETCH
-	{PREFIX_BUF_COUNT_PIX, 18},
-	{PREFIX_BUF_SIZE_PIX, 13434880}, /* Calculated by VIDEO_RAW_BUFFER_SIZE for 4096x2160 UBWC */
-	{PREFIX_BUF_COUNT_NON_PIX, 1},
-	{PREFIX_BUF_SIZE_NON_PIX, 209715200}, /*
-		 * Internal buffer size is calculated for secure decode session
-		 * of resolution 4k (4096x2160)
-		 * Internal buf size = calculate_scratch_size() +
-		 *	calculate_scratch1_size() + calculate_persist1_size()
-		 * Take maximum between VP9 10bit, HEVC 10bit, AVC secure
-		 * decoder sessions
-		 */
 	{PAGEFAULT_NON_FATAL, 1},
 	{PAGETABLE_CACHING, 0},
 	{DCVS, 1},

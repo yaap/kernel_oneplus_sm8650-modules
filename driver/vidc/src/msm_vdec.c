@@ -175,13 +175,12 @@ static int msm_vdec_set_linear_stride_scanline(struct msm_vidc_inst *inst)
 	int rc = 0;
 	u32 stride_y, scanline_y, stride_uv, scanline_uv;
 	u32 payload[2];
+	enum msm_vidc_colorformat_type colorformat;
 
-	if (inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat !=
-		V4L2_PIX_FMT_NV12 &&
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat !=
-		V4L2_PIX_FMT_VIDC_P010 &&
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat !=
-		V4L2_PIX_FMT_NV21)
+	colorformat = v4l2_colorformat_to_driver(
+		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
+
+	if (!is_linear_yuv_colorformat(colorformat))
 		return 0;
 
 	stride_y = inst->fmts[OUTPUT_PORT].fmt.pix_mp.width;
@@ -216,27 +215,28 @@ static int msm_vdec_set_ubwc_stride_scanline(struct msm_vidc_inst *inst)
 	u32 meta_stride_y, meta_scanline_y, meta_stride_uv, meta_scanline_uv;
 	u32 payload[4];
 	struct v4l2_format *f;
-	u32 pix_fmt, width, height;
+	u32 pix_fmt, width, height, colorformat;
 
 	f = &inst->fmts[OUTPUT_PORT];
 	pix_fmt = f->fmt.pix_mp.pixelformat;
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 
+	colorformat = v4l2_colorformat_to_driver(pix_fmt, __func__);
+
 	if (inst->codec != MSM_VIDC_AV1 ||
-		(pix_fmt != V4L2_PIX_FMT_VIDC_NV12C &&
-		pix_fmt != V4L2_PIX_FMT_VIDC_TP10C))
+		(!is_ubwc_colorformat(colorformat)))
 		return 0;
 
-	stride_y = VIDEO_Y_STRIDE_BYTES(pix_fmt, width);
-	scanline_y = VIDEO_Y_SCANLINES(pix_fmt, height);
-	stride_uv = VIDEO_UV_STRIDE_BYTES(pix_fmt, width);
-	scanline_uv = VIDEO_UV_SCANLINES(pix_fmt, height);
+	stride_y = video_y_stride_bytes(colorformat, width);
+	scanline_y = video_y_scanlines(colorformat, height);
+	stride_uv = video_uv_stride_bytes(colorformat, width);
+	scanline_uv = video_uv_scanlines(colorformat, height);
 
-	meta_stride_y = VIDEO_Y_META_STRIDE(pix_fmt, width);
-	meta_scanline_y = VIDEO_Y_META_SCANLINES(pix_fmt, height);
-	meta_stride_uv = VIDEO_UV_META_STRIDE(pix_fmt, width);
-	meta_scanline_uv = VIDEO_UV_META_SCANLINES(pix_fmt, height);
+	meta_stride_y = video_y_meta_stride(colorformat, width);
+	meta_scanline_y = video_y_meta_scanlines(colorformat, height);
+	meta_stride_uv = video_uv_meta_stride(colorformat, width);
+	meta_scanline_uv = video_uv_meta_scanlines(colorformat, height);
 
 	payload[0] = stride_y << 16 | scanline_y;
 	payload[1] = stride_uv << 16 | scanline_uv;
@@ -306,17 +306,18 @@ static int msm_vdec_set_bit_depth(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	u32 colorformat;
+	u32 pix_fmt;
 	u32 bitdepth = 8 << 16 | 8;
+	enum msm_vidc_colorformat_type colorformat;
 
 	if (port != INPUT_PORT && port != OUTPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		return -EINVAL;
 	}
 
-	colorformat = inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat;
-	if (colorformat == V4L2_PIX_FMT_VIDC_P010 ||
-	    colorformat == V4L2_PIX_FMT_VIDC_TP10C)
+	pix_fmt = inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat;
+	colorformat = v4l2_colorformat_to_driver(pix_fmt, __func__);
+	if (is_10bit_colorformat(colorformat))
 		bitdepth = 10 << 16 | 10;
 
 	inst->subcr_params[port].bit_depth = bitdepth;
@@ -1232,6 +1233,7 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	u32 full_range = 0;
 	u32 colour_description_present_flag = 0;
 	u32 video_signal_type_present_flag = 0;
+	enum msm_vidc_colorformat_type output_fmt;
 
 	if (!inst || !inst->core || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1248,13 +1250,15 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	inst->fmts[INPUT_PORT].fmt.pix_mp.width = width;
 	inst->fmts[INPUT_PORT].fmt.pix_mp.height = height;
 
-	inst->fmts[OUTPUT_PORT].fmt.pix_mp.width = VIDEO_Y_STRIDE_PIX(
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, width);
-	inst->fmts[OUTPUT_PORT].fmt.pix_mp.height = VIDEO_Y_SCANLINES(
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, height);
+	output_fmt = v4l2_colorformat_to_driver(
+		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
+
+	inst->fmts[OUTPUT_PORT].fmt.pix_mp.width = video_y_stride_pix(
+		output_fmt, width);
+	inst->fmts[OUTPUT_PORT].fmt.pix_mp.height = video_y_scanlines(
+		output_fmt, height);
 	inst->fmts[OUTPUT_PORT].fmt.pix_mp.plane_fmt[0].bytesperline =
-		VIDEO_Y_STRIDE_BYTES(
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, width);
+		video_y_stride_bytes(output_fmt, width);
 	inst->fmts[OUTPUT_PORT].fmt.pix_mp.plane_fmt[0].sizeimage =
 		call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_OUTPUT);
 	//inst->buffers.output.size = inst->fmts[OUTPUT_PORT].fmt.pix_mp.plane_fmt[0].sizeimage;
@@ -2304,7 +2308,8 @@ int msm_vdec_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	int rc = 0;
 	struct msm_vidc_core *core;
 	struct v4l2_format *fmt, *output_fmt;
-	u32 codec_align, pix_fmt;
+	u32 codec_align;
+	enum msm_vidc_colorformat_type colorformat;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2404,16 +2409,16 @@ int msm_vdec_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 			f->fmt.pix_mp.width = inst->fmts[INPUT_PORT].fmt.pix_mp.width;
 		}
 		fmt->fmt.pix_mp.pixelformat = f->fmt.pix_mp.pixelformat;
-		fmt->fmt.pix_mp.width = VIDEO_Y_STRIDE_PIX(
-			fmt->fmt.pix_mp.pixelformat, f->fmt.pix_mp.width);
-		fmt->fmt.pix_mp.height = VIDEO_Y_SCANLINES(
-			fmt->fmt.pix_mp.pixelformat,
-			f->fmt.pix_mp.height);
+		colorformat = v4l2_colorformat_to_driver(fmt->fmt.pix_mp.pixelformat,
+			__func__);
+		fmt->fmt.pix_mp.width = video_y_stride_pix(
+			colorformat, f->fmt.pix_mp.width);
+		fmt->fmt.pix_mp.height = video_y_scanlines(
+			colorformat, f->fmt.pix_mp.height);
 		fmt->fmt.pix_mp.num_planes = 1;
 		fmt->fmt.pix_mp.plane_fmt[0].bytesperline =
-			VIDEO_Y_STRIDE_BYTES(
-			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat,
-			f->fmt.pix_mp.width);
+			video_y_stride_bytes(
+			colorformat, f->fmt.pix_mp.width);
 		fmt->fmt.pix_mp.plane_fmt[0].sizeimage = call_session_op(core,
 			buffer_size, inst, MSM_VIDC_BUF_OUTPUT);
 
@@ -2431,8 +2436,7 @@ int msm_vdec_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 		}
 		inst->buffers.output.size =
 			fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
-		pix_fmt = v4l2_colorformat_to_driver(f->fmt.pix_mp.pixelformat, __func__);
-		msm_vidc_update_cap_value(inst, PIX_FMTS, pix_fmt, __func__);
+		msm_vidc_update_cap_value(inst, PIX_FMTS, colorformat, __func__);
 
 		/* update crop while input port is not streaming */
 		if (!inst->bufq[INPUT_PORT].vb2q->streaming) {
@@ -2677,6 +2681,7 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 	struct v4l2_format *f;
+	enum msm_vidc_colorformat_type colorformat;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2727,15 +2732,13 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 	f = &inst->fmts[OUTPUT_PORT];
 	f->type = OUTPUT_MPLANE;
 	f->fmt.pix_mp.pixelformat = V4L2_PIX_FMT_VIDC_NV12C;
-	f->fmt.pix_mp.width = VIDEO_Y_STRIDE_PIX(f->fmt.pix_mp.pixelformat,
-		DEFAULT_WIDTH);
-	f->fmt.pix_mp.height = VIDEO_Y_SCANLINES(f->fmt.pix_mp.pixelformat,
-		DEFAULT_HEIGHT);
+	colorformat = v4l2_colorformat_to_driver(
+		f->fmt.pix_mp.pixelformat, __func__);
+	f->fmt.pix_mp.width = video_y_stride_pix(colorformat, DEFAULT_WIDTH);
+	f->fmt.pix_mp.height = video_y_scanlines(colorformat, DEFAULT_HEIGHT);
 	f->fmt.pix_mp.num_planes = 1;
 	f->fmt.pix_mp.plane_fmt[0].bytesperline =
-		VIDEO_Y_STRIDE_BYTES(
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat,
-		DEFAULT_WIDTH);
+		video_y_stride_bytes(colorformat, DEFAULT_WIDTH);
 	f->fmt.pix_mp.plane_fmt[0].sizeimage = call_session_op(core,
 		buffer_size, inst, MSM_VIDC_BUF_OUTPUT);
 	f->fmt.pix_mp.field = V4L2_FIELD_NONE;

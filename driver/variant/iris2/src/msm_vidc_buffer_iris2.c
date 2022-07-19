@@ -221,23 +221,27 @@ static u32 msm_vidc_decoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 	height = f->fmt.pix_mp.height;
 
 	if (color_fmt == MSM_VIDC_FMT_NV12) {
-		v4l2_fmt = V4L2_PIX_FMT_VIDC_NV12C;
+		color_fmt = MSM_VIDC_FMT_NV12C;
 		HFI_NV12_UBWC_IL_CALC_BUF_SIZE_V2(size, width, height,
-			VIDEO_Y_STRIDE_BYTES(v4l2_fmt, width), VIDEO_Y_SCANLINES(v4l2_fmt, height),
-			VIDEO_UV_STRIDE_BYTES(v4l2_fmt, width), VIDEO_UV_SCANLINES(v4l2_fmt, height),
-			VIDEO_Y_META_STRIDE(v4l2_fmt, width), VIDEO_Y_META_SCANLINES(v4l2_fmt,
-				height),
-			VIDEO_UV_META_STRIDE(v4l2_fmt, width), VIDEO_UV_META_SCANLINES(v4l2_fmt,
-				height));
+			video_y_stride_bytes(color_fmt, width),
+			video_y_scanlines(color_fmt, height),
+			video_uv_stride_bytes(color_fmt, width),
+			video_uv_scanlines(color_fmt, height),
+			video_y_meta_stride(color_fmt, width),
+			video_y_meta_scanlines(color_fmt, height),
+			video_uv_meta_stride(color_fmt, width),
+			video_uv_meta_scanlines(color_fmt, height));
 	} else if (color_fmt == MSM_VIDC_FMT_P010) {
-		v4l2_fmt = V4L2_PIX_FMT_VIDC_TP10C;
+		color_fmt = MSM_VIDC_FMT_TP10C;
 		HFI_YUV420_TP10_UBWC_CALC_BUF_SIZE(size,
-			VIDEO_Y_STRIDE_BYTES(v4l2_fmt, width), VIDEO_Y_SCANLINES(v4l2_fmt, height),
-			VIDEO_UV_STRIDE_BYTES(v4l2_fmt, width), VIDEO_UV_SCANLINES(v4l2_fmt, height),
-			VIDEO_Y_META_STRIDE(v4l2_fmt, width), VIDEO_Y_META_SCANLINES(v4l2_fmt,
-				height),
-			VIDEO_UV_META_STRIDE(v4l2_fmt, width), VIDEO_UV_META_SCANLINES(v4l2_fmt,
-				height));
+			video_y_stride_bytes(color_fmt, width),
+			video_y_scanlines(color_fmt, height),
+			video_uv_stride_bytes(color_fmt, width),
+			video_uv_scanlines(color_fmt, height),
+			video_y_meta_stride(color_fmt, width),
+			video_y_meta_scanlines(color_fmt, height),
+			video_uv_meta_stride(color_fmt, width),
+			video_uv_meta_scanlines(color_fmt, height));
 	}
 
 	i_vpr_l(inst, "%s: size %d\n", __func__, size);
