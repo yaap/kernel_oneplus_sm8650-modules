@@ -1,8 +1,7 @@
 ifneq ($(TARGET_BOARD_AUTO),true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
-RMNET_PERF_DLKM_PLATFORMS_LIST := taro
-RMNET_PERF_DLKM_PLATFORMS_LIST += kalama
+RMNET_PERF_DLKM_PLATFORMS_LIST := pineapple
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_PERF_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)

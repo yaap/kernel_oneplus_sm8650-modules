@@ -1,7 +1,5 @@
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
-RMNET_SHS_DLKM_PLATFORMS_LIST := lahaina
-RMNET_SHS_DLKM_PLATFORMS_LIST += taro
-RMNET_SHS_DLKM_PLATFORMS_LIST += kalama
+RMNET_SHS_DLKM_PLATFORMS_LIST := pineapple
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_SHS_DLKM_PLATFORMS_LIST)),true)
 #Make file to create RMNET_SHS DLKM
