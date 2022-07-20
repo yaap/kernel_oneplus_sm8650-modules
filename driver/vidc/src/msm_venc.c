@@ -1082,6 +1082,7 @@ int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	struct msm_vidc_core *core;
 	u32 codec_align;
 	u32 width, height;
+	enum msm_vidc_codec_type codec;
 
 	if (!inst || !inst->core || !f) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1098,8 +1099,10 @@ int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	}
 	fmt->type = OUTPUT_MPLANE;
 
-	codec_align = (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEIC) ? 32 : 16;
+	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
+
+	codec_align = (codec == MSM_VIDC_HEVC ||
+		codec == MSM_VIDC_HEIC) ? 32 : 16;
 	/* use rotated width height if rotation is enabled */
 	width = inst->compose.width;
 	height = inst->compose.height;

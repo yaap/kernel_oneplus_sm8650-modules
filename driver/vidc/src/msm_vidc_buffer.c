@@ -210,6 +210,7 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	u32 base_res_mbs = NUM_MBS_4k;
 	struct v4l2_format *f;
 	u32 bitstream_size_overwrite = 0;
+	enum msm_vidc_codec_type codec;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -233,13 +234,14 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	 * 4k mbs for VP8/VP9 and 4k / 2 for remaining codecs.
 	 */
 	f = &inst->fmts[INPUT_PORT];
+	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
 	num_mbs = msm_vidc_get_mbs_per_frame(inst);
 	if (num_mbs > NUM_MBS_4k) {
 		div_factor = 4;
 		base_res_mbs = inst->capabilities->cap[MBPF].value;
 	} else {
 		base_res_mbs = NUM_MBS_4k;
-		if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_VP9)
+		if (codec == MSM_VIDC_VP9)
 			div_factor = 1;
 		else
 			div_factor = 2;
@@ -257,10 +259,8 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	frame_size = base_res_mbs * MB_SIZE_IN_PIXEL * 3 / 2 / div_factor;
 
 	 /* multiply by 10/8 (1.25) to get size for 10 bit case */
-	if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_VP9 ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_AV1 ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEIC)
+	if (codec == MSM_VIDC_VP9 || codec == MSM_VIDC_AV1 ||
+		codec == MSM_VIDC_HEVC || codec == MSM_VIDC_HEIC)
 		frame_size = frame_size + (frame_size >> 2);
 
 	i_vpr_h(inst, "set input buffer size to %d\n", frame_size);
@@ -363,6 +363,7 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 	u32 mbs_per_frame;
 	u32 width, height;
 	struct v4l2_format *f;
+	enum msm_vidc_codec_type codec;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -370,6 +371,7 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 	}
 
 	f = &inst->fmts[OUTPUT_PORT];
+	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
 	/*
 	 * Encoder output size calculation: 32 Align width/height
 	 * For heic session : YUVsize * 2
@@ -405,8 +407,7 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 
 skip_calc:
 	/* multiply by 10/8 (1.25) to get size for 10 bit case */
-	if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEIC)
+	if (codec == MSM_VIDC_HEVC || codec == MSM_VIDC_HEIC)
 		frame_size = frame_size + (frame_size >> 2);
 
 	frame_size = ALIGN(frame_size, SZ_4K);

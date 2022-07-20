@@ -557,6 +557,7 @@ static u32 msm_vidc_encoder_output_size_iris3(struct msm_vidc_inst *inst)
 	bool is_ten_bit = false;
 	int bitrate_mode, frame_rc;
 	u32 hfi_rc_type = HFI_RC_VBR_CFR;
+	enum msm_vidc_codec_type codec;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -564,8 +565,8 @@ static u32 msm_vidc_encoder_output_size_iris3(struct msm_vidc_inst *inst)
 	}
 
 	f = &inst->fmts[OUTPUT_PORT];
-	if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEIC)
+	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
+	if (codec == MSM_VIDC_HEVC || codec == MSM_VIDC_HEIC)
 		is_ten_bit = true;
 
 	bitrate_mode = inst->capabilities->cap[BITRATE_MODE].value;
