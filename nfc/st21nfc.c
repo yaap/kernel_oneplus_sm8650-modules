@@ -40,6 +40,18 @@
 #include <linux/of_irq.h>
 #include "st21nfc.h"
 
+/*secure library headers*/
+#include "smcinvoke.h"
+#include "smcinvoke_object.h"
+#include "IClientEnv.h"
+
+//NFC ID for registration with secure libraries
+#define HW_STATE_UID 0x108
+#define HW_OP_GET_STATE 1
+#define HW_NFC_UID 0x506
+#define FEATURE_NOT_SUPPORTED 12
+#define PERIPHERAL_NOT_FOUND 10
+
 
 #define MAX_BUFFER_SIZE 260
 #define HEADER_LENGTH 3
@@ -53,9 +65,12 @@
 #define PROP_PWR_MON_RW_ON_NTF nci_opcode_pack(NCI_GID_PROPRIETARY, 5)
 #define PROP_PWR_MON_RW_OFF_NTF nci_opcode_pack(NCI_GID_PROPRIETARY, 6)
 
+#define gpiod_set_value_t(x,y) if(!st21nfc_dev->secure_zone)\
+									gpiod_set_value(x,y)
+
 #define I2C_ID_NAME "st21nfc"
 
-static int secure_zone = 1; /*Initialized with value 1; for boooting the device in secure zone mandatorily*/
+static bool init_flag;
 static bool enable_debug_log;
 
 bool clk_pin_voting;
@@ -149,6 +164,9 @@ struct st21nfc_device {
 	struct gpio_desc *gpiod_pidle;
 	/* irq_gpio polarity to be used */
 	unsigned int polarity_mode;
+
+	/*secure zone state*/
+	bool secure_zone;
 };
 
 /*
@@ -623,17 +641,16 @@ void st21nfc_unregister_st54spi_cb(void)
 int nfc_dynamic_protection_ioctl(struct st21nfc_device *st21nfc_dev, unsigned long sec_zone_trans)
 {
 	int ret = 0;
-	static int init_flag=1;
 	struct i2c_client *client = st21nfc_dev->client;
 	struct device *dev = &client->dev;
 
 	if(sec_zone_trans == 1) {
 		pr_debug("%s: value %d\n", __func__, gpiod_get_value(st21nfc_dev->gpiod_reset));
 		gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
-		secure_zone=1;
+		st21nfc_dev->secure_zone = true;
 		pr_info("Driver Secure flag set successful\n");
 	} else if(sec_zone_trans == 0) {
-		secure_zone=0;
+		st21nfc_dev->secure_zone = false;
 		if(init_flag) {
 			/*Initialize once,only during the  first non-secure entry*/
 			st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
@@ -641,7 +658,7 @@ int nfc_dynamic_protection_ioctl(struct st21nfc_device *st21nfc_dev, unsigned lo
 				pr_warn("%s : Unable to request reset-gpios\n", __func__);
 				ret = -ENODEV;
 			} else
-				init_flag=0;
+				init_flag = false;
 		}
 		else {
 			if (!gpiod_get_value(st21nfc_dev->gpiod_reset))
@@ -654,6 +671,72 @@ int nfc_dynamic_protection_ioctl(struct st21nfc_device *st21nfc_dev, unsigned lo
 	}
 	return ret;
 }
+
+/**
+ * nfc_hw_secure_check() - Checks the NFC secure zone status
+ *
+ * Queries the TZ secure libraries if NFC is in secure zone statue or not.
+ *
+ * Return: 0 if FEATURE_NOT_SUPPORTED/PERIPHERAL_NOT_FOUND/state is 2 and
+ * return 1(non-secure) otherwise
+ */
+bool nfc_hw_secure_check(void)
+{
+	struct Object client_env;
+	struct Object app_object;
+	u32 wifi_uid = HW_NFC_UID;
+	union ObjectArg obj_arg[2] = {{{0, 0}}};
+	int ret;
+	bool retstat = 1;
+	u8 state = 0;
+
+	/* get rootObj */
+	ret = get_client_env_object(&client_env);
+	if (ret) {
+		pr_err("Failed to get client_env_object, ret: %d\n", ret);
+		return 1;
+	}
+
+	ret = IClientEnv_open(client_env, HW_STATE_UID, &app_object);
+	if (ret) {
+		pr_debug("Failed to get app_object, ret: %d\n",  ret);
+		if (ret == FEATURE_NOT_SUPPORTED) {
+			retstat = 0; /* Do not Assert */
+			pr_debug("Secure HW feature not supported\n");
+		}
+		goto exit_release_clientenv;
+	}
+
+	obj_arg[0].b = (struct ObjectBuf) {&wifi_uid, sizeof(u32)};
+	obj_arg[1].b = (struct ObjectBuf) {&state, sizeof(u8)};
+	ret = Object_invoke(app_object, HW_OP_GET_STATE, obj_arg,
+				ObjectCounts_pack(1, 1, 0, 0));
+
+	pr_info("SMC invoke ret: %d state: %d\n", ret, state);
+	if (ret) {
+		if (ret == PERIPHERAL_NOT_FOUND) {
+			retstat = 0; /* Do not Assert */
+			pr_debug("Secure HW mode is not updated. Peripheral not found\n");
+		}
+		goto exit_release_app_obj;
+	}
+
+	if (state == 1) {
+		/*Secure Zone*/
+		retstat = 1;
+	} else {
+		/*Non-Secure Zone*/
+		retstat = 0;
+	}
+
+exit_release_app_obj:
+	Object_release(app_object);
+exit_release_clientenv:
+	Object_release(client_env);
+
+	return  retstat;
+}
+
 static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 			      unsigned long arg)
 {
@@ -681,7 +764,7 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 	if (ret)
 		return -EFAULT;
 
-	if(secure_zone) {
+	if(st21nfc_dev->secure_zone) {
 		if(cmd!=NFC_SECURE_ZONE) {
 			pr_debug("Func nfc_dev_ioctl failed\n");
 			return -1;
@@ -715,14 +798,14 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 						      st21nfc_st54spi_data);
 
 			/* pulse low for 20 millisecs */
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 0);
 			msleep(20);
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 1);
 			usleep_range(10000, 11000);
 			/* pulse low for 20 millisecs */
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 0);
 			msleep(20);
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 1);
 			pr_info("%s done Double Pulse Request\n", __func__);
 			if (st21nfc_st54spi_cb != 0)
 				(*st21nfc_st54spi_cb)(ST54SPI_CB_RESET_END,
@@ -765,7 +848,7 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 				st21nfc_dev->irq_is_attached = false;
 			}
 			/* pulse low for 20 millisecs */
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 0);
 			usleep_range(10000, 11000);
 			/* During the reset, force IRQ OUT as */
 			/* DH output instead of input in normal usage */
@@ -780,7 +863,7 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 
 			gpiod_set_value(st21nfc_dev->gpiod_irq, 1);
 			usleep_range(10000, 11000);
-			gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
+			gpiod_set_value_t(st21nfc_dev->gpiod_reset, 1);
 
 			pr_info("%s done Pulse Request\n", __func__);
 		}
@@ -1029,7 +1112,7 @@ static struct attribute_group st21nfc_attr_grp = {
 	.attrs = st21nfc_attrs,
 };
 
-// QCOM and MTK54 use standard GPIO definition
+// QTI and MTK54 use standard GPIO definition
 static const struct acpi_gpio_params irq_gpios = { 0, 0, false };
 static const struct acpi_gpio_params reset_gpios = { 1, 0, false };
 static const struct acpi_gpio_params pidle_gpios = { 2, 0, false };
@@ -1064,21 +1147,37 @@ static int st21nfc_probe(struct i2c_client *client,
 	st21nfc_dev->r_state_current = ST21NFC_HEADER;
 	client->adapter->retries = 0;
 
-// QCOM and MTK54 use standard GPIO definition
+// QTI and MTK54 use standard GPIO definition
 	ret = acpi_dev_add_driver_gpios(ACPI_COMPANION(dev),
 					acpi_st21nfc_gpios);
 	if (ret)
 		pr_debug("Unable to add GPIO mapping table\n");
 
-// QCOM and MTK54 use standard GPIO definition
+// QTI and MTK54 use standard GPIO definition
 	st21nfc_dev->gpiod_irq = devm_gpiod_get(dev, "irq", GPIOD_IN);
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_irq)) {
 		pr_err("%s : Unable to request irq-gpios\n", __func__);
 		return -ENODEV;
 	}
 
+	/*Check NFC Secure Zone status*/
+	if(!nfc_hw_secure_check()) {
+		// QTI and MTK54 use standard GPIO definition
+		st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+		if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_reset)) {
+			pr_warn("%s : Unable to request reset-gpios\n", __func__);
+			return -ENODEV;
+		}
+		st21nfc_dev->secure_zone = false;
+		init_flag = false;
+	} else {
+		st21nfc_dev->secure_zone = true;
+		init_flag = true;
+	}
 
-// QCOM and MTK54 use standard GPIO definition
+	pr_info("%s:st21nfc_dev->secure_zone = %s", __func__, st21nfc_dev->secure_zone ? "true" : "false");
+
+// QTI and MTK54 use standard GPIO definition
 	st21nfc_dev->gpiod_pidle = devm_gpiod_get(dev, "pidle", GPIOD_IN);
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_pidle)) {
 		pr_warn("[OPTIONAL] %s: Unable to request pidle-gpio\n",
