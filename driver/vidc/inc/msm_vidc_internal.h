@@ -164,6 +164,7 @@ enum msm_vidc_colorformat_type {
 	MSM_VIDC_FMT_P010          = BIT(4),
 	MSM_VIDC_FMT_RGBA8888C     = BIT(5),
 	MSM_VIDC_FMT_RGBA8888      = BIT(6),
+	MSM_VIDC_FMT_META          = BIT(31),
 };
 
 enum msm_vidc_buffer_type {

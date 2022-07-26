@@ -41,6 +41,33 @@ extern u32 vpe_csc_custom_matrix_coeff[MAX_MATRIX_COEFFS];
 extern u32 vpe_csc_custom_bias_coeff[MAX_BIAS_COEFFS];
 extern u32 vpe_csc_custom_limit_coeff[MAX_LIMIT_COEFFS];
 
+struct codec_info {
+	u32 v4l2_codec;
+	enum msm_vidc_codec_type vidc_codec;
+	const char *pixfmt_name;
+};
+
+struct color_format_info {
+	u32 v4l2_color_format;
+	enum msm_vidc_colorformat_type vidc_color_format;
+	const char *pixfmt_name;
+};
+
+struct color_primaries_info {
+	u32 v4l2_color_primaries;
+	enum msm_vidc_color_primaries vidc_color_primaries;
+};
+
+struct transfer_char_info {
+	u32 v4l2_transfer_char;
+	enum msm_vidc_transfer_characteristics vidc_transfer_char;
+};
+
+struct matrix_coeff_info {
+	u32 v4l2_matrix_coeff;
+	enum msm_vidc_matrix_coefficients vidc_matrix_coeff;
+};
+
 struct msm_platform_core_capability {
 	enum msm_vidc_core_capability_type type;
 	u32 value;
@@ -95,6 +122,19 @@ struct msm_vidc_ubwc_config_data {
 	u32 bank_spreading;
 };
 
+struct msm_vidc_format_capability {
+	struct codec_info *codec_info;
+	u32 codec_info_size;
+	struct color_format_info *color_format_info;
+	u32 color_format_info_size;
+	struct color_primaries_info *color_prim_info;
+	u32 color_prim_info_size;
+	struct transfer_char_info *transfer_char_info;
+	u32 transfer_char_info_size;
+	struct matrix_coeff_info *matrix_coeff_info;
+	u32 matrix_coeff_info_size;
+};
+
 struct msm_vidc_platform_data {
 	struct msm_platform_core_capability *core_data;
 	u32 core_data_size;
@@ -107,6 +147,7 @@ struct msm_vidc_platform_data {
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
+	struct msm_vidc_format_capability *format_data;
 };
 
 struct msm_vidc_platform {

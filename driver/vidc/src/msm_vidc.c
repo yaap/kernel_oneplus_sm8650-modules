@@ -287,7 +287,7 @@ int msm_vidc_g_fmt(void *instance, struct v4l2_format *f)
 	if (f->type == INPUT_MPLANE || f->type == OUTPUT_MPLANE)
 		i_vpr_h(inst, "%s: type %s format %s width %d height %d size %d\n",
 			__func__, v4l2_type_name(f->type),
-			v4l2_pixelfmt_name(f->fmt.pix_mp.pixelformat),
+			v4l2_pixelfmt_name(inst, f->fmt.pix_mp.pixelformat),
 			f->fmt.pix_mp.width, f->fmt.pix_mp.height,
 			f->fmt.pix_mp.plane_fmt[0].sizeimage);
 	else if (f->type == INPUT_META_PLANE || f->type == OUTPUT_META_PLANE)
@@ -684,6 +684,7 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 	struct msm_vidc_inst_capability *capability;
 	enum msm_vidc_colorformat_type colorfmt;
 	enum msm_vidc_codec_type codec;
+	u32 meta_fmt;
 
 	if (!inst || !fsize) {
 		d_vpr_e("%s: invalid params: %pK %pK\n",
@@ -700,11 +701,13 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 	if (fsize->index)
 		return -EINVAL;
 
-	if (fsize->pixel_format != V4L2_META_FMT_VIDC) {
+	meta_fmt = v4l2_colorformat_from_driver(inst, MSM_VIDC_FMT_META, __func__);
+	if (fsize->pixel_format != meta_fmt) {
 		/* validate pixel format */
-		codec = v4l2_codec_to_driver(fsize->pixel_format, __func__);
+		codec = v4l2_codec_to_driver(inst, fsize->pixel_format, __func__);
 		if (!codec) {
-			colorfmt = v4l2_colorformat_to_driver(fsize->pixel_format, __func__);
+			colorfmt = v4l2_colorformat_to_driver(inst, fsize->pixel_format,
+				__func__);
 			if (colorfmt == MSM_VIDC_FMT_NONE) {
 				i_vpr_e(inst, "%s: unsupported pix fmt %#x\n",
 					__func__, fsize->pixel_format);
@@ -734,6 +737,7 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 	struct msm_vidc_inst_capability *capability;
 	enum msm_vidc_colorformat_type colorfmt;
 	u32 fps, mbpf;
+	u32 meta_fmt;
 
 	if (!inst || !fival) {
 		d_vpr_e("%s: invalid params: %pK %pK\n",
@@ -758,9 +762,10 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 	if (fival->index)
 		return -EINVAL;
 
-	if (fival->pixel_format != V4L2_META_FMT_VIDC) {
+	meta_fmt = v4l2_colorformat_from_driver(inst, MSM_VIDC_FMT_META, __func__);
+	if (fival->pixel_format != meta_fmt) {
 		/* validate pixel format */
-		colorfmt = v4l2_colorformat_to_driver(fival->pixel_format, __func__);
+		colorfmt = v4l2_colorformat_to_driver(inst, fival->pixel_format, __func__);
 		if (colorfmt == MSM_VIDC_FMT_NONE) {
 			i_vpr_e(inst, "%s: unsupported pix fmt %#x\n",
 				__func__, fival->pixel_format);

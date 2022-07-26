@@ -398,27 +398,40 @@ const char *v4l2_type_name(u32 port)
 	return "UNKNOWN";
 }
 
-const char *v4l2_pixelfmt_name(u32 pixfmt)
+const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixfmt)
 {
-	switch (pixfmt) {
-	/* raw port: color format */
-	case V4L2_PIX_FMT_NV12:         return "NV12";
-	case V4L2_PIX_FMT_NV21:         return "NV21";
-	case V4L2_PIX_FMT_VIDC_NV12C:   return "NV12C";
-	case V4L2_PIX_FMT_VIDC_P010:    return "P010";
-	case V4L2_PIX_FMT_VIDC_TP10C:   return "TP10C";
-	case V4L2_PIX_FMT_RGBA32:       return "RGBA";
-	case V4L2_PIX_FMT_VIDC_ARGB32C: return "RGBAC";
-	/* bitstream port: codec type */
-	case V4L2_PIX_FMT_H264:         return "AVC";
-	case V4L2_PIX_FMT_HEVC:         return "HEVC";
-	case V4L2_PIX_FMT_HEIC:         return "HEIC";
-	case V4L2_PIX_FMT_VP9:          return "VP9";
-	case V4L2_PIX_FMT_AV1:          return "AV1";
-	/* meta port */
-	case V4L2_META_FMT_VIDC:        return "META";
+	struct msm_vidc_core *core;
+	const struct codec_info *codec_info;
+	const struct color_format_info *color_format_info;
+	u32 i, size;
+
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		goto exit;
 	}
 
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		goto exit;
+	}
+	codec_info = core->platform->data.format_data->codec_info;
+	size = core->platform->data.format_data->codec_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (codec_info[i].v4l2_codec == pixfmt)
+			return codec_info[i].pixfmt_name;
+	}
+
+	color_format_info = core->platform->data.format_data->color_format_info;
+	size = core->platform->data.format_data->color_format_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (color_format_info[i].v4l2_color_format == pixfmt)
+			return color_format_info[i].pixfmt_name;
+	}
+
+exit:
 	return "UNKNOWN";
 }
 
@@ -546,174 +559,156 @@ u32 v4l2_type_from_driver(enum msm_vidc_buffer_type buffer_type,
 	return type;
 }
 
-enum msm_vidc_codec_type v4l2_codec_to_driver(u32 v4l2_codec, const char *func)
+enum msm_vidc_codec_type v4l2_codec_to_driver(struct msm_vidc_inst *inst,
+	u32 v4l2_codec, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct codec_info *codec_info;
+	u32 i, size;
 	enum msm_vidc_codec_type codec = 0;
 
-	switch (v4l2_codec) {
-	case V4L2_PIX_FMT_H264:
-		codec = MSM_VIDC_H264;
-		break;
-	case V4L2_PIX_FMT_HEVC:
-		codec = MSM_VIDC_HEVC;
-		break;
-	case V4L2_PIX_FMT_VP9:
-		codec = MSM_VIDC_VP9;
-		break;
-	case V4L2_PIX_FMT_AV1:
-		codec = MSM_VIDC_AV1;
-		break;
-	case V4L2_PIX_FMT_HEIC:
-		codec = MSM_VIDC_HEIC;
-		break;
-	default:
-		d_vpr_h("%s: invalid v4l2 codec %#x\n", func, v4l2_codec);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	codec_info = core->platform->data.format_data->codec_info;
+	size = core->platform->data.format_data->codec_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (codec_info[i].v4l2_codec == v4l2_codec)
+			return codec_info[i].vidc_codec;
+	}
+
+	d_vpr_h("%s: invalid v4l2 codec %#x\n", func, v4l2_codec);
 	return codec;
 }
 
-u32 v4l2_codec_from_driver(enum msm_vidc_codec_type codec, const char *func)
+u32 v4l2_codec_from_driver(struct msm_vidc_inst *inst,
+	enum msm_vidc_codec_type codec, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct codec_info *codec_info;
+	u32 i, size;
 	u32 v4l2_codec = 0;
 
-	switch (codec) {
-	case MSM_VIDC_H264:
-		v4l2_codec = V4L2_PIX_FMT_H264;
-		break;
-	case MSM_VIDC_HEVC:
-		v4l2_codec = V4L2_PIX_FMT_HEVC;
-		break;
-	case MSM_VIDC_VP9:
-		v4l2_codec = V4L2_PIX_FMT_VP9;
-		break;
-	case MSM_VIDC_AV1:
-		v4l2_codec = V4L2_PIX_FMT_AV1;
-		break;
-	case MSM_VIDC_HEIC:
-		v4l2_codec = V4L2_PIX_FMT_HEIC;
-		break;
-	default:
-		d_vpr_e("%s: invalid driver codec %#x\n", func, codec);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	codec_info = core->platform->data.format_data->codec_info;
+	size = core->platform->data.format_data->codec_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (codec_info[i].vidc_codec == codec)
+			return codec_info[i].v4l2_codec;
+	}
+
+	d_vpr_e("%s: invalid driver codec %#x\n", func, codec);
 	return v4l2_codec;
 }
 
-enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(u32 v4l2_colorformat,
-	const char *func)
+enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(
+	struct msm_vidc_inst *inst,
+	u32 v4l2_colorformat, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct color_format_info *color_format_info;
+	u32 i, size;
 	enum msm_vidc_colorformat_type colorformat = 0;
 
-	switch (v4l2_colorformat) {
-	case V4L2_PIX_FMT_NV12:
-		colorformat = MSM_VIDC_FMT_NV12;
-		break;
-	case V4L2_PIX_FMT_NV21:
-		colorformat = MSM_VIDC_FMT_NV21;
-		break;
-	case V4L2_PIX_FMT_VIDC_NV12C:
-		colorformat = MSM_VIDC_FMT_NV12C;
-		break;
-	case V4L2_PIX_FMT_VIDC_TP10C:
-		colorformat = MSM_VIDC_FMT_TP10C;
-		break;
-	case V4L2_PIX_FMT_RGBA32:
-		colorformat = MSM_VIDC_FMT_RGBA8888;
-		break;
-	case V4L2_PIX_FMT_VIDC_ARGB32C:
-		colorformat = MSM_VIDC_FMT_RGBA8888C;
-		break;
-	case V4L2_PIX_FMT_VIDC_P010:
-		colorformat = MSM_VIDC_FMT_P010;
-		break;
-	default:
-		d_vpr_e("%s: invalid v4l2 color format %#x\n",
-			func, v4l2_colorformat);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	color_format_info = core->platform->data.format_data->color_format_info;
+	size = core->platform->data.format_data->color_format_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (color_format_info[i].v4l2_color_format == v4l2_colorformat)
+			return color_format_info[i].vidc_color_format;
+	}
+
+	d_vpr_e("%s: invalid v4l2 color format %#x\n", func, v4l2_colorformat);
 	return colorformat;
 }
 
-u32 v4l2_colorformat_from_driver(enum msm_vidc_colorformat_type colorformat,
+u32 v4l2_colorformat_from_driver(struct msm_vidc_inst *inst,
+	enum msm_vidc_colorformat_type colorformat,
 	const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct color_format_info *color_format_info;
+	u32 i, size;
 	u32 v4l2_colorformat = 0;
 
-	switch (colorformat) {
-	case MSM_VIDC_FMT_NV12:
-		v4l2_colorformat = V4L2_PIX_FMT_NV12;
-		break;
-	case MSM_VIDC_FMT_NV21:
-		v4l2_colorformat = V4L2_PIX_FMT_NV21;
-		break;
-	case MSM_VIDC_FMT_NV12C:
-		v4l2_colorformat = V4L2_PIX_FMT_VIDC_NV12C;
-		break;
-	case MSM_VIDC_FMT_TP10C:
-		v4l2_colorformat = V4L2_PIX_FMT_VIDC_TP10C;
-		break;
-	case MSM_VIDC_FMT_RGBA8888:
-		v4l2_colorformat = V4L2_PIX_FMT_RGBA32;
-		break;
-	case MSM_VIDC_FMT_RGBA8888C:
-		v4l2_colorformat = V4L2_PIX_FMT_VIDC_ARGB32C;
-		break;
-	case MSM_VIDC_FMT_P010:
-		v4l2_colorformat = V4L2_PIX_FMT_VIDC_P010;
-		break;
-	default:
-		d_vpr_e("%s: invalid driver color format %#x\n",
-			func, colorformat);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	color_format_info = core->platform->data.format_data->color_format_info;
+	size = core->platform->data.format_data->color_format_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (color_format_info[i].vidc_color_format == colorformat)
+			return color_format_info[i].v4l2_color_format;
+	}
+
+	d_vpr_e("%s: invalid driver color format %#x\n", func, colorformat);
 	return v4l2_colorformat;
 }
 
 u32 v4l2_color_primaries_to_driver(struct msm_vidc_inst *inst,
 	u32 v4l2_primaries, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct color_primaries_info *color_prim_info;
+	u32 i, size;
 	u32 vidc_color_primaries = MSM_VIDC_PRIMARIES_RESERVED;
 
-	switch(v4l2_primaries) {
-	case V4L2_COLORSPACE_DEFAULT:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_RESERVED;
-		break;
-	case V4L2_COLORSPACE_REC709:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_BT709;
-		break;
-	case V4L2_COLORSPACE_470_SYSTEM_M:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_BT470_SYSTEM_M;
-		break;
-	case V4L2_COLORSPACE_470_SYSTEM_BG:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_BT470_SYSTEM_BG;
-		break;
-	case V4L2_COLORSPACE_SMPTE170M:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_BT601_525;
-		break;
-	case V4L2_COLORSPACE_SMPTE240M:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_SMPTE_ST240M;
-		break;
-	case V4L2_COLORSPACE_VIDC_GENERIC_FILM:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_GENERIC_FILM;
-		break;
-	case V4L2_COLORSPACE_BT2020:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_BT2020;
-		break;
-	case V4L2_COLORSPACE_DCI_P3:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_SMPTE_RP431_2;
-		break;
-	case V4L2_COLORSPACE_VIDC_EG431:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_SMPTE_EG431_1;
-		break;
-	case V4L2_COLORSPACE_VIDC_EBU_TECH:
-		vidc_color_primaries = MSM_VIDC_PRIMARIES_SMPTE_EBU_TECH;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid v4l2 color primaries %d\n",
-			func, v4l2_primaries);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	color_prim_info = core->platform->data.format_data->color_prim_info;
+	size = core->platform->data.format_data->color_prim_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (color_prim_info[i].v4l2_color_primaries == v4l2_primaries)
+			return color_prim_info[i].vidc_color_primaries;
+	}
+
+	i_vpr_e(inst, "%s: invalid v4l2 color primaries %d\n",
+		func, v4l2_primaries);
 
 	return vidc_color_primaries;
 }
@@ -721,47 +716,31 @@ u32 v4l2_color_primaries_to_driver(struct msm_vidc_inst *inst,
 u32 v4l2_color_primaries_from_driver(struct msm_vidc_inst *inst,
 	u32 vidc_color_primaries, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct color_primaries_info *color_prim_info;
+	u32 i, size;
 	u32 v4l2_primaries = V4L2_COLORSPACE_DEFAULT;
 
-	switch(vidc_color_primaries) {
-	case MSM_VIDC_PRIMARIES_UNSPECIFIED:
-		v4l2_primaries = V4L2_COLORSPACE_DEFAULT;
-		break;
-	case MSM_VIDC_PRIMARIES_BT709:
-		v4l2_primaries = V4L2_COLORSPACE_REC709;
-		break;
-	case MSM_VIDC_PRIMARIES_BT470_SYSTEM_M:
-		v4l2_primaries = V4L2_COLORSPACE_470_SYSTEM_M;
-		break;
-	case MSM_VIDC_PRIMARIES_BT470_SYSTEM_BG:
-		v4l2_primaries = V4L2_COLORSPACE_470_SYSTEM_BG;
-		break;
-	case MSM_VIDC_PRIMARIES_BT601_525:
-		v4l2_primaries = V4L2_COLORSPACE_SMPTE170M;
-		break;
-	case MSM_VIDC_PRIMARIES_SMPTE_ST240M:
-		v4l2_primaries = V4L2_COLORSPACE_SMPTE240M;
-		break;
-	case MSM_VIDC_PRIMARIES_GENERIC_FILM:
-		v4l2_primaries = V4L2_COLORSPACE_VIDC_GENERIC_FILM;
-		break;
-	case MSM_VIDC_PRIMARIES_BT2020:
-		v4l2_primaries = V4L2_COLORSPACE_BT2020;
-		break;
-	case MSM_VIDC_PRIMARIES_SMPTE_RP431_2:
-		v4l2_primaries = V4L2_COLORSPACE_DCI_P3;
-		break;
-	case MSM_VIDC_PRIMARIES_SMPTE_EG431_1:
-		v4l2_primaries = V4L2_COLORSPACE_VIDC_EG431;
-		break;
-	case MSM_VIDC_PRIMARIES_SMPTE_EBU_TECH:
-		v4l2_primaries = V4L2_COLORSPACE_VIDC_EBU_TECH;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid hfi color primaries %d\n",
-			func, vidc_color_primaries);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	color_prim_info = core->platform->data.format_data->color_prim_info;
+	size = core->platform->data.format_data->color_prim_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (color_prim_info[i].vidc_color_primaries == vidc_color_primaries)
+			return color_prim_info[i].v4l2_color_primaries;
+	}
+
+	i_vpr_e(inst, "%s: invalid hfi color primaries %d\n",
+		func, vidc_color_primaries);
 
 	return v4l2_primaries;
 }
@@ -769,56 +748,31 @@ u32 v4l2_color_primaries_from_driver(struct msm_vidc_inst *inst,
 u32 v4l2_transfer_char_to_driver(struct msm_vidc_inst *inst,
 	u32 v4l2_transfer_char, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct transfer_char_info *transfer_char_info;
+	u32 i, size;
 	u32 vidc_transfer_char = MSM_VIDC_TRANSFER_RESERVED;
 
-	switch(v4l2_transfer_char) {
-	case V4L2_XFER_FUNC_DEFAULT:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_RESERVED;
-		break;
-	case V4L2_XFER_FUNC_709:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT709;
-		break;
-	case V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT470_SYSTEM_M;
-		break;
-	case V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT470_SYSTEM_BG;
-		break;
-	case V4L2_XFER_FUNC_VIDC_BT601_525_OR_625:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT601_525_OR_625;
-		break;
-	case V4L2_XFER_FUNC_SMPTE240M:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_SMPTE_ST240M;
-		break;
-	case V4L2_XFER_FUNC_VIDC_LINEAR:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_LINEAR;
-		break;
-	case V4L2_XFER_FUNC_VIDC_XVYCC:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_XVYCC;
-		break;
-	case V4L2_XFER_FUNC_VIDC_BT1361:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT1361_0;
-		break;
-	case V4L2_XFER_FUNC_SRGB:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_SRGB_SYCC;
-		break;
-	case V4L2_XFER_FUNC_VIDC_BT2020:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT2020_14;
-		break;
-	case V4L2_XFER_FUNC_SMPTE2084:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_SMPTE_ST2084_PQ;
-		break;
-	case V4L2_XFER_FUNC_VIDC_ST428:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_SMPTE_ST428_1;
-		break;
-	case V4L2_XFER_FUNC_VIDC_HLG:
-		vidc_transfer_char = MSM_VIDC_TRANSFER_BT2100_2_HLG;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid v4l2 transfer char %d\n",
-			func, v4l2_transfer_char);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	transfer_char_info = core->platform->data.format_data->transfer_char_info;
+	size = core->platform->data.format_data->transfer_char_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (transfer_char_info[i].v4l2_transfer_char == v4l2_transfer_char)
+			return transfer_char_info[i].vidc_transfer_char;
+	}
+
+	i_vpr_e(inst, "%s: invalid v4l2 transfer char %d\n",
+		func, v4l2_transfer_char);
 
 	return vidc_transfer_char;
 }
@@ -826,57 +780,31 @@ u32 v4l2_transfer_char_to_driver(struct msm_vidc_inst *inst,
 u32 v4l2_transfer_char_from_driver(struct msm_vidc_inst *inst,
 	u32 vidc_transfer_char, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct transfer_char_info *transfer_char_info;
+	u32 i, size;
 	u32  v4l2_transfer_char = V4L2_XFER_FUNC_DEFAULT;
 
-	switch(vidc_transfer_char) {
-	case MSM_VIDC_TRANSFER_UNSPECIFIED:
-		v4l2_transfer_char = V4L2_XFER_FUNC_DEFAULT;
-		break;
-	case MSM_VIDC_TRANSFER_BT709:
-		v4l2_transfer_char = V4L2_XFER_FUNC_709;
-		break;
-	case MSM_VIDC_TRANSFER_BT470_SYSTEM_M:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M;
-		break;
-	case MSM_VIDC_TRANSFER_BT470_SYSTEM_BG:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG;
-		break;
-	case MSM_VIDC_TRANSFER_BT601_525_OR_625:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_BT601_525_OR_625;
-		break;
-	case MSM_VIDC_TRANSFER_SMPTE_ST240M:
-		v4l2_transfer_char = V4L2_XFER_FUNC_SMPTE240M;
-		break;
-	case MSM_VIDC_TRANSFER_LINEAR:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_LINEAR;
-		break;
-	case MSM_VIDC_TRANSFER_XVYCC:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_XVYCC;
-		break;
-	case MSM_VIDC_TRANSFER_BT1361_0:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_BT1361;
-		break;
-	case MSM_VIDC_TRANSFER_SRGB_SYCC:
-		v4l2_transfer_char = V4L2_XFER_FUNC_SRGB;
-		break;
-	case MSM_VIDC_TRANSFER_BT2020_14:
-	case MSM_VIDC_TRANSFER_BT2020_15:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_BT2020;
-		break;
-	case MSM_VIDC_TRANSFER_SMPTE_ST2084_PQ:
-		v4l2_transfer_char = V4L2_XFER_FUNC_SMPTE2084;
-		break;
-	case MSM_VIDC_TRANSFER_SMPTE_ST428_1:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_ST428;
-		break;
-	case MSM_VIDC_TRANSFER_BT2100_2_HLG:
-		v4l2_transfer_char = V4L2_XFER_FUNC_VIDC_HLG;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid hfi transfer char %d\n",
-			func, vidc_transfer_char);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	transfer_char_info = core->platform->data.format_data->transfer_char_info;
+	size = core->platform->data.format_data->transfer_char_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (transfer_char_info[i].vidc_transfer_char == vidc_transfer_char)
+			return transfer_char_info[i].v4l2_transfer_char;
+	}
+
+	i_vpr_e(inst, "%s: invalid hfi transfer char %d\n",
+			func, vidc_transfer_char);
 
 	return v4l2_transfer_char;
 }
@@ -884,42 +812,31 @@ u32 v4l2_transfer_char_from_driver(struct msm_vidc_inst *inst,
 u32 v4l2_matrix_coeff_to_driver(struct msm_vidc_inst *inst,
 	u32 v4l2_matrix_coeff, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct matrix_coeff_info *matrix_coeff_info;
+	u32 i, size;
 	u32 vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_RESERVED;
 
-	switch(v4l2_matrix_coeff) {
-	case V4L2_YCBCR_ENC_DEFAULT:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_RESERVED;
-		break;
-	case V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_SRGB_SMPTE_ST428_1;
-		break;
-	case V4L2_YCBCR_ENC_709:
-	case V4L2_YCBCR_ENC_XV709:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT709;
-		break;
-	case V4L2_YCBCR_VIDC_FCC47_73_682:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_FCC_TITLE_47;
-		break;
-	case V4L2_YCBCR_ENC_XV601:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT470_SYS_BG_OR_BT601_625;
-		break;
-	case V4L2_YCBCR_ENC_601:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT601_525_BT1358_525_OR_625;
-		break;
-	case V4L2_YCBCR_ENC_SMPTE240M:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_SMPTE_ST240;
-		break;
-	case V4L2_YCBCR_ENC_BT2020:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT2020_NON_CONSTANT;
-		break;
-	case V4L2_YCBCR_ENC_BT2020_CONST_LUM:
-		vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT2020_CONSTANT;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid v4l2 matrix coeff %d\n",
-			func, v4l2_matrix_coeff);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	matrix_coeff_info = core->platform->data.format_data->matrix_coeff_info;
+	size = core->platform->data.format_data->matrix_coeff_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (matrix_coeff_info[i].v4l2_matrix_coeff == v4l2_matrix_coeff)
+			return matrix_coeff_info[i].vidc_matrix_coeff;
+	}
+
+	i_vpr_e(inst, "%s: invalid v4l2 matrix coeff %d\n",
+		func, v4l2_matrix_coeff);
 
 	return vidc_matrix_coeff;
 }
@@ -927,41 +844,31 @@ u32 v4l2_matrix_coeff_to_driver(struct msm_vidc_inst *inst,
 u32 v4l2_matrix_coeff_from_driver(struct msm_vidc_inst *inst,
 	u32 vidc_matrix_coeff, const char *func)
 {
+	struct msm_vidc_core *core;
+	const struct matrix_coeff_info *matrix_coeff_info;
+	u32 i, size;
 	u32 v4l2_matrix_coeff = V4L2_YCBCR_ENC_DEFAULT;
 
-	switch(vidc_matrix_coeff) {
-	case MSM_VIDC_MATRIX_COEFF_SRGB_SMPTE_ST428_1:
-		v4l2_matrix_coeff = V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_BT709:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_709;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_UNSPECIFIED:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_DEFAULT;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_FCC_TITLE_47:
-		v4l2_matrix_coeff = V4L2_YCBCR_VIDC_FCC47_73_682;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_BT470_SYS_BG_OR_BT601_625:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_XV601;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_BT601_525_BT1358_525_OR_625:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_601;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_SMPTE_ST240:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_SMPTE240M;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_BT2020_NON_CONSTANT:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_BT2020;
-		break;
-	case MSM_VIDC_MATRIX_COEFF_BT2020_CONSTANT:
-		v4l2_matrix_coeff = V4L2_YCBCR_ENC_BT2020_CONST_LUM;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid hfi matrix coeff %d\n",
-			func, vidc_matrix_coeff);
-		break;
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
 	}
+
+	core = inst->core;
+	if (!core->platform || !core->platform->data.format_data) {
+		d_vpr_e("%s: invalid core platform\n", __func__);
+		return -EINVAL;
+	}
+	matrix_coeff_info = core->platform->data.format_data->matrix_coeff_info;
+	size = core->platform->data.format_data->matrix_coeff_info_size;
+
+	for (i = 0; i < size; i++) {
+		if (matrix_coeff_info[i].v4l2_matrix_coeff == v4l2_matrix_coeff)
+			return matrix_coeff_info[i].vidc_matrix_coeff;
+	}
+
+	i_vpr_e(inst, "%s: invalid hfi matrix coeff %d\n",
+		func, vidc_matrix_coeff);
 
 	return v4l2_matrix_coeff;
 }

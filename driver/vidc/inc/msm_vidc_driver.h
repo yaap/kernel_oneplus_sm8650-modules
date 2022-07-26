@@ -364,20 +364,20 @@ static inline bool is_sub_state(struct msm_vidc_inst *inst,
 }
 
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id);
-const char *v4l2_pixelfmt_name(u32 pixelfmt);
+const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixelfmt);
 const char *v4l2_type_name(u32 port);
 void print_vidc_buffer(u32 tag, const char *tag_str, const char *str, struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *vbuf);
 void print_vb2_buffer(const char *str, struct msm_vidc_inst *inst,
 		struct vb2_buffer *vb2);
-enum msm_vidc_codec_type v4l2_codec_to_driver(u32 v4l2_codec,
+enum msm_vidc_codec_type v4l2_codec_to_driver(struct msm_vidc_inst *inst,
+	u32 v4l2_codec, const char *func);
+u32 v4l2_codec_from_driver(struct msm_vidc_inst *inst, enum msm_vidc_codec_type codec,
 	const char *func);
-u32 v4l2_codec_from_driver(enum msm_vidc_codec_type codec,
-	const char *func);
-enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(u32 colorformat,
-	const char *func);
-u32 v4l2_colorformat_from_driver(enum msm_vidc_colorformat_type colorformat,
-	const char *func);
+enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(struct msm_vidc_inst *inst,
+	u32 colorformat, const char *func);
+u32 v4l2_colorformat_from_driver(struct msm_vidc_inst *inst,
+	enum msm_vidc_colorformat_type colorformat, const char *func);
 u32 v4l2_color_primaries_to_driver(struct msm_vidc_inst *inst,
 	u32 v4l2_primaries, const char *func);
 u32 v4l2_color_primaries_from_driver(struct msm_vidc_inst *inst,

@@ -275,7 +275,7 @@ u32 msm_vidc_decoder_output_size(struct msm_vidc_inst *inst)
 	enum msm_vidc_colorformat_type colorformat;
 
 	f = &inst->fmts[OUTPUT_PORT];
-	colorformat = v4l2_colorformat_to_driver(f->fmt.pix_mp.pixelformat,
+	colorformat = v4l2_colorformat_to_driver(inst, f->fmt.pix_mp.pixelformat,
 		__func__);
 	size = video_buffer_size(colorformat, f->fmt.pix_mp.width,
 			f->fmt.pix_mp.height, true);
@@ -307,7 +307,7 @@ u32 msm_vidc_encoder_input_size(struct msm_vidc_inst *inst)
 	f = &inst->fmts[INPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
-	colorformat = v4l2_colorformat_to_driver(f->fmt.pix_mp.pixelformat,
+	colorformat = v4l2_colorformat_to_driver(inst, f->fmt.pix_mp.pixelformat,
 		__func__);
 	if (is_image_session(inst)) {
 		width = ALIGN(width, HEIC_GRID_DIMENSION);

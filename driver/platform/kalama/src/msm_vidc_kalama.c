@@ -43,6 +43,226 @@
 #define CODECS_ALL     (H264 | HEVC | VP9 | HEIC | AV1)
 #define MAXIMUM_OVERRIDE_VP9_FPS 180
 
+static struct codec_info codec_data_kalama[] = {
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_H264,
+		.vidc_codec  = MSM_VIDC_H264,
+		.pixfmt_name = "AVC",
+	},
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_HEVC,
+		.vidc_codec  = MSM_VIDC_HEVC,
+		.pixfmt_name = "HEVC",
+	},
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_VP9,
+		.vidc_codec  = MSM_VIDC_VP9,
+		.pixfmt_name = "VP9",
+	},
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_AV1,
+		.vidc_codec  = MSM_VIDC_AV1,
+		.pixfmt_name = "AV1",
+	},
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_HEIC,
+		.vidc_codec  = MSM_VIDC_HEIC,
+		.pixfmt_name = "HEIC",
+	},
+};
+
+static struct color_format_info color_format_data_kalama[] = {
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_NV12,
+		.vidc_color_format = MSM_VIDC_FMT_NV12,
+		.pixfmt_name       = "NV12",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_NV21,
+		.vidc_color_format = MSM_VIDC_FMT_NV21,
+		.pixfmt_name       = "NV21",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_VIDC_NV12C,
+		.vidc_color_format = MSM_VIDC_FMT_NV12C,
+		.pixfmt_name       = "NV12C",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_VIDC_TP10C,
+		.vidc_color_format = MSM_VIDC_FMT_TP10C,
+		.pixfmt_name       = "TP10C",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_RGBA32,
+		.vidc_color_format = MSM_VIDC_FMT_RGBA8888,
+		.pixfmt_name       = "RGBA",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_VIDC_ARGB32C,
+		.vidc_color_format = MSM_VIDC_FMT_RGBA8888C,
+		.pixfmt_name       = "RGBAC",
+	},
+	{
+		.v4l2_color_format = V4L2_PIX_FMT_VIDC_P010,
+		.vidc_color_format = MSM_VIDC_FMT_P010,
+		.pixfmt_name       = "P010",
+	},
+	{
+		.v4l2_color_format = V4L2_META_FMT_VIDC,
+		.vidc_color_format = MSM_VIDC_FMT_META,
+		.pixfmt_name       = "META",
+	},
+};
+
+static struct color_primaries_info color_primaries_data_kalama[] = {
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_DEFAULT,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_RESERVED,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_REC709,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_BT709,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_470_SYSTEM_M,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_BT470_SYSTEM_M,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_470_SYSTEM_BG,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_BT470_SYSTEM_BG,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_SMPTE170M,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_BT601_525,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_SMPTE240M,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_SMPTE_ST240M,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_VIDC_GENERIC_FILM,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_GENERIC_FILM,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_BT2020,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_BT2020,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_DCI_P3,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_SMPTE_RP431_2,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_VIDC_EG431,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_SMPTE_EG431_1,
+	},
+	{
+		.v4l2_color_primaries  = V4L2_COLORSPACE_VIDC_EBU_TECH,
+		.vidc_color_primaries  = MSM_VIDC_PRIMARIES_SMPTE_EBU_TECH,
+	},
+};
+
+static struct transfer_char_info transfer_char_data_kalama[] = {
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_DEFAULT,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_RESERVED,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_709,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT709,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT470_SYSTEM_M,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT470_SYSTEM_BG,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_BT601_525_OR_625,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT601_525_OR_625,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_SMPTE240M,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_SMPTE_ST240M,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_LINEAR,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_LINEAR,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_XVYCC,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_XVYCC,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_BT1361,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT1361_0,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_SRGB,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_SRGB_SYCC,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_BT2020,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT2020_14,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_SMPTE2084,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_SMPTE_ST2084_PQ,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_ST428,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_SMPTE_ST428_1,
+	},
+	{
+		.v4l2_transfer_char  = V4L2_XFER_FUNC_VIDC_HLG,
+		.vidc_transfer_char  = MSM_VIDC_TRANSFER_BT2100_2_HLG,
+	},
+};
+
+static struct matrix_coeff_info matrix_coeff_data_kalama[] = {
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_DEFAULT,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_RESERVED,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_SRGB_SMPTE_ST428_1,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_709,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT709,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_XV709,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT709,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_VIDC_FCC47_73_682,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_FCC_TITLE_47,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_XV601,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT470_SYS_BG_OR_BT601_625,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_601,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT601_525_BT1358_525_OR_625,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_SMPTE240M,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_SMPTE_ST240,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_BT2020,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT2020_NON_CONSTANT,
+	},
+	{
+		.v4l2_matrix_coeff  = V4L2_YCBCR_ENC_BT2020_CONST_LUM,
+		.vidc_matrix_coeff  = MSM_VIDC_MATRIX_COEFF_BT2020_CONSTANT,
+	},
+};
+
 static struct msm_platform_core_capability core_data_kalama[] = {
 	/* {type, value} */
 	{ENC_CODECS, H264|HEVC|HEIC},
@@ -2419,6 +2639,19 @@ static struct msm_vidc_ubwc_config_data ubwc_config_kalama[] = {
 	UBWC_CONFIG(8, 32, 16, 0, 1, 1, 1),
 };
 
+static struct msm_vidc_format_capability format_data_kalama = {
+	.codec_info = codec_data_kalama,
+	.codec_info_size = ARRAY_SIZE(codec_data_kalama),
+	.color_format_info = color_format_data_kalama,
+	.color_format_info_size = ARRAY_SIZE(color_format_data_kalama),
+	.color_prim_info = color_primaries_data_kalama,
+	.color_prim_info_size = ARRAY_SIZE(color_primaries_data_kalama),
+	.transfer_char_info = transfer_char_data_kalama,
+	.transfer_char_info_size = ARRAY_SIZE(transfer_char_data_kalama),
+	.matrix_coeff_info = matrix_coeff_data_kalama,
+	.matrix_coeff_info_size = ARRAY_SIZE(matrix_coeff_data_kalama),
+};
+
 static const struct msm_vidc_platform_data kalama_data = {
 	.core_data = core_data_kalama,
 	.core_data_size = ARRAY_SIZE(core_data_kalama),
@@ -2430,6 +2663,7 @@ static const struct msm_vidc_platform_data kalama_data = {
 	.csc_data.vpe_csc_custom_matrix_coeff = vpe_csc_custom_matrix_coeff,
 	.csc_data.vpe_csc_custom_limit_coeff = vpe_csc_custom_limit_coeff,
 	.ubwc_config = ubwc_config_kalama,
+	.format_data = &format_data_kalama,
 };
 
 int msm_vidc_kalama_check_ddr_type(void)
