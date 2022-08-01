@@ -1621,7 +1621,7 @@ int msm_vidc_adjust_transform_8x8(void *instance, struct v4l2_ctrl *ctrl)
 
 	if (profile != V4L2_MPEG_VIDEO_H264_PROFILE_HIGH &&
 		profile != V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
-		adjusted_value = V4L2_MPEG_MSM_VIDC_DISABLE;
+		adjusted_value = 0;
 
 	msm_vidc_update_cap_value(inst, TRANSFORM_8X8,
 		adjusted_value, __func__);
@@ -2725,7 +2725,7 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 	 * BRS enabled and upto 4k @ 60 fps
 	 */
 	if (!is_meta_tx_inp_enabled(inst, META_EVA_STATS) &&
-		brs == V4L2_MPEG_MSM_VIDC_ENABLE &&
+		brs == 1 &&
 		res_is_less_than_or_equal_to(width, height, 3840, 2160) &&
 		max_fps <= 60)
 		adjusted_value = 1;
@@ -2893,7 +2893,7 @@ int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 		&picture_order, __func__))
 		return -EINVAL;
 
-	if (picture_order == V4L2_MPEG_MSM_VIDC_DISABLE) {
+	if (picture_order == 0) {
 		/* disable outbuf fence */
 		adjusted_value = V4L2_MPEG_VIDC_META_DISABLE |
 			V4L2_MPEG_VIDC_META_RX_INPUT;

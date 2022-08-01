@@ -21,6 +21,11 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
 
+/* TODO : remove once available in mainline kernel */
+#ifndef V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE
+#define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
+#endif
+
 #define MAX_NAME_LENGTH   128
 #define VENUS_VERSION_LENGTH 128
 #define MAX_MATRIX_COEFFS 9
