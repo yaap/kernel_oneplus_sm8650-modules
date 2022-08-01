@@ -113,8 +113,8 @@ static inline bool is_meta_rx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
-	if (inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_RX_INPUT)
+	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_INPUT)
 		enabled = true;
 
 	return enabled;
@@ -124,8 +124,8 @@ static inline bool is_meta_rx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
-	if (inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_RX_OUTPUT)
+	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_OUTPUT)
 		enabled = true;
 
 	return enabled;
@@ -135,8 +135,8 @@ static inline bool is_meta_tx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
-	if (inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_TX_INPUT)
+	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_INPUT)
 		enabled = true;
 
 	return enabled;
@@ -146,8 +146,8 @@ static inline bool is_meta_tx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
-	if (inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & V4L2_MPEG_VIDC_META_TX_OUTPUT)
+	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_OUTPUT)
 		enabled = true;
 
 	return enabled;

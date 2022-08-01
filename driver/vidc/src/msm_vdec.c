@@ -1349,8 +1349,8 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	if (inst->capabilities->cap[CODED_FRAMES].value ==
 		CODED_FRAMES_INTERLACE) {
 		msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
-			V4L2_MPEG_VIDC_META_RX_INPUT |
-			V4L2_MPEG_VIDC_META_DISABLE, __func__);
+			MSM_VIDC_META_RX_INPUT |
+			MSM_VIDC_META_DISABLE, __func__);
 	}
 
 	return 0;

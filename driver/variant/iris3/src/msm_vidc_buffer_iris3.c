@@ -542,7 +542,7 @@ static u32 msm_vidc_encoder_vpss_size_iris3(struct msm_vidc_inst* inst)
 	driver_colorfmt = v4l2_colorformat_to_driver(inst,
 			f->fmt.pix_mp.pixelformat, __func__);
 	is_tenbit = is_10bit_colorformat(driver_colorfmt);
-	if (inst->capabilities->cap[BLUR_TYPES].value != VIDC_BLUR_NONE)
+	if (inst->capabilities->cap[BLUR_TYPES].value != MSM_VIDC_BLUR_NONE)
 		blur = true;
 
 	HFI_BUFFER_VPSS_ENC(size, width, height, ds_enable, blur, is_tenbit);

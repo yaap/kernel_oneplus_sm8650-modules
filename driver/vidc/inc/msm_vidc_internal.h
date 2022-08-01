@@ -26,6 +26,28 @@
 #define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
 #endif
 
+enum msm_vidc_blur_types {
+	MSM_VIDC_BLUR_NONE               = 0x0,
+	MSM_VIDC_BLUR_EXTERNAL           = 0x1,
+	MSM_VIDC_BLUR_ADAPTIVE           = 0x2,
+};
+
+/* various Metadata - encoder & decoder */
+enum msm_vidc_metadata_bits {
+	MSM_VIDC_META_DISABLE          = 0x0,
+	MSM_VIDC_META_ENABLE           = 0x1,
+	MSM_VIDC_META_TX_INPUT         = 0x2,
+	MSM_VIDC_META_TX_OUTPUT        = 0x4,
+	MSM_VIDC_META_RX_INPUT         = 0x8,
+	MSM_VIDC_META_RX_OUTPUT        = 0x10,
+	MSM_VIDC_META_MAX              = 0x20,
+};
+
+#define MSM_VIDC_METADATA_SIZE           (4 * 4096) /* 16 KB */
+#define ENCODE_INPUT_METADATA_SIZE       (512 * 4096) /* 2 MB */
+#define DECODE_INPUT_METADATA_SIZE       MSM_VIDC_METADATA_SIZE
+#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE  (41 * 1024) /* 41 KB */
+
 #define MAX_NAME_LENGTH   128
 #define VENUS_VERSION_LENGTH 128
 #define MAX_MATRIX_COEFFS 9
