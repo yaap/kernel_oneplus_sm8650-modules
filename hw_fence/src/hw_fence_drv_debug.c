@@ -338,14 +338,14 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 
 		/* Write to Tx queue */
 		hw_fence_update_queue(drv_data, hw_fence_client, context, seqno, hash,
-			0, 0, HW_FENCE_TX_QUEUE - 1); // no flags and no error
+			0, 0, 0, HW_FENCE_TX_QUEUE - 1); /* no flags and no error */
 
 		/**********************************************/
 		/***** DST CLIENT - REGISTER WAIT CLIENT ******/
 		/**********************************************/
 		/* use same context and seqno that src client used to create fence */
 		ret = hw_fence_register_wait_client(drv_data, NULL, hw_fence_client_dst, context,
-			seqno, &hash);
+			seqno, &hash, 0);
 		if (ret) {
 			HWFNC_ERR("failed to register for wait\n");
 			return -EINVAL;
@@ -558,7 +558,7 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 	struct hw_fence_driver_data *drv_data;
 	struct msm_hw_fence_queue *rx_queue;
 	struct msm_hw_fence_queue *tx_queue;
-	u64 hash, ctx_id, seqno, timestamp, flags;
+	u64 hash, ctx_id, seqno, timestamp, flags, client_data;
 	u32 *read_ptr, error;
 	int client_id, i;
 	struct msm_hw_fence_queue_payload *read_ptr_payload;
@@ -595,12 +595,13 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 		seqno = readq_relaxed(&read_ptr_payload->seqno);
 		hash = readq_relaxed(&read_ptr_payload->hash);
 		flags = readq_relaxed(&read_ptr_payload->flags);
+		client_data = readq_relaxed(&read_ptr_payload->client_data);
 		error = readl_relaxed(&read_ptr_payload->error);
 		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
 			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
 
-		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%llu\n",
-			i, hash, ctx_id, seqno, flags, error, timestamp);
+		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu d:%llu err:%u time:%llu\n",
+			i, hash, ctx_id, seqno, flags, client_data, error, timestamp);
 	}
 
 	HWFNC_DBG_L("-------TX QUEUE------\n");
@@ -855,7 +856,7 @@ static ssize_t hw_fence_dbg_create_join_fence(struct file *file,
 
 		/* Write to Tx queue */
 		hw_fence_update_queue(drv_data, hw_fence_client, client_info_src->dma_context,
-			hw_fence_dbg_seqno + i, hash, 0, 0,
+			hw_fence_dbg_seqno + i, hash, 0, 0, 0,
 			HW_FENCE_TX_QUEUE - 1);
 	}
 
