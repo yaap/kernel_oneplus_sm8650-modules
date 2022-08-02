@@ -344,12 +344,7 @@ static inline bool is_enc_slice_delivery_mode(struct msm_vidc_inst *inst)
 
 	return (inst->capabilities->cap[SLICE_MODE].value ==
 			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB &&
-			((inst->codec == MSM_VIDC_H264 &&
-			inst->capabilities->cap[DELIVERY_MODE].value ==
-			V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED) ||
-			(inst->codec == MSM_VIDC_HEVC &&
-			inst->capabilities->cap[DELIVERY_MODE].value ==
-			V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED)));
+			inst->capabilities->cap[DELIVERY_MODE].value);
 }
 
 static inline bool is_state(struct msm_vidc_inst *inst, enum msm_vidc_state state)

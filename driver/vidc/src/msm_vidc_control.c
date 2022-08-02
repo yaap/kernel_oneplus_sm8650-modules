@@ -152,12 +152,6 @@ static const char *const mpeg_video_vidc_ir_type[] = {
 	NULL,
 };
 
-static const char *const mpeg_vidc_delivery_modes[] = {
-	"Frame Based Delivery Mode",
-	"Slice Based Delivery Mode",
-	NULL,
-};
-
 u32 msm_vidc_get_port_info(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id)
 {
@@ -201,10 +195,6 @@ static const char * const * msm_vidc_get_qmenu_type(
 		return av1_tier;
 	case V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE:
 		return mpeg_video_vidc_ir_type;
-	case V4L2_CID_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE:
-		return mpeg_vidc_delivery_modes;
-	case V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE:
-		return mpeg_vidc_delivery_modes;
 	default:
 		i_vpr_e(inst, "%s: No available qmenu for ctrl %#x\n",
 			__func__, control_id);
@@ -4299,33 +4289,6 @@ int msm_vidc_v4l2_menu_to_hfi(struct msm_vidc_inst *inst,
 		default:
 			*value = 1;
 			goto set_default;
-		}
-		return 0;
-	case DELIVERY_MODE:
-		if (inst->codec == MSM_VIDC_H264) {
-			switch (capability->cap[cap_id].value) {
-			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED:
-				*value = 0;
-				break;
-			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED:
-				*value = 1;
-				break;
-			default:
-				*value = 0;
-				goto set_default;
-			}
-		} else if (inst->codec == MSM_VIDC_HEVC) {
-			switch (capability->cap[cap_id].value) {
-			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED:
-				*value = 0;
-				break;
-			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED:
-				*value = 1;
-				break;
-			default:
-				*value = 0;
-				goto set_default;
-			}
 		}
 		return 0;
 	default:

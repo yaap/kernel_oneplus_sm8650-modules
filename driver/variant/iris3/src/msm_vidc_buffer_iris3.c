@@ -732,10 +732,7 @@ static int msm_buffer_delivery_mode_based_min_count_iris3(struct msm_vidc_inst *
 	delivery_mode = inst->capabilities->cap[DELIVERY_MODE].value;
 
 	if (slice_mode != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB ||
-		(inst->codec == MSM_VIDC_H264 &&
-		delivery_mode != V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED) ||
-		(inst->codec == MSM_VIDC_HEVC &&
-		delivery_mode != V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED))
+		(!delivery_mode))
 		return count;
 
 	f = &inst->fmts[OUTPUT_PORT];
