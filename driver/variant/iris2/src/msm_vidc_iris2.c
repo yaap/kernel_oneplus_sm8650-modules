@@ -1097,7 +1097,7 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 	adjusted_value = ctrl ? ctrl->val :
 		capability->cap[BLUR_TYPES].value;
 
-	if (adjusted_value == VIDC_BLUR_NONE)
+	if (adjusted_value == MSM_VIDC_BLUR_NONE)
 		return 0;
 
 	if (msm_vidc_get_parent_value(inst, BLUR_TYPES, BITRATE_MODE,
@@ -1110,16 +1110,16 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 		&min_quality, __func__))
 		return -EINVAL;
 
-	if (adjusted_value == VIDC_BLUR_EXTERNAL) {
+	if (adjusted_value == MSM_VIDC_BLUR_EXTERNAL) {
 		if (is_scaling_enabled(inst) || min_quality) {
-			adjusted_value = VIDC_BLUR_NONE;
+			adjusted_value = MSM_VIDC_BLUR_NONE;
 		}
-	} else if (adjusted_value == VIDC_BLUR_ADAPTIVE) {
+	} else if (adjusted_value == MSM_VIDC_BLUR_ADAPTIVE) {
 		if (is_scaling_enabled(inst) || min_quality ||
 			(rc_type != HFI_RC_VBR_CFR) ||
 			!cac ||
 			is_10bit_colorformat(pix_fmts)) {
-			adjusted_value = VIDC_BLUR_NONE;
+			adjusted_value = MSM_VIDC_BLUR_NONE;
 		}
 	}
 

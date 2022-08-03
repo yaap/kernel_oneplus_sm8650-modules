@@ -173,7 +173,7 @@ static u32 msm_vidc_decoder_line_size_iris3(struct msm_vidc_inst *inst)
 	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 
-	color_fmt = v4l2_colorformat_to_driver(
+	color_fmt = v4l2_colorformat_to_driver(inst,
 			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 	if (is_linear_colorformat(color_fmt))
 		is_opb = true;
@@ -555,10 +555,10 @@ static u32 msm_vidc_encoder_vpss_size_iris3(struct msm_vidc_inst* inst)
 	}
 
 	f = &inst->fmts[INPUT_PORT];
-	driver_colorfmt = v4l2_colorformat_to_driver(
+	driver_colorfmt = v4l2_colorformat_to_driver(inst,
 			f->fmt.pix_mp.pixelformat, __func__);
 	is_tenbit = is_10bit_colorformat(driver_colorfmt);
-	if (inst->capabilities->cap[BLUR_TYPES].value != VIDC_BLUR_NONE)
+	if (inst->capabilities->cap[BLUR_TYPES].value != MSM_VIDC_BLUR_NONE)
 		blur = true;
 
 	HFI_BUFFER_VPSS_ENC(size, width, height, ds_enable, blur, is_tenbit);
@@ -573,6 +573,7 @@ static u32 msm_vidc_encoder_output_size_iris3(struct msm_vidc_inst *inst)
 	bool is_ten_bit = false;
 	int bitrate_mode, frame_rc;
 	u32 hfi_rc_type = HFI_RC_VBR_CFR;
+	enum msm_vidc_codec_type codec;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -580,8 +581,8 @@ static u32 msm_vidc_encoder_output_size_iris3(struct msm_vidc_inst *inst)
 	}
 
 	f = &inst->fmts[OUTPUT_PORT];
-	if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC ||
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEIC)
+	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
+	if (codec == MSM_VIDC_HEVC || codec == MSM_VIDC_HEIC)
 		is_ten_bit = true;
 
 	bitrate_mode = inst->capabilities->cap[BITRATE_MODE].value;
@@ -747,10 +748,7 @@ static int msm_buffer_delivery_mode_based_min_count_iris3(struct msm_vidc_inst *
 	delivery_mode = inst->capabilities->cap[DELIVERY_MODE].value;
 
 	if (slice_mode != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB ||
-		(inst->codec == MSM_VIDC_H264 &&
-		delivery_mode != V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED) ||
-		(inst->codec == MSM_VIDC_HEVC &&
-		delivery_mode != V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED))
+		(!delivery_mode))
 		return count;
 
 	f = &inst->fmts[OUTPUT_PORT];

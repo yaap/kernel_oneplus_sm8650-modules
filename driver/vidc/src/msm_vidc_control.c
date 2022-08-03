@@ -152,12 +152,6 @@ static const char *const mpeg_video_vidc_ir_type[] = {
 	NULL,
 };
 
-static const char *const mpeg_vidc_delivery_modes[] = {
-	"Frame Based Delivery Mode",
-	"Slice Based Delivery Mode",
-	NULL,
-};
-
 u32 msm_vidc_get_port_info(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id)
 {
@@ -201,10 +195,6 @@ static const char * const * msm_vidc_get_qmenu_type(
 		return av1_tier;
 	case V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE:
 		return mpeg_video_vidc_ir_type;
-	case V4L2_CID_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE:
-		return mpeg_vidc_delivery_modes;
-	case V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE:
-		return mpeg_vidc_delivery_modes;
 	default:
 		i_vpr_e(inst, "%s: No available qmenu for ctrl %#x\n",
 			__func__, control_id);
@@ -468,7 +458,7 @@ int msm_vidc_update_cap_value(struct msm_vidc_inst *inst, u32 cap_id,
 		 * cumulative control value if client set same metadata
 		 * control multiple times.
 		 */
-		if (adjusted_val & V4L2_MPEG_VIDC_META_ENABLE) {
+		if (adjusted_val & MSM_VIDC_META_ENABLE) {
 			/* enable metadata */
 			inst->capabilities->cap[cap_id].value |= adjusted_val;
 		} else {
@@ -1621,7 +1611,7 @@ int msm_vidc_adjust_transform_8x8(void *instance, struct v4l2_ctrl *ctrl)
 
 	if (profile != V4L2_MPEG_VIDEO_H264_PROFILE_HIGH &&
 		profile != V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
-		adjusted_value = V4L2_MPEG_MSM_VIDC_DISABLE;
+		adjusted_value = 0;
 
 	msm_vidc_update_cap_value(inst, TRANSFORM_8X8,
 		adjusted_value, __func__);
@@ -2350,7 +2340,7 @@ int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 	adjusted_value = ctrl ? ctrl->val :
 		capability->cap[BLUR_TYPES].value;
 
-	if (adjusted_value == VIDC_BLUR_NONE)
+	if (adjusted_value == MSM_VIDC_BLUR_NONE)
 		return 0;
 
 	if (msm_vidc_get_parent_value(inst, BLUR_TYPES, BITRATE_MODE,
@@ -2363,17 +2353,17 @@ int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 		&roi_enable, __func__))
 		return -EINVAL;
 
-	if (adjusted_value == VIDC_BLUR_EXTERNAL) {
+	if (adjusted_value == MSM_VIDC_BLUR_EXTERNAL) {
 		if (is_scaling_enabled(inst) || min_quality) {
-			adjusted_value = VIDC_BLUR_NONE;
+			adjusted_value = MSM_VIDC_BLUR_NONE;
 		}
-	} else if (adjusted_value == VIDC_BLUR_ADAPTIVE) {
+	} else if (adjusted_value == MSM_VIDC_BLUR_ADAPTIVE) {
 		if (is_scaling_enabled(inst) || min_quality ||
 			(rc_type != HFI_RC_VBR_CFR &&
 			rc_type != HFI_RC_CBR_CFR &&
 			rc_type != HFI_RC_CBR_VFR) ||
 			is_10bit_colorformat(pix_fmts) || roi_enable) {
-			adjusted_value = VIDC_BLUR_NONE;
+			adjusted_value = MSM_VIDC_BLUR_NONE;
 		}
 	}
 
@@ -2450,7 +2440,7 @@ int msm_vidc_adjust_blur_resolution(void *instance, struct v4l2_ctrl *ctrl)
 		&blur_type, __func__))
 		return -EINVAL;
 
-	if (blur_type != VIDC_BLUR_EXTERNAL)
+	if (blur_type != MSM_VIDC_BLUR_EXTERNAL)
 		return 0;
 
 	msm_vidc_update_cap_value(inst, BLUR_RESOLUTION,
@@ -2725,7 +2715,7 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 	 * BRS enabled and upto 4k @ 60 fps
 	 */
 	if (!is_meta_tx_inp_enabled(inst, META_EVA_STATS) &&
-		brs == V4L2_MPEG_MSM_VIDC_ENABLE &&
+		brs == 1 &&
 		res_is_less_than_or_equal_to(width, height, 3840, 2160) &&
 		max_fps <= 60)
 		adjusted_value = 1;
@@ -2774,7 +2764,7 @@ int msm_vidc_adjust_dec_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	s32 outbuf_fence = V4L2_MPEG_VIDC_META_DISABLE;
+	s32 outbuf_fence = MSM_VIDC_META_DISABLE;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2790,8 +2780,8 @@ int msm_vidc_adjust_dec_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 
 	/* enable lowlatency if outbuf fence is enabled */
-	if (outbuf_fence & V4L2_MPEG_VIDC_META_ENABLE &&
-		outbuf_fence & V4L2_MPEG_VIDC_META_RX_INPUT)
+	if (outbuf_fence & MSM_VIDC_META_ENABLE &&
+		outbuf_fence & MSM_VIDC_META_RX_INPUT)
 		adjusted_value = 1;
 
 	msm_vidc_update_cap_value(inst, LOWLATENCY_MODE,
@@ -2893,10 +2883,10 @@ int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 		&picture_order, __func__))
 		return -EINVAL;
 
-	if (picture_order == V4L2_MPEG_MSM_VIDC_DISABLE) {
+	if (picture_order == 0) {
 		/* disable outbuf fence */
-		adjusted_value = V4L2_MPEG_VIDC_META_DISABLE |
-			V4L2_MPEG_VIDC_META_RX_INPUT;
+		adjusted_value = MSM_VIDC_META_DISABLE |
+			MSM_VIDC_META_RX_INPUT;
 	}
 
 	msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
@@ -3982,7 +3972,7 @@ int msm_vidc_set_blur_resolution(void *instance,
 		BLUR_TYPES, &blur_type, __func__))
 		return -EINVAL;
 
-	if (blur_type != VIDC_BLUR_EXTERNAL)
+	if (blur_type != MSM_VIDC_BLUR_EXTERNAL)
 		return 0;
 
 	hfi_value = inst->capabilities->cap[cap_id].value;
@@ -4334,33 +4324,6 @@ int msm_vidc_v4l2_menu_to_hfi(struct msm_vidc_inst *inst,
 		default:
 			*value = 1;
 			goto set_default;
-		}
-		return 0;
-	case DELIVERY_MODE:
-		if (inst->codec == MSM_VIDC_H264) {
-			switch (capability->cap[cap_id].value) {
-			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED:
-				*value = 0;
-				break;
-			case V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_SLICE_BASED:
-				*value = 1;
-				break;
-			default:
-				*value = 0;
-				goto set_default;
-			}
-		} else if (inst->codec == MSM_VIDC_HEVC) {
-			switch (capability->cap[cap_id].value) {
-			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED:
-				*value = 0;
-				break;
-			case V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_SLICE_BASED:
-				*value = 1;
-				break;
-			default:
-				*value = 0;
-				goto set_default;
-			}
 		}
 		return 0;
 	default:

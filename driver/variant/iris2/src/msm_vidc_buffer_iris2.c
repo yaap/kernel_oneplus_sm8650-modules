@@ -143,7 +143,7 @@ static u32 msm_vidc_decoder_line_size_iris2(struct msm_vidc_inst *inst)
 	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 
-	color_fmt = v4l2_colorformat_to_driver(
+	color_fmt = v4l2_colorformat_to_driver(inst,
 			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 	if (is_linear_colorformat(color_fmt))
 		is_opb = true;
@@ -473,10 +473,10 @@ static u32 msm_vidc_encoder_vpss_size_iris2(struct msm_vidc_inst* inst)
 	}
 
 	f = &inst->fmts[INPUT_PORT];
-	driver_colorfmt = v4l2_colorformat_to_driver(
+	driver_colorfmt = v4l2_colorformat_to_driver(inst,
 			f->fmt.pix_mp.pixelformat, __func__);
 	is_tenbit = is_10bit_colorformat(driver_colorfmt);
-	if (inst->capabilities->cap[BLUR_TYPES].value != VIDC_BLUR_NONE)
+	if (inst->capabilities->cap[BLUR_TYPES].value != MSM_VIDC_BLUR_NONE)
 		blur = true;
 
 	HFI_BUFFER_VPSS_ENC(size, width, height, ds_enable, blur, is_tenbit);

@@ -250,7 +250,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			vote_data->bitrate = (vote_data->bitrate / frame_rate) * operating_rate;
 
 		vote_data->num_formats = 1;
-		vote_data->color_formats[0] = v4l2_colorformat_to_driver(
+		vote_data->color_formats[0] = v4l2_colorformat_to_driver(inst,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 		vote_data->vpss_preprocessing_enabled =
 			inst->capabilities->cap[REQUEST_PREPROCESS].value;
@@ -259,7 +259,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 
 		vote_data->domain = MSM_VIDC_DECODER;
 		vote_data->bitrate = inst->max_input_data_size * vote_data->fps * 8;
-		color_format = v4l2_colorformat_to_driver(
+		color_format = v4l2_colorformat_to_driver(inst,
 			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 		if (is_linear_colorformat(color_format)) {
 			vote_data->num_formats = 2;
