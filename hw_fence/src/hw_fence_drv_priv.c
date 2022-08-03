@@ -17,7 +17,11 @@
 
 inline u64 hw_fence_get_qtime(struct hw_fence_driver_data *drv_data)
 {
+#ifdef HWFENCE_USE_SLEEP_TIMER
 	return readl_relaxed(drv_data->qtime_io_mem);
+#else /* USE QTIMER */
+	return arch_timer_read_counter();
+#endif /* HWFENCE_USE_SLEEP_TIMER */
 }
 
 static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
