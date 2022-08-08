@@ -1013,8 +1013,8 @@ u32 v4l2_matrix_coeff_from_driver(struct msm_vidc_inst *inst,
 	size = core->platform->data.format_data->matrix_coeff_info_size;
 
 	for (i = 0; i < size; i++) {
-		if (matrix_coeff_info[i].v4l2_matrix_coeff == v4l2_matrix_coeff)
-			return matrix_coeff_info[i].vidc_matrix_coeff;
+		if (matrix_coeff_info[i].vidc_matrix_coeff == vidc_matrix_coeff)
+			return matrix_coeff_info[i].v4l2_matrix_coeff;
 	}
 
 	i_vpr_e(inst, "%s: invalid hfi matrix coeff %d\n",
