@@ -22,10 +22,11 @@ enum hw_fence_mem_reserve {
 
 /**
  * global_atomic_store() - Inter-processor lock
+ * @drv_data: hw fence driver data
  * @lock: memory to lock
  * @val: if true, api locks the memory, if false it unlocks the memory
  */
-void global_atomic_store(uint64_t *lock, bool val);
+void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, bool val);
 
 /**
  * hw_fence_utils_init_virq() - Initialilze doorbell (i.e. vIRQ) for SVM to HLOS signaling

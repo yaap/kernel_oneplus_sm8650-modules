@@ -18,6 +18,7 @@ enum hw_fence_drv_prio {
 	HW_FENCE_QUEUE = 0x000010,	/* Queue logs */
 	HW_FENCE_LUT = 0x000020,	/* Look-up and algorithm logs */
 	HW_FENCE_IRQ = 0x000040,	/* Interrupt-related messages */
+	HW_FENCE_LOCK = 0x000080,	/* Lock-related messages */
 	HW_FENCE_PRINTK = 0x010000,
 };
 
@@ -55,6 +56,9 @@ extern u32 msm_hw_fence_debug_level;
 
 #define HWFNC_DBG_IRQ(fmt, ...) \
 	dprintk(HW_FENCE_IRQ, "[hwfence:%s:%d][dbgirq]"fmt, __func__, __LINE__, ##__VA_ARGS__)
+
+#define HWFNC_DBG_LOCK(fmt, ...) \
+	dprintk(HW_FENCE_LOCK, "[hwfence:%s:%d][dbglock]"fmt, __func__, __LINE__, ##__VA_ARGS__)
 
 #define HWFNC_WARN(fmt, ...) \
 	pr_warn("[hwfence:%s:%d][warn][%pS] "fmt, __func__, __LINE__, \

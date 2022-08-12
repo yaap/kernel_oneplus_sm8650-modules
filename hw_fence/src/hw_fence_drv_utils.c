@@ -17,40 +17,64 @@
 
 static void _lock(uint64_t *wait)
 {
-	/* WFE Wait */
 #if defined(__aarch64__)
-	__asm__("SEVL\n\t"
+	__asm__(
+		// Sequence to wait for lock to be free (i.e. zero)
 		"PRFM PSTL1KEEP, [%x[i_lock]]\n\t"
 		"1:\n\t"
-		"WFE\n\t"
 		"LDAXR W5, [%x[i_lock]]\n\t"
 		"CBNZ W5, 1b\n\t"
-		"STXR W5, W0, [%x[i_lock]]\n\t"
-		"CBNZ W5, 1b\n"
+		// Sequence to set PVM BIT0
+		"LDR W7, =0x1\n\t"              // Load BIT0 (0x1) into W7
+		"STXR W5, W7, [%x[i_lock]]\n\t" // Atomic Store exclusive BIT0 (lock = 0x1)
+		"CBNZ W5, 1b\n\t"               // If cannot set it, goto 1
 		:
 		: [i_lock] "r" (wait)
 		: "memory");
 #endif
 }
 
-static void _unlock(uint64_t *lock)
+static void _unlock(struct hw_fence_driver_data *drv_data, uint64_t *lock)
 {
-	/* Signal Client */
+	uint64_t lock_val;
+
 #if defined(__aarch64__)
-	__asm__("STLR WZR, [%x[i_out]]\n\t"
-		"SEV\n"
+	__asm__(
+		// Sequence to clear PVM BIT0
+		"2:\n\t"
+		"LDAXR W5, [%x[i_out]]\n\t"             // Atomic Fetch Lock
+		"AND W6, W5, #0xFFFFFFFFFFFFFFFE\n\t"   // AND to clear BIT0 (lock &= ~0x1))
+		"STXR W5, W6, [%x[i_out]]\n\t"          // Store exclusive result
+		"CBNZ W5, 2b\n\t"                       // If cannot store exclusive, goto 2
 		:
 		: [i_out] "r" (lock)
 		: "memory");
 #endif
+	mb(); /* Make sure the memory is updated */
+
+	lock_val = *lock; /* Read the lock value */
+	HWFNC_DBG_LOCK("unlock: lock_val after:0x%llx\n", lock_val);
+	if (lock_val & 0x2) { /* check if SVM BIT1 is set*/
+		/*
+		 * SVM is in WFI state, since SVM acquire bit is set
+		 * Trigger IRQ to Wake-Up SVM Client
+		 */
+		HWFNC_DBG_LOCK("triggering ipc to unblock SVM lock_val:%d\n", lock_val);
+		hw_fence_ipcc_trigger_signal(drv_data,
+			drv_data->ipcc_client_pid,
+			drv_data->ipcc_client_vid, 30); /* Trigger APPS Signal 30 */
+	}
 }
 
-void global_atomic_store(uint64_t *lock, bool val)
+void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, bool val)
 {
-	if (val)
+	if (val) {
+		preempt_disable();
 		_lock(lock);
-	else
-		_unlock(lock);
+	} else {
+		_unlock(drv_data, lock);
+		preempt_enable();
+	}
 }
 
 /*
