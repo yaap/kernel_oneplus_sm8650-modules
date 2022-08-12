@@ -4,7 +4,6 @@
  */
 /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
 
-#include <media/v4l2_vidc_extensions.h>
 #include "msm_media_info.h"
 #include <linux/v4l2-common.h>
 

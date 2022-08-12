@@ -3,7 +3,6 @@
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
-#include <media/v4l2_vidc_extensions.h>
 #include "msm_media_info.h"
 
 #include "msm_venc.h"

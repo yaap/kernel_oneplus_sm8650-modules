@@ -6,6 +6,7 @@
 
 #include <soc/qcom/of_common.h>
 
+#include <media/v4l2_vidc_extensions.h>
 #include "msm_vidc_kalama.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
@@ -392,16 +393,20 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MSM_VIDC_FMT_NV12C},
 
 	{MIN_BUFFERS_INPUT, ENC|DEC, CODECS_ALL, 0, 64, 1, 4,
-		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT},
+		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT,
+		0,
+		CAP_FLAG_VOLATILE},
 
 	{MIN_BUFFERS_INPUT, ENC|DEC, HEIC, 0, 64, 1, 1,
-		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT},
+		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT,
+		0,
+		CAP_FLAG_VOLATILE},
 
 	{MIN_BUFFERS_OUTPUT, ENC|DEC, CODECS_ALL,
 		0, 64, 1, 4,
 		V4L2_CID_MIN_BUFFERS_FOR_CAPTURE,
 		HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
-		CAP_FLAG_OUTPUT_PORT},
+		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_VOLATILE},
 
 	/* (8192 * 4320) / 256 */
 	{MBPF, ENC, CODECS_ALL, 64, 138240, 1, 138240},
@@ -574,7 +579,9 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{FENCE_FD, DEC, CODECS_ALL,
 		INVALID_FD, INT_MAX, 1, INVALID_FD,
-		V4L2_CID_MPEG_VIDC_SW_FENCE_FD},
+		V4L2_CID_MPEG_VIDC_SW_FENCE_FD,
+		0,
+		CAP_FLAG_VOLATILE},
 
 	{TS_REORDER, DEC, H264|HEVC,
 		0, 1, 1, 0,
@@ -830,9 +837,9 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_OUTPUT_PORT},
 
 	{USE_LTR, ENC, H264|HEVC,
-		INVALID_DEFAULT_MARK_OR_USE_LTR,
+		0,
 		((1 << MAX_LTR_FRAME_COUNT) - 1),
-		1, INVALID_DEFAULT_MARK_OR_USE_LTR,
+		0, 0,
 		V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES,
 		HFI_PROP_LTR_USE,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
@@ -1638,7 +1645,8 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	{FILM_GRAIN, DEC, AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_AV1D_FILM_GRAIN_PRESENT,
-		HFI_PROP_AV1_FILM_GRAIN_PRESENT},
+		HFI_PROP_AV1_FILM_GRAIN_PRESENT,
+		CAP_FLAG_VOLATILE},
 
 	{SUPER_BLOCK, DEC, AV1,
 		0, 1, 1, 0,

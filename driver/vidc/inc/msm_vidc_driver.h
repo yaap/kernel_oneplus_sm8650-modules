@@ -8,7 +8,6 @@
 
 #include <linux/workqueue.h>
 #include <linux/iommu.h>
-#include <media/v4l2_vidc_extensions.h>
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"

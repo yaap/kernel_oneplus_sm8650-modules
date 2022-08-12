@@ -39,22 +39,6 @@ static bool is_priv_ctrl(u32 id)
 	 * available yet. Hence, make this as private ctrl for time being
 	 */
 	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
-	/*
-	 * TODO: V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_TYPE is
-	 * std ctrl. But needs some fixes in v4l2-ctrls.c. Hence,
-	 * make this as private ctrl for time being
-	 */
-	case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_TYPE:
-	/*
-	 * TODO: treat below std ctrls as private ctrls until
-	 * all below ctrls are available in upstream
-	 */
-	case V4L2_CID_MPEG_VIDEO_AU_DELIMITER:
-	case V4L2_CID_MPEG_VIDEO_LTR_COUNT:
-	case V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX:
-	case V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES:
-	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY:
-	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE:
 		private = true;
 		break;
 	default:
@@ -65,35 +49,10 @@ static bool is_priv_ctrl(u32 id)
 	return private;
 }
 
-static const char *const mpeg_video_rate_control[] = {
-	"VBR",
-	"CBR",
-	"CBR VFR",
-	"MBR",
-	"MBR VFR",
-	"CQ",
-	NULL,
-};
-
-static const char *const mpeg_video_stream_format[] = {
-	"NAL Format Start Codes",
-	"NAL Format One NAL Per Buffer",
-	"NAL Format One Byte Length",
-	"NAL Format Two Byte Length",
-	"NAL Format Four Byte Length",
-	NULL,
-};
-
 static const char *const mpeg_video_blur_types[] = {
 	"Blur None",
 	"Blur External",
 	"Blur Adaptive",
-	NULL,
-};
-
-static const char *const mpeg_video_avc_coding_layer[] = {
-	"B",
-	"P",
 	NULL,
 };
 
@@ -174,30 +133,36 @@ u32 msm_vidc_get_port_info(struct msm_vidc_inst *inst,
 }
 
 static const char * const * msm_vidc_get_qmenu_type(
-		struct msm_vidc_inst *inst, u32 control_id)
+		struct msm_vidc_inst *inst, u32 cap_id)
 {
-	switch (control_id) {
-	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:
-		return mpeg_video_rate_control;
-	case V4L2_CID_MPEG_VIDEO_HEVC_SIZE_OF_LENGTH_FIELD:
-		return mpeg_video_stream_format;
-	case V4L2_CID_MPEG_VIDC_VIDEO_BLUR_TYPES:
+	switch (cap_id) {
+	case BLUR_TYPES:
 		return mpeg_video_blur_types;
-	case V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_TYPE:
-		return mpeg_video_avc_coding_layer;
-	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
-		return mpeg_video_hevc_profile;
-	case V4L2_CID_MPEG_VIDEO_AV1_PROFILE:
-		return av1_profile;
-	case V4L2_CID_MPEG_VIDEO_AV1_LEVEL:
-		return av1_level;
-	case V4L2_CID_MPEG_VIDEO_AV1_TIER:
+	case PROFILE:
+		if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
+			return mpeg_video_hevc_profile;
+		} else if (inst->codec == MSM_VIDC_AV1) {
+			return av1_profile;
+		} else {
+			i_vpr_e(inst, "%s: invalid codec type %d for cap id %d\n",
+				__func__, inst->codec, cap_id);
+			return NULL;
+		}
+	case LEVEL:
+		if (inst->codec == MSM_VIDC_AV1) {
+			return av1_level;
+		} else {
+			i_vpr_e(inst, "%s: invalid codec type %d for cap id %d\n",
+				__func__, inst->codec, cap_id);
+			return NULL;
+		}
+	case AV1_TIER:
 		return av1_tier;
-	case V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE:
+	case IR_TYPE:
 		return mpeg_video_vidc_ir_type;
 	default:
-		i_vpr_e(inst, "%s: No available qmenu for ctrl %#x\n",
-			__func__, control_id);
+		i_vpr_e(inst, "%s: No available qmenu for cap id %d\n",
+			__func__, cap_id);
 		return NULL;
 	}
 }
@@ -745,15 +710,6 @@ error:
 	return rc;
 }
 
-void msm_vidc_add_volatile_flag(struct v4l2_ctrl *ctrl)
-{
-	if (ctrl->id == V4L2_CID_MIN_BUFFERS_FOR_OUTPUT ||
-		ctrl->id == V4L2_CID_MIN_BUFFERS_FOR_CAPTURE ||
-		ctrl->id == V4L2_CID_MPEG_VIDC_AV1D_FILM_GRAIN_PRESENT ||
-		ctrl->id == V4L2_CID_MPEG_VIDC_SW_FENCE_FD)
-		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
-}
-
 int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
 {
 	if (!inst) {
@@ -866,7 +822,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 				ctrl_cfg.menu_skip_mask =
 					~(capability->cap[idx].step_or_mask);
 				ctrl_cfg.qmenu = msm_vidc_get_qmenu_type(inst,
-					capability->cap[idx].v4l2_id);
+					capability->cap[idx].cap_id);
 			} else {
 				ctrl_cfg.step =
 					capability->cap[idx].step_or_mask;
@@ -915,11 +871,9 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			goto error;
 		}
 
-		/*
-		 * TODO(AS)
-		 * ctrl->flags |= capability->cap[idx].flags;
-		 */
-		msm_vidc_add_volatile_flag(ctrl);
+		if (capability->cap[idx].flags & CAP_FLAG_VOLATILE)
+			ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
+
 		ctrl->flags |= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
 		inst->ctrls[ctrl_idx] = ctrl;
 		ctrl_idx++;
@@ -2902,7 +2856,7 @@ int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 	u32 adjusted_value = 0;
 	s32 low_latency = -1;
 	s32 picture_order = -1;
-	s32 outbuf_fence = V4L2_MPEG_VIDC_META_DISABLE;
+	s32 outbuf_fence = 0;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2922,7 +2876,7 @@ int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 
 	if (!low_latency || !picture_order ||
 	    !is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
-		adjusted_value = V4L2_MPEG_MSM_VIDC_DISABLE;
+		adjusted_value = 0;
 
 	msm_vidc_update_cap_value(inst, SLICE_DECODE,
 		adjusted_value, __func__);
@@ -4527,7 +4481,7 @@ int msm_vidc_set_vui_timing_info(void *instance,
 	 * V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO and hence reverse
 	 * the hfi_value from cap_id value.
 	 */
-	if (inst->capabilities->cap[cap_id].value == V4L2_MPEG_MSM_VIDC_ENABLE)
+	if (inst->capabilities->cap[cap_id].value == 1)
 		hfi_value = 0;
 	else
 		hfi_value = 1;
