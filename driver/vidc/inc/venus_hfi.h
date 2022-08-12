@@ -72,8 +72,6 @@ int venus_hfi_set_ir_period(struct msm_vidc_inst *inst, u32 ir_type,
 void venus_hfi_pm_work_handler(struct work_struct *work);
 irqreturn_t venus_hfi_isr(int irq, void *data);
 irqreturn_t venus_hfi_isr_handler(int irq, void *data);
-int venus_hfi_interface_queues_init(struct msm_vidc_core *core);
-void venus_hfi_interface_queues_deinit(struct msm_vidc_core *core);
 
 int __write_register_masked(struct msm_vidc_core *core,
 		u32 reg, u32 value, u32 mask);
@@ -82,10 +80,6 @@ int __write_register(struct msm_vidc_core *core,
 int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value);
 int __read_register_with_poll_timeout(struct msm_vidc_core *core,
 	u32 reg, u32 mask, u32 exp_val, u32 sleep_us, u32 timeout_us);
-int __iface_cmdq_write(struct msm_vidc_core *core,
-	void *pkt);
-int __iface_msgq_read(struct msm_vidc_core *core, void *pkt);
-int __iface_dbgq_read(struct msm_vidc_core *core, void *pkt);
 int __set_clocks(struct msm_vidc_core *core, u32 freq);
 int __scale_clocks(struct msm_vidc_core *core);
 int __set_clk_rate(struct msm_vidc_core *core,

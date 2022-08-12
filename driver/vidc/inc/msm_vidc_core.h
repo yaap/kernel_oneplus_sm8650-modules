@@ -9,6 +9,7 @@
 #include <linux/platform_device.h>
 
 #include "msm_vidc_internal.h"
+#include "venus_hfi_queue.h"
 
 struct msm_vidc_core;
 

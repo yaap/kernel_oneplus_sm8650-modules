@@ -71,6 +71,7 @@ msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
                   driver/vidc/src/msm_vidc_memory.o \
                   driver/vidc/src/msm_vidc_fence.o \
                   driver/vidc/src/venus_hfi.o \
+                  driver/vidc/src/venus_hfi_queue.o \
                   driver/vidc/src/hfi_packet.o \
                   driver/vidc/src/venus_hfi_response.o \
                   driver/platform/common/src/msm_vidc_platform.o
