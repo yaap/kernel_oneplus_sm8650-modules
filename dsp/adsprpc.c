@@ -251,6 +251,8 @@ enum fastrpc_proc_attr {
 #define DSPSIGNAL_VERBOSE(x, ...)
 /*#define DSPSIGNAL_VERBOSE ADSPRPC_INFO*/
 
+MODULE_IMPORT_NS(DMA_BUF);
+
 static struct dentry *debugfs_root;
 static struct dentry *debugfs_global_file;
 
@@ -1913,6 +1915,7 @@ static void context_notify_user(struct smq_invoke_ctx *ctx,
 			ctx->msg.invoke.header.ctx, ctx->handle, ctx->sc);
 	switch (rsp_flags) {
 	case NORMAL_RESPONSE:
+		fallthrough;
 	case COMPLETE_SIGNAL:
 		/* normal and complete response with return value */
 		ctx->is_work_done = true;
@@ -1927,6 +1930,7 @@ static void context_notify_user(struct smq_invoke_ctx *ctx,
 		ctx->early_wake_time = early_wake_time;
 		if (ctx->asyncjob.isasyncjob)
 			break;
+		fallthrough;
 	case EARLY_RESPONSE:
 		/* rpc framework early response with return value */
 		if (ctx->asyncjob.isasyncjob)
@@ -6562,6 +6566,7 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 	case FASTRPC_IOCTL_INVOKE_CRC:
 		if (!size)
 			size = sizeof(struct fastrpc_ioctl_invoke_crc);
+		fallthrough;
 	case FASTRPC_IOCTL_INVOKE_PERF:
 		if (!size)
 			size = sizeof(struct fastrpc_ioctl_invoke_perf);
