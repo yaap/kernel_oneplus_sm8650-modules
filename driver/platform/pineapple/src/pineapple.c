@@ -300,23 +300,6 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	/* (4096 * 2304) / 256 */
 	{BATCH_FPS, DEC, H264|HEVC|VP9, 1, 120, 1, 120},
 
-	/* ((1920 * 1088) / 256) * 480 fps */
-	{MBPS, ENC, CODECS_ALL, 64, 3916800, 1, 3916800},
-
-	{MBPS, ENC, HEVC, 36, 3916800, 1, 3916800},
-
-	/* ((1920 * 1088) / 256) * 960 fps */
-	{MBPS, DEC, CODECS_ALL, 64, 7833600, 1, 7833600},
-
-	/* ((4096 * 2304) / 256) * 120 */
-	{MBPS, DEC, VP9, 36, 4423680, 1, 4423680},
-
-	/* Enable check mbps for encoder */
-	{CHECK_MBPS, ENC, CODECS_ALL, 0, 1, 1, 1},
-
-	/* Disable check mbps for encoder */
-	{CHECK_MBPS, DEC, CODECS_ALL, 0, 1, 1, 0},
-
 	{FRAME_RATE, ENC, CODECS_ALL,
 		(MINIMUM_FPS << 16), (MAXIMUM_FPS << 16),
 		1, (DEFAULT_FPS << 16),
