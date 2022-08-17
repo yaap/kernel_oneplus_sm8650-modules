@@ -345,7 +345,7 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 		/**********************************************/
 		/* use same context and seqno that src client used to create fence */
 		ret = hw_fence_register_wait_client(drv_data, NULL, hw_fence_client_dst, context,
-			seqno);
+			seqno, &hash);
 		if (ret) {
 			HWFNC_ERR("failed to register for wait\n");
 			return -EINVAL;
@@ -861,7 +861,8 @@ static ssize_t hw_fence_dbg_create_join_fence(struct file *file,
 
 	/* wait on the fence array */
 	fence_array_fence = &fence_array->base;
-	msm_hw_fence_wait_update(client_info_dst->client_handle, &fence_array_fence, 1, 1);
+	msm_hw_fence_wait_update_v2(client_info_dst->client_handle, &fence_array_fence, NULL, NULL,
+		1, 1);
 
 	signal_id = dbg_out_clients_signal_map_no_dpu[client_id_src].ipc_signal_id;
 	if (signal_id < 0) {

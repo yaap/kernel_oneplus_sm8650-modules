@@ -536,7 +536,7 @@ static long hw_sync_ioctl_reg_for_wait(struct hw_sync_obj *obj, unsigned long ar
 		return -EINVAL;
 	}
 
-	ret = msm_hw_fence_wait_update(obj->client_handle, &fence, num_fences, 1);
+	ret = msm_hw_fence_wait_update_v2(obj->client_handle, &fence, NULL, NULL, num_fences, 1);
 
 	/* Decrement the refcount that hw_sync_get_fence increments */
 	dma_fence_put(fence);

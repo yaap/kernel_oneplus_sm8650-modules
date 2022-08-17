@@ -982,6 +982,37 @@ int hw_fence_destroy(struct hw_fence_driver_data *drv_data,
 	return ret;
 }
 
+int hw_fence_destroy_with_hash(struct hw_fence_driver_data *drv_data,
+	struct msm_hw_fence_client *hw_fence_client, u64 hash)
+{
+	u32 client_id = hw_fence_client->client_id;
+	struct msm_hw_fence *hw_fences_tbl = drv_data->hw_fences_tbl;
+	struct msm_hw_fence *hw_fence = NULL;
+	int ret = 0;
+
+	hw_fence = _get_hw_fence(drv_data->hw_fence_table_entries, hw_fences_tbl, hash);
+	if (!hw_fence) {
+		HWFNC_ERR("bad hw fence hash:%llu client:%lu\n", hash, client_id);
+		return -EINVAL;
+	}
+
+	if (hw_fence->fence_allocator != client_id) {
+		HWFNC_ERR("client:%lu cannot destroy fence hash:%llu fence_allocator:%lu\n",
+			client_id, hash, hw_fence->fence_allocator);
+		return -EINVAL;
+	}
+
+	/* remove hw fence from table*/
+	if (_hw_fence_cleanup(drv_data, hw_fences_tbl, client_id, hw_fence->ctx_id,
+			hw_fence->seq_id)) {
+		HWFNC_ERR("Fail destroying fence client:%lu ctx:%llu seqno:%llu hash:%llu\n",
+			client_id, hw_fence->ctx_id, hw_fence->seq_id, hash);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static struct msm_hw_fence *_hw_fence_process_join_fence(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client,
 	struct dma_fence_array *array, u64 *hash, bool create)
@@ -1119,13 +1150,14 @@ static void _cleanup_join_and_child_fences(struct hw_fence_driver_data *drv_data
 }
 
 int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
-	struct msm_hw_fence_client *hw_fence_client, struct dma_fence_array *array)
+	struct msm_hw_fence_client *hw_fence_client, struct dma_fence_array *array,
+	u64 *hash_join_fence)
 {
 	struct msm_hw_fence *join_fence;
 	struct msm_hw_fence *hw_fence_child;
 	struct dma_fence *child_fence;
 	bool signal_join_fence = false;
-	u64 hash_join_fence, hash;
+	u64 hash;
 	int i, ret = 0;
 
 	/*
@@ -1134,7 +1166,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	 * join_fence->pending_child_count = array->num_fences
 	 */
 	join_fence = _hw_fence_process_join_fence(drv_data, hw_fence_client, array,
-		&hash_join_fence, true);
+		hash_join_fence, true);
 	if (!join_fence) {
 		HWFNC_ERR("cannot alloc hw fence for join fence array\n");
 		return -EINVAL;
@@ -1208,7 +1240,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 			}
 
 			hw_fence_child->parent_list[hw_fence_child->parents_cnt - 1] =
-				hash_join_fence;
+				*hash_join_fence;
 
 			/* update memory for the table update */
 			wmb();
@@ -1220,7 +1252,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	if (signal_join_fence) {
 
 		/* signal the join hw fence */
-		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, hash_join_fence, 0, 0);
+		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, *hash_join_fence, 0, 0);
 		set_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &array->base.flags);
 
 		/*
@@ -1228,7 +1260,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 		 * we can delete it now. This can happen when all the fences that
 		 * are part of the join-fence are already signaled.
 		 */
-		_hw_fence_process_join_fence(drv_data, hw_fence_client, array, &hash_join_fence,
+		_hw_fence_process_join_fence(drv_data, hw_fence_client, array, hash_join_fence,
 			false);
 	}
 
@@ -1236,20 +1268,19 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 
 error_array:
 	_cleanup_join_and_child_fences(drv_data, hw_fence_client, i, array, join_fence,
-		hash_join_fence);
+		*hash_join_fence);
 
 	return -EINVAL;
 }
 
 int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 		struct dma_fence *fence, struct msm_hw_fence_client *hw_fence_client, u64 context,
-		u64 seqno)
+		u64 seqno, u64 *hash)
 {
 	struct msm_hw_fence *hw_fence;
-	u64 hash;
 
 	/* find the hw fence within the table */
-	hw_fence = msm_hw_fence_find(drv_data, hw_fence_client, context, seqno, &hash);
+	hw_fence = msm_hw_fence_find(drv_data, hw_fence_client, context, seqno, hash);
 	if (!hw_fence) {
 		HWFNC_ERR("Cannot find fence!\n");
 		return -EINVAL;
@@ -1271,7 +1302,7 @@ int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 	if (hw_fence->flags & MSM_HW_FENCE_FLAG_SIGNAL) {
 		if (fence != NULL)
 			set_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &fence->flags);
-		_fence_ctl_signal(drv_data, hw_fence_client, hw_fence, hash, 0, 0);
+		_fence_ctl_signal(drv_data, hw_fence_client, hw_fence, *hash, 0, 0);
 	}
 
 	return 0;
@@ -1279,7 +1310,7 @@ int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 
 int hw_fence_process_fence(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client,
-	struct dma_fence *fence)
+	struct dma_fence *fence, u64 *hash)
 {
 	int ret = 0;
 
@@ -1294,7 +1325,7 @@ int hw_fence_process_fence(struct hw_fence_driver_data *drv_data,
 	}
 
 	ret = hw_fence_register_wait_client(drv_data, fence, hw_fence_client, fence->context,
-		fence->seqno);
+		fence->seqno, hash);
 	if (ret)
 		HWFNC_ERR("Error registering for wait client:%d\n", hw_fence_client->client_id);
 
