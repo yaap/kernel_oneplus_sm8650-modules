@@ -4,7 +4,6 @@
  */
 /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
 
-#include <media/v4l2_vidc_extensions.h>
 #include "msm_media_info.h"
 #include <linux/v4l2-common.h>
 
@@ -2599,7 +2598,6 @@ int msm_vdec_subscribe_event(struct msm_vidc_inst *inst,
 
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:
-	case V4L2_EVENT_VIDC_METADATA:
 		rc = v4l2_event_subscribe(&inst->event_handler, sub, MAX_EVENTS, NULL);
 		break;
 	case V4L2_EVENT_SOURCE_CHANGE:

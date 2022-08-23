@@ -579,6 +579,7 @@ enum msm_vidc_inst_capability_flags {
 	CAP_FLAG_OUTPUT_PORT             = BIT(3),
 	CAP_FLAG_CLIENT_SET              = BIT(4),
 	CAP_FLAG_BITMASK                 = BIT(5),
+	CAP_FLAG_VOLATILE                = BIT(6),
 };
 
 struct msm_vidc_inst_cap {

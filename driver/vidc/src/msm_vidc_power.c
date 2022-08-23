@@ -188,7 +188,6 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	struct vidc_bus_vote_data *vote_data;
 	struct v4l2_format *out_f;
 	struct v4l2_format *inp_f;
-	int codec = 0;
 	u32 operating_rate, frame_rate;
 
 	if (!inst || !inst->core || !inst->capabilities) {
@@ -211,27 +210,15 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 
 	out_f = &inst->fmts[OUTPUT_PORT];
 	inp_f = &inst->fmts[INPUT_PORT];
-	switch (inst->domain) {
-	case MSM_VIDC_DECODER:
-		codec = inp_f->fmt.pix_mp.pixelformat;
-		break;
-	case MSM_VIDC_ENCODER:
-		codec = out_f->fmt.pix_mp.pixelformat;
-		break;
-	default:
-		i_vpr_e(inst, "%s: invalid session_type %#x\n",
-			__func__, inst->domain);
-		break;
-	}
 
 	vote_data->codec = inst->codec;
 	vote_data->input_width = inp_f->fmt.pix_mp.width;
 	vote_data->input_height = inp_f->fmt.pix_mp.height;
 	vote_data->output_width = out_f->fmt.pix_mp.width;
 	vote_data->output_height = out_f->fmt.pix_mp.height;
-	vote_data->lcu_size = (codec == V4L2_PIX_FMT_HEVC ||
-			codec == V4L2_PIX_FMT_VP9) ? 32 : 16;
-	if (codec == V4L2_PIX_FMT_AV1)
+	vote_data->lcu_size = (inst->codec == MSM_VIDC_HEVC ||
+			inst->codec == MSM_VIDC_VP9) ? 32 : 16;
+	if (inst->codec == MSM_VIDC_AV1)
 		vote_data->lcu_size =
 			inst->capabilities->cap[SUPER_BLOCK].value ? 128 : 64;
 	vote_data->fps = inst->max_rate;
