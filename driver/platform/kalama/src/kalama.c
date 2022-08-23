@@ -594,7 +594,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0, 1, 1, 0,
 		0,
 		HFI_PROP_SEQ_CHANGE_AT_SYNC_FRAME,
-		CAP_FLAG_INPUT_PORT},
+		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{LTR_COUNT, ENC, H264|HEVC,
 		0, 2, 1, 0,
