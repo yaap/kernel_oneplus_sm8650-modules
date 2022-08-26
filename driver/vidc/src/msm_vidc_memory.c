@@ -19,6 +19,10 @@
 #include "msm_vidc_events.h"
 #include "venus_hfi.h"
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0))
+	MODULE_IMPORT_NS(DMA_BUF);
+#endif
+
 struct msm_vidc_buf_region_name {
 	enum msm_vidc_buffer_region region;
 	char *name;
@@ -404,6 +408,11 @@ int msm_vidc_memory_alloc(struct msm_vidc_core *core, struct msm_vidc_alloc *mem
 	if (mem->map_kernel) {
 		dma_buf_begin_cpu_access(mem->dmabuf, DMA_BIDIRECTIONAL);
 
+	/*
+	 * Waipio uses Kernel version 5.10.x,
+	 * Kalama uses Kernel Version 5.15.x,
+	 * Pineapple uses Kernel Version 5.18.x
+	 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
 		mem->kvaddr = dma_buf_vmap(mem->dmabuf);
 		if (!mem->kvaddr) {
@@ -411,6 +420,14 @@ int msm_vidc_memory_alloc(struct msm_vidc_core *core, struct msm_vidc_alloc *mem
 			rc = -EIO;
 			goto error;
 		}
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0))
+		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
+		if (rc) {
+			d_vpr_e("%s: kernel map failed\n", __func__);
+			rc = -EIO;
+			goto error;
+		}
+		mem->kvaddr = mem->dmabuf_map.vaddr;
 #else
 		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
 		if (rc) {
