@@ -14,7 +14,6 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_events.h"
 #include "venus_hfi.h"
@@ -28,7 +27,7 @@ struct msm_vidc_buf_region_name {
 	char *name;
 };
 
-struct context_bank_info *get_context_bank(struct msm_vidc_core *core,
+struct context_bank_info *msm_vidc_get_context_bank(struct msm_vidc_core *core,
 		enum msm_vidc_buffer_region region)
 {
 	const char *name;
@@ -215,7 +214,7 @@ int msm_vidc_memory_map(struct msm_vidc_core *core, struct msm_vidc_map *map)
 		}
 	}
 
-	cb = get_context_bank(core, map->region);
+	cb = msm_vidc_get_context_bank(core, map->region);
 	if (!cb) {
 		d_vpr_e("%s: Failed to get context bank device\n",
 			 __func__);
@@ -315,6 +314,78 @@ int msm_vidc_memory_unmap(struct msm_vidc_core *core,
 	map->table = NULL;
 
 exit:
+	return rc;
+}
+
+struct dma_buf_attachment *msm_vidc_dma_buf_attach(struct dma_buf *dbuf,
+	struct device *dev)
+{
+	int rc = 0;
+	struct dma_buf_attachment *attach = NULL;
+
+	if (!dbuf || !dev) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+
+	attach = dma_buf_attach(dbuf, dev);
+	if (IS_ERR_OR_NULL(attach)) {
+		rc = PTR_ERR(attach) ? PTR_ERR(attach) : -1;
+		d_vpr_e("Failed to attach dmabuf, error %d\n", rc);
+		return NULL;;
+	}
+
+	return attach;
+}
+
+int msm_vidc_dma_buf_detach(struct dma_buf *dbuf,
+	struct dma_buf_attachment *attach)
+{
+	int rc = 0;
+
+	if (!dbuf || !attach) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	dma_buf_detach(dbuf, attach);
+
+	return rc;
+}
+
+struct sg_table *msm_vidc_dma_buf_map_attachment(
+	struct dma_buf_attachment *attach)
+{
+	int rc = 0;
+	struct sg_table *table = NULL;
+
+	if (!attach) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+
+	table = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
+	if (IS_ERR_OR_NULL(table)) {
+		rc = PTR_ERR(table) ? PTR_ERR(table) : -1;
+		d_vpr_e("Failed to map table, error %d\n", rc);
+		return NULL;
+	}
+
+	return table;
+}
+
+int msm_vidc_dma_buf_unmap_attachment(struct dma_buf_attachment *attach,
+	struct sg_table *table)
+{
+	int rc = 0;
+
+	if (!attach || !table) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	dma_buf_unmap_attachment(attach, table, DMA_BIDIRECTIONAL);
+
 	return rc;
 }
 

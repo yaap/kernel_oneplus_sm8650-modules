@@ -4,6 +4,8 @@
  */
 /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
 
+#include <linux/qcom-dma-mapping.h>
+
 #include "msm_vidc_vb2.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
@@ -14,6 +16,7 @@
 #include "msm_venc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_control.h"
+#include "msm_vidc_dt.h"
 
 extern struct msm_vidc_core *g_core;
 
@@ -65,7 +68,52 @@ void *msm_vb2_alloc(struct vb2_buffer *vb, struct device *dev,
 void *msm_vb2_attach_dmabuf(struct vb2_buffer *vb, struct device *dev,
 	struct dma_buf *dbuf, unsigned long size)
 {
-	return (void *)0xdeadbeef;
+	struct msm_vidc_inst *inst;
+	struct msm_vidc_core *core;
+	struct msm_vidc_buffer *buf = NULL;
+
+	if (!vb || !dev || !dbuf || !vb->vb2_queue) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+	inst = vb->vb2_queue->drv_priv;
+	inst = get_inst_ref(g_core, inst);
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
+		return NULL;
+	}
+	core = inst->core;
+
+	buf = msm_vidc_fetch_buffer(inst, vb);
+	if (!buf) {
+		i_vpr_e(inst, "%s: failed to fetch buffer\n", __func__);
+		buf = NULL;
+		goto exit;
+	}
+	buf->inst = inst;
+
+	buf->attach = msm_vidc_dma_buf_attach(dbuf, dev);
+	if (!buf->attach) {
+		buf->attach = NULL;
+		buf = NULL;
+		goto exit;
+	}
+
+	buf->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
+	/* remove below flag when userspace recycles buffers in same index */
+	buf->attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
+	if (core->dt->sys_cache_present)
+		buf->attach->dma_map_attrs |=
+			DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
+
+	buf->dmabuf = dbuf;
+	print_vidc_buffer(VIDC_LOW, "low ", "attach", inst, buf);
+
+exit:
+	if (!buf)
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+	put_inst(inst);
+	return buf;
 }
 #endif
 
@@ -80,15 +128,126 @@ int msm_vb2_mmap(void *buf_priv, struct vm_area_struct *vma)
 
 void msm_vb2_detach_dmabuf(void *buf_priv)
 {
+	struct msm_vidc_buffer *vbuf = buf_priv;
+	struct msm_vidc_buffer *ro_buf, *dummy;
+	struct msm_vidc_inst *inst;
+
+	if (!vbuf || !vbuf->inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return;
+	}
+	inst = vbuf->inst;
+	inst = get_inst_ref(g_core, inst);
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
+		return;
+	}
+
+	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
+		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
+			if (ro_buf->dmabuf == vbuf->dmabuf) {
+				print_vidc_buffer(VIDC_LOW, "low ", "detach: found ro buf", inst, ro_buf);
+				ro_buf->attach = vbuf->attach;
+				vbuf->attach = NULL;
+				goto exit;
+			}
+		}
+	}
+
+	print_vidc_buffer(VIDC_LOW, "low ", "detach", inst, vbuf);
+	if (vbuf->attach && vbuf->dmabuf) {
+		msm_vidc_dma_buf_detach(vbuf->dmabuf, vbuf->attach);
+		vbuf->attach = NULL;
+		vbuf->dmabuf = NULL;
+		vbuf->inst = NULL;
+	}
+	vbuf->inst = NULL;
+
+exit:
+	put_inst(inst);
+	return;
 }
 
 int msm_vb2_map_dmabuf(void *buf_priv)
 {
-	return 0;
+	int rc = 0;
+	struct msm_vidc_buffer *buf = buf_priv;
+	struct msm_vidc_inst *inst;
+
+	if (!buf || !buf->inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	inst = buf->inst;
+	inst = get_inst_ref(g_core, inst);
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	buf->sg_table = msm_vidc_dma_buf_map_attachment(buf->attach);
+	if (!buf->sg_table) {
+		buf->sg_table = NULL;
+		rc = -ENOMEM;
+		goto exit;
+	}
+
+	if (!buf->sg_table->sgl) {
+		i_vpr_e(inst, "%s: sgl is NULL\n", __func__);
+		rc = -ENOMEM;
+		goto exit;
+	}
+
+	buf->device_addr = buf->sg_table->sgl->dma_address;
+	print_vidc_buffer(VIDC_HIGH, "high", "map", inst, buf);
+
+exit:
+	if (rc)
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+	put_inst(inst);
+	return rc;
 }
 
 void msm_vb2_unmap_dmabuf(void *buf_priv)
 {
+	struct msm_vidc_buffer *vbuf = buf_priv;
+	struct msm_vidc_buffer *ro_buf, *dummy;
+	struct msm_vidc_inst *inst;
+
+	if (!vbuf || !vbuf->inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return;
+	}
+	inst = vbuf->inst;
+	inst = get_inst_ref(g_core, inst);
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
+		return;
+	}
+
+	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
+		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
+			if (ro_buf->dmabuf == vbuf->dmabuf) {
+				print_vidc_buffer(VIDC_LOW, "low ", "unmap: found ro buf", inst, ro_buf);
+				ro_buf->sg_table = vbuf->sg_table;
+				ro_buf->attach = vbuf->attach;
+				vbuf->sg_table = NULL;
+				vbuf->device_addr = 0x0;
+				goto exit;
+			}
+		}
+	}
+
+	print_vidc_buffer(VIDC_HIGH, "high", "unmap", inst, vbuf);
+	if (vbuf->attach && vbuf->sg_table) {
+		msm_vidc_dma_buf_unmap_attachment(vbuf->attach, vbuf->sg_table);
+		vbuf->sg_table = NULL;
+		vbuf->device_addr = 0x0;
+	}
+
+exit:
+	put_inst(inst);
+	return;
 }
 
 int msm_vidc_queue_setup(struct vb2_queue *q,
@@ -97,8 +256,12 @@ int msm_vidc_queue_setup(struct vb2_queue *q,
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst;
+	struct msm_vidc_core *core;
 	int port;
 	struct v4l2_format *f;
+	enum msm_vidc_buffer_type buffer_type = 0;
+	enum msm_vidc_buffer_region region = MSM_VIDC_REGION_NONE;
+	struct context_bank_info *cb = NULL;
 
 	if (!q || !num_buffers || !num_planes
 		|| !sizes || !q->drv_priv) {
@@ -111,6 +274,7 @@ int msm_vidc_queue_setup(struct vb2_queue *q,
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	if (is_state(inst, MSM_VIDC_STREAMING)) {
 		i_vpr_e(inst, "%s: invalid state %d\n", __func__, inst->state);
@@ -135,6 +299,16 @@ int msm_vidc_queue_setup(struct vb2_queue *q,
 		}
 	}
 
+	buffer_type = v4l2_type_to_driver(q->type, __func__);
+	if (!buffer_type)
+		return -EINVAL;
+
+	rc = msm_vidc_free_buffers(inst, buffer_type);
+	if (rc) {
+		i_vpr_e(inst, "%s: failed to free buffers, type %s\n",
+			__func__, v4l2_type_name(q->type));
+		return rc;
+	}
 
 	if (port == INPUT_PORT) {
 		*num_planes = 1;
@@ -181,9 +355,25 @@ int msm_vidc_queue_setup(struct vb2_queue *q,
 			sizes[0] = inst->fmts[port].fmt.meta.buffersize;
 	}
 
+	rc = msm_vidc_allocate_buffers(inst, buffer_type, *num_buffers);
+	if (rc) {
+		i_vpr_e(inst, "%s: failed to allocate buffers, type %s\n",
+			__func__, v4l2_type_name(q->type));
+		return rc;
+	}
+
+	region = msm_vidc_get_buffer_region(inst, buffer_type, __func__);
+	cb = msm_vidc_get_context_bank(core, region);
+	if (!cb) {
+		d_vpr_e("%s: Failed to get context bank device\n",
+			 __func__);
+		return -EIO;
+	}
+	q->dev = cb->dev;
+
 	i_vpr_h(inst,
-		"queue_setup: type %s num_buffers %d sizes[0] %d\n",
-		v4l2_type_name(q->type), *num_buffers, sizes[0]);
+		"queue_setup: type %s num_buffers %d sizes[0] %d cb %s\n",
+		v4l2_type_name(q->type), *num_buffers, sizes[0], cb->name);
 	return rc;
 }
 

@@ -455,17 +455,17 @@ void print_vidc_buffer(u32 tag, const char *tag_str, const char *str, struct msm
 	}
 
 	dprintk_inst(tag, tag_str, inst,
-		"%s: %s: idx %2d fd %3d off %d daddr %#llx inode %8lu ref %2ld size %8d filled %8d flags %#x ts %8lld attr %#x counts(etb ebd ftb fbd) %4llu %4llu %4llu %4llu\n",
+		"%s: %s: idx %2d fd %3d off %d daddr %#llx inode %8lu ref %2ld size %8d filled %8d flags %#x ts %8lld attr %#x dbuf_get %d attach %d map %d counts(etb ebd ftb fbd) %4llu %4llu %4llu %4llu\n",
 		str, buf_name(vbuf->type),
 		vbuf->index, vbuf->fd, vbuf->data_offset,
-		vbuf->device_addr, inode_num, ref_count, vbuf->buffer_size, vbuf->data_size,
-		vbuf->flags, vbuf->timestamp, vbuf->attr, inst->debug_count.etb,
-		inst->debug_count.ebd, inst->debug_count.ftb, inst->debug_count.fbd);
+		vbuf->device_addr, inode_num, ref_count, vbuf->buffer_size,
+		vbuf->data_size, vbuf->flags, vbuf->timestamp, vbuf->attr,
+		vbuf->dbuf_get, vbuf->attach ? 1 : 0, vbuf->sg_table ? 1 : 0,
+		inst->debug_count.etb, inst->debug_count.ebd,
+		inst->debug_count.ftb, inst->debug_count.fbd);
 
 	trace_msm_v4l2_vidc_buffer_event_log(inst, str, buf_name(vbuf->type), vbuf,
 		inode_num, ref_count);
-
-
 }
 
 void print_vb2_buffer(const char *str, struct msm_vidc_inst *inst,
@@ -1171,14 +1171,6 @@ struct msm_vidc_mappings *msm_vidc_get_mappings(
 	const char *func)
 {
 	switch (buffer_type) {
-	case MSM_VIDC_BUF_INPUT:
-		return &inst->mappings.input;
-	case MSM_VIDC_BUF_INPUT_META:
-		return &inst->mappings.input_meta;
-	case MSM_VIDC_BUF_OUTPUT:
-		return &inst->mappings.output;
-	case MSM_VIDC_BUF_OUTPUT_META:
-		return &inst->mappings.output_meta;
 	case MSM_VIDC_BUF_BIN:
 		return &inst->mappings.bin;
 	case MSM_VIDC_BUF_ARP:
@@ -2469,25 +2461,26 @@ int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
 	return count;
 }
 
-static int vb2_buffer_to_driver(struct vb2_buffer *vb2,
+int vb2_buffer_to_driver(struct vb2_buffer *vb2,
 	struct msm_vidc_buffer *buf)
 {
 	int rc = 0;
+	struct vb2_v4l2_buffer *vbuf;
 
 	if (!vb2 || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	vbuf = to_vb2_v4l2_buffer(vb2);
 
-	buf->type = v4l2_type_to_driver(vb2->type, __func__);
-	if (!buf->type)
-		return -EINVAL;
-	buf->index = vb2->index;
 	buf->fd = vb2->planes[0].m.fd;
 	buf->data_offset = vb2->planes[0].data_offset;
 	buf->data_size = vb2->planes[0].bytesused - vb2->planes[0].data_offset;
 	buf->buffer_size = vb2->planes[0].length;
 	buf->timestamp = vb2->timestamp;
+	buf->flags = vbuf->flags;
+	buf->attr = 0;
+	buf->fence_id = 0;
 
 	return rc;
 }
@@ -2497,7 +2490,6 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct msm_vidc_buffer *ro_buf, *dummy;
-	struct msm_vidc_buffers *ro_buffers;
 
 	if (!inst || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2507,24 +2499,34 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 	if (!is_decode_session(inst) || !is_output_buffer(buf->type))
 		return 0;
 
-	ro_buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_READ_ONLY, __func__);
-	if (!ro_buffers)
-		return -EINVAL;
-
 	/*
-	 * check if buffer present in ro_buffers list
-	 * if present: add ro flag to buf and remove from ro_buffers list
-	 * if not present: do nothing
+	 * check if read_only buffer is present in read_only list
+	 * if present: add ro flag to buf
 	 */
-	list_for_each_entry_safe(ro_buf, dummy, &ro_buffers->list, list) {
-		if (ro_buf->device_addr == buf->device_addr) {
+	list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
+		if (ro_buf->device_addr == buf->device_addr &&
+			ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY) {
 			buf->attr |= MSM_VIDC_ATTR_READ_ONLY;
-			print_vidc_buffer(VIDC_LOW, "low ", "ro buf removed", inst, ro_buf);
-			list_del(&ro_buf->list);
-			msm_memory_pool_free(inst, ro_buf);
 			break;
 		}
 	}
+
+	/* remove ro buffers if not required anymore */
+	list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
+		/* if read only buffer do not remove */
+		if (ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY)
+			continue;
+		/* if v4l2 did not ask for unmap/detach then do not remove */
+		if (!ro_buf->sg_table || !ro_buf->attach || !ro_buf->dbuf_get)
+			continue;
+		print_vidc_buffer(VIDC_LOW, "low ", "ro buf removed", inst, ro_buf);
+		msm_vidc_dma_buf_unmap_attachment(ro_buf->attach, ro_buf->sg_table);
+		msm_vidc_dma_buf_detach(ro_buf->dmabuf, ro_buf->attach);
+		msm_vidc_memory_put_dmabuf(inst, ro_buf->dmabuf);
+		list_del_init(&ro_buf->list);
+		msm_memory_pool_free(inst, ro_buf);
+	}
+
 	return rc;
 }
 
@@ -2999,29 +3001,6 @@ int msm_vidc_put_delayed_unmap(struct msm_vidc_inst *inst, struct msm_vidc_map *
 	return rc;
 }
 
-int msm_vidc_unmap_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type type)
-{
-	int rc = 0;
-	struct msm_vidc_mappings *mappings;
-	struct msm_vidc_map *map, *dummy;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	mappings = msm_vidc_get_mappings(inst, type, __func__);
-	if (!mappings)
-		return -EINVAL;
-
-	list_for_each_entry_safe(map, dummy, &mappings->list, list) {
-		msm_vidc_memory_unmap_completely(inst, map);
-	}
-
-	return rc;
-}
-
 int msm_vidc_unmap_driver_buf(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf)
 {
@@ -3135,34 +3114,116 @@ error:
 	return rc;
 }
 
-int msm_vidc_put_driver_buf(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf)
-{
-	int rc = 0;
-
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	msm_vidc_unmap_driver_buf(inst, buf);
-
-	msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
-
-	/* delete the buffer from buffers->list */
-	list_del(&buf->list);
-	msm_memory_pool_free(inst, buf);
-
-	return rc;
-}
-
 struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
 	struct vb2_buffer *vb2)
 {
 	int rc = 0;
+	struct msm_vidc_buffer *buf;
+
+	if (!inst || !vb2) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+
+	buf = msm_vidc_fetch_buffer(inst, vb2);
+	if (!buf) {
+		i_vpr_e(inst, "%s: failed to fetch buffer\n", __func__);
+		return NULL;
+	}
+
+	rc = vb2_buffer_to_driver(vb2, buf);
+	if (rc)
+		return NULL;
+
+	/* treat every buffer as deferred buffer initially */
+	buf->attr |= MSM_VIDC_ATTR_DEFERRED;
+
+	if (is_decode_session(inst) && is_output_buffer(buf->type)) {
+		/* get a reference */
+		if (!buf->dbuf_get) {
+			buf->dmabuf = msm_vidc_memory_get_dmabuf(inst, buf->fd);
+			if (!buf->dmabuf)
+				return NULL;
+			buf->dbuf_get = 1;
+		}
+	}
+
+	/* update start timestamp */
+	msm_vidc_add_buffer_stats(inst, buf);
+
+	return buf;
+}
+
+int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buf_type, u32 num_buffers)
+{
+	int rc = 0;
+	int idx = 0;
+	struct msm_vidc_buffer *buf = NULL;
+	struct msm_vidc_buffers *buffers;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
+	if (!buffers)
+		return -EINVAL;
+
+	for (idx = 0; idx < num_buffers; idx++) {
+		buf = msm_memory_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
+		if (!buf) {
+			i_vpr_e(inst, "%s: alloc failed\n", __func__);
+			return -EINVAL;
+		}
+		INIT_LIST_HEAD(&buf->list);
+		list_add_tail(&buf->list, &buffers->list);
+		buf->type = buf_type;
+		buf->index = idx;
+	}
+	i_vpr_h(inst, "%s: allocated %d buffers for type %s\n",
+		__func__, num_buffers, buf_name(buf_type));
+
+	return rc;
+}
+
+int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buf_type)
+{
+	int rc = 0;
+	int buf_count = 0;
+	struct msm_vidc_buffer *buf, *dummy;
+	struct msm_vidc_buffers *buffers;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
+	if (!buffers)
+		return -EINVAL;
+
+	list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+		buf_count++;
+		print_vidc_buffer(VIDC_LOW, "low ", "free buffer", inst, buf);
+		list_del_init(&buf->list);
+		msm_memory_pool_free(inst, buf);
+	}
+	i_vpr_h(inst, "%s: freed %d buffers for type %s\n",
+		__func__, buf_count, buf_name(buf_type));
+
+	return rc;
+}
+
+struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
+	struct vb2_buffer *vb2)
+{
 	struct msm_vidc_buffer *buf = NULL;
 	struct msm_vidc_buffers *buffers;
 	enum msm_vidc_buffer_type buf_type;
+	bool found = false;
 
 	if (!inst || !vb2) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -3177,36 +3238,20 @@ struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
 	if (!buffers)
 		return NULL;
 
-	buf = msm_memory_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
-	if (!buf) {
-		i_vpr_e(inst, "%s: alloc failed\n", __func__);
+	list_for_each_entry(buf, &buffers->list, list) {
+		if (buf->index == vb2->index) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		i_vpr_e(inst, "%s: buffer not found for index %d for vb2 buffer type %s\n",
+			__func__, vb2->index, v4l2_type_name(vb2->type));
 		return NULL;
 	}
-	INIT_LIST_HEAD(&buf->list);
-	list_add_tail(&buf->list, &buffers->list);
-
-	rc = vb2_buffer_to_driver(vb2, buf);
-	if (rc)
-		goto error;
-
-	buf->dmabuf = msm_vidc_memory_get_dmabuf(inst, buf->fd);
-	if (!buf->dmabuf)
-		goto error;
-
-	/* treat every buffer as deferred buffer initially */
-	buf->attr |= MSM_VIDC_ATTR_DEFERRED;
-
-	rc = msm_vidc_map_driver_buf(inst, buf);
-	if (rc)
-		goto error;
 
 	return buf;
-
-error:
-	msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
-	list_del(&buf->list);
-	msm_memory_pool_free(inst, buf);
-	return NULL;
 }
 
 struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
@@ -3609,8 +3654,10 @@ static int msm_vidc_queue_buffer(struct msm_vidc_inst *inst, struct msm_vidc_buf
 
 	print_vidc_buffer(VIDC_HIGH, "high", "qbuf", inst, buf);
 	meta = get_meta_buffer(inst, buf);
-	if (meta)
+	if (meta && meta->attr & MSM_VIDC_ATTR_DEFERRED)
 		print_vidc_buffer(VIDC_LOW, "low ", "qbuf", inst, meta);
+	else
+		meta = NULL;
 
 	if (!meta && is_meta_enabled(inst, buf->type)) {
 		print_vidc_buffer(VIDC_ERR, "err ", "missing meta for", inst, buf);
@@ -3710,7 +3757,7 @@ int msm_vidc_queue_deferred_buffers(struct msm_vidc_inst *inst, enum msm_vidc_bu
 int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 {
 	int rc = 0;
-	struct msm_vidc_buffer *buf;
+	struct msm_vidc_buffer *buf = NULL;
 	struct msm_vidc_fence *fence = NULL;
 	enum msm_vidc_allow allow;
 
@@ -3722,9 +3769,6 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 	buf = msm_vidc_get_driver_buf(inst, vb2);
 	if (!buf)
 		return -EINVAL;
-
-	/* update start timestamp */
-	msm_vidc_add_buffer_stats(inst, buf);
 
 	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE) &&
 		is_output_buffer(buf->type)) {
@@ -4638,12 +4682,13 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 
 	/* flush deferred buffers */
 	msm_vidc_flush_buffers(inst, buffer_type);
-	msm_vidc_flush_delayed_unmap_buffers(inst, buffer_type);
+	msm_vidc_flush_read_only_buffers(inst, buffer_type);
 	return 0;
 
 error:
 	msm_vidc_kill_session(inst);
 	msm_vidc_flush_buffers(inst, buffer_type);
+	msm_vidc_flush_read_only_buffers(inst, buffer_type);
 	return rc;
 }
 
@@ -4684,10 +4729,9 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 	}
 	inst_lock(inst, __func__);
 
-	inst->state = MSM_VIDC_CLOSE;
+	msm_vidc_change_state(inst, MSM_VIDC_CLOSE, __func__);
 	inst->sub_state = MSM_VIDC_SUB_STATE_NONE;
 	strlcpy(inst->sub_state_name, "SUB_STATE_NONE", sizeof(inst->sub_state_name));
-	msm_vidc_remove_session(inst);
 
 	return rc;
 }
@@ -5555,10 +5599,15 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 				buf->attr & MSM_VIDC_ATTR_DEFERRED) {
 				print_vidc_buffer(VIDC_HIGH, "high", "flushing buffer", inst, buf);
 				if (!(buf->attr & MSM_VIDC_ATTR_BUFFER_DONE)) {
+					if (is_decode_session(inst) && is_output_buffer(buf->type)) {
+						if (buf->dbuf_get) {
+							msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
+							buf->dbuf_get = 0;
+						}
+					}
 					buf->data_size = 0;
 					msm_vidc_vb2_buffer_done(inst, buf);
 				}
-				msm_vidc_put_driver_buf(inst, buf);
 			}
 		}
 	}
@@ -5566,66 +5615,37 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-int msm_vidc_flush_delayed_unmap_buffers(struct msm_vidc_inst *inst,
+int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type type)
 {
 	int rc = 0;
-	struct msm_vidc_mappings *maps;
-	struct msm_vidc_map *map, *dummy;
-	struct msm_vidc_buffer *ro_buf, *ro_dummy;
-	enum msm_vidc_buffer_type buffer_type[2];
-	int i;
-	bool found = false;
+	struct msm_vidc_buffer *ro_buf, *dummy;
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	if (type == MSM_VIDC_BUF_INPUT) {
-		buffer_type[0] = MSM_VIDC_BUF_INPUT_META;
-		buffer_type[1] = MSM_VIDC_BUF_INPUT;
-	} else if (type == MSM_VIDC_BUF_OUTPUT) {
-		buffer_type[0] = MSM_VIDC_BUF_OUTPUT_META;
-		buffer_type[1] = MSM_VIDC_BUF_OUTPUT;
-	} else {
-		i_vpr_h(inst, "%s: invalid buffer type %d\n",
-			__func__, type);
-		return -EINVAL;
-	}
+	if (!is_decode_session(inst) || !is_output_buffer(type))
+		return 0;
 
-	for (i = 0; i < ARRAY_SIZE(buffer_type); i++) {
-		maps = msm_vidc_get_mappings(inst, buffer_type[i], __func__);
-		if (!maps)
-			return -EINVAL;
-
-		list_for_each_entry_safe(map, dummy, &maps->list, list) {
-			/*
-			 * decoder output bufs will have skip_delayed_unmap = true
-			 * unmap all decoder output buffers except those present in
-			 * read_only buffers list
-			 */
-			if (!map->skip_delayed_unmap)
-				continue;
-			found = false;
-			list_for_each_entry_safe(ro_buf, ro_dummy,
-					&inst->buffers.read_only.list, list) {
-				if (map->dmabuf == ro_buf->dmabuf) {
-					found = true;
-					break;
-				}
-			}
-			/* completely unmap */
-			if (!found) {
-				if (map->refcount > 1) {
-					i_vpr_e(inst,
-						"%s: unexpected map refcount: %u device addr %#x\n",
-						__func__, map->refcount, map->device_addr);
-					msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-				}
-				msm_vidc_memory_unmap_completely(inst, map);
-			}
-		}
+	list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
+		if (ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY)
+			continue;
+		print_vidc_buffer(VIDC_ERR, "high", "flush ro buf", inst, ro_buf);
+		if (ro_buf->attach && ro_buf->sg_table)
+			msm_vidc_dma_buf_unmap_attachment(ro_buf->attach, ro_buf->sg_table);
+		if (ro_buf->attach && ro_buf->dmabuf)
+			msm_vidc_dma_buf_detach(ro_buf->dmabuf, ro_buf->attach);
+		if (ro_buf->dbuf_get)
+			msm_vidc_memory_put_dmabuf(inst, ro_buf->dmabuf);
+		ro_buf->attach = NULL;
+		ro_buf->sg_table = NULL;
+		ro_buf->dmabuf = NULL;
+		ro_buf->dbuf_get = 0;
+		ro_buf->device_addr = 0x0;
+		list_del_init(&ro_buf->list);
+		msm_memory_pool_free(inst, ro_buf);
 	}
 
 	return rc;
@@ -5678,19 +5698,20 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		}
 	}
 
-	/* read_only and release list does not take dma ref_count using dma_buf_get().
-	   dma_buf ptr will be obselete when its ref_count reaches zero. Hence print
-	   the dma_buf info before releasing the ref count.
-	*/
+	/*
+	 * read_only list does not take dma ref_count using dma_buf_get().
+	 * dma_buf ptr will be obselete when its ref_count reaches zero.
+	 * Hence printthe dma_buf info before releasing the ref count.
+	 */
 	list_for_each_entry_safe(buf, dummy, &inst->buffers.read_only.list, list) {
-		print_vidc_buffer(VIDC_ERR, "err ", "destroying ro buffer", inst, buf);
-		list_del(&buf->list);
-		msm_memory_pool_free(inst, buf);
-	}
-
-	list_for_each_entry_safe(buf, dummy, &inst->buffers.release.list, list) {
-		print_vidc_buffer(VIDC_ERR, "err ", "destroying release buffer", inst, buf);
-		list_del(&buf->list);
+		print_vidc_buffer(VIDC_ERR, "err ", "destroying ro buf", inst, buf);
+		if (buf->attach && buf->sg_table)
+			msm_vidc_dma_buf_unmap_attachment(buf->attach, buf->sg_table);
+		if (buf->attach && buf->dmabuf)
+			msm_vidc_dma_buf_detach(buf->dmabuf, buf->attach);
+		if (buf->dbuf_get)
+			msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
+		list_del_init(&buf->list);
 		msm_memory_pool_free(inst, buf);
 	}
 
@@ -5700,12 +5721,17 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 			continue;
 
 		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
-			print_vidc_buffer(VIDC_ERR, "err ", "destroying ", inst, buf);
-			if (!(buf->attr & MSM_VIDC_ATTR_BUFFER_DONE))
-				msm_vidc_vb2_buffer_done(inst, buf);
-			msm_vidc_put_driver_buf(inst, buf);
+			if (buf->attach && buf->sg_table)
+				msm_vidc_dma_buf_unmap_attachment(buf->attach, buf->sg_table);
+			if (buf->attach && buf->dmabuf)
+				msm_vidc_dma_buf_detach(buf->dmabuf, buf->attach);
+			if (buf->dbuf_get) {
+				print_vidc_buffer(VIDC_ERR, "err ", "destroying: put dmabuf", inst, buf);
+				msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
+			}
+			list_del_init(&buf->list);
+			msm_memory_pool_free(inst, buf);
 		}
-		msm_vidc_unmap_buffers(inst, ext_buf_types[i]);
 	}
 
 	list_for_each_entry_safe(ts, dummy_ts, &inst->timestamps.list, sort.list) {
@@ -5736,8 +5762,19 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 	}
 
 	list_for_each_entry_safe(dbuf, dummy_dbuf, &inst->dmabuf_tracker, list) {
-		i_vpr_e(inst, "%s: removing dma_buf %#x, refcount %u\n",
-			__func__, dbuf->dmabuf, dbuf->refcount);
+		struct dma_buf *dmabuf;
+		struct inode *f_inode;
+		unsigned long inode_num = 0;
+
+		dmabuf = dbuf->dmabuf;
+		if (dmabuf && dmabuf->file) {
+			f_inode = file_inode(dmabuf->file);
+			if (f_inode) {
+				inode_num = f_inode->i_ino;
+			}
+		}
+		i_vpr_e(inst, "%s: removing dma_buf %#lx, inode %lu, refcount %u\n",
+			__func__, dbuf->dmabuf, inode_num, dbuf->refcount);
 		msm_vidc_memory_put_dmabuf_completely(inst, dbuf);
 	}
 
@@ -5774,8 +5811,6 @@ static void msm_vidc_close_helper(struct kref *kref)
 
 	i_vpr_h(inst, "%s()\n", __func__);
 	msm_vidc_fence_deinit(inst);
-	msm_vidc_event_queue_deinit(inst);
-	msm_vidc_vb2_queue_deinit(inst);
 	msm_vidc_debugfs_deinit_inst(inst);
 	if (is_decode_session(inst))
 		msm_vdec_inst_deinit(inst);
@@ -5784,6 +5819,7 @@ static void msm_vidc_close_helper(struct kref *kref)
 	msm_vidc_free_input_cr_list(inst);
 	if (inst->workq)
 		destroy_workqueue(inst->workq);
+	msm_vidc_destroy_buffers(inst);
 	msm_vidc_remove_dangling_session(inst);
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->request_lock);

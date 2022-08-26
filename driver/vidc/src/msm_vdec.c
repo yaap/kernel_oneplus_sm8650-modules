@@ -1861,7 +1861,7 @@ static inline enum msm_vidc_allow msm_vdec_allow_queue_deferred_buffers(
 static int msm_vdec_qbuf_batch(struct msm_vidc_inst *inst,
 	struct vb2_buffer *vb2)
 {
-	struct msm_vidc_buffer *buf;
+	struct msm_vidc_buffer *buf = NULL;
 	enum msm_vidc_allow allow;
 	int rc;
 
@@ -1873,8 +1873,6 @@ static int msm_vdec_qbuf_batch(struct msm_vidc_inst *inst,
 	buf = msm_vidc_get_driver_buf(inst, vb2);
 	if (!buf)
 		return -EINVAL;
-
-	msm_vidc_add_buffer_stats(inst, buf);
 
 	allow = msm_vidc_allow_qbuf(inst, vb2->type);
 	if (allow == MSM_VIDC_DISALLOW) {
@@ -1907,7 +1905,7 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	u32 fw_ro_count = 0, nonref_ro_count = 0;
-	struct msm_vidc_buffer *ro_buf, *rel_buf, *dummy;
+	struct msm_vidc_buffer *ro_buf;
 	int i = 0;
 	bool found = false;
 
@@ -1916,17 +1914,22 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	/* count num buffers in read_only list */
-	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list)
+	/* count read_only buffers which are not pending release in read_only list */
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
+			continue;
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
 		fw_ro_count++;
+	}
 
 	if (fw_ro_count <= MAX_DPB_COUNT)
 		return 0;
 
 	/*
-	 * Mark those buffers present in read_only list as non-reference
-	 * if that buffer is not part of dpb_list_payload
-	 * count such non-ref read only buffers as nonref_ro_count
+	 * Mark those read only buffers present in read_only list as
+	 * non-reference if that buffer is not part of dpb_list_payload.
+	 * count such non-ref read only buffers as nonref_ro_count.
 	 * dpb_list_payload details:
 	 * payload[0-1]           : 64 bits base_address of DPB-1
 	 * payload[2]             : 32 bits addr_offset  of DPB-1
@@ -1934,6 +1937,35 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	 */
 	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
 		found = false;
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
+			continue;
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
+		for (i = 0; (i + 3) < MAX_DPB_LIST_ARRAY_SIZE; i = i + 4) {
+			if (ro_buf->device_addr == inst->dpb_list_payload[i] &&
+				ro_buf->data_offset == inst->dpb_list_payload[i + 3]) {
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			nonref_ro_count++;
+	}
+
+
+	if (nonref_ro_count <= inst->buffers.output.min_count)
+		return 0;
+
+	i_vpr_l(inst, "%s: fw ro buf count %d, non-ref ro count %d\n",
+		__func__, fw_ro_count, nonref_ro_count);
+
+	/* release the eligible buffers as per above condition */
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		found = false;
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
+			continue;
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
 		for (i = 0; (i + 3) < MAX_DPB_LIST_ARRAY_SIZE; i = i + 4) {
 			if (ro_buf->device_addr == inst->dpb_list_payload[i] &&
 				ro_buf->data_offset == inst->dpb_list_payload[i + 3]) {
@@ -1942,146 +1974,14 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 			}
 		}
 		if (!found) {
-			ro_buf->attr &= ~MSM_VIDC_ATTR_READ_ONLY;
-			nonref_ro_count++;
-		}
-	}
-
-	if (nonref_ro_count <= inst->buffers.output.min_count)
-		return 0;
-
-	i_vpr_l(inst, "%s: fw ro buf count %d, non-ref ro count %d\n",
-		__func__, fw_ro_count, nonref_ro_count);
-	/*
-	 * move non-ref read only buffers from read_only list to
-	 * release list
-	 */
-	list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
-		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY)) {
-			list_del(&ro_buf->list);
-			INIT_LIST_HEAD(&ro_buf->list);
-			list_add_tail(&ro_buf->list, &inst->buffers.release.list);
-		}
-	}
-
-	/* send release flag along with read only flag for release list bufs*/
-	list_for_each_entry(rel_buf, &inst->buffers.release.list, list) {
-		/* fw needs RO flag for FTB release buffer */
-		rel_buf->attr |= MSM_VIDC_ATTR_READ_ONLY;
-		print_vidc_buffer(VIDC_LOW, "low ", "release buf", inst, rel_buf);
-		rc = venus_hfi_release_buffer(inst, rel_buf);
-		if (rc)
-			return rc;
-	}
-
-	return rc;
-}
-
-int msm_vdec_handle_release_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf)
-{
-	int rc = 0;
-
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	/**
-	 * RO & release list doesnot take dma ref_count using dma_buf_get().
-	 * Dmabuf ptr willbe obsolete when its last ref was last.
-	 * Use direct api to print logs instead of calling print_vidc_buffer()
-	 * api, which will attempt to dereferrence dmabuf ptr.
-	 */
-	i_vpr_l(inst,
-		"release done: %s: idx %2d fd %3d off %d daddr %#llx size %8d filled %8d flags %#x ts %8lld attr %#x counts(etb ebd ftb fbd) %4llu %4llu %4llu %4llu\n",
-		buf_name(buf->type),
-		buf->index, buf->fd, buf->data_offset,
-		buf->device_addr, buf->buffer_size, buf->data_size,
-		buf->flags, buf->timestamp, buf->attr, inst->debug_count.etb,
-		inst->debug_count.ebd, inst->debug_count.ftb, inst->debug_count.fbd);
-	/* delete the buffer from release list */
-	list_del(&buf->list);
-	msm_memory_pool_free(inst, buf);
-
-	return rc;
-}
-
-static bool is_valid_removable_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_map *map)
-{
-	bool found = false;
-	struct msm_vidc_buffer *buf;
-
-	if (!inst || !map) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (map->refcount != 1)
-		return false;
-
-	list_for_each_entry(buf, &inst->buffers.read_only.list, list) {
-		if (map->device_addr == buf->device_addr) {
-			found = true;
-			break;
-		}
-	}
-
-	list_for_each_entry(buf, &inst->buffers.release.list, list) {
-		if (map->device_addr == buf->device_addr) {
-			found = true;
-			break;
-		}
-	}
-
-	if (!found)
-		return true;
-
-	return false;
-}
-
-static int msm_vidc_unmap_excessive_mappings(struct msm_vidc_inst *inst)
-{
-	int rc = 0;
-	struct msm_vidc_map *map, *temp;
-	u32 refcount_one_bufs_count = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	/*
-	 * count entries from map list which are not present in
-	 * read_only buffers list, not present in release list
-	 * and whose refcount is 1.these are excess mappings
-	 * present due to delayed unmap feature.
-	 */
-	list_for_each_entry(map, &inst->mappings.output.list, list) {
-		if (is_valid_removable_buffer(inst, map))
-			refcount_one_bufs_count++;
-	}
-
-	if (refcount_one_bufs_count <= inst->max_map_output_count)
-		return 0;
-
-	/* unmap these buffers as they are stale entries */
-	list_for_each_entry_safe(map, temp, &inst->mappings.output.list, list) {
-		if (is_valid_removable_buffer(inst, map)) {
-			i_vpr_l(inst,
-				"%s: type %11s, device_addr %#x, refcount %d, region %d\n",
-				__func__, buf_name(map->type), map->device_addr,
-				map->refcount, map->region);
-			rc = msm_vidc_put_delayed_unmap(inst, map);
+			ro_buf->attr |= MSM_VIDC_ATTR_PENDING_RELEASE;
+			print_vidc_buffer(VIDC_LOW, "low ", "release buf", inst, ro_buf);
+			rc = venus_hfi_release_buffer(inst, ro_buf);
 			if (rc)
 				return rc;
-			if (!map->refcount) {
-				list_del_init(&map->list);
-				msm_vidc_memory_put_dmabuf(inst, map->dmabuf);
-				msm_memory_pool_free(inst, map);
-			}
 		}
 	}
+
 	return rc;
 }
 
@@ -2118,12 +2018,6 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 		rc = msm_vidc_queue_buffer_single(inst, vb2);
 	if (rc)
 		return rc;
-
-	if (vb2->type == OUTPUT_MPLANE) {
-		rc = msm_vidc_unmap_excessive_mappings(inst);
-		if (rc)
-			return rc;
-	}
 
 	return rc;
 }

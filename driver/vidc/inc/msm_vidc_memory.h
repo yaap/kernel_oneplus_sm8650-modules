@@ -7,6 +7,7 @@
 #define _MSM_VIDC_MEMORY_H_
 
 #include "msm_vidc_internal.h"
+#include "msm_vidc_dt.h"
 
 struct msm_vidc_core;
 struct msm_vidc_inst;
@@ -66,4 +67,15 @@ void *msm_memory_pool_alloc(struct msm_vidc_inst *inst,
 void msm_memory_pool_free(struct msm_vidc_inst *inst, void *vidc_buf);
 int msm_vidc_vmem_alloc(unsigned long size, void **mem, const char *msg);
 void msm_vidc_vmem_free(void **addr);
+struct context_bank_info *msm_vidc_get_context_bank(struct msm_vidc_core *core,
+	enum msm_vidc_buffer_region region);
+struct dma_buf_attachment *msm_vidc_dma_buf_attach(struct dma_buf *dbuf,
+	struct device *dev);
+int msm_vidc_dma_buf_detach(struct dma_buf *dbuf,
+	struct dma_buf_attachment *attach);
+struct sg_table *msm_vidc_dma_buf_map_attachment(
+	struct dma_buf_attachment *attach);
+int msm_vidc_dma_buf_unmap_attachment(struct dma_buf_attachment *attach,
+	struct sg_table *table);
+
 #endif // _MSM_VIDC_MEMORY_H_

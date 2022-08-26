@@ -468,11 +468,13 @@ struct msm_vidc_allocations *msm_vidc_get_allocations(
 	const char *func);
 struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
 	struct vb2_buffer *vb2);
+int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buf_type, u32 num_buffers);
+int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buf_type);
 int msm_vidc_unmap_driver_buf(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf);
 int msm_vidc_map_driver_buf(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf);
-int msm_vidc_put_driver_buf(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf);
 int msm_vidc_get_delayed_unmap(struct msm_vidc_inst *inst,
 	struct msm_vidc_map *map);
@@ -495,8 +497,8 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst);
 int msm_vidc_flush_buffers(struct msm_vidc_inst* inst,
 	enum msm_vidc_buffer_type type);
-int msm_vidc_flush_delayed_unmap_buffers(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type type);
+int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type type);
 struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *vbuf);
 struct msm_vidc_inst *get_inst_ref(struct msm_vidc_core *core,
@@ -598,5 +600,8 @@ int msm_vidc_get_input_rate(struct msm_vidc_inst *inst);
 int msm_vidc_get_frame_rate(struct msm_vidc_inst *inst);
 int msm_vidc_get_operating_rate(struct msm_vidc_inst *inst);
 int msm_vidc_alloc_and_queue_input_internal_buffers(struct msm_vidc_inst *inst);
+int vb2_buffer_to_driver(struct vb2_buffer *vb2, struct msm_vidc_buffer *buf);
+struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
+	struct vb2_buffer *vb2);
 #endif // _MSM_VIDC_DRIVER_H_
 

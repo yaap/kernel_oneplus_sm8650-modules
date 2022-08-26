@@ -21,6 +21,8 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
 
+struct msm_vidc_inst;
+
 /* TODO : remove once available in mainline kernel */
 #ifndef V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE
 #define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
@@ -220,7 +222,9 @@ enum msm_vidc_buffer_flags {
 	MSM_VIDC_BUF_FLAG_BFRAME           = 0x00000020,
 	MSM_VIDC_BUF_FLAG_ERROR            = 0x00000040,
 	MSM_VIDC_BUF_FLAG_LAST             = 0x00100000,
+	/* codec config is a vendor specific flag */
 	MSM_VIDC_BUF_FLAG_CODECCONFIG      = 0x01000000,
+	/* sub frame is a vendor specific flag */
 	MSM_VIDC_BUF_FLAG_SUBFRAME         = 0x02000000,
 };
 
@@ -858,6 +862,7 @@ struct msm_vidc_mappings {
 
 struct msm_vidc_buffer {
 	struct list_head                   list;
+	struct msm_vidc_inst              *inst;
 	enum msm_vidc_buffer_type          type;
 	u32                                index;
 	int                                fd;
@@ -865,10 +870,13 @@ struct msm_vidc_buffer {
 	u32                                data_offset;
 	u32                                data_size;
 	u64                                device_addr;
-	void                              *dmabuf;
 	u32                                flags;
 	u64                                timestamp;
 	enum msm_vidc_buffer_attributes    attr;
+	void                              *dmabuf;
+	struct sg_table                   *sg_table;
+	struct dma_buf_attachment         *attach;
+	u32                                dbuf_get:1;
 	u64                                fence_id;
 	u32                                start_time_ms;
 	u32                                end_time_ms;

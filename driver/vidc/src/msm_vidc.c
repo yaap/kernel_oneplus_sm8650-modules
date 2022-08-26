@@ -893,7 +893,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	inst->core = core;
 	inst->domain = session_type;
 	inst->session_id = hash32_ptr(inst);
-	inst->state = MSM_VIDC_OPEN;
+	msm_vidc_change_state(inst, MSM_VIDC_OPEN, __func__);
 	inst->sub_state = MSM_VIDC_SUB_STATE_NONE;
 	strlcpy(inst->sub_state_name, "SUB_STATE_NONE", sizeof(inst->sub_state_name));
 	inst->active = true;
@@ -924,7 +924,6 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	INIT_LIST_HEAD(&inst->buffers.output.list);
 	INIT_LIST_HEAD(&inst->buffers.output_meta.list);
 	INIT_LIST_HEAD(&inst->buffers.read_only.list);
-	INIT_LIST_HEAD(&inst->buffers.release.list);
 	INIT_LIST_HEAD(&inst->buffers.bin.list);
 	INIT_LIST_HEAD(&inst->buffers.arp.list);
 	INIT_LIST_HEAD(&inst->buffers.comv.list);
@@ -943,10 +942,6 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	INIT_LIST_HEAD(&inst->allocations.persist.list);
 	INIT_LIST_HEAD(&inst->allocations.vpss.list);
 	INIT_LIST_HEAD(&inst->allocations.partial_data.list);
-	INIT_LIST_HEAD(&inst->mappings.input.list);
-	INIT_LIST_HEAD(&inst->mappings.input_meta.list);
-	INIT_LIST_HEAD(&inst->mappings.output.list);
-	INIT_LIST_HEAD(&inst->mappings.output_meta.list);
 	INIT_LIST_HEAD(&inst->mappings.bin.list);
 	INIT_LIST_HEAD(&inst->mappings.arp.list);
 	INIT_LIST_HEAD(&inst->mappings.comv.list);
@@ -1045,8 +1040,9 @@ int msm_vidc_close(void *instance)
 	/* print final stats */
 	msm_vidc_print_stats(inst);
 	msm_vidc_session_close(inst);
+	msm_vidc_event_queue_deinit(inst);
+	msm_vidc_vb2_queue_deinit(inst);
 	msm_vidc_remove_session(inst);
-	msm_vidc_destroy_buffers(inst);
 	inst_unlock(inst, __func__);
 	client_unlock(inst, __func__);
 	cancel_stability_work_sync(inst);

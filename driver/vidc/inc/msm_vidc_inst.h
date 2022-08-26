@@ -42,10 +42,6 @@ struct msm_vidc_allocations_info {
 };
 
 struct msm_vidc_mappings_info {
-	struct msm_vidc_mappings        input;
-	struct msm_vidc_mappings        output;
-	struct msm_vidc_mappings        input_meta;
-	struct msm_vidc_mappings        output_meta;
 	struct msm_vidc_mappings        bin;
 	struct msm_vidc_mappings        arp;
 	struct msm_vidc_mappings        comv;
@@ -61,7 +57,6 @@ struct msm_vidc_buffers_info {
 	struct msm_vidc_buffers        input;
 	struct msm_vidc_buffers        output;
 	struct msm_vidc_buffers        read_only;
-	struct msm_vidc_buffers        release;
 	struct msm_vidc_buffers        input_meta;
 	struct msm_vidc_buffers        output_meta;
 	struct msm_vidc_buffers        bin;
