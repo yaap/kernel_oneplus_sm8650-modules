@@ -23,6 +23,12 @@
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 #include "msm_vidc_kalama.h"
 #endif
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+#include "msm_vidc_pineapple.h"
+#endif
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+#include "msm_vidc_pineapple.h"
+#endif
 #if defined(CONFIG_MSM_VIDC_ANORAK)
 #include "msm_vidc_anorak.h"
 #endif
@@ -32,7 +38,9 @@
 #if defined(CONFIG_MSM_VIDC_IRIS3)
 #include "msm_vidc_iris3.h"
 #endif
-
+#if defined(CONFIG_MSM_VIDC_IRIS33)
+#include "msm_vidc_iris33.h"
+#endif
 /*
  * Custom conversion coefficients for resolution: 176x144 negative
  * coeffs are converted to s4.9 format
@@ -229,6 +237,14 @@ static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core, struct d
 		return rc;
 	}
 #endif
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-pineapple")) {
+		rc = msm_vidc_deinit_platform_pineapple(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+		return rc;
+	}
+#endif
 #if defined(CONFIG_MSM_VIDC_ANORAK)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-anorak")) {
 		rc = msm_vidc_deinit_platform_anorak(core, dev);
@@ -263,6 +279,14 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core, struct dev
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-kalama")) {
 		rc = msm_vidc_init_platform_kalama(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+		return rc;
+	}
+#endif
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-pineapple")) {
+		rc = msm_vidc_init_platform_pineapple(core, dev);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
 		return rc;
@@ -307,7 +331,14 @@ static int msm_vidc_deinit_vpu(struct msm_vidc_core *core, struct device *dev)
         return rc;
 	}
 #endif
-
+#if defined(CONFIG_MSM_VIDC_IRIS33)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-iris33")) {
+		rc = msm_vidc_deinit_iris33(core);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+        return rc;
+	}
+#endif
 	return rc;
 }
 
@@ -331,6 +362,14 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core, struct device *dev)
 #if defined(CONFIG_MSM_VIDC_IRIS3)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-iris3")) {
 		rc = msm_vidc_init_iris3(core);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+	    return rc;
+	}
+#endif
+#if defined(CONFIG_MSM_VIDC_IRIS33)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-iris33")) {
+		rc = msm_vidc_init_iris33(core);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
 	    return rc;

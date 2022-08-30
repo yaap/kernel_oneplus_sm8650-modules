@@ -14,6 +14,12 @@ LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/kalama_video.h \
                    -I$(VIDEO_ROOT)/driver/platform/kalama/inc
 endif
 
+ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
+include $(VIDEO_ROOT)/config/pineapple_video.conf
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/pineapple_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/pineapple/inc
+endif
+
 ifeq ($(CONFIG_ARCH_ANORAK), y)
 include $(VIDEO_ROOT)/config/anorak_video.conf
 LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/anorak_video.h \
@@ -38,6 +44,10 @@ ifeq ($(CONFIG_MSM_VIDC_KALAMA), y)
 msm_video-objs += driver/platform/kalama/src/msm_vidc_kalama.o
 endif
 
+ifeq ($(CONFIG_MSM_VIDC_PINEAPPLE), y)
+msm_video-objs += driver/platform/pineapple/src/msm_vidc_pineapple.o
+endif
+
 ifeq ($(CONFIG_MSM_VIDC_ANORAK), y)
 msm_video-objs += driver/platform/anorak/src/msm_vidc_anorak.o
 endif
@@ -54,6 +64,13 @@ LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/variant/iris3/inc
 msm_video-objs += driver/variant/iris3/src/msm_vidc_buffer_iris3.o \
                   driver/variant/iris3/src/msm_vidc_power_iris3.o \
                   driver/variant/iris3/src/msm_vidc_iris3.o
+endif
+
+ifeq ($(CONFIG_MSM_VIDC_IRIS33), y)
+LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/variant/iris33/inc
+msm_video-objs += driver/variant/iris33/src/msm_vidc_buffer_iris33.o \
+                  driver/variant/iris33/src/msm_vidc_power_iris33.o \
+                  driver/variant/iris33/src/msm_vidc_iris33.o
 endif
 
 msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
