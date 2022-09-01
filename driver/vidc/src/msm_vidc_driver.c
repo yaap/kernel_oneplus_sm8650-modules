@@ -1761,6 +1761,22 @@ bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst)
 	return false;
 }
 
+bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
+{
+	bool is10bit = false;
+	enum msm_vidc_colorformat_type colorformat;
+
+	colorformat = v4l2_colorformat_to_driver(inst,
+		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
+
+	if (colorformat == MSM_VIDC_FMT_TP10C || colorformat == MSM_VIDC_FMT_P010)
+		is10bit = true;
+
+	return inst->domain == MSM_VIDC_DECODER &&
+				inst->codec == MSM_VIDC_HEVC &&
+				is10bit;
+}
+
 int msm_vidc_state_change_streamon(struct msm_vidc_inst *inst,
 		enum msm_vidc_port_type port)
 {

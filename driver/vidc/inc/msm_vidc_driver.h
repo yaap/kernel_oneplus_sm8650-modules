@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_DRIVER_H_
@@ -577,6 +578,7 @@ bool res_is_less_than(u32 width, u32 height,
 	u32 ref_width, u32 ref_height);
 bool res_is_less_than_or_equal_to(u32 width, u32 height,
 	u32 ref_width, u32 ref_height);
+bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst);
 int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 	enum signal_session_response cmd);
 int msm_vidc_get_properties(struct msm_vidc_inst *inst);
