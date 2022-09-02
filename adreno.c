@@ -22,6 +22,7 @@
 #include <soc/qcom/dcvs.h>
 #include <soc/qcom/socinfo.h>
 #include <soc/qcom/boot_stats.h>
+#include <linux/suspend.h>
 
 #include "adreno.h"
 #include "adreno_a3xx.h"
@@ -1491,6 +1492,15 @@ static int adreno_pm_resume(struct device *dev)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	const struct adreno_power_ops *ops = ADRENO_POWER_OPS(adreno_dev);
 
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	if (pm_suspend_via_firmware()) {
+		int status = kgsl_set_smmu_aperture(device);
+
+		if (status)
+			return status;
+	}
+#endif
+
 	mutex_lock(&device->mutex);
 	ops->pm_resume(adreno_dev);
 	mutex_unlock(&device->mutex);
@@ -1518,6 +1528,12 @@ static int adreno_pm_suspend(struct device *dev)
 
 	mutex_lock(&device->mutex);
 	status = ops->pm_suspend(adreno_dev);
+
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	if (!status && pm_suspend_via_firmware())
+		adreno_zap_shader_unload(adreno_dev);
+#endif
+
 	mutex_unlock(&device->mutex);
 
 	return status;
