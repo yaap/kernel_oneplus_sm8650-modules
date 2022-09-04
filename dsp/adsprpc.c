@@ -41,7 +41,7 @@
 #include <linux/msm_dma_iommu_mapping.h>
 #include "adsprpc_compat.h"
 #include "adsprpc_shared.h"
-#include <linux/fastrpc.h>
+#include "fastrpc.h"
 #include <soc/qcom/qcom_ramdump.h>
 #include <soc/qcom/minidump.h>
 #include <linux/delay.h>
