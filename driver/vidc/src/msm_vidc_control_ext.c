@@ -150,12 +150,8 @@ int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 
 	/* Slice encode delivery mode is only supported for Max MB slice mode */
-	if (slice_mode != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB) {
-		if (inst->codec == MSM_VIDC_HEVC)
-			adjusted_value = V4L2_MPEG_VIDC_HEVC_ENCODE_DELIVERY_MODE_FRAME_BASED;
-		else if (inst->codec == MSM_VIDC_H264)
-			adjusted_value = V4L2_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE_FRAME_BASED;
-	}
+	if (slice_mode != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB)
+		adjusted_value = 0;
 
 	msm_vidc_update_cap_value(inst, DELIVERY_MODE,
 		adjusted_value, __func__);
