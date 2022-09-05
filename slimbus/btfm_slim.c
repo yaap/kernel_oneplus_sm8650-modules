@@ -408,8 +408,15 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 		chipset_ver ==  QCA_APACHE_SOC_ID_0100  ||
 		chipset_ver ==  QCA_APACHE_SOC_ID_0110  ||
 		chipset_ver ==  QCA_APACHE_SOC_ID_0120 ||
-		chipset_ver ==  QCA_APACHE_SOC_ID_0121) {
-		BTFMSLIM_INFO("chipset is Chk/Apache, overwriting EA");
+		chipset_ver ==  QCA_APACHE_SOC_ID_0121 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_0101 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_0110 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_0120 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_0130 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_4130 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_5120 ||
+		chipset_ver ==  QCA_COMANCHE_SOC_ID_5130 ) {
+		BTFMSLIM_INFO("chipset is Chk/Apache/CMC, overwriting EA");
 		slim->is_laddr_valid = false;
 		slim->e_addr.manf_id = SLIM_MANF_ID_QCOM;
 		slim->e_addr.prod_code = 0x220;
