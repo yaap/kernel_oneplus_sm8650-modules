@@ -389,7 +389,6 @@ enum msm_vidc_core_capability_type {
 enum msm_vidc_inst_capability_type {
 	INST_CAP_NONE = 0,
 	/* place all metadata after this line
-	 * (Between INST_CAP_NONE and META_CAP_MAX)
 	 */
 	META_SEQ_HDR_NAL,
 	META_BITSTREAM_RESOLUTION,
@@ -417,7 +416,6 @@ enum msm_vidc_inst_capability_type {
 	META_SALIENCY_INFO,
 	META_TRANSCODING_STAT_INFO,
 	META_DOLBY_RPU,
-	META_CAP_MAX,
 	/* end of metadata caps */
 	FRAME_WIDTH,
 	LOSSLESS_FRAME_WIDTH,
@@ -581,6 +579,7 @@ enum msm_vidc_inst_capability_flags {
 	CAP_FLAG_CLIENT_SET              = BIT(4),
 	CAP_FLAG_BITMASK                 = BIT(5),
 	CAP_FLAG_VOLATILE                = BIT(6),
+	CAP_FLAG_META                    = BIT(7),
 };
 
 struct msm_vidc_inst_cap {

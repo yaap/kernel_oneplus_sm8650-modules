@@ -100,9 +100,9 @@ static inline bool is_internal_buffer(enum msm_vidc_buffer_type buffer_type)
 		buffer_type == MSM_VIDC_BUF_PARTIAL_DATA;
 }
 
-static inline bool is_meta_cap(u32 cap)
+static inline bool is_meta_cap(struct msm_vidc_inst *inst, u32 cap)
 {
-	if (cap > INST_CAP_NONE && cap < META_CAP_MAX)
+	if (inst->capabilities->cap[cap].flags & CAP_FLAG_META)
 		return true;
 
 	return false;
@@ -111,6 +111,9 @@ static inline bool is_meta_cap(u32 cap)
 static inline bool is_meta_rx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
+
+	if (!is_meta_cap(inst, cap))
+		return false;
 
 	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
 		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_INPUT)
@@ -123,6 +126,9 @@ static inline bool is_meta_rx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
+	if (!is_meta_cap(inst, cap))
+		return false;
+
 	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
 		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_OUTPUT)
 		enabled = true;
@@ -134,6 +140,9 @@ static inline bool is_meta_tx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
 
+	if (!is_meta_cap(inst, cap))
+		return false;
+
 	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
 		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_INPUT)
 		enabled = true;
@@ -144,6 +153,9 @@ static inline bool is_meta_tx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 static inline bool is_meta_tx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 {
 	bool enabled = false;
+
+	if (!is_meta_cap(inst, cap))
+		return false;
 
 	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
 		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_OUTPUT)
@@ -157,7 +169,7 @@ static inline bool is_any_meta_tx_out_enabled(struct msm_vidc_inst *inst)
 	bool enabled = false;
 	u32 i;
 
-	for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+	for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 		if (is_meta_tx_out_enabled(inst, i)) {
 			enabled = true;
 			break;
@@ -172,7 +184,7 @@ static inline bool is_any_meta_tx_inp_enabled(struct msm_vidc_inst *inst)
 	bool enabled = false;
 	u32 i;
 
-	for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+	for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 		if (is_meta_tx_inp_enabled(inst, i)) {
 			enabled = true;
 			break;
@@ -187,7 +199,7 @@ static inline bool is_input_meta_enabled(struct msm_vidc_inst *inst)
 	bool enabled = false;
 	u32 i;
 
-	for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+	for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 		if (is_meta_tx_inp_enabled(inst, i) ||
 			is_meta_rx_inp_enabled(inst, i)) {
 			enabled = true;
@@ -203,7 +215,7 @@ static inline bool is_output_meta_enabled(struct msm_vidc_inst *inst)
 	bool enabled = false;
 	u32 i;
 
-	for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+	for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 		if (is_meta_tx_out_enabled(inst, i) ||
 			is_meta_rx_out_enabled(inst, i)) {
 			enabled = true;

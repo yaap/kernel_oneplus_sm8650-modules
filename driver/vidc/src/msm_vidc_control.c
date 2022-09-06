@@ -418,7 +418,7 @@ int msm_vidc_update_cap_value(struct msm_vidc_inst *inst, u32 cap_id,
 
 	prev_value = inst->capabilities->cap[cap_id].value;
 
-	if (is_meta_cap(cap_id)) {
+	if (is_meta_cap(inst, cap_id)) {
 		/*
 		 * cumulative control value if client set same metadata
 		 * control multiple times.
@@ -808,7 +808,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 				ctrl_cfg.type = V4L2_CTRL_TYPE_BITMASK;
 			else
 				ctrl_cfg.type = V4L2_CTRL_TYPE_INTEGER;
-			if (is_meta_cap(idx)) {
+			if (is_meta_cap(inst, idx)) {
 				/* bitmask is expected to be enabled for meta controls */
 				if (ctrl_cfg.type != V4L2_CTRL_TYPE_BITMASK) {
 					i_vpr_e(inst,
@@ -1078,7 +1078,7 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 
 		msm_vidc_update_cap_value(inst, LAYER_ENABLE, enable, __func__);
 	}
-	if (is_meta_cap(cap_id)) {
+	if (is_meta_cap(inst, cap_id)) {
 		rc = msm_vidc_update_meta_port_settings(inst);
 		if (rc)
 			return rc;
