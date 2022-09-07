@@ -687,6 +687,7 @@ int __load_fw(struct msm_vidc_core *core)
 	core->handoff_done = false;
 	core->hw_power_control = false;
 	core->cpu_watchdog = false;
+	core->video_unresponsive = false;
 
 	trace_msm_v4l2_vidc_fw_load("START");
 	rc = __venus_power_on(core);
@@ -726,6 +727,7 @@ void __unload_fw(struct msm_vidc_core *core)
 	__venus_power_off(core);
 
 	core->cpu_watchdog = false;
+	core->video_unresponsive = false;
 
 	d_vpr_h("%s done\n", __func__);
 }
@@ -815,6 +817,7 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 		d_vpr_e("Failed to PC for %d times\n",
 				core->skip_pc_count);
 		core->skip_pc_count = 0;
+		core->video_unresponsive = true;
 		msm_vidc_core_deinit(core, true);
 		return;
 	}
