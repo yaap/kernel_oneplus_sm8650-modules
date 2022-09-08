@@ -371,6 +371,7 @@ enum msm_vidc_core_capability_type {
 	NON_FATAL_FAULTS,
 	ENC_AUTO_FRAMERATE,
 	MMRM,
+	DEVICE_CAPS,
 	CORE_CAP_MAX,
 };
 

@@ -165,6 +165,11 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 
 	d_vpr_h("%s()\n", __func__);
 
+	if (!core || !core->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
 	if (type == MSM_VIDC_DECODER) {
 		index = 0;
 		media_index = MEDIA_ENT_F_PROC_VIDEO_DECODER;
@@ -185,10 +190,7 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 	core->vdev[index].vdev.vfl_dir = VFL_DIR_M2M;
 	core->vdev[index].type = type;
 	core->vdev[index].vdev.v4l2_dev = &core->v4l2_dev;
-	core->vdev[index].vdev.device_caps =
-		V4L2_CAP_VIDEO_M2M_MPLANE |
-		V4L2_CAP_META_CAPTURE |
-		V4L2_CAP_STREAMING;
+	core->vdev[index].vdev.device_caps = core->capabilities[DEVICE_CAPS].value;
 	rc = video_register_device(&core->vdev[index].vdev,
 					VFL_TYPE_VIDEO, nr);
 	if (rc) {
