@@ -655,7 +655,7 @@ static long hw_sync_ioctl_reset_client(struct hw_sync_obj *obj, unsigned long ar
 	if (!_is_valid_client(obj)) {
 		return -EINVAL;
 	} else if (IS_ERR_OR_NULL(obj->client_handle)) {
-		HWFNC_ERR("client:%d handle doesn't exists\n", data.client_id);
+		HWFNC_ERR("client:%d handle doesn't exists\n", obj->client_id);
 		return -EINVAL;
 	}
 

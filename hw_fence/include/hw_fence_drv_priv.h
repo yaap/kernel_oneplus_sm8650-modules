@@ -69,6 +69,12 @@
  */
 #define MSM_HW_FENCE_MAX_JOIN_PARENTS	3
 
+/**
+ * HW_FENCE_PAYLOAD_REV:
+ * Payload version with major and minor version information
+ */
+#define HW_FENCE_PAYLOAD_REV(major, minor) (major << 8 | (minor & 0xFF))
+
 enum hw_fence_lookup_ops {
 	HW_FENCE_LOOKUP_OP_CREATE = 0x1,
 	HW_FENCE_LOOKUP_OP_DESTROY,
@@ -127,6 +133,13 @@ struct msm_hw_fence_queue {
 	u32 q_size_bytes;
 	void *va_header;
 	phys_addr_t pa_queue;
+};
+
+/**
+ * enum payload_type - Enum with the queue payload types.
+ */
+enum payload_type {
+	HW_FENCE_PAYLOAD_TYPE_1 = 1
 };
 
 /**
@@ -319,22 +332,34 @@ struct hw_fence_driver_data {
 
 /**
  * struct msm_hw_fence_queue_payload - hardware fence clients queues payload.
+ * @size: size of queue payload
+ * @type: type of queue payload
+ * @version: version of queue payload. High eight bits are for major and lower eight
+ *           bits are for minor version
  * @ctxt_id: context id of the dma fence
  * @seqno: sequence number of the dma fence
  * @hash: fence hash
  * @flags: see MSM_HW_FENCE_FLAG_* flags descriptions
+ * @client_data: data passed from and returned to waiting client upon fence signaling
  * @error: error code for this fence, fence controller receives this
  *		  error from the signaling client through the tx queue and
  *		  propagates the error to the waiting client through rx queue
- * @timestamp: qtime when the payload is written into the queue
+ * @timestamp_lo: low 32-bits of qtime of when the payload is written into the queue
+ * @timestamp_hi: high 32-bits of qtime of when the payload is written into the queue
  */
 struct msm_hw_fence_queue_payload {
+	u32 size;
+	u16 type;
+	u16 version;
 	u64 ctxt_id;
 	u64 seqno;
 	u64 hash;
 	u64 flags;
+	u64 client_data;
 	u32 error;
-	u32 timestamp;
+	u32 timestamp_lo;
+	u32 timestamp_hi;
+	u32 reserve;
 };
 
 /**

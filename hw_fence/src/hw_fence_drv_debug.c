@@ -590,9 +590,10 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 		hash = readq_relaxed(&read_ptr_payload->hash);
 		flags = readq_relaxed(&read_ptr_payload->flags);
 		error = readl_relaxed(&read_ptr_payload->error);
-		timestamp = readl_relaxed(&read_ptr_payload->timestamp);
+		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
+			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
 
-		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%u\n",
+		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%llu\n",
 			i, hash, ctx_id, seqno, flags, error, timestamp);
 	}
 
@@ -607,8 +608,9 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 		hash = readq_relaxed(&read_ptr_payload->hash);
 		flags = readq_relaxed(&read_ptr_payload->flags);
 		error = readl_relaxed(&read_ptr_payload->error);
-		timestamp = readl_relaxed(&read_ptr_payload->timestamp);
-		HWFNC_DBG_L("tx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%u\n",
+		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
+			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
+		HWFNC_DBG_L("tx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%llu\n",
 			i, hash, ctx_id, seqno, flags, error, timestamp);
 	}
 

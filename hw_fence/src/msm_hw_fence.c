@@ -124,6 +124,11 @@ int msm_hw_fence_deregister(void *client_handle)
 	}
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 
+	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid client_id:%d\n", hw_fence_client->client_id);
+		return -EINVAL;
+	}
+
 	HWFNC_DBG_H("+\n");
 
 	/* Free all the allocated resources */
