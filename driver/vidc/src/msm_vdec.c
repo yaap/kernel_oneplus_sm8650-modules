@@ -1008,7 +1008,7 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 	capability = inst->capabilities;
 	payload[0] = HFI_MODE_METADATA;
 	if (port == INPUT_PORT) {
-		for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_inp_enabled(inst, i) &&
 				msm_vidc_allow_metadata_subscription(
 					inst, i, port)) {
@@ -1017,7 +1017,7 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 			}
 		}
 	} else if (port == OUTPUT_PORT) {
-		for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_out_enabled(inst, i) &&
 				msm_vidc_allow_metadata_subscription(
 					inst, i, port)) {
@@ -1060,14 +1060,14 @@ static int msm_vdec_set_delivery_mode_metadata(struct msm_vidc_inst *inst,
 	payload[0] = HFI_MODE_METADATA;
 
 	if (port == INPUT_PORT) {
-		for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_inp_enabled(inst, i)) {
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
 		}
 	} else if (port == OUTPUT_PORT) {
-		for (i = INST_CAP_NONE + 1; i < META_CAP_MAX; i++) {
+		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_out_enabled(inst, i)  &&
 				msm_vidc_allow_metadata_delivery(
 					inst, i, port)) {
