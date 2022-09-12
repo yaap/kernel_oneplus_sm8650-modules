@@ -35,27 +35,24 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 			!mem_descriptor, client_id);
 		return ERR_PTR(-EINVAL);
 	}
+	/* Alloc client handle */
+	hw_fence_client =  kzalloc(sizeof(*hw_fence_client), GFP_KERNEL);
+	if (!hw_fence_client)
+		return ERR_PTR(-ENOMEM);
 
 	/* Avoid race condition if multiple-threads request same client at same time */
-	mutex_lock(&hw_fence_drv_data->clients_mask_lock);
-	if (hw_fence_drv_data->client_id_mask & BIT(client_id)) {
+	mutex_lock(&hw_fence_drv_data->clients_register_lock);
+	if (hw_fence_drv_data->clients[client_id]) {
 		HWFNC_ERR("client with id %d already registered\n", client_id);
-		mutex_unlock(&hw_fence_drv_data->clients_mask_lock);
+		mutex_unlock(&hw_fence_drv_data->clients_register_lock);
+		kfree(hw_fence_client);
 		return ERR_PTR(-EINVAL);
 	}
 
 	/* Mark client as registered */
-	hw_fence_drv_data->client_id_mask |= BIT(client_id);
-	mutex_unlock(&hw_fence_drv_data->clients_mask_lock);
+	hw_fence_drv_data->clients[client_id] = hw_fence_client;
+	mutex_unlock(&hw_fence_drv_data->clients_register_lock);
 
-	/* Alloc client handle */
-	hw_fence_client =  kzalloc(sizeof(*hw_fence_client), GFP_KERNEL);
-	if (!hw_fence_client) {
-		mutex_lock(&hw_fence_drv_data->clients_mask_lock);
-		hw_fence_drv_data->client_id_mask &= ~BIT(client_id);
-		mutex_unlock(&hw_fence_drv_data->clients_mask_lock);
-		return ERR_PTR(-ENOMEM);
-	}
 	hw_fence_client->client_id = client_id;
 	hw_fence_client->ipc_client_id = hw_fence_ipcc_get_client_id(hw_fence_drv_data, client_id);
 
@@ -73,8 +70,6 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 	}
 
 	hw_fence_client->update_rxq = hw_fence_ipcc_needs_rxq_update(hw_fence_drv_data, client_id);
-
-	hw_fence_drv_data->clients[client_id] = hw_fence_client;
 
 	/* Alloc Client HFI Headers and Queues */
 	ret = hw_fence_alloc_client_resources(hw_fence_drv_data,
@@ -401,7 +396,7 @@ static int msm_hw_fence_probe_init(struct platform_device *pdev)
 	if (rc)
 		goto error;
 
-	mutex_init(&hw_fence_drv_data->clients_mask_lock);
+	mutex_init(&hw_fence_drv_data->clients_register_lock);
 
 	/* set ready ealue so clients can register */
 	hw_fence_drv_data->resources_ready = true;

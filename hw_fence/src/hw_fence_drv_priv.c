@@ -624,10 +624,9 @@ void hw_fence_cleanup_client(struct hw_fence_driver_data *drv_data,
 	 *  allocation, then we will need to notify FenceCTL about the client that is
 	 *  going-away here.
 	 */
-	mutex_lock(&drv_data->clients_mask_lock);
-	drv_data->client_id_mask &= ~BIT(hw_fence_client->client_id);
+	mutex_lock(&drv_data->clients_register_lock);
 	drv_data->clients[hw_fence_client->client_id] = NULL;
-	mutex_unlock(&drv_data->clients_mask_lock);
+	mutex_unlock(&drv_data->clients_register_lock);
 
 	/* Deallocate client's object */
 	HWFNC_DBG_LUT("freeing client_id:%d\n", hw_fence_client->client_id);

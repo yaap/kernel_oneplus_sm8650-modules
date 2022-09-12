@@ -895,10 +895,10 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 		return -EINVAL;
 	}
 
-	mutex_lock(&drv_data->clients_mask_lock);
+	mutex_lock(&drv_data->clients_register_lock);
 
 	if (!drv_data->clients[client_id]) {
-		mutex_unlock(&drv_data->clients_mask_lock);
+		mutex_unlock(&drv_data->clients_register_lock);
 		return -EINVAL;
 	}
 
@@ -912,7 +912,7 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 	/* wake-up waiting client */
 	wake_up_all(&hw_fence_client->wait_queue);
 
-	mutex_unlock(&drv_data->clients_mask_lock);
+	mutex_unlock(&drv_data->clients_register_lock);
 
 	return 0;
 }
