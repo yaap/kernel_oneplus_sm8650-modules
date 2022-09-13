@@ -4262,8 +4262,12 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 		return -EINVAL;
 	}
 	core = inst->core;
+	if (!core->capabilities) {
+		d_vpr_e("%s: invalid core capabilities\n", __func__);
+		return -EINVAL;
+	}
 
-	src_vq->supports_requests = 1;
+	src_vq->supports_requests = core->capabilities[SUPPORTS_REQUESTS].value;
 	src_vq->lock = &inst->request_lock;
 	src_vq->dev = &core->pdev->dev;
 	rc = vb2q_init(inst, src_vq, INPUT_MPLANE);
