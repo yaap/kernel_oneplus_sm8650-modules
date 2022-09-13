@@ -480,6 +480,17 @@ void gen7_rdpm_mx_freq_update(struct gen7_gmu_device *gmu, u32 freq);
  */
 void gen7_rdpm_cx_freq_update(struct gen7_gmu_device *gmu, u32 freq);
 
+/**
+ * gen7_scm_gpu_init_cx_regs - Program gpu regs for feature support
+ * @adreno_dev: Handle to the adreno device
+ *
+ * Program gpu regs for feature support. Scm call for the same
+ * is added from kernel version 6.0 onwards.
+ *
+ * Return: 0 on success or negative on failure
+ */
+int gen7_scm_gpu_init_cx_regs(struct adreno_device *adreno_dev);
+
 #ifdef CONFIG_QCOM_KGSL_CORESIGHT
 void gen7_coresight_init(struct adreno_device *device);
 #else

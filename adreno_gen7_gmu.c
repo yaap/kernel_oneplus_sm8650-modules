@@ -1818,6 +1818,10 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto clks_gdsc_off;
 
+	ret = gen7_scm_gpu_init_cx_regs(adreno_dev);
+	if (ret)
+		goto clks_gdsc_off;
+
 	gen7_gmu_register_config(adreno_dev);
 
 	gen7_gmu_irq_enable(adreno_dev);
@@ -2753,10 +2757,10 @@ static int gen7_first_boot(struct adreno_device *adreno_dev)
 
 	/*
 	 * BCL needs respective Central Broadcast register to
-	 * be programed from TZ. This programing happens only
-	 * when zap shader firmware load is successful. Zap firmware
-	 * load can fail in boot up path hence enable BCL only after we
-	 * successfully complete first boot to ensure that Central
+	 * be programed from TZ. For kernel version prior to 6.1, this
+	 * programing happens only when zap shader firmware load is successful.
+	 * Zap firmware load can fail in boot up path hence enable BCL only
+	 * after we successfully complete first boot to ensure that Central
 	 * Broadcast register was programed before enabling BCL.
 	 */
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_BCL))

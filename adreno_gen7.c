@@ -687,6 +687,35 @@ void gen7_rdpm_cx_freq_update(struct gen7_gmu_device *gmu, u32 freq)
 	}
 }
 
+int gen7_scm_gpu_init_cx_regs(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	u32 gpu_req = GPU_ALWAYS_EN_REQ;
+	int ret;
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_BCL))
+		gpu_req |= GPU_BCL_EN_REQ;
+
+	if (adreno_is_gen7_9_0(adreno_dev))
+		gpu_req |= GPU_TSENSE_EN_REQ;
+
+	ret = kgsl_scm_gpu_init_regs(&device->pdev->dev, gpu_req);
+
+	/*
+	 * For targets that support this scm call to program BCL id , enable BCL.
+	 * For other targets, BCL is enabled after first GMU boot.
+	 */
+	if (!ret && ADRENO_FEATURE(adreno_dev, ADRENO_BCL))
+		adreno_dev->bcl_enabled = true;
+
+	/*
+	 * If scm call returned EOPNOTSUPP, either we are on a kernel version
+	 * lesser than 6.1 where scm call is not supported or we are sending an
+	 * empty request. Ignore the error in such cases.
+	 */
+	return (ret == -EOPNOTSUPP) ? 0 : ret;
+}
+
 void gen7_spin_idle_debug(struct adreno_device *adreno_dev,
 				const char *str)
 {
