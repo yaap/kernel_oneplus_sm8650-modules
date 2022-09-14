@@ -5998,6 +5998,7 @@ static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 		err = fastrpc_get_spd_session(sloc_name, &session, &cid);
 		if (err || cid != fl->cid)
 			goto bail;
+#if IS_ENABLED(CONFIG_QCOM_PDR_HELPERS)
 		if (!strcmp(fl->servloc_name,
 			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME) || !strcmp(fl->servloc_name,
 			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME) ||
@@ -6008,6 +6009,9 @@ static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 			atomic_read(&me->channel[cid].spd[session].ispdup));
 			goto bail;
 		}
+#else
+		(void)me;
+#endif
 	}
 bail:
 	return err;
