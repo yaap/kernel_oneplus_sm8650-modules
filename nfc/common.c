@@ -504,15 +504,15 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
  *
  * Queries the TZ secure libraries if NFC is in secure zone statue or not.
  *
- * Return: 0 if FEATURE_NOT_SUPPORTED/PERIPHERAL_NOT_FOUND/state is 2 and 
- * return 1(non-secure) otherwise
+ * Return: 0 if FEATURE_NOT_SUPPORTED or PERIPHERAL_NOT_FOUND or state = 2(non-secure zone) and
+ *  return 1 if state = 1(secure zone) or error otherwise
  */
 
  bool nfc_hw_secure_check(void)
  {
 	struct Object client_env;
 	struct Object app_object;
-	u32 wifi_uid = HW_NFC_UID;
+	u32 nfc_uid = HW_NFC_UID;
 	union ObjectArg obj_arg[2] = {{{0, 0}}};
 	int ret;
 	bool retstat = 1;
@@ -521,7 +521,7 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 	ret = get_client_env_object(&client_env);
 	if (ret) {
 		pr_err("Failed to get client_env_object, ret: %d\n", ret);
-		return 1;
+		return retstat;
 	}
 
 	ret = IClientEnv_open(client_env, HW_STATE_UID, &app_object);
@@ -534,12 +534,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		goto exit_release_clientenv;
 	}
 
-	obj_arg[0].b = (struct ObjectBuf) {&wifi_uid, sizeof(u32)};
+	obj_arg[0].b = (struct ObjectBuf) {&nfc_uid, sizeof(u32)};
 	obj_arg[1].b = (struct ObjectBuf) {&state, sizeof(u8)};
 	ret = Object_invoke(app_object, HW_OP_GET_STATE, obj_arg,
 			ObjectCounts_pack(1, 1, 0, 0));
 
-	pr_info("SMC invoke ret: %d state: %d\n", ret, state);
+	pr_info("TZ ret: %d state: %d\n", ret, state);
 	if (ret) {
 		if (ret == PERIPHERAL_NOT_FOUND) {
 			retstat = 0; /* Do not Assert */
