@@ -81,6 +81,7 @@ static struct msm_platform_core_capability core_data_waipio[] = {
 	{MMRM, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
+	{SUPPORTS_REQUESTS, 1},
 };
 
 static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
