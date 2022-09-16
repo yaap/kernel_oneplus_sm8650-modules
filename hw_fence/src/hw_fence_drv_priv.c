@@ -1047,8 +1047,8 @@ static void _fence_ctl_signal(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client, struct msm_hw_fence *hw_fence, u64 hash,
 	u64 flags, u32 error)
 {
-	u32 tx_client_id = drv_data->ipcc_client_id;
-	u32 rx_client_id = hw_fence_client->ipc_client_id;
+	u32 tx_client_id = drv_data->ipcc_client_pid; /* phys id for tx client */
+	u32 rx_client_id = hw_fence_client->ipc_client_vid; /* virt id for rx client */
 
 	HWFNC_DBG_H("We must signal the client now! hfence hash:%llu\n", hash);
 

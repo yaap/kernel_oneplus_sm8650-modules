@@ -546,6 +546,7 @@ static long hw_sync_ioctl_reg_for_wait(struct hw_sync_obj *obj, unsigned long ar
 
 static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long arg)
 {
+	struct msm_hw_fence_client *hw_fence_client;
 	struct hw_fence_sync_signal_data data;
 	int ret, tx_client, rx_client, signal_id;
 
@@ -553,6 +554,12 @@ static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long ar
 		return -EINVAL;
 	} else if (IS_ERR_OR_NULL(obj->client_handle)) {
 		HWFNC_ERR("invalid client handle for the client_id: %d\n", obj->client_id);
+		return -EINVAL;
+	}
+
+	hw_fence_client = (struct msm_hw_fence_client *)obj->client_handle;
+	if (!hw_fence_client) {
+		HWFNC_ERR("invalid client handle\n");
 		return -EINVAL;
 	}
 
@@ -569,8 +576,8 @@ static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long ar
 	if (signal_id < 0)
 		return -EINVAL;
 
-	tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-	rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+	tx_client = hw_fence_client->ipc_client_vid;
+	rx_client = hw_fence_client->ipc_client_pid;
 	ret = msm_hw_fence_trigger_signal(obj->client_handle, tx_client, rx_client, signal_id);
 	if (ret) {
 		HWFNC_ERR("hw fence trigger signal has failed\n");

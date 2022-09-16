@@ -54,10 +54,14 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 	mutex_unlock(&hw_fence_drv_data->clients_register_lock);
 
 	hw_fence_client->client_id = client_id;
-	hw_fence_client->ipc_client_id = hw_fence_ipcc_get_client_id(hw_fence_drv_data, client_id);
+	hw_fence_client->ipc_client_vid =
+		hw_fence_ipcc_get_client_virt_id(hw_fence_drv_data, client_id);
+	hw_fence_client->ipc_client_pid =
+		hw_fence_ipcc_get_client_phys_id(hw_fence_drv_data, client_id);
 
-	if (hw_fence_client->ipc_client_id <= 0) {
-		HWFNC_ERR("Failed to find client:%d ipc id\n", client_id);
+	if (hw_fence_client->ipc_client_vid <= 0 || hw_fence_client->ipc_client_pid <= 0) {
+		HWFNC_ERR("Failed to find client:%d ipc vid:%d pid:%d\n", client_id,
+			hw_fence_client->ipc_client_vid, hw_fence_client->ipc_client_pid);
 		ret = -EINVAL;
 		goto error;
 	}
@@ -91,9 +95,9 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 	if (ret)
 		goto error;
 
-	HWFNC_DBG_INIT("-- Initialized ptr:0x%p client_id:%d ipc_signal_id:%d ipc_client_id:%d\n",
+	HWFNC_DBG_INIT("-- Initialized ptr:0x%p client_id:%d ipc_signal_id:%d ipc vid:%d pid:%d\n",
 		hw_fence_client, hw_fence_client->client_id, hw_fence_client->ipc_signal_id,
-		hw_fence_client->ipc_client_id);
+		hw_fence_client->ipc_client_vid, hw_fence_client->ipc_client_pid);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	init_waitqueue_head(&hw_fence_client->wait_queue);
@@ -338,8 +342,9 @@ int msm_hw_fence_update_txq(void *client_handle, u64 handle, u64 flags, u32 erro
 }
 EXPORT_SYMBOL(msm_hw_fence_update_txq);
 
+/* tx client has to be the physical, rx client virtual id*/
 int msm_hw_fence_trigger_signal(void *client_handle,
-	u32 tx_client_id, u32 rx_client_id,
+	u32 tx_client_pid, u32 rx_client_vid,
 	u32 signal_id)
 {
 	struct msm_hw_fence_client *hw_fence_client;
@@ -355,8 +360,8 @@ int msm_hw_fence_trigger_signal(void *client_handle,
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 
 	HWFNC_DBG_H("sending ipc for client:%d\n", hw_fence_client->client_id);
-	hw_fence_ipcc_trigger_signal(hw_fence_drv_data, tx_client_id,
-		rx_client_id, signal_id);
+	hw_fence_ipcc_trigger_signal(hw_fence_drv_data, tx_client_pid,
+		rx_client_vid, signal_id);
 
 	return 0;
 }

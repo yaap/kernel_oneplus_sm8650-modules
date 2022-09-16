@@ -69,7 +69,8 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data, in
 extern const struct file_operations hw_sync_debugfs_fops;
 
 struct hw_fence_out_clients_map {
-	int ipc_client_id; /* ipc client id for the hw fence client */
+	int ipc_client_id_vid; /* ipc client virtual id for the hw fence client */
+	int ipc_client_id_pid; /* ipc client physical id for the hw fence client */
 	int ipc_signal_id; /* ipc signal id for the hw fence client */
 };
 
@@ -81,21 +82,21 @@ struct hw_fence_out_clients_map {
  */
 static const struct hw_fence_out_clients_map
 			dbg_out_clients_signal_map_no_dpu[HW_FENCE_CLIENT_MAX] = {
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 0},  /* CTRL_LOOPBACK */
-	{HW_FENCE_IPC_CLIENT_ID_GPU, 0},  /* CTX0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 2},  /* CTL0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 4},  /* CTL1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 6},  /* CTL2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 8},  /* CTL3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 10}, /* CTL4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 12}, /* CTL5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 21}, /* VAL0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 22}, /* VAL1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 23}, /* VAL2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 24}, /* VAL3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 25}, /* VAL4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 26}, /* VAL5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 27}, /* VAL6 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 0},  /* CTRL_LOOPBACK */
+	{HW_FENCE_IPC_CLIENT_ID_GPU_VID, HW_FENCE_IPC_CLIENT_ID_GPU_VID, 0},  /* CTX0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 2},  /* CTL0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 4},  /* CTL1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 6},  /* CTL2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 8},  /* CTL3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 10}, /* CTL4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 12}, /* CTL5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 21}, /* VAL0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 22}, /* VAL1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 23}, /* VAL2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 24}, /* VAL3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 25}, /* VAL4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 26}, /* VAL5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 27}, /* VAL6 */
 };
 
 /**

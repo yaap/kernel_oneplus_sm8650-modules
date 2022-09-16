@@ -148,7 +148,8 @@ enum payload_type {
  * @mem_descriptor: hfi header memory descriptor
  * @queues: queues descriptor
  * @ipc_signal_id: id of the signal to be triggered for this client
- * @ipc_client_id: id of the ipc client for this hw fence driver client
+ * @ipc_client_vid: virtual id of the ipc client for this hw fence driver client
+ * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
  * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
  * @wait_queue: wait queue for the validation clients
@@ -159,7 +160,8 @@ struct msm_hw_fence_client {
 	struct msm_hw_fence_mem_addr mem_descriptor;
 	struct msm_hw_fence_queue queues[HW_FENCE_CLIENT_QUEUES];
 	int ipc_signal_id;
-	int ipc_client_id;
+	int ipc_client_vid;
+	int ipc_client_pid;
 	bool update_rxq;
 	bool send_ipc;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -238,7 +240,8 @@ struct msm_hw_fence_dbg_data {
  * @ipcc_io_mem: base for the ipcc io mem map
  * @ipcc_size: size of the ipcc io mem mapping
  * @protocol_id: ipcc protocol id used by this driver
- * @ipcc_client_id: ipcc client id for this driver
+ * @ipcc_client_vid: ipcc client virtual-id for this driver
+ * @ipcc_client_pid: ipcc client physical-id for this driver
  * @ipc_clients_table: table with the ipcc mapping for each client of this driver
  * @qtime_reg_base: qtimer register base address
  * @qtime_io_mem: qtimer io mem map
@@ -304,7 +307,8 @@ struct hw_fence_driver_data {
 	void __iomem *ipcc_io_mem;
 	uint32_t ipcc_size;
 	u32 protocol_id;
-	u32 ipcc_client_id;
+	u32 ipcc_client_vid;
+	u32 ipcc_client_pid;
 
 	/* table with mapping of ipc client for each hw-fence client */
 	struct hw_fence_client_ipc_map *ipc_clients_table;

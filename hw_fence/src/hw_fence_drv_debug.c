@@ -106,8 +106,10 @@ static int _debugfs_ipcc_trigger(struct file *file, const char __user *user_buf,
 static ssize_t hw_fence_dbg_ipcc_write(struct file *file, const char __user *user_buf,
 	size_t count, loff_t *ppos)
 {
-	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, HW_FENCE_IPC_CLIENT_ID_APPS,
-		HW_FENCE_IPC_CLIENT_ID_APPS);
+	struct hw_fence_driver_data *drv_data = file->private_data;
+
+	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, drv_data->ipcc_client_pid,
+		drv_data->ipcc_client_vid);
 }
 
 #ifdef HW_DPU_IPCC
@@ -124,8 +126,10 @@ static ssize_t hw_fence_dbg_ipcc_write(struct file *file, const char __user *use
 static ssize_t hw_fence_dbg_ipcc_dpu_write(struct file *file, const char __user *user_buf,
 	size_t count, loff_t *ppos)
 {
-	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, HW_FENCE_IPC_CLIENT_ID_APPS,
-		HW_FENCE_IPC_CLIENT_ID_DPU);
+	struct hw_fence_driver_data *drv_data = file->private_data;
+
+	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, drv_data->ipcc_client_pid,
+		hw_fence_ipcc_get_client_virt_id(drv_data, HW_FENCE_CLIENT_ID_CTL0));
 
 }
 
@@ -361,8 +365,8 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 			return -EINVAL;
 
 		/*  Write to ipcc to trigger the irq */
-		tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-		rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+		tx_client = drv_data->ipcc_client_pid;
+		rx_client = drv_data->ipcc_client_vid;
 		HWFNC_DBG_IRQ("client:%d tx_client:%d rx_client:%d signal:%d delay:%d in_data%d\n",
 			client_id_src, tx_client, rx_client, signal_id,
 			drv_data->debugfs_data.hw_fence_sim_release_delay, input_data);
@@ -866,8 +870,8 @@ static ssize_t hw_fence_dbg_create_join_fence(struct file *file,
 	}
 
 	/* write to ipcc to trigger the irq */
-	tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-	rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+	tx_client = drv_data->ipcc_client_pid;
+	rx_client = drv_data->ipcc_client_vid;
 	hw_fence_ipcc_trigger_signal(drv_data, tx_client, rx_client, signal_id);
 
 	usleep_range(drv_data->debugfs_data.hw_fence_sim_release_delay,

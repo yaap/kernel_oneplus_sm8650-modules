@@ -6,17 +6,26 @@
 #ifndef __HW_FENCE_DRV_IPC_H
 #define __HW_FENCE_DRV_IPC_H
 
-#define HW_FENCE_IPC_CLIENT_ID_APPS 8
-#define HW_FENCE_IPC_CLIENT_ID_GPU 9
-#define HW_FENCE_IPC_CLIENT_ID_DPU 25
+/* ipc clients virtual client-id */
+#define HW_FENCE_IPC_CLIENT_ID_APPS_VID 8
+#define HW_FENCE_IPC_CLIENT_ID_GPU_VID 9
+#define HW_FENCE_IPC_CLIENT_ID_DPU_VID 25
+
+/* ipc clients physical client-id */
+#define HW_FENCE_IPC_CLIENT_ID_APPS_PID 3
+#define HW_FENCE_IPC_CLIENT_ID_GPU_PID 4
+#define HW_FENCE_IPC_CLIENT_ID_DPU_PID 9
 
 #define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_LAHAINA 2
 #define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_WAIPIO 1
-#define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_KAILUA 2
+#define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_KALAMA 2
+#define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_PINEAPPLE 2
+#define HW_FENCE_IPC_FENCE_PROTOCOL_ID_PINEAPPLE 4
 
 #define HW_FENCE_IPCC_HW_REV_100 0x00010000  /* Lahaina */
 #define HW_FENCE_IPCC_HW_REV_110 0x00010100  /* Waipio */
-#define HW_FENCE_IPCC_HW_REV_170 0x00010700  /* Kailua */
+#define HW_FENCE_IPCC_HW_REV_170 0x00010700  /* Kalama */
+#define HW_FENCE_IPCC_HW_REV_203 0x00020003  /* Pineapple */
 
 #define IPC_PROTOCOLp_CLIENTc_VERSION(base, p, c) (base + (0x40000*p) + (0x1000*c))
 #define IPC_PROTOCOLp_CLIENTc_CONFIG(base, p, c) (base + 0x8 + (0x40000*p) + (0x1000*c))
@@ -55,8 +64,8 @@ int hw_fence_ipcc_enable_dpu_signaling(struct hw_fence_driver_data *drv_data);
 #endif /* HW_DPU_IPCC */
 
 /**
- * hw_fence_ipcc_get_client_id() - Returns the ipc client id that corresponds to the hw fence
- *		driver client.
+ * hw_fence_ipcc_get_client_virt_id() - Returns the ipc client virtual id that corresponds to the
+ *		hw fence driver client.
  * @drv_data: driver data.
  * @client_id: hw fence driver client id.
  *
@@ -64,7 +73,19 @@ int hw_fence_ipcc_enable_dpu_signaling(struct hw_fence_driver_data *drv_data);
  *
  * Return: client_id on success or negative errno (-EINVAL)
  */
-int hw_fence_ipcc_get_client_id(struct hw_fence_driver_data *drv_data, u32 client_id);
+int hw_fence_ipcc_get_client_virt_id(struct hw_fence_driver_data *drv_data, u32 client_id);
+
+/**
+ * hw_fence_ipcc_get_client_phys_id() - Returns the ipc client physical id that corresponds to the
+ *		hw fence driver client.
+ * @drv_data: driver data.
+ * @client_id: hw fence driver client id.
+ *
+ * The ipc client id returned by this API is used by the hw fence driver when signaling the fence.
+ *
+ * Return: client_id on success or negative errno (-EINVAL)
+ */
+int hw_fence_ipcc_get_client_phys_id(struct hw_fence_driver_data *drv_data, u32 client_id);
 
 /**
  * hw_fence_ipcc_get_signal_id() - Returns the ipc signal id that corresponds to the hw fence
