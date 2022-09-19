@@ -430,7 +430,8 @@ inline u64 hw_fence_get_qtime(struct hw_fence_driver_data *drv_data);
 int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	struct msm_hw_fence_queue_payload *payload, int queue_type);
 int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
-	struct msm_hw_fence_client *hw_fence_client, u64 context, u64 seqno);
+	struct dma_fence *fence, struct msm_hw_fence_client *hw_fence_client, u64 context,
+	u64 seqno);
 struct msm_hw_fence *msm_hw_fence_find(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client,
 	u64 context, u64 seqno, u64 *hash);

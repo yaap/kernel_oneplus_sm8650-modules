@@ -1220,6 +1220,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 
 		/* signal the join hw fence */
 		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, hash_join_fence, 0, 0);
+		set_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &array->base.flags);
 
 		/*
 		 * job of the join-fence is finished since we already signaled,
@@ -1240,7 +1241,8 @@ error_array:
 }
 
 int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
-		struct msm_hw_fence_client *hw_fence_client, u64 context, u64 seqno)
+		struct dma_fence *fence, struct msm_hw_fence_client *hw_fence_client, u64 context,
+		u64 seqno)
 {
 	struct msm_hw_fence *hw_fence;
 	u64 hash;
@@ -1263,8 +1265,11 @@ int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 	wmb();
 
 	/* if hw fence already signaled, signal the client */
-	if (hw_fence->flags & MSM_HW_FENCE_FLAG_SIGNAL)
+	if (hw_fence->flags & MSM_HW_FENCE_FLAG_SIGNAL) {
+		if (fence != NULL)
+			set_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &fence->flags);
 		_fence_ctl_signal(drv_data, hw_fence_client, hw_fence, hash, 0, 0);
+	}
 
 	GLOBAL_ATOMIC_STORE(&hw_fence->lock, 0); /* unlock */
 
@@ -1287,7 +1292,7 @@ int hw_fence_process_fence(struct hw_fence_driver_data *drv_data,
 		return -EINVAL;
 	}
 
-	ret = hw_fence_register_wait_client(drv_data, hw_fence_client, fence->context,
+	ret = hw_fence_register_wait_client(drv_data, fence, hw_fence_client, fence->context,
 		fence->seqno);
 	if (ret)
 		HWFNC_ERR("Error registering for wait client:%d\n", hw_fence_client->client_id);

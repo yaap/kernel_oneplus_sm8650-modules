@@ -340,7 +340,8 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 		/***** DST CLIENT - REGISTER WAIT CLIENT ******/
 		/**********************************************/
 		/* use same context and seqno that src client used to create fence */
-		ret = hw_fence_register_wait_client(drv_data, hw_fence_client_dst, context, seqno);
+		ret = hw_fence_register_wait_client(drv_data, NULL, hw_fence_client_dst, context,
+			seqno);
 		if (ret) {
 			HWFNC_ERR("failed to register for wait\n");
 			return -EINVAL;
