@@ -690,8 +690,15 @@ static int msm_vidc_read_resources_from_dt(struct platform_device *pdev)
 	d_vpr_h("%s: register base %pa, size %#x\n",
 		__func__, &dt->register_base, dt->register_size);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0))
+	dt->irq = platform_get_irq(pdev, 0);
+#else
 	kres = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	dt->irq = kres ? kres->start : -1;
+#endif
+	if (dt->irq < 0)
+		d_vpr_e("%s: get irq failed, %d\n", __func__, dt->irq);
+
 	d_vpr_h("%s: irq %d\n", __func__, dt->irq);
 
 	rc = msm_vidc_load_fw_name(core);
