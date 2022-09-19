@@ -1132,25 +1132,6 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 		goto unlock;
 	}
 
-	if (cap_id == INPUT_METADATA_FD) {
-		if (ctrl->val == INVALID_FD || ctrl->val == INT_MAX) {
-			i_vpr_e(inst,
-				"%s: client configured invalid input metadata fd %d\n",
-				__func__, ctrl->val);
-			rc = 0;
-			goto unlock;
-		}
-		if (!capability->cap[INPUT_META_VIA_REQUEST].value) {
-			i_vpr_e(inst,
-				"%s: input metadata not enabled via request\n", __func__);
-			rc = -EINVAL;
-			goto unlock;
-		}
-		rc = msm_vidc_create_input_metadata_buffer(inst, ctrl->val);
-		if (rc)
-			goto unlock;
-	}
-
 	/* mark client set flag */
 	capability->cap[cap_id].flags |= CAP_FLAG_CLIENT_SET;
 

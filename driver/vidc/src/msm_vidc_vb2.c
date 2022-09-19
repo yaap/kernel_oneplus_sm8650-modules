@@ -217,15 +217,6 @@ int msm_vidc_start_streaming(struct vb2_queue *q, unsigned int count)
 		goto unlock;
 	}
 
-	if (q->type == INPUT_META_PLANE &&
-		inst->capabilities->cap[INPUT_META_VIA_REQUEST].value) {
-		i_vpr_e(inst,
-			"%s: invalid input meta port start when request enabled\n",
-			__func__);
-		rc = -EINVAL;
-		goto unlock;
-	}
-
 	if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
 		i_vpr_h(inst, "%s: nothing to start on %s\n",
 			__func__, v4l2_type_name(q->type));
@@ -505,12 +496,6 @@ void msm_vidc_buf_queue(struct vb2_buffer *vb2)
 
 	if (is_decode_session(inst) && vb2->type == INPUT_MPLANE) {
 		rc = msm_vidc_update_input_rate(inst, div_u64(ktime_ns, 1000));
-		if (rc)
-			goto unlock;
-	}
-
-	if (inst->capabilities->cap[INPUT_META_VIA_REQUEST].value) {
-		rc = msm_vidc_update_input_meta_buffer_index(inst, vb2);
 		if (rc)
 			goto unlock;
 	}
