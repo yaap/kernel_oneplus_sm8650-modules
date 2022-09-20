@@ -2138,6 +2138,8 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_4_0 = {
 	.preempt_level = 1,
 };
 
+extern const struct gen7_snapshot_block_list gen7_9_0_snapshot_block_list;
+
 /* GEN7_9_0 protected register list */
 static const struct gen7_protected_regs gen7_9_0_protected_regs[] = {
 	{ GEN7_CP_PROTECT_REG + 0, 0x00000, 0x004ff, 0 },
@@ -2217,7 +2219,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 	.protected_regs = gen7_9_0_protected_regs,
 	.highest_bank_bit = 16,
 	.gmu_hub_clk_freq = 200000000,
-	.gen7_snapshot_block_list = &gen7_2_0_snapshot_block_list,
+	.gen7_snapshot_block_list = &gen7_9_0_snapshot_block_list,
 	.bcl_data = 1,
 };
 
