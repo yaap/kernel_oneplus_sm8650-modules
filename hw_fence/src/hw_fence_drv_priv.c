@@ -1124,7 +1124,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence *join_fence;
 	struct msm_hw_fence *hw_fence_child;
 	struct dma_fence *child_fence;
-	u32 signaled_fences = 0;
+	bool signal_join_fence = false;
 	u64 hash_join_fence, hash;
 	int i, ret = 0;
 
@@ -1178,13 +1178,13 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 
 			/* child fence is already signaled */
 			GLOBAL_ATOMIC_STORE(&join_fence->lock, 1); /* lock */
-			join_fence->pending_child_cnt--;
+			if (--join_fence->pending_child_cnt == 0)
+				signal_join_fence = true;
 
 			/* update memory for the table update */
 			wmb();
 
 			GLOBAL_ATOMIC_STORE(&join_fence->lock, 0); /* unlock */
-			signaled_fences++;
 		} else {
 
 			/* child fence is not signaled */
@@ -1216,7 +1216,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	}
 
 	/* all fences were signaled, signal client now */
-	if (signaled_fences == array->num_fences) {
+	if (signal_join_fence) {
 
 		/* signal the join hw fence */
 		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, hash_join_fence, 0, 0);
