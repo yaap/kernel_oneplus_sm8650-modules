@@ -2095,6 +2095,9 @@ static int _submit_hw_fence(struct adreno_device *adreno_dev,
 					return ret;
 				}
 
+				if (test_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &fences[j]->flags))
+					obj->flags |= GMU_SYNCOBJ_RETIRED;
+
 				obj->ctxt_id = fences[j]->context;
 				obj->seq_no =  fences[j]->seqno;
 			}
