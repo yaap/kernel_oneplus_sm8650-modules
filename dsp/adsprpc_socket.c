@@ -7,7 +7,7 @@
 #include <linux/qrtr.h>
 #include <linux/mutex.h>
 #include <net/sock.h>
-#include <trace/events/fastrpc.h>
+#include "fastrpc_trace.h"
 #include "adsprpc_shared.h"
 
 // Registered QRTR service ID

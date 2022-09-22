@@ -6,7 +6,7 @@
 #include <linux/rpmsg.h>
 #include <linux/of.h>
 #include <linux/module.h>
-#include <trace/events/fastrpc.h>
+#include "fastrpc_trace.h"
 #include <trace/events/rproc_qcom.h>
 #include "adsprpc_shared.h"
 
