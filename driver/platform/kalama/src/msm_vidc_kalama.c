@@ -1690,18 +1690,6 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{INPUT_METADATA_FD, ENC|DEC, CODECS_ALL,
-		INVALID_FD, INT_MAX, 1, INVALID_FD,
-		V4L2_CID_MPEG_VIDC_INPUT_METADATA_FD,
-		0,
-		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
-
-	{INPUT_META_VIA_REQUEST, ENC|DEC, CODECS_ALL,
-		0, 1, 1, 0,
-		V4L2_CID_MPEG_VIDC_INPUT_METADATA_VIA_REQUEST_ENABLE,
-		0,
-		CAP_FLAG_INPUT_PORT},
-
 	{META_LTR_MARK_USE, ENC, H264|HEVC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
@@ -2590,18 +2578,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		{GOP_SIZE, B_FRAME},
 		{LTR_COUNT, IR_PERIOD, SLICE_MODE, BIT_RATE},
 		msm_vidc_adjust_all_intra,
-		NULL},
-
-	{INPUT_METADATA_FD, ENC|DEC, CODECS_ALL,
-		{0},
-		{0},
-		NULL,
-		NULL},
-
-	{INPUT_META_VIA_REQUEST, ENC|DEC, CODECS_ALL,
-		{0},
-		{0},
-		NULL,
 		NULL},
 
 	{META_EVA_STATS, ENC, CODECS_ALL,

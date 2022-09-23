@@ -184,8 +184,6 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{FILM_GRAIN,                     "FILM_GRAIN"                 },
 	{SUPER_BLOCK,                    "SUPER_BLOCK"                },
 	{DRAP,                           "DRAP"                       },
-	{INPUT_METADATA_FD,              "INPUT_METADATA_FD"          },
-	{INPUT_META_VIA_REQUEST,         "INPUT_META_VIA_REQUEST"     },
 	{ENC_IP_CR,                      "ENC_IP_CR"                  },
 	{COMPLEXITY,                     "COMPLEXITY"                 },
 	{CABAC_MAX_BITRATE,              "CABAC_MAX_BITRATE"          },
@@ -4129,14 +4127,6 @@ int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
 	if (port < 0)
 		return -EINVAL;
 
-	/*
-	 * vb2_buffer_done not required if input metadata
-	 * buffer sent via request api
-	 */
-	if (buf->type == MSM_VIDC_BUF_INPUT_META &&
-		inst->capabilities->cap[INPUT_META_VIA_REQUEST].value)
-		return 0;
-
 	q = inst->bufq[port].vb2q;
 	if (!q->streaming) {
 		i_vpr_e(inst, "%s: port %d is not streaming\n",
@@ -6781,95 +6771,4 @@ int msm_vidc_get_properties(struct msm_vidc_inst *inst)
 	}
 
 	return 0;
-}
-
-int msm_vidc_create_input_metadata_buffer(struct msm_vidc_inst *inst, int fd)
-{
-	int rc = 0;
-	struct msm_vidc_buffer *buf = NULL;
-	struct msm_vidc_buffers *buffers;
-	struct dma_buf *dma_buf;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (fd < 0) {
-		i_vpr_e(inst, "%s: invalid input metadata buffer fd %d\n",
-			__func__, fd);
-		return -EINVAL;
-	}
-
-	buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_INPUT_META, __func__);
-	if (!buffers)
-		return -EINVAL;
-
-	buf = msm_memory_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
-	if (!buf) {
-		i_vpr_e(inst, "%s: buffer pool alloc failed\n", __func__);
-		return -EINVAL;
-	}
-
-	INIT_LIST_HEAD(&buf->list);
-	buf->type = MSM_VIDC_BUF_INPUT_META;
-	buf->index = INT_MAX;
-	buf->fd = fd;
-	dma_buf = msm_vidc_memory_get_dmabuf(inst, fd);
-	if (!dma_buf) {
-		rc = -ENOMEM;
-		goto error_dma_buf;
-	}
-	buf->dmabuf = dma_buf;
-	buf->data_size = dma_buf->size;
-	buf->buffer_size = dma_buf->size;
-	buf->attr |= MSM_VIDC_ATTR_DEFERRED;
-
-	rc = msm_vidc_map_driver_buf(inst, buf);
-	if (rc)
-		goto error_map;
-
-	list_add_tail(&buf->list, &buffers->list);
-	return rc;
-
-error_map:
-	msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
-error_dma_buf:
-	msm_memory_pool_free(inst, buf);
-	return rc;
-}
-
-int msm_vidc_update_input_meta_buffer_index(struct msm_vidc_inst *inst,
-	struct vb2_buffer *vb2)
-{
-	int rc = 0;
-	bool found = false;
-	struct msm_vidc_buffer *buf = NULL;
-	struct msm_vidc_buffers *buffers;
-
-	if (!inst || !vb2) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (vb2->type != INPUT_MPLANE)
-		return 0;
-
-	buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_INPUT_META, __func__);
-	if (!buffers)
-		return -EINVAL;
-	list_for_each_entry(buf, &buffers->list, list) {
-		if (buf->index == INT_MAX) {
-			buf->index = vb2->index;
-			found = true;
-			break;
-		}
-	}
-
-	if (!found) {
-		i_vpr_e(inst, "%s: missing input metabuffer for index %d\n",
-			__func__, vb2->index);
-		rc = -EINVAL;
-	}
-	return rc;
 }

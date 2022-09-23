@@ -218,12 +218,6 @@ enum v4l2_mpeg_video_av1_tier {
 /* AV1 Decoder Film Grain */
 #define V4L2_CID_MPEG_VIDC_AV1D_FILM_GRAIN_PRESENT                           \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x35)
-/* Control to set input metadata buffer fd */
-#define V4L2_CID_MPEG_VIDC_INPUT_METADATA_FD                                 \
-	(V4L2_CID_MPEG_VIDC_BASE + 0x36)
-/* Control to enable input metadata via request api */
-#define V4L2_CID_MPEG_VIDC_INPUT_METADATA_VIA_REQUEST_ENABLE                 \
-	(V4L2_CID_MPEG_VIDC_BASE + 0x37)
 /* Enables Output buffer fence id via input metadata */
 #define V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE                             \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x38)

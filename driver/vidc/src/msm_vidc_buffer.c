@@ -443,9 +443,6 @@ u32 msm_vidc_encoder_input_meta_size(struct msm_vidc_inst *inst)
 
 	size = MSM_VIDC_METADATA_SIZE;
 
-	if (inst->capabilities->cap[INPUT_META_VIA_REQUEST].value)
-		return ENCODE_INPUT_METADATA_SIZE;
-
 	if (inst->capabilities->cap[META_ROI_INFO].value) {
 		lcu_size = 16;
 

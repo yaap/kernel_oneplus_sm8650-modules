@@ -588,8 +588,6 @@ bool res_is_less_than_or_equal_to(u32 width, u32 height,
 int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 	enum signal_session_response cmd);
 int msm_vidc_get_properties(struct msm_vidc_inst *inst);
-int msm_vidc_create_input_metadata_buffer(struct msm_vidc_inst *inst, int buf_fd);
-int msm_vidc_update_input_meta_buffer_index(struct msm_vidc_inst *inst, struct vb2_buffer *vb2);
 int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us);
 int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf);
