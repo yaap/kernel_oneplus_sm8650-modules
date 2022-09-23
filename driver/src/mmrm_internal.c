@@ -57,6 +57,10 @@ static const struct of_device_id mmrm_dt_match[] = {
 		.compatible = "qcom,kalama-mmrm",
 		.data = &commom_pt_platform_data,
 	},
+	{
+		.compatible = "qcom,pineapple-mmrm",
+		.data = &commom_pt_platform_data,
+	},
 	{},
 };
 
