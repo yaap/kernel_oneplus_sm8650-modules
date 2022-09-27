@@ -2000,6 +2000,12 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 
 	release_tzhandles(&cb_txn->cb_req->hdr.tzhandle, 1);
 	tzcb_req->result = user_req->result;
+        /* Return without marshaling user args if destination callback invocation was
+           unsuccessful. */
+        if (tzcb_req->result != 0) {
+                ret = 0;
+                goto out;
+        }
 	FOR_ARGS(i, tzcb_req->hdr.counts, BO) {
 		union smcinvoke_arg tmp_arg;
 
@@ -2038,12 +2044,12 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 		trace_marshal_out_tzcb_req(i, tmp_arg.o.fd,
 				tmp_arg.o.cb_server_fd, tz_args[i].handle);
 	}
-	FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
-		if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
-			release_tzhandles(&tz_args[i].handle, 1);
-	}
 	ret = 0;
 out:
+        FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
+                if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
+                        release_tzhandles(&tz_args[i].handle, 1);
+        }
 	if (ret)
 		release_tzhandles(tzhandles_to_release, OBJECT_COUNTS_MAX_OO);
 	return ret;
