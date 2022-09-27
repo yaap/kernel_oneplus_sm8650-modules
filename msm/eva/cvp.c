@@ -622,10 +622,10 @@ static int __init msm_cvp_init(void)
 		return rc;
 	}
 
-	cvp_driver->msg_cache = KMEM_CACHE(cvp_session_msg, 0);
-	cvp_driver->frame_cache = KMEM_CACHE(msm_cvp_frame, 0);
-	cvp_driver->buf_cache = KMEM_CACHE(cvp_internal_buf, 0);
-	cvp_driver->smem_cache = KMEM_CACHE(msm_cvp_smem, 0);
+	cvp_driver->msg_cache.cache = KMEM_CACHE(cvp_session_msg, 0);
+	cvp_driver->frame_cache.cache = KMEM_CACHE(msm_cvp_frame, 0);
+	cvp_driver->buf_cache.cache = KMEM_CACHE(cvp_internal_buf, 0);
+	cvp_driver->smem_cache.cache = KMEM_CACHE(msm_cvp_smem, 0);
 
 	return rc;
 }
@@ -633,10 +633,10 @@ static int __init msm_cvp_init(void)
 static void __exit msm_cvp_exit(void)
 {
 	cvp_dsp_device_exit();
-	kmem_cache_destroy(cvp_driver->msg_cache);
-	kmem_cache_destroy(cvp_driver->frame_cache);
-	kmem_cache_destroy(cvp_driver->buf_cache);
-	kmem_cache_destroy(cvp_driver->smem_cache);
+	kmem_cache_destroy(cvp_driver->msg_cache.cache);
+	kmem_cache_destroy(cvp_driver->frame_cache.cache);
+	kmem_cache_destroy(cvp_driver->buf_cache.cache);
+	kmem_cache_destroy(cvp_driver->smem_cache.cache);
 
 	platform_driver_unregister(&msm_cvp_driver);
 	debugfs_remove_recursive(cvp_driver->debugfs_root);

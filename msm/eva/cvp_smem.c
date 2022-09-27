@@ -90,7 +90,6 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 		 * Get the scatterlist for the given attachment
 		 * Mapping of sg is taken care by map attachment
 		 */
-		attach->dma_map_attrs = DMA_ATTR_DELAYED_UNMAP;
 		/*
 		 * We do not need dma_map function to perform cache operations
 		 * on the whole buffer size and hence pass skip sync flag.
@@ -105,6 +104,9 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 		table = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
 		if (IS_ERR_OR_NULL(table)) {
 			dprintk(CVP_ERR, "Failed to map table %d\n", PTR_ERR(table));
+			dprintk(CVP_ERR,
+				"Mapping detail dma_buf 0x%llx, %s, size %#x\n",
+				dbuf, dbuf->name, dbuf->size);
 			rc = PTR_ERR(table) ?: -ENOMEM;
 			goto mem_map_table_failed;
 		}
@@ -258,27 +260,8 @@ int msm_cvp_map_smem(struct msm_cvp_inst *inst,
 		/* User persist buffer has no feature config info */
 		is_config_pkt = cvp_hfi_defs[i].is_config_pkt;
 
-	/* if (!(smem->flags & SMEM_SECURE) &&
-				is_config_pkt &&
-				(msm_cvp_debug & CVP_MEM)) {
-		dma_buf_begin_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
-		smem->kvaddr = __cvp_dma_buf_vmap(dma_buf);
-		if (!smem->kvaddr) {
-			dprintk(CVP_WARN,
-				"Failed to map config buf in kernel\n");
-			dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
-			goto checksum_done;
-		}
-		for (i = 0; i < (dma_buf->size); i++) {
-			smem->checksum += *(u8 *)(smem->kvaddr + i);
-		}
-		__cvp_dma_buf_vunmap(dma_buf, smem->kvaddr);
-		smem->kvaddr = 0;
-		dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
-	}
-
-checksum_done:*/
 	print_smem(CVP_MEM, str, inst, smem);
+	atomic_inc(&inst->smem_count);
 	goto success;
 exit:
 	smem->device_addr = 0x0;
@@ -308,6 +291,7 @@ int msm_cvp_unmap_smem(struct msm_cvp_inst *inst,
 	}
 
 	smem->device_addr = 0x0;
+	atomic_dec(&inst->smem_count);
 
 exit:
 	return rc;

@@ -110,7 +110,7 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 	}
 
 	if (!out) {
-		kmem_cache_free(cvp_driver->msg_cache, msg);
+		cvp_kmem_cache_free(&cvp_driver->msg_cache, msg);
 		goto exit;
 	}
 
@@ -118,7 +118,7 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 	memcpy(out, &msg->pkt, get_msg_size(hdr));
 	if (hdr->client_data.kdata >= ARRAY_SIZE(cvp_hfi_defs))
 		msm_cvp_unmap_frame(inst, hdr->client_data.kdata);
-	kmem_cache_free(cvp_driver->msg_cache, msg);
+	cvp_kmem_cache_free(&cvp_driver->msg_cache, msg);
 
 exit:
 	return rc;

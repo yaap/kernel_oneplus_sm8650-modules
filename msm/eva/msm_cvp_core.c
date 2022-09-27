@@ -25,6 +25,20 @@
 #define NUM_DMM_MAX_FEATURE_POINTS 500
 #define CYCLES_MARGIN_IN_POWEROF2 3
 
+static atomic_t nr_insts;
+
+void *cvp_kmem_cache_zalloc(struct cvp_kmem_cache *k, gfp_t flags)
+{
+	atomic_inc(&k->nr_objs);
+	return kmem_cache_zalloc(k->cache, flags);
+}
+
+void cvp_kmem_cache_free(struct cvp_kmem_cache *k, void *obj)
+{
+	atomic_dec(&k->nr_objs);
+	kmem_cache_free(k->cache, obj);
+}
+
 int msm_cvp_poll(void *instance, struct file *filp,
 		struct poll_table_struct *wait)
 {
@@ -115,7 +129,7 @@ static void __deinit_session_queue(struct msm_cvp_inst *inst)
 	spin_lock(&inst->session_queue.lock);
 	list_for_each_entry_safe(msg, tmpmsg, &inst->session_queue.msgs, node) {
 		list_del_init(&msg->node);
-		kmem_cache_free(cvp_driver->msg_cache, msg);
+		cvp_kmem_cache_free(&cvp_driver->msg_cache, msg);
 	}
 	inst->session_queue.msg_count = 0;
 	inst->session_queue.state = QUEUE_INVALID;
@@ -208,6 +222,7 @@ void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
 	mutex_lock(&core->lock);
 	mutex_lock(&core->clk_lock);
 	list_add_tail(&inst->list, &core->instances);
+	atomic_inc(&nr_insts);
 	mutex_unlock(&core->clk_lock);
 	mutex_unlock(&core->lock);
 
@@ -255,8 +270,9 @@ static void msm_cvp_clean_sess_queue(struct msm_cvp_inst *inst,
 		struct cvp_session_queue *sq)
 {
 	struct cvp_session_msg *mptr, *dummy;
-	u64 ktid;
+	u64 ktid  = 0LL;
 
+check_again:
 	spin_lock(&sq->lock);
 	if (sq->msg_count && sq->state != QUEUE_ACTIVE) {
 		list_for_each_entry_safe(mptr, dummy, &sq->msgs, node) {
@@ -264,12 +280,19 @@ static void msm_cvp_clean_sess_queue(struct msm_cvp_inst *inst,
 			if (ktid) {
 				list_del_init(&mptr->node);
 				sq->msg_count--;
-				msm_cvp_unmap_frame(inst, ktid);
-				kmem_cache_free(cvp_driver->msg_cache, mptr);
+				break;
 			}
 		}
 	}
 	spin_unlock(&sq->lock);
+
+	if (ktid) {
+		msm_cvp_unmap_frame(inst, ktid);
+		cvp_kmem_cache_free(&cvp_driver->msg_cache, mptr);
+		mptr = NULL;
+		ktid = 0LL;
+		goto check_again;
+	}
 }
 
 static void msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
@@ -366,6 +389,7 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 	mutex_lock(&core->clk_lock);
 	/* inst->list lives in core->instances */
 	list_del(&inst->list);
+	atomic_dec(&nr_insts);
 	mutex_unlock(&core->clk_lock);
 	mutex_unlock(&core->lock);
 
@@ -389,11 +413,23 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 
 	pr_info(
 		CVP_DBG_TAG
-		"%s closed cvp instance: %pK session_id = %d type %d\n",
-		"sess", inst->proc_name, inst, hash32_ptr(inst->session),
-		inst->session_type);
+		"closed cvp instance: %pK session_id = %d type %d %d\n",
+		inst->proc_name, inst, hash32_ptr(inst->session),
+		inst->session_type, core->smem_leak_count);
 	inst->session = (void *)0xdeadbeef;
+	if (atomic_read(&inst->smem_count) > 0) {
+		dprintk(CVP_WARN, "Session closed with %d unmapped smems\n",
+			atomic_read(&inst->smem_count));
+		core->smem_leak_count += atomic_read(&inst->smem_count);
+	}
 	kfree(inst);
+	dprintk(CVP_SESS,
+		"sys-stat: nr_insts %d msgs %d, frames %d, bufs %d, smems %d\n",
+		atomic_read(&nr_insts),
+		atomic_read(&cvp_driver->msg_cache.nr_objs),
+		atomic_read(&cvp_driver->frame_cache.nr_objs),
+		atomic_read(&cvp_driver->buf_cache.nr_objs),
+		atomic_read(&cvp_driver->smem_cache.nr_objs));
 	return 0;
 }
 

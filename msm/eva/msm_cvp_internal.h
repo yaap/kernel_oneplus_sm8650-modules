@@ -141,6 +141,11 @@ struct msm_cvp_platform_data {
 	struct msm_cvp_qos_setting *noc_qos;
 };
 
+struct cvp_kmem_cache {
+	struct kmem_cache *cache;
+	atomic_t nr_objs;
+};
+
 struct msm_cvp_drv {
 	struct mutex lock;
 	struct list_head cores;
@@ -148,10 +153,10 @@ struct msm_cvp_drv {
 	struct dentry *debugfs_root;
 	int thermal_level;
 	u32 sku_version;
-	struct kmem_cache *msg_cache;
-	struct kmem_cache *frame_cache;
-	struct kmem_cache *buf_cache;
-	struct kmem_cache *smem_cache;
+	struct cvp_kmem_cache msg_cache;
+	struct cvp_kmem_cache frame_cache;
+	struct cvp_kmem_cache buf_cache;
+	struct cvp_kmem_cache smem_cache;
 	char fw_version[CVP_VERSION_LENGTH];
 };
 
@@ -370,6 +375,7 @@ struct msm_cvp_core {
 	u32 smmu_fault_count;
 	u32 last_fault_addr;
 	u32 ssr_count;
+	u32 smem_leak_count;
 	bool trigger_ssr;
 	unsigned long curr_freq;
 	unsigned long orig_core_sum;
@@ -386,6 +392,7 @@ struct msm_cvp_inst {
 	enum session_type session_type;
 	u32 process_id;
 	struct task_struct *task;
+	atomic_t smem_count;
 	struct cvp_session_queue session_queue;
 	struct cvp_session_queue session_queue_fence;
 	struct cvp_session_event event_handler;
@@ -432,4 +439,6 @@ void msm_cvp_ssr_handler(struct work_struct *work);
  */
 int msm_cvp_destroy(struct msm_cvp_inst *inst);
 void *cvp_get_drv_data(struct device *dev);
+void *cvp_kmem_cache_zalloc(struct cvp_kmem_cache *k, gfp_t flags);
+void cvp_kmem_cache_free(struct cvp_kmem_cache *k, void *obj);
 #endif

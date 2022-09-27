@@ -956,6 +956,37 @@ static int __tzbsp_set_cvp_state(enum tzbsp_subsys_state state)
 	return 0;
 }
 
+/*
+ * Based on fal10_veto, X2RPMh, core_pwr_on and PWAitMode value, infer
+ * value of xtss_sw_reset. xtss_sw_reset is a TZ register bit. Driver
+ * cannot access it directly.
+ *
+ * In __boot_firmware() function, the caller of this function. It checks
+ * "core_pwr_on" == false, basically core powered off. So this function
+ * doesn't check core_pwr_on. Assume core_pwr_on = false.
+ *
+ * fal10_veto = VPU_CPU_CS_X2RPMh[2] |
+ *		( ~VPU_CPU_CS_X2RPMh[1] & core_pwr_on ) |
+ *		( ~VPU_CPU_CS_X2RPMh[0] & ~( xtss_sw_reset | PWaitMode ) ) ;
+ */
+static inline void check_tensilica_in_reset(struct iris_hfi_device *device)
+{
+	u32 X2RPMh, fal10_veto, wait_mode;
+
+	X2RPMh =  __read_register(device, CVP_CPU_CS_X2RPMh);
+	X2RPMh = X2RPMh & 0x7;
+
+	/* wait_mode = 1: Tensilica is in WFI mode (PWaitMode = true) */
+	wait_mode = __read_register(device, CVP_WRAPPER_CPU_STATUS);
+	wait_mode = wait_mode & 0x1;
+
+	fal10_veto = __read_register(device, CVP_CPU_CS_X2RPMh_STATUS);
+	fal10_veto = fal10_veto & 0x1;
+
+	dprintk(CVP_WARN, "tensilica reset check %#x %#x %#x\n",
+		X2RPMh, wait_mode, fal10_veto);
+}
+
 static inline int __boot_firmware(struct iris_hfi_device *device)
 {
 	int rc = 0, loop = 10;
@@ -1000,8 +1031,11 @@ static inline int __boot_firmware(struct iris_hfi_device *device)
 	}
 
 	if (!(ctrl_status & CVP_CTRL_INIT_STATUS__M)) {
-		dprintk(CVP_ERR, "Failed to boot FW status: %x\n",
-			ctrl_status);
+		ctrl_init_val = __read_register(device, CVP_CTRL_INIT);
+		dprintk(CVP_ERR,
+			"Failed to boot FW status: %x %x\n",
+			ctrl_status, ctrl_init_val);
+		check_tensilica_in_reset(device);
 		rc = -ENODEV;
 	}
 
@@ -1098,7 +1132,6 @@ static int iris_hfi_flush_debug_queue(void *dev)
 		return -EINVAL;
 	}
 
-	cvp_dump_csr(device);
 	mutex_lock(&device->lock);
 
 	if (!device->power_enabled) {
@@ -1106,6 +1139,7 @@ static int iris_hfi_flush_debug_queue(void *dev)
 		rc = -EINVAL;
 		goto exit;
 	}
+	cvp_dump_csr(device);
 	__flush_debug_queue(device, NULL);
 exit:
 	mutex_unlock(&device->lock);
@@ -4169,7 +4203,7 @@ static void power_off_iris2(struct iris_hfi_device *device)
 
 	/*Do not access registers after this point!*/
 	device->power_enabled = false;
-	pr_info_ratelimited(CVP_DBG_TAG "cvp (eva) power collapsed\n", "pwr");
+	pr_info(CVP_DBG_TAG "cvp (eva) power collapsed\n", "pwr");
 }
 
 static inline int __resume(struct iris_hfi_device *device)

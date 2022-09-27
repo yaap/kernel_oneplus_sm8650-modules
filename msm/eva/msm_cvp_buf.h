@@ -77,7 +77,7 @@ struct msm_cvp_smem {
 	u32 flags;
 	u32 pkt_type;
 	u32 buf_idx;
-	u32 checksum;
+	u32 fd;
 	struct cvp_dma_mapping_info mapping_info;
 };
 

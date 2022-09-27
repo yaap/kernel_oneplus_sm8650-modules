@@ -498,7 +498,7 @@ static int hfi_process_session_cvp_msg(u32 device_id,
 	else
 		sq = &inst->session_queue;
 
-	sess_msg = kmem_cache_alloc(cvp_driver->msg_cache, GFP_KERNEL);
+	sess_msg = cvp_kmem_cache_zalloc(&cvp_driver->msg_cache, GFP_KERNEL);
 	if (sess_msg == NULL) {
 		dprintk(CVP_ERR, "%s runs out msg cache memory\n", __func__);
 		return -ENOMEM;
@@ -528,7 +528,7 @@ static int hfi_process_session_cvp_msg(u32 device_id,
 
 error_handle_msg:
 	spin_unlock(&sq->lock);
-	kmem_cache_free(cvp_driver->msg_cache, sess_msg);
+	cvp_kmem_cache_free(&cvp_driver->msg_cache, sess_msg);
 	return -ENOMEM;
 }
 

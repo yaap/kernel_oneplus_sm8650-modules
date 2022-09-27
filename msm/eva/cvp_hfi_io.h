@@ -76,6 +76,8 @@
 #define CVP_CPU_CS_X2RPMh_SWOVERRIDE_BMSK	0x4
 #define CVP_CPU_CS_X2RPMh_SWOVERRIDE_SHFT	0x3
 
+#define CVP_CPU_CS_X2RPMh_STATUS	(CVP_CPU_BASE_OFFS + 0x170)
+
 /*
  * --------------------------------------------------------------------------
  * MODULE: cvp_wrapper

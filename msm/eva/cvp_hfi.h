@@ -356,4 +356,14 @@ static inline enum buf_map_type cvp_find_map_type(int pkt_type)
 	else
 		return MAP_FRAME;
 }
+
+static inline bool is_params_pkt(int pkt_type)
+{
+	if (pkt_type == HFI_CMD_SESSION_CVP_DMM_PARAMS ||
+		pkt_type == HFI_CMD_SESSION_CVP_WARP_DS_PARAMS)
+		return true;
+
+	return false;
+}
+
 #endif
