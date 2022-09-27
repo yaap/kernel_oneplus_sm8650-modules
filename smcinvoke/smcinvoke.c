@@ -1646,7 +1646,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 					&response_type, &data, in_shm, out_shm);
 
 			if (ret == -EBUSY) {
-				pr_err("Secure side is busy,will retry after 30 ms\n");
+				pr_err("Secure side is busy,will retry after 30 ms, retry_count = %d",retry_count);
 				mutex_unlock(&g_smcinvoke_lock);
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
 				mutex_lock(&g_smcinvoke_lock);
