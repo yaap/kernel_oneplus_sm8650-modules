@@ -39,11 +39,11 @@
 #define MAXIMUM_OVERRIDE_VP9_FPS 180
 
 #ifndef V4L2_PIX_FMT_QC08C
-#define V4L2_PIX_FMT_QC08C    v4l2_fourcc('Q', '0', '8', 'C') /* Qualcomm 8-bit compressed */
+#define V4L2_PIX_FMT_QC08C    v4l2_fourcc('Q', '0', '8', 'C')
 #endif
 
 #ifndef V4L2_PIX_FMT_QC10C
-#define V4L2_PIX_FMT_QC10C    v4l2_fourcc('Q', '1', '0', 'C') /* Qualcomm 10-bit compressed */
+#define V4L2_PIX_FMT_QC10C    v4l2_fourcc('Q', '1', '0', 'C')
 #endif
 
 static struct codec_info codec_data_kalama[] = {
