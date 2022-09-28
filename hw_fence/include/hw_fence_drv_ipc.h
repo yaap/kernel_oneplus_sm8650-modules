@@ -87,4 +87,14 @@ int hw_fence_ipcc_get_signal_id(struct hw_fence_driver_data *drv_data, u32 clien
  */
 bool hw_fence_ipcc_needs_rxq_update(struct hw_fence_driver_data *drv_data, int client_id);
 
+/**
+ * hw_fence_ipcc_needs_ipc_irq() - Returns bool to indicate if client needs ipc interrupt for
+ *		already signaled fences
+ * @drv_data: driver data.
+ * @client_id: hw fence driver client id.
+ *
+ * Return: true if client needs ipc interrupt for signaled fences, false otherwise
+ */
+bool hw_fence_ipcc_needs_ipc_irq(struct hw_fence_driver_data *drv_data, int client_id);
+
 #endif /* __HW_FENCE_DRV_IPC_H */

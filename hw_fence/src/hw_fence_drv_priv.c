@@ -1058,8 +1058,9 @@ static void _fence_ctl_signal(struct hw_fence_driver_data *drv_data,
 			hw_fence->seq_id, hash, flags, error, HW_FENCE_RX_QUEUE - 1);
 
 	/* Signal the hw fence now */
-	hw_fence_ipcc_trigger_signal(drv_data, tx_client_id, rx_client_id,
-		hw_fence_client->ipc_signal_id);
+	if (hw_fence_client->send_ipc)
+		hw_fence_ipcc_trigger_signal(drv_data, tx_client_id, rx_client_id,
+			hw_fence_client->ipc_signal_id);
 }
 
 static void _cleanup_join_and_child_fences(struct hw_fence_driver_data *drv_data,

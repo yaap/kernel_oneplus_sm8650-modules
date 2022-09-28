@@ -150,6 +150,7 @@ enum payload_type {
  * @ipc_signal_id: id of the signal to be triggered for this client
  * @ipc_client_id: id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
+ * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
  * @wait_queue: wait queue for the validation clients
  * @val_signal: doorbell flag to signal the validation clients in the wait queue
  */
@@ -160,6 +161,7 @@ struct msm_hw_fence_client {
 	int ipc_signal_id;
 	int ipc_client_id;
 	bool update_rxq;
+	bool send_ipc;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	wait_queue_head_t wait_queue;
 	atomic_t val_signal;

@@ -13,11 +13,13 @@
  * @ipc_client_id: ipc client id for the hw-fence client.
  * @ipc_signal_id: ipc signal id for the hw-fence client.
  * @update_rxq: bool to indicate if clinet uses rx-queue.
+ * @send_ipc: bool to indicate if client requires ipc interrupt for signaled fences
  */
 struct hw_fence_client_ipc_map {
 	int ipc_client_id;
 	int ipc_signal_id;
 	bool update_rxq;
+	bool send_ipc;
 };
 
 /**
@@ -32,22 +34,22 @@ struct hw_fence_client_ipc_map {
  *   {HW_FENCE_IPC_CLIENT_ID_APPS, 20}.
  */
 struct hw_fence_client_ipc_map hw_fence_clients_ipc_map_no_dpu[HW_FENCE_CLIENT_MAX] = {
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 1, true}, /* ctrl queue loopback */
-	{HW_FENCE_IPC_CLIENT_ID_GPU,  0, true}, /* ctx0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 14, false}, /* ctl0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 15, false}, /* ctl1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 16, false}, /* ctl2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 17, false}, /* ctl3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 18, false}, /* ctl4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 19, false}, /* ctl5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 1, true, true}, /* ctrl queue loopback */
+	{HW_FENCE_IPC_CLIENT_ID_GPU,  0, false, false}, /* ctx0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 14, false, true}, /* ctl0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 15, false, true}, /* ctl1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 16, false, true}, /* ctl2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 17, false, true}, /* ctl3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 18, false, true}, /* ctl4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 19, false, true}, /* ctl5 */
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 21, true}, /* val0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 22, true}, /* val1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 23, true}, /* val2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 24, true}, /* val3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 25, true}, /* val4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 26, true}, /* val5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 27, true}, /* val6 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 21, true, true}, /* val0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 22, true, true}, /* val1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 23, true, true}, /* val2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 24, true, true}, /* val3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 25, true, true}, /* val4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 26, true, true}, /* val5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 27, true, true}, /* val6 */
 #endif /* CONFIG_DEBUG_FS */
 };
 
@@ -60,22 +62,22 @@ struct hw_fence_client_ipc_map hw_fence_clients_ipc_map_no_dpu[HW_FENCE_CLIENT_M
  * Note that the index of this struct must match the enum hw_fence_client_id
  */
 struct hw_fence_client_ipc_map hw_fence_clients_ipc_map[HW_FENCE_CLIENT_MAX] = {
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 1, true}, /* ctrl queue loopback */
-	{HW_FENCE_IPC_CLIENT_ID_GPU,  0, true}, /* ctx0 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  0, false}, /* ctl0 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  1, false}, /* ctl1 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  2, false}, /* ctl2 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  3, false}, /* ctl3 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  4, false}, /* ctl4 */
-	{HW_FENCE_IPC_CLIENT_ID_DPU,  5, false}, /* ctl5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 1, true, true}, /* ctrl queue loopback */
+	{HW_FENCE_IPC_CLIENT_ID_GPU,  0, false, false}, /* ctx0 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  0, false, true}, /* ctl0 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  1, false, true}, /* ctl1 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  2, false, true}, /* ctl2 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  3, false, true}, /* ctl3 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  4, false, true}, /* ctl4 */
+	{HW_FENCE_IPC_CLIENT_ID_DPU,  5, false, true}, /* ctl5 */
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 21, true}, /* val0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 22, true}, /* val1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 23, true}, /* val2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 24, true}, /* val3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 25, true}, /* val4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 26, true}, /* val5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 27, true}, /* val6 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 21, true, true}, /* val0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 22, true, true}, /* val1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 23, true, true}, /* val2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 24, true, true}, /* val3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 25, true, true}, /* val4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 26, true, true}, /* val5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS, 27, true, true}, /* val6 */
 #endif /* CONFIG_DEBUG_FS */
 };
 
@@ -101,6 +103,14 @@ bool hw_fence_ipcc_needs_rxq_update(struct hw_fence_driver_data *drv_data, int c
 		return -EINVAL;
 
 	return drv_data->ipc_clients_table[client_id].update_rxq;
+}
+
+bool hw_fence_ipcc_needs_ipc_irq(struct hw_fence_driver_data *drv_data, int client_id)
+{
+	if (!drv_data || client_id >= HW_FENCE_CLIENT_MAX)
+		return -EINVAL;
+
+	return drv_data->ipc_clients_table[client_id].send_ipc;
 }
 
 /**
