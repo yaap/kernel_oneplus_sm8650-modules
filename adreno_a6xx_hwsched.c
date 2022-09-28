@@ -662,9 +662,8 @@ static void a6xx_hwsched_touch_wakeup(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	device->pwrctrl.last_stat_updated = ktime_get();
-	device->state = KGSL_STATE_ACTIVE;
 
-	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 done:
 	/*
@@ -709,9 +708,8 @@ static int a6xx_hwsched_boot(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	device->pwrctrl.last_stat_updated = ktime_get();
-	device->state = KGSL_STATE_ACTIVE;
 
-	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 	return ret;
 }
@@ -777,9 +775,8 @@ static int a6xx_hwsched_first_boot(struct adreno_device *adreno_dev)
 	device->pwrscale.devfreq_enabled = true;
 
 	device->pwrctrl.last_stat_updated = ktime_get();
-	device->state = KGSL_STATE_ACTIVE;
 
-	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 	return 0;
 }
@@ -834,7 +831,7 @@ no_gx_power:
 
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
-	device->state = KGSL_STATE_NONE;
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 
 	del_timer_sync(&device->idle_timer);
 
@@ -858,12 +855,24 @@ static void hwsched_idle_check(struct work_struct *work)
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (!atomic_read(&device->active_cnt)) {
-		a6xx_hwsched_power_off(adreno_dev);
-	} else {
+	if (atomic_read(&device->active_cnt)) {
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
+		goto done;
 	}
+
+	spin_lock(&device->submit_lock);
+	if (device->submit_now) {
+		spin_unlock(&device->submit_lock);
+		kgsl_pwrscale_update(device);
+		kgsl_start_idle_timer(device);
+		goto done;
+	}
+
+	device->skip_inline_submit = true;
+	spin_unlock(&device->submit_lock);
+
+	a6xx_hwsched_power_off(adreno_dev);
 
 done:
 	mutex_unlock(&device->mutex);

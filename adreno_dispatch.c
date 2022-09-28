@@ -966,8 +966,8 @@ static void adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	spin_lock(&device->submit_lock);
-	/* If state transition to SLUMBER, schedule the work for later */
-	if (device->slumber) {
+	/* If state is not ACTIVE, schedule the work for later */
+	if (device->skip_inline_submit) {
 		spin_unlock(&device->submit_lock);
 		goto done;
 	}

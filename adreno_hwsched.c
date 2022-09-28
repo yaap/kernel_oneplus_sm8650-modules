@@ -771,6 +771,13 @@ void adreno_hwsched_trigger(struct adreno_device *adreno_dev)
 	kthread_queue_work(hwsched->worker, &hwsched->work);
 }
 
+static inline void _decrement_submit_now(struct kgsl_device *device)
+{
+	spin_lock(&device->submit_lock);
+	device->submit_now--;
+	spin_unlock(&device->submit_lock);
+}
+
 /**
  * adreno_hwsched_issuecmds() - Issue commmands from pending contexts
  * @adreno_dev: Pointer to the adreno device struct
@@ -782,29 +789,25 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
-	/*
-	 * Skip the inline submission path if GPU is not active.
-	 * Otherwise, the submitting thread will be blocked until wakeup is complete.
-	 * This is done without any locking to keep the submit path lightweight at the
-	 * acceptable risk of a wrong guess which would result in an inline submit when
-	 * the device goes into slumber soon after the check.
-	 */
-	if (device->state != KGSL_STATE_ACTIVE) {
-		adreno_hwsched_trigger(adreno_dev);
-		return;
+	spin_lock(&device->submit_lock);
+	/* If GPU state is not ACTIVE, schedule the work for later */
+	if (device->skip_inline_submit) {
+		spin_unlock(&device->submit_lock);
+		goto done;
 	}
+	device->submit_now++;
+	spin_unlock(&device->submit_lock);
 
 	/* If the dispatcher is busy then schedule the work for later */
 	if (!mutex_trylock(&hwsched->mutex)) {
-		adreno_hwsched_trigger(adreno_dev);
-		return;
+		_decrement_submit_now(device);
+		goto done;
 	}
 
 	if (!hwsched_in_fault(hwsched))
 		hwsched_issuecmds(adreno_dev);
 
 	if (hwsched->inflight > 0) {
-
 		mutex_lock(&device->mutex);
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
@@ -812,6 +815,11 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	}
 
 	mutex_unlock(&hwsched->mutex);
+	_decrement_submit_now(device);
+	return;
+
+done:
+	adreno_hwsched_trigger(adreno_dev);
 }
 
 /**
