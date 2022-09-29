@@ -199,6 +199,58 @@ static struct msm_cvp_common_data sm8550_tvm_common_data[] = {
 	}
 };
 
+static struct msm_cvp_common_data sm8650_common_data[] = {
+	{
+		.key = "qcom,pm-qos-latency-us",
+		.value = 50,
+	},
+	{
+		.key = "qcom,sw-power-collapse",
+		.value = 0,	/* Disable during initial stage for Rumi 48 bringup */
+	},
+	{
+		.key = "qcom,domain-attr-non-fatal-faults",
+		.value = 0,
+	},
+	{
+		.key = "qcom,max-secure-instances",
+		.value = 2, /*
+					* As per design driver allows 3rd
+					* instance as well since the secure
+					* flags were updated later for the
+					* current instance. Hence total
+					* secure sessions would be
+					* max-secure-instances + 1.
+					*/
+	},
+	{
+		.key = "qcom,max-ssr-allowed",
+		.value = 1,	/*
+					* Maxinum number of SSR before BUG_ON
+					*/
+	},
+	{
+		.key = "qcom,power-collapse-delay",
+		.value = 3000,
+	},
+	{
+		.key = "qcom,hw-resp-timeout",
+		.value = 2000,
+	},
+	{
+		.key = "qcom,dsp-resp-timeout",
+		.value = 1000,
+	},
+	{
+		.key = "qcom,debug-timeout",
+		.value = 0,
+	},
+	{
+		.key = "qcom,dsp-enabled",
+		.value = 0,	/* Disable during initial stage for Rumi 48 bringup */
+	}
+};
+
 /* Default UBWC config for LPDDR5 */
 static struct msm_cvp_ubwc_config_data kona_ubwc_data[] = {
 	UBWC_CONFIG(1, 1, 1, 0, 0, 0, 8, 32, 16, 0, 0),
@@ -253,6 +305,16 @@ static struct msm_cvp_platform_data sm8550_tvm_data = {
 	.vm_id = 2,
 };
 
+static struct msm_cvp_platform_data sm8650_data = {
+	.common_data = sm8650_common_data,
+	.common_data_length = ARRAY_SIZE(sm8650_common_data),
+	.sku_version = 0,
+	.vpu_ver = VPU_VERSION_5,
+	.ubwc_config = kona_ubwc_data,	/*Reuse Kona setting*/
+	.noc_qos = &waipio_noc_qos,	/*Reuse Waipio setting*/
+	.vm_id = 1,
+};
+
 static const struct of_device_id msm_cvp_dt_match[] = {
 	{
 		.compatible = "qcom,waipio-cvp",
@@ -265,6 +327,10 @@ static const struct of_device_id msm_cvp_dt_match[] = {
 	{
 		.compatible = "qcom,kalama-cvp-tvm",
 		.data = &sm8550_tvm_data,
+	},
+	{
+		.compatible = "qcom,pineapple-cvp",
+		.data = &sm8650_data,
 	},
 
 	{},

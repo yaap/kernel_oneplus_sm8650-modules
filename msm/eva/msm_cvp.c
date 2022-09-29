@@ -643,7 +643,6 @@ wait:
 exit:
 	dprintk(CVP_SYNX, "%s exit\n", current->comm);
 	cvp_put_inst(inst);
-	do_exit(rc);
 	return rc;
 }
 

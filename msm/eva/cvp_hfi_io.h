@@ -253,7 +253,6 @@
 #define CVP_CC_MVS1_GDSCR			(CVP_CC_BASE_OFFS + 0xCC)
 #define CVP_CC_MVS1_CBCR			(CVP_CC_BASE_OFFS + 0xE0)
 
-#ifdef CONFIG_EVA_KALAMA
 #define CVP_GCC_VIDEO_AXI1_CBCR		(0x22024)
-#endif	/*End of CONFIG_EVA_KALAMA */
+
 #endif

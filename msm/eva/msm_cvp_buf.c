@@ -16,6 +16,14 @@
 #include "msm_cvp_core.h"
 #include "msm_cvp_dsp.h"
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
+#define eva_buf_map dma_buf_map
+#define _buf_map_set_vaddr dma_buf_map_set_vaddr
+#else
+#define eva_buf_map iosys_map
+#define _buf_map_set_vaddr iosys_map_set_vaddr
+#endif
+
 #define CLEAR_USE_BITMAP(idx, inst) \
 	do { \
 		clear_bit(idx, &inst->dma_cache.usage_bitmap); \
@@ -239,7 +247,7 @@ loop:
 		 */
 		if (file->f_mode & mask)
 			file = NULL;
-		else if (!get_file_rcu_many(file, refs))
+		else if (!get_file_rcu(file))
 			goto loop;
 	}
 	rcu_read_unlock();
@@ -811,7 +819,7 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
 	struct dma_buf* dmabuf;
-	struct dma_buf_map map;
+	struct eva_buf_map map;
 
 	if (!in_pkt || !wncc_metadata ||
 		num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
@@ -872,7 +880,7 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
 	struct dma_buf* dmabuf;
-	struct dma_buf_map map;
+	struct eva_buf_map map;
 
 	if (!in_pkt || !wncc_metadata ||
 		num_layers < 1 || num_layers > EVA_KMD_WNCC_MAX_LAYERS) {
@@ -898,7 +906,7 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 			break;
 		}
 
-		dma_buf_map_set_vaddr(&map, wncc_metadata[i]);
+		_buf_map_set_vaddr(&map, wncc_metadata[i]);
 		dma_buf_vunmap(dmabuf, &map);
 		wncc_metadata[i] = NULL;
 

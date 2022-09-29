@@ -28,6 +28,15 @@ KBUILD_CPPFLAGS += -DCONFIG_EVA_KALAMA=1
 ccflags-y += -DCONFIG_EVA_KALAMA=1
 endif
 
+ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
+$(info within KBUILD file CONFIG_ARCH_PINEAPPLE = $(CONFIG_ARCH_PINEAPPLE))
+KBUILD_CPPFLAGS += -DCONFIG_EVA_PINEAPPLE=1
+ccflags-y += -DCONFIG_EVA_PINEAPPLE=1
+ccflags-y += -I$(EVA_ROOT)/../synx-kernel/msm/synx/ \
+    -I$(EVA_ROOT)/../synx-kernel/include/uapi/synx/media/
+endif
+
+
 ifeq ($(CONFIG_EVA_LE), 1)
 ccflags-y += -DCONFIG_EVA_TVM=1
 endif

@@ -132,6 +132,12 @@ static int msm_cvp_load_ipcc_regs(struct msm_cvp_platform_resources *res)
 	res->ipcc_reg_base = reg_config[0];
 	res->ipcc_reg_size = reg_config[1];
 
+	dprintk(CVP_CORE,
+		"ipcc reg_base = %x, reg_size = %x\n",
+		res->ipcc_reg_base,
+		res->ipcc_reg_size
+	);
+
 	return ret;
 }
 
@@ -830,8 +836,10 @@ int cvp_read_platform_resources_from_dt(
 	res->register_base = kres ? kres->start : -1;
 	res->register_size = kres ? (kres->end + 1 - kres->start) : -1;
 
-	kres = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	res->irq = kres ? kres->start : -1;
+	res->irq = platform_get_irq(pdev, 0);
+
+	dprintk(CVP_CORE, "%s: res->irq:%d \n",
+		__func__, res->irq);
 
 	rc = msm_cvp_load_subcache_info(res);
 	if (rc)

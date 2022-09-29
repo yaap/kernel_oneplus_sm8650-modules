@@ -10,6 +10,17 @@
 #include <media/msm_eva_private.h>
 #include "cvp_comm_def.h"
 
+#ifdef CVP_SYNX_ENABLED
+#include <synx_api.h>
+#else
+#define SYNX_STATE_SIGNALED_SUCCESS 0
+#define SYNX_STATE_SIGNALED_ERROR 0
+#define SYNX_STATE_SIGNALED_CANCEL 0
+struct synx_session {
+	u32 client_id;
+};
+#endif /* end of CVP_SYNX_ENABLED */
+
 struct msm_cvp_core;
 
 struct cvp_fence_queue {

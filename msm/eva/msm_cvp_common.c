@@ -1207,23 +1207,29 @@ int msm_cvp_comm_try_state(struct msm_cvp_inst *inst, int state)
 		rc = msm_comm_init_core(inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		/* defined in linux/compiler_attributes.h */
+		fallthrough;
 	case MSM_CVP_CORE_INIT_DONE:
 		rc = msm_comm_init_core_done(inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		fallthrough;
 	case MSM_CVP_OPEN:
 		rc = msm_comm_session_init(flipped_state, inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		fallthrough;
 	case MSM_CVP_OPEN_DONE:
 		rc = msm_comm_session_init_done(flipped_state, inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		fallthrough;
 	case MSM_CVP_CLOSE:
 		dprintk(CVP_INFO, "to CVP_CLOSE state\n");
 		rc = msm_comm_session_close(flipped_state, inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		fallthrough;
 	case MSM_CVP_CLOSE_DONE:
 		dprintk(CVP_INFO, "to CVP_CLOSE_DONE state\n");
 		rc = wait_for_state(inst, flipped_state, MSM_CVP_CLOSE_DONE,
@@ -1231,12 +1237,14 @@ int msm_cvp_comm_try_state(struct msm_cvp_inst *inst, int state)
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
 		msm_cvp_comm_session_clean(inst);
+		fallthrough;
 	case MSM_CVP_CORE_UNINIT:
 	case MSM_CVP_CORE_INVALID:
 		dprintk(CVP_INFO, "Sending core uninit\n");
 		rc = msm_cvp_deinit_core(inst);
 		if (rc || state <= get_flipped_state(inst->state, state))
 			break;
+		fallthrough;
 	default:
 		dprintk(CVP_ERR, "State not recognized\n");
 		rc = -EINVAL;

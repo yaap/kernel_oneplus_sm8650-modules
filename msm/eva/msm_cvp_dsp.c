@@ -40,16 +40,14 @@ static void __fastrpc_driver_unregister(struct fastrpc_driver *driver)
 #endif
 }
 
+#ifdef CVP_FASTRPC_ENABLED
 static int __fastrpc_driver_invoke(struct fastrpc_device *dev,
 				enum fastrpc_driver_invoke_nums invoke_num,
 				unsigned long invoke_param)
 {
-#ifdef CVP_FASTRPC_ENABLED
 	return fastrpc_driver_invoke(dev, invoke_num, invoke_param);
-#else
-	return -ENODEV;
-#endif
 }
+#endif	/* End of CVP_FASTRPC_ENABLED */
 
 static int cvp_dsp_send_cmd(struct cvp_dsp_cmd_msg *cmd, uint32_t len)
 {
@@ -1014,6 +1012,7 @@ static int eva_fastrpc_dev_map_dma(struct fastrpc_device *frpc_device,
 			uint32_t dsp_remote_map,
 			uint64_t *v_dsp_addr)
 {
+#ifdef CVP_FASTRPC_ENABLED
 	struct fastrpc_dev_map_dma frpc_map_buf = {0};
 	int rc = 0;
 
@@ -1042,11 +1041,15 @@ static int eva_fastrpc_dev_map_dma(struct fastrpc_device *frpc_device,
 	}
 
 	return rc;
+#else
+	return -ENODEV;
+#endif	/* End of CVP_FASTRPC_ENABLED */
 }
 
 static int eva_fastrpc_dev_unmap_dma(struct fastrpc_device *frpc_device,
 			struct cvp_internal_buf *buf)
 {
+#ifdef CVP_FASTRPC_ENABLED
 	struct fastrpc_dev_unmap_dma frpc_unmap_buf = {0};
 	int rc = 0;
 
@@ -1067,6 +1070,9 @@ static int eva_fastrpc_dev_unmap_dma(struct fastrpc_device *frpc_device,
 	}
 
 	return rc;
+#else
+	return -ENODEV;
+#endif	/* End of CVP_FASTRPC_ENABLED */
 }
 
 static void eva_fastrpc_driver_add_sess(
@@ -2072,7 +2078,6 @@ wait_dsp:
 	goto wait_dsp;
 exit:
 	dprintk(CVP_DBG, "dsp thread exit\n");
-	do_exit(rc);
 	return rc;
 }
 

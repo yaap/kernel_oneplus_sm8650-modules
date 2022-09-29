@@ -51,6 +51,12 @@ struct msm_cvp_vm_manager vm_manager = {
 
 static int msm_cvp_vm_start(struct msm_cvp_core *core)
 {
+	if (!core || !core->platform_data) {
+		dprintk(CVP_ERR, "%s: Invalid params %pK %pK\n",
+			__func__, core, core->platform_data);
+		return -EINVAL;
+	}
+
 	vm_manager.vm_id = core->platform_data->vm_id;
 	return 0;
 }
@@ -148,7 +154,7 @@ static int msm_cvp_vm_init_reg_and_irq(struct iris_hfi_device *device,
 	rc = request_irq(res->irq, cvp_hfi_isr, IRQF_TRIGGER_HIGH,
 			"msm_cvp", device);
 	if (unlikely(rc)) {
-		dprintk(CVP_ERR, "() :request_irq failed\n");
+		dprintk(CVP_ERR, "%s: request_irq failed rc: %d\n", __func__, rc);
 		goto error_irq_fail;
 	}
 

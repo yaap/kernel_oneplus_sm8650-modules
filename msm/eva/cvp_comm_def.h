@@ -28,9 +28,16 @@ enum queue_state {
 
 #else	/* LA target starts here */
 
+#ifdef CONFIG_EVA_KALAMA
 #define CVP_SYNX_ENABLED 1
 #define CVP_MMRM_ENABLED 1
 #define CVP_FASTRPC_ENABLED 1
+#endif	/* End of CONFIG_EVA_KALAMA */
+
+#ifdef CONFIG_EVA_PINEAPPLE
+#define CVP_MMRM_ENABLED 1
+#endif	/* End of CONFIG_EVA_PINEAPPLE */
+
 
 #ifdef CONFIG_EVA_WAIPIO
 #define CVP_MINIDUMP_ENABLED 1

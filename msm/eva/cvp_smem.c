@@ -22,10 +22,11 @@
 
 static void * __cvp_dma_buf_vmap(struct dma_buf *dbuf)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
-	return dma_buf_vmap(dbuf);
-#else
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 	struct dma_buf_map map;
+#else
+	struct iosys_map map;
+#endif
 	void *dma_map;
 	int err;
 
@@ -35,22 +36,23 @@ static void * __cvp_dma_buf_vmap(struct dma_buf *dbuf)
 		dprintk(CVP_ERR, "map to kvaddr failed\n");
 
 	return dma_map;
-#endif
 }
 
 static void __cvp_dma_buf_vunmap(struct dma_buf *dbuf, void *vaddr)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
-	dma_buf_vunmap(dbuf, vaddr);
-#else
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 	struct dma_buf_map map = { \
 			.vaddr = vaddr, \
 			.is_iomem = false, \
 	};
-
+#else
+	struct iosys_map map = { \
+			.vaddr = vaddr, \
+			.is_iomem = false, \
+	};
+#endif
 	if (vaddr)
 		dma_buf_vunmap(dbuf, &map);
-#endif
 }
 
 static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,

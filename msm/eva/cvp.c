@@ -263,7 +263,7 @@ static ssize_t boot_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (val > 0 && booted == 0) {
+	if (val == 1 && booted == 0) {
 		struct msm_cvp_inst *inst;
 
 		inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_BOOT, current);
@@ -278,7 +278,7 @@ static ssize_t boot_store(struct device *dev,
 			"Failed to close cvp instance\n");
 			return rc;
 		}
-	} else if ((val == 2) && booted) {
+	} else if (val == 2) {
 		struct msm_cvp_inst *inst;
 
 		inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_USER, current);
@@ -650,3 +650,4 @@ module_exit(msm_cvp_exit);
 
 MODULE_SOFTDEP("pre: msm-mmrm");
 MODULE_LICENSE("GPL v2");
+MODULE_IMPORT_NS(DMA_BUF);
