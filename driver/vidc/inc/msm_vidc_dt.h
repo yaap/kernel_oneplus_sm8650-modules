@@ -8,8 +8,9 @@
 
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
+#ifdef CONFIG_MSM_MMRM
 #include <linux/soc/qcom/msm_mmrm.h>
-
+#endif
 #include "msm_vidc_internal.h"
 
 /*
