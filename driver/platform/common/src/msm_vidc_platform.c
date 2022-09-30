@@ -4,7 +4,6 @@
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <soc/qcom/of_common.h>
 #include <linux/io.h>
 #include <linux/sort.h>
 
@@ -455,30 +454,6 @@ int msm_vidc_read_efuse(struct msm_vidc_core *core)
 		}
 	}
 	return rc;
-}
-
-void msm_vidc_ddr_ubwc_config(
-	struct msm_vidc_platform_data *platform_data, u32 hbb_override_val)
-{
-	uint32_t ddr_type = DDR_TYPE_LPDDR5;
-
-	if (!platform_data || !platform_data->ubwc_config) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
-	ddr_type = of_fdt_get_ddrtype();
-	if (ddr_type == -ENOENT)
-		d_vpr_e("Failed to get ddr type, use LPDDR5\n");
-
-	if (platform_data->ubwc_config &&
-		(ddr_type == DDR_TYPE_LPDDR4 ||
-		 ddr_type == DDR_TYPE_LPDDR4X))
-		platform_data->ubwc_config->highest_bank_bit = hbb_override_val;
-
-	d_vpr_h("DDR Type 0x%x hbb 0x%x\n",
-		ddr_type, platform_data->ubwc_config ?
-		platform_data->ubwc_config->highest_bank_bit : -1);
 }
 
 void msm_vidc_sort_table(struct msm_vidc_core *core)

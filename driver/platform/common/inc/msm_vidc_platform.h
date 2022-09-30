@@ -159,7 +159,5 @@ int msm_vidc_init_platform(struct platform_device *pdev);
 int msm_vidc_deinit_platform(struct platform_device *pdev);
 int msm_vidc_read_efuse(struct msm_vidc_core *core);
 void msm_vidc_sort_table(struct msm_vidc_core *core);
-void msm_vidc_ddr_ubwc_config(
-	struct msm_vidc_platform_data *platform_data, u32 hbb_override_val);
 
 #endif // _MSM_VIDC_PLATFORM_H_
