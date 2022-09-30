@@ -24,6 +24,7 @@
 #define AON_MVP_NOC_RESET                      0x0001F000
 #define CPU_BASE_OFFS_IRIS33                    0x000A0000
 #define AON_BASE_OFFS			               0x000E0000
+#define VCODEC_VIDEO_CC_BASE                   0x00F00000
 #define CPU_CS_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 #define CPU_IC_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 
@@ -149,7 +150,9 @@
 
 #define AON_WRAPPER_MVP_NOC_LPI_CONTROL	(AON_BASE_OFFS)
 #define AON_WRAPPER_MVP_NOC_LPI_STATUS	(AON_BASE_OFFS + 0x4)
-
+#define AON_WRAPPER_MVP_NOC_CORE_SW_RESET (AON_BASE_OFFS + 0x18)
+#define AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL (AON_BASE_OFFS + 0x20)
+#define AON_WRAPPER_SPARE (AON_BASE_OFFS + 0x28)
 /*
  * --------------------------------------------------------------------------
  * MODULE: VCODEC_SS registers
@@ -176,6 +179,14 @@
 #define VCODEC_NOC_ERL_MAIN_ERRLOG2_HIGH		0x00011234
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW			0x00011238
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH		0x0001123C
+/*
+ * --------------------------------------------------------------------------
+ * MODULE: VCODEC_VIDEO_CC registers
+ * --------------------------------------------------------------------------
+ */
+#define VCODEC_VIDEO_CC_MVS0C_CBCR (VCODEC_VIDEO_CC_BASE + 0x8064)
+#define VCODEC_VIDEO_CC_XO_CBCR    (VCODEC_VIDEO_CC_BASE + 0x8124)
+
 
 static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
 {
@@ -326,25 +337,21 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 				__func__, i, value);
 	}
 
-	/* Apply partial reset on MSF interface and wait for ACK */
-	rc = __write_register(core, AON_WRAPPER_MVP_NOC_RESET_REQ, 0x3);
+	/* set MNoC to low power, set PD_NOC_QREQ (bit 0) */
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_LPI_CONTROL,
+					0x1, BIT(0));
 	if (rc)
 		return rc;
 
-	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_MVP_NOC_RESET_ACK,
-			0x3, 0x3, 200, 2000);
+	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_MVP_NOC_LPI_STATUS,
+					0x1, 0x1, 200, 2000);
 	if (rc)
-		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_RESET assert failed\n", __func__);
+		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
 
-	/* De-assert partial reset on MSF interface and wait for ACK */
-	rc = __write_register(core, AON_WRAPPER_MVP_NOC_RESET_REQ, 0x0);
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_LPI_CONTROL,
+					0x0, BIT(0));
 	if (rc)
 		return rc;
-
-	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_MVP_NOC_RESET_ACK,
-			0x3, 0x0, 200, 2000);
-	if (rc)
-		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_RESET de-assert failed\n", __func__);
 
 	/*
 	 * Reset both sides of 2 ahb2ahb_bridges (TZ and non-TZ)
@@ -381,6 +388,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 {
 	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
+	int value = 0;
 
 	/*
 	 * mask fal10_veto QLPAC error since fal10_veto can go 1
@@ -389,17 +397,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = __write_register(core, CPU_CS_X2RPMh_IRIS33, 0x3);
 	if (rc)
 		return rc;
-
-	/* set MNoC to low power, set PD_NOC_QREQ (bit 0) */
-	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_LPI_CONTROL,
-			0x1, BIT(0));
-	if (rc)
-		return rc;
-
-	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_MVP_NOC_LPI_STATUS,
-			0x1, 0x1, 200, 2000);
-	if (rc)
-		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
 
 	/* Set Iris CPU NoC to Low power */
 	rc = __write_register_masked(core, WRAPPER_IRIS_CPU_NOC_LPI_CONTROL,
@@ -439,6 +436,63 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	/* Disable MVP NoC clock */
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
+			0x1, BIT(0));
+	if (rc)
+		return rc;
+
+	/* enable MVP_CTL reset and enable Force Sleep Retention */
+	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x6005);
+	if (rc)
+		return rc;
+
+	/* enable MVP NoC reset */
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
+			0x1, BIT(0));
+	if (rc)
+		return rc;
+
+	/* enable vcodec video_cc XO reset and disable video_cc XO clock */
+	rc = __read_register(core, AON_WRAPPER_SPARE, &value);
+	if (rc)
+		return rc;
+	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
+	if (rc)
+		return rc;
+	rc = __write_register(core, VCODEC_VIDEO_CC_XO_CBCR, 0x4);
+	if (rc)
+		return rc;
+
+	/* De-assert MVP_CTL reset and enable Force Sleep Retention */
+	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x6001);
+	if (rc)
+		return rc;
+
+	/* De-assert MVP NoC reset */
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
+			0x0, BIT(0));
+	if (rc)
+		return rc;
+
+	/* De-assert video_cc XO reset and enable video_cc XO clock after 80us */
+	usleep_range(80, 100);
+	rc = __write_register(core, VCODEC_VIDEO_CC_XO_CBCR, 0x1);
+	if (rc)
+		return rc;
+
+	/* Enable MVP NoC clock */
+	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
+			0x0, BIT(0));
+	if (rc)
+		return rc;
+
+	/* De-assert MVP_CTL Force Sleep Retention */
+	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x1);
+	if (rc)
+		return rc;
+
+
 	/* Turn off MVP MVS0C core clock */
 	rc = res_ops->clk_disable(core, "core_clk");
 	if (rc) {
@@ -450,6 +504,13 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = res_ops->gdsc_off(core, "iris-ctl");
 	if (rc) {
 		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
+		rc = 0;
+	}
+
+	/* Turn off GCC AXI clock */
+	rc = res_ops->clk_disable(core, "gcc_video_axi0");
+	if (rc) {
+		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
 		rc = 0;
 	}
 
