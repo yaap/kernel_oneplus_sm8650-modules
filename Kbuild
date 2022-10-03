@@ -30,10 +30,9 @@ frpc_trusted-adsprpc-y := dsp/adsprpc.o	\
                           dsp/adsprpc_compat.o \
                           dsp/adsprpc_socket.o \
 
-#cdsp-loader-y := dsp/cdsp-loader.o
+cdsp-loader-y := dsp/cdsp-loader.o
 
-#obj-m := frpc-adsprpc.o cdsp-loader.o
-obj-m := frpc-adsprpc.o
+obj-m := frpc-adsprpc.o cdsp-loader.o
 
 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/frpc-adsprpc.ko
 #BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/cdsp-loader.ko
