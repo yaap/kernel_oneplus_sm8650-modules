@@ -100,8 +100,6 @@ void *msm_vb2_attach_dmabuf(struct vb2_buffer *vb, struct device *dev,
 	}
 
 	buf->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-	/* remove below flag when userspace recycles buffers in same index */
-	buf->attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
 	if (core->dt->sys_cache_present)
 		buf->attach->dma_map_attrs |=
 			DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
