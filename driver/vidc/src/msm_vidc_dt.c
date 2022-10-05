@@ -802,13 +802,10 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	 * possibility to get a mapping for buffer in the configured CB.
 	 */
 
-	/*
-	 * TBD: iommu_dma_enable_best_fit_algo is commented temoprarily to enable dlkm
-	 * compilation once headers are availbale when the GKI branch for Kailua (android13-5.next)
-	 * branches out
-	 */
-
-	/*iommu_dma_enable_best_fit_algo(cb->dev);*/
+	/* remove kernel version condition once below api is whitelisted in pineapple */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0))
+	iommu_dma_enable_best_fit_algo(cb->dev);
+#endif
 
 	/*
 	 * configure device segment size and segment boundary to ensure
