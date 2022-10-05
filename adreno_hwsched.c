@@ -2378,7 +2378,6 @@ void adreno_hwsched_register_hw_fence(struct adreno_device *adreno_dev)
 	hw_fence->memdesc.physaddr = hw_fence->mem_descriptor.device_addr;
 	hw_fence->memdesc.size = hw_fence->mem_descriptor.size;
 	hw_fence->memdesc.hostptr = hw_fence->mem_descriptor.virtual_addr;
-	hw_fence->memdesc.priv |= KGSL_MEMDESC_IOMEM;
 
 	ret = kgsl_memdesc_sg_dma(&hw_fence->memdesc, hw_fence->memdesc.physaddr,
 		hw_fence->memdesc.size);
