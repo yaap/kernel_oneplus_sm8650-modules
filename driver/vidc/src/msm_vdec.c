@@ -1994,14 +1994,6 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 		return -EINVAL;
 	}
 
-	if (vb2->type == OUTPUT_MPLANE) {
-		if (inst->capabilities->cap[DPB_LIST].value) {
-			rc = msm_vdec_release_nonref_buffers(inst);
-			if (rc)
-				return rc;
-		}
-	}
-
 	if (inst->adjust_priority) {
 		s32 priority = inst->capabilities->cap[PRIORITY].value;
 
@@ -2018,6 +2010,14 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 		rc = msm_vidc_queue_buffer_single(inst, vb2);
 	if (rc)
 		return rc;
+
+	if (vb2->type == OUTPUT_MPLANE) {
+		if (inst->capabilities->cap[DPB_LIST].value) {
+			rc = msm_vdec_release_nonref_buffers(inst);
+			if (rc)
+				return rc;
+		}
+	}
 
 	return rc;
 }
