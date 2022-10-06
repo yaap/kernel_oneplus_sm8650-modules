@@ -1304,7 +1304,7 @@ static ssize_t tzdbg_fs_read(struct file *file, char __user *buf,
 
 static int tzdbg_procfs_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, NULL, PDE_DATA(inode));
+	return single_open(file, NULL, pde_data(inode));
 }
 
 static int tzdbg_procfs_release(struct inode *inode, struct file *file)

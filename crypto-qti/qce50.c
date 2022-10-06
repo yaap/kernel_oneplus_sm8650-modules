@@ -6278,10 +6278,8 @@ static int __qce_get_device_tree_data(struct platform_device *pdev,
 		goto err_getting_bam_info;
 	}
 
-	resource  = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (resource) {
-		pce_dev->ce_bam_info.bam_irq = resource->start;
-	} else {
+	pce_dev->ce_bam_info.bam_irq = platform_get_irq(pdev,0);
+	if (pce_dev->ce_bam_info.bam_irq < 0) {
 		pr_err("CRYPTO BAM IRQ unavailable.\n");
 		goto err_dev;
 	}

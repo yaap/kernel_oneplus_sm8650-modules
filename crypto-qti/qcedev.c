@@ -2256,7 +2256,7 @@ long qcedev_ioctl(struct file *file,
 			err = -ENOTTY;
 			goto exit_free_qcedev_areq;
 		}
-		/* Fall-through */
+		fallthrough;
 	case QCEDEV_IOCTL_SHA_UPDATE_REQ:
 		{
 		struct scatterlist sg_src;
@@ -2842,6 +2842,6 @@ static void qcedev_exit(void)
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("QTI DEV Crypto driver");
-
+MODULE_IMPORT_NS(DMA_BUF);
 module_init(qcedev_init);
 module_exit(qcedev_exit);

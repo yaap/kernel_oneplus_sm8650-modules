@@ -882,14 +882,13 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 }
 
 /*
- * size_add saturates at SIZE_MAX. If integer overflow is detected,
+ * size_add_ saturates at SIZE_MAX. If integer overflow is detected,
  * this function would return SIZE_MAX otherwise normal a+b is returned.
  */
-static inline size_t size_add(size_t a, size_t b)
+static inline size_t size_add_(size_t a, size_t b)
 {
 	return (b > (SIZE_MAX - a)) ? SIZE_MAX : a + b;
 }
-
 /*
  * pad_size is used along with size_align to define a buffer overflow
  * protected version of ALIGN
@@ -905,7 +904,7 @@ static inline size_t pad_size(size_t a, size_t b)
  */
 static inline size_t size_align(size_t a, size_t b)
 {
-	return size_add(a, pad_size(a, b));
+	return size_add_(a, pad_size(a, b));
 }
 
 static uint16_t get_server_id(int cb_server_fd)
@@ -1729,7 +1728,7 @@ static size_t compute_in_msg_size(const struct smcinvoke_cmd_req *req,
 
 	/* each buffer has to be 8 bytes aligned */
 	while (i < OBJECT_COUNTS_NUM_buffers(req->counts))
-		total_size = size_add(total_size,
+		total_size = size_add_(total_size,
 				size_align(args_buf[i++].b.size,
 				SMCINVOKE_ARGS_ALIGN_SIZE));
 
@@ -2802,3 +2801,4 @@ module_exit(smcinvoke_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("SMC Invoke driver");
 MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+MODULE_IMPORT_NS(DMA_BUF);
