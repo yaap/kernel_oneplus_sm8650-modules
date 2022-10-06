@@ -792,6 +792,14 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.resp = HAL_NO_RESP,
 			.name = "DLFL_CONFIG",
 		},
+	[HFI_CMD_SESSION_CVP_SYNX - HFI_CMD_SESSION_CVP_START] =
+		{
+			.size = 0xFFFFFFFF,
+			.type = HFI_CMD_SESSION_CVP_SYNX,
+			.is_config_pkt = false,
+			.resp = HAL_NO_RESP,
+			.name = "SYNX_TEST",
+		},
 };
 
 int get_pkt_index(struct cvp_hal_session_cmd_pkt *hdr)
