@@ -2501,12 +2501,21 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 
 	/*
 	 * check if read_only buffer is present in read_only list
-	 * if present: add ro flag to buf
+	 * if present: add ro flag to buf provided buffer is not
+	 * pending release
 	 */
 	list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
-		if (ro_buf->device_addr == buf->device_addr &&
-			ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY) {
+		if (ro_buf->device_addr != buf->device_addr)
+			continue;
+		if (ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY &&
+			!(ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)) {
+			/* add READ_ONLY to the buffer going to the firmware */
 			buf->attr |= MSM_VIDC_ATTR_READ_ONLY;
+			/*
+			 * remove READ_ONLY on the read_only list buffer so that
+			 * it will get removed from the read_only list below
+			 */
+			ro_buf->attr &= ~MSM_VIDC_ATTR_READ_ONLY;
 			break;
 		}
 	}
@@ -2516,13 +2525,21 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 		/* if read only buffer do not remove */
 		if (ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY)
 			continue;
-		/* if v4l2 did not ask for unmap/detach then do not remove */
-		if (!ro_buf->sg_table || !ro_buf->attach || !ro_buf->dbuf_get)
-			continue;
+
 		print_vidc_buffer(VIDC_LOW, "low ", "ro buf removed", inst, ro_buf);
-		msm_vidc_dma_buf_unmap_attachment(ro_buf->attach, ro_buf->sg_table);
-		msm_vidc_dma_buf_detach(ro_buf->dmabuf, ro_buf->attach);
-		msm_vidc_memory_put_dmabuf(inst, ro_buf->dmabuf);
+		/* unmap the buffer if driver holds mapping */
+		if (ro_buf->sg_table && ro_buf->attach) {
+			msm_vidc_dma_buf_unmap_attachment(ro_buf->attach, ro_buf->sg_table);
+			msm_vidc_dma_buf_detach(ro_buf->dmabuf, ro_buf->attach);
+			ro_buf->dmabuf = NULL;
+			ro_buf->attach = NULL;
+		}
+		if (ro_buf->dbuf_get) {
+			msm_vidc_memory_put_dmabuf(inst, ro_buf->dmabuf);
+			ro_buf->dmabuf = NULL;
+			ro_buf->dbuf_get = 0;
+		}
+
 		list_del_init(&ro_buf->list);
 		msm_memory_pool_free(inst, ro_buf);
 	}
