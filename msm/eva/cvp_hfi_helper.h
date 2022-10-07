@@ -3,6 +3,7 @@
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
+#include "cvp_comm_def.h"
 #ifndef __H_CVP_HFI_HELPER_H__
 #define __H_CVP_HFI_HELPER_H__
 
@@ -307,6 +308,19 @@ struct cvp_hfi_client {
 	u32 reserved2;
 } __packed;
 
+#ifdef CVP_CONFIG_SYNX_V2
+struct cvp_hfi_buf_type {
+	u32 iova;
+	u32 size;
+	u32 offset;
+	u32 flags;
+	u32 reserved1;
+	u32 reserved2;
+	u32 fence_type;
+	u32 input_handle;
+	u32 output_handle;
+};
+#else
 struct cvp_hfi_buf_type {
 	u32 iova;
 	u32 size;
@@ -315,6 +329,7 @@ struct cvp_hfi_buf_type {
 	u32 reserved1;
 	u32 reserved2;
 };
+#endif
 
 struct cvp_hfi_cmd_session_set_buffers_packet {
 	u32 size;

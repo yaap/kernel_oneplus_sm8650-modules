@@ -3,7 +3,7 @@
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
-#ifndef _MSM_CVP_SYNX_H_
+//#ifndef _MSM_CVP_SYNX_H_
 #define _MSM_CVP_SYNX_H_
 
 #include <linux/types.h>
@@ -30,11 +30,6 @@ struct cvp_fence_queue {
 	struct list_head wait_list;
 	wait_queue_head_t wq;
 	struct list_head sched_list;
-};
-
-struct cvp_fence_type {
-	s32 h_synx;
-	u32 secure_key;
 };
 
 struct cvp_fence_command {
@@ -76,4 +71,4 @@ struct msm_cvp_synx_ops {
 };
 
 void cvp_synx_ftbl_init(struct msm_cvp_core *core);
-#endif
+//#endif

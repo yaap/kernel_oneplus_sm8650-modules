@@ -211,7 +211,7 @@ enum msm_cvp_modes {
 };
 
 #define MAX_NUM_MSGS_PER_SESSION	128
-#define CVP_MAX_WAIT_TIME	2000
+#define CVP_MAX_WAIT_TIME	10000
 
 struct cvp_session_msg {
 	struct list_head node;
@@ -417,7 +417,7 @@ struct msm_cvp_inst {
 	u32 error_code;
 	/* prev_error_code saves value of error_code before it's cleared */
 	u32 prev_error_code;
-	struct synx_session synx_session_id;
+	struct synx_session *synx_session_id;
 	struct cvp_fence_queue fence_cmd_queue;
 	char proc_name[TASK_COMM_LEN];
 };

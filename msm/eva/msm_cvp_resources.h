@@ -156,6 +156,12 @@ struct msm_cvp_platform_resources {
 	uint32_t register_size;
 	uint32_t ipcc_reg_size;
 	uint32_t gcc_reg_size;
+	phys_addr_t ipclite_iova;
+	phys_addr_t ipclite_phyaddr;
+	uint32_t ipclite_size;
+	phys_addr_t hwmutex_iova;
+	phys_addr_t hwmutex_phyaddr;
+	uint32_t hwmutex_size;
 	uint32_t irq;
 	uint32_t sku_version;
 	struct allowed_clock_rates_table *allowed_clks_tbl;

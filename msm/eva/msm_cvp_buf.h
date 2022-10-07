@@ -12,6 +12,7 @@
 #include <linux/dma-heap.h>
 #include <linux/refcount.h>
 #include <media/msm_eva_private.h>
+#include "cvp_comm_def.h"
 
 #define MAX_FRAME_BUFFER_NUMS 30
 #define MAX_DMABUF_NUMS 64
@@ -108,6 +109,22 @@ static inline void DEINIT_DMAMAP_CACHE(struct cvp_dmamap_cache *cache)
 	cache->nr = 0;
 }
 
+#define INPUT_FENCE_BITMASK 0x1
+#define OUTPUT_FENCE_BITMASK 0x2
+
+#ifdef CVP_CONFIG_SYNX_V2
+struct cvp_buf_type {
+	s32 fd;
+	u32 size;
+	u32 offset;
+	u32 flags;
+	u32 reserved1;
+	u32 reserved2;
+	u32 fence_type;
+	u32 input_handle;
+	u32 output_handle;
+};
+#else
 struct cvp_buf_type {
 	s32 fd;
 	u32 size;
@@ -121,6 +138,7 @@ struct cvp_buf_type {
 		};
 	};
 };
+#endif
 
 enum buffer_owner {
 	DRIVER,

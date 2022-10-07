@@ -141,6 +141,38 @@ static int msm_cvp_load_ipcc_regs(struct msm_cvp_platform_resources *res)
 	return ret;
 }
 
+static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
+{
+	int ret = 0;
+	unsigned int ipclite_mapping_config[3];
+	unsigned int hwmutex_mapping_config[3];
+	struct platform_device *pdev = res->pdev;
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "ipclite_mappings",
+		ipclite_mapping_config, 3);
+	if (ret) {
+		dprintk(CVP_ERR, "Failed to read ipclite reg: %d\n", ret);
+		return ret;
+	}
+	res->ipclite_iova = ipclite_mapping_config[0];
+	res->ipclite_size = ipclite_mapping_config[1];
+	res->ipclite_phyaddr = ipclite_mapping_config[2];
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "hwmutex_mappings",
+		hwmutex_mapping_config, 3);
+	if (ret) {
+		dprintk(CVP_ERR, "Failed to read hwmutex reg: %d\n", ret);
+		return ret;
+	}
+	res->hwmutex_iova = hwmutex_mapping_config[0];
+	res->hwmutex_size = hwmutex_mapping_config[1];
+	res->hwmutex_phyaddr = hwmutex_mapping_config[2];
+	dprintk(CVP_CORE, "ipclite %#x %#x %#x hwmutex %#x %#x %#x\n",
+		res->ipclite_iova, res->ipclite_phyaddr, res->ipclite_size,
+		res->hwmutex_iova, res->hwmutex_phyaddr, res->hwmutex_size);
+	return ret;
+}
+
 static int msm_cvp_load_gcc_regs(struct msm_cvp_platform_resources *res)
 {
 	int ret = 0;
@@ -858,6 +890,10 @@ int cvp_read_platform_resources_from_dt(
 	rc = msm_cvp_load_ipcc_regs(res);
 	if (rc)
 		dprintk(CVP_ERR, "Failed to load IPCC regs: %d\n", rc);
+
+	rc = msm_cvp_load_regspace_mapping(res);
+	if (rc)
+		dprintk(CVP_ERR, "Failed to load reg space mapping: %d\n", rc);
 
 	rc = msm_cvp_load_gcc_regs(res);
 

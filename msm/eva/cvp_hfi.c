@@ -100,6 +100,8 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device);
 static int __enable_hw_power_collapse(struct iris_hfi_device *device);
 
 static int __power_off_controller(struct iris_hfi_device *device);
+static int __hwfence_regs_map(struct iris_hfi_device *device);
+static int __hwfence_regs_unmap(struct iris_hfi_device *device);
 
 static struct iris_hfi_vpu_ops iris2_ops = {
 	.interrupt_init = interrupt_init_iris2,
@@ -134,6 +136,15 @@ static inline bool __core_in_valid_state(struct iris_hfi_device *device)
 static inline bool is_sys_cache_present(struct iris_hfi_device *device)
 {
 	return device->res->sys_cache_present;
+}
+
+static int cvp_synx_recover(void)
+{
+#ifdef CVP_SYNX_ENABLED
+	return synx_recover(SYNX_CLIENT_EVA_CTX0);
+#else
+	return 0;
+#endif	/* End of CVP_SYNX_ENABLED */
 }
 
 #define ROW_SIZE 32
@@ -1891,6 +1902,60 @@ static int iris_pm_qos_update(void *device)
 	return 0;
 }
 
+static int __hwfence_regs_map(struct iris_hfi_device *device)
+{
+	int rc = 0;
+	struct context_bank_info *cb;
+
+	cb = msm_cvp_smem_get_context_bank(device->res, 0);
+	if (!cb) {
+		dprintk(CVP_ERR, "%s: fail to get cb\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = iommu_map(cb->domain, device->res->ipclite_iova,
+			device->res->ipclite_phyaddr,
+			device->res->ipclite_size,
+			IOMMU_READ | IOMMU_WRITE);
+	if (rc) {
+		dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
+			rc, device->res->ipclite_iova,
+			device->res->ipclite_phyaddr,
+			device->res->ipclite_size);
+		return rc;
+	}
+	rc = iommu_map(cb->domain, device->res->hwmutex_iova,
+			device->res->hwmutex_phyaddr,
+			device->res->hwmutex_size,
+			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
+	if (rc) {
+		dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
+			rc, device->res->hwmutex_iova,
+			device->res->hwmutex_phyaddr,
+			device->res->hwmutex_size);
+		return rc;
+	}
+	return rc;
+}
+
+static int __hwfence_regs_unmap(struct iris_hfi_device *device)
+{
+	int rc = 0;
+	struct context_bank_info *cb;
+
+	cb = msm_cvp_smem_get_context_bank(device->res, 0);
+	if (!cb) {
+		dprintk(CVP_ERR, "%s: fail to get cb\n", __func__);
+		return -EINVAL;
+	}
+
+	iommu_unmap(cb->domain, device->res->ipclite_iova,
+			device->res->ipclite_size);
+	iommu_unmap(cb->domain, device->res->hwmutex_iova,
+			device->res->hwmutex_size);
+	return rc;
+}
+
 static int iris_hfi_core_init(void *device)
 {
 	int rc = 0;
@@ -1921,6 +1986,8 @@ static int iris_hfi_core_init(void *device)
 
 	dev->bus_vote.data_count = 1;
 	dev->bus_vote.data->power_mode = CVP_POWER_TURBO;
+
+	__hwfence_regs_map(dev);
 
 	rc = __load_fw(dev);
 	if (rc) {
@@ -1996,6 +2063,14 @@ static int iris_hfi_core_init(void *device)
 
 	__set_ubwc_config(device);
 	__sys_set_idle_indicator(device, true);
+
+#ifdef CVP_CONFIG_SYNX_V2
+	rc = cvp_synx_recover();
+	if (rc) {
+		dprintk(CVP_ERR, "Failed to recover synx\n");
+		goto err_core_init;
+	}
+#endif
 
 	if (dev->res->pm_qos.latency_us) {
 		int err = 0;
@@ -2082,6 +2157,7 @@ static int iris_hfi_core_release(void *dev)
 
 	__disable_subcaches(device);
 	__unload_fw(device);
+	__hwfence_regs_unmap(device);
 
 	if (msm_cvp_mmrm_enabled) {
 		rc = msm_cvp_mmrm_deregister(device);

@@ -1540,6 +1540,7 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 	if (!offset || !buf_num)
 		return 0;
 
+
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	ktid = atomic64_inc_return(&inst->core->kernel_trans_id);
 	ktid &= (FENCE_BIT - 1);
