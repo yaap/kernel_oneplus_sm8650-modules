@@ -268,7 +268,7 @@ int msm_vidc_memory_map(struct msm_vidc_core *core, struct msm_vidc_map *map)
 
 exit:
 	d_vpr_l(
-		"%s: type %11s, device_addr %#x, refcount %d, region %d\n",
+		"%s: type %11s, device_addr %#llx, refcount %d, region %d\n",
 		__func__, buf_name(map->type), map->device_addr, map->refcount, map->region);
 
 	return 0;
@@ -300,7 +300,7 @@ int msm_vidc_memory_unmap(struct msm_vidc_core *core,
 	}
 
 	d_vpr_l(
-		"%s: type %11s, device_addr %#x, refcount %d, region %d\n",
+		"%s: type %11s, device_addr %#llx, refcount %d, region %d\n",
 		__func__, buf_name(map->type), map->device_addr, map->refcount, map->region);
 
 	if (map->refcount)
