@@ -112,20 +112,8 @@ u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 	return freq;
 }
 
-int msm_vidc_get_mbps(struct msm_vidc_inst *inst)
-{
-	u32 mbpf, fps, input_rate;
-
-	mbpf = msm_vidc_get_mbs_per_frame(inst);
-	fps = msm_vidc_get_fps(inst);
-	input_rate = msm_vidc_get_input_rate(inst);
-
-	return mbpf * max(fps, input_rate);
-}
-
 int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 {
-	int load = 0;
 	u32 mbpf, fps;
 	u32 frame_rate, operating_rate, input_rate, timestamp_rate;
 
@@ -136,7 +124,7 @@ int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 
 	/* return zero load for thumbnail and NRT session */
 	if (is_thumbnail_session(inst) || !is_realtime_session(inst))
-		return load;
+		return 0;
 
 	/* calculate load for RT session */
 	mbpf = msm_vidc_get_mbs_per_frame(inst);
@@ -151,7 +139,7 @@ int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 		fps = max(fps, timestamp_rate);
 	}
 
-	return load = mbpf * fps;
+	return mbpf * fps;
 }
 
 static int fill_dynamic_stats(struct msm_vidc_inst *inst,

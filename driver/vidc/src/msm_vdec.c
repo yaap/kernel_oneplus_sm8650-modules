@@ -2186,8 +2186,6 @@ int msm_vdec_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 			f->fmt.pix_mp.pixelformat = inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat;
 			f->fmt.pix_mp.width = inst->fmts[OUTPUT_PORT].fmt.pix_mp.width;
 			f->fmt.pix_mp.height = inst->fmts[OUTPUT_PORT].fmt.pix_mp.height;
-			pix_fmt = v4l2_colorformat_to_driver(inst,
-				f->fmt.pix_mp.pixelformat, __func__);
 		}
 		if (inst->bufq[INPUT_PORT].vb2q->streaming) {
 			f->fmt.pix_mp.height = inst->fmts[INPUT_PORT].fmt.pix_mp.height;

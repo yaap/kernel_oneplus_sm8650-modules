@@ -249,7 +249,6 @@ static int __setup_ucregion_memory_map_iris2(struct msm_vidc_core *vidc_core)
 
 static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0, i;
 	u32 value = 0;
 
@@ -322,12 +321,12 @@ static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 
 disable_power:
 	/* power down process */
-	rc = res_ops->gdsc_off(core, "vcodec");
+	rc = call_res_op(core, gdsc_off, core, "vcodec");
 	if (rc) {
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
 	}
-	rc = res_ops->clk_disable(core, "vcodec_clk");
+	rc = call_res_op(core, clk_disable, core, "vcodec_clk");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
 		rc = 0;
@@ -338,7 +337,6 @@ disable_power:
 
 static int __power_off_iris2_controller(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	/*
@@ -381,27 +379,27 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 		d_vpr_h("%s: debug bridge release failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
-	rc = res_ops->clk_disable(core, "core_clk");
+	rc = call_res_op(core, clk_disable, core, "core_clk");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
 		rc = 0;
 	}
 
 	/* Disable GCC_VIDEO_AXI0_CLK clock */
-	rc = res_ops->clk_disable(core, "gcc_video_axi0");
+	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
 		rc = 0;
 	}
 
-	rc = res_ops->reset_bridge(core);
+	rc = call_res_op(core, reset_bridge, core);
 	if (rc) {
 		d_vpr_e("%s: reset bridge failed\n", __func__);
 		rc = 0;
 	}
 
 	/* power down process */
-	rc = res_ops->gdsc_off(core, "iris-ctl");
+	rc = call_res_op(core, gdsc_off, core, "iris-ctl");
 	if (rc) {
 		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
 		rc = 0;
@@ -412,7 +410,6 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 
 static int __power_off_iris2(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core || !core->capabilities) {
@@ -427,7 +424,7 @@ static int __power_off_iris2(struct msm_vidc_core *core)
 	 * Reset video_cc_mvs0_clk_src value to resolve MMRM high video
 	 * clock projection issue.
 	 */
-	rc = res_ops->set_clks(core, 0);
+	rc = call_res_op(core, set_clks, core, 0);
 	if (rc)
 		d_vpr_e("%s: resetting clocks failed\n", __func__);
 
@@ -437,7 +434,8 @@ static int __power_off_iris2(struct msm_vidc_core *core)
 	if (__power_off_iris2_controller(core))
 		d_vpr_e("%s: failed to power off controller\n", __func__);
 
-	if (res_ops->set_bw(core, 0, 0))
+	rc = call_res_op(core, set_bw, core, 0, 0);
+	if (rc)
 		d_vpr_e("%s: failed to unvote buses\n", __func__);
 
 	if (!(core->intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS2))
@@ -451,60 +449,57 @@ static int __power_off_iris2(struct msm_vidc_core *core)
 
 static int __power_on_iris2_controller(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
-	rc = res_ops->gdsc_on(core, "iris-ctl");
+	rc = call_res_op(core, gdsc_on, core, "iris-ctl");
 	if (rc)
 		goto fail_regulator;
 
-	rc = res_ops->reset_bridge(core);
+	rc = call_res_op(core, reset_bridge, core);
 	if (rc)
 		goto fail_reset_ahb2axi;
 
-	rc = res_ops->clk_enable(core, "gcc_video_axi0");
+	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0");
 	if (rc)
 		goto fail_clk_axi;
 
-	rc = res_ops->clk_enable(core, "core_clk");
+	rc = call_res_op(core, clk_enable, core, "core_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	res_ops->clk_disable(core, "gcc_video_axi0");
+	call_res_op(core, clk_disable, core, "gcc_video_axi0");
 fail_clk_axi:
 fail_reset_ahb2axi:
-	res_ops->gdsc_off(core, "iris-ctl");
+	call_res_op(core, gdsc_off, core, "iris-ctl");
 fail_regulator:
 	return rc;
 }
 
 static int __power_on_iris2_hardware(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
-	rc = res_ops->gdsc_on(core, "vcodec");
+	rc = call_res_op(core, gdsc_on, core, "vcodec");
 	if (rc)
 		goto fail_regulator;
 
-	rc = res_ops->clk_enable(core, "vcodec_clk");
+	rc = call_res_op(core, clk_enable, core, "vcodec_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	res_ops->gdsc_off(core, "vcodec");
+	call_res_op(core, gdsc_off, core, "vcodec");
 fail_regulator:
 	return rc;
 }
 
 static int __power_on_iris2(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	struct frequency_table *freq_tbl;
 	u32 freq = 0;
 	int rc = 0;
@@ -513,7 +508,7 @@ static int __power_on_iris2(struct msm_vidc_core *core)
 		return 0;
 
 	/* Vote for all hardware resources */
-	rc = res_ops->set_bw(core, INT_MAX, INT_MAX);
+	rc = call_res_op(core, set_bw, core, INT_MAX, INT_MAX);
 	if (rc) {
 		d_vpr_e("%s: failed to vote buses, rc %d\n", __func__, rc);
 		goto fail_vote_buses;
@@ -537,7 +532,7 @@ static int __power_on_iris2(struct msm_vidc_core *core)
 	freq = core->power.clk_freq ? core->power.clk_freq :
 				      freq_tbl[0].freq;
 
-	rc = res_ops->set_clks(core, freq);
+	rc = call_res_op(core, set_clks, core, freq);
 	if (rc) {
 		d_vpr_e("%s: failed to scale clocks\n", __func__);
 		rc = 0;
@@ -560,7 +555,7 @@ static int __power_on_iris2(struct msm_vidc_core *core)
 fail_power_on_hardware:
 	__power_off_iris2_controller(core);
 fail_power_on_controller:
-	res_ops->set_bw(core, 0, 0);
+	call_res_op(core, set_bw, core, 0, 0);
 fail_vote_buses:
 	core->power_enabled = false;
 	return rc;

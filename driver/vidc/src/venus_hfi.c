@@ -444,7 +444,6 @@ static int __release_subcaches(struct msm_vidc_core *core)
 
 static int __set_subcaches(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 	struct subcache_info *sinfo;
 	struct hfi_buffer buf;
@@ -504,7 +503,7 @@ static int __set_subcaches(struct msm_vidc_core *core)
 	return 0;
 
 err_fail_set_subacaches:
-	res_ops->llcc(core, false);
+	call_res_op(core, llcc, core, false);
 	return rc;
 }
 
@@ -567,7 +566,6 @@ static int __venus_power_on(struct msm_vidc_core *core)
 
 static int __suspend(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -590,7 +588,7 @@ static int __suspend(struct msm_vidc_core *core)
 		goto err_tzbsp_suspend;
 	}
 
-	res_ops->llcc(core, false);
+	call_res_op(core, llcc, core, false);
 
 	__venus_power_off(core);
 	d_vpr_h("Venus power off\n");
@@ -602,7 +600,6 @@ err_tzbsp_suspend:
 
 static int __resume(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
@@ -642,7 +639,7 @@ static int __resume(struct msm_vidc_core *core)
 	 * (s/w triggered) to fast (HW triggered) unless the h/w vote is
 	 * present.
 	 */
-	res_ops->gdsc_hw_ctrl(core);
+	call_res_op(core, gdsc_hw_ctrl, core);
 
 	/* Wait for boot completion */
 	rc = call_venus_op(core, boot_firmware, core);
@@ -653,7 +650,7 @@ static int __resume(struct msm_vidc_core *core)
 
 	__sys_set_debug(core, (msm_vidc_debug & FW_LOGMASK) >> FW_LOGSHIFT);
 
-	rc = res_ops->llcc(core, true);
+	rc = call_res_op(core, llcc, core, true);
 	if (rc) {
 		d_vpr_e("Failed to activate subcache\n");
 		goto err_reset_core;
@@ -663,7 +660,7 @@ static int __resume(struct msm_vidc_core *core)
 	rc = __sys_set_power_control(core, true);
 	if (rc) {
 		d_vpr_e("%s: set power control failed\n", __func__);
-		res_ops->gdsc_sw_ctrl(core);
+		call_res_op(core, gdsc_sw_ctrl, core);
 		rc = 0;
 	}
 
@@ -684,7 +681,6 @@ err_venus_power_on:
 
 int __load_fw(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	d_vpr_h("%s\n", __func__);
@@ -709,7 +705,7 @@ int __load_fw(struct msm_vidc_core *core)
 	* (s/w triggered) to fast (HW triggered) unless the h/w vote is
 	* present.
 	*/
-	res_ops->gdsc_hw_ctrl(core);
+	call_res_op(core, gdsc_hw_ctrl, core);
 	trace_msm_v4l2_vidc_fw_load("END");
 
 	return rc;
@@ -722,13 +718,11 @@ fail_power:
 
 void __unload_fw(struct msm_vidc_core *core)
 {
-	int rc = 0;
-
 	if (!core->resource->fw_cookie)
 		return;
 
 	cancel_delayed_work(&core->pm_work);
-	rc = fw_unload(core);
+	fw_unload(core);
 	__venus_power_off(core);
 
 	core->cpu_watchdog = false;
@@ -891,13 +885,13 @@ static int __sys_image_version(struct msm_vidc_core *core)
 
 int venus_hfi_core_init(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+
 	d_vpr_h("%s(): core %pK\n", __func__, core);
 
 	rc = __strict_check(core, __func__);
@@ -916,7 +910,7 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	if (rc)
 		goto error;
 
-	rc = res_ops->llcc(core, true);
+	rc = call_res_op(core, llcc, core, true);
 	if (rc)
 		goto error;
 
@@ -939,7 +933,7 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	rc = __sys_set_power_control(core, true);
 	if (rc) {
 		d_vpr_e("%s: set power control failed\n", __func__);
-		res_ops->gdsc_sw_ctrl(core);
+		call_res_op(core, gdsc_sw_ctrl, core);
 		rc = 0;
 	}
 
@@ -953,13 +947,13 @@ error:
 
 int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
 	if (!core) {
 		d_vpr_h("%s(): invalid params\n", __func__);
 		return -EINVAL;
 	}
+
 	d_vpr_h("%s(): core %pK\n", __func__, core);
 	rc = __strict_check(core, __func__);
 	if (rc)
@@ -970,7 +964,7 @@ int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 	__resume(core);
 	__flush_debug_queue(core, (!force ? core->packet : NULL), core->packet_size);
 	__release_subcaches(core);
-	res_ops->llcc(core, false);
+	call_res_op(core, llcc, core, false);
 	__unload_fw(core);
 	/**
 	 * coredump need to be called after firmware unload, coredump also
@@ -1997,7 +1991,6 @@ unlock:
 
 int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 {
-	const struct msm_vidc_resources_ops *res_ops;
 	int rc = 0;
 	struct msm_vidc_core* core;
 
@@ -2006,7 +1999,6 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 		return -EINVAL;
 	}
 	core = inst->core;
-	res_ops = core->res_ops;
 
 	core_lock(core, __func__);
 	rc = __resume(core);
@@ -2014,7 +2006,7 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
 		i_vpr_e(inst, "%s: Resume from power collapse failed\n", __func__);
 		goto exit;
 	}
-	rc = res_ops->set_clks(core, freq);
+	rc = call_res_op(core, set_clks, core, freq);
 	if (rc)
 		goto exit;
 
@@ -2026,7 +2018,6 @@ exit:
 
 int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 {
-	const struct msm_vidc_resources_ops *res_ops;
 	int rc = 0;
 	struct msm_vidc_core* core;
 
@@ -2035,7 +2026,6 @@ int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 		return -EINVAL;
 	}
 	core = inst->core;
-	res_ops = core->res_ops;
 
 	core_lock(core, __func__);
 	rc = __resume(core);
@@ -2043,7 +2033,7 @@ int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 		i_vpr_e(inst, "%s: Resume from power collapse failed\n", __func__);
 		goto exit;
 	}
-	rc = res_ops->set_bw(core, bw_ddr, bw_llcc);
+	rc = call_res_op(core, set_bw, core, bw_ddr, bw_llcc);
 	if (rc)
 		goto exit;
 

@@ -201,9 +201,7 @@ static u32 msm_vidc_decoder_persist_size_iris2(struct msm_vidc_inst *inst)
 static u32 msm_vidc_decoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 {
 
-	u32 size = 0;
-	u32 color_fmt;
-	u32 width, height;
+	u32 color_fmt, width, height, size = 0;
 	struct v4l2_format *f;
 
 	if (!inst) {

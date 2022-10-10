@@ -197,6 +197,10 @@ struct msm_vidc_resource {
 	int                        fw_cookie;
 };
 
+#define call_res_op(c, op, ...)                  \
+	(((c) && (c)->res_ops && (c)->res_ops->op) ? \
+	((c)->res_ops->op(__VA_ARGS__)) : 0)
+
 struct msm_vidc_resources_ops {
 	int (*init)(struct msm_vidc_core *core);
 

@@ -6398,14 +6398,12 @@ static int msm_vidc_check_inst_mbpf(struct msm_vidc_inst *inst)
 
 u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst* inst)
 {
-	struct msm_vidc_inst_capability *capability;
 	u32 max_bitrate = 0x7fffffff;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	if (inst->capabilities->cap[LOWLATENCY_MODE].value)
 		max_bitrate = min(max_bitrate,

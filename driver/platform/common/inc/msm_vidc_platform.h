@@ -231,6 +231,5 @@ static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 
 int msm_vidc_init_platform(struct platform_device *pdev);
 int msm_vidc_deinit_platform(struct platform_device *pdev);
-int msm_vidc_read_efuse(struct msm_vidc_core *core);
 
 #endif // _MSM_VIDC_PLATFORM_H_

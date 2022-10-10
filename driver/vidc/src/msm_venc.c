@@ -591,13 +591,11 @@ static int msm_venc_queue_input_internal_buffers(struct msm_vidc_inst *inst)
 static int msm_venc_get_output_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
-	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	for (i = 0; i < ARRAY_SIZE(msm_venc_output_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
@@ -693,16 +691,14 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 	struct msm_vidc_inst_capability *capability;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	capability = inst->capabilities;
@@ -1047,7 +1043,6 @@ int msm_venc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 			f->fmt.pix_mp.width = inst->fmts[OUTPUT_PORT].fmt.pix_mp.width;
 			f->fmt.pix_mp.height = inst->fmts[OUTPUT_PORT].fmt.pix_mp.height;
 			f->fmt.pix_mp.pixelformat = inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat;
-			pix_fmt = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
 		}
 	} else if (f->type == INPUT_META_PLANE) {
 		f->fmt.meta.dataformat = inst->fmts[INPUT_META_PORT].fmt.meta.dataformat;

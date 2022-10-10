@@ -265,7 +265,6 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 	/* Derived parameters */
 	int lcu_per_frame, collocated_bytes_per_lcu, tnbr_per_lcu;
 	unsigned long bitrate;
-	unsigned int num_vpp_pipes;
 
 	fp_t bins_to_bit_factor, vsp_read_factor, vsp_write_factor,
 		dpb_factor, dpb_write_factor, y_bw_no_ubwc_8bpp;
@@ -316,8 +315,6 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 	dpb_write_compression_factor = dpb_read_compression_factor;
 	opb_write_compression_factor = opb_compression_enabled ?
 		dpb_write_compression_factor : FP_ONE;
-
-	num_vpp_pipes = d->num_vpp_pipes;
 
 	if (d->use_sys_cache) {
 		llc_ref_read_l2_cache_enabled = true;

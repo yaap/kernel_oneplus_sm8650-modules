@@ -51,7 +51,6 @@ static inline bool is_video_context_bank_device(struct device *dev)
 
 static int msm_vidc_init_resources(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops;
 	struct msm_vidc_resource *res = NULL;
 	int rc = 0;
 
@@ -59,7 +58,6 @@ static int msm_vidc_init_resources(struct msm_vidc_core *core)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	res_ops = core->res_ops;
 
 	res = devm_kzalloc(&core->pdev->dev, sizeof(*res), GFP_KERNEL);
 	if (!res) {
@@ -69,7 +67,7 @@ static int msm_vidc_init_resources(struct msm_vidc_core *core)
 	res->core = core;
 	core->resource = res;
 
-	rc = res_ops->init(core);
+	rc = call_res_op(core, init, core);
 	if (rc) {
 		d_vpr_e("%s: Failed to init resources: %d\n", __func__, rc);
 		return rc;
