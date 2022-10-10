@@ -12,4 +12,18 @@ LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
-include $(DLKM_DIR)/Build_external_kernelmodule.mk
+NFC_DLKM_ENABLED := false
+
+########## Check and set local DLKM flag based on system-wide global flags ##########
+ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
+  ifeq ($(TARGET_KERNEL_DLKM_NFC_OVERRIDE), true)
+    NFC_DLKM_ENABLED := true
+  endif
+else
+  NFC_DLKM_ENABLED := true
+endif
+
+########## Build kernel module based on local DLKM flag status ##########
+ifeq ($(NFC_DLKM_ENABLED), true)
+  include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif
