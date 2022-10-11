@@ -250,7 +250,14 @@ static int invoke_over_smcinvoke(void *cxt,
 				close_fd(obj.fd);
 			}
 		}
-		ret = OBJECT_ERROR_KMEM;
+		if (ret == -EBUSY) {
+			ret = OBJECT_ERROR_BUSY;
+		}
+		else if (ret == -ENOMEM){
+			ret = OBJECT_ERROR_KMEM;
+		} else {
+			ret = OBJECT_ERROR_UNAVAIL;
+		}
 		goto exit;
 	}
 
