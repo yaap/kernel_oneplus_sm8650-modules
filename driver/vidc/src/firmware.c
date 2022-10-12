@@ -12,9 +12,9 @@
 
 #include "msm_vidc_core.h"
 #include "msm_vidc_debug.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc_events.h"
 #include "firmware.h"
+#include "msm_vidc_platform.h"
 
 #define MAX_FIRMWARE_NAME_SIZE	128
 
@@ -45,15 +45,15 @@ static int protect_cp_mem(struct msm_vidc_core *core)
 	memprot.cp_nonpixel_start = 0x0;
 	memprot.cp_nonpixel_size = 0x0;
 
-	list_for_each_entry(cb, &core->dt->context_banks, list) {
-		if (!strcmp(cb->name, "venus_ns")) {
+	venus_hfi_for_each_context_bank(core, cb) {
+		if (cb->region == MSM_VIDC_NON_SECURE) {
 			memprot.cp_size = cb->addr_range.start;
 
 			d_vpr_h("%s: memprot.cp_size: %#x\n",
 				__func__, memprot.cp_size);
 		}
 
-		if (!strcmp(cb->name, "venus_sec_non_pixel")) {
+		if (cb->region == MSM_VIDC_SECURE_NONPIXEL) {
 			memprot.cp_nonpixel_start = cb->addr_range.start;
 			memprot.cp_nonpixel_size = cb->addr_range.size;
 
@@ -65,7 +65,6 @@ static int protect_cp_mem(struct msm_vidc_core *core)
 
 	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
 			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
-
 	if (rc)
 		d_vpr_e("Failed to protect memory(%d)\n", rc);
 
@@ -81,6 +80,7 @@ static int __load_fw_to_memory(struct platform_device *pdev,
 {
 	int rc = 0;
 	const struct firmware *firmware = NULL;
+	struct msm_vidc_core *core;
 	char firmware_name[MAX_FIRMWARE_NAME_SIZE] = { 0 };
 	struct device_node *node = NULL;
 	struct resource res = { 0 };
@@ -98,14 +98,16 @@ static int __load_fw_to_memory(struct platform_device *pdev,
 		d_vpr_e("%s: Invalid fw name\n", __func__);
 		return -EINVAL;
 	}
+
+	core = dev_get_drvdata(&pdev->dev);
+	if (!core) {
+		d_vpr_e("%s: core not found in device %s",
+			__func__, dev_name(&pdev->dev));
+		return -EINVAL;
+	}
 	scnprintf(firmware_name, ARRAY_SIZE(firmware_name), "%s.mbn", fw_name);
 
-	rc = of_property_read_u32(pdev->dev.of_node, "pas-id", &pas_id);
-	if (rc) {
-		d_vpr_e("%s: failed to read \"pas-id\". error %d\n",
-			__func__, rc);
-		goto exit;
-	}
+	pas_id = core->platform->data.pas_id;
 
 	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!node) {
@@ -182,13 +184,13 @@ int fw_load(struct msm_vidc_core *core)
 {
 	int rc;
 
-	if (!core->dt->fw_cookie) {
-		core->dt->fw_cookie = __load_fw_to_memory(core->pdev,
-							  core->dt->fw_name);
-		if (core->dt->fw_cookie <= 0) {
+	if (!core->resource->fw_cookie) {
+		core->resource->fw_cookie = __load_fw_to_memory(core->pdev,
+							  core->platform->data.fwname);
+		if (core->resource->fw_cookie <= 0) {
 			d_vpr_e("%s: firmware download failed %d\n",
-					__func__, core->dt->fw_cookie);
-			core->dt->fw_cookie = 0;
+					__func__, core->resource->fw_cookie);
+			core->resource->fw_cookie = 0;
 			return -ENOMEM;
 		}
 	}
@@ -202,9 +204,9 @@ int fw_load(struct msm_vidc_core *core)
 	return rc;
 
 fail_protect_mem:
-	if (core->dt->fw_cookie)
-		qcom_scm_pas_shutdown(core->dt->fw_cookie);
-	core->dt->fw_cookie = 0;
+	if (core->resource->fw_cookie)
+		qcom_scm_pas_shutdown(core->resource->fw_cookie);
+	core->resource->fw_cookie = 0;
 	return rc;
 }
 
@@ -212,14 +214,14 @@ int fw_unload(struct msm_vidc_core *core)
 {
 	int ret;
 
-	if (!core->dt->fw_cookie)
+	if (!core->resource->fw_cookie)
 		return -EINVAL;
 
-	ret = qcom_scm_pas_shutdown(core->dt->fw_cookie);
+	ret = qcom_scm_pas_shutdown(core->resource->fw_cookie);
 	if (ret)
 		d_vpr_e("Firmware unload failed rc=%d\n", ret);
 
-	core->dt->fw_cookie = 0;
+	core->resource->fw_cookie = 0;
 
 	return ret;
 }

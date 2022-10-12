@@ -16,7 +16,7 @@
 #include "msm_venc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_control.h"
-#include "msm_vidc_dt.h"
+#include "msm_vidc_platform.h"
 
 extern struct msm_vidc_core *g_core;
 
@@ -101,7 +101,7 @@ void *msm_vb2_attach_dmabuf(struct vb2_buffer *vb, struct device *dev,
 
 	buf->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 	buf->attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
-	if (core->dt->sys_cache_present)
+	if (is_sys_cache_present(core))
 		buf->attach->dma_map_attrs |=
 			DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
 

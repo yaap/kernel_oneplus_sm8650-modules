@@ -12,7 +12,6 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_control.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
 #include "msm_vidc_debug.h"
@@ -487,7 +486,7 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 		d_vpr_e("%s: failed to unvote buses\n", __func__);
 
 	if (!(core->intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS3))
-		disable_irq_nosync(core->dt->irq);
+		disable_irq_nosync(core->resource->irq);
 	core->intr_status = 0;
 
 	core->power_enabled = false;
@@ -551,7 +550,7 @@ fail_regulator:
 static int __power_on_iris3(struct msm_vidc_core *core)
 {
 	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
-	struct allowed_clock_rates_table *clk_tbl;
+	struct frequency_table *freq_tbl;
 	u32 freq = 0;
 	int rc = 0;
 
@@ -579,9 +578,9 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 	/* video controller and hardware powered on successfully */
 	core->power_enabled = true;
 
-	clk_tbl = core->dt->allowed_clks_tbl;
+	freq_tbl = core->resource->freq_set.freq_tbl;
 	freq = core->power.clk_freq ? core->power.clk_freq :
-				      clk_tbl[0].clock_rate;
+				      freq_tbl[0].freq;
 
 	rc = res_ops->set_clks(core, freq);
 	if (rc) {
@@ -596,7 +595,7 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 
 	__interrupt_init_iris3(core);
 	core->intr_status = 0;
-	enable_irq(core->dt->irq);
+	enable_irq(core->resource->irq);
 
 	return rc;
 

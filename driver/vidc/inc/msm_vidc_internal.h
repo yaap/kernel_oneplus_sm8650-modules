@@ -244,6 +244,7 @@ enum msm_vidc_buffer_region {
 	MSM_VIDC_SECURE_PIXEL,
 	MSM_VIDC_SECURE_NONPIXEL,
 	MSM_VIDC_SECURE_BITSTREAM,
+	MSM_VIDC_REGION_MAX,
 };
 
 enum msm_vidc_port_type {
@@ -374,7 +375,6 @@ enum msm_vidc_core_capability_type {
 	CLK_FREQ_THRESHOLD,
 	NON_FATAL_FAULTS,
 	ENC_AUTO_FRAMERATE,
-	MMRM,
 	DEVICE_CAPS,
 	SUPPORTS_REQUESTS,
 	CORE_CAP_MAX,

@@ -9,8 +9,8 @@
 
 #include "msm_vidc_core.h"
 #include "msm_vidc_debug.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc_variant.h"
+#include "msm_vidc_platform.h"
 
 static void __fatal_error(bool fatal)
 {
@@ -35,7 +35,7 @@ int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 	u8 *base_addr;
 	int rc = 0;
 
-	if (!core) {
+	if (!core || !core->resource) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -49,7 +49,7 @@ int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 		return -EINVAL;
 	}
 
-	base_addr = core->register_base_addr;
+	base_addr = core->resource->register_base_addr;
 	d_vpr_l("regwrite(%pK + %#x) = %#x\n", base_addr, hwiosymaddr, value);
 	base_addr += hwiosymaddr;
 	writel_relaxed(value, base_addr);
@@ -74,7 +74,7 @@ int __write_register_masked(struct msm_vidc_core *core, u32 reg, u32 value,
 	u8 *base_addr;
 	int rc = 0;
 
-	if (!core) {
+	if (!core || !core->resource) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -89,7 +89,7 @@ int __write_register_masked(struct msm_vidc_core *core, u32 reg, u32 value,
 		return -EINVAL;
 	}
 
-	base_addr = core->register_base_addr;
+	base_addr = core->resource->register_base_addr;
 	base_addr += reg;
 
 	prev_val = readl_relaxed(base_addr);
@@ -116,7 +116,7 @@ int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value)
 	int rc = 0;
 	u8 *base_addr;
 
-	if (!core || !value) {
+	if (!core || !core->resource || !value) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -126,7 +126,7 @@ int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value)
 		return -EINVAL;
 	}
 
-	base_addr = core->register_base_addr;
+	base_addr = core->resource->register_base_addr;
 
 	*value = readl_relaxed(base_addr + reg);
 	/*
@@ -147,7 +147,7 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 	u32 val = 0;
 	u8 *addr;
 
-	if (!core) {
+	if (!core || !core->resource) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -157,7 +157,7 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 		return -EINVAL;
 	}
 
-	addr = (u8 *)core->register_base_addr + reg;
+	addr = (u8 *)core->resource->register_base_addr + reg;
 
 	rc = readl_relaxed_poll_timeout(addr, val, ((val & mask) == exp_val), sleep_us, timeout_us);
 	/*
@@ -167,7 +167,7 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 	rmb();
 	d_vpr_l(
 		"regread(%pK + %#x) = %#x. rc %d, mask %#x, exp_val %#x, cond %u, sleep %u, timeout %u\n",
-		core->register_base_addr, reg, val, rc, mask, exp_val,
+		core->resource->register_base_addr, reg, val, rc, mask, exp_val,
 		((val & mask) == exp_val), sleep_us, timeout_us);
 
 	return rc;
@@ -175,19 +175,25 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 
 int __set_registers(struct msm_vidc_core *core)
 {
-	struct reg_set *reg_set;
-	int i, rc = 0;
+	const struct reg_preset_table *reg_prst;
+	unsigned int prst_count;
+	int cnt, rc = 0;
 
-	if (!core || !core->dt) {
+	if (!core || !core->platform) {
 		d_vpr_e("core resources null, cannot set registers\n");
 		return -EINVAL;
 	}
 
-	reg_set = &core->dt->reg_set;
-	for (i = 0; i < reg_set->count; i++) {
-		rc = __write_register_masked(core, reg_set->reg_tbl[i].reg,
-					     reg_set->reg_tbl[i].value,
-					     reg_set->reg_tbl[i].mask);
+	reg_prst = core->platform->data.reg_prst_tbl;
+	prst_count = core->platform->data.reg_prst_tbl_size;
+
+	/* skip if there is no preset reg available */
+	if (!reg_prst || !prst_count)
+		return 0;
+
+	for (cnt = 0; cnt < prst_count; cnt++) {
+		rc = __write_register_masked(core, reg_prst->reg,
+					reg_prst->value, reg_prst->mask);
 		if (rc)
 			return rc;
 	}

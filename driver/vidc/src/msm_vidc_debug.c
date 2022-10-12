@@ -5,7 +5,6 @@
 #define CREATE_TRACE_POINTS
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
@@ -209,7 +208,7 @@ static ssize_t core_info_read(struct file* file, char __user* buf,
 	ssize_t len = 0;
 	int rc = 0;
 
-	if (!core || !core->dt) {
+	if (!core || !core->resource) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, core);
 		return 0;
 	}
@@ -226,10 +225,8 @@ static ssize_t core_info_read(struct file* file, char __user* buf,
 	cur += write_str(cur, end - cur,
 		"FW version : %s\n", core->fw_version);
 	cur += write_str(cur, end - cur,
-		"register_base: 0x%x\n", core->dt->register_base);
-	cur += write_str(cur, end - cur,
-		"register_size: %u\n", core->dt->register_size);
-	cur += write_str(cur, end - cur, "irq: %u\n", core->dt->irq);
+		"register_base: 0x%x\n", core->resource->register_base_addr);
+	cur += write_str(cur, end - cur, "irq: %u\n", core->resource->irq);
 
 	len = simple_read_from_buffer(buf, count, ppos,
 		dbuf, cur - dbuf);

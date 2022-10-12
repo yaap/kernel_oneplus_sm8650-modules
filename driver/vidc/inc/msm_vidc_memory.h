@@ -7,7 +7,6 @@
 #define _MSM_VIDC_MEMORY_H_
 
 #include "msm_vidc_internal.h"
-#include "msm_vidc_dt.h"
 
 struct msm_vidc_core;
 struct msm_vidc_inst;

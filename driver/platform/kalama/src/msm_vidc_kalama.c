@@ -4,9 +4,13 @@
  * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <soc/qcom/of_common.h>
+#include <dt-bindings/clock/qcom,gcc-kalama.h>
+#include <dt-bindings/clock/qcom,videocc-kalama.h>
 
+#include <linux/soc/qcom/llcc-qcom.h>
+#include <soc/qcom/of_common.h>
 #include <media/v4l2_vidc_extensions.h>
+
 #include "msm_vidc_kalama.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
@@ -315,7 +319,6 @@ static struct msm_platform_core_capability core_data_kalama[] = {
 	{AV_SYNC_WINDOW_SIZE, 40},
 	{NON_FATAL_FAULTS, 1},
 	{ENC_AUTO_FRAMERATE, 1},
-	{MMRM, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
 	{SUPPORTS_REQUESTS, 1},
@@ -2626,7 +2629,128 @@ static struct msm_vidc_format_capability format_data_kalama = {
 	.matrix_coeff_info_size = ARRAY_SIZE(matrix_coeff_data_kalama),
 };
 
+/* name, min_kbps, max_kbps */
+static const struct bw_table kalama_bw_table[] = {
+	{ "venus-cnoc",  1000, 1000     },
+	{ "venus-ddr",   1000, 15000000 },
+	{ "venus-llcc",  1000, 15000000 },
+};
+
+/* name, hw_trigger */
+static const struct regulator_table kalama_regulator_table[] = {
+	{ "iris-ctl", 0 },
+	{ "vcodec",   1 },
+};
+
+/* name, clock id, scaling */
+static const struct clk_table kalama_clk_table[] = {
+	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
+	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
+	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      0 },
+	{ "video_cc_mvs0_clk_src",  VIDEO_CC_MVS0_CLK_SRC,  1 },
+};
+
+/* name */
+static const struct clk_rst_table kalama_clk_reset_table[] = {
+	{ "video_axi_reset" },
+};
+
+/* name, llcc_id */
+static const struct subcache_table kalama_subcache_table[] = {
+	{ "vidsc0",     LLCC_VIDSC0 },
+	{ "vidvsp",     LLCC_VIDVSP },
+};
+
+/* name, start, size, secure, dma_coherant, region */
+const struct context_bank_table kalama_context_bank_table[] = {
+	{"qcom,vidc,cb-ns",            0x25800000, 0xba800000, 0, 1, MSM_VIDC_NON_SECURE       },
+	{"qcom,vidc,cb-ns-pxl",        0x00100000, 0xdff00000, 0, 1, MSM_VIDC_NON_SECURE_PIXEL },
+	{"qcom,vidc,cb-sec-pxl",       0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_PIXEL     },
+	{"qcom,vidc,cb-sec-non-pxl",   0x01000000, 0x24800000, 1, 0, MSM_VIDC_SECURE_NONPIXEL  },
+	{"qcom,vidc,cb-sec-bitstream", 0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_BITSTREAM },
+};
+
+/* freq */
+static struct freq_table kalama_freq_table[] = {
+	{481000000}, {444000000}, {366000000}, {338000000}, {240000000}
+};
+
+static struct freq_table kalama_freq_table_v2[] = {
+	{533333333}, {444000000}, {366000000}, {338000000}, {240000000}
+};
+
+/* register, value, mask */
+static const struct reg_preset_table kalama_reg_preset_table[] = {
+	{ 0xB0088, 0x0, 0x11 },
+};
+
 static const struct msm_vidc_platform_data kalama_data = {
+	/* resources dependent on other module */
+	.bw_tbl = kalama_bw_table,
+	.bw_tbl_size = ARRAY_SIZE(kalama_bw_table),
+	.regulator_tbl = kalama_regulator_table,
+	.regulator_tbl_size = ARRAY_SIZE(kalama_regulator_table),
+	.clk_tbl = kalama_clk_table,
+	.clk_tbl_size = ARRAY_SIZE(kalama_clk_table),
+	.clk_rst_tbl = kalama_clk_reset_table,
+	.clk_rst_tbl_size = ARRAY_SIZE(kalama_clk_reset_table),
+	.subcache_tbl = kalama_subcache_table,
+	.subcache_tbl_size = ARRAY_SIZE(kalama_subcache_table),
+
+	/* populate context bank */
+	.context_bank_tbl = kalama_context_bank_table,
+	.context_bank_tbl_size = ARRAY_SIZE(kalama_context_bank_table),
+
+	/* platform specific resources */
+	.freq_tbl = kalama_freq_table,
+	.freq_tbl_size = ARRAY_SIZE(kalama_freq_table),
+	.reg_prst_tbl = kalama_reg_preset_table,
+	.reg_prst_tbl_size = ARRAY_SIZE(kalama_reg_preset_table),
+	.fwname = "vpu30_4v",
+	.pas_id = 9,
+	.supports_mmrm = 1,
+
+	/* caps related resorces */
+	.core_data = core_data_kalama,
+	.core_data_size = ARRAY_SIZE(core_data_kalama),
+	.inst_cap_data = instance_cap_data_kalama,
+	.inst_cap_data_size = ARRAY_SIZE(instance_cap_data_kalama),
+	.inst_cap_dependency_data = instance_cap_dependency_data_kalama,
+	.inst_cap_dependency_data_size = ARRAY_SIZE(instance_cap_dependency_data_kalama),
+	.csc_data.vpe_csc_custom_bias_coeff = vpe_csc_custom_bias_coeff,
+	.csc_data.vpe_csc_custom_matrix_coeff = vpe_csc_custom_matrix_coeff,
+	.csc_data.vpe_csc_custom_limit_coeff = vpe_csc_custom_limit_coeff,
+	.ubwc_config = ubwc_config_kalama,
+	.format_data = &format_data_kalama,
+};
+
+static const struct msm_vidc_platform_data kalama_data_v2 = {
+	/* resources dependent on other module */
+	.bw_tbl = kalama_bw_table,
+	.bw_tbl_size = ARRAY_SIZE(kalama_bw_table),
+	.regulator_tbl = kalama_regulator_table,
+	.regulator_tbl_size = ARRAY_SIZE(kalama_regulator_table),
+	.clk_tbl = kalama_clk_table,
+	.clk_tbl_size = ARRAY_SIZE(kalama_clk_table),
+	.clk_rst_tbl = kalama_clk_reset_table,
+	.clk_rst_tbl_size = ARRAY_SIZE(kalama_clk_reset_table),
+	.subcache_tbl = kalama_subcache_table,
+	.subcache_tbl_size = ARRAY_SIZE(kalama_subcache_table),
+
+	/* populate context bank */
+	.context_bank_tbl = kalama_context_bank_table,
+	.context_bank_tbl_size = ARRAY_SIZE(kalama_context_bank_table),
+
+	/* platform specific resources */
+	.freq_tbl = kalama_freq_table_v2,
+	.freq_tbl_size = ARRAY_SIZE(kalama_freq_table_v2),
+	.reg_prst_tbl = kalama_reg_preset_table,
+	.reg_prst_tbl_size = ARRAY_SIZE(kalama_reg_preset_table),
+	.fwname = "vpu30_4v",
+	.pas_id = 9,
+	.supports_mmrm = 1,
+
+	/* caps related resorces */
 	.core_data = core_data_kalama,
 	.core_data_size = ARRAY_SIZE(core_data_kalama),
 	.inst_cap_data = instance_cap_data_kalama,
@@ -2655,17 +2779,21 @@ int msm_vidc_kalama_check_ddr_type(void)
 	return 0;
 }
 
-static int msm_vidc_init_data(struct msm_vidc_core *core)
+static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
+	if (!core || !core->platform || !dev) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	d_vpr_h("%s: initialize kalama data\n", __func__);
 
-	core->platform->data = kalama_data;
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2"))
+		core->platform->data = kalama_data_v2;
+	else
+		core->platform->data = kalama_data;
+
 	rc = msm_vidc_kalama_check_ddr_type();
 	if (rc)
 		return rc;
@@ -2677,7 +2805,7 @@ int msm_vidc_init_platform_kalama(struct msm_vidc_core *core, struct device *dev
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core);
+	rc = msm_vidc_init_data(core, dev);
 	if (rc)
 		return rc;
 

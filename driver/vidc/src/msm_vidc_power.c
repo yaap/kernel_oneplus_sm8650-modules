@@ -9,7 +9,6 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
-#include "msm_vidc_dt.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_buffer.h"
@@ -92,7 +91,7 @@ void __dump(struct dump dump[], int len)
 u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core* core;
-	struct allowed_clock_rates_table *allowed_clks_tbl;
+	struct frequency_table *freq_tbl;
 	u64 freq = 0;
 
 	if (!inst || !inst->core) {
@@ -100,12 +99,14 @@ u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 		return freq;
 	}
 	core = inst->core;
-	if (!core->dt || !core->dt->allowed_clks_tbl) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
+
+	if (!core->resource || !core->resource->freq_set.freq_tbl ||
+		!core->resource->freq_set.count) {
+		i_vpr_e(inst, "%s: invalid frequency table\n", __func__);
 		return freq;
 	}
-	allowed_clks_tbl = core->dt->allowed_clks_tbl;
-	freq = allowed_clks_tbl[0].clock_rate;
+	freq_tbl = core->resource->freq_set.freq_tbl;
+	freq = freq_tbl[0].freq;
 
 	i_vpr_l(inst, "%s: rate = %llu\n", __func__, freq);
 	return freq;
@@ -267,8 +268,8 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 	core = inst->core;
-	if (!core->dt) {
-		i_vpr_e(inst, "%s: invalid dt params\n", __func__);
+	if (!core->resource) {
+		i_vpr_e(inst, "%s: invalid resource params\n", __func__);
 		return -EINVAL;
 	}
 	vote_data = &inst->bus_data;
@@ -347,7 +348,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 		}
 	}
 	vote_data->work_mode = inst->capabilities->cap[STAGE].value;
-	if (core->dt->sys_cache_res_set)
+	if (core->resource->subcache_set.set_to_fw)
 		vote_data->use_sys_cache = true;
 	vote_data->num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 	fill_dynamic_stats(inst, vote_data);
@@ -382,8 +383,10 @@ int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
 		return -EINVAL;
 	}
 	core = inst->core;
-	if (!core->dt || !core->dt->allowed_clks_tbl) {
-		d_vpr_e("%s: invalid dt params\n", __func__);
+
+	if (!core->resource || !core->resource->freq_set.freq_tbl ||
+		!core->resource->freq_set.count) {
+		d_vpr_e("%s: invalid frequency table\n", __func__);
 		return -EINVAL;
 	}
 
@@ -422,8 +425,8 @@ int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
 	 * keep checking from lowest to highest rate until
 	 * table rate >= requested rate
 	 */
-	for (i = core->dt->allowed_clks_tbl_size - 1; i >= 0; i--) {
-		rate = core->dt->allowed_clks_tbl[i].clock_rate;
+	for (i = core->resource->freq_set.count - 1; i >= 0; i--) {
+		rate = core->resource->freq_set.freq_tbl[i].freq;
 		if (rate >= freq)
 			break;
 	}
@@ -431,10 +434,10 @@ int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
 		i = 0;
 	if (increment) {
 		if (i > 0)
-			rate = core->dt->allowed_clks_tbl[i - 1].clock_rate;
+			rate = core->resource->freq_set.freq_tbl[i - 1].freq;
 	} else if (decrement) {
-		if (i < (int) (core->dt->allowed_clks_tbl_size - 1))
-			rate = core->dt->allowed_clks_tbl[i + 1].clock_rate;
+		if (i < (int) (core->platform->data.freq_tbl_size - 1))
+			rate = core->resource->freq_set.freq_tbl[i + 1].freq;
 	}
 	core->power.clk_freq = (u32)rate;
 

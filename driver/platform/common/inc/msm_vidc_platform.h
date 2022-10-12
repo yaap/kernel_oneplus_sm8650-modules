@@ -41,6 +41,61 @@ extern u32 vpe_csc_custom_matrix_coeff[MAX_MATRIX_COEFFS];
 extern u32 vpe_csc_custom_bias_coeff[MAX_BIAS_COEFFS];
 extern u32 vpe_csc_custom_limit_coeff[MAX_LIMIT_COEFFS];
 
+struct bw_table {
+	const char      *name;
+	u32              min_kbps;
+	u32              max_kbps;
+};
+
+struct regulator_table {
+	const char      *name;
+	bool             hw_trigger;
+};
+
+struct clk_table {
+	const char      *name;
+	u32              clk_id;
+	bool             scaling;
+};
+
+struct clk_rst_table {
+	const char      *name;
+};
+
+struct subcache_table {
+	const char      *name;
+	u32              llcc_id;
+};
+
+struct context_bank_table {
+	const char      *name;
+	u32              start;
+	u32              size;
+	bool             secure;
+	bool             dma_coherant;
+	u32              region;
+};
+
+struct freq_table {
+	unsigned long    freq;
+};
+
+struct reg_preset_table {
+	u32              reg;
+	u32              value;
+	u32              mask;
+};
+
+struct msm_vidc_ubwc_config_data {
+	u32              max_channels;
+	u32              mal_length;
+	u32              highest_bank_bit;
+	u32              bank_swzl_level;
+	u32              bank_swz2_level;
+	u32              bank_swz3_level;
+	u32              bank_spreading;
+};
+
 struct codec_info {
 	u32 v4l2_codec;
 	enum msm_vidc_codec_type vidc_codec;
@@ -112,16 +167,6 @@ struct msm_vidc_efuse_data {
 	enum efuse_purpose purpose;
 };
 
-struct msm_vidc_ubwc_config_data {
-	u32 max_channels;
-	u32 mal_length;
-	u32 highest_bank_bit;
-	u32 bank_swzl_level;
-	u32 bank_swz2_level;
-	u32 bank_swz3_level;
-	u32 bank_spreading;
-};
-
 struct msm_vidc_format_capability {
 	struct codec_info *codec_info;
 	u32 codec_info_size;
@@ -136,6 +181,26 @@ struct msm_vidc_format_capability {
 };
 
 struct msm_vidc_platform_data {
+	const struct bw_table *bw_tbl;
+	unsigned int bw_tbl_size;
+	const struct regulator_table *regulator_tbl;
+	unsigned int regulator_tbl_size;
+	const struct clk_table *clk_tbl;
+	unsigned int clk_tbl_size;
+	const struct clk_rst_table *clk_rst_tbl;
+	unsigned int clk_rst_tbl_size;
+	const struct subcache_table *subcache_tbl;
+	unsigned int subcache_tbl_size;
+	const struct context_bank_table *context_bank_tbl;
+	unsigned int context_bank_tbl_size;
+	struct freq_table *freq_tbl;
+	unsigned int freq_tbl_size;
+	const struct reg_preset_table *reg_prst_tbl;
+	unsigned int reg_prst_tbl_size;
+	struct msm_vidc_ubwc_config_data *ubwc_config;
+	const char *fwname;
+	u32 pas_id;
+	bool supports_mmrm;
 	struct msm_platform_core_capability *core_data;
 	u32 core_data_size;
 	struct msm_platform_inst_capability *inst_cap_data;
@@ -143,7 +208,6 @@ struct msm_vidc_platform_data {
 	struct msm_platform_inst_cap_dependency *inst_cap_dependency_data;
 	u32 inst_cap_dependency_data_size;
 	struct msm_vidc_csc_coeff csc_data;
-	struct msm_vidc_ubwc_config_data *ubwc_config;
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
@@ -155,9 +219,18 @@ struct msm_vidc_platform {
 	struct msm_vidc_platform_data data;
 };
 
+static inline bool is_sys_cache_present(struct msm_vidc_core *core)
+{
+	return !!core->platform->data.subcache_tbl_size;
+}
+
+static inline bool is_mmrm_supported(struct msm_vidc_core *core)
+{
+	return !!core->platform->data.supports_mmrm;
+}
+
 int msm_vidc_init_platform(struct platform_device *pdev);
 int msm_vidc_deinit_platform(struct platform_device *pdev);
 int msm_vidc_read_efuse(struct msm_vidc_core *core);
-void msm_vidc_sort_table(struct msm_vidc_core *core);
 
 #endif // _MSM_VIDC_PLATFORM_H_

@@ -74,9 +74,8 @@ struct msm_vidc_core {
 	char                                   fw_version[MAX_NAME_LENGTH];
 	enum msm_vidc_core_state               state;
 	struct mutex                           lock;
-	struct msm_vidc_dt                    *dt;
+	struct msm_vidc_resource              *resource;
 	struct msm_vidc_platform              *platform;
-	u8 __iomem                            *register_base_addr;
 	u32                                    intr_status;
 	u32                                    spur_count;
 	u32                                    reg_count;

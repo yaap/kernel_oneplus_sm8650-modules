@@ -12,6 +12,7 @@
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
 #include <linux/soc/qcom/mdt_loader.h>
+#include <linux/soc/qcom/llcc-qcom.h>
 #include <linux/iopoll.h>
 
 #include "venus_hfi.h"
@@ -61,11 +62,6 @@ static int __strict_check(struct msm_vidc_core *core, const char *function)
 bool __core_in_valid_state(struct msm_vidc_core *core)
 {
 	return core->state != MSM_VIDC_CORE_DEINIT;
-}
-
-static bool is_sys_cache_present(struct msm_vidc_core *core)
-{
-	return core->dt->sys_cache_present;
 }
 
 static bool __valdiate_session(struct msm_vidc_core *core,
@@ -394,7 +390,7 @@ static int __release_subcaches(struct msm_vidc_core *core)
 	if (msm_vidc_syscache_disable || !is_sys_cache_present(core))
 		return 0;
 
-	if (!core->dt->sys_cache_res_set) {
+	if (!core->resource->subcache_set.set_to_fw) {
 		d_vpr_h("Subcaches not set to Venus\n");
 		return 0;
 	}
@@ -409,22 +405,23 @@ static int __release_subcaches(struct msm_vidc_core *core)
 	buf.flags = HFI_BUF_HOST_FLAG_RELEASE;
 
 	venus_hfi_for_each_subcache_reverse(core, sinfo) {
-		if (sinfo->isactive) {
-			buf.index = sinfo->subcache->slice_id;
-			buf.buffer_size = sinfo->subcache->slice_size;
+		if (!sinfo->isactive)
+			continue;
 
-			rc = hfi_create_packet(core->packet,
-				core->packet_size,
-				HFI_CMD_BUFFER,
-				HFI_BUF_HOST_FLAG_NONE,
-				HFI_PAYLOAD_STRUCTURE,
-				HFI_PORT_NONE,
-				core->packet_id++,
-				&buf,
-				sizeof(buf));
-			if (rc)
-				return rc;
-		}
+		buf.index = sinfo->subcache->slice_id;
+		buf.buffer_size = sinfo->subcache->slice_size;
+
+		rc = hfi_create_packet(core->packet,
+			core->packet_size,
+			HFI_CMD_BUFFER,
+			HFI_BUF_HOST_FLAG_NONE,
+			HFI_PAYLOAD_STRUCTURE,
+			HFI_PORT_NONE,
+			core->packet_id++,
+			&buf,
+			sizeof(buf));
+		if (rc)
+			return rc;
 	}
 
 	/* Set resource to Venus for activated subcaches */
@@ -433,15 +430,14 @@ static int __release_subcaches(struct msm_vidc_core *core)
 		return rc;
 
 	venus_hfi_for_each_subcache_reverse(core, sinfo) {
-		if (sinfo->isactive) {
-			sinfo->isset = false;
-			d_vpr_h("Release Subcache id %d size %lu done\n",
-				sinfo->subcache->slice_id,
-				sinfo->subcache->slice_size);
-		}
-	}
+		if (!sinfo->isactive)
+			continue;
 
-	core->dt->sys_cache_res_set = false;
+		d_vpr_h("%s: release Subcache id %d size %lu done\n",
+			__func__, sinfo->subcache->slice_id,
+			sinfo->subcache->slice_size);
+	}
+	core->resource->subcache_set.set_to_fw = false;
 
 	return 0;
 }
@@ -458,7 +454,7 @@ static int __set_subcaches(struct msm_vidc_core *core)
 		return 0;
 	}
 
-	if (core->dt->sys_cache_res_set) {
+	if (core->resource->subcache_set.set_to_fw) {
 		d_vpr_h("Subcaches already set to Venus\n");
 		return 0;
 	}
@@ -473,22 +469,22 @@ static int __set_subcaches(struct msm_vidc_core *core)
 	buf.flags = HFI_BUF_HOST_FLAG_NONE;
 
 	venus_hfi_for_each_subcache(core, sinfo) {
-		if (sinfo->isactive) {
-			buf.index = sinfo->subcache->slice_id;
-			buf.buffer_size = sinfo->subcache->slice_size;
+		if (!sinfo->isactive)
+			continue;
+		buf.index = sinfo->subcache->slice_id;
+		buf.buffer_size = sinfo->subcache->slice_size;
 
-			rc = hfi_create_packet(core->packet,
-				core->packet_size,
-				HFI_CMD_BUFFER,
-				HFI_BUF_HOST_FLAG_NONE,
-				HFI_PAYLOAD_STRUCTURE,
-				HFI_PORT_NONE,
-				core->packet_id++,
-				&buf,
-				sizeof(buf));
-			if (rc)
-				goto err_fail_set_subacaches;
-		}
+		rc = hfi_create_packet(core->packet,
+			core->packet_size,
+			HFI_CMD_BUFFER,
+			HFI_BUF_HOST_FLAG_NONE,
+			HFI_PAYLOAD_STRUCTURE,
+			HFI_PORT_NONE,
+			core->packet_id++,
+			&buf,
+			sizeof(buf));
+		if (rc)
+			goto err_fail_set_subacaches;
 	}
 
 	/* Set resource to Venus for activated subcaches */
@@ -497,15 +493,13 @@ static int __set_subcaches(struct msm_vidc_core *core)
 		goto err_fail_set_subacaches;
 
 	venus_hfi_for_each_subcache(core, sinfo) {
-		if (sinfo->isactive) {
-			sinfo->isset = true;
-			d_vpr_h("Set Subcache id %d size %lu done\n",
-				sinfo->subcache->slice_id,
-				sinfo->subcache->slice_size);
-		}
+		if (!sinfo->isactive)
+			continue;
+		d_vpr_h("%s: set Subcache id %d size %lu done\n",
+			__func__, sinfo->subcache->slice_id,
+			sinfo->subcache->slice_size);
 	}
-
-	core->dt->sys_cache_res_set = true;
+	core->resource->subcache_set.set_to_fw = true;
 
 	return 0;
 
@@ -699,16 +693,10 @@ int __load_fw(struct msm_vidc_core *core)
 	core->cpu_watchdog = false;
 
 	trace_msm_v4l2_vidc_fw_load("START");
-	rc = res_ops->get(core);
-	if (rc) {
-		d_vpr_e("%s: Failed to get resources: %d\n", __func__, rc);
-		goto fail_init_res;
-	}
-
 	rc = __venus_power_on(core);
 	if (rc) {
 		d_vpr_e("%s: power on failed\n", __func__);
-		goto fail_venus_power_on;
+		goto fail_power;
 	}
 
 	rc = fw_load(core);
@@ -727,25 +715,21 @@ int __load_fw(struct msm_vidc_core *core)
 	return rc;
 fail_load_fw:
 	__venus_power_off(core);
-fail_venus_power_on:
-	res_ops->put(core);
-fail_init_res:
+fail_power:
 	trace_msm_v4l2_vidc_fw_load("END");
 	return rc;
 }
 
 void __unload_fw(struct msm_vidc_core *core)
 {
-	const struct msm_vidc_resources_ops *res_ops = core->res_ops;
 	int rc = 0;
 
-	if (!core->dt->fw_cookie)
+	if (!core->resource->fw_cookie)
 		return;
 
 	cancel_delayed_work(&core->pm_work);
 	rc = fw_unload(core);
 	__venus_power_off(core);
-	res_ops->put(core);
 
 	core->cpu_watchdog = false;
 
