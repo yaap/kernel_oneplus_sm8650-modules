@@ -9,7 +9,6 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
-#include "msm_vidc_dt.h"
 
 u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 {
@@ -27,9 +26,9 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
-
 	core = inst->core;
-	if (!core->dt || !core->dt->allowed_clks_tbl) {
+
+	if (!core->resource || !core->resource->freq_set.freq_tbl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
@@ -151,8 +150,8 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 			u32 bitrate_2stage[2] = {130, 120};
 			u32 bitrate_1stage = 100;
 			u32 width, height;
-			u32 bitrate_entry, freq_entry, frequency_table_value;
-			struct allowed_clock_rates_table *allowed_clks_tbl;
+			u32 bitrate_entry, freq_entry, freq_tbl_value;
+			struct frequency_table *freq_tbl;
 			struct v4l2_format *out_f = &inst->fmts[OUTPUT_PORT];
 
 			width = out_f->fmt.pix_mp.width;
@@ -165,11 +164,11 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 
 			freq_entry = bitrate_entry;
 
-			allowed_clks_tbl = core->dt->allowed_clks_tbl;
-			frequency_table_value = allowed_clks_tbl[freq_entry].clock_rate / 1000000;
+			freq_tbl = core->resource->freq_set.freq_tbl;
+			freq_tbl_value = freq_tbl[freq_entry].freq / 1000000;
 
 			input_bitrate_mbps = fps * data_size * 8 / (1024 * 1024);
-			vsp_hw_min_frequency = frequency_table_value * 1000 * input_bitrate_mbps;
+			vsp_hw_min_frequency = freq_tbl_value * 1000 * input_bitrate_mbps;
 
 			if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_2) {
 				vsp_hw_min_frequency +=
@@ -233,9 +232,9 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 		 * for non-AV1 codecs limit the frequency to NOM only
 		 * index 0 is TURBO, index 1 is NOM clock rate
 		 */
-		if (core->dt->allowed_clks_tbl_size >= 2 &&
-		    freq > core->dt->allowed_clks_tbl[1].clock_rate)
-			freq = core->dt->allowed_clks_tbl[1].clock_rate;
+		if (core->resource->freq_set.count >= 2 &&
+		    freq > core->resource->freq_set.freq_tbl[1].freq)
+			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
 
 	i_vpr_p(inst, "%s: filled len %d, required freq %llu, fps %u, mbpf %u\n",

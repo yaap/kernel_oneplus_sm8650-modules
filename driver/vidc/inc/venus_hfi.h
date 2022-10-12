@@ -11,7 +11,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk-provider.h>
 
-#include "msm_vidc_dt.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"

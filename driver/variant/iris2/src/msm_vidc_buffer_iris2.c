@@ -9,7 +9,6 @@
 #include "msm_vidc_buffer.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
-#include "msm_vidc_platform.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
 #include "msm_media_info.h"
@@ -203,7 +202,7 @@ static u32 msm_vidc_decoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 {
 
 	u32 size = 0;
-	u32 color_fmt, v4l2_fmt;
+	u32 color_fmt;
 	u32 width, height;
 	struct v4l2_format *f;
 

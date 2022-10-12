@@ -12,9 +12,16 @@
 #endif
 
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
+struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
+	enum msm_vidc_buffer_region region);
 int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev);
 int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core, struct device *dev);
 #else
+struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
+	enum msm_vidc_buffer_region region)
+{
+	return NULL;
+}
 int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev)
 {
 	return -EINVAL;

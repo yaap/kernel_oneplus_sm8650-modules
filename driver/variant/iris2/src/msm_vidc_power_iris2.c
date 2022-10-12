@@ -8,7 +8,6 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
-#include "msm_vidc_dt.h"
 
 u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 {
@@ -28,7 +27,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 	}
 
 	core = inst->core;
-	if (!core->dt) {
+	if (!core->resource) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}

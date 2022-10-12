@@ -4,8 +4,13 @@
  * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <dt-bindings/clock/qcom,gcc-anorak.h>
+#include <dt-bindings/clock/qcom,videocc-anorak.h>
+
+#include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/of_common.h>
 
+#include <media/v4l2_vidc_extensions.h>
 #include "msm_vidc_anorak.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
@@ -81,7 +86,6 @@ static struct msm_platform_core_capability core_data_anorak[] = {
 	{AV_SYNC_WINDOW_SIZE, 40},
 	{NON_FATAL_FAULTS, 1},
 	{ENC_AUTO_FRAMERATE, 1},
-	{MMRM, 0},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
 	{SUPPORTS_REQUESTS, 1},
@@ -2415,7 +2419,84 @@ static struct msm_vidc_ubwc_config_data ubwc_config_anorak[] = {
 	UBWC_CONFIG(8, 32, 16, 0, 1, 1, 1),
 };
 
+/* name, min_kbps, max_kbps */
+static const struct bw_table anorak_bw_table[] = {
+	{ "venus-cnoc",  1000, 1000     },
+	{ "venus-ddr",   1000, 15000000 },
+	{ "venus-llcc",  1000, 15000000 },
+};
+
+/* name, hw_trigger */
+static const struct regulator_table anorak_regulator_table[] = {
+	{ "iris-ctl", 0 },
+	{ "vcodec",   1 },
+};
+
+/* name, clock id, scaling */
+static const struct clk_table anorak_clk_table[] = {
+	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
+	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
+	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      0 },
+	{ "video_cc_mvs0_clk_src",  VIDEO_CC_MVS0_CLK_SRC,  1 },
+};
+
+/* name */
+static const struct clk_rst_table anorak_clk_reset_table[] = {
+	{ "video_axi_reset" },
+};
+
+/* name, llcc_id */
+static const struct subcache_table anorak_subcache_table[] = {
+	{ "vidsc0",     LLCC_VIDSC0 },
+	{ "vidvsp",     LLCC_VIDVSP },
+};
+
+/* name, start, size, secure, dma_coherant, region */
+const struct context_bank_table anorak_context_bank_table[] = {
+	{"qcom,vidc,cb-ns",             0x25800000, 0xba800000, 0, 1, MSM_VIDC_NON_SECURE       },
+	{"qcom,vidc,cb-ns-pxl",         0x00100000, 0xdff00000, 0, 1, MSM_VIDC_NON_SECURE_PIXEL },
+	{"qcom,vidc,cb-sec-pxl",        0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_PIXEL     },
+	{"qcom,vidc,cb-sec-non-pxl",    0x01000000, 0x24800000, 1, 0, MSM_VIDC_SECURE_NONPIXEL  },
+	{"qcom,vidc,cb-sec-bitstream",  0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_BITSTREAM },
+};
+
+/* freq */
+static struct freq_table anorak_freq_table[] = {
+	{533000000}, {444000000}, {366000000}, {338000000}, {240000000}
+};
+
+/* register, value, mask */
+static const struct reg_preset_table anorak_reg_preset_table[] = {
+	{ 0xB0088, 0x0, 0x11 },
+};
+
 static const struct msm_vidc_platform_data anorak_data = {
+	/* resources dependent on other module */
+	.bw_tbl = anorak_bw_table,
+	.bw_tbl_size = ARRAY_SIZE(anorak_bw_table),
+	.regulator_tbl = anorak_regulator_table,
+	.regulator_tbl_size = ARRAY_SIZE(anorak_regulator_table),
+	.clk_tbl = anorak_clk_table,
+	.clk_tbl_size = ARRAY_SIZE(anorak_clk_table),
+	.clk_rst_tbl = anorak_clk_reset_table,
+	.clk_rst_tbl_size = ARRAY_SIZE(anorak_clk_reset_table),
+	.subcache_tbl = anorak_subcache_table,
+	.subcache_tbl_size = ARRAY_SIZE(anorak_subcache_table),
+
+	/* populate context bank */
+	.context_bank_tbl = anorak_context_bank_table,
+	.context_bank_tbl_size = ARRAY_SIZE(anorak_context_bank_table),
+
+	/* platform specific resources */
+	.freq_tbl = anorak_freq_table,
+	.freq_tbl_size = ARRAY_SIZE(anorak_freq_table),
+	.reg_prst_tbl = anorak_reg_preset_table,
+	.reg_prst_tbl_size = ARRAY_SIZE(anorak_reg_preset_table),
+	.fwname = "vpu33_4v",
+	.pas_id = 9,
+	.supports_mmrm = 0,
+
+	/* caps related resorces */
 	.core_data = core_data_anorak,
 	.core_data_size = ARRAY_SIZE(core_data_anorak),
 	.inst_cap_data = instance_cap_data_anorak,

@@ -4,8 +4,13 @@
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <linux/of.h>
+#include <dt-bindings/clock/qcom,gcc-waipio.h>
+#include <dt-bindings/clock/qcom,videocc-waipio.h>
 
+#include <linux/of.h>
+#include <linux/soc/qcom/llcc-qcom.h>
+
+#include <media/v4l2_vidc_extensions.h>
 #include "msm_vidc_waipio.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
@@ -78,7 +83,6 @@ static struct msm_platform_core_capability core_data_waipio[] = {
 	{AV_SYNC_WINDOW_SIZE, 40},
 	{NON_FATAL_FAULTS, 1},
 	{ENC_AUTO_FRAMERATE, 1},
-	{MMRM, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
 	{SUPPORTS_REQUESTS, 1},
@@ -2169,7 +2173,84 @@ static struct msm_vidc_ubwc_config_data ubwc_config_waipio[] = {
 	UBWC_CONFIG(8, 32, 16, 0, 1, 1, 1),
 };
 
+/* name, min_kbps, max_kbps */
+static const struct bw_table waipio_bw_table[] = {
+	{ "venus-cnoc",  1000, 1000     },
+	{ "venus-ddr",   1000, 15000000 },
+	{ "venus-llcc",  1000, 15000000 },
+};
+
+/* name, hw_trigger */
+static const struct regulator_table waipio_regulator_table[] = {
+	{ "iris-ctl", 0 },
+	{ "vcodec",   1 },
+};
+
+/* name, clock id, scaling */
+static const struct clk_table waipio_clk_table[] = {
+	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
+	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
+	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      0 },
+	{ "video_cc_mvs0_clk_src",  VIDEO_CC_MVS0_CLK_SRC,  1 },
+};
+
+/* name */
+static const struct clk_rst_table waipio_clk_reset_table[] = {
+	{ "video_axi_reset"  },
+	{ "video_core_reset" },
+};
+
+/* name, llcc_id */
+static const struct subcache_table waipio_subcache_table[] = {
+	{ "vidsc0",     LLCC_VIDSC0 },
+};
+
+/* name, start, size, secure, dma_coherant */
+const struct context_bank_table waipio_context_bank_table[] = {
+	{"qcom,vidc,cb-ns",             0x25800000, 0xba800000, 0, 1, MSM_VIDC_NON_SECURE       },
+	{"qcom,vidc,cb-ns-pxl",         0x00100000, 0xdff00000, 0, 1, MSM_VIDC_NON_SECURE_PIXEL },
+	{"qcom,vidc,cb-sec-pxl",        0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_PIXEL     },
+	{"qcom,vidc,cb-sec-non-pxl",    0x01000000, 0x24800000, 1, 0, MSM_VIDC_SECURE_NONPIXEL  },
+	{"qcom,vidc,cb-sec-bitstream",  0x00500000, 0xdfb00000, 1, 0, MSM_VIDC_SECURE_BITSTREAM },
+};
+
+/* freq */
+static struct freq_table waipio_freq_table[] = {
+	{444000000}, {366000000}, {338000000}, {239999999}
+};
+
+/* register, value, mask */
+static const struct reg_preset_table waipio_reg_preset_table[] = {
+	{ 0xB0088, 0x0, 0x11 },
+};
+
 static const struct msm_vidc_platform_data waipio_data = {
+	/* resources dependent on other module */
+	.bw_tbl = waipio_bw_table,
+	.bw_tbl_size = ARRAY_SIZE(waipio_bw_table),
+	.regulator_tbl = waipio_regulator_table,
+	.regulator_tbl_size = ARRAY_SIZE(waipio_regulator_table),
+	.clk_tbl = waipio_clk_table,
+	.clk_tbl_size = ARRAY_SIZE(waipio_clk_table),
+	.clk_rst_tbl = waipio_clk_reset_table,
+	.clk_rst_tbl_size = ARRAY_SIZE(waipio_clk_reset_table),
+	.subcache_tbl = waipio_subcache_table,
+	.subcache_tbl_size = ARRAY_SIZE(waipio_subcache_table),
+
+	/* populate context bank */
+	.context_bank_tbl = waipio_context_bank_table,
+	.context_bank_tbl_size = ARRAY_SIZE(waipio_context_bank_table),
+
+	/* platform specific resources */
+	.freq_tbl = waipio_freq_table,
+	.freq_tbl_size = ARRAY_SIZE(waipio_freq_table),
+	.reg_prst_tbl = waipio_reg_preset_table,
+	.reg_prst_tbl_size = ARRAY_SIZE(waipio_reg_preset_table),
+	.fwname = "vpu20_4v",
+	.pas_id = 9,
+	.supports_mmrm = 0,
+
+	/* caps related resorces */
 	.core_data = core_data_waipio,
 	.core_data_size = ARRAY_SIZE(core_data_waipio),
 	.inst_cap_data = instance_cap_data_waipio,
