@@ -244,7 +244,7 @@ struct msm_hw_fence_dbg_data {
  * @ctl_start_ptr: pointer to the ctl_start registers of the display hw (platforms with no dpu-ipc)
  * @ctl_start_size: size of the ctl_start registers of the display hw (platforms with no dpu-ipc)
  * @client_id_mask: bitmask for tracking registered client_ids
- * @clients_mask_lock: lock to synchronize access to the clients mask
+ * @clients_register_lock: lock to synchronize clients registration and deregistration
  * @msm_hw_fence_client: table with the handles of the registered clients
  * @vm_ready: flag to indicate if vm has been initialized
  * @ipcc_dpu_initialized: flag to indicate if dpu hw is initialized
@@ -316,9 +316,8 @@ struct hw_fence_driver_data {
 	void *ctl_start_ptr[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
 	uint32_t ctl_start_size[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
 
-	/* bitmask for tracking registered client_ids */
-	u64 client_id_mask;
-	struct mutex clients_mask_lock;
+	/* synchronize client_ids registration and deregistration */
+	struct mutex clients_register_lock;
 
 	/* table with registered client handles */
 	struct msm_hw_fence_client *clients[HW_FENCE_CLIENT_MAX];
