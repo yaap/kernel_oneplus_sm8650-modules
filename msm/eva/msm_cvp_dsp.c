@@ -1627,17 +1627,17 @@ static void __dsp_cvp_power_req(struct cvp_dsp_cmd_msg *cmd)
 
 	print_power(&dsp2cpu_cmd->power_req);
 
-	inst->prop.fdu_cycles = dsp2cpu_cmd->power_req.clock_fdu;
-	inst->prop.ica_cycles =	dsp2cpu_cmd->power_req.clock_ica;
-	inst->prop.od_cycles =	dsp2cpu_cmd->power_req.clock_od;
-	inst->prop.mpu_cycles =	dsp2cpu_cmd->power_req.clock_mpu;
+	inst->prop.cycles[HFI_HW_FDU] = dsp2cpu_cmd->power_req.clock_fdu;
+	inst->prop.cycles[HFI_HW_ICA] = dsp2cpu_cmd->power_req.clock_ica;
+	inst->prop.cycles[HFI_HW_OD] = dsp2cpu_cmd->power_req.clock_od;
+	inst->prop.cycles[HFI_HW_MPU] = dsp2cpu_cmd->power_req.clock_mpu;
 	inst->prop.fw_cycles = dsp2cpu_cmd->power_req.clock_fw;
 	inst->prop.ddr_bw = dsp2cpu_cmd->power_req.bw_ddr;
 	inst->prop.ddr_cache = dsp2cpu_cmd->power_req.bw_sys_cache;
-	inst->prop.fdu_op_cycles = dsp2cpu_cmd->power_req.op_clock_fdu;
-	inst->prop.ica_op_cycles = dsp2cpu_cmd->power_req.op_clock_ica;
-	inst->prop.od_op_cycles = dsp2cpu_cmd->power_req.op_clock_od;
-	inst->prop.mpu_op_cycles = dsp2cpu_cmd->power_req.op_clock_mpu;
+	inst->prop.op_cycles[HFI_HW_FDU] = dsp2cpu_cmd->power_req.op_clock_fdu;
+	inst->prop.op_cycles[HFI_HW_ICA] = dsp2cpu_cmd->power_req.op_clock_ica;
+	inst->prop.op_cycles[HFI_HW_OD] = dsp2cpu_cmd->power_req.op_clock_od;
+	inst->prop.op_cycles[HFI_HW_MPU] = dsp2cpu_cmd->power_req.op_clock_mpu;
 	inst->prop.fw_op_cycles = dsp2cpu_cmd->power_req.op_clock_fw;
 	inst->prop.ddr_op_bw = dsp2cpu_cmd->power_req.op_bw_ddr;
 	inst->prop.ddr_op_cache = dsp2cpu_cmd->power_req.op_bw_sys_cache;

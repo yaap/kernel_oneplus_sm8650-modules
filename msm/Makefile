@@ -20,7 +20,8 @@ msm-eva-objs := eva/cvp.o \
                 eva/msm_cvp_dsp.o \
                 eva/msm_cvp_buf.o \
                 eva/msm_cvp_synx.o \
-		eva/cvp_fw_load.o
+		eva/cvp_fw_load.o \
+		eva/cvp_power.o
 
 obj-$(CONFIG_MSM_EVA) := msm-eva.o
 

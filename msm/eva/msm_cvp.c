@@ -8,20 +8,12 @@
 #include "cvp_core_hfi.h"
 #include "msm_cvp_buf.h"
 #include "cvp_comm_def.h"
-
-struct cvp_power_level {
-	unsigned long core_sum;
-	unsigned long op_core_sum;
-	unsigned long bw_sum;
-};
+#include "cvp_power.h"
 
 static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int in_offset,
 	unsigned int in_buf_num);
-
-static int cvp_check_clock(struct msm_cvp_inst *inst,
-		struct cvp_hfi_msg_session_hdr_ext *hdr);
 
 int msm_cvp_get_session_info(struct msm_cvp_inst *inst, u32 *session)
 {
@@ -131,38 +123,6 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 
 exit:
 	return rc;
-}
-
-static bool check_clock_required(struct msm_cvp_inst *inst,
-				struct eva_kmd_hfi_packet *hdr)
-{
-	struct cvp_hfi_msg_session_hdr_ext *ehdr =
-		(struct cvp_hfi_msg_session_hdr_ext *)hdr;
-	bool clock_check = false;
-
-	if (!msm_cvp_dcvs_disable &&
-			ehdr->packet_type == HFI_MSG_SESSION_CVP_FD) {
-		if (ehdr->size == sizeof(struct cvp_hfi_msg_session_hdr_ext)
-				+ sizeof(struct cvp_hfi_buf_type)) {
-			struct msm_cvp_core *core = inst->core;
-
-			dprintk(CVP_PWR, "busy cycle %d, total %d\n",
-					ehdr->busy_cycles, ehdr->total_cycles);
-
-			if (core->dyn_clk.sum_fps[HFI_HW_FDU] ||
-					core->dyn_clk.sum_fps[HFI_HW_MPU] ||
-					core->dyn_clk.sum_fps[HFI_HW_OD] ||
-					core->dyn_clk.sum_fps[HFI_HW_ICA]) {
-				clock_check = true;
-			}
-		} else {
-			dprintk(CVP_WARN, "dcvs is disabled, %d != %d + %d\n",
-					ehdr->size, sizeof(struct cvp_hfi_msg_session_hdr_ext),
-					sizeof(struct cvp_hfi_buf_type));
-		}
-	}
-
-	return clock_check;
 }
 
 static int msm_cvp_session_receive_hfi(struct msm_cvp_inst *inst,
@@ -306,173 +266,6 @@ static bool cvp_fence_wait(struct cvp_fence_queue *q,
 	*fence = f;
 
 	return true;
-}
-
-static int cvp_readjust_clock(struct msm_cvp_core *core,
-			u32 avg_cycles, enum hfi_hw_thread i)
-{
-	int rc = 0;
-	struct allowed_clock_rates_table *tbl = NULL;
-	unsigned int tbl_size = 0;
-	unsigned int cvp_min_rate = 0, cvp_max_rate = 0;
-	unsigned long tmp = core->curr_freq;
-	unsigned long lo_freq = 0;
-	u32 j;
-
-	tbl = core->resources.allowed_clks_tbl;
-	tbl_size = core->resources.allowed_clks_tbl_size;
-	cvp_min_rate = tbl[0].clock_rate;
-	cvp_max_rate = tbl[tbl_size - 1].clock_rate;
-
-	if (!((avg_cycles > core->dyn_clk.hi_ctrl_lim[i] &&
-			 core->curr_freq != cvp_max_rate) ||
-			(avg_cycles <= core->dyn_clk.lo_ctrl_lim[i] &&
-			 core->curr_freq != cvp_min_rate))) {
-		return rc;
-	}
-
-	core->curr_freq = ((avg_cycles * core->dyn_clk.sum_fps[i]) << 1)/3;
-	dprintk(CVP_PWR,
-		"%s - cycles tot %u, avg %u. sum_fps %u, cur_freq %u\n",
-		__func__,
-		core->dyn_clk.cycle[i].total,
-		avg_cycles,
-		core->dyn_clk.sum_fps[i],
-		core->curr_freq);
-
-	if (core->curr_freq > cvp_max_rate) {
-		core->curr_freq = cvp_max_rate;
-		lo_freq = (tbl_size > 1) ?
-			tbl[tbl_size - 2].clock_rate :
-			cvp_min_rate;
-	} else  if (core->curr_freq <= cvp_min_rate) {
-		core->curr_freq = cvp_min_rate;
-		lo_freq = cvp_min_rate;
-	} else {
-		for (j = 1; j < tbl_size; j++)
-			if (core->curr_freq <= tbl[j].clock_rate)
-				break;
-		core->curr_freq = tbl[j].clock_rate;
-		lo_freq = tbl[j-1].clock_rate;
-	}
-
-	if (core->orig_core_sum > core->curr_freq) {
-		dprintk(CVP_PWR,
-			"%s - %d - Cancel readjust, core %u, freq %u\n",
-			__func__, i, core->orig_core_sum, core->curr_freq);
-		core->curr_freq = tmp;
-		return rc;
-	}
-
-	dprintk(CVP_PWR,
-			"%s:%d - %d - Readjust to %u\n",
-			__func__, __LINE__, i, core->curr_freq);
-	rc = msm_cvp_set_clocks(core);
-	if (rc) {
-		dprintk(CVP_ERR,
-			"Failed to set clock rate %u: %d %s\n",
-			core->curr_freq, rc, __func__);
-		core->curr_freq = tmp;
-	} else {
-		lo_freq = (lo_freq < core->dyn_clk.conf_freq) ?
-			core->dyn_clk.conf_freq : lo_freq;
-		core->dyn_clk.hi_ctrl_lim[i] = core->dyn_clk.sum_fps[i] ?
-			((core->curr_freq*3)>>1)/core->dyn_clk.sum_fps[i] : 0;
-		core->dyn_clk.lo_ctrl_lim[i] =
-			core->dyn_clk.sum_fps[i] ?
-			((lo_freq*3)>>1)/core->dyn_clk.sum_fps[i] : 0;
-
-		dprintk(CVP_PWR,
-			"%s - Readjust clk to %u. New lim [%d] hi %u lo %u\n",
-			__func__, core->curr_freq, i,
-			core->dyn_clk.hi_ctrl_lim[i],
-			core->dyn_clk.lo_ctrl_lim[i]);
-	}
-
-	return rc;
-}
-
-static int cvp_check_clock(struct msm_cvp_inst *inst,
-			struct cvp_hfi_msg_session_hdr_ext *hdr)
-{
-	int rc = 0;
-	u32 i, j;
-	u32 hw_cycles[HFI_MAX_HW_THREADS] = {0};
-	u32 fw_cycles = 0;
-	struct msm_cvp_core *core = inst->core;
-
-	for (i = 0; i < HFI_MAX_HW_ACTIVATIONS_PER_FRAME; ++i)
-		fw_cycles += hdr->fw_cycles[i];
-
-	for (i = 0; i < HFI_MAX_HW_THREADS; ++i)
-		for (j = 0; j < HFI_MAX_HW_ACTIVATIONS_PER_FRAME; ++j)
-			hw_cycles[i] += hdr->hw_cycles[i][j];
-
-	dprintk(CVP_PWR, "%s - cycles fw %u. FDU %d MPU %d ODU %d ICA %d\n",
-		__func__, fw_cycles, hw_cycles[0],
-		hw_cycles[1], hw_cycles[2], hw_cycles[3]);
-
-	mutex_lock(&core->clk_lock);
-	for (i = 0; i < HFI_MAX_HW_THREADS; ++i) {
-		dprintk(CVP_PWR, "%s - %d: hw_cycles %u, tens_thresh %u\n",
-			__func__, i, hw_cycles[i],
-			core->dyn_clk.hi_ctrl_lim[i]);
-		if (core->dyn_clk.hi_ctrl_lim[i]) {
-			if (core->dyn_clk.cycle[i].size < CVP_CYCLE_STAT_SIZE)
-				core->dyn_clk.cycle[i].size++;
-			else
-				core->dyn_clk.cycle[i].total -=
-					core->dyn_clk.cycle[i].busy[
-					core->dyn_clk.cycle[i].idx];
-			if (hw_cycles[i]) {
-				core->dyn_clk.cycle[i].busy[
-					core->dyn_clk.cycle[i].idx]
-					= hw_cycles[i] + fw_cycles;
-				core->dyn_clk.cycle[i].total
-					+= hw_cycles[i] + fw_cycles;
-				dprintk(CVP_PWR,
-					"%s: busy (hw + fw) cycles = %u\n",
-					__func__,
-					core->dyn_clk.cycle[i].busy[
-						core->dyn_clk.cycle[i].idx]);
-				dprintk(CVP_PWR, "total cycles %u\n",
-					core->dyn_clk.cycle[i].total);
-			} else {
-				core->dyn_clk.cycle[i].busy[
-					core->dyn_clk.cycle[i].idx] =
-					hdr->busy_cycles;
-				core->dyn_clk.cycle[i].total +=
-					hdr->busy_cycles;
-				dprintk(CVP_PWR,
-					"%s - busy cycles = %u total %u\n",
-					__func__,
-					core->dyn_clk.cycle[i].busy[
-						core->dyn_clk.cycle[i].idx],
-					core->dyn_clk.cycle[i].total);
-			}
-
-			core->dyn_clk.cycle[i].idx =
-				(core->dyn_clk.cycle[i].idx ==
-				  CVP_CYCLE_STAT_SIZE-1) ?
-				0 : core->dyn_clk.cycle[i].idx+1;
-
-			dprintk(CVP_PWR, "%s - %d: size %u, tens_thresh %u\n",
-				__func__, i, core->dyn_clk.cycle[i].size,
-				core->dyn_clk.hi_ctrl_lim[i]);
-			if (core->dyn_clk.cycle[i].size == CVP_CYCLE_STAT_SIZE
-				&& core->dyn_clk.hi_ctrl_lim[i] != 0) {
-				u32 avg_cycles =
-					core->dyn_clk.cycle[i].total>>3;
-
-				rc = cvp_readjust_clock(core,
-							avg_cycles,
-							i);
-			}
-		}
-	}
-	mutex_unlock(&core->clk_lock);
-
-	return rc;
 }
 
 static int cvp_fence_proc(struct msm_cvp_inst *inst,
@@ -930,265 +723,6 @@ static inline int div_by_1dot5(unsigned int a)
 	return (unsigned int) i/3;
 }
 
-static inline int max_3(unsigned int a, unsigned int b, unsigned int c)
-{
-	return (a >= b) ? ((a >= c) ? a : c) : ((b >= c) ? b : c);
-}
-
-static bool is_subblock_profile_existed(struct msm_cvp_inst *inst)
-{
-	return (inst->prop.od_cycles ||
-			inst->prop.mpu_cycles ||
-			inst->prop.fdu_cycles ||
-			inst->prop.ica_cycles);
-}
-
-static void aggregate_power_update(struct msm_cvp_core *core,
-	struct cvp_power_level *nrt_pwr,
-	struct cvp_power_level *rt_pwr,
-	unsigned int max_clk_rate)
-{
-	struct msm_cvp_inst *inst;
-	int i;
-	unsigned long fdu_sum[2] = {0}, od_sum[2] = {0}, mpu_sum[2] = {0};
-	unsigned long ica_sum[2] = {0}, fw_sum[2] = {0};
-	unsigned long op_fdu_max[2] = {0}, op_od_max[2] = {0};
-	unsigned long op_mpu_max[2] = {0}, op_ica_max[2] = {0};
-	unsigned long op_fw_max[2] = {0}, bw_sum[2] = {0}, op_bw_max[2] = {0};
-	core->dyn_clk.sum_fps[HFI_HW_FDU] = 0;
-	core->dyn_clk.sum_fps[HFI_HW_MPU] = 0;
-	core->dyn_clk.sum_fps[HFI_HW_OD]  = 0;
-	core->dyn_clk.sum_fps[HFI_HW_ICA] = 0;
-
-	list_for_each_entry(inst, &core->instances, list) {
-		if (inst->state == MSM_CVP_CORE_INVALID ||
-			inst->state == MSM_CVP_CORE_UNINIT ||
-			!is_subblock_profile_existed(inst))
-			continue;
-		if (inst->prop.priority <= CVP_RT_PRIO_THRESHOLD) {
-			/* Non-realtime session use index 0 */
-			i = 0;
-		} else {
-			i = 1;
-		}
-		dprintk(CVP_PROF, "pwrUpdate fdu %u od %u mpu %u ica %u\n",
-			inst->prop.fdu_cycles,
-			inst->prop.od_cycles,
-			inst->prop.mpu_cycles,
-			inst->prop.ica_cycles);
-
-		dprintk(CVP_PROF, "pwrUpdate fw %u fdu_o %u od_o %u mpu_o %u\n",
-			inst->prop.fw_cycles,
-			inst->prop.fdu_op_cycles,
-			inst->prop.od_op_cycles,
-			inst->prop.mpu_op_cycles);
-
-		dprintk(CVP_PROF, "pwrUpdate ica_o %u fw_o %u bw %u bw_o %u\n",
-			inst->prop.ica_op_cycles,
-			inst->prop.fw_op_cycles,
-			inst->prop.ddr_bw,
-			inst->prop.ddr_op_bw);
-
-		fdu_sum[i] += inst->prop.fdu_cycles;
-		od_sum[i] += inst->prop.od_cycles;
-		mpu_sum[i] += inst->prop.mpu_cycles;
-		ica_sum[i] += inst->prop.ica_cycles;
-		fw_sum[i] += inst->prop.fw_cycles;
-		op_fdu_max[i] =
-			(op_fdu_max[i] >= inst->prop.fdu_op_cycles) ?
-			op_fdu_max[i] : inst->prop.fdu_op_cycles;
-		op_od_max[i] =
-			(op_od_max[i] >= inst->prop.od_op_cycles) ?
-			op_od_max[i] : inst->prop.od_op_cycles;
-		op_mpu_max[i] =
-			(op_mpu_max[i] >= inst->prop.mpu_op_cycles) ?
-			op_mpu_max[i] : inst->prop.mpu_op_cycles;
-		op_ica_max[i] =
-			(op_ica_max[i] >= inst->prop.ica_op_cycles) ?
-			op_ica_max[i] : inst->prop.ica_op_cycles;
-		op_fw_max[i] =
-			(op_fw_max[i] >= inst->prop.fw_op_cycles) ?
-			op_fw_max[i] : inst->prop.fw_op_cycles;
-		bw_sum[i] += inst->prop.ddr_bw;
-		op_bw_max[i] =
-			(op_bw_max[i] >= inst->prop.ddr_op_bw) ?
-			op_bw_max[i] : inst->prop.ddr_op_bw;
-
-		dprintk(CVP_PWR, "%s:%d - fps fdu %d mpu %d od %d ica %d\n",
-			__func__, __LINE__,
-			inst->prop.fps[HFI_HW_FDU], inst->prop.fps[HFI_HW_MPU],
-			inst->prop.fps[HFI_HW_OD], inst->prop.fps[HFI_HW_ICA]);
-		core->dyn_clk.sum_fps[HFI_HW_FDU] += inst->prop.fps[HFI_HW_FDU];
-		core->dyn_clk.sum_fps[HFI_HW_MPU] += inst->prop.fps[HFI_HW_MPU];
-		core->dyn_clk.sum_fps[HFI_HW_OD] += inst->prop.fps[HFI_HW_OD];
-		core->dyn_clk.sum_fps[HFI_HW_ICA] += inst->prop.fps[HFI_HW_ICA];
-		dprintk(CVP_PWR, "%s:%d - sum_fps fdu %d mpu %d od %d ica %d\n",
-			__func__, __LINE__,
-			core->dyn_clk.sum_fps[HFI_HW_FDU],
-			core->dyn_clk.sum_fps[HFI_HW_MPU],
-			core->dyn_clk.sum_fps[HFI_HW_OD],
-			core->dyn_clk.sum_fps[HFI_HW_ICA]);
-	}
-
-	for (i = 0; i < 2; i++) {
-		fdu_sum[i] = max_3(fdu_sum[i], od_sum[i], mpu_sum[i]);
-		fdu_sum[i] = max_3(fdu_sum[i], ica_sum[i], fw_sum[i]);
-
-		op_fdu_max[i] = max_3(op_fdu_max[i], op_od_max[i],
-			op_mpu_max[i]);
-		op_fdu_max[i] = max_3(op_fdu_max[i],
-			op_ica_max[i], op_fw_max[i]);
-		op_fdu_max[i] =
-			(op_fdu_max[i] > max_clk_rate) ?
-			max_clk_rate : op_fdu_max[i];
-		bw_sum[i] = (bw_sum[i] >= op_bw_max[i]) ?
-			bw_sum[i] : op_bw_max[i];
-	}
-
-	nrt_pwr->core_sum += fdu_sum[0];
-	nrt_pwr->op_core_sum = (nrt_pwr->op_core_sum >= op_fdu_max[0]) ?
-			nrt_pwr->op_core_sum : op_fdu_max[0];
-	nrt_pwr->bw_sum += bw_sum[0];
-	rt_pwr->core_sum += fdu_sum[1];
-	rt_pwr->op_core_sum = (rt_pwr->op_core_sum >= op_fdu_max[1]) ?
-			rt_pwr->op_core_sum : op_fdu_max[1];
-	rt_pwr->bw_sum += bw_sum[1];
-}
-
-/**
- * adjust_bw_freqs(): calculate CVP clock freq and bw required to sustain
- * required use case.
- * Bandwidth vote will be best-effort, not returning error if the request
- * b/w exceeds max limit.
- * Clock vote from non-realtime sessions will be best effort, not returning
- * error if the aggreated session clock request exceeds max limit.
- * Clock vote from realtime session will be hard request. If aggregated
- * session clock request exceeds max limit, the function will return
- * error.
- *
- * Ensure caller acquires clk_lock!
- */
-static int adjust_bw_freqs(void)
-{
-	struct msm_cvp_core *core;
-	struct iris_hfi_device *hdev;
-	struct bus_info *bus;
-	struct clock_set *clocks;
-	struct clock_info *cl;
-	struct allowed_clock_rates_table *tbl = NULL;
-	unsigned int tbl_size;
-	unsigned int cvp_min_rate, cvp_max_rate, max_bw, min_bw;
-	struct cvp_power_level rt_pwr = {0}, nrt_pwr = {0};
-	unsigned long tmp, core_sum, op_core_sum, bw_sum;
-	int i, rc = 0;
-	unsigned long ctrl_freq;
-
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
-
-	hdev = core->device->hfi_device_data;
-	clocks = &core->resources.clock_set;
-	cl = &clocks->clock_tbl[clocks->count - 1];
-	tbl = core->resources.allowed_clks_tbl;
-	tbl_size = core->resources.allowed_clks_tbl_size;
-	cvp_min_rate = tbl[0].clock_rate;
-	cvp_max_rate = tbl[tbl_size - 1].clock_rate;
-	bus = &core->resources.bus_set.bus_tbl[1];
-	max_bw = bus->range[1];
-	min_bw = max_bw/10;
-
-	aggregate_power_update(core, &nrt_pwr, &rt_pwr, cvp_max_rate);
-	dprintk(CVP_PROF, "PwrUpdate nrt %u %u rt %u %u\n",
-		nrt_pwr.core_sum, nrt_pwr.op_core_sum,
-		rt_pwr.core_sum, rt_pwr.op_core_sum);
-
-	if (rt_pwr.core_sum > cvp_max_rate) {
-		dprintk(CVP_WARN, "%s clk vote out of range %lld\n",
-			__func__, rt_pwr.core_sum);
-		return -ENOTSUPP;
-	}
-
-	core_sum = rt_pwr.core_sum + nrt_pwr.core_sum;
-	op_core_sum = (rt_pwr.op_core_sum >= nrt_pwr.op_core_sum) ?
-		rt_pwr.op_core_sum : nrt_pwr.op_core_sum;
-
-	core_sum = (core_sum >= op_core_sum) ?
-		core_sum : op_core_sum;
-
-	if (core_sum > cvp_max_rate) {
-		core_sum = cvp_max_rate;
-	} else  if (core_sum <= cvp_min_rate) {
-		core_sum = cvp_min_rate;
-	} else {
-		for (i = 1; i < tbl_size; i++)
-			if (core_sum <= tbl[i].clock_rate)
-				break;
-		core_sum = tbl[i].clock_rate;
-	}
-
-	bw_sum = rt_pwr.bw_sum + nrt_pwr.bw_sum;
-	bw_sum = bw_sum >> 10;
-	bw_sum = (bw_sum > max_bw) ? max_bw : bw_sum;
-	bw_sum = (bw_sum < min_bw) ? min_bw : bw_sum;
-
-	dprintk(CVP_PROF, "%s %lld %lld\n", __func__,
-		core_sum, bw_sum);
-	if (!cl->has_scaling) {
-		dprintk(CVP_ERR, "Cannot scale CVP clock\n");
-		return -EINVAL;
-	}
-
-	tmp = core->curr_freq;
-	core->curr_freq = core_sum;
-	core->orig_core_sum = core_sum;
-	rc = msm_cvp_set_clocks(core);
-	if (rc) {
-		dprintk(CVP_ERR,
-			"Failed to set clock rate %u %s: %d %s\n",
-			core_sum, cl->name, rc, __func__);
-		core->curr_freq = tmp;
-		return rc;
-	}
-
-	ctrl_freq = (core->curr_freq*3)>>1;
-	core->dyn_clk.conf_freq = core->curr_freq;
-	for (i = 0; i < HFI_MAX_HW_THREADS; ++i) {
-		core->dyn_clk.hi_ctrl_lim[i] = core->dyn_clk.sum_fps[i] ?
-			ctrl_freq/core->dyn_clk.sum_fps[i] : 0;
-		core->dyn_clk.lo_ctrl_lim[i] =
-			core->dyn_clk.hi_ctrl_lim[i];
-	}
-
-	hdev->clk_freq = core->curr_freq;
-	rc = msm_cvp_set_bw(bus, bw_sum);
-
-	return rc;
-}
-
-int msm_cvp_update_power(struct msm_cvp_inst *inst)
-{
-	int rc = 0;
-	struct msm_cvp_core *core;
-	struct msm_cvp_inst *s;
-
-	if (!inst) {
-		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	s = cvp_get_inst_validate(inst->core, inst);
-	if (!s)
-		return -ECONNRESET;
-
-	core = inst->core;
-
-	mutex_lock(&core->clk_lock);
-	rc = adjust_bw_freqs();
-	mutex_unlock(&core->clk_lock);
-	cvp_put_inst(s);
-
-	return rc;
-}
-
 int msm_cvp_session_delete(struct msm_cvp_inst *inst)
 {
 	return 0;
@@ -1437,57 +971,6 @@ static int msm_cvp_session_ctrl(struct msm_cvp_inst *inst,
 	return rc;
 }
 
-static unsigned int msm_cvp_get_hw_aggregate_cycles(enum hw_block hwblk)
-{
-	struct msm_cvp_core *core;
-	struct msm_cvp_inst *inst;
-	unsigned long cycles_sum = 0;
-
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
-
-	if (!core) {
-		dprintk(CVP_ERR, "%s: invalid core\n", __func__);
-		return -EINVAL;
-	}
-
-	mutex_lock(&core->clk_lock);
-	list_for_each_entry(inst, &core->instances, list) {
-		if (inst->state == MSM_CVP_CORE_INVALID ||
-			inst->state == MSM_CVP_CORE_UNINIT ||
-			!is_subblock_profile_existed(inst))
-			continue;
-		switch (hwblk) {
-		case CVP_FDU:
-		{
-			cycles_sum += inst->prop.fdu_cycles;
-			break;
-		}
-		case CVP_ICA:
-		{
-			cycles_sum += inst->prop.ica_cycles;
-			break;
-		}
-		case CVP_MPU:
-		{
-			cycles_sum += inst->prop.mpu_cycles;
-			break;
-		}
-		case CVP_OD:
-		{
-			cycles_sum += inst->prop.od_cycles;
-			break;
-		}
-		default:
-			dprintk(CVP_ERR, "unrecognized hw block %d\n",
-				hwblk);
-			break;
-		}
-	}
-	mutex_unlock(&core->clk_lock);
-	cycles_sum = cycles_sum&0xFFFFFFFF;
-	return (unsigned int)cycles_sum;
-}
-
 static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 		struct eva_kmd_arg *arg)
 {
@@ -1535,25 +1018,55 @@ static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 		case EVA_KMD_PROP_PWR_FDU:
 		{
 			props->prop_data[i].data =
-				msm_cvp_get_hw_aggregate_cycles(CVP_FDU);
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_FDU);
 			break;
 		}
 		case EVA_KMD_PROP_PWR_ICA:
 		{
 			props->prop_data[i].data =
-				msm_cvp_get_hw_aggregate_cycles(CVP_ICA);
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_ICA);
 			break;
 		}
 		case EVA_KMD_PROP_PWR_OD:
 		{
 			props->prop_data[i].data =
-				msm_cvp_get_hw_aggregate_cycles(CVP_OD);
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_OD);
 			break;
 		}
 		case EVA_KMD_PROP_PWR_MPU:
 		{
 			props->prop_data[i].data =
-				msm_cvp_get_hw_aggregate_cycles(CVP_MPU);
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_MPU);
+			break;
+		}
+		case EVA_KMD_PROP_PWR_VADL:
+		{
+			props->prop_data[i].data =
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_VADL);
+			break;
+		}
+		case EVA_KMD_PROP_PWR_TOF:
+		{
+			props->prop_data[i].data =
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_TOF);
+			break;
+		}
+		case EVA_KMD_PROP_PWR_RGE:
+		{
+			props->prop_data[i].data =
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_RGE);
+			break;
+		}
+		case EVA_KMD_PROP_PWR_XRA:
+		{
+			props->prop_data[i].data =
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_XRA);
+			break;
+		}
+		case EVA_KMD_PROP_PWR_LSR:
+		{
+			props->prop_data[i].data =
+				msm_cvp_get_hw_aggregate_cycles(HFI_HW_LSR);
 			break;
 		}
 		default:
@@ -1605,17 +1118,32 @@ static int msm_cvp_set_sysprop(struct msm_cvp_inst *inst,
 			session_prop->dsp_mask = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_FDU:
-			session_prop->fdu_cycles = prop_array[i].data;
+			session_prop->cycles[HFI_HW_FDU] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_ICA:
-			session_prop->ica_cycles =
+			session_prop->cycles[HFI_HW_ICA] =
 				div_by_1dot5(prop_array[i].data);
 			break;
 		case EVA_KMD_PROP_PWR_OD:
-			session_prop->od_cycles = prop_array[i].data;
+			session_prop->cycles[HFI_HW_OD] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_MPU:
-			session_prop->mpu_cycles = prop_array[i].data;
+			session_prop->cycles[HFI_HW_MPU] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_VADL:
+			session_prop->cycles[HFI_HW_VADL] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_TOF:
+			session_prop->cycles[HFI_HW_TOF] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_RGE:
+			session_prop->cycles[HFI_HW_RGE] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_XRA:
+			session_prop->cycles[HFI_HW_XRA] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_LSR:
+			session_prop->cycles[HFI_HW_LSR] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_FW:
 			session_prop->fw_cycles =
@@ -1628,17 +1156,32 @@ static int msm_cvp_set_sysprop(struct msm_cvp_inst *inst,
 			session_prop->ddr_cache = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_FDU_OP:
-			session_prop->fdu_op_cycles = prop_array[i].data;
+			session_prop->op_cycles[HFI_HW_FDU] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_ICA_OP:
-			session_prop->ica_op_cycles =
+			session_prop->op_cycles[HFI_HW_ICA] =
 				div_by_1dot5(prop_array[i].data);
 			break;
 		case EVA_KMD_PROP_PWR_OD_OP:
-			session_prop->od_op_cycles = prop_array[i].data;
+			session_prop->op_cycles[HFI_HW_OD] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_MPU_OP:
-			session_prop->mpu_op_cycles = prop_array[i].data;
+			session_prop->op_cycles[HFI_HW_MPU] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_VADL_OP:
+			session_prop->op_cycles[HFI_HW_VADL] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_TOF_OP:
+			session_prop->op_cycles[HFI_HW_TOF] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_RGE_OP:
+			session_prop->op_cycles[HFI_HW_RGE] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_XRA_OP:
+			session_prop->op_cycles[HFI_HW_XRA] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_LSR_OP:
+			session_prop->op_cycles[HFI_HW_LSR] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_PWR_FW_OP:
 			session_prop->fw_op_cycles =
@@ -1661,6 +1204,21 @@ static int msm_cvp_set_sysprop(struct msm_cvp_inst *inst,
 			break;
 		case EVA_KMD_PROP_PWR_FPS_ICA:
 			session_prop->fps[HFI_HW_ICA] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_FPS_VADL:
+			session_prop->fps[HFI_HW_VADL] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_FPS_TOF:
+			session_prop->fps[HFI_HW_TOF] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_FPS_RGE:
+			session_prop->fps[HFI_HW_RGE] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_FPS_XRA:
+			session_prop->fps[HFI_HW_XRA] = prop_array[i].data;
+			break;
+		case EVA_KMD_PROP_PWR_FPS_LSR:
+			session_prop->fps[HFI_HW_LSR] = prop_array[i].data;
 			break;
 		case EVA_KMD_PROP_SESSION_DUMPOFFSET:
 			session_prop->dump_offset = prop_array[i].data;

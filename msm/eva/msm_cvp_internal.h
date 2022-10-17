@@ -55,18 +55,6 @@ enum cvp_core_state {
 	CVP_CORE_INIT_DONE,
 };
 
-/*
- * Do not change the enum values unless
- * you know what you are doing
- */
-
-enum hw_block {
-	CVP_FDU = 0x0001,
-	CVP_ICA,
-	CVP_MPU,
-	CVP_OD
-};
-
 enum instance_state {
 	MSM_CVP_CORE_UNINIT_DONE = 0x0001,
 	MSM_CVP_CORE_INIT,
@@ -249,15 +237,9 @@ struct cvp_session_prop {
 	u32 is_secure;
 	u32 dsp_mask;
 	u32 fthread_nr;
-	u32 fdu_cycles;
-	u32 od_cycles;
-	u32 mpu_cycles;
-	u32 ica_cycles;
+	u32 cycles[HFI_MAX_HW_THREADS];
 	u32 fw_cycles;
-	u32 fdu_op_cycles;
-	u32 od_op_cycles;
-	u32 mpu_op_cycles;
-	u32 ica_op_cycles;
+	u32 op_cycles[HFI_MAX_HW_THREADS];
 	u32 fw_op_cycles;
 	u32 ddr_bw;
 	u32 ddr_op_bw;
