@@ -23,7 +23,7 @@
 #define AON_MVP_NOC_RESET                      0x0001F000
 #define CPU_BASE_OFFS_IRIS33                    0x000A0000
 #define AON_BASE_OFFS			               0x000E0000
-#define VCODEC_VIDEO_CC_BASE                   0x00F00000
+#define VCODEC_VIDEO_CC_BASE                   0x000F0000
 #define CPU_CS_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 #define CPU_IC_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 
