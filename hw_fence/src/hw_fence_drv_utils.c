@@ -58,9 +58,9 @@
  * struct hw_fence_client_types - Table describing all supported client types, used to parse
  *                                device-tree properties related to client queue size.
  *
- * The fields name, init_id, and max_clients_num are constants. Default values for clients_num and
- * queues_num are provided in this table, and clients_num, queues_num, and queue_entries can be read
- * from device-tree.
+ * The fields name, init_id, and max_clients_num are constants. Default values for clients_num,
+ * queues_num, and skip_txq_wr_idx are provided in this table, and clients_num, queues_num,
+ * queue_entries, and skip_txq_wr_idx can be read from device-tree.
  *
  * If a value for queue entries is not parsed for the client type, then the default number of client
  * queue entries (parsed from device-tree) is used.
@@ -68,29 +68,30 @@
  * Notes:
  * 1. Client types must be in the same order as client_ids within the enum 'hw_fence_client_id'.
  * 2. Each HW Fence client ID must be described by one of the client types in this table.
- * 3. A new client type must set: name, init_id, max_clients_num, clients_num, and queues_num.
+ * 3. A new client type must set: name, init_id, max_clients_num, clients_num, queues_num, and
+ *    skip_txq_wr_idx.
  * 4. Either constant HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE or HW_FENCE_MAX_CLIENT_TYPE_STATIC must
  *    be incremented as appropriate for new client types.
  */
 struct hw_fence_client_type_desc hw_fence_client_types[HW_FENCE_MAX_CLIENT_TYPE] = {
 	{"gpu", HW_FENCE_CLIENT_ID_CTX0, HW_FENCE_CLIENT_TYPE_MAX_GPU, HW_FENCE_CLIENT_TYPE_MAX_GPU,
-		HW_FENCE_CLIENT_QUEUES, 0, 0},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, false},
 	{"dpu", HW_FENCE_CLIENT_ID_CTL0, HW_FENCE_CLIENT_TYPE_MAX_DPU, HW_FENCE_CLIENT_TYPE_MAX_DPU,
-		HW_FENCE_CLIENT_QUEUES, 0, 0},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, false},
 	{"val", HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_TYPE_MAX_VAL, HW_FENCE_CLIENT_TYPE_MAX_VAL,
-		HW_FENCE_CLIENT_QUEUES, 0, 0},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, false},
 	{"ipe", HW_FENCE_CLIENT_ID_IPE, HW_FENCE_CLIENT_TYPE_MAX_IPE, 0,
-		HW_FENCE_CLIENT_QUEUES, 0, 0},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, false},
 	{"vpu", HW_FENCE_CLIENT_ID_VPU, HW_FENCE_CLIENT_TYPE_MAX_VPU, 0,
-		HW_FENCE_CLIENT_QUEUES, 0, 0},
-	{"ife0", HW_FENCE_CLIENT_ID_IFE0, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife1", HW_FENCE_CLIENT_ID_IFE1, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife2", HW_FENCE_CLIENT_ID_IFE2, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife3", HW_FENCE_CLIENT_ID_IFE3, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife4", HW_FENCE_CLIENT_ID_IFE4, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife5", HW_FENCE_CLIENT_ID_IFE5, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife6", HW_FENCE_CLIENT_ID_IFE6, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
-	{"ife7", HW_FENCE_CLIENT_ID_IFE7, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, false},
+	{"ife0", HW_FENCE_CLIENT_ID_IFE0, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife1", HW_FENCE_CLIENT_ID_IFE1, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife2", HW_FENCE_CLIENT_ID_IFE2, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife3", HW_FENCE_CLIENT_ID_IFE3, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife4", HW_FENCE_CLIENT_ID_IFE4, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife5", HW_FENCE_CLIENT_ID_IFE5, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife6", HW_FENCE_CLIENT_ID_IFE6, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
+	{"ife7", HW_FENCE_CLIENT_ID_IFE7, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, true},
 };
 
 static void _lock(uint64_t *wait)
@@ -594,13 +595,13 @@ static int _parse_client_queue_dt_props_indv(struct hw_fence_driver_data *drv_da
 	struct hw_fence_client_type_desc *desc)
 {
 	char name[31];
-	u32 tmp[3];
+	u32 tmp[4];
 	u32 queue_size;
 	int ret;
 
 	/* parse client queue property from device-tree */
 	snprintf(name, sizeof(name), "qcom,hw-fence-client-type-%s", desc->name);
-	ret = of_property_read_u32_array(drv_data->dev->of_node, name, tmp, 3);
+	ret = of_property_read_u32_array(drv_data->dev->of_node, name, tmp, 4);
 	if (ret) {
 		HWFNC_DBG_INIT("missing %s client queue entry or invalid ret:%d\n", desc->name,
 			ret);
@@ -609,6 +610,12 @@ static int _parse_client_queue_dt_props_indv(struct hw_fence_driver_data *drv_da
 		desc->clients_num = tmp[0];
 		desc->queues_num = tmp[1];
 		desc->queue_entries = tmp[2];
+
+		if (tmp[3] > 1) {
+			HWFNC_ERR("%s invalid skip_txq_wr_idx prop:%lu\n", desc->name, tmp[3]);
+			return -EINVAL;
+		}
+		desc->skip_txq_wr_idx = tmp[3];
 	}
 
 	if (desc->clients_num > desc->max_clients_num || !desc->queues_num ||
@@ -642,8 +649,9 @@ static int _parse_client_queue_dt_props_indv(struct hw_fence_driver_data *drv_da
 		return -EINVAL;
 	}
 
-	HWFNC_DBG_INIT("%s: clients=%lu q_num=%lu q_entries=%lu mem_sz=%lu\n", desc->name,
-		desc->clients_num, desc->queues_num, desc->queue_entries, desc->mem_size);
+	HWFNC_DBG_INIT("%s: clients=%lu q_num=%lu q_entries=%lu mem_sz=%lu skips_wr_ptr:%s\n",
+		desc->name, desc->clients_num, desc->queues_num, desc->queue_entries,
+		desc->mem_size, desc->skip_txq_wr_idx ? "true" : "false");
 
 	return 0;
 }
@@ -700,7 +708,7 @@ static int _parse_client_queue_dt_props(struct hw_fence_driver_data *drv_data)
 			drv_data->hw_fence_client_queue_size[client_id] =
 				(struct hw_fence_client_queue_size_desc)
 				{desc->queues_num, desc->queue_entries, desc->mem_size,
-				start_offset};
+				start_offset, desc->skip_txq_wr_idx};
 			HWFNC_DBG_INIT("%s client_id_ext:%lu client_id:%lu start_offset:%lu\n",
 				desc->name, client_id_ext, client_id, start_offset);
 			start_offset += desc->mem_size;
@@ -918,4 +926,12 @@ enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver
 		client_id_priv += drv_data->hw_fence_client_types[i].clients_num;
 
 	return client_id_priv;
+}
+
+bool hw_fence_utils_skips_txq_wr_idx(struct hw_fence_driver_data *drv_data, int client_id)
+{
+	if (!drv_data || client_id >= drv_data->clients_num)
+		return false;
+
+	return drv_data->hw_fence_client_queue_size[client_id].skip_txq_wr_idx;
 }

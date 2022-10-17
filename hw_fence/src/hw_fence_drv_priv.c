@@ -248,6 +248,7 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	bool lock_client = false;
 	u32 lock_idx;
 	u64 timestamp;
+	u32 *wr_ptr;
 	int ret = 0;
 
 	if (queue_type >=
@@ -268,6 +269,12 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 		HWFNC_ERR("Invalid queue\n");
 		return -EINVAL;
 	}
+
+	/* if skipping update txq wr_index, then use hfi_header->tx_wm instead */
+	if (queue_type == (HW_FENCE_TX_QUEUE - 1) && hw_fence_client->skip_txq_wr_idx)
+		wr_ptr = &hfi_header->tx_wm;
+	else
+		wr_ptr = &hfi_header->write_index;
 
 	/*
 	 * We need to lock the client if there is an Rx Queue update, since that
@@ -294,11 +301,12 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 
 	/* Get read and write index */
 	read_idx = readl_relaxed(&hfi_header->read_index);
-	write_idx = readl_relaxed(&hfi_header->write_index);
+	write_idx = readl_relaxed(wr_ptr);
 
-	HWFNC_DBG_Q("wr client:%d rd_ptr:0x%pK wr_ptr:0x%pK rd_idx:%d wr_idx:%d q:0x%pK type:%d\n",
-		hw_fence_client->client_id, &hfi_header->read_index, &hfi_header->write_index,
-		read_idx, write_idx, queue, queue_type);
+	HWFNC_DBG_Q("wr client:%d r_ptr:0x%pK w_ptr:0x%pK r_idx:%d w_idx:%d q:0x%pK type:%d s:%s\n",
+		hw_fence_client->client_id, &hfi_header->read_index, wr_ptr,
+		read_idx, write_idx, queue, queue_type,
+		hw_fence_client->skip_txq_wr_idx ? "true" : "false");
 
 	/* Check queue to make sure message will fit */
 	q_free_u32 = read_idx <= write_idx ? (q_size_u32 - (write_idx - read_idx)) :
@@ -351,7 +359,7 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	wmb();
 
 	/* update the write index */
-	writel_relaxed(to_write_idx, &hfi_header->write_index);
+	writel_relaxed(to_write_idx, wr_ptr);
 
 	/* update memory for the index */
 	wmb();

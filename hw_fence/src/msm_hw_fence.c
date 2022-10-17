@@ -93,6 +93,8 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	}
 
 	hw_fence_client->send_ipc = hw_fence_ipcc_needs_ipc_irq(hw_fence_drv_data, client_id);
+	hw_fence_client->skip_txq_wr_idx = hw_fence_utils_skips_txq_wr_idx(hw_fence_drv_data,
+		client_id);
 
 	/* Alloc Client HFI Headers and Queues */
 	ret = hw_fence_alloc_client_resources(hw_fence_drv_data,

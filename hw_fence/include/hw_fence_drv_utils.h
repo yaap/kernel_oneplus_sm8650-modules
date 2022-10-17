@@ -51,6 +51,8 @@ enum hw_fence_mem_reserve {
  *              two (for both Tx and Rx Queues)
  * @queue_entries: number of entries per client queue of given client type
  * @mem_size: size of memory allocated for client queue(s) per client
+ * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
+ *                   driver and hfi_header->tx_wm is updated instead
  */
 struct hw_fence_client_type_desc {
 	char *name;
@@ -60,6 +62,7 @@ struct hw_fence_client_type_desc {
 	u32 queues_num;
 	u32 queue_entries;
 	u32 mem_size;
+	bool skip_txq_wr_idx;
 };
 
 /**
@@ -169,5 +172,18 @@ int hw_fence_utils_cleanup_fence(struct hw_fence_driver_data *drv_data,
  */
 enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver_data *drv_data,
 	enum hw_fence_client_id client_id);
+
+/**
+ * hw_fence_utils_skips_txq_wr_index() - Returns bool to indicate if client Tx Queue write_index
+ *                                       is not updated in hw fence driver. Instead,
+ *                                       hfi_header->tx_wm tracks where payload is written within
+ *                                       the queue.
+ *
+ * @drv_data: driver data
+ * @client_id: hw fence driver client id
+ *
+ * Returns: true if hw fence driver skips update to client tx queue write_index, false otherwise
+ */
+bool hw_fence_utils_skips_txq_wr_idx(struct hw_fence_driver_data *drv_data, int client_id);
 
 #endif /* __HW_FENCE_DRV_UTILS_H */

@@ -175,6 +175,8 @@ enum payload_type {
  * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
  * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
+ * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
+ *                   driver and hfi_header->tx_wm is updated instead
  * @wait_queue: wait queue for the validation clients
  * @val_signal: doorbell flag to signal the validation clients in the wait queue
  */
@@ -188,6 +190,7 @@ struct msm_hw_fence_client {
 	int ipc_client_pid;
 	bool update_rxq;
 	bool send_ipc;
+	bool skip_txq_wr_idx;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	wait_queue_head_t wait_queue;
 	atomic_t val_signal;
@@ -241,12 +244,15 @@ struct msm_hw_fence_dbg_data {
  * @mem_size: size of memory allocated for client queues
  * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
  *                allocation for hw fence driver
+ * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
+ *                   driver and hfi_header->tx_wm is updated instead
  */
 struct hw_fence_client_queue_size_desc {
 	u32 queues_num;
 	u32 queue_entries;
 	u32 mem_size;
 	u32 start_offset;
+	bool skip_txq_wr_idx;
 };
 
 /**
