@@ -17,6 +17,7 @@
 #include <linux/mman.h>
 #include <linux/mm_types.h>
 #include <linux/msm_kgsl.h>
+#include <linux/msm_sysstats.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <linux/pm_runtime.h>
@@ -3056,7 +3057,6 @@ u64 kgsl_get_stats(pid_t pid)
 
 	return ret;
 }
-EXPORT_SYMBOL(kgsl_get_stats);
 
 long kgsl_ioctl_gpuobj_import(struct kgsl_device_private *dev_priv,
 		unsigned int cmd, void *data)
@@ -5106,6 +5106,8 @@ void kgsl_core_exit(void)
 
 	unregister_chrdev_region(kgsl_driver.major,
 		ARRAY_SIZE(kgsl_driver.devp));
+
+	sysstats_unregister_kgsl_stats_cb();
 }
 
 int __init kgsl_core_init(void)
@@ -5211,6 +5213,8 @@ int __init kgsl_core_init(void)
 
 	memfree.list = kcalloc(MEMFREE_ENTRIES, sizeof(struct memfree_entry),
 		GFP_KERNEL);
+
+	sysstats_register_kgsl_stats_cb(kgsl_get_stats);
 
 	place_marker("M - DRIVER KGSL Ready");
 
