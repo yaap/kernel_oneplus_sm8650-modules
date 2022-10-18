@@ -6,7 +6,8 @@
 
 #include "adreno.h"
 #include "adreno_snapshot.h"
-#include "adreno_gen7_snapshot.h"
+#include "adreno_gen7_0_0_snapshot.h"
+#include "adreno_gen7_2_0_snapshot.h"
 
 static struct kgsl_memdesc *gen7_capturescript;
 static struct kgsl_memdesc *gen7_crashdump_registers;
@@ -17,7 +18,7 @@ static const struct gen7_snapshot_block_list *gen7_snapshot_block_list;
 static void __iomem *tmc_virt;
 
 const struct gen7_snapshot_block_list gen7_0_0_snapshot_block_list = {
-	.pre_crashdumper_regs = gen7_0_0_pre_crashdumper_registers,
+	.pre_crashdumper_regs = gen7_0_0_pre_crashdumper_gpu_registers,
 	.debugbus_blocks = gen7_0_0_debugbus_blocks,
 	.debugbus_blocks_len = ARRAY_SIZE(gen7_0_0_debugbus_blocks),
 	.gbif_debugbus_blocks = gen7_gbif_debugbus_blocks,
@@ -27,7 +28,7 @@ const struct gen7_snapshot_block_list gen7_0_0_snapshot_block_list = {
 	.external_core_regs = gen7_0_0_external_core_regs,
 	.num_external_core_regs = ARRAY_SIZE(gen7_0_0_external_core_regs),
 	.gmu_regs = gen7_0_0_gmu_registers,
-	.gmu_gx_regs = gen7_0_0_gmu_gx_registers,
+	.gmu_gx_regs = gen7_0_0_gmugx_registers,
 	.rscc_regs = gen7_0_0_rscc_registers,
 	.reg_list = gen7_0_0_reg_list,
 	.shader_blocks = gen7_0_0_shader_blocks,
@@ -40,7 +41,7 @@ const struct gen7_snapshot_block_list gen7_0_0_snapshot_block_list = {
 };
 
 const struct gen7_snapshot_block_list gen7_2_0_snapshot_block_list = {
-	.pre_crashdumper_regs = gen7_0_0_pre_crashdumper_registers,
+	.pre_crashdumper_regs = gen7_0_0_pre_crashdumper_gpu_registers,
 	.debugbus_blocks = gen7_2_0_debugbus_blocks,
 	.debugbus_blocks_len = ARRAY_SIZE(gen7_2_0_debugbus_blocks),
 	.gbif_debugbus_blocks = gen7_gbif_debugbus_blocks,
@@ -50,7 +51,7 @@ const struct gen7_snapshot_block_list gen7_2_0_snapshot_block_list = {
 	.external_core_regs = gen7_2_0_external_core_regs,
 	.num_external_core_regs = ARRAY_SIZE(gen7_2_0_external_core_regs),
 	.gmu_regs = gen7_2_0_gmu_registers,
-	.gmu_gx_regs = gen7_2_0_gmu_gx_registers,
+	.gmu_gx_regs = gen7_2_0_gmugx_registers,
 	.rscc_regs = gen7_2_0_rscc_registers,
 	.reg_list = gen7_2_0_reg_list,
 	.shader_blocks = gen7_2_0_shader_blocks,
@@ -61,8 +62,6 @@ const struct gen7_snapshot_block_list gen7_2_0_snapshot_block_list = {
 	.num_sptp_clusters = ARRAY_SIZE(gen7_2_0_sptp_clusters),
 	.post_crashdumper_regs = gen7_0_0_post_crashdumper_registers,
 };
-
-#define GEN7_DEBUGBUS_BLOCK_SIZE 0x100
 
 #define GEN7_SP_READ_SEL_VAL(_location, _pipe, _statetype, _usptp, _sptp) \
 				(FIELD_PREP(GENMASK(19, 18), _location) | \
@@ -161,7 +160,7 @@ static bool _gen7_do_crashdump(struct kgsl_device *device)
 static size_t gen7_legacy_snapshot_registers(struct kgsl_device *device,
 		u8 *buf, size_t remain, void *priv)
 {
-	struct reg_list *regs = priv;
+	struct gen7_reg_list *regs = priv;
 
 	if (regs->sel)
 		kgsl_regwrite(device, regs->sel->host_reg, regs->sel->val);
@@ -172,7 +171,7 @@ static size_t gen7_legacy_snapshot_registers(struct kgsl_device *device,
 static size_t gen7_snapshot_registers(struct kgsl_device *device, u8 *buf,
 		size_t remain, void *priv)
 {
-	struct reg_list *regs = (struct reg_list *)priv;
+	struct gen7_reg_list *regs = (struct gen7_reg_list *)priv;
 	const u32 *ptr = regs->regs;
 	unsigned int *data = (unsigned int *)buf;
 	unsigned int *src;
@@ -1300,7 +1299,7 @@ static void gen7_reglist_snapshot(struct kgsl_device *device,
 	u64 *ptr, offset = 0;
 	int i;
 	u32 r;
-	struct reg_list *reg_list = gen7_snapshot_block_list->reg_list;
+	struct gen7_reg_list *reg_list = gen7_snapshot_block_list->reg_list;
 	size_t (*func)(struct kgsl_device *device, u8 *buf, size_t remain,
 		void *priv) = gen7_legacy_snapshot_registers;
 
@@ -1315,7 +1314,7 @@ static void gen7_reglist_snapshot(struct kgsl_device *device,
 	ptr = (u64 *)gen7_capturescript->hostptr;
 
 	for (i = 0; reg_list[i].regs; i++) {
-		struct reg_list *regs = &reg_list[i];
+		struct gen7_reg_list *regs = &reg_list[i];
 		const u32 *regs_ptr = regs->regs;
 
 		regs->offset = offset;
@@ -1527,7 +1526,7 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 		kgsl_regrmw(device, GEN7_RBBM_CLOCK_MODE_CP, 0x7, 0);
 	}
 	kgsl_snapshot_indexed_registers(device, snapshot,
-		GEN7_CP_RESOURCE_TBL_DBG_ADDR, GEN7_CP_RESOURCE_TBL_DBG_DATA,
+		GEN7_CP_RESOURCE_TABLE_DBG_ADDR, GEN7_CP_RESOURCE_TABLE_DBG_DATA,
 		0, 0x4100);
 
 	/* Reprogram the register back to the original stored value */

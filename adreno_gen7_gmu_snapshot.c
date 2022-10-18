@@ -9,7 +9,8 @@
 #include "adreno_gen7.h"
 #include "adreno_gen7_gmu.h"
 #include "adreno_snapshot.h"
-#include "adreno_gen7_snapshot.h"
+#include "adreno_gen7_0_0_snapshot.h"
+#include "adreno_gen7_2_0_snapshot.h"
 #include "kgsl_device.h"
 
 size_t gen7_snapshot_gmu_mem(struct kgsl_device *device,
