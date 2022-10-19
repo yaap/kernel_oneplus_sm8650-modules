@@ -16,6 +16,7 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control_ext.h"
+#include "msm_vidc_memory_ext.h"
 #include "hfi_property.h"
 #include "msm_vidc_iris3.h"
 #include "hfi_command.h"
@@ -2764,6 +2765,25 @@ static const struct msm_vidc_platform_data kalama_data_v2 = {
 	.format_data = &format_data_kalama,
 };
 
+static struct msm_vidc_memory_ops kalama_msm_mem_ops = {
+	.dma_buf_attach                 = msm_vidc_dma_buf_attach_ext,
+	.dma_buf_detach                 = msm_vidc_dma_buf_detach,
+	.dma_buf_map_attachment         = msm_vidc_dma_buf_map_attachment,
+	.dma_buf_unmap_attachment       = msm_vidc_dma_buf_unmap_attachment,
+	.memory_alloc                   = msm_vidc_memory_alloc_ext,
+	.memory_free                    = msm_vidc_memory_free_ext,
+	.memory_map                     = msm_vidc_memory_map_ext,
+	.memory_unmap                   = msm_vidc_memory_unmap,
+	.buffer_region                  = msm_vidc_buffer_region_ext,
+	.dma_buf_get                    = msm_vidc_dma_buf_get,
+	.dma_buf_put                    = msm_vidc_dma_buf_put,
+	.dma_buf_put_completely         = msm_vidc_dma_buf_put_completely,
+	.pools_init                     = msm_vidc_pools_init,
+	.pools_deinit                   = msm_vidc_pools_deinit,
+	.pool_alloc                     = msm_vidc_pool_alloc,
+	.pool_free                      = msm_vidc_pool_free,
+};
+
 int msm_vidc_kalama_check_ddr_type(void)
 {
 	u32 ddr_type;
@@ -2794,6 +2814,7 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 	else
 		core->platform->data = kalama_data;
 
+	core->mem_ops = &kalama_msm_mem_ops;
 	rc = msm_vidc_kalama_check_ddr_type();
 	if (rc)
 		return rc;

@@ -88,6 +88,7 @@ msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
                   driver/vidc/src/firmware.o \
                   driver/vidc/src/msm_vidc_debug.o \
                   driver/vidc/src/msm_vidc_memory.o \
+                  driver/vidc/src/msm_vidc_memory_ext.o \
                   driver/vidc/src/msm_vidc_fence.o \
                   driver/vidc/src/venus_hfi.o \
                   driver/vidc/src/venus_hfi_queue.o \

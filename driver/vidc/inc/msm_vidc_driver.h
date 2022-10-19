@@ -457,8 +457,6 @@ int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst);
 int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst);
 int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst);
 int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl);
-u32 msm_vidc_get_buffer_region(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type, const char *func);
 struct msm_vidc_buffers *msm_vidc_get_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type, const char *func);
 struct msm_vidc_mappings *msm_vidc_get_mappings(struct msm_vidc_inst *inst,
@@ -595,5 +593,9 @@ int msm_vidc_alloc_and_queue_input_internal_buffers(struct msm_vidc_inst *inst);
 int vb2_buffer_to_driver(struct vb2_buffer *vb2, struct msm_vidc_buffer *buf);
 struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
 	struct vb2_buffer *vb2);
+struct context_bank_info *msm_vidc_get_context_bank_for_region(struct msm_vidc_core *core,
+	enum msm_vidc_buffer_region region);
+struct context_bank_info *msm_vidc_get_context_bank_for_device(
+	struct msm_vidc_core *core, struct device *dev);
 #endif // _MSM_VIDC_DRIVER_H_
 

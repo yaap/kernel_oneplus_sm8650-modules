@@ -14,6 +14,7 @@
 #include "msm_vidc_control.h"
 #include "msm_vidc_memory.h"
 #include "msm_vidc_fence.h"
+#include "msm_vidc_platform.h"
 
 #define in_range(range, val) (((range.begin) < (val)) && ((range.end) > (val)))
 
@@ -657,12 +658,14 @@ static int handle_read_only_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf)
 {
 	struct msm_vidc_buffer *ro_buf;
+	struct msm_vidc_core *core;
 	bool found = false;
 
-	if (!inst || !buf) {
+	if (!inst || !inst->core || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	if (!is_decode_session(inst) || !is_output_buffer(buf->type))
 		return 0;
@@ -681,7 +684,7 @@ static int handle_read_only_buffer(struct msm_vidc_inst *inst,
 	 *          if present, do nothing
 	 */
 	if (!found) {
-		ro_buf = msm_memory_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
+		ro_buf = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUFFER);
 		if (!ro_buf) {
 			i_vpr_e(inst, "%s: buffer alloc failed\n", __func__);
 			return -ENOMEM;
@@ -857,12 +860,14 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buf;
+	struct msm_vidc_core *core;
 	bool found, fatal = false;
 
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: Invalid params\n", __func__);
+	if (!inst || !inst->core || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	/* handle drain last flag buffer */
 	if (buffer->flags & HFI_BUF_FW_FLAG_LAST) {
@@ -982,7 +987,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 		}
 
 		if (buf->dbuf_get) {
-			msm_vidc_memory_put_dmabuf(inst, buf->dmabuf);
+			call_mem_op(core, dma_buf_put, inst, buf->dmabuf);
 			buf->dbuf_get = 0;
 		}
 	}

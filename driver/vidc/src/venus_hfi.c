@@ -1300,11 +1300,13 @@ static int venus_hfi_cache_packet(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct hfi_header *hdr;
 	struct hfi_pending_packet *packet;
+	struct msm_vidc_core *core;
 
-	if (!inst->packet) {
+	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	hdr = (struct hfi_header *)inst->packet;
 	if (hdr->size < sizeof(struct hfi_header)) {
@@ -1312,7 +1314,7 @@ static int venus_hfi_cache_packet(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	packet = msm_memory_pool_alloc(inst, MSM_MEM_POOL_PACKET);
+	packet = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_PACKET);
 	if (!packet) {
 		i_vpr_e(inst, "%s: failed to allocate pending packet\n", __func__);
 		return -ENOMEM;
@@ -1811,11 +1813,13 @@ static int venus_hfi_add_pending_packets(struct msm_vidc_inst *inst)
 	struct hfi_pending_packet *pkt_info, *dummy;
 	struct hfi_header *hdr, *src_hdr;
 	struct hfi_packet *src_pkt;
+	struct msm_vidc_core *core;
 
-	if (!inst || !inst->packet) {
+	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	hdr = (struct hfi_header *)inst->packet;
 	if (hdr->size < sizeof(struct hfi_header)) {
@@ -1841,7 +1845,7 @@ static int venus_hfi_add_pending_packets(struct msm_vidc_inst *inst)
 			}
 		}
 		list_del(&pkt_info->list);
-		msm_memory_pool_free(inst, pkt_info);
+		call_mem_op(core, pool_free, inst, pkt_info);
 	}
 	return rc;
 }

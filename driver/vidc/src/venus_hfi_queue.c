@@ -8,6 +8,7 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_platform.h"
 
 static int __strict_check(struct msm_vidc_core *core, const char *function)
 {
@@ -428,10 +429,10 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 		return;
 	}
 
-	msm_vidc_memory_unmap(core, &core->iface_q_table.map);
-	msm_vidc_memory_free(core, &core->iface_q_table.alloc);
-	msm_vidc_memory_unmap(core, &core->sfr.map);
-	msm_vidc_memory_free(core, &core->sfr.alloc);
+	call_mem_op(core, memory_unmap, core, &core->iface_q_table.map);
+	call_mem_op(core, memory_free, core, &core->iface_q_table.alloc);
+	call_mem_op(core, memory_unmap, core, &core->sfr.map);
+	call_mem_op(core, memory_free, core, &core->sfr.alloc);
 
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		core->iface_queues[i].q_hdr = NULL;
@@ -510,7 +511,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	alloc.size = TOTAL_QSIZE;
 	alloc.secure = false;
 	alloc.map_kernel = true;
-	rc = msm_vidc_memory_alloc(core, &alloc);
+	rc = call_mem_op(core, memory_alloc, core, &alloc);
 	if (rc) {
 		d_vpr_e("%s: alloc failed\n", __func__);
 		goto fail_alloc_queue;
@@ -522,7 +523,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	map.type = alloc.type;
 	map.region = alloc.region;
 	map.dmabuf = alloc.dmabuf;
-	rc = msm_vidc_memory_map(core, &map);
+	rc = call_mem_op(core, memory_map, core, &map);
 	if (rc) {
 		d_vpr_e("%s: alloc failed\n", __func__);
 		goto fail_alloc_queue;
@@ -582,7 +583,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	alloc.size = ALIGNED_SFR_SIZE;
 	alloc.secure = false;
 	alloc.map_kernel = true;
-	rc = msm_vidc_memory_alloc(core, &alloc);
+	rc = call_mem_op(core, memory_alloc, core, &alloc);
 	if (rc) {
 		d_vpr_e("%s: sfr alloc failed\n", __func__);
 		goto fail_alloc_queue;
@@ -594,7 +595,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	map.type = alloc.type;
 	map.region = alloc.region;
 	map.dmabuf = alloc.dmabuf;
-	rc = msm_vidc_memory_map(core, &map);
+	rc = call_mem_op(core, memory_map, core, &map);
 	if (rc) {
 		d_vpr_e("%s: sfr map failed\n", __func__);
 		goto fail_alloc_queue;

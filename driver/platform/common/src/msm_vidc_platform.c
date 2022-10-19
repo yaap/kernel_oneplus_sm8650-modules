@@ -15,6 +15,8 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
+#include "msm_vidc_memory.h"
+
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 #include "msm_vidc_waipio.h"
 #endif
@@ -185,6 +187,25 @@ static struct v4l2_m2m_ops msm_v4l2_m2m_ops = {
 	.job_abort                      = msm_v4l2_m2m_job_abort,
 };
 
+static struct msm_vidc_memory_ops msm_mem_ops = {
+	.dma_buf_attach                 = msm_vidc_dma_buf_attach,
+	.dma_buf_detach                 = msm_vidc_dma_buf_detach,
+	.dma_buf_map_attachment         = msm_vidc_dma_buf_map_attachment,
+	.dma_buf_unmap_attachment       = msm_vidc_dma_buf_unmap_attachment,
+	.memory_alloc                   = msm_vidc_memory_alloc,
+	.memory_free                    = msm_vidc_memory_free,
+	.memory_map                     = msm_vidc_memory_map,
+	.memory_unmap                   = msm_vidc_memory_unmap,
+	.buffer_region                  = msm_vidc_buffer_region,
+	.dma_buf_get                    = msm_vidc_dma_buf_get,
+	.dma_buf_put                    = msm_vidc_dma_buf_put,
+	.dma_buf_put_completely         = msm_vidc_dma_buf_put_completely,
+	.pools_init                     = msm_vidc_pools_init,
+	.pools_deinit                   = msm_vidc_pools_deinit,
+	.pool_alloc                     = msm_vidc_pool_alloc,
+	.pool_free                      = msm_vidc_pool_free,
+};
+
 static int msm_vidc_init_ops(struct msm_vidc_core *core)
 {
 	if (!core) {
@@ -201,6 +222,7 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	core->vb2_mem_ops = &msm_vb2_mem_ops;
 	core->media_device_ops = &msm_v4l2_media_ops;
 	core->v4l2_m2m_ops = &msm_v4l2_m2m_ops;
+	core->mem_ops = &msm_mem_ops;
 
 	return 0;
 }

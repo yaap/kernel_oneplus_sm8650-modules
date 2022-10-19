@@ -955,17 +955,4 @@ struct msm_vidc_sfr {
 	u8 rg_data[1];
 };
 
-#define call_mem_op(c, op, ...)			\
-	(((c) && (c)->mem_ops && (c)->mem_ops->op) ? \
-	((c)->mem_ops->op(__VA_ARGS__)) : 0)
-
-struct msm_vidc_memory_ops {
-	int (*allocate)(void *inst, struct msm_vidc_buffer *mbuf);
-	int (*dma_map)(void *inst, struct msm_vidc_buffer *mbuf);
-	int (*dma_unmap)(void *inst, struct msm_vidc_buffer *mbuf);
-	int (*free)(void *inst, struct msm_vidc_buffer *mbuf);
-	int (*cache_op)(void *inst, struct msm_vidc_buffer *mbuf,
-				enum msm_vidc_cache_op cache_op);
-};
-
 #endif // _MSM_VIDC_INTERNAL_H_

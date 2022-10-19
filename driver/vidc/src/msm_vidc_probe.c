@@ -354,28 +354,6 @@ exit:
 	return rc;
 }
 
-static struct context_bank_info *get_context_bank(
-	struct msm_vidc_core *core, struct device *dev)
-{
-	struct context_bank_info *cb = NULL, *match = NULL;
-
-	if (!core || !dev) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
-	venus_hfi_for_each_context_bank(core, cb) {
-		if (of_device_is_compatible(dev->of_node, cb->name)) {
-			match = cb;
-			break;
-		}
-	}
-	if (!match)
-		d_vpr_e("cb not found for dev %s\n", dev_name(dev));
-
-	return match;
-}
-
 static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	struct device *dev)
 {
@@ -387,7 +365,7 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 		return -EINVAL;
 	}
 
-	cb = get_context_bank(core, dev);
+	cb = msm_vidc_get_context_bank_for_device(core, dev);
 	if (!cb) {
 		d_vpr_e("%s: Failed to get context bank device for %s\n",
 			 __func__, dev_name(dev));

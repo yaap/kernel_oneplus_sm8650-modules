@@ -92,19 +92,12 @@ void *msm_vb2_attach_dmabuf(struct vb2_buffer *vb, struct device *dev,
 	}
 	buf->inst = inst;
 
-	buf->attach = msm_vidc_dma_buf_attach(dbuf, dev);
+	buf->attach = call_mem_op(core, dma_buf_attach, core, dbuf, dev);
 	if (!buf->attach) {
 		buf->attach = NULL;
 		buf = NULL;
 		goto exit;
 	}
-
-	buf->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-	buf->attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
-	if (is_sys_cache_present(core))
-		buf->attach->dma_map_attrs |=
-			DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
-
 	buf->dmabuf = dbuf;
 	print_vidc_buffer(VIDC_LOW, "low ", "attach", inst, buf);
 
@@ -129,6 +122,7 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 {
 	struct msm_vidc_buffer *vbuf = buf_priv;
 	struct msm_vidc_buffer *ro_buf, *dummy;
+	struct msm_vidc_core *core;
 	struct msm_vidc_inst *inst;
 
 	if (!vbuf || !vbuf->inst) {
@@ -141,6 +135,7 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
 	}
+	core = inst->core;
 
 	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
 		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
@@ -155,7 +150,7 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 
 	print_vidc_buffer(VIDC_LOW, "low ", "detach", inst, vbuf);
 	if (vbuf->attach && vbuf->dmabuf) {
-		msm_vidc_dma_buf_detach(vbuf->dmabuf, vbuf->attach);
+		call_mem_op(core, dma_buf_detach, core, vbuf->dmabuf, vbuf->attach);
 		vbuf->attach = NULL;
 		vbuf->dmabuf = NULL;
 		vbuf->inst = NULL;
@@ -171,6 +166,7 @@ int msm_vb2_map_dmabuf(void *buf_priv)
 {
 	int rc = 0;
 	struct msm_vidc_buffer *buf = buf_priv;
+	struct msm_vidc_core *core;
 	struct msm_vidc_inst *inst;
 
 	if (!buf || !buf->inst) {
@@ -183,20 +179,14 @@ int msm_vb2_map_dmabuf(void *buf_priv)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
-	buf->sg_table = msm_vidc_dma_buf_map_attachment(buf->attach);
-	if (!buf->sg_table) {
+	buf->sg_table = call_mem_op(core, dma_buf_map_attachment, core, buf->attach);
+	if (!buf->sg_table || !buf->sg_table->sgl) {
 		buf->sg_table = NULL;
 		rc = -ENOMEM;
 		goto exit;
 	}
-
-	if (!buf->sg_table->sgl) {
-		i_vpr_e(inst, "%s: sgl is NULL\n", __func__);
-		rc = -ENOMEM;
-		goto exit;
-	}
-
 	buf->device_addr = buf->sg_table->sgl->dma_address;
 	print_vidc_buffer(VIDC_HIGH, "high", "map", inst, buf);
 
@@ -211,6 +201,7 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 {
 	struct msm_vidc_buffer *vbuf = buf_priv;
 	struct msm_vidc_buffer *ro_buf, *dummy;
+	struct msm_vidc_core *core;
 	struct msm_vidc_inst *inst;
 
 	if (!vbuf || !vbuf->inst) {
@@ -223,6 +214,7 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
 	}
+	core = inst->core;
 
 	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
 		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
@@ -239,7 +231,7 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 
 	print_vidc_buffer(VIDC_HIGH, "high", "unmap", inst, vbuf);
 	if (vbuf->attach && vbuf->sg_table) {
-		msm_vidc_dma_buf_unmap_attachment(vbuf->attach, vbuf->sg_table);
+		call_mem_op(core, dma_buf_unmap_attachment, core, vbuf->attach, vbuf->sg_table);
 		vbuf->sg_table = NULL;
 		vbuf->device_addr = 0x0;
 	}
@@ -361,8 +353,8 @@ int msm_vidc_queue_setup(struct vb2_queue *q,
 		return rc;
 	}
 
-	region = msm_vidc_get_buffer_region(inst, buffer_type, __func__);
-	cb = msm_vidc_get_context_bank(core, region);
+	region = call_mem_op(core, buffer_region, inst, buffer_type);
+	cb = msm_vidc_get_context_bank_for_region(core, region);
 	if (!cb) {
 		d_vpr_e("%s: Failed to get context bank device\n",
 			 __func__);

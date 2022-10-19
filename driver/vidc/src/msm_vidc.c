@@ -21,6 +21,7 @@
 #include "msm_vidc_memory.h"
 #include "venus_hfi_response.h"
 #include "msm_vidc.h"
+#include "msm_vidc_platform.h"
 
 extern const char video_banner[];
 
@@ -910,7 +911,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	msm_vidc_update_debug_str(inst);
 	i_vpr_h(inst, "Opening video instance: %d\n", session_type);
 
-	rc = msm_memory_pools_init(inst);
+	rc = call_mem_op(core, pools_init, inst);
 	if (rc) {
 		i_vpr_e(inst, "%s: failed to init pool buffers\n", __func__);
 		msm_vidc_vmem_free((void **)&inst);
