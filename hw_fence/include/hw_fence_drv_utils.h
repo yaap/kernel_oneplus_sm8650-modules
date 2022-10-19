@@ -7,6 +7,24 @@
 #define __HW_FENCE_DRV_UTILS_H
 
 /**
+ * HW_FENCE_MAX_CLIENT_TYPE_STATIC:
+ * Total number of client types without configurable number of sub-clients (GFX, DPU, VAL, IPE, VPU)
+ */
+#define HW_FENCE_MAX_CLIENT_TYPE_STATIC 5
+
+/**
+ * HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE:
+ * Maximum number of client types with configurable number of sub-clients (e.g. IFE)
+ */
+#define HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE 8
+
+/**
+ * HW_FENCE_MAX_STATIC_CLIENTS_INDEX:
+ * Maximum number of static clients, i.e. clients without configurable numbers of sub-clients
+ */
+#define HW_FENCE_MAX_STATIC_CLIENTS_INDEX HW_FENCE_CLIENT_ID_IFE0
+
+/**
  * enum hw_fence_mem_reserve - Types of reservations for the carved-out memory.
  * HW_FENCE_MEM_RESERVE_CTRL_QUEUE: Reserve memory for the ctrl rx/tx queues.
  * HW_FENCE_MEM_RESERVE_LOCKS_REGION: Reserve memory for the per-client locks memory region.
@@ -18,6 +36,30 @@ enum hw_fence_mem_reserve {
 	HW_FENCE_MEM_RESERVE_LOCKS_REGION,
 	HW_FENCE_MEM_RESERVE_TABLE,
 	HW_FENCE_MEM_RESERVE_CLIENT_QUEUE
+};
+
+/**
+ * struct hw_fence_client_type_desc - Structure holding client type properties, including static
+ *                                    properties and client queue properties read from device-tree.
+ *
+ * @name: name of client type, used to parse properties from device-tree
+ * @init_id: initial client_id for given client type within the 'hw_fence_client_id' enum, e.g.
+ *           HW_FENCE_CLIENT_ID_CTL0 for DPU clients
+ * @max_clients_num: maximum number of clients of given client type
+ * @clients_num: number of clients of given client type
+ * @queues_num: number of queues per client of given client type; either one (for only Tx Queue) or
+ *              two (for both Tx and Rx Queues)
+ * @queue_entries: number of entries per client queue of given client type
+ * @mem_size: size of memory allocated for client queue(s) per client
+ */
+struct hw_fence_client_type_desc {
+	char *name;
+	enum hw_fence_client_id init_id;
+	u32 max_clients_num;
+	u32 clients_num;
+	u32 queues_num;
+	u32 queue_entries;
+	u32 mem_size;
 };
 
 /**
