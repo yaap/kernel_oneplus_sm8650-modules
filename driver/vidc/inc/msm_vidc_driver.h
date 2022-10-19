@@ -472,14 +472,6 @@ int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buf_type, u32 num_buffers);
 int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buf_type);
-int msm_vidc_unmap_driver_buf(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf);
-int msm_vidc_map_driver_buf(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf);
-int msm_vidc_get_delayed_unmap(struct msm_vidc_inst *inst,
-	struct msm_vidc_map *map);
-int msm_vidc_put_delayed_unmap(struct msm_vidc_inst *inst,
-	struct msm_vidc_map *map);
 void msm_vidc_update_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, enum msm_vidc_debugfs_event etype);
 void msm_vidc_stats_handler(struct work_struct *work);
