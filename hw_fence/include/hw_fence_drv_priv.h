@@ -35,8 +35,8 @@
 #define HW_FENCE_HFI_CTRL_HEADERS_SIZE (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
 			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * HW_FENCE_CTRL_QUEUES))
 
-#define HW_FENCE_HFI_CLIENT_HEADERS_SIZE (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
-			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * HW_FENCE_CLIENT_QUEUES))
+#define HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num) (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
+			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * queues_num))
 
 /*
  * Max Payload size is the bigest size of the message that we can have in the CTRL queue
@@ -231,6 +231,22 @@ struct msm_hw_fence_dbg_data {
 };
 
 /**
+ * struct hw_fence_client_queue_size_desc - Structure holding client queue properties for a client.
+ *
+ * @queues_num: number of client queues
+ * @queue_entries: number of queue entries per client queue
+ * @mem_size: size of memory allocated for client queues
+ * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
+ *                allocation for hw fence driver
+ */
+struct hw_fence_client_queue_size_desc {
+	u32 queues_num;
+	u32 queue_entries;
+	u32 mem_size;
+	u32 start_offset;
+};
+
+/**
  * struct hw_fence_driver_data - Structure holding internal hw-fence driver data
  *
  * @dev: device driver pointer
@@ -240,8 +256,7 @@ struct msm_hw_fence_dbg_data {
  * @hw_fence_queue_entries: total number of entries that can be available in the queue
  * @hw_fence_ctrl_queue_size: size of the ctrl queue for the payload
  * @hw_fence_mem_ctrl_queues_size: total size of ctrl queues, including: header + rxq + txq
- * @hw_fence_client_queue_size: size of the client queue for the payload
- * @hw_fence_mem_clients_queues_size: total size of client queues, including: header + rxq + txq
+ * @hw_fence_client_queue_size: descriptors of client queue properties for each hw fence client
  * @hw_fences_tbl: pointer to the hw-fences table
  * @hw_fences_tbl_cnt: number of elements in the hw-fence table
  * @client_lock_tbl: pointer to the per-client locks table
@@ -257,6 +272,7 @@ struct msm_hw_fence_dbg_data {
  * @peer_name: peer name for this carved-out memory
  * @rm_nb: hyp resource manager notifier
  * @memparcel: memparcel for the allocated memory
+ * @used_mem_size: total memory size of global table, lock region, and ctrl and client queues
  * @db_label: doorbell label
  * @rx_dbl: handle to the Rx doorbell
  * @debugfs_data: debugfs info
@@ -291,8 +307,7 @@ struct hw_fence_driver_data {
 	u32 hw_fence_ctrl_queue_size;
 	u32 hw_fence_mem_ctrl_queues_size;
 	/* client queues */
-	u32 hw_fence_client_queue_size;
-	u32 hw_fence_mem_clients_queues_size;
+	struct hw_fence_client_queue_size_desc hw_fence_client_queue_size[HW_FENCE_CLIENT_MAX];
 
 	/* HW Fences Table VA */
 	struct msm_hw_fence *hw_fences_tbl;
@@ -316,6 +331,7 @@ struct hw_fence_driver_data {
 	u32 peer_name;
 	struct notifier_block rm_nb;
 	u32 memparcel;
+	u32 used_mem_size;
 
 	/* doorbell */
 	u32 db_label;

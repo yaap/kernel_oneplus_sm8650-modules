@@ -46,8 +46,14 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 		payload_size = HW_FENCE_CTRL_QUEUE_PAYLOAD;
 		break;
 	case HW_FENCE_MEM_RESERVE_CLIENT_QUEUE:
-		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE;
-		queue_size = drv_data->hw_fence_client_queue_size;
+		if (client_id >= HW_FENCE_CLIENT_MAX) {
+			HWFNC_ERR("Invalid client_id: %d\n", client_id);
+			return -EINVAL;
+		}
+
+		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num);
+		queue_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD *
+			drv_data->hw_fence_client_queue_size[client_id].queue_entries;
 		payload_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD;
 		break;
 	default:
@@ -244,8 +250,10 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	u64 timestamp;
 	int ret = 0;
 
-	if (queue_type >= HW_FENCE_CLIENT_QUEUES) {
-		HWFNC_ERR("Invalid queue type:%s\n", queue_type);
+	if (queue_type >=
+		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num) {
+		HWFNC_ERR("Invalid queue type:%s client_id:%d\n", queue_type,
+			hw_fence_client->client_id);
 		return -EINVAL;
 	}
 
@@ -526,7 +534,8 @@ int hw_fence_alloc_client_resources(struct hw_fence_driver_data *drv_data,
 	/* Init client queues */
 	ret = init_hw_fences_queues(drv_data, HW_FENCE_MEM_RESERVE_CLIENT_QUEUE,
 		&hw_fence_client->mem_descriptor, hw_fence_client->queues,
-		HW_FENCE_CLIENT_QUEUES, hw_fence_client->client_id);
+		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num,
+		hw_fence_client->client_id);
 	if (ret) {
 		HWFNC_ERR("Failure to init the queue for client:%d\n",
 			hw_fence_client->client_id);
@@ -549,7 +558,7 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	/*
 	 * Initialize IPCC Signals for this client
 	 *
-	 * NOTE: Fore each Client HW-Core, the client drivers might be the ones making
+	 * NOTE: For each Client HW-Core, the client drivers might be the ones making
 	 * it's own initialization (in case that any hw-sequence must be enforced),
 	 * however, if that is  not the case, any per-client ipcc init to enable the
 	 * signaling, can go here.

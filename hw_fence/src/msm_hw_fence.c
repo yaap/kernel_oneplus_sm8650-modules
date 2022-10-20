@@ -74,6 +74,14 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 	}
 
 	hw_fence_client->update_rxq = hw_fence_ipcc_needs_rxq_update(hw_fence_drv_data, client_id);
+	if (hw_fence_client->update_rxq &&
+			hw_fence_drv_data->hw_fence_client_queue_size[client_id].queues_num <
+			HW_FENCE_CLIENT_QUEUES) {
+		HWFNC_ERR("Cannot update rx queue for tx queue-only client:%d\n", client_id);
+		ret = -EINVAL;
+		goto error;
+	}
+
 	hw_fence_client->send_ipc = hw_fence_ipcc_needs_ipc_irq(hw_fence_drv_data, client_id);
 
 	/* Alloc Client HFI Headers and Queues */
