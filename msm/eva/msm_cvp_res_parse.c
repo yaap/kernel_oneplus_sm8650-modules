@@ -1019,8 +1019,10 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 		msm_cvp_print_inst_bufs(inst, log);
 	}
 	hdev = core->device->hfi_device_data;
-	if (hdev)
+	if (hdev) {
 		hdev->error = CVP_ERR_NOC_ERROR;
+		call_hfi_op(core->device, debug_hook, hdev);
+	}
 	mutex_unlock(&core->lock);
 	/*
 	 * Return -EINVAL to elicit the default behaviour of smmu driver.

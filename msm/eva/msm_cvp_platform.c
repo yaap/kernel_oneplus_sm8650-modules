@@ -247,7 +247,7 @@ static struct msm_cvp_common_data sm8650_common_data[] = {
 	},
 	{
 		.key = "qcom,dsp-enabled",
-		.value = 0,	/* Disable during initial stage for Rumi 48 bringup */
+		.value = 1,
 	}
 };
 

@@ -241,6 +241,7 @@ struct msm_cvp_hfi_defs {
 	unsigned int size;
 	unsigned int type;
 	bool is_config_pkt;
+	bool checksum_enabled;
 	enum hal_command_response resp;
 	char name[PKT_NAME_LEN];
 };
@@ -270,6 +271,7 @@ struct cvp_hfi_device {
 	int (*noc_error_info)(void *dev);
 	int (*validate_session)(void *sess, const char *func);
 	int (*pm_qos_update)(void *device);
+	int (*debug_hook)(void *device);
 };
 
 typedef void (*hfi_cmd_response_callback) (enum hal_command_response cmd,

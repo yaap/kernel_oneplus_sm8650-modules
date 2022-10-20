@@ -211,7 +211,7 @@ int msm_cvp_map_smem(struct msm_cvp_inst *inst,
 	int i, rc = 0;
 
 	dma_addr_t iova = 0;
-	u32 temp = 0;
+	u32 temp = 0, checksum = 0;
 	u32 align = SZ_4K;
 	struct dma_buf *dma_buf;
 	bool is_config_pkt = false;
@@ -262,6 +262,20 @@ int msm_cvp_map_smem(struct msm_cvp_inst *inst,
 		/* User persist buffer has no feature config info */
 		is_config_pkt = cvp_hfi_defs[i].is_config_pkt;
 
+	if (i > 0 && cvp_hfi_defs[i].checksum_enabled) {
+		dma_buf_begin_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
+		smem->kvaddr = __cvp_dma_buf_vmap(dma_buf);
+		if (!smem->kvaddr) {
+			dprintk(CVP_WARN, "%s Fail map into kernel\n",
+					__func__);
+			dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
+		} else {
+			for (i = 0; i < 256; i++)
+				checksum += *(u32 *)(smem->kvaddr + i*sizeof(u32));
+			dprintk(CVP_MEM, "Map checksum %#x fd=%d\n",
+				checksum, smem->fd);
+		}
+	}
 	print_smem(CVP_MEM, str, inst, smem);
 	atomic_inc(&inst->smem_count);
 	goto success;
@@ -277,7 +291,9 @@ int msm_cvp_unmap_smem(struct msm_cvp_inst *inst,
 		struct msm_cvp_smem *smem,
 		const char *str)
 {
-	int rc = 0;
+	int i, rc = 0;
+	u32 checksum = 0;
+	struct dma_buf *dma_buf;
 
 	if (!smem) {
 		dprintk(CVP_ERR, "%s: Invalid params: %pK\n", __func__, smem);
@@ -286,6 +302,23 @@ int msm_cvp_unmap_smem(struct msm_cvp_inst *inst,
 	}
 
 	print_smem(CVP_MEM, str, inst, smem);
+	dma_buf = smem->dma_buf;
+	i = get_pkt_index_from_type(smem->pkt_type);
+	if (i > 0 && cvp_hfi_defs[i].checksum_enabled) {
+		if (!smem->kvaddr) {
+			dprintk(CVP_WARN, "%s DS buf Fail map into kernel\n",
+					__func__);
+			dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
+		} else {
+			for (i = 0; i < 256; i++)
+				checksum += *(u32 *)(smem->kvaddr + i*sizeof(u32));
+			dprintk(CVP_MEM, "Unmap checksum %#x fd=%d\n",
+				checksum, smem->fd);
+			__cvp_dma_buf_vunmap(dma_buf, smem->kvaddr);
+			smem->kvaddr = 0;
+			dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
+		}
+	}
 	rc = msm_dma_put_device_address(smem->flags, &smem->mapping_info);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to put device address: %d\n", rc);

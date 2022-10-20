@@ -2298,6 +2298,43 @@ static int iris_hfi_session_clean(void *session)
 	return 0;
 }
 
+static int iris_debug_hook(void *device)
+{
+	struct iris_hfi_device *dev = device;
+	u32 val;
+
+	if (!device) {
+		dprintk(CVP_ERR, "%s Invalid device\n", __func__);
+		return -ENODEV;
+	}
+#define CVP0_CVP_SS_FDU_SECURE_ENABLE 0x90
+#define CVP0_CVP_SS_MPU_SECURE_ENABLE 0x94
+#define CVP0_CVP_SS_ARP_THREAD_0_SECURE_ENABLE 0xA0
+#define CVP0_CVP_SS_ARP_THREAD_1_SECURE_ENABLE 0xA4
+#define CVP0_CVP_SS_ARP_THREAD_2_SECURE_ENABLE 0xA8
+#define CVP0_CVP_SS_ARP_THREAD_3_SECURE_ENABLE 0xAC
+
+	val = __read_register(dev, CVP0_CVP_SS_FDU_SECURE_ENABLE);
+	dprintk(CVP_ERR, "FDU_SECURE_ENABLE %#x\n", val);
+
+	val = __read_register(dev, CVP0_CVP_SS_MPU_SECURE_ENABLE);
+	dprintk(CVP_ERR, "MPU_SECURE_ENABLE %#x\n", val);
+
+	val = __read_register(dev, CVP0_CVP_SS_ARP_THREAD_0_SECURE_ENABLE);
+	dprintk(CVP_ERR, "ARP_THREAD_0_SECURE_ENABLE %#x\n", val);
+
+	val = __read_register(dev, CVP0_CVP_SS_ARP_THREAD_1_SECURE_ENABLE);
+	dprintk(CVP_ERR, "ARP_THREAD_1_SECURE_ENABLE %#x\n", val);
+
+	val = __read_register(dev, CVP0_CVP_SS_ARP_THREAD_2_SECURE_ENABLE);
+	dprintk(CVP_ERR, "ARP_THREAD_2_SECURE_ENABLE %#x\n", val);
+
+	val = __read_register(dev, CVP0_CVP_SS_ARP_THREAD_3_SECURE_ENABLE);
+	dprintk(CVP_ERR, "ARP_THREAD_3_SECURE_ENABLE %#x\n", val);
+
+	return 0;
+}
+
 static int iris_hfi_session_init(void *device, void *session_id,
 		void **new_session)
 {
@@ -4870,6 +4907,7 @@ static void iris_init_hfi_callbacks(struct cvp_hfi_device *hdev)
 	hdev->noc_error_info = iris_hfi_noc_error_info;
 	hdev->validate_session = iris_hfi_validate_session;
 	hdev->pm_qos_update = iris_pm_qos_update;
+	hdev->debug_hook = iris_debug_hook;
 }
 
 int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev, u32 device_id,
