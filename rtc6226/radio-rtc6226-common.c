@@ -1309,7 +1309,8 @@ void rtc6226_rds_handler(struct work_struct *worker)
 	case RDS_TYPE_0A:
 		if (radio->bler[2] <= CORRECTED_THREE_TO_FIVE)
 			rtc6226_update_af_list(radio);
-		/*  fall through */
+		/* fall through */
+		fallthrough;
 	case RDS_TYPE_0B:
 		addr = (radio->block[1] & PS_MASK) * NO_OF_CHARS_IN_EACH_ADD;
 		FMDBG("%s RDS is PS\n", __func__);

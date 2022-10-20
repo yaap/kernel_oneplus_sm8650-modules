@@ -259,7 +259,7 @@ static int btfm_slim_dai_set_channel_map(struct snd_soc_dai *dai,
 		 * get channel handler from slimbus driver
 		*/
 		rx_chs->ch = *(uint8_t *)(rx_slot + i);
-		BTFMSLIM_DBG("    %d\t%s\t%d\t%x\t%d\t%x", rx_chs->id,
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%d\t", rx_chs->id,
 			rx_chs->name, rx_chs->port, rx_chs->ch);
 	}
 
@@ -270,7 +270,7 @@ static int btfm_slim_dai_set_channel_map(struct snd_soc_dai *dai,
 		 * get channel handler from slimbus driver
 		*/
 		tx_chs->ch = *(uint8_t *)(tx_slot + i);
-	BTFMSLIM_DBG("    %d\t%s\t%d\t%x\t%d\t%x", tx_chs->id,
+	BTFMSLIM_DBG("    %d\t%s\t%d\t%d\t", tx_chs->id,
 			tx_chs->name, tx_chs->port, tx_chs->ch);
 	}
 
@@ -291,6 +291,8 @@ static int btfm_slim_dai_get_channel_map(struct snd_soc_dai *dai,
 	switch (dai->id) {
 	case BTFM_FM_SLIM_TX:
 		num = 2;
+		/* fall through */
+		fallthrough;
 	case BTFM_BT_SCO_SLIM_TX:
 		if (!tx_slot || !tx_num) {
 			BTFMSLIM_ERR("Invalid tx_slot %p or tx_num %p",

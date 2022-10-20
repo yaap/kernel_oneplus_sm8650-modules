@@ -74,7 +74,6 @@ struct btpower_platform_data {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	const char *vreg_ipa;
-	bool is_converged_dt;
 	int pdc_init_table_len;
 	const char **pdc_init_table;
 	int bt_device_type;

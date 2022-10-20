@@ -30,7 +30,6 @@
 #include "btfm_slim.h"
 #endif
 #include <linux/fs.h>
-#include "cnss_utils.h"
 
 #define PWR_SRC_NOT_AVAILABLE -2
 #define DEFAULT_INVALID_VALUE -1
@@ -77,6 +76,7 @@ enum power_src_pos {
 	BT_VDD_LDO,
 	BT_VDD_RFA_0p8,
 	BT_VDD_RFACMN,
+	BT_VDD_ANT_LDO,
 	// these indexes GPIOs/regs value are fetched during crash.
 	BT_RESET_GPIO_CURRENT,
 	BT_SW_CTRL_GPIO_CURRENT,
@@ -94,6 +94,7 @@ enum power_src_pos {
 	BT_VDD_RFACMN_CURRENT,
 	BT_VDD_IPA_2p2,
 	BT_VDD_IPA_2p2_CURRENT,
+	BT_VDD_ANT_LDO_CURRENT,
 	/* The below bucks are voted for HW WAR on some platform which supports
 	 * WNC39xx.
 	 */
@@ -142,6 +143,8 @@ static struct bt_power_vreg_data bt_vregs_info_qca6xx0[] = {
 // Regulator structure for kiwi BT SoC series
 static struct bt_power_vreg_data bt_vregs_info_kiwi[] = {
 	{NULL, "qcom,bt-vdd18-aon",      1800000, 1800000, 0, false, true,
+		{BT_VDD_LDO, BT_VDD_LDO_CURRENT}},
+	{NULL, "qcom,bt-vdd12-io",      1200000, 1200000, 0, false, true,
 		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-aon",     950000,  950000,  0, false, true,
 		{BT_VDD_AON_LDO, BT_VDD_AON_LDO_CURRENT}},
@@ -156,6 +159,8 @@ static struct bt_power_vreg_data bt_vregs_info_kiwi[] = {
 		{BT_VDD_RFA1_LDO, BT_VDD_RFA1_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-rfa2",     1900000, 1900000, 0, false, true,
 		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
+	{NULL, "qcom,bt-ant-ldo",  1776000, 1776000, 0, false, true,
+		{BT_VDD_ANT_LDO, BT_VDD_ANT_LDO_CURRENT}},
 };
 
 // Regulator structure for WCN399x BT SoC series
@@ -976,27 +981,11 @@ static void bt_power_vreg_put(void)
 static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 {
 	int rc;
-	struct device_node *child;
 	pr_debug("%s\n", __func__);
 
 	if (!bt_power_pdata)
 		return -ENOMEM;
 
-	if (bt_power_pdata->is_converged_dt) {
-		for_each_available_child_of_node(pdev->dev.of_node, child) {
-			if (bt_power_pdata->bt_device_type == CNSS_HSP_DEVICE_TYPE ) {
-				if (strcmp(child->name, "bt_qca6490"))
-					continue;
-				pr_info("%s: bt_qca6490 device node found", __func__);
-			} else if (bt_power_pdata->bt_device_type == CNSS_HMT_DEVICE_TYPE) {
-				if (strcmp(child->name, "bt_kiwi"))
-					continue;
-				pr_info("%s: bt_kiwi device node found", __func__);
-			}
-			pdev->dev.of_node = child;
-			break;
-		}
-	}
 	if (pdev->dev.of_node) {
 		rc = bt_power_vreg_get(pdev);
 		if (rc)
@@ -1062,11 +1051,6 @@ static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 	return 0;
 }
 
-static inline bool bt_is_converged_dt(struct platform_device *plat_dev)
-{
-	return of_property_read_bool(plat_dev->dev.of_node, "qcom,converged-dt");
-}
-
 static void bt_power_pdc_init_params (struct btpower_platform_data *pdata)
 {
 	int ret;
@@ -1090,7 +1074,6 @@ static void bt_power_pdc_init_params (struct btpower_platform_data *pdata)
 static int bt_power_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	unsigned int gpio_value;
 	int itr;
 
 	pr_debug("%s\n", __func__);
@@ -1108,26 +1091,6 @@ static int bt_power_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	bt_power_pdata->pdev = pdev;
-        bt_power_pdata->is_converged_dt = bt_is_converged_dt(pdev);
-	if (bt_power_pdata->is_converged_dt) {
-		if (of_find_property(pdev->dev.of_node, WLAN_SW_CTRL_GPIO, NULL)) {
-			bt_power_pdata->wlan_sw_ctrl_gpio =
-				of_get_named_gpio(pdev->dev.of_node, WLAN_SW_CTRL_GPIO,0);
-			pr_debug("WLAN Switch control GPIO: %d\n",
-					bt_power_pdata->wlan_sw_ctrl_gpio);
-		} else {
-			bt_power_pdata->wlan_sw_ctrl_gpio = -EINVAL;
-		}
-		gpio_value = gpio_get_value(bt_power_pdata->wlan_sw_ctrl_gpio);
-		pr_info("%s:WLAN_SW_CNTRL_GPIO value= %d\n", __func__, gpio_value);
-		if(gpio_value) {
-			bt_power_pdata->bt_device_type =
-				cnss_utils_update_device_type(CNSS_HSP_DEVICE_TYPE);
-		} else {
-			bt_power_pdata->bt_device_type =
-				cnss_utils_update_device_type(CNSS_HMT_DEVICE_TYPE);
-		}
-	}
 
 	if (pdev->dev.of_node) {
 		ret = bt_power_populate_dt_pinfo(pdev);
