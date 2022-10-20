@@ -17,24 +17,33 @@
 struct hw_fence_driver_data *hw_fence_drv_data;
 static bool hw_fence_driver_enable;
 
-void *msm_hw_fence_register(enum hw_fence_client_id client_id,
+void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	struct msm_hw_fence_mem_addr *mem_descriptor)
 {
 	struct msm_hw_fence_client *hw_fence_client;
+	enum hw_fence_client_id client_id;
 	int ret;
 
-	HWFNC_DBG_H("++ client_id:%d\n", client_id);
+	HWFNC_DBG_H("++ client_id_ext:%d\n", client_id_ext);
 
 	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
 		HWFNC_ERR("hw fence driver not ready\n");
 		return ERR_PTR(-EAGAIN);
 	}
 
-	if (!mem_descriptor || client_id >= HW_FENCE_CLIENT_MAX) {
-		HWFNC_ERR("Invalid params: %d client_id:%d\n",
-			!mem_descriptor, client_id);
+	if (!mem_descriptor || client_id_ext >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid params: %d client_id_ext:%d\n",
+			!mem_descriptor, client_id_ext);
 		return ERR_PTR(-EINVAL);
 	}
+
+	client_id = hw_fence_utils_get_client_id_priv(hw_fence_drv_data, client_id_ext);
+	if (client_id >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid params: client_id:%d client_id_ext:%d\n",
+			client_id, client_id_ext);
+		return ERR_PTR(-EINVAL);
+	}
+
 	/* Alloc client handle */
 	hw_fence_client =  kzalloc(sizeof(*hw_fence_client), GFP_KERNEL);
 	if (!hw_fence_client)
@@ -54,6 +63,7 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id,
 	mutex_unlock(&hw_fence_drv_data->clients_register_lock);
 
 	hw_fence_client->client_id = client_id;
+	hw_fence_client->client_id_ext = client_id_ext;
 	hw_fence_client->ipc_client_vid =
 		hw_fence_ipcc_get_client_virt_id(hw_fence_drv_data, client_id);
 	hw_fence_client->ipc_client_pid =
@@ -132,7 +142,7 @@ int msm_hw_fence_deregister(void *client_handle)
 	}
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 
-	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_MAX) {
+	if (hw_fence_client->client_id >= hw_fence_drv_data->clients_num) {
 		HWFNC_ERR("Invalid client_id:%d\n", hw_fence_client->client_id);
 		return -EINVAL;
 	}
@@ -257,7 +267,7 @@ int msm_hw_fence_destroy_with_handle(void *client_handle, u64 handle)
 	}
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 
-	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_MAX) {
+	if (hw_fence_client->client_id >= hw_fence_drv_data->clients_num) {
 		HWFNC_ERR("Invalid client_id:%d\n", hw_fence_client->client_id);
 		return -EINVAL;
 	}
@@ -302,6 +312,12 @@ int msm_hw_fence_wait_update_v2(void *client_handle,
 	if (client_data_list && data_id >= HW_FENCE_MAX_CLIENTS_WITH_DATA) {
 		HWFNC_ERR("Populating non-NULL client_data_list with unsupported client id:%d\n",
 			hw_fence_client->client_id);
+		return -EINVAL;
+	}
+
+	if (hw_fence_client->client_id > hw_fence_drv_data->rxq_clients_num) {
+		HWFNC_ERR("Transmit-only client client_id:%d client_id_ext:%d register for wait\n",
+			hw_fence_client->client_id, hw_fence_client->client_id_ext);
 		return -EINVAL;
 	}
 
@@ -380,10 +396,19 @@ int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags)
 }
 EXPORT_SYMBOL(msm_hw_fence_reset_client);
 
-int msm_hw_fence_reset_client_by_id(enum hw_fence_client_id client_id, u32 reset_flags)
+int msm_hw_fence_reset_client_by_id(enum hw_fence_client_id client_id_ext, u32 reset_flags)
 {
+	enum hw_fence_client_id client_id;
+
+	if (client_id_ext >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid client_id_ext:%d\n", client_id_ext);
+		return -EINVAL;
+	}
+
+	client_id = hw_fence_utils_get_client_id_priv(hw_fence_drv_data, client_id_ext);
+
 	if (client_id >= HW_FENCE_CLIENT_MAX) {
-		HWFNC_ERR("Invalid client_id:%d\n", client_id);
+		HWFNC_ERR("Invalid client_id:%d client_id_ext:%d\n", client_id, client_id_ext);
 		return -EINVAL;
 	}
 

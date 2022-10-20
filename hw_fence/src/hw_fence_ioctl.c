@@ -132,9 +132,9 @@ static bool _is_valid_client(struct hw_sync_obj *obj)
 	if (!obj)
 		return false;
 
-	if (obj->client_id < HW_FENCE_CLIENT_ID_VAL0 || obj->client_id >= HW_FENCE_CLIENT_MAX) {
+	if (obj->client_id < HW_FENCE_CLIENT_ID_VAL0 || obj->client_id > HW_FENCE_CLIENT_ID_VAL6) {
 		HWFNC_ERR("invalid client_id:%d min:%d max:%d\n", obj->client_id,
-				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_MAX);
+				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_ID_VAL6);
 		return false;
 	}
 
@@ -151,9 +151,9 @@ static int _get_client_id(struct hw_sync_obj *obj, unsigned long arg)
 	if (!obj)
 		return -EINVAL;
 
-	if (client_id < HW_FENCE_CLIENT_ID_VAL0 || client_id >= HW_FENCE_CLIENT_MAX) {
+	if (client_id < HW_FENCE_CLIENT_ID_VAL0 || client_id > HW_FENCE_CLIENT_ID_VAL6) {
 		HWFNC_ERR("invalid client_id:%d min:%d max:%d\n", client_id,
-				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_MAX);
+				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_ID_VAL6);
 		return -EINVAL;
 	}
 

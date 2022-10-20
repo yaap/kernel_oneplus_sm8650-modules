@@ -46,7 +46,7 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 		payload_size = HW_FENCE_CTRL_QUEUE_PAYLOAD;
 		break;
 	case HW_FENCE_MEM_RESERVE_CLIENT_QUEUE:
-		if (client_id >= HW_FENCE_CLIENT_MAX) {
+		if (client_id >= drv_data->clients_num) {
 			HWFNC_ERR("Invalid client_id: %d\n", client_id);
 			return -EINVAL;
 		}
@@ -563,7 +563,7 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	 * however, if that is  not the case, any per-client ipcc init to enable the
 	 * signaling, can go here.
 	 */
-	switch (hw_fence_client->client_id) {
+	switch ((int)hw_fence_client->client_id) {
 	case HW_FENCE_CLIENT_ID_CTX0:
 		/* nothing to initialize for gpu client */
 		break;
@@ -595,6 +595,16 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 			hw_fence_ipcc_enable_dpu_signaling(drv_data);
 		}
 #endif /* HW_DPU_IPCC */
+		break;
+	case HW_FENCE_CLIENT_ID_IPE:
+		/* nothing to initialize for IPE client */
+		break;
+	case HW_FENCE_CLIENT_ID_VPU:
+		/* nothing to initialize for VPU client */
+		break;
+	case HW_FENCE_CLIENT_ID_IFE0 ... HW_FENCE_CLIENT_ID_IFE7 +
+			MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - 1:
+		/* nothing to initialize for IFE clients */
 		break;
 	default:
 		HWFNC_ERR("Unexpected client:%d\n", hw_fence_client->client_id);
@@ -1397,7 +1407,7 @@ static void _signal_all_wait_clients(struct hw_fence_driver_data *drv_data,
 	u64 client_data = 0;
 
 	/* signal with an error all the waiting clients for this fence */
-	for (wait_client_id = 0; wait_client_id < HW_FENCE_CLIENT_MAX; wait_client_id++) {
+	for (wait_client_id = 0; wait_client_id <= drv_data->rxq_clients_num; wait_client_id++) {
 		if (hw_fence->wait_client_mask & BIT(wait_client_id)) {
 			hw_fence_wait_client = drv_data->clients[wait_client_id];
 			data_id = hw_fence_get_client_data_id(wait_client_id);
@@ -1465,6 +1475,12 @@ enum hw_fence_client_data_id hw_fence_get_client_data_id(enum hw_fence_client_id
 		break;
 	case HW_FENCE_CLIENT_ID_VAL1:
 		data_id = HW_FENCE_CLIENT_DATA_ID_VAL1;
+		break;
+	case HW_FENCE_CLIENT_ID_IPE:
+		data_id = HW_FENCE_CLIENT_DATA_ID_IPE;
+		break;
+	case HW_FENCE_CLIENT_ID_VPU:
+		data_id = HW_FENCE_CLIENT_DATA_ID_VPU;
 		break;
 	default:
 		data_id = HW_FENCE_MAX_CLIENTS_WITH_DATA;

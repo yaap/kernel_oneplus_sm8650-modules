@@ -111,4 +111,21 @@ int hw_fence_utils_cleanup_fence(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client, struct msm_hw_fence *hw_fence, u64 hash,
 	u32 reset_flags);
 
+/**
+ * hw_fence_utils_get_client_id_priv() - Gets the index into clients struct within hw fence driver
+ *                                       from the client_id used externally
+ *
+ * Performs a 1-to-1 mapping for all client IDs less than HW_FENCE_MAX_STATIC_CLIENTS_INDEX,
+ * otherwise consolidates client IDs of clients with configurable number of sub-clients. Fails if
+ * provided with client IDs for such clients when support for those clients is not configured in
+ * device-tree.
+ *
+ * @drv_data: hw fence driver data
+ * @client_id: external client_id to get internal client_id for
+ *
+ * Returns client_id < drv_data->clients_num if success, otherwise returns HW_FENCE_CLIENT_MAX
+ */
+enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver_data *drv_data,
+	enum hw_fence_client_id client_id);
+
 #endif /* __HW_FENCE_DRV_UTILS_H */
