@@ -853,7 +853,6 @@ struct msm_vidc_map {
 	u64                         device_addr;
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
-	u32                         skip_delayed_unmap:1;
 };
 
 struct msm_vidc_mappings {

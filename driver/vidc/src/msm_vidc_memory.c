@@ -215,13 +215,11 @@ int msm_vidc_memory_map(struct msm_vidc_core *core, struct msm_vidc_map *map)
 		goto error_attach;
 	}
 
-	if (!map->skip_delayed_unmap) {
-		/*
-		 * Get the scatterlist for the given attachment
-		 * Mapping of sg is taken care by map attachment
-		 */
-		attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
-	}
+	/*
+	 * Get the scatterlist for the given attachment
+	 * Mapping of sg is taken care by map attachment
+	 */
+	attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
 
 	/*
 	 * We do not need dma_map function to perform cache operations
