@@ -917,6 +917,10 @@ struct adreno_gpudev {
 	 * @context_destroy: Target specific function called during context destruction
 	 */
 	void (*context_destroy)(struct adreno_device *adreno_dev, struct adreno_context *drawctxt);
+	/**
+	 * @swfuse_irqctrl: To enable/disable sw fuse violation interrupt
+	 */
+	void (*swfuse_irqctrl)(struct adreno_device *adreno_dev, bool state);
 };
 
 /**

@@ -1700,6 +1700,7 @@ static void adreno_hwsched_reset_and_snapshot_legacy(struct adreno_device *adren
 	if ((context->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
 		(context->flags & KGSL_CONTEXT_NO_FAULT_TOLERANCE) ||
 		(cmd->error == GMU_GPU_SW_HANG) ||
+		(cmd->error == GMU_GPU_SW_FUSE_VIOLATION) ||
 		context_is_throttled(device, context)) {
 		adreno_drawctxt_set_guilty(device, context);
 	}
@@ -1781,6 +1782,7 @@ static void adreno_hwsched_reset_and_snapshot(struct adreno_device *adreno_dev, 
 		if ((context->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
 			(context->flags & KGSL_CONTEXT_NO_FAULT_TOLERANCE) ||
 			(cmd->error == GMU_GPU_SW_HANG) ||
+			(cmd->error == GMU_GPU_SW_FUSE_VIOLATION) ||
 			context_is_throttled(device, context))
 			adreno_drawctxt_set_guilty(device, context);
 		/*
@@ -1795,6 +1797,7 @@ static void adreno_hwsched_reset_and_snapshot(struct adreno_device *adreno_dev, 
 		if ((context_lpac->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
 			(context_lpac->flags & KGSL_CONTEXT_NO_FAULT_TOLERANCE) ||
 			(cmd->error == GMU_GPU_SW_HANG) ||
+			(cmd->error == GMU_GPU_SW_FUSE_VIOLATION) ||
 			context_is_throttled(device, context_lpac))
 			adreno_drawctxt_set_guilty(device, context_lpac);
 		/*

@@ -344,6 +344,11 @@ static void log_gpu_fault_legacy(struct adreno_device *adreno_dev)
 	case GMU_CP_BV_UCODE_ERROR:
 		dev_crit_ratelimited(dev, "CP BV ucode error interrupt\n");
 		break;
+	case GMU_GPU_SW_FUSE_VIOLATION:
+		dev_crit_ratelimited(dev, "RBBM: SW Feature Fuse violation status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value_legacy(adreno_dev, PAYLOAD_FAULT_REGS,
+				KEY_SWFUSE_VIOLATION_FAULT));
+		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
 	default:
@@ -534,6 +539,11 @@ static void log_gpu_fault(struct adreno_device *adreno_dev)
 	case GMU_GPU_LPAC_SW_HANG:
 		dev_crit_ratelimited(dev, "LPAC: gpu timeout ctx %d ts %d\n",
 			cmd->lpac.ctxt_id, cmd->lpac.ts);
+		break;
+	case GMU_GPU_SW_FUSE_VIOLATION:
+		dev_crit_ratelimited(dev, "RBBM: SW Feature Fuse violation status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value(adreno_dev, PAYLOAD_FAULT_REGS,
+				KEY_SWFUSE_VIOLATION_FAULT));
 		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
