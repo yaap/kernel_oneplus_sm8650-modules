@@ -1072,9 +1072,16 @@ static void _cleanup_join_and_child_fences(struct hw_fence_driver_data *drv_data
 	int idx, j;
 	u64 hash = 0;
 
+	if (!array->fences)
+		goto destroy_fence;
+
 	/* cleanup the child-fences from the parent join-fence */
 	for (idx = iteration; idx >= 0; idx--) {
 		child_fence = array->fences[idx];
+		if (!child_fence) {
+			HWFNC_ERR("invalid child fence idx:%d\n", idx);
+			continue;
+		}
 
 		hw_fence_child = msm_hw_fence_find(drv_data, hw_fence_client, child_fence->context,
 			child_fence->seqno, &hash);
@@ -1113,6 +1120,7 @@ static void _cleanup_join_and_child_fences(struct hw_fence_driver_data *drv_data
 		GLOBAL_ATOMIC_STORE(drv_data, &hw_fence_child->lock, 0); /* unlock */
 	}
 
+destroy_fence:
 	/* destroy join fence */
 	_hw_fence_process_join_fence(drv_data, hw_fence_client, array, &hash_join_fence,
 		false);
@@ -1230,6 +1238,15 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 		 */
 		_hw_fence_process_join_fence(drv_data, hw_fence_client, array, &hash_join_fence,
 			false);
+	} else if (!array->num_fences) {
+		/*
+		 * if we didn't signal the join-fence and the number of fences is not set in
+		 * the fence-array, then fail here, otherwise driver would create a join-fence
+		 * with no-childs that won't be signaled at all or an incomplete join-fence
+		 */
+		HWFNC_ERR("invalid fence-array ctx:%llu seqno:%llu without fences\n",
+			array->base.context, array->base.seqno);
+		goto error_array;
 	}
 
 	return ret;
