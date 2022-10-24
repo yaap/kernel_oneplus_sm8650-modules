@@ -361,7 +361,7 @@ static int _hw_fence_ipcc_hwrev_init(struct hw_fence_driver_data *drv_data, u32 
 	case HW_FENCE_IPCC_HW_REV_203:
 		drv_data->ipcc_client_vid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
 		drv_data->ipcc_client_pid = HW_FENCE_IPC_CLIENT_ID_APPS_PID;
-		drv_data->protocol_id = HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_PINEAPPLE; /* Fence */
+		drv_data->protocol_id = HW_FENCE_IPC_FENCE_PROTOCOL_ID_PINEAPPLE; /* Fence */
 		ret = _hw_fence_ipcc_init_map_with_configurable_clients(drv_data,
 			hw_fence_clients_ipc_map_v2);
 		HWFNC_DBG_INIT("ipcc protocol_id: Pineapple\n");
