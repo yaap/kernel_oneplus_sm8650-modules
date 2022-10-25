@@ -1,4 +1,5 @@
 # Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published by
@@ -24,6 +25,10 @@ def run_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
         print('error: expected prefix [%s] on header [%s]' % (prefix, h))
         return False
 
+    # out_h is combining the relative path to the header file (made in gen_smcinvoke_headers()) to the gen_dir out/soong/.temp/sbox/<temp hash value>/out/
+    # ex. out/soong/.temp/sbox/<temp hash value>/out/linux/smcinvoke.h
+    # After the build is complete, you can find the headers that you exposed located in the following gen path:
+    # out/soong/.intermediates/.../qti_generate_smcinvoke_kernel_headers/gen/
     out_h = os.path.join(gen_dir, h[len(prefix):])
     (out_h_dirname, out_h_basename) = os.path.split(out_h)
     env = os.environ.copy()
@@ -40,17 +45,19 @@ def run_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
         return False
     return True
 
-def gen_audio_headers(verbose, gen_dir, headers_install, unifdef, audio_include_uapi):
+def gen_smcinvoke_headers(verbose, gen_dir, headers_install, unifdef, smcinvoke_headers_to_expose):
     error_count = 0
-    for h in audio_include_uapi:
-        audio_uapi_include_prefix = os.path.join(h.split('/include/uapi/')[0],
-                                                 'include',
-                                                 'uapi',
-                                                 'audio') + os.sep
-
-        if not run_headers_install(
-                verbose, gen_dir, headers_install, unifdef,
-                audio_uapi_include_prefix, h): error_count += 1
+    # smcinvoke_headers_to_expose is a string list of individual paths to headers to expose
+    # They are passed using Android.bp variable substition: $(locations <label>) ex. $(locations linux/*.h)
+    # Note <label> has to be a rule to find the file, it cannot be the file itself.
+    for h in smcinvoke_headers_to_expose:
+        # h will be the relative path from the repo root directory securemsm-kernel ex. <parent directory structure>/securemsm-kernel/linux/smcinvoke.h
+        # So we need to split the string and keep the directory structure we want to expose i.e. just linux/smcinvoke.h
+        topDirectory = 'securemsm-kernel'
+        directorySplitLocation = '/'+ topDirectory +'/'
+        smcinvoke_headers_to_expose_prefix = os.path.join(h.split(directorySplitLocation)[0], topDirectory) + os.sep
+        if not run_headers_install(verbose, gen_dir, headers_install, unifdef, smcinvoke_headers_to_expose_prefix, h):
+                error_count += 1
     return error_count
 
 def main():
@@ -70,8 +77,8 @@ def main():
             '--gen_dir', required=True,
             help='Where to place the generated files.')
     parser.add_argument(
-            '--audio_include_uapi', required=True, nargs='*',
-            help='The list of techpack/*/include/uapi header files.')
+            '--smcinvoke_headers_to_expose', required=True, nargs='*',
+            help='The list of smcinvoke header files.')
     parser.add_argument(
             '--headers_install', required=True,
             help='The headers_install tool to process input headers.')
@@ -85,12 +92,13 @@ def main():
     if args.verbose:
         print('header_arch [%s]' % args.header_arch)
         print('gen_dir [%s]' % args.gen_dir)
-        print('audio_include_uapi [%s]' % args.audio_include_uapi)
+        print('smcinvoke_headers_to_expose [%s]' % args.smcinvoke_headers_to_expose)
         print('headers_install [%s]' % args.headers_install)
         print('unifdef [%s]' % args.unifdef)
 
-    return gen_audio_headers(args.verbose, args.gen_dir,
-            args.headers_install, args.unifdef, args.audio_include_uapi)
+
+    return gen_smcinvoke_headers(args.verbose, args.gen_dir,
+            args.headers_install, args.unifdef, args.smcinvoke_headers_to_expose)
 
 if __name__ == '__main__':
     sys.exit(main())
