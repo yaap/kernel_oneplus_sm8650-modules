@@ -191,6 +191,7 @@ struct msm_hw_fence_mem_data {
  * @create_hw_fences: boolean to continuosly create hw-fences within debugfs
  * @clients_list: list of debug clients registered
  * @clients_list_lock: lock to synchronize access to the clients list
+ * @lock_wake_cnt: number of times that driver triggers wake-up ipcc to unlock inter-vm try-lock
  */
 struct msm_hw_fence_dbg_data {
 	struct dentry *root;
@@ -204,6 +205,8 @@ struct msm_hw_fence_dbg_data {
 
 	struct list_head clients_list;
 	struct mutex clients_list_lock;
+
+	u64 lock_wake_cnt;
 };
 
 /**

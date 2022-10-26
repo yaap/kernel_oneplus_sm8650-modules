@@ -59,7 +59,11 @@ static void _unlock(struct hw_fence_driver_data *drv_data, uint64_t *lock)
 		 * SVM is in WFI state, since SVM acquire bit is set
 		 * Trigger IRQ to Wake-Up SVM Client
 		 */
-		HWFNC_DBG_LOCK("triggering ipc to unblock SVM lock_val:%d\n", lock_val);
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+		drv_data->debugfs_data.lock_wake_cnt++;
+		HWFNC_DBG_LOCK("triggering ipc to unblock SVM lock_val:%d cnt:%llu\n", lock_val,
+			drv_data->debugfs_data.lock_wake_cnt);
+#endif
 		hw_fence_ipcc_trigger_signal(drv_data,
 			drv_data->ipcc_client_pid,
 			drv_data->ipcc_client_vid, 30); /* Trigger APPS Signal 30 */

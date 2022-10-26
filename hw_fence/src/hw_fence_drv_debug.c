@@ -1003,6 +1003,8 @@ int hw_fence_debug_debugfs_register(struct hw_fence_driver_data *drv_data)
 	debugfs_create_file("hw_fence_dump_queues", 0600, debugfs_root, drv_data,
 		&hw_fence_dump_queues_fops);
 	debugfs_create_file("hw_sync", 0600, debugfs_root, NULL, &hw_sync_debugfs_fops);
+	debugfs_create_u64("hw_fence_lock_wake_cnt", 0600, debugfs_root,
+		&drv_data->debugfs_data.lock_wake_cnt);
 
 	return 0;
 }
