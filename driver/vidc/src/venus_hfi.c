@@ -1314,7 +1314,7 @@ static int venus_hfi_cache_packet(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	packet = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_PACKET);
+	packet = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_PACKET);
 	if (!packet) {
 		i_vpr_e(inst, "%s: failed to allocate pending packet\n", __func__);
 		return -ENOMEM;
@@ -1845,7 +1845,7 @@ static int venus_hfi_add_pending_packets(struct msm_vidc_inst *inst)
 			}
 		}
 		list_del(&pkt_info->list);
-		call_mem_op(core, pool_free, inst, pkt_info);
+		msm_vidc_pool_free(inst, pkt_info);
 	}
 	return rc;
 }

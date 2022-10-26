@@ -684,7 +684,7 @@ static int handle_read_only_buffer(struct msm_vidc_inst *inst,
 	 *          if present, do nothing
 	 */
 	if (!found) {
-		ro_buf = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUFFER);
+		ro_buf = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
 		if (!ro_buf) {
 			i_vpr_e(inst, "%s: buffer alloc failed\n", __func__);
 			return -ENOMEM;

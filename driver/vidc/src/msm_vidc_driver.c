@@ -566,7 +566,7 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	if (buf->type != MSM_VIDC_BUF_INPUT)
 		return 0;
 
-	stats = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUF_STATS);
+	stats = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUF_STATS);
 	if (!stats)
 		return -ENOMEM;
 	INIT_LIST_HEAD(&stats->list);
@@ -614,7 +614,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 				/* remove entry - no output attached */
 				if (stats->flags & MSM_VIDC_STATS_FLAG_NO_OUTPUT) {
 					list_del_init(&stats->list);
-					call_mem_op(core, pool_free, inst, stats);
+					msm_vidc_pool_free(inst, stats);
 				}
 			} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
 				/* skip - ebd not arrived(single input - multiple output case) */
@@ -631,7 +631,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 
 				print_buffer_stats(VIDC_STAT, "stat", inst, stats);
 
-				call_mem_op(core, pool_free, inst, stats);
+				msm_vidc_pool_free(inst, stats);
 			}
 		}
 	}
@@ -653,7 +653,7 @@ int msm_vidc_flush_buffer_stats(struct msm_vidc_inst *inst)
 	i_vpr_l(inst, "%s: flush buffer_stats list\n", __func__);
 	list_for_each_entry_safe(stats, dummy_stats, &inst->buffer_stats_list, list) {
 		list_del_init(&stats->list);
-		call_mem_op(core, pool_free, inst, stats);
+		msm_vidc_pool_free(inst, stats);
 	}
 
 	/* reset initial ts as well to avoid huge delta */
@@ -2469,7 +2469,7 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 		}
 
 		list_del_init(&ro_buf->list);
-		call_mem_op(core, pool_free, inst, ro_buf);
+		msm_vidc_pool_free(inst, ro_buf);
 	}
 
 	return rc;
@@ -2551,7 +2551,7 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 	}
 	core = inst->core;
 
-	input_timer = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUF_TIMER);
+	input_timer = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUF_TIMER);
 	if (!input_timer)
 		return -ENOMEM;
 
@@ -2576,7 +2576,7 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 		input_timer = list_first_entry(&inst->input_timer_list,
 				struct msm_vidc_input_timer, list);
 		list_del_init(&input_timer->list);
-		call_mem_op(core, pool_free, inst, input_timer);
+		msm_vidc_pool_free(inst, input_timer);
 	}
 
 	return 0;
@@ -2596,7 +2596,7 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 	i_vpr_l(inst, "%s: flush input_timer list\n", __func__);
 	list_for_each_entry_safe(input_timer, dummy_timer, &inst->input_timer_list, list) {
 		list_del_init(&input_timer->list);
-		call_mem_op(core, pool_free, inst, input_timer);
+		msm_vidc_pool_free(inst, input_timer);
 	}
 	return 0;
 }
@@ -2715,7 +2715,7 @@ int msm_vidc_flush_ts(struct msm_vidc_inst *inst)
 		i_vpr_l(inst, "%s: flushing ts: val %llu, rank %llu\n",
 			__func__, ts->sort.val, ts->rank);
 		list_del(&ts->sort.list);
-		call_mem_op(core, pool_free, inst, ts);
+		msm_vidc_pool_free(inst, ts);
 	}
 	inst->timestamps.count = 0;
 	inst->timestamps.rank = 0;
@@ -2739,7 +2739,7 @@ int msm_vidc_update_timestamp_rate(struct msm_vidc_inst *inst, u64 timestamp)
 	}
 	core = inst->core;
 
-	ts = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_TIMESTAMP);
+	ts = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_TIMESTAMP);
 	if (!ts) {
 		i_vpr_e(inst, "%s: ts alloc failed\n", __func__);
 		return -ENOMEM;
@@ -2767,7 +2767,7 @@ int msm_vidc_update_timestamp_rate(struct msm_vidc_inst *inst, u64 timestamp)
 		}
 		inst->timestamps.count--;
 		list_del(&ts->sort.list);
-		call_mem_op(core, pool_free, inst, ts);
+		msm_vidc_pool_free(inst, ts);
 	}
 
 	/* Calculate timestamp rate */
@@ -2801,7 +2801,7 @@ int msm_vidc_ts_reorder_insert_timestamp(struct msm_vidc_inst *inst, u64 timesta
 	core = inst->core;
 
 	/* allocate ts from pool */
-	ts = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_TIMESTAMP);
+	ts = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_TIMESTAMP);
 	if (!ts) {
 		i_vpr_e(inst, "%s: ts alloc failed\n", __func__);
 		return -ENOMEM;
@@ -2834,7 +2834,7 @@ int msm_vidc_ts_reorder_remove_timestamp(struct msm_vidc_inst *inst, u64 timesta
 		if (ts->sort.val == timestamp) {
 			list_del_init(&ts->sort.list);
 			inst->ts_reorder.count--;
-			call_mem_op(core, pool_free, inst, ts);
+			msm_vidc_pool_free(inst, ts);
 			break;
 		}
 	}
@@ -2868,7 +2868,7 @@ int msm_vidc_ts_reorder_get_first_timestamp(struct msm_vidc_inst *inst, u64 *tim
 	*timestamp = ts->sort.val;
 
 	inst->ts_reorder.count--;
-	call_mem_op(core, pool_free, inst, ts);
+	msm_vidc_pool_free(inst, ts);
 
 	return 0;
 }
@@ -2888,7 +2888,7 @@ int msm_vidc_ts_reorder_flush(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(ts, temp, &inst->ts_reorder.list, sort.list) {
 		i_vpr_l(inst, "%s: flushing ts: val %lld\n", __func__, ts->sort.val);
 		list_del(&ts->sort.list);
-		call_mem_op(core, pool_free, inst, ts);
+		msm_vidc_pool_free(inst, ts);
 	}
 	inst->ts_reorder.count = 0;
 
@@ -2957,7 +2957,7 @@ int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
 		return -EINVAL;
 
 	for (idx = 0; idx < num_buffers; idx++) {
-		buf = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUFFER);
+		buf = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
 		if (!buf) {
 			i_vpr_e(inst, "%s: alloc failed\n", __func__);
 			return -EINVAL;
@@ -2996,7 +2996,7 @@ int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
 		buf_count++;
 		print_vidc_buffer(VIDC_LOW, "low ", "free buffer", inst, buf);
 		list_del_init(&buf->list);
-		call_mem_op(core, pool_free, inst, buf);
+		msm_vidc_pool_free(inst, buf);
 	}
 	i_vpr_h(inst, "%s: freed %d buffers for type %s\n",
 		__func__, buf_count, buf_name(buf_type));
@@ -3631,7 +3631,7 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 		if (map->dmabuf == buffer->dmabuf) {
 			call_mem_op(core, memory_unmap, core, map);
 			list_del(&map->list);
-			call_mem_op(core, pool_free, inst, map);
+			msm_vidc_pool_free(inst, map);
 			break;
 		}
 	}
@@ -3640,7 +3640,7 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 		if (alloc->dmabuf == buffer->dmabuf) {
 			call_mem_op(core, memory_free, core, alloc);
 			list_del(&alloc->list);
-			call_mem_op(core, pool_free, inst, alloc);
+			msm_vidc_pool_free(inst, alloc);
 			break;
 		}
 	}
@@ -3648,7 +3648,7 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
 		if (buf->dmabuf == buffer->dmabuf) {
 			list_del(&buf->list);
-			call_mem_op(core, pool_free, inst, buf);
+			msm_vidc_pool_free(inst, buf);
 			break;
 		}
 	}
@@ -3730,7 +3730,7 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	if (!buffers->size)
 		return 0;
 
-	buffer = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_BUFFER);
+	buffer = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUFFER);
 	if (!buffer) {
 		i_vpr_e(inst, "%s: buf alloc failed\n", __func__);
 		return -ENOMEM;
@@ -3741,7 +3741,7 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	buffer->buffer_size = buffers->size;
 	list_add_tail(&buffer->list, &buffers->list);
 
-	alloc = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_ALLOC);
+	alloc = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_ALLOC);
 	if (!alloc) {
 		i_vpr_e(inst, "%s: alloc failed\n", __func__);
 		return -ENOMEM;
@@ -3756,7 +3756,7 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 		return -ENOMEM;
 	list_add_tail(&alloc->list, &allocations->list);
 
-	map = call_mem_op(core, pool_alloc, inst, MSM_MEM_POOL_MAP);
+	map = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_MAP);
 	if (!map) {
 		i_vpr_e(inst, "%s: map alloc failed\n", __func__);
 		return -ENOMEM;
@@ -5445,7 +5445,7 @@ int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
 		ro_buf->dbuf_get = 0;
 		ro_buf->device_addr = 0x0;
 		list_del_init(&ro_buf->list);
-		call_mem_op(core, pool_free, inst, ro_buf);
+		msm_vidc_pool_free(inst, ro_buf);
 	}
 
 	return rc;
@@ -5515,7 +5515,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		if (buf->dbuf_get)
 			call_mem_op(core, dma_buf_put, inst, buf->dmabuf);
 		list_del_init(&buf->list);
-		call_mem_op(core, pool_free, inst, buf);
+		msm_vidc_pool_free(inst, buf);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(ext_buf_types); i++) {
@@ -5534,7 +5534,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 				call_mem_op(core, dma_buf_put, inst, buf->dmabuf);
 			}
 			list_del_init(&buf->list);
-			call_mem_op(core, pool_free, inst, buf);
+			msm_vidc_pool_free(inst, buf);
 		}
 	}
 
@@ -5542,27 +5542,27 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		i_vpr_e(inst, "%s: removing ts: val %lld, rank %lld\n",
 			__func__, ts->sort.val, ts->rank);
 		list_del(&ts->sort.list);
-		call_mem_op(core, pool_free, inst, ts);
+		msm_vidc_pool_free(inst, ts);
 	}
 
 	list_for_each_entry_safe(ts, dummy_ts, &inst->ts_reorder.list, sort.list) {
 		i_vpr_e(inst, "%s: removing reorder ts: val %lld\n",
 			__func__, ts->sort.val);
 		list_del(&ts->sort.list);
-		call_mem_op(core, pool_free, inst, ts);
+		msm_vidc_pool_free(inst, ts);
 	}
 
 	list_for_each_entry_safe(timer, dummy_timer, &inst->input_timer_list, list) {
 		i_vpr_e(inst, "%s: removing input_timer %lld\n",
 			__func__, timer->time_us);
 		list_del(&timer->list);
-		call_mem_op(core, pool_free, inst, timer);
+		msm_vidc_pool_free(inst, timer);
 	}
 
 	list_for_each_entry_safe(stats, dummy_stats, &inst->buffer_stats_list, list) {
 		print_buffer_stats(VIDC_ERR, "err ", inst, stats);
 		list_del(&stats->list);
-		call_mem_op(core, pool_free, inst, stats);
+		msm_vidc_pool_free(inst, stats);
 	}
 
 	list_for_each_entry_safe(dbuf, dummy_dbuf, &inst->dmabuf_tracker, list) {
@@ -5605,7 +5605,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 	}
 
 	/* destroy buffers from pool */
-	call_mem_op(core, pools_deinit, inst);
+	msm_vidc_pools_deinit(inst);
 }
 
 static void msm_vidc_close_helper(struct kref *kref)

@@ -7,16 +7,8 @@
 #ifndef _MSM_VIDC_MEMORY_EXT_H_
 #define _MSM_VIDC_MEMORY_EXT_H_
 
-#include "msm_vidc_memory.h"
+struct msm_vidc_memory_ops;
 
-struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_core *core,
-    struct dma_buf *dbuf, struct device *dev);
-int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core,
-	struct msm_vidc_alloc *alloc);
-int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem);
-int msm_vidc_memory_map_ext(struct msm_vidc_core *core,
-	struct msm_vidc_map *map);
-u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type);
+struct msm_vidc_memory_ops *get_mem_ops_ext(void);
 
 #endif // _MSM_VIDC_MEMORY_EXT_H_

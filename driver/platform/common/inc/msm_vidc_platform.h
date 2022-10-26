@@ -11,7 +11,6 @@
 
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
-#include "msm_vidc_memory.h"
 
 #define DDR_TYPE_LPDDR4 0x6
 #define DDR_TYPE_LPDDR4X 0x7
@@ -218,42 +217,6 @@ struct msm_vidc_platform_data {
 struct msm_vidc_platform {
 	void *core;
 	struct msm_vidc_platform_data data;
-};
-
-#define call_mem_op(c, op, ...)                \
-	(((c) && (c)->mem_ops && (c)->mem_ops->op) ? \
-	((c)->mem_ops->op(__VA_ARGS__)) : 0)
-
-struct msm_vidc_memory_ops {
-	struct dma_buf_attachment *(*dma_buf_attach)(struct msm_vidc_core *core,
-		struct dma_buf *dbuf, struct device *dev);
-	int (*dma_buf_detach)(struct msm_vidc_core *core, struct dma_buf *dbuf,
-		struct dma_buf_attachment *attach);
-	struct sg_table *(*dma_buf_map_attachment)(struct msm_vidc_core *core,
-		struct dma_buf_attachment *attach);
-	int (*dma_buf_unmap_attachment)(struct msm_vidc_core *core,
-		struct dma_buf_attachment *attach, struct sg_table *table);
-	int (*memory_alloc)(struct msm_vidc_core *core,
-		struct msm_vidc_alloc *alloc);
-	int (*memory_free)(struct msm_vidc_core *core,
-		struct msm_vidc_alloc *alloc);
-	int (*memory_map)(struct msm_vidc_core *core,
-		struct msm_vidc_map *map);
-	int (*memory_unmap)(struct msm_vidc_core *core,
-		struct msm_vidc_map *map);
-	u32 (*buffer_region)(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
-	struct dma_buf *(*dma_buf_get)(struct msm_vidc_inst *inst,
-		int fd);
-	void (*dma_buf_put)(struct msm_vidc_inst *inst,
-		struct dma_buf *dmabuf);
-	void (*dma_buf_put_completely)(struct msm_vidc_inst *inst,
-		struct msm_memory_dmabuf *buf);
-	int (*pools_init)(struct msm_vidc_inst *inst);
-	void (*pools_deinit)(struct msm_vidc_inst *inst);
-	void *(*pool_alloc)(struct msm_vidc_inst *inst,
-		enum msm_memory_pool_type type);
-	void (*pool_free)(struct msm_vidc_inst *inst, void *vidc_buf);
 };
 
 static inline bool is_sys_cache_present(struct msm_vidc_core *core)

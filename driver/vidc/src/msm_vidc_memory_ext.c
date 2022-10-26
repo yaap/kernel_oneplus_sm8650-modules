@@ -15,13 +15,14 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_events.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_memory.h"
 
 static bool is_non_secure_buffer(struct dma_buf *dmabuf)
 {
 	return mem_buf_dma_buf_exclusive_owner(dmabuf);
 }
 
-struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_core *core,
+static struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_core *core,
 	struct dma_buf *dbuf, struct device *dev)
 {
 	int rc = 0;
@@ -78,7 +79,7 @@ struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_core *cor
 	return attach;
 }
 
-int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
+static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
 {
 	int rc = 0;
 
@@ -113,7 +114,7 @@ int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *
 	return rc;
 }
 
-int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
+static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
 {
 	int rc = 0;
 	int size = 0;
@@ -223,7 +224,7 @@ error:
 	return rc;
 }
 
-int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_map *map)
+static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_map *map)
 {
 	int rc = 0;
 	struct dma_buf_attachment *attach = NULL;
@@ -271,7 +272,7 @@ int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_map *map
 		goto error_attach;
 	}
 
-	table = msm_vidc_dma_buf_map_attachment(core, attach);
+	table = call_mem_op(core, dma_buf_map_attachment, core, attach);
 	if (IS_ERR_OR_NULL(table)) {
 		rc = PTR_ERR(table) ? PTR_ERR(table) : -ENOMEM;
 		d_vpr_e("Failed to map table\n");
@@ -290,13 +291,13 @@ exit:
 	return 0;
 
 error_table:
-    msm_vidc_dma_buf_detach(core, map->dmabuf, attach);
+	call_mem_op(core, dma_buf_detach, core, map->dmabuf, attach);
 error_attach:
 error_cb:
 	return rc;
 }
 
-u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
+static u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type)
 {
 	u32 region = MSM_VIDC_NON_SECURE;
@@ -376,4 +377,19 @@ u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
 	}
 
 	return region;
+}
+
+struct msm_vidc_memory_ops *get_mem_ops_ext(void)
+{
+	struct msm_vidc_memory_ops *mem_ops = get_mem_ops();
+	static struct msm_vidc_memory_ops mem_ops_ext;
+
+	memcpy(&mem_ops_ext, mem_ops, sizeof(struct msm_vidc_memory_ops));
+	mem_ops_ext.dma_buf_attach   = msm_vidc_dma_buf_attach_ext;
+	mem_ops_ext.memory_free      = msm_vidc_memory_free_ext;
+	mem_ops_ext.memory_alloc     = msm_vidc_memory_alloc_ext;
+	mem_ops_ext.memory_map       = msm_vidc_memory_map_ext;
+	mem_ops_ext.buffer_region    = msm_vidc_buffer_region_ext;
+
+	return &mem_ops_ext;
 }
