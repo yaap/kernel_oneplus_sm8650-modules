@@ -3900,6 +3900,14 @@ static int __power_on_core(struct iris_hfi_device *device)
 		return rc;
 	}
 
+#ifdef CONFIG_EVA_PINEAPPLE
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_ARCG_CONTROL, 0);
+	__write_register(device, CVP_NOC_RCGCONTROLLER_HYSTERESIS_LOW, 0x2f);
+	__write_register(device, CVP_NOC_RCG_VNOC_NOC_CLK_FORCECLOCKON_LOW, 1);
+	__write_register(device, CVP_NOC_RCGCONTROLLER_MAINCTL_LOW, 1);
+	usleep_range(50, 100);
+	__write_register(device, CVP_NOC_RCG_VNOC_NOC_CLK_FORCECLOCKON_LOW, 0);
+#endif
 	dprintk(CVP_PWR, "EVA core powered on\n");
 	return 0;
 }
@@ -4053,6 +4061,7 @@ static int __power_off_controller(struct iris_hfi_device *device)
 	__write_register(device, CVP_CPU_CS_X2RPMh, 0x3);
 
 	/* HPG 6.2.2 Step 2, noc to low power */
+#ifndef CONFIG_EVA_PINEAPPLE
 	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_LPI_CONTROL, 0x1);
 	while (!reg_status && count < max_count) {
 		lpi_status =
@@ -4078,6 +4087,7 @@ static int __power_off_controller(struct iris_hfi_device *device)
 
 		__print_sidebandmanager_regs(device);
 	}
+#endif
 
 	/* New addition to put CPU/Tensilica to low power */
 	reg_status = 0;
@@ -4157,8 +4167,8 @@ static int __power_off_controller(struct iris_hfi_device *device)
 
 static int __power_off_core(struct iris_hfi_device *device)
 {
-	u32 config, value = 0, count = 0, warn_flag = 0;
-	const u32 max_count = 10;
+	u32 reg_status = 0, lpi_status, config, value = 0, count = 0;
+	u32 warn_flag = 0, max_count = 10;
 
 	value = __read_register(device, CVP_CC_MVS1_GDSCR);
 	if (!(value & 0x80000000)) {
@@ -4211,6 +4221,7 @@ static int __power_off_core(struct iris_hfi_device *device)
 		warn_flag = 1;
 	}
 
+#ifndef CONFIG_EVA_PINEAPPLE
 	/* Apply partial reset on MSF interface and wait for ACK */
 	__write_register(device, CVP_NOC_RESET_REQ, 0x7);
 	count = 0;
@@ -4244,6 +4255,35 @@ static int __power_off_core(struct iris_hfi_device *device)
 		dprintk(CVP_WARN, "Core NoC reset de-assert failed\n");
 		warn_flag = 1;
 	}
+#else
+	count = 0;
+	max_count = 1000;
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_LPI_CONTROL, 0x1);
+	while (!reg_status && count < max_count) {
+		lpi_status =
+			 __read_register(device,
+				CVP_AON_WRAPPER_CVP_NOC_LPI_STATUS);
+		reg_status = lpi_status & BIT(0);
+		/* Wait for Core noc lpi status to be set */
+		usleep_range(50, 100);
+		count++;
+	}
+	dprintk(CVP_PWR,
+		"Core Noc: lpi_status %x noc_status %x (count %d)\n",
+		lpi_status, reg_status, count);
+	if (count == max_count) {
+		u32 pc_ready, wfi_status;
+
+		wfi_status = __read_register(device, CVP_WRAPPER_CPU_STATUS);
+		pc_ready = __read_register(device, CVP_CTRL_STATUS);
+
+		dprintk(CVP_WARN,
+			"Core NOC not in qaccept status %x %x %x %x\n",
+			reg_status, lpi_status, wfi_status, pc_ready);
+
+		__print_sidebandmanager_regs(device);
+	}
+#endif
 
 	if (warn_flag)
 		__print_sidebandmanager_regs(device);
