@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _GEN7_REG_H
@@ -1208,6 +1208,9 @@
 
 /* FENCE control registers */
 #define GEN7_GMU_AHB_FENCE_RANGE_0		0x23b11
+
+/* GMU countables */
+#define GEN7_GMU_CM3_BUSY_CYCLES		0
 
 /* GPUCC registers */
 #define GEN7_GPU_CC_GX_DOMAIN_MISC3		0x26541

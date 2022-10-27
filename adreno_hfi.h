@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_HFI_H
 #define __ADRENO_HFI_H
@@ -126,6 +126,9 @@
 #define HFI_CTXT_FLAG_PREEMPT_STYLE_RB		1
 #define HFI_CTXT_FLAG_PREEMPT_STYLE_FG		2
 #define CMDBATCH_INDIRECT			0x00000200
+
+/* Default sampling interval in units of 50 us */
+#define HFI_FEATURE_GMU_STATS_INTERVAL		4
 
 enum hfi_mem_kind {
 	/** @HFI_MEMKIND_GENERIC: Used for requesting generic memory */
@@ -679,7 +682,8 @@ struct hfi_gmu_cntr_register_reply_cmd {
 	u32 req_hdr;
 	u32 group_id;
 	u32 countable;
-	u64 counter_addr;
+	u32 cntr_lo;
+	u32 cntr_hi;
 } __packed;
 
 /* F2H */
