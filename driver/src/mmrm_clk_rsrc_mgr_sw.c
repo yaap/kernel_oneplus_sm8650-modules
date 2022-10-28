@@ -311,7 +311,7 @@ static int mmrm_sw_clk_client_deregister(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	/* validate the client ptr */
 	if (!client) {
-		d_mpr_e("%s: invalid client\n");
+		d_mpr_e("%s: invalid client\n", __func__);
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
@@ -801,7 +801,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	/* validate input params */
 	if (!client) {
-		d_mpr_e("%s: invalid client\n");
+		d_mpr_e("%s: invalid client\n", __func__);
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
@@ -822,7 +822,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	/* get table entry */
 	tbl_entry = &sinfo->clk_client_tbl[client->client_uid];
 	if (IS_ERR_OR_NULL(tbl_entry->clk)) {
-		d_mpr_e("%s: clk src not registered\n");
+		d_mpr_e("%s: clk src not registered\n", __func__);
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
@@ -956,7 +956,7 @@ static int mmrm_sw_clk_client_getval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	/* validate input params */
 	if (!client) {
-		d_mpr_e("%s: invalid client\n");
+		d_mpr_e("%s: invalid client\n", __func__);
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
@@ -970,7 +970,7 @@ static int mmrm_sw_clk_client_getval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	tbl_entry = &sinfo->clk_client_tbl[client->client_uid];
 	if (!tbl_entry->clk) {
-		d_mpr_e("%s: clk src not registered\n");
+		d_mpr_e("%s: clk src not registered\n", __func__);
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
