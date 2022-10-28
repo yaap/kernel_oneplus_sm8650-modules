@@ -33,6 +33,7 @@ $(info within KBUILD file CONFIG_ARCH_PINEAPPLE = $(CONFIG_ARCH_PINEAPPLE))
 KBUILD_CPPFLAGS += -DCONFIG_EVA_PINEAPPLE=1 -DCVP_CONFIG_SYNX_V2=1
 ccflags-y += -DCONFIG_EVA_PINEAPPLE=1 -DCVP_CONFIG_SYNX_V2=1
 ccflags-y += -I$(EVA_ROOT)/../synx-kernel/msm/synx/ \
+    -I$(EVA_ROOT)/../dsp-kernel/include/ \
     -I$(EVA_ROOT)/../synx-kernel/include/uapi/synx/media/
 endif
 
