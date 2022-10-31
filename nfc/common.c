@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "common.h"
+bool secure_peripheral_not_found = true;
 
 
 int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
@@ -131,15 +132,22 @@ int get_valid_gpio(int gpio)
 void gpio_set_ven(struct nfc_dev *nfc_dev, int value)
 {
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
-	if(!nfc_dev->secure_zone) {
-		if (gpio_get_value(nfc_gpio->ven) != value) {
-			pr_debug("%s: value %d\n", __func__, value);
-
+	if (gpio_get_value(nfc_gpio->ven) != value) {
+		pr_debug("%s: value %d\n", __func__, value);
+		if(secure_peripheral_not_found)
+		{
+			/*secure peripheral feature is not enabled*/
 			gpio_set_value(nfc_gpio->ven, value);
-			/* hardware dependent delay */
-			usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
-					NFC_GPIO_SET_WAIT_TIME_US + 100);
 		}
+		else
+		{
+			/*secure peripheral feature is enabled*/
+			if(!nfc_hw_secure_check())
+				gpio_set_value(nfc_gpio->ven, value);
+		}
+		/* hardware dependent delay */
+		usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
+				NFC_GPIO_SET_WAIT_TIME_US + 100);
 	}
 }
 
@@ -504,19 +512,19 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
  *
  * Queries the TZ secure libraries if NFC is in secure zone statue or not.
  *
- * Return: 0 if FEATURE_NOT_SUPPORTED or PERIPHERAL_NOT_FOUND or state = 2(non-secure zone) and
- *  return 1 if state = 1(secure zone) or error otherwise
+ * Return: 0 if FEATURE_NOT_SUPPORTED or PERIPHERAL_NOT_FOUND or nfc_sec_state = 2(non-secure zone) and
+ *  return 1 if nfc_sec_state = 1(secure zone) or error otherwise
  */
 
- bool nfc_hw_secure_check(void)
- {
+bool nfc_hw_secure_check(void)
+{
 	struct Object client_env;
 	struct Object app_object;
 	u32 nfc_uid = HW_NFC_UID;
 	union ObjectArg obj_arg[2] = {{{0, 0}}};
 	int ret;
 	bool retstat = 1;
-	u8 state = 0;
+	u8 nfc_sec_state = 0;
 	/* get rootObj */
 	ret = get_client_env_object(&client_env);
 	if (ret) {
@@ -535,11 +543,11 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 	}
 
 	obj_arg[0].b = (struct ObjectBuf) {&nfc_uid, sizeof(u32)};
-	obj_arg[1].b = (struct ObjectBuf) {&state, sizeof(u8)};
+	obj_arg[1].b = (struct ObjectBuf) {&nfc_sec_state, sizeof(u8)};
 	ret = Object_invoke(app_object, HW_OP_GET_STATE, obj_arg,
 			ObjectCounts_pack(1, 1, 0, 0));
 
-	pr_info("TZ ret: %d state: %d\n", ret, state);
+	pr_info("TZ ret: %d nfc_sec_state: %d\n", ret, nfc_sec_state);
 	if (ret) {
 		if (ret == PERIPHERAL_NOT_FOUND) {
 			retstat = 0; /* Do not Assert */
@@ -548,7 +556,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		goto exit_release_app_obj;
 	}
 
-	if (state == 1) {
+	secure_peripheral_not_found = false;
+
+	/* Refer peripheral state utilities for different states of NFC peripherals;
+	 * path: vendor/qcom/proprietary/securemsm/peripheralStateUtils/inc/peripheralStateUtils.h
+	 */
+	if (nfc_sec_state == 1) {
 		/*Secure Zone*/
 		retstat = 1;
 	} else {
@@ -556,13 +569,13 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		retstat = 0;
 	}
 
-exit_release_app_obj:
-	Object_release(app_object);
-exit_release_clientenv:
-	Object_release(client_env);
+	exit_release_app_obj:
+		Object_release(app_object);
+	exit_release_clientenv:
+		Object_release(client_env);
 
 	return  retstat;
- }
+}
 
 /**
  * nfc_dynamic_protection_ioctl() - dynamic protection control
