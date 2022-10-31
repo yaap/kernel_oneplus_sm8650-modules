@@ -3019,7 +3019,7 @@ int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 		if (err) {
 			err = -EINVAL;
 			ADSPRPC_ERR(
-				"user application %s trying to send a kernel RPC message to channel %d, handle 0x%x\n",
+				"user application trying to send a kernel RPC message to channel %d, handle 0x%x\n",
 				cid, invoke->handle);
 			goto bail;
 		}
@@ -5455,7 +5455,7 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 		}
 		mutex_unlock(&fl->map_mutex);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
-			"%-20s|%-20s|%-20s|%-20s\n",
+			"%-20s|%-20s|%-20s\n",
 			"len", "refs",
 			"raddr");
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
@@ -5465,7 +5465,7 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 		mutex_lock(&fl->map_mutex);
 		hlist_for_each_entry_safe(map, n, &fl->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
-				"%-20zu|%-20d|0x%-20lX|%-20d\n\n",
+				"%-20zu|%-20d|0x%-20lX\n\n",
 				map->len, map->refs, map->raddr);
 		}
 		mutex_unlock(&fl->map_mutex);
