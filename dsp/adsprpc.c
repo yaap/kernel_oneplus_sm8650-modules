@@ -6741,10 +6741,14 @@ static void fastrpc_smq_ctx_detail(struct smq_invoke_ctx *smq_ctx, int cid, void
 		if (map) {
 			scnprintf(mini_dump_buff + strlen(mini_dump_buff),
 					MINI_DUMP_DBG_SIZE - strlen(mini_dump_buff),
-					smq_invoke_ctx_params, fastrpc_mmap_params,
+					smq_invoke_ctx_params,
 					smq_ctx->pid, smq_ctx->tgid, smq_ctx->handle,
 					smq_ctx->sc, smq_ctx->fl, smq_ctx->fds,
-					smq_ctx->magic, map->fd, map->flags, map->buf,
+					smq_ctx->magic);
+			scnprintf(mini_dump_buff + strlen(mini_dump_buff),
+					MINI_DUMP_DBG_SIZE - strlen(mini_dump_buff),
+					fastrpc_mmap_params,
+					map->fd, map->flags, map->buf,
 					map->phys, map->size, map->va,
 					map->raddr, map->len, map->refs,
 					map->secure);
