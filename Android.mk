@@ -11,6 +11,12 @@ BT_SELECT += CONFIG_BTFM_SLIM=m
 #endif
 BT_SELECT += CONFIG_I2C_RTC6226_QCA=m
 
+ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
+ifeq ($(ENABLE_PERIPHERAL_STATE_UTILS), true)
+BT_SELECT += CONFIG_BT_HW_SECURE_DISABLE=y
+endif
+endif
+
 LOCAL_PATH := $(call my-dir)
 
 # This makefile is only for DLKM
@@ -32,6 +38,13 @@ KBUILD_OPTIONS += $(foreach bt_select, \
 BT_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/*) \
 	$(wildcard $(LOCAL_PATH)/*/*) \
+
+ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
+ifeq ($(ENABLE_PERIPHERAL_STATE_UTILS), true)
+KBUILD_REQUIRED_KOS := smcinvoke_dlkm.ko
+endif
+endif
+
 
 # Module.symvers needs to be generated as a intermediate module so that
 # other modules which depend on BT platform modules can set local

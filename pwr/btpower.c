@@ -32,6 +32,18 @@
 #endif
 #include <linux/fs.h>
 
+#ifdef CONFIG_BT_HW_SECURE_DISABLE
+#include "linux/smcinvoke.h"
+#include "linux/smcinvoke_object.h"
+#include "linux/IClientEnv.h"
+
+#define PERISEC_HW_STATE_UID 0x108
+#define PERISEC_HW_OP_GET_STATE 1
+#define PERISEC_HW_BLUETOOTH_UID 0x502
+#define PERISEC_FEATURE_NOT_SUPPORTED 12
+#define PERISEC_PERIPHERAL_NOT_FOUND 10
+#endif
+
 #define PWR_SRC_NOT_AVAILABLE -2
 #define DEFAULT_INVALID_VALUE -1
 #define PWR_SRC_INIT_STATE_IDX 0
@@ -240,6 +252,76 @@ static struct class *bt_class;
 static int bt_major;
 static int soc_id;
 static bool probe_finished;
+
+
+#ifdef CONFIG_BT_HW_SECURE_DISABLE
+int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
+{
+	struct Object client_env;
+	struct Object app_object;
+	int bt_uid = PERISEC_HW_BLUETOOTH_UID;
+	union ObjectArg obj_arg[2] = {{{0, 0}}};
+	int ret;
+	u8 state = 0;
+
+	/* Once this flag is set, secure peripheral feature
+	 * will not be supported till next reboot
+	 */
+	if (plat_priv->sec_peri_feature_disable)
+		return 0;
+
+	/* get rootObj */
+	ret = get_client_env_object(&client_env);
+	if (ret) {
+		pr_debug("Failed to get client_env_object, ret: %d\n", ret);
+		goto end;
+	}
+	ret = IClientEnv_open(client_env, PERISEC_HW_STATE_UID, &app_object);
+	if (ret) {
+		pr_debug("Failed to get app_object, ret: %d\n",  ret);
+		if (ret == PERISEC_FEATURE_NOT_SUPPORTED) {
+			ret = 0; /* Do not Assert */
+			plat_priv->sec_peri_feature_disable = true;
+			pr_debug("Secure HW feature not supported\n");
+		}
+		goto exit_release_clientenv;
+	}
+
+	obj_arg[0].b = (struct ObjectBuf) {&bt_uid, sizeof(u32)};
+	obj_arg[1].b = (struct ObjectBuf) {&state, sizeof(u8)};
+	ret = Object_invoke(app_object, PERISEC_HW_OP_GET_STATE, obj_arg,
+			    ObjectCounts_pack(1, 1, 0, 0));
+
+	pr_debug("SMC invoke ret: %d state: %d\n", ret, state);
+	if (ret) {
+		if (ret == PERISEC_PERIPHERAL_NOT_FOUND) {
+			ret = 0; /* Do not Assert */
+			plat_priv->sec_peri_feature_disable = true;
+			pr_debug("Secure HW mode is not updated. Peripheral not found\n");
+		}
+		Object_release(app_object);
+	} else {
+		if (state == 1)
+			plat_priv->bt_sec_hw_disable = 1;
+		else
+			plat_priv->bt_sec_hw_disable = 0;
+	}
+
+exit_release_clientenv:
+	Object_release(client_env);
+end:
+	if (ret) {
+		pr_err("SecMode:Unable to get sec mode BT Hardware status\n");
+	}
+	return ret;
+}
+#else
+int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
+{
+	return 0;
+}
+#endif
+
 
 #ifdef CONFIG_MSM_BT_OOBS
 static void btpower_uart_transport_locked(struct btpower_platform_data *drvdata,
@@ -682,7 +764,13 @@ static int bluetooth_power(int on)
 
 	pr_debug("%s: on: %d\n", __func__, on);
 
+	rc = perisec_cnss_bt_hw_disable_check(bt_power_pdata);
 	if (on == 1) {
+		if (bt_power_pdata->bt_sec_hw_disable) {
+			pr_err("%s:secure hw mode on,BT ON not allowed",
+				 __func__);
+			return -EINVAL;
+		}
 		rc = bt_power_vreg_set(BT_POWER_ENABLE);
 		if (rc < 0) {
 			pr_err("%s: bt_power regulators config failed\n",
@@ -714,8 +802,14 @@ static int bluetooth_power(int on)
 		}
 	} else if (on == 0) {
 		// Power Off
-		if (bt_power_pdata->bt_gpio_sys_rst > 0)
-			bt_configure_gpios(on);
+		if (bt_power_pdata->bt_gpio_sys_rst > 0) {
+			if (bt_power_pdata->bt_sec_hw_disable) {
+				pr_err("%s: secure hw mode on, not allowed to access gpio",
+					__func__);
+			}else {
+				bt_configure_gpios(on);
+			}
+		}
 gpio_fail:
 		if (bt_power_pdata->bt_gpio_sys_rst > 0)
 			gpio_free(bt_power_pdata->bt_gpio_sys_rst);
@@ -1106,6 +1200,7 @@ static int bt_power_probe(struct platform_device *pdev)
 
 	bt_power_pdata->pdev = pdev;
 
+	ret = perisec_cnss_bt_hw_disable_check(bt_power_pdata);
 	if (pdev->dev.of_node) {
 		ret = bt_power_populate_dt_pinfo(pdev);
 		if (ret < 0) {
