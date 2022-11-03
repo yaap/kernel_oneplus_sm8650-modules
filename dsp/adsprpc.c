@@ -227,6 +227,8 @@ enum fastrpc_proc_attr {
 	FASTRPC_MODE_SYSTEM_PROCESS		= 1 << 5,
 	/* Macro for Prvileged Process */
 	FASTRPC_MODE_PRIVILEGED      = (1 << 6),
+	/* Macro for system unsigned PD */
+	FASTRPC_MODE_SYSTEM_UNSIGNED_PD	= 1 << 17,
 };
 
 #define PERF_END ((void)0)
@@ -3667,6 +3669,9 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	}
 	inbuf.pageslen = 1;
 
+	/* Disregard any system unsigned PD attribute from userspace */
+	uproc->attrs &= (~FASTRPC_MODE_SYSTEM_UNSIGNED_PD);
+
 	/* Untrusted apps are not allowed to offload to signedPD on DSP. */
 	if (fl->untrusted_process) {
 		VERIFY(err, fl->is_unsigned_pd);
@@ -3676,6 +3681,10 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 				"untrusted app trying to offload to signed remote process\n");
 			goto bail;
 		}
+	} else {
+		/* Trusted apps will be launched as system unsigned PDs */
+		if (fl->is_unsigned_pd)
+			uproc->attrs |= FASTRPC_MODE_SYSTEM_UNSIGNED_PD;
 	}
 
 	/* Disregard any privilege bits from userspace */
