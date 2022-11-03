@@ -39,6 +39,17 @@ $(info LOCAL_SRC_FILES = $(LOCAL_SRC_FILES))
 LOCAL_MODULE      := synx-driver.ko
 LOCAL_MODULE_KBUILD_NAME := msm/synx-driver.ko
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+
+
+include $(CLEAR_VARS)
+# For incremental compilation
+LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+$(info LOCAL_SRC_FILES = $(LOCAL_SRC_FILES))
+LOCAL_MODULE      := ipclite.ko
+LOCAL_MODULE_KBUILD_NAME := msm/synx/ipclite.ko
+LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
+#BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 
 # print out variables
 $(info KBUILD_OPTIONS = $(KBUILD_OPTIONS))
