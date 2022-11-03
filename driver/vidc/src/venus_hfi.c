@@ -1825,6 +1825,9 @@ int venus_hfi_queue_super_buffer(struct msm_vidc_inst *inst,
 		if (rc)
 			goto unlock;
 
+		/* update start timestamp */
+		msm_vidc_add_buffer_stats(inst, buffer, hfi_buffer.timestamp);
+
 		cnt++;
 	}
 unlock:
@@ -1884,7 +1887,7 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
-	struct hfi_buffer hfi_buffer;
+	struct hfi_buffer hfi_buffer, hfi_meta_buffer;
 
 	if (!inst || !inst->core || !inst->packet || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1920,7 +1923,7 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 		goto unlock;
 
 	if (metabuf) {
-		rc = get_hfi_buffer(inst, metabuf, &hfi_buffer);
+		rc = get_hfi_buffer(inst, metabuf, &hfi_meta_buffer);
 		if (rc)
 			goto unlock;
 		rc = hfi_create_packet(inst->packet,
@@ -1930,8 +1933,8 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 			HFI_PAYLOAD_STRUCTURE,
 			get_hfi_port_from_buffer_type(inst, metabuf->type),
 			core->packet_id++,
-			&hfi_buffer,
-			sizeof(hfi_buffer));
+			&hfi_meta_buffer,
+			sizeof(hfi_meta_buffer));
 		if (rc)
 			goto unlock;
 	}
@@ -1963,6 +1966,9 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 	rc = __cmdq_write(inst->core, inst->packet);
 	if (rc)
 		goto unlock;
+
+	/* update start timestamp */
+	msm_vidc_add_buffer_stats(inst, buffer, hfi_buffer.timestamp);
 
 unlock:
 	core_unlock(core, __func__);

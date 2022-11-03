@@ -917,12 +917,14 @@ struct msm_vidc_buffer_stats {
 	u32                                fbd_time_ms;
 	u32                                data_size;
 	u32                                flags;
+	u32                                ts_offset;
 };
 
 enum msm_vidc_buffer_stats_flag {
-	MSM_VIDC_STATS_FLAG_CORRUPT     = BIT(0),
-	MSM_VIDC_STATS_FLAG_OVERFLOW    = BIT(1),
-	MSM_VIDC_STATS_FLAG_NO_OUTPUT   = BIT(2),
+	MSM_VIDC_STATS_FLAG_CORRUPT        = BIT(0),
+	MSM_VIDC_STATS_FLAG_OVERFLOW       = BIT(1),
+	MSM_VIDC_STATS_FLAG_NO_OUTPUT      = BIT(2),
+	MSM_VIDC_STATS_FLAG_SUBFRAME_INPUT = BIT(3),
 };
 
 struct msm_vidc_sort {
