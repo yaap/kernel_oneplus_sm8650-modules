@@ -785,6 +785,8 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
+	gen7_get_gpu_feature_info(adreno_dev);
+
 	adreno_get_bus_counters(adreno_dev);
 
 	adreno_dev->cooperative_reset = ADRENO_FEATURE(adreno_dev,

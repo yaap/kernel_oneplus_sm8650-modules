@@ -768,7 +768,7 @@ done:
 	return rc;
 }
 
-static void init_queues(struct gen7_hfi *hfi, bool lpac_enabled)
+static void init_queues(struct gen7_hfi *hfi)
 {
 	u32 gmuaddr = hfi->hfi_mem->gmuaddr;
 	struct hfi_queue_table hfi_table = {
@@ -802,8 +802,8 @@ static void init_queues(struct gen7_hfi *hfi, bool lpac_enabled)
 			/* 2 DQs for RB priority 3 */
 			DEFINE_QHDR(gmuaddr, 14, 3),
 			DEFINE_QHDR(gmuaddr, 15, 3),
-			/* 1 DQ for LPAC RB if LPAC is enabled */
-			DEFINE_QHDR(gmuaddr, 16, lpac_enabled ? 4 : 3),
+			/* 1 DQ for LPAC RB priority 4 */
+			DEFINE_QHDR(gmuaddr, 16, 4),
 		},
 	};
 
@@ -846,7 +846,7 @@ int gen7_hwsched_hfi_init(struct adreno_device *adreno_dev)
 				0, HFIMEM_SIZE, GMU_NONCACHED_KERNEL, 0);
 		if (IS_ERR(hfi->hfi_mem))
 			return PTR_ERR(hfi->hfi_mem);
-		init_queues(hfi, adreno_dev->lpac_enabled);
+		init_queues(hfi);
 	}
 
 	if (IS_ERR_OR_NULL(hw_hfi->f2h_task)) {

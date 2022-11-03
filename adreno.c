@@ -2179,6 +2179,10 @@ static int adreno_prop_u32(struct kgsl_device *device,
 		val = adreno_get_vk_device_id(device);
 	else if (param->type == KGSL_PROP_IS_LPAC_ENABLED)
 		val = adreno_dev->lpac_enabled ? 1 : 0;
+	else if (param->type == KGSL_PROP_IS_RAYTRACING_ENABLED)
+		val =  adreno_dev->raytracing_enabled ? 1 : 0;
+	else if (param->type == KGSL_PROP_IS_FASTBLEND_ENABLED)
+		val = adreno_dev->fastblend_enabled ? 1 : 0;
 
 	return copy_prop(param, &val, sizeof(val));
 }
@@ -2205,6 +2209,8 @@ static const struct {
 	{ KGSL_PROP_GPU_MODEL, adreno_prop_gpu_model},
 	{ KGSL_PROP_VK_DEVICE_ID, adreno_prop_u32},
 	{ KGSL_PROP_IS_LPAC_ENABLED, adreno_prop_u32 },
+	{ KGSL_PROP_IS_RAYTRACING_ENABLED, adreno_prop_u32},
+	{ KGSL_PROP_IS_FASTBLEND_ENABLED, adreno_prop_u32},
 };
 
 static int adreno_getproperty(struct kgsl_device *device,
@@ -2585,6 +2591,9 @@ void adreno_cx_misc_regread(struct adreno_device *adreno_dev,
 {
 	unsigned int cx_misc_offset;
 
+	WARN_ONCE(!adreno_dev->cx_misc_virt,
+		  "cx_misc region is not defined in device tree");
+
 	cx_misc_offset = (offsetwords << 2);
 	if (!adreno_dev->cx_misc_virt ||
 		(cx_misc_offset >= adreno_dev->cx_misc_len))
@@ -2629,6 +2638,9 @@ void adreno_cx_misc_regwrite(struct adreno_device *adreno_dev,
 	unsigned int offsetwords, unsigned int value)
 {
 	unsigned int cx_misc_offset;
+
+	WARN_ONCE(!adreno_dev->cx_misc_virt,
+		  "cx_misc region is not defined in device tree");
 
 	cx_misc_offset = (offsetwords << 2);
 	if (!adreno_dev->cx_misc_virt ||

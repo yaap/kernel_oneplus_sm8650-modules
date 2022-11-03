@@ -307,6 +307,14 @@ int gen7_start(struct adreno_device *adreno_dev);
 int gen7_init(struct adreno_device *adreno_dev);
 
 /**
+ * gen7_get_gpu_feature_info - Get hardware supported feature info
+ * @adreno_dev: Pointer to the adreno device
+ *
+ * Get HW supported feature info and update sofware feature configuration
+ */
+void gen7_get_gpu_feature_info(struct adreno_device *adreno_dev);
+
+/**
  * gen7_rb_start - Gen7 specific ringbuffer setup
  * @adreno_dev: An Adreno GPU handle
  *

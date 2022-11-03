@@ -259,6 +259,28 @@ int gen7_init(struct adreno_device *adreno_dev)
 		"powerup_register_list");
 }
 
+void gen7_get_gpu_feature_info(struct adreno_device *adreno_dev)
+{
+	u32 feature_fuse = 0;
+
+	/* Only Gen7_9_0 has the HW feature information */
+	if (!adreno_is_gen7_9_0(adreno_dev))
+		return;
+
+	/* Get HW feature soft fuse value */
+	adreno_cx_misc_regread(adreno_dev, GEN7_GPU_CX_MISC_SW_FUSE_VALUE,
+			       &feature_fuse);
+
+	adreno_dev->fastblend_enabled = feature_fuse & BIT(GEN7_FASTBLEND_SW_FUSE);
+	adreno_dev->raytracing_enabled = feature_fuse & BIT(GEN7_RAYTRACING_SW_FUSE);
+
+	/* If software enables LPAC without HW support, disable it */
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_LPAC))
+		adreno_dev->lpac_enabled = feature_fuse & BIT(GEN7_LPAC_SW_FUSE);
+
+	adreno_dev->feature_fuse = feature_fuse;
+}
+
 static void gen7_protect_init(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -1547,6 +1569,33 @@ u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
 	return (((u64) hi) << 32) | lo;
 }
 
+static int gen7_9_0_lpac_store(struct adreno_device *adreno_dev, bool enable)
+{
+	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LPAC))
+		return -EINVAL;
+
+	if (!(adreno_dev->feature_fuse & BIT(GEN7_LPAC_SW_FUSE)) ||
+		(adreno_dev->lpac_enabled == enable))
+		return 0;
+
+	/* Power down the GPU before changing the lpac setting */
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->lpac_enabled,
+				       enable);
+}
+
+static int gen7_lpac_store(struct adreno_device *adreno_dev, bool enable)
+{
+	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LPAC))
+		return -EINVAL;
+
+	if (adreno_dev->lpac_enabled == enable)
+		return 0;
+
+	/* Power down the GPU before changing the lpac setting */
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->lpac_enabled,
+				       enable);
+}
+
 static void gen7_remove(struct adreno_device *adreno_dev)
 {
 	if (adreno_preemption_feature_set(adreno_dev))
@@ -1757,6 +1806,7 @@ const struct gen7_gpudev adreno_gen7_9_0_hwsched_gpudev = {
 		.perfcounter_remove = gen7_perfcounter_remove,
 		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
 		.context_destroy = gen7_hwsched_context_destroy,
+		.lpac_store = gen7_9_0_lpac_store,
 	},
 	.hfi_probe = gen7_hwsched_hfi_probe,
 	.hfi_remove = gen7_hwsched_hfi_remove,
@@ -1784,6 +1834,7 @@ const struct gen7_gpudev adreno_gen7_hwsched_gpudev = {
 		.perfcounter_remove = gen7_perfcounter_remove,
 		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
 		.context_destroy = gen7_hwsched_context_destroy,
+		.lpac_store = gen7_lpac_store,
 	},
 	.hfi_probe = gen7_hwsched_hfi_probe,
 	.hfi_remove = gen7_hwsched_hfi_remove,
