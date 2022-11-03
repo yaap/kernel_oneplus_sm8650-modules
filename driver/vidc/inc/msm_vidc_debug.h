@@ -49,7 +49,7 @@ extern unsigned int msm_vidc_enable_bugon;
 #define FMT_STRING_FAULT_HANDLER \
 	"%s: faulting address: %lx\n"
 #define FMT_STRING_SET_CAP \
-	"set cap: name: %24s, cap value: %#10x, hfi: %#10x\n"
+	"set cap: name: %24s, cap value: %#10x, hfi: %#10llx\n"
 
 /* To enable messages OR these values and
  * echo the result to debugfs file.

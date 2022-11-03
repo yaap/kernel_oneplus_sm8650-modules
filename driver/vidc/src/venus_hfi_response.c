@@ -804,7 +804,7 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 		}
 	}
 	if (!found) {
-		i_vpr_e(inst, "%s: invalid buffer idx %d addr %#x data_offset %d\n",
+		i_vpr_e(inst, "%s: invalid buffer idx %d addr %#llx data_offset %d\n",
 			__func__, buffer->index, buffer->base_address,
 			buffer->data_offset);
 		return -EINVAL;
@@ -913,7 +913,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 			break;
 	}
 	if (!found) {
-		i_vpr_l(inst, "%s: invalid idx %d daddr %#x\n",
+		i_vpr_l(inst, "%s: invalid idx %d daddr %#llx\n",
 			__func__, buffer->index, buffer->base_address);
 		return 0;
 	}
@@ -1058,7 +1058,7 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 		}
 	}
 	if (!found) {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#x data_offset %d\n",
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx data_offset %d\n",
 			__func__, buffer->index, buffer->base_address,
 			buffer->data_offset);
 		return -EINVAL;
@@ -1125,7 +1125,7 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 		}
 	}
 	if (!found) {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#x data_offset %d\n",
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx data_offset %d\n",
 			__func__, buffer->index, buffer->base_address,
 			buffer->data_offset);
 		return -EINVAL;
@@ -1298,7 +1298,7 @@ static int handle_release_internal_buffer(struct msm_vidc_inst *inst,
 		if (rc)
 			return rc;
 	} else {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#x\n",
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
 			__func__, buffer->index, buffer->base_address);
 		return -EINVAL;
 	}
@@ -1320,7 +1320,7 @@ int handle_release_output_buffer(struct msm_vidc_inst *inst,
 		}
 	}
 	if (!found) {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#x\n",
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
 			__func__, buffer->index, buffer->base_address);
 		return -EINVAL;
 	}
