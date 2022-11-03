@@ -1428,7 +1428,7 @@ static void qseecom_vaddr_unmap(void *vaddr, struct sg_table *sgt,
 
 	if (!dmabuf || !vaddr || !sgt || !attach)
 		return;
-	pr_err("SMITA trying to unmap vaddr");
+	pr_err("Trying to unmap vaddr");
 	dma_buf_vunmap(dmabuf, &dmabufmap);
 	dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 	qseecom_dmabuf_unmap(sgt, attach, dmabuf);
