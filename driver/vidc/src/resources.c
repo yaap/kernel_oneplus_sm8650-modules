@@ -1285,6 +1285,63 @@ static int __init_resources(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __reset_control_assert_name(struct msm_vidc_core *core,
+		const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	venus_hfi_for_each_reset_clock(core, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+
+		found = true;
+		rc = reset_control_assert(rcinfo->rst);
+		if (rc)
+			d_vpr_e("%s: failed to assert reset control (%s), rc = %d\n",
+				__func__, rcinfo->name, rc);
+		else
+			d_vpr_h("%s: assert reset control (%s)\n",
+				__func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int __reset_control_deassert_name(struct msm_vidc_core *core,
+		const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	venus_hfi_for_each_reset_clock(core, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+		found = true;
+		rc = reset_control_deassert(rcinfo->rst);
+		if (rc)
+			d_vpr_e("%s: deassert reset control for (%s) failed, rc %d\n",
+					__func__, rcinfo->name, rc);
+		else
+			d_vpr_h("%s: deassert reset control (%s)\n",
+					__func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
 static int __reset_control_deassert(struct msm_vidc_core *core)
 {
 	struct reset_info *rcinfo = NULL;
@@ -1353,6 +1410,8 @@ static int __reset_ahb2axi_bridge(struct msm_vidc_core *core)
 static const struct msm_vidc_resources_ops res_ops = {
 	.init = __init_resources,
 	.reset_bridge = __reset_ahb2axi_bridge,
+	.reset_control_assert = __reset_control_assert_name,
+	.reset_control_deassert = __reset_control_deassert_name,
 	.gdsc_on = __enable_regulator,
 	.gdsc_off = __disable_regulator,
 	.gdsc_hw_ctrl = __hand_off_regulators,

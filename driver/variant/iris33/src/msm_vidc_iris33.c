@@ -23,7 +23,6 @@
 #define AON_MVP_NOC_RESET                      0x0001F000
 #define CPU_BASE_OFFS_IRIS33                    0x000A0000
 #define AON_BASE_OFFS			               0x000E0000
-#define VCODEC_VIDEO_CC_BASE                   0x000F0000
 #define CPU_CS_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 #define CPU_IC_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
 
@@ -178,13 +177,6 @@
 #define VCODEC_NOC_ERL_MAIN_ERRLOG2_HIGH		0x00011234
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW			0x00011238
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH		0x0001123C
-/*
- * --------------------------------------------------------------------------
- * MODULE: VCODEC_VIDEO_CC registers
- * --------------------------------------------------------------------------
- */
-#define VCODEC_VIDEO_CC_MVS0C_CBCR (VCODEC_VIDEO_CC_BASE + 0x8064)
-#define VCODEC_VIDEO_CC_XO_CBCR    (VCODEC_VIDEO_CC_BASE + 0x8124)
 
 
 static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
@@ -373,9 +365,9 @@ disable_power:
 		rc = 0;
 	}
 
-	rc = call_res_op(core, clk_disable, core, "vcodec_clk");
+	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare video_cc_mvs0_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -439,10 +431,10 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* enable MVP_CTL reset and enable Force Sleep Retention */
-	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x6005);
+	/* assert MVP_CTL reset */
+	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
 	if (rc)
-		return rc;
+		d_vpr_h("%s: assert video_mvs0c_reset failed\n", __func__);
 
 	/* enable MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
@@ -450,21 +442,24 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* enable vcodec video_cc XO reset and disable video_cc XO clock */
 	rc = __read_register(core, AON_WRAPPER_SPARE, &value);
 	if (rc)
 		return rc;
 	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
 	if (rc)
 		return rc;
-	rc = __write_register(core, VCODEC_VIDEO_CC_XO_CBCR, 0x4);
-	if (rc)
-		return rc;
 
-	/* De-assert MVP_CTL reset and enable Force Sleep Retention */
-	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x6001);
+	/* assert video_cc XO reset */
+	rc = call_res_op(core, reset_control_assert, core, "video_xo_reset");
 	if (rc)
-		return rc;
+		d_vpr_e("%s: assert video_xo_reset failed\n", __func__);
+
+	/* do we need 80us sleep before deassert? */
+	usleep_range(80, 100);
+	/* De-assert MVP_CTL reset */
+	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
+	if (rc)
+		d_vpr_h("%s: deassert video_mvs0c_reset failed\n", __func__);
 
 	/* De-assert MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
@@ -472,11 +467,11 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* De-assert video_cc XO reset and enable video_cc XO clock after 80us */
+	/* De-assert video_cc XO reset */
 	usleep_range(80, 100);
-	rc = __write_register(core, VCODEC_VIDEO_CC_XO_CBCR, 0x1);
+	rc = call_res_op(core, reset_control_deassert, core, "video_xo_reset");
 	if (rc)
-		return rc;
+		d_vpr_e("%s: deassert video_xo_reset failed\n", __func__);
 
 	/* Enable MVP NoC clock */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
@@ -484,16 +479,10 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* De-assert MVP_CTL Force Sleep Retention */
-	rc = __write_register(core, VCODEC_VIDEO_CC_MVS0C_CBCR, 0x1);
-	if (rc)
-		return rc;
-
-
 	/* Turn off MVP MVS0C core clock */
-	rc = call_res_op(core, clk_disable, core, "core_clk");
+	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare video_cc_mvs0c_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -505,9 +494,9 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	}
 
 	/* Turn off GCC AXI clock */
-	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0");
+	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare gcc_video_axi0_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -561,24 +550,40 @@ static int __power_on_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_regulator;
 
-	rc = call_res_op(core, reset_bridge, core);
+	rc = call_res_op(core, reset_control_assert, core, "video_axi_reset");
 	if (rc)
-		goto fail_reset_ahb2axi;
+		goto fail_reset_assert_axi;
+	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
+	if (rc)
+		goto fail_reset_assert_mvs0c;
+	/* add usleep between assert and deassert */
+	usleep_range(1000, 1100);
+	rc = call_res_op(core, reset_control_deassert, core, "video_axi_reset");
+	if (rc)
+		goto fail_reset_deassert_axi;
+	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
+	if (rc)
+		goto fail_reset_deassert_mvs0c;
 
-	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0");
+	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0_clk");
 	if (rc)
 		goto fail_clk_axi;
 
-	rc = call_res_op(core, clk_enable, core, "core_clk");
+	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0c_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	call_res_op(core, clk_disable, core, "gcc_video_axi0");
+	call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
 fail_clk_axi:
-fail_reset_ahb2axi:
+fail_reset_deassert_mvs0c:
+fail_reset_deassert_axi:
+	call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
+fail_reset_assert_mvs0c:
+	call_res_op(core, reset_control_deassert, core, "video_axi_reset");
+fail_reset_assert_axi:
 	call_res_op(core, gdsc_off, core, "iris-ctl");
 fail_regulator:
 	return rc;
@@ -592,7 +597,7 @@ static int __power_on_iris33_hardware(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_regulator;
 
-	rc = call_res_op(core, clk_enable, core, "vcodec_clk");
+	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0_clk");
 	if (rc)
 		goto fail_clk_controller;
 

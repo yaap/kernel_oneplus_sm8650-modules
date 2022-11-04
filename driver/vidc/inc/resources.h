@@ -205,6 +205,10 @@ struct msm_vidc_resources_ops {
 	int (*init)(struct msm_vidc_core *core);
 
 	int (*reset_bridge)(struct msm_vidc_core *core);
+	int (*reset_control_assert)(struct msm_vidc_core *core,
+			const char *name);
+	int (*reset_control_deassert)(struct msm_vidc_core *core,
+			const char *name);
 
 	int (*gdsc_on)(struct msm_vidc_core *core, const char *name);
 	int (*gdsc_off)(struct msm_vidc_core *core, const char *name);

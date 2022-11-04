@@ -2645,16 +2645,17 @@ static const struct regulator_table pineapple_regulator_table[] = {
 
 /* name, clock id, scaling */
 static const struct clk_table pineapple_clk_table[] = {
-	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
-	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
-	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      0 },
+	{ "gcc_video_axi0_clk",     GCC_VIDEO_AXI0_CLK,     0 },
+	{ "video_cc_mvs0c_clk",     VIDEO_CC_MVS0C_CLK,     0 },
+	{ "video_cc_mvs0_clk",      VIDEO_CC_MVS0_CLK,      0 },
 	{ "video_cc_mvs0_clk_src",  VIDEO_CC_MVS0_CLK_SRC,  1 },
 };
 
 /* name */
 static const struct clk_rst_table pineapple_clk_reset_table[] = {
 	{ "video_axi_reset"  },
-	{ "video_core_reset" },
+	{ "video_mvs0c_reset" },
+	/*{ "video_xo_reset" }, TODO: add after clock driver support */
 };
 
 /* name, llcc_id */
