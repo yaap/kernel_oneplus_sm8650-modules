@@ -554,14 +554,16 @@ static int __init_context_banks(struct msm_vidc_core *core)
 		cbs->context_bank_tbl[cnt].secure = cb_tbl[cnt].secure;
 		cbs->context_bank_tbl[cnt].dma_coherant = cb_tbl[cnt].dma_coherant;
 		cbs->context_bank_tbl[cnt].region = cb_tbl[cnt].region;
+		cbs->context_bank_tbl[cnt].dma_mask = cb_tbl[cnt].dma_mask;
 	}
 
 	/* print context_bank fiels */
 	venus_hfi_for_each_context_bank(core, cbinfo) {
-		d_vpr_h("%s: name %s addr start %#x size %#x secure %d coherant %d region %d\n",
+		d_vpr_h("%s: name %s addr start %#x size %#x secure %d "
+			"coherant %d region %d dma_mask %llu\n",
 			__func__, cbinfo->name, cbinfo->addr_range.start,
 			cbinfo->addr_range.size, cbinfo->secure,
-			cbinfo->dma_coherant, cbinfo->region);
+			cbinfo->dma_coherant, cbinfo->region, cbinfo->dma_mask);
 	}
 
 	return rc;
