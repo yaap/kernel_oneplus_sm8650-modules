@@ -646,11 +646,11 @@ static_assert(IS_ALIGNED(sizeof(gen7_9_0_gras_pipe_bv_cluster_gras_registers), 8
  * Block   : ['PC']
  * Pipeline: PIPE_BR
  * Cluster : CLUSTER_FE
- * pairs   : 5 (Regs:28)
+ * pairs   : 6 (Regs:31)
  */
 static const u32 gen7_9_0_pc_pipe_br_cluster_fe_registers[] = {
 	 0x09800, 0x09804, 0x09806, 0x0980a, 0x09810, 0x09811, 0x09884, 0x09886,
-	 0x09b00, 0x09b0c,
+	 0x09970, 0x09972, 0x09b00, 0x09b0c,
 	 UINT_MAX, UINT_MAX,
 };
 static_assert(IS_ALIGNED(sizeof(gen7_9_0_pc_pipe_br_cluster_fe_registers), 8));
@@ -659,11 +659,11 @@ static_assert(IS_ALIGNED(sizeof(gen7_9_0_pc_pipe_br_cluster_fe_registers), 8));
  * Block   : ['PC']
  * Pipeline: PIPE_BV
  * Cluster : CLUSTER_FE
- * pairs   : 5 (Regs:28)
+ * pairs   : 6 (Regs:31)
  */
 static const u32 gen7_9_0_pc_pipe_bv_cluster_fe_registers[] = {
 	 0x09800, 0x09804, 0x09806, 0x0980a, 0x09810, 0x09811, 0x09884, 0x09886,
-	 0x09b00, 0x09b0c,
+	 0x09970, 0x09972, 0x09b00, 0x09b0c,
 	 UINT_MAX, UINT_MAX,
 };
 static_assert(IS_ALIGNED(sizeof(gen7_9_0_pc_pipe_bv_cluster_fe_registers), 8));
@@ -1270,7 +1270,7 @@ static struct gen7_sptp_cluster_registers gen7_9_0_sptp_clusters[] = {
 	{ CLUSTER_SP_PS, SP_CTX3_3D_CPS_REG, PIPE_BR, 3, HLSQ_DP,
 		gen7_9_0_sp_pipe_br_cluster_sp_ps_hlsq_dp_registers, 0xa800},
 	{ CLUSTER_SP_PS, SP_CTX3_3D_CPS_REG, PIPE_BR, 3, SP_TOP,
-		gen7_9_0_sp_pipe_br_cluster_sp_ps_sp_top_registers, 0x800},
+		gen7_9_0_sp_pipe_br_cluster_sp_ps_sp_top_registers, 0xa800},
 	{ CLUSTER_SP_PS, SP_CTX3_3D_CPS_REG, PIPE_BR, 3, USPTP,
 		gen7_9_0_sp_pipe_br_cluster_sp_ps_usptp_registers, 0xa800},
 	{ CLUSTER_SP_PS, SP_CTX3_3D_CPS_REG, PIPE_BR, 3, HLSQ_DP_STR,
