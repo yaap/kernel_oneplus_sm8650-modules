@@ -234,6 +234,12 @@ static int __init_regulators(struct msm_vidc_core *core)
 	}
 	regulators = &core->resource->regulator_set;
 
+	/* skip init if regulators not supported */
+	if (!is_regulator_supported(core)) {
+		d_vpr_h("%s: regulators are not available in database\n", __func__);
+		return 0;
+	}
+
 	regulator_tbl = core->platform->data.regulator_tbl;
 	regulator_count = core->platform->data.regulator_tbl_size;
 
