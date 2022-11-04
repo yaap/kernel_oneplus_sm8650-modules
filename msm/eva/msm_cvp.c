@@ -577,8 +577,7 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	enum op_mode mode;
 	struct cvp_buf_type *buf;
 
-	int rc;
-	rc = 0;
+	int rc = 0;
 
 	q = &inst->fence_cmd_queue;
 
@@ -591,6 +590,9 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 		rc = -EBUSY;
 		goto exit;
 	}
+
+	if (!cvp_kernel_fence_enabled)
+		goto exit;
 
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	rc = cvp_alloc_fence_data((&f), cmd_hdr->size);
@@ -695,7 +697,11 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	else
 		rc = msm_cvp_map_frame(inst, in_pkt, in_offset, in_buf_num);
 
-	if (cvp_populate_fences(in_pkt, in_offset, in_buf_num, inst) == 0) {
+	if (rc)
+		return rc;
+
+	rc = cvp_populate_fences(in_pkt, in_offset, in_buf_num, inst);
+	if (rc == 0) {
 		rc = call_hfi_op(hdev, session_send, (void*)inst->session,
 			in_pkt);
 		if (rc) {
@@ -708,7 +714,8 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 		}
 		goto exit;
 	} else {
-		dprintk(CVP_SYNX, "Going fenced path\n");
+		if (rc > 0)
+			dprintk(CVP_SYNX, "Going fenced path\n");
 		goto exit;
 	}
 

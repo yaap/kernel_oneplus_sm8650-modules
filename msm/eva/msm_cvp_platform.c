@@ -796,7 +796,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 		{
 			.size = 0xFFFFFFFF,
 			.type = HFI_CMD_SESSION_CVP_SYNX,
-			.is_config_pkt = false,
+			.is_config_pkt = true,
 			.resp = HAL_NO_RESP,
 			.name = "SYNX_TEST",
 		},
