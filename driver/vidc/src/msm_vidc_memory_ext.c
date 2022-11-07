@@ -279,7 +279,7 @@ static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_m
 		goto error_table;
 	}
 
-	map->device_addr = table->sgl->dma_address;
+	map->device_addr = sg_dma_address(table->sgl);
 	map->table = table;
 	map->attach = attach;
 	map->refcount++;

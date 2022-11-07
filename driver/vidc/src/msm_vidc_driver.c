@@ -4277,8 +4277,7 @@ int msm_vidc_remove_session(struct msm_vidc_inst *inst)
 	core_lock(core, __func__);
 	list_for_each_entry_safe(i, temp, &core->instances, list) {
 		if (i->session_id == inst->session_id) {
-			list_del_init(&i->list);
-			list_add_tail(&i->list, &core->dangling_instances);
+			list_move_tail(&i->list, &core->dangling_instances);
 			i_vpr_h(inst, "%s: removed session %#x\n",
 				__func__, i->session_id);
 		}
@@ -4844,8 +4843,7 @@ int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force)
 	/* unlink all sessions from core, if any */
 	list_for_each_entry_safe(inst, dummy, &core->instances, list) {
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-		list_del_init(&inst->list);
-		list_add_tail(&inst->list, &core->dangling_instances);
+		list_move_tail(&inst->list, &core->dangling_instances);
 	}
 	msm_vidc_change_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
