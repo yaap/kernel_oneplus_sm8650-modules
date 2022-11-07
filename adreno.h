@@ -933,6 +933,10 @@ struct adreno_gpudev {
 	 * @lpac_store: To enable/disable lpac at runtime
 	 */
 	int (*lpac_store)(struct adreno_device *adreno_dev, bool enable);
+	/*
+	 * @get_uche_trap_base: Return the UCHE_TRAP_BASE value
+	 */
+	u64 (*get_uche_trap_base)(void);
 };
 
 /**

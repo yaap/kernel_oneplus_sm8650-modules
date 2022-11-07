@@ -454,6 +454,14 @@ static void _set_secvid(struct kgsl_device *device)
 		(KGSL_IOMMU_SECURE_SIZE(&device->mmu) / SZ_4K)));
 }
 
+/* Set UCHE_TRAP_BASE to a page below the top of the memory space */
+#define GEN7_UCHE_TRAP_BASE 0x1FFFFFFFFF000ULL
+
+static u64 gen7_get_uche_trap_base(void)
+{
+	return GEN7_UCHE_TRAP_BASE;
+}
+
 /*
  * All Gen7 targets support marking certain transactions as always privileged
  * which allows us to mark more memory as privileged without having to
@@ -484,6 +492,7 @@ int gen7_start(struct adreno_device *adreno_dev)
 	 */
 	u32 hbb_lo = 1, hbb_hi = 0;
 	struct cpu_gpu_lock *pwrup_lock = adreno_dev->pwrup_reglist->hostptr;
+	u64 uche_trap_base = gen7_get_uche_trap_base();
 
 	/* Set up GBIF registers from the GPU core definition */
 	kgsl_regmap_multi_write(&device->regmap, gen7_core->gbif,
@@ -498,10 +507,10 @@ int gen7_start(struct adreno_device *adreno_dev)
 	 * Set UCHE_WRITE_THRU_BASE to the UCHE_TRAP_BASE effectively
 	 * disabling L2 bypass
 	 */
-	kgsl_regwrite(device, GEN7_UCHE_TRAP_BASE_LO, 0xfffff000);
-	kgsl_regwrite(device, GEN7_UCHE_TRAP_BASE_HI, 0x0001ffff);
-	kgsl_regwrite(device, GEN7_UCHE_WRITE_THRU_BASE_LO, 0xfffff000);
-	kgsl_regwrite(device, GEN7_UCHE_WRITE_THRU_BASE_HI, 0x0001ffff);
+	kgsl_regwrite(device, GEN7_UCHE_TRAP_BASE_LO, lower_32_bits(uche_trap_base));
+	kgsl_regwrite(device, GEN7_UCHE_TRAP_BASE_HI, upper_32_bits(uche_trap_base));
+	kgsl_regwrite(device, GEN7_UCHE_WRITE_THRU_BASE_LO, lower_32_bits(uche_trap_base));
+	kgsl_regwrite(device, GEN7_UCHE_WRITE_THRU_BASE_HI, upper_32_bits(uche_trap_base));
 
 	/*
 	 * Some gen7 targets don't use a programmed UCHE GMEM base address,
@@ -1807,6 +1816,7 @@ const struct gen7_gpudev adreno_gen7_9_0_hwsched_gpudev = {
 		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
 		.context_destroy = gen7_hwsched_context_destroy,
 		.lpac_store = gen7_9_0_lpac_store,
+		.get_uche_trap_base = gen7_get_uche_trap_base,
 	},
 	.hfi_probe = gen7_hwsched_hfi_probe,
 	.hfi_remove = gen7_hwsched_hfi_remove,
@@ -1835,6 +1845,7 @@ const struct gen7_gpudev adreno_gen7_hwsched_gpudev = {
 		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
 		.context_destroy = gen7_hwsched_context_destroy,
 		.lpac_store = gen7_lpac_store,
+		.get_uche_trap_base = gen7_get_uche_trap_base,
 	},
 	.hfi_probe = gen7_hwsched_hfi_probe,
 	.hfi_remove = gen7_hwsched_hfi_remove,
@@ -1865,6 +1876,7 @@ const struct gen7_gpudev adreno_gen7_gmu_gpudev = {
 		.perfcounter_remove = gen7_perfcounter_remove,
 		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
 		.swfuse_irqctrl = gen7_swfuse_irqctrl,
+		.get_uche_trap_base = gen7_get_uche_trap_base,
 	},
 	.hfi_probe = gen7_gmu_hfi_probe,
 	.handle_watchdog = gen7_gmu_handle_watchdog,

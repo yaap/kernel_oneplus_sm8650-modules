@@ -2187,6 +2187,21 @@ static int adreno_prop_u32(struct kgsl_device *device,
 	return copy_prop(param, &val, sizeof(val));
 }
 
+static int adreno_prop_uche_trap_base(struct kgsl_device *device,
+		struct kgsl_device_getproperty *param)
+{
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	u64 val = 0;
+
+	if (!gpudev->get_uche_trap_base)
+		return -EINVAL;
+
+	val = gpudev->get_uche_trap_base();
+
+	return copy_prop(param, &val, sizeof(val));
+}
+
 static const struct {
 	int type;
 	int (*func)(struct kgsl_device *device,
@@ -2211,6 +2226,7 @@ static const struct {
 	{ KGSL_PROP_IS_LPAC_ENABLED, adreno_prop_u32 },
 	{ KGSL_PROP_IS_RAYTRACING_ENABLED, adreno_prop_u32},
 	{ KGSL_PROP_IS_FASTBLEND_ENABLED, adreno_prop_u32},
+	{ KGSL_PROP_UCHE_TRAP_BASE, adreno_prop_uche_trap_base },
 };
 
 static int adreno_getproperty(struct kgsl_device *device,
