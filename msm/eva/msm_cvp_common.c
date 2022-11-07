@@ -24,7 +24,7 @@ static void handle_session_error(enum hal_command_response cmd, void *data);
 
 static void msm_cvp_comm_generate_session_error(struct msm_cvp_inst *inst)
 {
-	dprintk(CVP_WARN, "%s function is deprecated\n");
+	dprintk(CVP_WARN, "%s function is deprecated\n", __func__);
 }
 
 static void dump_hfi_queue(struct iris_hfi_device *device)

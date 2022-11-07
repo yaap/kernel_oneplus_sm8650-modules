@@ -3628,7 +3628,7 @@ static int __enable_regulator(struct iris_hfi_device *device,
 		return 0;
 	}
 
-	dprintk(CVP_ERR, "regulator %s not found\n");
+	dprintk(CVP_ERR, "regulator %s not found\n", name);
 	return -EINVAL;
 }
 
