@@ -500,7 +500,8 @@ static int dump_single_entry(struct hw_fence_driver_data *drv_data, char *buf, u
 
 	hw_fence = msm_hw_fence_find(drv_data, NULL, context, seqno, &hash);
 	if (!hw_fence) {
-		HWFNC_ERR("no valid hfence found for context:%lu seqno:%lu", context, seqno, hash);
+		HWFNC_ERR("no valid hfence found for context:%lu seqno:%lu hash:%lu",
+				context, seqno, hash);
 		len = scnprintf(buf + len, max_size - len,
 			"no valid hfence found for context:%lu seqno:%lu hash:%lu\n",
 			context, seqno, hash);

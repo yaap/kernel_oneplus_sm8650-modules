@@ -310,7 +310,7 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	/* calculate the index after the write */
 	to_write_idx = write_idx + payload_size_u32;
 
-	HWFNC_DBG_Q("to_write_idx:%d write_idx:%d payload_size\n", to_write_idx, write_idx,
+	HWFNC_DBG_Q("to_write_idx:%d write_idx:%d payload_size:%u\n", to_write_idx, write_idx,
 		payload_size_u32);
 	HWFNC_DBG_L("client_id:%d update %s hash:%llu ctx_id:%llu seqno:%llu flags:%llu error:%u\n",
 		hw_fence_client->client_id, _get_queue_type(queue_type),
