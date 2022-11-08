@@ -98,7 +98,7 @@ static void print_internal_buffer(u32 tag, const char *str,
 	} else {
 		dprintk(tag,
 		"%s: %x : idx %2d fd %d off %d size %d iova %#x",
-		str, hash32_ptr(inst->session), cbuf->fd,
+		str, hash32_ptr(inst->session), cbuf->index, cbuf->fd,
 		cbuf->offset, cbuf->size, cbuf->smem->device_addr);
 	}
 }
@@ -108,7 +108,8 @@ void print_cvp_buffer(u32 tag, const char *str, struct msm_cvp_inst *inst,
 {
 	if (!inst || !cbuf)
 		dprintk(CVP_ERR,
-			"%s Invalid params inst %pK, cbuf %pK\n", inst, cbuf);
+			"%s Invalid params inst %pK, cbuf %pK\n",
+			str, inst, cbuf);
 
 	print_smem(tag, str, inst, cbuf->smem);
 }
@@ -690,7 +691,7 @@ static void _wncc_print_cvpwnccbufs_table(struct msm_cvp_inst* inst)
 		return;
 	}
 
-	dprintk(CVP_DBG, "%s: wncc buffer table:");
+	dprintk(CVP_DBG, "%s: wncc buffer table:", __func__);
 	for (i = 0; i < EVA_KMD_WNCC_MAX_SRC_BUFS &&
 		entries < inst->cvpwnccbufs_num; i++) {
 		if (inst->cvpwnccbufs_table[i].iova != 0) {
