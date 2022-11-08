@@ -2910,7 +2910,7 @@ static int spcom_ioctl_handle_get_message(struct spcom_ioctl_message *arg, void 
 
 	/* DEVICE_NAME name is reserved for control channel */
 	if (is_control_channel_name(ch_name)) {
-		spcom_pr_err("cannot send message on management channel\n", ch_name);
+		spcom_pr_err("cannot send message on management channel %s\n", ch_name);
 		ret = -EFAULT;
 		goto get_message_out;
 	}
@@ -2978,7 +2978,7 @@ static int spcom_ioctl_handle_get_message(struct spcom_ioctl_message *arg, void 
 	spcom_pr_dbg("copying message to user space, size: [%d]\n", msg_sz);
 	ret = copy_to_user(user_buffer, hdr->buf, msg_sz);
 	if (ret) {
-		spcom_pr_err("failed to copy to user, ret [%d]\n");
+		spcom_pr_err("failed to copy to user, ret [%d]\n", ret);
 		ret = -EFAULT;
 		goto get_message_out;
 	}
@@ -3654,7 +3654,7 @@ static int spcom_rpdev_cb(struct rpmsg_device *rpdev,
 	}
 	ch = dev_get_drvdata(&rpdev->dev);
 	if (!ch) {
-		spcom_pr_err("%s: invalid ch\n");
+		spcom_pr_err("%s: invalid ch\n", ch->name);
 		return -EINVAL;
 	}
 	if (len > SPCOM_RX_BUF_SIZE || len <= 0) {
