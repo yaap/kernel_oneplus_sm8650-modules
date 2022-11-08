@@ -905,59 +905,29 @@ struct msm_vidc_buffers *msm_vidc_get_buffers(
 	}
 }
 
-struct msm_vidc_mappings *msm_vidc_get_mappings(
+struct msm_vidc_mem_list *msm_vidc_get_mem_info(
 	struct msm_vidc_inst *inst, enum msm_vidc_buffer_type buffer_type,
 	const char *func)
 {
 	switch (buffer_type) {
 	case MSM_VIDC_BUF_BIN:
-		return &inst->mappings.bin;
+		return &inst->mem_info.bin;
 	case MSM_VIDC_BUF_ARP:
-		return &inst->mappings.arp;
+		return &inst->mem_info.arp;
 	case MSM_VIDC_BUF_COMV:
-		return &inst->mappings.comv;
+		return &inst->mem_info.comv;
 	case MSM_VIDC_BUF_NON_COMV:
-		return &inst->mappings.non_comv;
+		return &inst->mem_info.non_comv;
 	case MSM_VIDC_BUF_LINE:
-		return &inst->mappings.line;
+		return &inst->mem_info.line;
 	case MSM_VIDC_BUF_DPB:
-		return &inst->mappings.dpb;
+		return &inst->mem_info.dpb;
 	case MSM_VIDC_BUF_PERSIST:
-		return &inst->mappings.persist;
+		return &inst->mem_info.persist;
 	case MSM_VIDC_BUF_VPSS:
-		return &inst->mappings.vpss;
+		return &inst->mem_info.vpss;
 	case MSM_VIDC_BUF_PARTIAL_DATA:
-		return &inst->mappings.partial_data;
-	default:
-		i_vpr_e(inst, "%s: invalid driver buffer type %d\n",
-			func, buffer_type);
-		return NULL;
-	}
-}
-
-struct msm_vidc_allocations *msm_vidc_get_allocations(
-	struct msm_vidc_inst *inst, enum msm_vidc_buffer_type buffer_type,
-	const char *func)
-{
-	switch (buffer_type) {
-	case MSM_VIDC_BUF_BIN:
-		return &inst->allocations.bin;
-	case MSM_VIDC_BUF_ARP:
-		return &inst->allocations.arp;
-	case MSM_VIDC_BUF_COMV:
-		return &inst->allocations.comv;
-	case MSM_VIDC_BUF_NON_COMV:
-		return &inst->allocations.non_comv;
-	case MSM_VIDC_BUF_LINE:
-		return &inst->allocations.line;
-	case MSM_VIDC_BUF_DPB:
-		return &inst->allocations.dpb;
-	case MSM_VIDC_BUF_PERSIST:
-		return &inst->allocations.persist;
-	case MSM_VIDC_BUF_VPSS:
-		return &inst->allocations.vpss;
-	case MSM_VIDC_BUF_PARTIAL_DATA:
-		return &inst->allocations.partial_data;
+		return &inst->mem_info.partial_data;
 	default:
 		i_vpr_e(inst, "%s: invalid driver buffer type %d\n",
 			func, buffer_type);
@@ -3496,10 +3466,8 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer)
 {
 	struct msm_vidc_buffers *buffers;
-	struct msm_vidc_allocations *allocations;
-	struct msm_vidc_mappings *mappings;
-	struct msm_vidc_alloc *alloc, *alloc_dummy;
-	struct msm_vidc_map  *map, *map_dummy;
+	struct msm_vidc_mem_list *mem_list;
+	struct msm_vidc_mem *mem, *mem_dummy;
 	struct msm_vidc_buffer *buf, *dummy;
 	struct msm_vidc_core *core;
 
@@ -3521,27 +3489,15 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	buffers = msm_vidc_get_buffers(inst, buffer->type, __func__);
 	if (!buffers)
 		return -EINVAL;
-	allocations = msm_vidc_get_allocations(inst, buffer->type, __func__);
-	if (!allocations)
-		return -EINVAL;
-	mappings = msm_vidc_get_mappings(inst, buffer->type, __func__);
-	if (!mappings)
+	mem_list = msm_vidc_get_mem_info(inst, buffer->type, __func__);
+	if (!mem_list)
 		return -EINVAL;
 
-	list_for_each_entry_safe(map, map_dummy, &mappings->list, list) {
-		if (map->dmabuf == buffer->dmabuf) {
-			call_mem_op(core, memory_unmap, core, map);
-			list_del(&map->list);
-			msm_vidc_pool_free(inst, map);
-			break;
-		}
-	}
-
-	list_for_each_entry_safe(alloc, alloc_dummy, &allocations->list, list) {
-		if (alloc->dmabuf == buffer->dmabuf) {
-			call_mem_op(core, memory_free, core, alloc);
-			list_del(&alloc->list);
-			msm_vidc_pool_free(inst, alloc);
+	list_for_each_entry_safe(mem, mem_dummy, &mem_list->list, list) {
+		if (mem->dmabuf == buffer->dmabuf) {
+			call_mem_op(core, memory_unmap_free, core, mem);
+			list_del(&mem->list);
+			msm_vidc_pool_free(inst, mem);
 			break;
 		}
 	}
@@ -3600,11 +3556,9 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct msm_vidc_buffers *buffers;
-	struct msm_vidc_allocations *allocations;
-	struct msm_vidc_mappings *mappings;
+	struct msm_vidc_mem_list *mem_list;
 	struct msm_vidc_buffer *buffer;
-	struct msm_vidc_alloc *alloc;
-	struct msm_vidc_map *map;
+	struct msm_vidc_mem *mem;
 	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core) {
@@ -3621,11 +3575,8 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	buffers = msm_vidc_get_buffers(inst, buffer_type, __func__);
 	if (!buffers)
 		return -EINVAL;
-	allocations = msm_vidc_get_allocations(inst, buffer_type, __func__);
-	if (!allocations)
-		return -EINVAL;
-	mappings = msm_vidc_get_mappings(inst, buffer_type, __func__);
-	if (!mappings)
+	mem_list = msm_vidc_get_mem_info(inst, buffer_type, __func__);
+	if (!mem_list)
 		return -EINVAL;
 
 	if (!buffers->size)
@@ -3642,37 +3593,23 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	buffer->buffer_size = buffers->size;
 	list_add_tail(&buffer->list, &buffers->list);
 
-	alloc = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_ALLOC);
-	if (!alloc) {
-		i_vpr_e(inst, "%s: alloc failed\n", __func__);
+	mem = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_ALLOC_MAP);
+	if (!mem) {
+		i_vpr_e(inst, "%s: mem poo alloc failed\n", __func__);
 		return -ENOMEM;
 	}
-	INIT_LIST_HEAD(&alloc->list);
-	alloc->type = buffer_type;
-	alloc->region = call_mem_op(core, buffer_region, inst, buffer_type);
-	alloc->size = buffer->buffer_size;
-	alloc->secure = is_secure_region(alloc->region);
-	rc = call_mem_op(core, memory_alloc, core, alloc);
+	INIT_LIST_HEAD(&mem->list);
+	mem->type = buffer_type;
+	mem->region = call_mem_op(core, buffer_region, inst, buffer_type);
+	mem->size = buffer->buffer_size;
+	mem->secure = is_secure_region(mem->region);
+	rc = call_mem_op(core, memory_alloc_map, core, mem);
 	if (rc)
 		return -ENOMEM;
-	list_add_tail(&alloc->list, &allocations->list);
+	list_add_tail(&mem->list, &mem_list->list);
 
-	map = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_MAP);
-	if (!map) {
-		i_vpr_e(inst, "%s: map alloc failed\n", __func__);
-		return -ENOMEM;
-	}
-	INIT_LIST_HEAD(&map->list);
-	map->type = alloc->type;
-	map->region = alloc->region;
-	map->dmabuf = alloc->dmabuf;
-	rc = call_mem_op(core, memory_map, core, map);
-	if (rc)
-		return -ENOMEM;
-	list_add_tail(&map->list, &mappings->list);
-
-	buffer->dmabuf = alloc->dmabuf;
-	buffer->device_addr = map->device_addr;
+	buffer->dmabuf = mem->dmabuf;
+	buffer->device_addr = mem->device_addr;
 	i_vpr_h(inst, "%s: create: type: %8s, size: %9u, device_addr %#llx\n", __func__,
 		buf_name(buffer_type), buffers->size, buffer->device_addr);
 
