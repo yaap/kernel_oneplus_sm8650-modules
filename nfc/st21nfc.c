@@ -73,7 +73,6 @@
 static bool init_flag;
 static bool enable_debug_log;
 
-bool clk_pin_voting;
 
 /*The enum is used to index a pw_states array, the values matter here*/
 enum st21nfc_power_state {
@@ -168,35 +167,6 @@ struct st21nfc_device {
 	/*secure zone state*/
 	bool secure_zone;
 };
-
-/*
- * Routine to enable clock.
- * this routine can be extended to select from multiple
- * sources based on clk_src_name.
- */
-static int st21nfc_clock_select(struct st21nfc_device *st21nfc_dev)
-{
-	int ret = 0;
-
-	st21nfc_dev->s_clk = clk_get(&st21nfc_dev->client->dev, "nfc_ref_clk");
-
-	/* if NULL we assume external crystal and dont fail */
-	if (IS_ERR_OR_NULL(st21nfc_dev->s_clk))
-		return 0;
-
-	if (st21nfc_dev->clk_run == false) {
-		ret = clk_prepare_enable(st21nfc_dev->s_clk);
-
-		if (ret)
-			goto err_clk;
-
-		st21nfc_dev->clk_run = true;
-	}
-	return ret;
-
-err_clk:
-	return -EINVAL;
-}
 
 /*
  * Routine to disable clocks
@@ -781,11 +751,6 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 	case ST21NFC_SET_POLARITY_HIGH:
 	case ST21NFC_LEGACY_SET_POLARITY_HIGH:
 		pr_info(" ### ST21NFC_SET_POLARITY_HIGH ###\n");
-		if(clk_pin_voting == true) {
-			ret = st21nfc_clock_select(st21nfc_dev);
-			if (ret < 0)
-				pr_err("%s : st21nfc_clock_select failed\n", __func__);
-		}
 		st21nfc_loc_set_polaritymode(st21nfc_dev, IRQF_TRIGGER_HIGH);
 		break;
 
@@ -910,14 +875,6 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 		}
 		if (enable_debug_log)
 			pr_debug("%s use ESE %d : %d\n", __func__, ret, tmp);
-		break;
-
-	case ST21NFC_CLK_DISABLE_UNPREPARE:
-		if(clk_pin_voting == true) {
-			ret = st21nfc_clock_deselect(st21nfc_dev);
-			if (ret < 0)
-				pr_err("%s : st21nfc_clock_deselect failed\n", __func__);
-		}
 		break;
 
 	case NFC_SECURE_ZONE:
@@ -1222,7 +1179,6 @@ static int st21nfc_probe(struct i2c_client *client,
 
 	st21nfc_dev->gpiod_clkreq = devm_gpiod_get(dev, "clkreq", GPIOD_IN);
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_clkreq)) {
-		clk_pin_voting = true;
 		st21nfc_dev->clk_run = false;
 	} else {
 		if (!device_property_read_bool(dev, "st,clk_pinctrl")) {
@@ -1238,8 +1194,6 @@ static int st21nfc_probe(struct i2c_client *client,
 		/* Set clk_run when clock pinctrl already enabled */
 		if (st21nfc_dev->pinctrl_en != 0)
 			st21nfc_dev->clk_run = true;
-
-		clk_pin_voting = false;
 	}
 
 	client->irq = gpiod_to_irq(st21nfc_dev->gpiod_irq);
