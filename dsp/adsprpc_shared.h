@@ -945,6 +945,8 @@ struct fastrpc_apps {
 	struct mutex mut_uid;
 	/* Indicates cdsp device status */
 	int remote_cdsp_status;
+	/* Indicates secure context bank to be shared */
+	int share_securecb;
 };
 
 struct fastrpc_mmap {

@@ -1207,7 +1207,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 		map->secure = (mem_buf_dma_buf_exclusive_owner(map->buf)) ? 0 : 1;
 		if (map->secure) {
 			if (!fl->secsctx)
-				err = fastrpc_session_alloc(chan, 1, 0,
+				err = fastrpc_session_alloc(chan, 1, me->share_securecb,
 							&fl->secsctx);
 			if (err) {
 				ADSPRPC_ERR(
@@ -7374,6 +7374,9 @@ static int fastrpc_cb_probe(struct device *dev)
 
 	if (of_get_property(dev->of_node, "shared-cb", NULL) != NULL) {
 		sess->smmu.sharedcb = 1;
+		// Set share_securecb, if the secure context bank is shared
+		if (sess->smmu.secure)
+			me->share_securecb = 1;
 		err = of_property_read_u32(dev->of_node, "shared-cb",
 				&sharedcb_count);
 		if (err)
