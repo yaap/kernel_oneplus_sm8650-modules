@@ -185,7 +185,7 @@ int msm_vb2_map_dmabuf(void *buf_priv)
 		rc = -ENOMEM;
 		goto exit;
 	}
-	buf->device_addr = buf->sg_table->sgl->dma_address;
+	buf->device_addr = sg_dma_address(buf->sg_table->sgl);
 	print_vidc_buffer(VIDC_HIGH, "high", "map", inst, buf);
 
 exit:

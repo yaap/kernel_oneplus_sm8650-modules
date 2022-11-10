@@ -79,13 +79,12 @@ void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst, enum msm_memory_pool_type 
 		/* get 1st node from free pool */
 		hdr = list_first_entry(&pool->free_pool,
 			struct msm_memory_alloc_header, list);
-		list_del_init(&hdr->list);
+
+		/* move node from free pool to busy pool */
+		list_move_tail(&hdr->list, &pool->busy_pool);
 
 		/* reset existing data */
 		memset((char *)hdr->buf, 0, pool->size);
-
-		/* add to busy pool */
-		list_add_tail(&hdr->list, &pool->busy_pool);
 
 		/* set busy flag to true. This is to catch double free request */
 		hdr->busy = true;
@@ -138,11 +137,8 @@ void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf)
 	}
 	hdr->busy = false;
 
-	/* remove from busy pool */
-	list_del_init(&hdr->list);
-
-	/* add to free pool */
-	list_add_tail(&hdr->list, &pool->free_pool);
+	/* move node from busy pool to free pool */
+	list_move_tail(&hdr->list, &pool->free_pool);
 }
 
 static void msm_vidc_destroy_pool_buffers(struct msm_vidc_inst *inst,
@@ -454,7 +450,7 @@ static int msm_vidc_memory_map(struct msm_vidc_core *core, struct msm_vidc_map *
 		goto error_table;
 	}
 
-	map->device_addr = table->sgl->dma_address;
+	map->device_addr = sg_dma_address(table->sgl);
 	map->table = table;
 	map->attach = attach;
 	map->refcount++;
