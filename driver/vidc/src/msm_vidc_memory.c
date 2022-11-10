@@ -6,9 +6,6 @@
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
 #include <linux/dma-mapping.h>
-#include <linux/qcom-dma-mapping.h>
-#include <linux/mem-buf.h>
-#include <soc/qcom/secure_buffer.h>
 
 #include "msm_vidc_memory.h"
 #include "msm_vidc_debug.h"
@@ -122,7 +119,7 @@ void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf)
 
 	/* sanitize buffer addr */
 	if (hdr->buf != vidc_buf) {
-		i_vpr_e(inst, "%s: invalid buf addr %#x\n", __func__, vidc_buf);
+		i_vpr_e(inst, "%s: invalid buf addr %p\n", __func__, vidc_buf);
 		return;
 	}
 
@@ -135,7 +132,7 @@ void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf)
 
 	/* catch double-free request */
 	if (!hdr->busy) {
-		i_vpr_e(inst, "%s: double free request. type %s, addr %#x\n", __func__,
+		i_vpr_e(inst, "%s: double free request. type %s, addr %p\n", __func__,
 			pool->name, vidc_buf);
 		return;
 	}
@@ -298,7 +295,7 @@ static void msm_vidc_dma_buf_put(struct msm_vidc_inst *inst, struct dma_buf *dma
 		}
 	}
 	if (!found) {
-		i_vpr_e(inst, "%s: invalid dmabuf %#x\n", __func__, dmabuf);
+		i_vpr_e(inst, "%s: invalid dmabuf %p\n", __func__, dmabuf);
 		return;
 	}
 
@@ -357,12 +354,6 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach(struct msm_vidc_core *
 		d_vpr_e("Failed to attach dmabuf, error %d\n", rc);
 		return NULL;
 	}
-
-	/*
-	 * We do not need dma_map function to perform cache operations
-	 * on the whole buffer size and hence pass skip sync flag.
-	 */
-	attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
 	return attach;
 }

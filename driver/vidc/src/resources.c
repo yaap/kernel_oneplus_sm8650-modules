@@ -108,7 +108,7 @@ static int __init_register_base(struct msm_vidc_core *core)
 
 	res->register_base_addr = devm_platform_ioremap_resource(core->pdev, 0);
 	if (IS_ERR(res->register_base_addr)) {
-		d_vpr_e("%s: map reg addr failed %d\n",
+		d_vpr_e("%s: map reg addr failed %ld\n",
 			__func__, PTR_ERR(res->register_base_addr));
 		return -EINVAL;
 	}
@@ -499,7 +499,7 @@ static int __init_freq_table(struct msm_vidc_core *core)
 	/* print freq field freq_set */
 	d_vpr_h("%s: updated freq table\n", __func__);
 	for (cnt = 0; cnt < clks->count; cnt++)
-		d_vpr_h("%s:\t %u\n", __func__, clks->freq_tbl[cnt].freq);
+		d_vpr_h("%s:\t %lu\n", __func__, clks->freq_tbl[cnt].freq);
 
 	return rc;
 }

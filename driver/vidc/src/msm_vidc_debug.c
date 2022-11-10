@@ -177,7 +177,7 @@ void msm_vidc_show_stats(void *inst)
 	for (x = 0; x < MAX_PROFILING_POINTS; x++) {
 		if (i->debug.pdata[x].name[0]) {
 			if (i->debug.samples) {
-				i_vpr_p(i, "%s averaged %d ms/sample\n",
+				i_vpr_p(i, "%s averaged %llu ms/sample\n",
 						i->debug.pdata[x].name,
 						i->debug.pdata[x].cumulative /
 						i->debug.samples);

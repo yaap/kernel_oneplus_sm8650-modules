@@ -2855,7 +2855,7 @@ int msm_vidc_ts_reorder_get_first_timestamp(struct msm_vidc_inst *inst, u64 *tim
 
 	/* check if list empty */
 	if (list_empty(&inst->ts_reorder.list)) {
-		i_vpr_e(inst, "%s: list empty. ts %lld\n", __func__, timestamp);
+		i_vpr_e(inst, "%s: list empty. ts %lld\n", __func__, *timestamp);
 		return -EINVAL;
 	}
 
@@ -5577,7 +5577,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 				inode_num = f_inode->i_ino;
 			}
 		}
-		i_vpr_e(inst, "%s: removing dma_buf %#lx, inode %lu, refcount %u\n",
+		i_vpr_e(inst, "%s: removing dma_buf %p, inode %lu, refcount %u\n",
 			__func__, dbuf->dmabuf, inode_num, dbuf->refcount);
 		call_mem_op(core, dma_buf_put_completely, inst, dbuf);
 	}

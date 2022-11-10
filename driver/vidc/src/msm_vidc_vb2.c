@@ -4,8 +4,6 @@
  */
 /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
 
-#include <linux/qcom-dma-mapping.h>
-
 #include "msm_vidc_vb2.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
