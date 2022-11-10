@@ -2985,13 +2985,14 @@ static void print_msg_hdr(void *hdr)
 {
 	struct cvp_hfi_msg_session_hdr *new_hdr =
 			(struct cvp_hfi_msg_session_hdr *)hdr;
-	dprintk(CVP_HFI, "HFI MSG received: %x %x %x %x %x %x %x\n",
+	dprintk(CVP_HFI, "HFI MSG received: %x %x %x %x %x %x %x %#llx\n",
 			new_hdr->size, new_hdr->packet_type,
 			new_hdr->session_id,
 			new_hdr->client_data.transaction_id,
 			new_hdr->client_data.data1,
 			new_hdr->client_data.data2,
-			new_hdr->error_type);
+			new_hdr->error_type,
+			new_hdr->client_data.kdata);
 }
 
 static int __response_handler(struct iris_hfi_device *device)
