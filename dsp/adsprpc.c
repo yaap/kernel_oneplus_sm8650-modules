@@ -6177,6 +6177,7 @@ bail:
 	return err;
 }
 
+/* Wait for PD to be up before audio or sensors daemons try connecting */
 static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 {
 	int err = 0, session = -1, cid = -1;
