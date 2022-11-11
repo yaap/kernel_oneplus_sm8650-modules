@@ -543,6 +543,43 @@ static u32 msm_vidc_get_buffer_stats_flag(struct msm_vidc_inst *inst)
 	return flags;
 }
 
+static int msm_vidc_suspend_locked(struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+	if (!core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = venus_hfi_suspend(core);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+static int msm_vidc_try_suspend(struct msm_vidc_inst *inst)
+{
+	struct msm_vidc_core *core;
+	int rc = 0;
+
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	core = inst->core;
+
+	core_lock(core, __func__);
+	if (list_empty(&core->instances) && list_empty(&core->dangling_instances)) {
+		i_vpr_h(inst, "%s: closed last open session. suspend video core\n", __func__);
+		msm_vidc_suspend_locked(core);
+	}
+	core_unlock(core, __func__);
+
+	return rc;
+}
+
 int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf)
 {
@@ -4294,7 +4331,7 @@ static int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
-	u32 count = 0;
+	u32 count = 0, dcount = 0;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -4311,9 +4348,12 @@ static int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
 			break;
 		}
 	}
-	list_for_each_entry(i, &core->dangling_instances, list)
+	list_for_each_entry(i, &core->instances, list)
 		count++;
-	i_vpr_h(inst, "%s: remaining dangling sessions %d\n", __func__, count);
+	list_for_each_entry(i, &core->dangling_instances, list)
+		dcount++;
+	i_vpr_h(inst, "%s: remaining sessions. active %d, dangling %d\n",
+		__func__, count, dcount);
 	core_unlock(core, __func__);
 
 	return 0;
@@ -5303,10 +5343,14 @@ int msm_vidc_suspend(struct msm_vidc_core *core)
 		return -EINVAL;
 	}
 
-	rc = venus_hfi_suspend(core);
+	core_lock(core, __func__);
+	d_vpr_h("%s: initiate PM suspend\n", __func__);
+	rc = msm_vidc_suspend_locked(core);
 	if (rc)
-		return rc;
+		goto exit;
 
+exit:
+	core_unlock(core, __func__);
 	return rc;
 }
 
@@ -5623,6 +5667,7 @@ static void msm_vidc_close_helper(struct kref *kref)
 		destroy_workqueue(inst->workq);
 	msm_vidc_destroy_buffers(inst);
 	msm_vidc_remove_dangling_session(inst);
+	msm_vidc_try_suspend(inst);
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->request_lock);
 	mutex_destroy(&inst->lock);

@@ -1015,7 +1015,11 @@ int venus_hfi_suspend(struct msm_vidc_core *core)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core_lock(core, __func__);
+
+	rc = __strict_check(core, __func__);
+	if (rc)
+		return rc;
+
 	d_vpr_h("Suspending Venus\n");
 	rc = __power_collapse(core, true);
 	if (!rc) {
@@ -1025,7 +1029,7 @@ int venus_hfi_suspend(struct msm_vidc_core *core)
 		d_vpr_e("%s: Venus is busy\n", __func__);
 		rc = -EBUSY;
 	}
-	core_unlock(core, __func__);
+
 	return rc;
 }
 
