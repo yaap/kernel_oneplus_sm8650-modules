@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -97,9 +98,6 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{BATCH_FPS,                      "BATCH_FPS"                  },
 	{LOSSLESS_MBPF,                  "LOSSLESS_MBPF"              },
 	{SECURE_MBPF,                    "SECURE_MBPF"                },
-	{MBPS,                           "MBPS"                       },
-	{POWER_SAVE_MBPS,                "POWER_SAVE_MBPS"            },
-	{CHECK_MBPS,                     "CHECK_MPBS"                 },
 	{FRAME_RATE,                     "FRAME_RATE"                 },
 	{OPERATING_RATE,                 "OPERATING_RATE"             },
 	{INPUT_RATE,                     "INPUT_RATE"                 },
@@ -1798,6 +1796,22 @@ bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst)
 			__func__, inst->sub_state_name);
 
 	return false;
+}
+
+bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
+{
+	bool is10bit = false;
+	enum msm_vidc_colorformat_type colorformat;
+
+	colorformat = v4l2_colorformat_to_driver(inst,
+		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
+
+	if (colorformat == MSM_VIDC_FMT_TP10C || colorformat == MSM_VIDC_FMT_P010)
+		is10bit = true;
+
+	return inst->domain == MSM_VIDC_DECODER &&
+				inst->codec == MSM_VIDC_HEVC &&
+				is10bit;
 }
 
 int msm_vidc_state_change_streamon(struct msm_vidc_inst *inst,
@@ -4945,6 +4959,7 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 	} else {
 		d_vpr_h("%s: sys init wait timedout. state %s\n",
 			__func__, core_state_name(core->state));
+		core->video_unresponsive = true;
 		rc = -EINVAL;
 		goto unlock;
 	}
@@ -5019,6 +5034,8 @@ int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 		rc = -EINVAL;
 		goto unlock;
 	}
+	/* mark video hw unresponsive */
+	core->video_unresponsive = true;
 
 	/* call core deinit for a valid instance timeout case */
 	msm_vidc_core_deinit_locked(core, true);

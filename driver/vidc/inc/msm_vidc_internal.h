@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -437,9 +438,6 @@ enum msm_vidc_inst_capability_type {
 	BATCH_FPS,
 	LOSSLESS_MBPF,
 	SECURE_MBPF,
-	MBPS,
-	POWER_SAVE_MBPS,
-	CHECK_MBPS,
 	FRAME_RATE,
 	OPERATING_RATE,
 	INPUT_RATE,

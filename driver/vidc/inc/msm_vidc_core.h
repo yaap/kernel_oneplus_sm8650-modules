@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_CORE_H_
@@ -118,6 +119,7 @@ struct msm_vidc_core {
 	bool                                   hw_power_control;
 	bool                                   pm_suspended;
 	bool                                   cpu_watchdog;
+	bool                                   video_unresponsive;
 };
 
 #endif // _MSM_VIDC_CORE_H_
