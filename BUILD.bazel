@@ -1,0 +1,5 @@
+load(":bt_kernel.bzl", "define_bt_modules")
+
+targets = ["pineapple"]
+
+define_bt_modules(targets)
