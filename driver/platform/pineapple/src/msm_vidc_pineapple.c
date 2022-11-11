@@ -2674,7 +2674,7 @@ const struct context_bank_table pineapple_context_bank_table[] = {
 
 /* freq */
 static struct freq_table pineapple_freq_table[] = {
-	{480000000}, {435000000}, {380000000}, {280000000}
+	{533333333}, {480000000}, {435000000}, {380000000}, {280000000}, {196000000}
 };
 
 /* register, value, mask */
