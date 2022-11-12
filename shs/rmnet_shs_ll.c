@@ -157,12 +157,13 @@ ret=false;spin_lock_bh(&DATARMNETd83ee17944);switch(skb->protocol){case htons(
 ETH_P_IP):ip4h=DATARMNETefcaf5fbe9(skb,(0xd2d+202-0xdf7),sizeof(*ip4h),&
 DATARMNETc00baf31c3);if(!ip4h){break;}hash_for_each_possible_safe(
 DATARMNET5750992efb,node_p,tmp,list,ip4h->saddr){if(DATARMNETb9e0ebf153(skb,ip4h
-,&node_p->DATARMNET54338da2ff)){ret=true;break;}}case htons(ETH_P_IPV6):ip6h=
-DATARMNETefcaf5fbe9(skb,(0xd2d+202-0xdf7),sizeof(*ip6h),&DATARMNETcf1d9e2c1e);if
-(!ip6h){break;}hash_for_each_possible_safe(DATARMNET5750992efb,node_p,tmp,list,
-ip6h->saddr.in6_u.u6_addr32[(0xd2d+202-0xdf7)]){if(DATARMNET71b0abb49e(skb,ip6h,
-&node_p->DATARMNET54338da2ff)){ret=true;break;}}}spin_unlock_bh(&
-DATARMNETd83ee17944);rm_err(
+,&node_p->DATARMNET54338da2ff)){ret=true;break;}}break;case htons(ETH_P_IPV6):
+ip6h=DATARMNETefcaf5fbe9(skb,(0xd2d+202-0xdf7),sizeof(*ip6h),&
+DATARMNETcf1d9e2c1e);if(!ip6h){break;}hash_for_each_possible_safe(
+DATARMNET5750992efb,node_p,tmp,list,ip6h->saddr.in6_u.u6_addr32[
+(0xd2d+202-0xdf7)]){if(DATARMNET71b0abb49e(skb,ip6h,&node_p->DATARMNET54338da2ff
+)){ret=true;break;}}break;default:break;}spin_unlock_bh(&DATARMNETd83ee17944);
+rm_err(
 "\x53\x48\x53\x5f\x4c\x4c\x3a\x20\x50\x61\x63\x6b\x65\x74\x20\x46\x69\x6c\x74\x65\x72\x20\x63\x68\x65\x63\x6b\x65\x64\x20\x61\x6e\x61\x6c\x79\x7a\x65\x64\x20\x72\x65\x74\x3a\x20\x25\x64"
 ,ret);return ret;}void DATARMNETd52d50282d(struct DATARMNET0331d6732d*
 DATARMNET63b1a086d5){struct DATARMNET0331d6732d*DATARMNET9a739c7d8b;struct 
