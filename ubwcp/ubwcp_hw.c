@@ -224,16 +224,38 @@ void ubwcp_hw_enable_range_check(void __iomem *base, u16 index)
 }
 EXPORT_SYMBOL(ubwcp_hw_enable_range_check);
 
-void ubwcp_hw_disable_range_check(void __iomem *base, u16 index)
+
+/* Disable range check with flush */
+int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
 {
+	u32 flush_complete = 0;
+	u32 count = 20;
 	u32 val;
 	u16 ctrl_reg = index >> 5;
 
-	val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
-	val &= ~(1 << (index & 0x1F));
-	UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
+	//assert flush
+	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
+
+	//poll for flush done
+	do {
+		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
+		if (flush_complete) {
+			//disable range ck
+			val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
+			val &= ~(1 << (index & 0x1F));
+			UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
+
+			//clear flush
+			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
+			return 0;
+		}
+		udelay(100);
+	} while (count--);
+
+	ERR("~~~~~ FLUSH FAILED ~~~~~");
+	return -1;
 }
-EXPORT_SYMBOL(ubwcp_hw_disable_range_check);
+EXPORT_SYMBOL(ubwcp_hw_disable_range_check_with_flush);
 
 void ubwcp_hw_set_buf_desc(void __iomem *base, u64 desc_addr, u16 desc_stride)
 {

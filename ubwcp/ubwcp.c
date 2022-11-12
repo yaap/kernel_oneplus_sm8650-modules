@@ -53,7 +53,7 @@ MODULE_IMPORT_NS(DMA_BUF);
 				} while (0)
 #define ERR(fmt, args...) pr_err("ubwcp: %s(): ~~~ERROR~~~: " fmt "\n", __func__, ##args)
 
-#define FENTRY() DBG("ubwcp: %s()", __func__)
+#define FENTRY() DBG("")
 
 
 #define META_DATA_PITCH_ALIGN    64
@@ -224,6 +224,16 @@ static void ubwcp_buf_desc_list_init(struct ubwcp_driver *ubwcp)
 static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 {
 	int ret = 0;
+
+	if (!ubwcp) {
+		ERR("ubwcp ptr is NULL");
+		return -1;
+	}
+
+	if (!ubwcp->vdd) {
+		ERR("vdd is NULL");
+		return -1;
+	}
 
 	if (enable) {
 		ret = regulator_enable(ubwcp->vdd);
@@ -1363,7 +1373,14 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	mmdata->metadata_base_uv = PAGE_ADDR(iova_base + metadata_p0 + pixeldata_p0);
 	mmdata->buffer_y_offset  = PAGE_ADDR(metadata_p0);
 	mmdata->buffer_uv_offset = PAGE_ADDR(metadata_p1);
-	mmdata->width_height     = width_b << 16 | height_b;
+
+	/* NOTE: For version 1.1, both width & height needs to be in bytes.
+	 * For other versions, width in bytes & height in pixels.
+	 */
+	if ((ubwcp->hw_ver_major == 1) && (ubwcp->hw_ver_minor == 1))
+		mmdata->width_height = width_b << 16 | height_b;
+	else
+		mmdata->width_height = width_b << 16 | attr->height;
 
 	print_mmdata_desc(mmdata);
 
@@ -1583,6 +1600,7 @@ err:
  */
 static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, bool free_buffer)
 {
+	int ret = 0;
 	struct ubwcp_driver *ubwcp;
 
 	DBG("current lock_count: %d", buf->lock_count);
@@ -1606,16 +1624,16 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 	/* TODO: Use flush work around, remove when no longer needed */
 	ubwcp_flush_cache_wa(ubwcp->dev, buf->ula_pa, buf->ula_size);
 
-	/* TBD: confirm with HW if this should be done before or
-	 * after disable_range_ck()
-	 */
-	ubwcp_flush(ubwcp);
-
-	/* disable range check */
+	/* disable range check with ubwcp flush */
 	DBG("disabling range check");
+	//TBD: could combine these 2 locks into a single lock to make it simpler
+	mutex_lock(&ubwcp->ubwcp_flush_lock);
 	mutex_lock(&ubwcp->hw_range_ck_lock);
-	ubwcp_hw_disable_range_check(ubwcp->base, buf->desc->idx);
+	ret = ubwcp_hw_disable_range_check_with_flush(ubwcp->base, buf->desc->idx);
+	if (ret)
+		ERR("disable_range_check_with_flush() failed: %d", ret);
 	mutex_unlock(&ubwcp->hw_range_ck_lock);
+	mutex_unlock(&ubwcp->ubwcp_flush_lock);
 
 	/* release descriptor if perm range xlation is not set */
 	if (!buf->perm) {
@@ -1623,7 +1641,7 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 		buf->desc = NULL;
 	}
 	buf->locked = false;
-	return 0;
+	return ret;
 }
 
 
@@ -2146,10 +2164,10 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	/* Regulator */
 	ubwcp->vdd = devm_regulator_get(ubwcp_dev, "vdd");
-	if (IS_ERR(ubwcp->vdd)) {
+	if (IS_ERR_OR_NULL(ubwcp->vdd)) {
 		ret = PTR_ERR(ubwcp->vdd);
 		ERR("devm_regulator_get() failed: %d", ret);
-		return ret;
+		return -1;
 	}
 
 	mutex_init(&ubwcp->desc_lock);
@@ -2193,10 +2211,7 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	/* one time hw init */
 	ubwcp_hw_one_time_init(ubwcp->base);
 	ubwcp_hw_version(ubwcp->base, &ubwcp->hw_ver_major, &ubwcp->hw_ver_minor);
-	DBG("read version: major %d, minor %d",
-				ubwcp->hw_ver_major, ubwcp->hw_ver_minor);
-
-
+	pr_err("ubwcp: hw version: major %d, minor %d\n", ubwcp->hw_ver_major, ubwcp->hw_ver_minor);
 	if (ubwcp->hw_ver_major == 0) {
 		ERR("Failed to read HW version");
 		ret = -1;
@@ -2205,7 +2220,6 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	/* set pdev->dev->driver_data = ubwcp */
 	platform_set_drvdata(pdev, ubwcp);
-	me = ubwcp;
 
 	/* enable all 4 interrupts */
 	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   true);
@@ -2221,11 +2235,17 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	ret = msm_ubwcp_set_ops(ubwcp_init_buffer, ubwcp_free_buffer, ubwcp_lock, ubwcp_unlock);
 	if (ret) {
-		ERR("msm_ubwcp_set_ops() failed: %d", ret);
-		goto err_power_off;
+		ERR("msm_ubwcp_set_ops() failed: %d, but IGNORED", ret);
+		/* TBD: ignore return error during testing phase.
+		 * This allows us to rmmod/insmod for faster dev cycle.
+		 * In final version: return error and de-register driver if set_ops fails.
+		 */
+		ret = 0;
+		//goto err_power_off;
 	} else {
 		DBG("msm_ubwcp_set_ops(): success"); }
 
+	me = ubwcp;
 	return ret;
 
 err_power_off:
@@ -2237,7 +2257,6 @@ err_pool_add:
 	gen_pool_destroy(ubwcp->ula_pool);
 err_pool_create:
 	ubwcp_cdev_deinit(ubwcp);
-
 	return ret;
 }
 
@@ -2297,14 +2316,31 @@ static int ubwcp_probe_cb_desc(struct platform_device *pdev)
 	DBG("desc_base = %p size = %zu", ubwcp->buffer_desc_base,
 						ubwcp->buffer_desc_size);
 
-	//TBD:
-	ubwcp_power(ubwcp, true);
+	ret = ubwcp_power(ubwcp, true);
+	if (ret) {
+		ERR("failed to power on");
+		goto err;
+	}
 	ubwcp_hw_set_buf_desc(ubwcp->base, (u64) ubwcp->buffer_desc_dma_handle,
 						UBWCP_BUFFER_DESC_OFFSET);
 
-	ubwcp_power(ubwcp, false);
+	ret = ubwcp_power(ubwcp, false);
+	if (ret) {
+		ERR("failed to power off");
+		goto err;
+	}
 
 	return ret;
+
+err:
+	dma_free_coherent(ubwcp->dev_desc_cb,
+				ubwcp->buffer_desc_size,
+				ubwcp->buffer_desc_base,
+				ubwcp->buffer_desc_dma_handle);
+	ubwcp->buffer_desc_base = NULL;
+	ubwcp->buffer_desc_dma_handle = 0;
+	ubwcp->dev_desc_cb = NULL;
+	return -1;
 }
 
 /* buffer context bank device remove */

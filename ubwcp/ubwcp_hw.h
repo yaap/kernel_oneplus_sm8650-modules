@@ -58,7 +58,7 @@ struct __packed ubwcp_hw_meta_metadata {
 void ubwcp_hw_version(void __iomem *base, u32 *major, u32 *minor);
 void ubwcp_hw_set_buf_desc(void __iomem *base, u64 desc_addr, u16 desc_stride);
 void ubwcp_hw_enable_range_check(void __iomem *base, u16 index);
-void ubwcp_hw_disable_range_check(void __iomem *base, u16 index);
+int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index);
 void ubwcp_hw_set_range_check(void __iomem *base, u16 index, phys_addr_t pa, size_t size);
 u64 ubwcp_hw_interrupt_src_address(void __iomem *base, u16 interrupt);
 void ubwcp_hw_interrupt_clear(void __iomem *base, u16 interrupt);
