@@ -2009,7 +2009,7 @@ static void adreno_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
 	 */
 	if (device->state != KGSL_STATE_ACTIVE) {
 		dev_err_ratelimited(device->dev,
-			"GMU shouldn't be in SLUMBER because ctx:%d fence ts:%d is not retired\n",
+			"GMU shouldn't be in SLUMBER because ctx:%d ts:%d fence ts:%d is not retired\n",
 			context->id, retired, kfence->timestamp);
 		msm_hw_fence_destroy(kfence->hw_fence_handle, &kfence->fence);
 		goto decrement;
