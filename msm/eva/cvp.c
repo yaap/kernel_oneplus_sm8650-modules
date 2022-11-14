@@ -649,5 +649,7 @@ module_init(msm_cvp_init);
 module_exit(msm_cvp_exit);
 
 MODULE_SOFTDEP("pre: msm-mmrm");
+MODULE_SOFTDEP("pre: synx-driver");
+MODULE_SOFTDEP("pre: frpc-adsprpc");
 MODULE_LICENSE("GPL v2");
 MODULE_IMPORT_NS(DMA_BUF);
