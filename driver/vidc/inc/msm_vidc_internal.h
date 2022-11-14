@@ -173,6 +173,230 @@ enum msm_vidc_metadata_bits {
 #define MAX_DPB_LIST_ARRAY_SIZE (16 * 4)
 #define MAX_DPB_LIST_PAYLOAD_SIZE (16 * 4 * 4)
 
+#define GENERATE_ENUM(ENUM) ENUM,
+#define GENERATE_STRING(STRING) (#STRING),
+
+/* append MSM_VIDC_ to prepare enum */
+#define GENERATE_MSM_VIDC_ENUM(ENUM) MSM_VIDC_##ENUM,
+
+/* append MSM_VIDC_BUF_ to prepare enum */
+#define GENERATE_MSM_VIDC_BUF_ENUM(ENUM) MSM_VIDC_BUF_##ENUM,
+
+/**
+ * msm_vidc_prepare_dependency_list() api will prepare caps_list by looping over
+ * enums(msm_vidc_inst_capability_type) from 0 to INST_CAP_MAX and arranges the
+ * node in such a way that parents willbe at the front and dependent children
+ * in the back.
+ *
+ * caps_list preparation may become CPU intensive task, so to save CPU cycles,
+ * organize enum in proper order(root caps at the beginning and dependent caps
+ * at back), so that during caps_list preparation num CPU cycles spent will reduce.
+ *
+ * Note: It will work, if enum kept at different places, but not efficient.
+ *
+ * - place all metadata cap(META_*) af the front.
+ * - place all root(no parent) enums before PROFILE cap.
+ * - place all intermittent(having both parent and child) enums before MIN_FRAME_QP cap.
+ * - place all leaf(no child) enums before INST_CAP_MAX cap.
+ */
+#define FOREACH_CAP(CAP) {                        \
+	CAP(INST_CAP_NONE)                        \
+	CAP(META_SEQ_HDR_NAL)                     \
+	CAP(META_BITSTREAM_RESOLUTION)            \
+	CAP(META_CROP_OFFSETS)                    \
+	CAP(META_DPB_MISR)                        \
+	CAP(META_OPB_MISR)                        \
+	CAP(META_INTERLACE)                       \
+	CAP(META_OUTBUF_FENCE)                    \
+	CAP(META_LTR_MARK_USE)                    \
+	CAP(META_TIMESTAMP)                       \
+	CAP(META_CONCEALED_MB_CNT)                \
+	CAP(META_HIST_INFO)                       \
+	CAP(META_PICTURE_TYPE)                    \
+	CAP(META_SEI_MASTERING_DISP)              \
+	CAP(META_SEI_CLL)                         \
+	CAP(META_HDR10PLUS)                       \
+	CAP(META_BUF_TAG)                         \
+	CAP(META_DPB_TAG_LIST)                    \
+	CAP(META_SUBFRAME_OUTPUT)                 \
+	CAP(META_ENC_QP_METADATA)                 \
+	CAP(META_DEC_QP_METADATA)                 \
+	CAP(META_MAX_NUM_REORDER_FRAMES)          \
+	CAP(META_EVA_STATS)                       \
+	CAP(META_ROI_INFO)                        \
+	CAP(META_SALIENCY_INFO)                   \
+	CAP(META_TRANSCODING_STAT_INFO)           \
+	CAP(META_DOLBY_RPU)                       \
+	CAP(FRAME_WIDTH)                          \
+	CAP(LOSSLESS_FRAME_WIDTH)                 \
+	CAP(SECURE_FRAME_WIDTH)                   \
+	CAP(FRAME_HEIGHT)                         \
+	CAP(LOSSLESS_FRAME_HEIGHT)                \
+	CAP(SECURE_FRAME_HEIGHT)                  \
+	CAP(PIX_FMTS)                             \
+	CAP(MIN_BUFFERS_INPUT)                    \
+	CAP(MIN_BUFFERS_OUTPUT)                   \
+	CAP(MBPF)                                 \
+	CAP(BATCH_MBPF)                           \
+	CAP(BATCH_FPS)                            \
+	CAP(LOSSLESS_MBPF)                        \
+	CAP(SECURE_MBPF)                          \
+	CAP(FRAME_RATE)                           \
+	CAP(OPERATING_RATE)                       \
+	CAP(INPUT_RATE)                           \
+	CAP(TIMESTAMP_RATE)                       \
+	CAP(SCALE_FACTOR)                         \
+	CAP(MB_CYCLES_VSP)                        \
+	CAP(MB_CYCLES_VPP)                        \
+	CAP(MB_CYCLES_LP)                         \
+	CAP(MB_CYCLES_FW)                         \
+	CAP(MB_CYCLES_FW_VPP)                     \
+	CAP(CLIENT_ID)                            \
+	CAP(SECURE_MODE)                          \
+	CAP(FENCE_ID)                             \
+	CAP(FENCE_FD)                             \
+	CAP(TS_REORDER)                           \
+	CAP(HFLIP)                                \
+	CAP(VFLIP)                                \
+	CAP(ROTATION)                             \
+	CAP(SUPER_FRAME)                          \
+	CAP(HEADER_MODE)                          \
+	CAP(PREPEND_SPSPPS_TO_IDR)                \
+	CAP(WITHOUT_STARTCODE)                    \
+	CAP(NAL_LENGTH_FIELD)                     \
+	CAP(REQUEST_I_FRAME)                      \
+	CAP(BITRATE_MODE)                         \
+	CAP(LOSSLESS)                             \
+	CAP(FRAME_SKIP_MODE)                      \
+	CAP(FRAME_RC_ENABLE)                      \
+	CAP(GOP_CLOSURE)                          \
+	CAP(CSC)                                  \
+	CAP(CSC_CUSTOM_MATRIX)                    \
+	CAP(USE_LTR)                              \
+	CAP(MARK_LTR)                             \
+	CAP(BASELAYER_PRIORITY)                   \
+	CAP(IR_TYPE)                              \
+	CAP(AU_DELIMITER)                         \
+	CAP(GRID)                                 \
+	CAP(I_FRAME_MIN_QP)                       \
+	CAP(P_FRAME_MIN_QP)                       \
+	CAP(B_FRAME_MIN_QP)                       \
+	CAP(I_FRAME_MAX_QP)                       \
+	CAP(P_FRAME_MAX_QP)                       \
+	CAP(B_FRAME_MAX_QP)                       \
+	CAP(LAYER_TYPE)                           \
+	CAP(LAYER_ENABLE)                         \
+	CAP(L0_BR)                                \
+	CAP(L1_BR)                                \
+	CAP(L2_BR)                                \
+	CAP(L3_BR)                                \
+	CAP(L4_BR)                                \
+	CAP(L5_BR)                                \
+	CAP(LEVEL)                                \
+	CAP(HEVC_TIER)                            \
+	CAP(AV1_TIER)                             \
+	CAP(DISPLAY_DELAY_ENABLE)                 \
+	CAP(DISPLAY_DELAY)                        \
+	CAP(CONCEAL_COLOR_8BIT)                   \
+	CAP(CONCEAL_COLOR_10BIT)                  \
+	CAP(LF_MODE)                              \
+	CAP(LF_ALPHA)                             \
+	CAP(LF_BETA)                              \
+	CAP(SLICE_MAX_BYTES)                      \
+	CAP(SLICE_MAX_MB)                         \
+	CAP(MB_RC)                                \
+	CAP(CHROMA_QP_INDEX_OFFSET)               \
+	CAP(PIPE)                                 \
+	CAP(POC)                                  \
+	CAP(CODED_FRAMES)                         \
+	CAP(BIT_DEPTH)                            \
+	CAP(CODEC_CONFIG)                         \
+	CAP(BITSTREAM_SIZE_OVERWRITE)             \
+	CAP(THUMBNAIL_MODE)                       \
+	CAP(DEFAULT_HEADER)                       \
+	CAP(RAP_FRAME)                            \
+	CAP(SEQ_CHANGE_AT_SYNC_FRAME)             \
+	CAP(QUALITY_MODE)                         \
+	CAP(PRIORITY)                             \
+	CAP(FIRMWARE_PRIORITY_OFFSET)             \
+	CAP(CRITICAL_PRIORITY)                    \
+	CAP(RESERVE_DURATION)                     \
+	CAP(DPB_LIST)                             \
+	CAP(FILM_GRAIN)                           \
+	CAP(SUPER_BLOCK)                          \
+	CAP(DRAP)                                 \
+	CAP(ENC_IP_CR)                            \
+	CAP(COMPLEXITY)                           \
+	CAP(CABAC_MAX_BITRATE)                    \
+	CAP(CAVLC_MAX_BITRATE)                    \
+	CAP(ALLINTRA_MAX_BITRATE)                 \
+	CAP(LOWLATENCY_MAX_BITRATE)               \
+	CAP(LAST_FLAG_EVENT_ENABLE)               \
+	CAP(NUM_COMV)                             \
+	CAP(PROFILE)                              \
+	CAP(ENH_LAYER_COUNT)                      \
+	CAP(BIT_RATE)                             \
+	CAP(LOWLATENCY_MODE)                      \
+	CAP(GOP_SIZE)                             \
+	CAP(B_FRAME)                              \
+	CAP(ALL_INTRA)                            \
+	CAP(MIN_QUALITY)                          \
+	CAP(CONTENT_ADAPTIVE_CODING)              \
+	CAP(BLUR_TYPES)                           \
+	CAP(REQUEST_PREPROCESS)                   \
+	CAP(SLICE_MODE)                           \
+	CAP(MIN_FRAME_QP)                         \
+	CAP(MAX_FRAME_QP)                         \
+	CAP(I_FRAME_QP)                           \
+	CAP(P_FRAME_QP)                           \
+	CAP(B_FRAME_QP)                           \
+	CAP(TIME_DELTA_BASED_RC)                  \
+	CAP(CONSTANT_QUALITY)                     \
+	CAP(VBV_DELAY)                            \
+	CAP(PEAK_BITRATE)                         \
+	CAP(ENTROPY_MODE)                         \
+	CAP(TRANSFORM_8X8)                        \
+	CAP(STAGE)                                \
+	CAP(LTR_COUNT)                            \
+	CAP(IR_PERIOD)                            \
+	CAP(BITRATE_BOOST)                        \
+	CAP(BLUR_RESOLUTION)                      \
+	CAP(OUTPUT_ORDER)                         \
+	CAP(INPUT_BUF_HOST_MAX_COUNT)             \
+	CAP(OUTPUT_BUF_HOST_MAX_COUNT)            \
+	CAP(DELIVERY_MODE)                        \
+	CAP(VUI_TIMING_INFO)                      \
+	CAP(SLICE_DECODE)                         \
+	CAP(INST_CAP_MAX)                         \
+}
+
+#define FOREACH_BUF_TYPE(BUF_TYPE) {              \
+	BUF_TYPE(NONE)                            \
+	BUF_TYPE(INPUT)                           \
+	BUF_TYPE(OUTPUT)                          \
+	BUF_TYPE(INPUT_META)                      \
+	BUF_TYPE(OUTPUT_META)                     \
+	BUF_TYPE(READ_ONLY)                       \
+	BUF_TYPE(QUEUE)                           \
+	BUF_TYPE(BIN)                             \
+	BUF_TYPE(ARP)                             \
+	BUF_TYPE(COMV)                            \
+	BUF_TYPE(NON_COMV)                        \
+	BUF_TYPE(LINE)                            \
+	BUF_TYPE(DPB)                             \
+	BUF_TYPE(PERSIST)                         \
+	BUF_TYPE(VPSS)                            \
+	BUF_TYPE(PARTIAL_DATA)                    \
+}
+
+#define FOREACH_ALLOW(ALLOW) {                    \
+	ALLOW(MSM_VIDC_DISALLOW)                  \
+	ALLOW(MSM_VIDC_ALLOW)                     \
+	ALLOW(MSM_VIDC_DEFER)                     \
+	ALLOW(MSM_VIDC_DISCARD)                   \
+	ALLOW(MSM_VIDC_IGNORE)                    \
+}
+
 enum msm_vidc_domain_type {
 	MSM_VIDC_ENCODER           = BIT(0),
 	MSM_VIDC_DECODER           = BIT(1),
@@ -198,23 +422,7 @@ enum msm_vidc_colorformat_type {
 	MSM_VIDC_FMT_META          = BIT(31),
 };
 
-enum msm_vidc_buffer_type {
-	MSM_VIDC_BUF_INPUT                 = 1,
-	MSM_VIDC_BUF_OUTPUT                = 2,
-	MSM_VIDC_BUF_INPUT_META            = 3,
-	MSM_VIDC_BUF_OUTPUT_META           = 4,
-	MSM_VIDC_BUF_READ_ONLY             = 5,
-	MSM_VIDC_BUF_QUEUE                 = 6,
-	MSM_VIDC_BUF_BIN                   = 7,
-	MSM_VIDC_BUF_ARP                   = 8,
-	MSM_VIDC_BUF_COMV                  = 9,
-	MSM_VIDC_BUF_NON_COMV              = 10,
-	MSM_VIDC_BUF_LINE                  = 11,
-	MSM_VIDC_BUF_DPB                   = 12,
-	MSM_VIDC_BUF_PERSIST               = 13,
-	MSM_VIDC_BUF_VPSS                  = 14,
-	MSM_VIDC_BUF_PARTIAL_DATA          = 15,
-};
+enum msm_vidc_buffer_type FOREACH_BUF_TYPE(GENERATE_MSM_VIDC_BUF_ENUM);
 
 /* always match with v4l2 flags V4L2_BUF_FLAG_* */
 enum msm_vidc_buffer_flags {
@@ -381,196 +589,7 @@ enum msm_vidc_core_capability_type {
 	CORE_CAP_MAX,
 };
 
-/**
- * msm_vidc_prepare_dependency_list() api will prepare caps_list by looping over
- * enums(msm_vidc_inst_capability_type) from 0 to INST_CAP_MAX and arranges the
- * node in such a way that parents willbe at the front and dependent children
- * in the back.
- *
- * caps_list preparation may become CPU intensive task, so to save CPU cycles,
- * organize enum in proper order(root caps at the beginning and dependent caps
- * at back), so that during caps_list preparation num CPU cycles spent will reduce.
- *
- * Note: It will work, if enum kept at different places, but not efficient.
- */
-enum msm_vidc_inst_capability_type {
-	INST_CAP_NONE = 0,
-	/* place all metadata after this line
-	 */
-	META_SEQ_HDR_NAL,
-	META_BITSTREAM_RESOLUTION,
-	META_CROP_OFFSETS,
-	META_DPB_MISR,
-	META_OPB_MISR,
-	META_INTERLACE,
-	META_OUTBUF_FENCE,
-	META_LTR_MARK_USE,
-	META_TIMESTAMP,
-	META_CONCEALED_MB_CNT,
-	META_HIST_INFO,
-	META_PICTURE_TYPE,
-	META_SEI_MASTERING_DISP,
-	META_SEI_CLL,
-	META_HDR10PLUS,
-	META_BUF_TAG,
-	META_DPB_TAG_LIST,
-	META_SUBFRAME_OUTPUT,
-	META_ENC_QP_METADATA,
-	META_DEC_QP_METADATA,
-	META_MAX_NUM_REORDER_FRAMES,
-	META_EVA_STATS,
-	META_ROI_INFO,
-	META_SALIENCY_INFO,
-	META_TRANSCODING_STAT_INFO,
-	META_DOLBY_RPU,
-	/* end of metadata caps */
-	FRAME_WIDTH,
-	LOSSLESS_FRAME_WIDTH,
-	SECURE_FRAME_WIDTH,
-	FRAME_HEIGHT,
-	LOSSLESS_FRAME_HEIGHT,
-	SECURE_FRAME_HEIGHT,
-	PIX_FMTS,
-	MIN_BUFFERS_INPUT,
-	MIN_BUFFERS_OUTPUT,
-	MBPF,
-	BATCH_MBPF,
-	BATCH_FPS,
-	LOSSLESS_MBPF,
-	SECURE_MBPF,
-	FRAME_RATE,
-	OPERATING_RATE,
-	INPUT_RATE,
-	TIMESTAMP_RATE,
-	SCALE_FACTOR,
-	MB_CYCLES_VSP,
-	MB_CYCLES_VPP,
-	MB_CYCLES_LP,
-	MB_CYCLES_FW,
-	MB_CYCLES_FW_VPP,
-	CLIENT_ID,
-	SECURE_MODE,
-	FENCE_ID,
-	FENCE_FD,
-	TS_REORDER,
-	HFLIP,
-	VFLIP,
-	ROTATION,
-	SUPER_FRAME,
-	HEADER_MODE,
-	PREPEND_SPSPPS_TO_IDR,
-	WITHOUT_STARTCODE,
-	NAL_LENGTH_FIELD,
-	REQUEST_I_FRAME,
-	BITRATE_MODE,
-	LOSSLESS,
-	FRAME_SKIP_MODE,
-	FRAME_RC_ENABLE,
-	GOP_CLOSURE,
-	CSC,
-	CSC_CUSTOM_MATRIX,
-	USE_LTR,
-	MARK_LTR,
-	BASELAYER_PRIORITY,
-	IR_TYPE,
-	AU_DELIMITER,
-	GRID,
-	I_FRAME_MIN_QP,
-	P_FRAME_MIN_QP,
-	B_FRAME_MIN_QP,
-	I_FRAME_MAX_QP,
-	P_FRAME_MAX_QP,
-	B_FRAME_MAX_QP,
-	LAYER_TYPE,
-	LAYER_ENABLE,
-	L0_BR,
-	L1_BR,
-	L2_BR,
-	L3_BR,
-	L4_BR,
-	L5_BR,
-	LEVEL,
-	HEVC_TIER,
-	AV1_TIER,
-	DISPLAY_DELAY_ENABLE,
-	DISPLAY_DELAY,
-	CONCEAL_COLOR_8BIT,
-	CONCEAL_COLOR_10BIT,
-	LF_MODE,
-	LF_ALPHA,
-	LF_BETA,
-	SLICE_MAX_BYTES,
-	SLICE_MAX_MB,
-	MB_RC,
-	CHROMA_QP_INDEX_OFFSET,
-	PIPE,
-	POC,
-	CODED_FRAMES,
-	BIT_DEPTH,
-	CODEC_CONFIG,
-	BITSTREAM_SIZE_OVERWRITE,
-	THUMBNAIL_MODE,
-	DEFAULT_HEADER,
-	RAP_FRAME,
-	SEQ_CHANGE_AT_SYNC_FRAME,
-	QUALITY_MODE,
-	PRIORITY,
-	FIRMWARE_PRIORITY_OFFSET,
-	CRITICAL_PRIORITY,
-	RESERVE_DURATION,
-	DPB_LIST,
-	FILM_GRAIN,
-	SUPER_BLOCK,
-	DRAP,
-	ENC_IP_CR,
-	COMPLEXITY,
-	CABAC_MAX_BITRATE,
-	CAVLC_MAX_BITRATE,
-	ALLINTRA_MAX_BITRATE,
-	LOWLATENCY_MAX_BITRATE,
-	LAST_FLAG_EVENT_ENABLE,
-	NUM_COMV,
-	/* place all root(no parent) enums before this line */
-
-	PROFILE,
-	ENH_LAYER_COUNT,
-	BIT_RATE,
-	LOWLATENCY_MODE,
-	GOP_SIZE,
-	B_FRAME,
-	ALL_INTRA,
-	MIN_QUALITY,
-	CONTENT_ADAPTIVE_CODING,
-	BLUR_TYPES,
-	REQUEST_PREPROCESS,
-	SLICE_MODE,
-	/* place all intermittent(having both parent and child) enums before this line */
-
-	MIN_FRAME_QP,
-	MAX_FRAME_QP,
-	I_FRAME_QP,
-	P_FRAME_QP,
-	B_FRAME_QP,
-	TIME_DELTA_BASED_RC,
-	CONSTANT_QUALITY,
-	VBV_DELAY,
-	PEAK_BITRATE,
-	ENTROPY_MODE,
-	TRANSFORM_8X8,
-	STAGE,
-	LTR_COUNT,
-	IR_PERIOD,
-	BITRATE_BOOST,
-	BLUR_RESOLUTION,
-	OUTPUT_ORDER,
-	INPUT_BUF_HOST_MAX_COUNT,
-	OUTPUT_BUF_HOST_MAX_COUNT,
-	DELIVERY_MODE,
-	VUI_TIMING_INFO,
-	SLICE_DECODE,
-	/* place all leaf(no child) enums before this line */
-	INST_CAP_MAX,
-};
+enum msm_vidc_inst_capability_type FOREACH_CAP(GENERATE_ENUM);
 
 enum msm_vidc_inst_capability_flags {
 	CAP_FLAG_NONE                    = 0,
@@ -927,13 +946,7 @@ struct msm_vidc_input_timer {
 	u64                    time_us;
 };
 
-enum msm_vidc_allow {
-	MSM_VIDC_DISALLOW = 0,
-	MSM_VIDC_ALLOW,
-	MSM_VIDC_DEFER,
-	MSM_VIDC_DISCARD,
-	MSM_VIDC_IGNORE,
-};
+enum msm_vidc_allow FOREACH_ALLOW(GENERATE_ENUM);
 
 struct msm_vidc_ssr {
 	bool                               trigger;

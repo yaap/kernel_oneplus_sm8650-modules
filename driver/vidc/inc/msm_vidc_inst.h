@@ -13,6 +13,16 @@
 
 struct msm_vidc_inst;
 
+#define FOREACH_STATE(STATE) {                    \
+	STATE(NONE)                               \
+	STATE(OPEN)                               \
+	STATE(INPUT_STREAMING)                    \
+	STATE(OUTPUT_STREAMING)                   \
+	STATE(STREAMING)                          \
+	STATE(CLOSE)                              \
+	STATE(ERROR)                              \
+}
+
 #define call_session_op(c, op, ...)			\
 	(((c) && (c)->session_ops && (c)->session_ops->op) ? \
 	((c)->session_ops->op(__VA_ARGS__)) : 0)
@@ -70,14 +80,7 @@ struct msm_vidc_buffers_info {
 	struct msm_vidc_buffers        partial_data;
 };
 
-enum msm_vidc_state {
-	MSM_VIDC_OPEN                      = 1,
-	MSM_VIDC_INPUT_STREAMING           = 2,
-	MSM_VIDC_OUTPUT_STREAMING          = 3,
-	MSM_VIDC_STREAMING                 = 4,
-	MSM_VIDC_CLOSE                     = 5,
-	MSM_VIDC_ERROR                     = 6,
-};
+enum msm_vidc_state FOREACH_STATE(GENERATE_MSM_VIDC_ENUM);
 
 #define MSM_VIDC_SUB_STATE_NONE          0
 #define MSM_VIDC_MAX_SUB_STATES          6
