@@ -389,10 +389,12 @@ int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags)
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 	hw_fences_tbl = hw_fence_drv_data->hw_fences_tbl;
 
-	HWFNC_DBG_L("reset fences for client:%d\n", hw_fence_client->client_id);
+	HWFNC_DBG_L("reset fences and queues for client:%d\n", hw_fence_client->client_id);
 	for (i = 0; i < hw_fence_drv_data->hw_fences_tbl_cnt; i++)
 		hw_fence_utils_cleanup_fence(hw_fence_drv_data, hw_fence_client,
 			&hw_fences_tbl[i], i, reset_flags);
+
+	hw_fence_utils_reset_queues(hw_fence_drv_data, hw_fence_client);
 
 	return 0;
 }
