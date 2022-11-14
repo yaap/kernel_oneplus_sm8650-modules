@@ -16,6 +16,7 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
+#include "msm_vidc_driver.h"
 #include "msm_vidc_platform.h"
 #include "venus_hfi.h"
 
@@ -666,7 +667,9 @@ static int __acquire_regulator(struct msm_vidc_core *core,
 
 		if (regulator_get_mode(rinfo->regulator) ==
 				REGULATOR_MODE_NORMAL) {
-			core->handoff_done = false;
+			/* clear handoff from core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 			d_vpr_h("Skip acquire regulator %s\n", rinfo->name);
 			goto exit;
 		}
@@ -683,7 +686,9 @@ static int __acquire_regulator(struct msm_vidc_core *core,
 				rinfo->name);
 			goto exit;
 		} else {
-			core->handoff_done = false;
+			/* reset handoff from core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 			d_vpr_h("Acquired regulator control from HW: %s\n",
 					rinfo->name);
 
@@ -729,7 +734,9 @@ static int __hand_off_regulator(struct msm_vidc_core *core,
 				rinfo->name);
 			return rc;
 		} else {
-			core->handoff_done = true;
+			/* set handoff done in core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				0, CORE_SUBSTATE_GDSC_HANDOFF, __func__);
 			d_vpr_h("Hand off regulator control to HW: %s\n",
 					rinfo->name);
 		}
@@ -798,7 +805,8 @@ static int __disable_regulator(struct msm_vidc_core *core, const char *reg_name)
 			WARN_ON(true);
 			return rc;
 		}
-		core->handoff_done = false;
+		/* reset handoff done from core sub_state */
+		msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 
 		rc = regulator_disable(rinfo->regulator);
 		if (rc) {

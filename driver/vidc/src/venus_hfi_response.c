@@ -495,7 +495,7 @@ static int handle_system_init(struct msm_vidc_core *core,
 {
 	if (pkt->flags & HFI_FW_FLAGS_SUCCESS) {
 		core_lock(core, __func__);
-		if (core->state == MSM_VIDC_CORE_INIT_WAIT &&
+		if (is_core_state(core, MSM_VIDC_CORE_INIT_WAIT) &&
 				pkt->packet_id == core->sys_init_id) {
 			msm_vidc_change_core_state(core, MSM_VIDC_CORE_INIT, __func__);
 			d_vpr_h("%s: successful\n", __func__);

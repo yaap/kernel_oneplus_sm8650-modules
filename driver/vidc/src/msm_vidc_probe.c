@@ -806,6 +806,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
+	bool allow = false;
 
 	/*
 	 * Bail out if
@@ -822,15 +823,25 @@ static int msm_vidc_pm_suspend(struct device *dev)
 		return -EINVAL;
 	}
 
+	core_lock(core, __func__);
+	allow = msm_vidc_allow_pm_suspend(core);
+	if (!allow) {
+		d_vpr_e("%s: pm suspend not allowed\n", __func__);
+		rc = 0;
+		goto unlock;
+	}
+
 	d_vpr_h("%s\n", __func__);
-	rc = msm_vidc_suspend(core);
+	rc = msm_vidc_suspend_locked(core);
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
 		d_vpr_e("Failed to suspend: %d\n", rc);
 	else
-		core->pm_suspended  = true;
+		msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PM_SUSPEND, __func__);
 
+unlock:
+	core_unlock(core, __func__);
 	return rc;
 }
 
@@ -854,7 +865,12 @@ static int msm_vidc_pm_resume(struct device *dev)
 	}
 
 	d_vpr_h("%s\n", __func__);
-	core->pm_suspended  = false;
+
+	/* remove PM suspend from core sub_state */
+	core_lock(core, __func__);
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_PM_SUSPEND, 0, __func__);
+	core_unlock(core, __func__);
+
 	return 0;
 }
 
