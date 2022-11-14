@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -1511,6 +1511,8 @@ u32 synx_util_map_client_id_to_core(
 	switch (id) {
 	case SYNX_CLIENT_NATIVE:
 		core_id = SYNX_CORE_APSS; break;
+	case SYNX_CLIENT_ICP_CTX0:
+		core_id = SYNX_CORE_ICP; break;
 	case SYNX_CLIENT_EVA_CTX0:
 		core_id = SYNX_CORE_EVA; break;
 	case SYNX_CLIENT_VID_CTX0:

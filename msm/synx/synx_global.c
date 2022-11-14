@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/hwspinlock.h>
@@ -151,6 +151,8 @@ u32 synx_global_map_core_id(enum synx_core_id id)
 		host_id = IPCMEM_VPU; break;
 	case SYNX_CORE_EVA:
 		host_id = IPCMEM_CVP; break;
+	case SYNX_CORE_ICP:
+		host_id = IPCMEM_CAM; break;
 	default:
 		host_id = IPCMEM_NUM_HOSTS;
 		dprintk(SYNX_ERR, "invalid core id\n");

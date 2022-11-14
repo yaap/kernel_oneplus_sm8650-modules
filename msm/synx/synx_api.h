@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __SYNX_API_H__
@@ -166,6 +166,7 @@ struct synx_queue_desc {
  * @SYNX_CLIENT_VID_CTX0 : Video Client 0
  * @SYNX_CLIENT_NSP_CTX0 : NSP Client 0
  * @SYNX_CLIENT_IFE_CTX0 : IFE Client 0
+ * @SYNX_CLIENT_ICP_CTX0 : ICP Client 0
  */
 enum synx_client_id {
 	SYNX_CLIENT_NATIVE = 0,
@@ -180,6 +181,7 @@ enum synx_client_id {
 	SYNX_CLIENT_VID_CTX0,
 	SYNX_CLIENT_NSP_CTX0,
 	SYNX_CLIENT_IFE_CTX0,
+	SYNX_CLIENT_ICP_CTX0,
 	SYNX_CLIENT_MAX,
 };
 
