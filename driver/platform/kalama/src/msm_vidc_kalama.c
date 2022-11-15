@@ -593,14 +593,6 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		V4L2_CID_MPEG_VIDC_SUPERFRAME, 0,
 		CAP_FLAG_NONE},
 
-	{SLICE_DECODE, DEC, H264|HEVC|AV1,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		0,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		V4L2_CID_MPEG_VIDEO_DECODER_SLICE_INTERFACE,
-		0},
-
 	{HEADER_MODE, ENC, CODECS_ALL,
 		V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
 		V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
@@ -1992,7 +1984,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 
 	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9|AV1,
 		{OUTPUT_ORDER},
-		{LOWLATENCY_MODE, SLICE_DECODE},
+		{LOWLATENCY_MODE},
 		msm_vidc_adjust_dec_outbuf_fence,
 		NULL},
 
@@ -2017,12 +2009,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 	{SUPER_FRAME, ENC, H264|HEVC,
 		{0},
 		{INPUT_BUF_HOST_MAX_COUNT, OUTPUT_BUF_HOST_MAX_COUNT},
-		NULL,
-		NULL},
-
-	{SLICE_DECODE, DEC, H264|HEVC|AV1,
-		{LOWLATENCY_MODE, META_OUTBUF_FENCE, OUTPUT_ORDER},
-		{0},
 		NULL,
 		NULL},
 
@@ -2145,7 +2131,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 
 	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9|AV1,
 		{META_OUTBUF_FENCE},
-		{STAGE, SLICE_DECODE},
+		{STAGE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
@@ -2442,7 +2428,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 
 	{OUTPUT_ORDER, DEC, H264|HEVC|VP9|AV1,
 		{THUMBNAIL_MODE, DISPLAY_DELAY, DISPLAY_DELAY_ENABLE},
-		{META_OUTBUF_FENCE, SLICE_DECODE},
+		{META_OUTBUF_FENCE},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 
