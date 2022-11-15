@@ -106,10 +106,12 @@ static void print_internal_buffer(u32 tag, const char *str,
 void print_cvp_buffer(u32 tag, const char *str, struct msm_cvp_inst *inst,
 		struct cvp_internal_buf *cbuf)
 {
-	if (!inst || !cbuf)
+	if (!inst || !cbuf) {
 		dprintk(CVP_ERR,
 			"%s Invalid params inst %pK, cbuf %pK\n",
 			str, inst, cbuf);
+		return;
+	}
 
 	print_smem(tag, str, inst, cbuf->smem);
 }
@@ -1271,9 +1273,6 @@ static struct msm_cvp_smem *msm_cvp_session_get_smem(struct msm_cvp_inst *inst,
 		}
 		goto exit2;
 	}
-
-	if (smem->fd != buf->fd)
-		dprintk(CVP_ERR, "%s Failed fd check\n", __func__);
 
 	return smem;
 
