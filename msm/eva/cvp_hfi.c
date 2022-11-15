@@ -2307,13 +2307,13 @@ static int iris_debug_hook(void *device)
 		dprintk(CVP_ERR, "%s Invalid device\n", __func__);
 		return -ENODEV;
 	}
+	/******* FDU & MPU *****/
 #define CVP0_CVP_SS_FDU_SECURE_ENABLE 0x90
 #define CVP0_CVP_SS_MPU_SECURE_ENABLE 0x94
 #define CVP0_CVP_SS_ARP_THREAD_0_SECURE_ENABLE 0xA0
 #define CVP0_CVP_SS_ARP_THREAD_1_SECURE_ENABLE 0xA4
 #define CVP0_CVP_SS_ARP_THREAD_2_SECURE_ENABLE 0xA8
 #define CVP0_CVP_SS_ARP_THREAD_3_SECURE_ENABLE 0xAC
-
 	val = __read_register(dev, CVP0_CVP_SS_FDU_SECURE_ENABLE);
 	dprintk(CVP_ERR, "FDU_SECURE_ENABLE %#x\n", val);
 
@@ -2331,6 +2331,74 @@ static int iris_debug_hook(void *device)
 
 	val = __read_register(dev, CVP0_CVP_SS_ARP_THREAD_3_SECURE_ENABLE);
 	dprintk(CVP_ERR, "ARP_THREAD_3_SECURE_ENABLE %#x\n", val);
+
+
+	/***** GCE *******
+	 * Bit 0 of below register is CDM secure enable for GCE
+	 * CDM buffer will be in CB4 if set
+	 */
+#define CVP_GCE_GCE_SS_CP_CTL	0x51100
+	 /* STATUS bit0 && CFG bit 4 of below register set,
+	  * expect pixel buffers in CB3,
+	  * otherwise in CB0
+	  * CFG bit 9:8 b01 -> LMC input in CB3
+	  * CFG bit 9:8 b10 -> LMC input in CB4
+	  */
+#define CVP_GCE0_CP_STATUS	0x51080
+#define CVP_GCE0_BIU_RD_INPUT_IF_SECURITY_CFG	0x52020
+
+	val = __read_register(dev, CVP_GCE_GCE_SS_CP_CTL);
+	dprintk(CVP_ERR, "CVP_GCE_GCE_SS_CP_CTL %#x\n", val);
+	val = __read_register(dev, CVP_GCE0_CP_STATUS);
+	dprintk(CVP_ERR, "CVP_GCE0_CP_STATUS %#x\n", val);
+	val = __read_register(dev, CVP_GCE0_BIU_RD_INPUT_IF_SECURITY_CFG);
+	dprintk(CVP_ERR, "CVP_GCE0_BIU_RD_INPUT_IF_SECURITY_CFG %#x\n", val);
+	  /***** RGE *****
+	   * Bit 0 of below regiser is CDM secure enable for RGE
+	   * CDM buffer to be in CB4 i fset
+	   */
+#define CVP_RGE0_TOPRGE_CP_CTL	0x31010
+	   /* CFG bit 4 && IN bit 0:
+	    * if both are set, expect CB3 or CB4 depending on IN 6:4 field
+	    * either is clear, expect CB0
+	    */
+#define CVP_RGE0_BUS_RD_INPUT_IF_SECURITY_CFG  0x32020
+#define CVP_RGE0_TOPSPARE_IN	0x311F4
+
+	val = __read_register(dev, CVP_RGE0_TOPRGE_CP_CTL);
+	dprintk(CVP_ERR, "CVP_RGE0_TOPRGE_CP_CTL %#x\n", val);
+	val = __read_register(dev, CVP_RGE0_BUS_RD_INPUT_IF_SECURITY_CFG);
+	dprintk(CVP_ERR, "CVP_RGE0_BUS_RD_INPUT_IF_SECURITY_CFG %#x\n", val);
+	val = __read_register(dev, CVP_RGE0_TOPSPARE_IN);
+	dprintk(CVP_ERR, "CVP_RGE0_TOPSPARE_IN %#x\n", val);
+	/****** VADL ******
+	 * Bit 0 of below register is CDM secure enable for VADL
+	 * CDM buffer will bei in CB4 if set
+	 */
+#define CVP_VADL0_VADL_SS_CP_CTL	0x21010
+	/* Below registers are used the same way as RGE */
+#define CVP_VADL0_BUS_RD_INPUT_IF_SECURITY_CFG	0x22020
+#define CVP_VADL0_SPARE_IN	0x211F4
+
+	val = __read_register(dev, CVP_VADL0_VADL_SS_CP_CTL);
+	dprintk(CVP_ERR, "CVP_VADL0_VADL_SS_CP_CTL %#x\n", val);
+	val = __read_register(dev, CVP_VADL0_BUS_RD_INPUT_IF_SECURITY_CFG);
+	dprintk(CVP_ERR, "CVP_VADL0_BUS_RD_INPUT_IF_SECURITY_CFG %#x\n", val);
+	val = __read_register(dev, CVP_VADL0_SPARE_IN);
+	dprintk(CVP_ERR, "CVP_VADL0_SPARE_IN %#x\n", val);
+	/****** ITOF *****
+	 * Below registers are used the same way as RGE
+	 */
+#define CVP_ITOF0_TOF_SS_CP_CTL 0x41010
+#define CVP_ITOF0_BUS_RD_INPUT_IF_SECURITY_CFG	0x42020
+#define CVP_ITOF0_TOF_SS_SPARE_IN 0x411F4
+
+	val = __read_register(dev, CVP_ITOF0_TOF_SS_CP_CTL);
+	dprintk(CVP_ERR, "CVP_ITOF0_TOF_SS_CP_CTL %#x\n", val);
+	val = __read_register(dev, CVP_ITOF0_BUS_RD_INPUT_IF_SECURITY_CFG);
+	dprintk(CVP_ERR, "CVP_ITOF0_BUS_RD_INPUT_IF_SECURITY_CFG %#x\n", val);
+	val = __read_register(dev, CVP_ITOF0_TOF_SS_SPARE_IN);
+	dprintk(CVP_ERR, "CVP_ITOF0_TOF_SS_SPARE_IN %#x\n", val);
 
 	return 0;
 }

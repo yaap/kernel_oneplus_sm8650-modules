@@ -234,6 +234,8 @@ int msm_cvp_map_smem(struct msm_cvp_inst *inst,
 			smem->flags |= (SMEM_SECURE | SMEM_NON_PIXEL);
 		else if (vmid_list[temp] == VMID_CP_CAMERA)
 			smem->flags |= (SMEM_SECURE | SMEM_CAMERA);
+		dprintk(CVP_MEM, "inst %pK VM idx %d VM_ID %d fd %d pkt_type %#x\n",
+			inst, temp, vmid_list[temp], smem->fd, smem->pkt_type);
 	}
 
 	rc = msm_dma_get_device_address(dma_buf, align, &iova, smem->flags,
