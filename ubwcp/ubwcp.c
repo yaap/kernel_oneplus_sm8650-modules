@@ -1852,8 +1852,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 		} else {
 			DBG("DONE: calling remove_memory() for ULA PA pool");
 		}
-		DBG("Calling power OFF ...");
-		ubwcp_power(ubwcp, false);
+		DBG("Don't Call power OFF ...");
 	}
 	mutex_unlock(&ubwcp->buf_table_lock);
 	return ret;
