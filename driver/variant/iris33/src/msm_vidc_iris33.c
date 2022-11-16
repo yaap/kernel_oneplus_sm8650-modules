@@ -399,7 +399,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = __read_register_with_poll_timeout(core, WRAPPER_IRIS_CPU_NOC_LPI_STATUS,
 			0x1, 0x1, 200, 2000);
 	if (rc)
-		d_vpr_h("%s: WRAPPER_IRIS_CPU_NOC_LPI_CONTROL failed\n", __func__);
+		d_vpr_e("%s: WRAPPER_IRIS_CPU_NOC_LPI_CONTROL failed\n", __func__);
 
 	/* Debug bridge LPI release */
 	rc = __write_register(core, WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS33, 0x0);
@@ -409,7 +409,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = __read_register_with_poll_timeout(core, WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS33,
 			0xffffffff, 0x0, 200, 2000);
 	if (rc)
-		d_vpr_h("%s: debug bridge release failed\n", __func__);
+		d_vpr_e("%s: debug bridge release failed\n", __func__);
 
 	/* Reset MVP QNS4PDXFIFO */
 	rc = __write_register(core, WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG, 0x3);
@@ -428,6 +428,21 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	/* assert and deassert axi and mvs0c resets */
+	rc = call_res_op(core, reset_control_assert, core, "video_axi_reset");
+	if (rc)
+		d_vpr_e("%s: assert video_axi_reset failed\n", __func__);
+	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
+	if (rc)
+		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
+	usleep_range(400, 500);
+	rc = call_res_op(core, reset_control_deassert, core, "video_axi_reset");
+	if (rc)
+		d_vpr_e("%s: de-assert video_axi_reset failed\n", __func__);
+	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
+	if (rc)
+		d_vpr_e("%s: de-assert video_mvs0c_reset failed\n", __func__);
+
 	/* Disable MVP NoC clock */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
 			0x1, BIT(0));
@@ -437,7 +452,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	/* assert MVP_CTL reset */
 	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
 	if (rc)
-		d_vpr_h("%s: assert video_mvs0c_reset failed\n", __func__);
+		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
 
 	/* enable MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
@@ -458,11 +473,11 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 		d_vpr_e("%s: assert video_xo_reset failed\n", __func__);
 
 	/* do we need 80us sleep before deassert? */
-	usleep_range(80, 100);
+	usleep_range(400, 500);
 	/* De-assert MVP_CTL reset */
 	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
 	if (rc)
-		d_vpr_h("%s: deassert video_mvs0c_reset failed\n", __func__);
+		d_vpr_e("%s: deassert video_mvs0c_reset failed\n", __func__);
 
 	/* De-assert MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
