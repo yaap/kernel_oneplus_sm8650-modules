@@ -2682,7 +2682,7 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.reg_prst_tbl_size = ARRAY_SIZE(pineapple_reg_preset_table),
 	.fwname = "vpu33_4v",
 	.pas_id = 9,
-	.supports_mmrm = 0,
+	.supports_mmrm = 1,
 
 	/* caps related resorces */
 	.core_data = core_data_pineapple,
