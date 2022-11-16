@@ -21,7 +21,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-s
 KBUILD_REQUIRED_KOS += msm-mmrm.ko
 
 # Setup SynX dependency
-CONFIG_SYNX := n
+CONFIG_SYNX := y
 #ifdef CONFIG_SYNX
 ifeq ($(CONFIG_SYNX), y)
 $(warning Compiling SynX)

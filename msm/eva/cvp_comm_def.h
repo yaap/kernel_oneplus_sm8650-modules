@@ -37,7 +37,7 @@ enum queue_state {
 #ifdef CONFIG_EVA_PINEAPPLE
 #define CVP_MMRM_ENABLED 1
 #define CVP_CONFIG_SYNX_V2 1
-/* #define CVP_SYNX_ENABLED 1 */ /* temp disable til Synx ready*/
+#define CVP_SYNX_ENABLED 1
 #define CVP_FASTRPC_ENABLED 1
 #endif	/* End of CONFIG_EVA_PINEAPPLE */
 
