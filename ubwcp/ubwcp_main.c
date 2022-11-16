@@ -26,6 +26,7 @@
 #include <linux/debugfs.h>
 #include <linux/clk.h>
 #include <linux/iommu.h>
+#include <linux/set_memory.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
@@ -2000,6 +2001,24 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 		 * care of flush. Just a note for now. Might need to add the
 		 * flush here for debug purpose.
 		 */
+
+		DBG("set_direct_map_range_uncached() for ULA PA pool st:0x%lx num pages:%lu",
+				ubwcp->ula_pool_base, ubwcp->ula_pool_size >> PAGE_SHIFT);
+		ret = set_direct_map_range_uncached((unsigned long)phys_to_virt(
+				ubwcp->ula_pool_base), ubwcp->ula_pool_size >> PAGE_SHIFT);
+		if (ret) {
+			ERR("set_direct_map_range_uncached failed st:0x%lx num pages:%lu err: %d",
+				ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size >> PAGE_SHIFT, ret);
+			goto err_remove_mem;
+		} else {
+			DBG("DONE: calling set_direct_map_range_uncached() for ULA PA pool");
+		}
+
+		DBG("Calling dma_sync_single_for_cpu() for ULA PA pool");
+		dma_sync_single_for_cpu(ubwcp->dev, ubwcp->ula_pool_base, ubwcp->ula_pool_size,
+				DMA_BIDIRECTIONAL);
+
 		DBG("Calling offline_and_remove_memory() for ULA PA pool");
 		ret = offline_and_remove_memory(ubwcp->ula_pool_base,
 				ubwcp->ula_pool_size);
