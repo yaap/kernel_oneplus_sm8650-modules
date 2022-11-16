@@ -275,7 +275,7 @@ static int get_root_obj(struct Object *rootObj)
 
 	ret = get_root_fd(&root_fd);
 	if (ret) {
-		pr_err("Failed to get root fd, ret = %d\n");
+		pr_err("Failed to get root fd, ret = %d\n", ret);
 		return ret;
 	}
 	*rootObj = tzobject_new(root_fd);
