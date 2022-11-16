@@ -114,11 +114,7 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 		}
 
 		if (table->sgl) {
-			if (flags & SMEM_CAMERA) {
-				*iova = sg_phys(table->sgl);
-			} else {
-				*iova = table->sgl->dma_address;
-			}
+			*iova = table->sgl->dma_address;
 		} else {
 			dprintk(CVP_ERR, "sgl is NULL\n");
 			rc = -ENOMEM;
@@ -538,6 +534,7 @@ struct context_bank_info *msm_cvp_smem_get_context_bank(
 	char *non_secure_cb = "cvp_hlos";
 	char *secure_nonpixel_cb = "cvp_sec_nonpixel";
 	char *secure_pixel_cb = "cvp_sec_pixel";
+	char *dummy_cb = "cvp_dummy";
 	bool is_secure = (flags & SMEM_SECURE) ? true : false;
 
 	if (flags & SMEM_PIXEL)
@@ -545,7 +542,8 @@ struct context_bank_info *msm_cvp_smem_get_context_bank(
 	else if (flags & SMEM_NON_PIXEL)
 		search_str = secure_nonpixel_cb;
 	else if (flags & SMEM_CAMERA)
-		search_str = secure_pixel_cb;
+		/* Secure Camera pixel buffer */
+		search_str = dummy_cb;
 	else
 		search_str = non_secure_cb;
 
