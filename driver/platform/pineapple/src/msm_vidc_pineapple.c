@@ -2630,8 +2630,8 @@ static const struct clk_table pineapple_clk_table[] = {
 /* name */
 static const struct clk_rst_table pineapple_clk_reset_table[] = {
 	{ "video_axi_reset"  },
+	{ "video_xo_reset" },
 	{ "video_mvs0c_reset" },
-	/*{ "video_xo_reset" }, TODO: add after clock driver support */
 };
 
 /* name, llcc_id */
