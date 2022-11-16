@@ -109,12 +109,12 @@ static const u32 gen7_9_0_debugbus_blocks[] = {
 
 static const u32 gen7_9_0_gbif_debugbus_blocks[] = {
 	DEBUGBUS_GBIF_GX,
-	DEBUGBUS_GBIF_CX,
 };
 
 static const u32 gen7_9_0_cx_debugbus_blocks[] = {
 	DEBUGBUS_CX,
 	DEBUGBUS_GMU_CX,
+	DEBUGBUS_GBIF_CX,
 };
 
 static struct gen7_shader_block gen7_9_0_shader_blocks[] = {
