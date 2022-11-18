@@ -306,7 +306,7 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{MAX_MBPS_ALL_INTRA, 2088960}, /* 4096x2176/256 MBs@60fps */
 	{MAX_ENH_LAYER_COUNT, 5},
 	{NUM_VPP_PIPE, 4},
-	{SW_PC, 0},
+	{SW_PC, 1},
 	{FW_UNLOAD, 0},
 	{HW_RESPONSE_TIMEOUT, HW_RESPONSE_TIMEOUT_VALUE}, /* 1000 ms */
 	{SW_PC_DELAY,         SW_PC_DELAY_VALUE        }, /* 1500 ms (>HW_RESPONSE_TIMEOUT)*/
@@ -2630,8 +2630,8 @@ static const struct clk_table pineapple_clk_table[] = {
 /* name */
 static const struct clk_rst_table pineapple_clk_reset_table[] = {
 	{ "video_axi_reset"  },
+	{ "video_xo_reset" },
 	{ "video_mvs0c_reset" },
-	/*{ "video_xo_reset" }, TODO: add after clock driver support */
 };
 
 /* name, llcc_id */
