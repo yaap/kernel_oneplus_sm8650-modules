@@ -2637,6 +2637,7 @@ static const struct clk_rst_table pineapple_clk_reset_table[] = {
 /* name, llcc_id */
 static const struct subcache_table pineapple_subcache_table[] = {
 	{ "vidsc0",     LLCC_VIDSC0 },
+	{ "vidvsp",     LLCC_VIDVSP },
 };
 
 /* name, start, size, secure, dma_coherant */
