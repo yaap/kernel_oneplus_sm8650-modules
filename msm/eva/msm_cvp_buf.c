@@ -1558,8 +1558,11 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 		buf = (struct cvp_buf_type *)&in_pkt->pkt_data[offset];
 		offset += sizeof(*buf) >> 2;
 
-		if (buf->fd < 0 || !buf->size)
+		if (buf->fd < 0 || !buf->size) {
+			buf->fd = 0;
+			buf->size = 0;
 			continue;
+		}
 
 		iova = msm_cvp_map_frame_buf(inst, buf, frame, cmd_hdr->packet_type, i);
 		if (!iova) {
