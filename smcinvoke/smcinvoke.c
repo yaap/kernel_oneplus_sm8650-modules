@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "smcinvoke: %s: " fmt, __func__
@@ -26,6 +26,7 @@
 #include <linux/of_platform.h>
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
+#include <linux/freezer.h>
 #include <asm/cacheflush.h>
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
@@ -138,6 +139,8 @@
 #define TZHANDLE_GET_SERVER(h) ((uint16_t)((h) & 0xFFFF))
 #define TZHANDLE_GET_OBJID(h) (((h) >> 16) & 0x7FFF)
 #define TZHANDLE_MAKE_LOCAL(s, o) (((0x8000 | (o)) << 16) | s)
+#define SET_BIT(s,b) (s | (1 << b))
+#define UNSET_BIT(s,b) (s & (~ (1 << b)))
 
 #define TZHANDLE_IS_NULL(h) ((h) == SMCINVOKE_TZ_OBJ_NULL)
 #define TZHANDLE_IS_LOCAL(h) ((h) & 0x80000000)
@@ -304,6 +307,7 @@ struct smcinvoke_server_info {
 	DECLARE_HASHTABLE(responses_table, 4);
 	struct hlist_node hash;
 	struct list_head pending_cbobjs;
+	uint8_t is_server_suspended;
 };
 
 struct smcinvoke_cbobj {
@@ -1717,13 +1721,15 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 					timeout_jiff);
 		}
 		if (ret == 0) {
-			pr_err("CBobj timed out cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
-					cb_req->hdr.tzhandle, cbobj_retries,
+			if (srvr_info->is_server_suspended == 0) {
+			pr_err("CBobj timed out waiting on cbtxn :%d,cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
+					cb_txn->txn_id,cb_req->hdr.tzhandle, cbobj_retries,
 					cb_req->hdr.op, cb_req->hdr.counts);
 			pr_err("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
 					cb_req->hdr.tzhandle, current->pid,
 					current->tgid, srvr_info->state,
 					srvr_info->server_id);
+			}
 		} else {
 			/* wait_event returned due to a signal */
 			if (srvr_info->state != SMCINVOKE_SERVER_STATE_DEFUNCT &&
@@ -1733,7 +1739,16 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 				break;
 			}
 		}
-		cbobj_retries++;
+		/*
+		 * If bit corresponding to any accept thread is set, invoke threads
+		 * should wait infinitely for the accept thread to come back with
+		 * response.
+		 */
+		if (srvr_info->is_server_suspended > 0) {
+			cbobj_retries = 0;
+		} else {
+			cbobj_retries++;
+		}
 	}
 
 out:
@@ -2396,6 +2411,7 @@ static long process_server_req(struct file *filp, unsigned int cmd,
 	hash_init(server_info->reqs_table);
 	hash_init(server_info->responses_table);
 	INIT_LIST_HEAD(&server_info->pending_cbobjs);
+	server_info->is_server_suspended = 0;
 
 	mutex_lock(&g_smcinvoke_lock);
 
@@ -2458,6 +2474,9 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 
 	if (server_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT)
 		server_info->state = 0;
+
+	server_info->is_server_suspended = UNSET_BIT(server_info->is_server_suspended,
+				(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
 
 	mutex_unlock(&g_smcinvoke_lock);
 
@@ -2522,7 +2541,26 @@ start_waiting_for_requests:
 			 * using server_info and would crash. So dont do that.
 			 */
 			mutex_lock(&g_smcinvoke_lock);
-			server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+
+			if(freezing(current)) {
+				pr_err("Server id :%d interrupted probaby due to suspend, pid:%d",
+					server_info->server_id, current->pid);
+				/*
+				 * Each accept thread is identified by bits ranging from
+				 * 0 to DEFAULT_CBOBJ_THREAD_CNT-1. When an accept thread is
+				 * interrupted by a signal other than SIGUSR1,SIGKILL,SIGTERM,
+				 * set the corresponding bit of accept thread, indicating that
+				 * current accept thread's state to be "suspended"/ or something
+				 * that needs infinite timeout for invoke thread.
+				 */
+				server_info->is_server_suspended =
+						SET_BIT(server_info->is_server_suspended,
+							(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
+			} else {
+				pr_err("Setting pid:%d, server id : %d state to defunct",
+						current->pid, server_info->server_id);
+						server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+			}
 			mutex_unlock(&g_smcinvoke_lock);
 			wake_up_interruptible(&server_info->rsp_wait_q);
 			goto out;
