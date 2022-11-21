@@ -12,6 +12,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_driver.h"
 #include "msm_venc.h"
+#include "msm_vidc_platform.h"
 
 int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
 {

@@ -15,7 +15,7 @@
 #include "msm_vidc_control.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_platform.h"
 #include "msm_vidc_memory.h"
 #include "venus_hfi.h"
 #include "hfi_packet.h"

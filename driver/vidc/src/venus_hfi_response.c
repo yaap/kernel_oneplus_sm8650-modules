@@ -12,7 +12,6 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
 #include "msm_vdec.h"
-#include "msm_vidc_control.h"
 #include "msm_vidc_memory.h"
 #include "msm_vidc_fence.h"
 #include "msm_vidc_platform.h"

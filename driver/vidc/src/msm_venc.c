@@ -15,6 +15,7 @@
 #include "msm_vidc_power.h"
 #include "venus_hfi.h"
 #include "hfi_packet.h"
+#include "msm_vidc_platform.h"
 
 static const u32 msm_venc_input_set_prop[] = {
 	HFI_PROP_COLOR_FORMAT,
