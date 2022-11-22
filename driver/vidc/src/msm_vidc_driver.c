@@ -50,293 +50,67 @@ extern struct msm_vidc_core *g_core;
 #define STABILITY_PAYLOAD_ID 0xFFFFFFFF00000000
 #define STABILITY_PAYLOAD_SHIFT 32
 
-struct msm_vidc_cap_name {
-	enum msm_vidc_inst_capability_type cap_id;
-	char *name;
-};
-
 /* do not modify the cap names as it is used in test scripts */
-static const struct msm_vidc_cap_name cap_name_arr[] = {
-	{INST_CAP_NONE,                  "INST_CAP_NONE"              },
-	{META_SEQ_HDR_NAL,               "META_SEQ_HDR_NAL"           },
-	{META_BITSTREAM_RESOLUTION,      "META_BITSTREAM_RESOLUTION"  },
-	{META_CROP_OFFSETS,              "META_CROP_OFFSETS"          },
-	{META_DPB_MISR,                  "META_DPB_MISR"              },
-	{META_OPB_MISR,                  "META_OPB_MISR"              },
-	{META_INTERLACE,                 "META_INTERLACE"             },
-	{META_OUTBUF_FENCE,              "META_OUTBUF_FENCE"          },
-	{META_LTR_MARK_USE,              "META_LTR_MARK_USE"          },
-	{META_TIMESTAMP,                 "META_TIMESTAMP"             },
-	{META_CONCEALED_MB_CNT,          "META_CONCEALED_MB_CNT"      },
-	{META_HIST_INFO,                 "META_HIST_INFO"             },
-	{META_PICTURE_TYPE,              "META_PICTURE_TYPE"          },
-	{META_SEI_MASTERING_DISP,        "META_SEI_MASTERING_DISP"    },
-	{META_SEI_CLL,                   "META_SEI_CLL"               },
-	{META_HDR10PLUS,                 "META_HDR10PLUS"             },
-	{META_BUF_TAG,                   "META_BUF_TAG"               },
-	{META_DPB_TAG_LIST,              "META_DPB_TAG_LIST"          },
-	{META_SUBFRAME_OUTPUT,           "META_SUBFRAME_OUTPUT"       },
-	{META_ENC_QP_METADATA,           "META_ENC_QP_METADATA"       },
-	{META_DEC_QP_METADATA,           "META_DEC_QP_METADATA"       },
-	{META_MAX_NUM_REORDER_FRAMES,    "META_MAX_NUM_REORDER_FRAMES"},
-	{META_EVA_STATS,                 "META_EVA_STATS"             },
-	{META_ROI_INFO,                  "META_ROI_INFO"              },
-	{META_SALIENCY_INFO,             "META_SALIENCY_INFO"         },
-	{META_TRANSCODING_STAT_INFO,     "META_TRANSCODING_STAT_INFO" },
-	{META_DOLBY_RPU,                 "META_DOLBY_RPU"             },
-	{FRAME_WIDTH,                    "FRAME_WIDTH"                },
-	{LOSSLESS_FRAME_WIDTH,           "LOSSLESS_FRAME_WIDTH"       },
-	{SECURE_FRAME_WIDTH,             "SECURE_FRAME_WIDTH"         },
-	{FRAME_HEIGHT,                   "FRAME_HEIGHT"               },
-	{LOSSLESS_FRAME_HEIGHT,          "LOSSLESS_FRAME_HEIGHT"      },
-	{SECURE_FRAME_HEIGHT,            "SECURE_FRAME_HEIGHT"        },
-	{PIX_FMTS,                       "PIX_FMTS"                   },
-	{MIN_BUFFERS_INPUT,              "MIN_BUFFERS_INPUT"          },
-	{MIN_BUFFERS_OUTPUT,             "MIN_BUFFERS_OUTPUT"         },
-	{MBPF,                           "MBPF"                       },
-	{BATCH_MBPF,                     "BATCH_MBPF"                 },
-	{BATCH_FPS,                      "BATCH_FPS"                  },
-	{LOSSLESS_MBPF,                  "LOSSLESS_MBPF"              },
-	{SECURE_MBPF,                    "SECURE_MBPF"                },
-	{FRAME_RATE,                     "FRAME_RATE"                 },
-	{OPERATING_RATE,                 "OPERATING_RATE"             },
-	{INPUT_RATE,                     "INPUT_RATE"                 },
-	{TIMESTAMP_RATE,                 "TIMESTAMP_RATE"             },
-	{SCALE_FACTOR,                   "SCALE_FACTOR"               },
-	{MB_CYCLES_VSP,                  "MB_CYCLES_VSP"              },
-	{MB_CYCLES_VPP,                  "MB_CYCLES_VPP"              },
-	{MB_CYCLES_LP,                   "MB_CYCLES_LP"               },
-	{MB_CYCLES_FW,                   "MB_CYCLES_FW"               },
-	{MB_CYCLES_FW_VPP,               "MB_CYCLES_FW_VPP"           },
-	{CLIENT_ID,                      "CLIENT_ID"                  },
-	{SECURE_MODE,                    "SECURE_MODE"                },
-	{FENCE_ID,                       "FENCE_ID"                   },
-	{FENCE_FD,                       "FENCE_FD"                   },
-	{TS_REORDER,                     "TS_REORDER"                 },
-	{HFLIP,                          "HFLIP"                      },
-	{VFLIP,                          "VFLIP"                      },
-	{ROTATION,                       "ROTATION"                   },
-	{SUPER_FRAME,                    "SUPER_FRAME"                },
-	{HEADER_MODE,                    "HEADER_MODE"                },
-	{PREPEND_SPSPPS_TO_IDR,          "PREPEND_SPSPPS_TO_IDR"      },
-	{WITHOUT_STARTCODE,              "WITHOUT_STARTCODE"          },
-	{NAL_LENGTH_FIELD,               "NAL_LENGTH_FIELD"           },
-	{REQUEST_I_FRAME,                "REQUEST_I_FRAME"            },
-	{BITRATE_MODE,                   "BITRATE_MODE"               },
-	{LOSSLESS,                       "LOSSLESS"                   },
-	{FRAME_SKIP_MODE,                "FRAME_SKIP_MODE"            },
-	{FRAME_RC_ENABLE,                "FRAME_RC_ENABLE"            },
-	{GOP_CLOSURE,                    "GOP_CLOSURE"                },
-	{CSC,                            "CSC"                        },
-	{CSC_CUSTOM_MATRIX,              "CSC_CUSTOM_MATRIX"          },
-	{USE_LTR,                        "USE_LTR"                    },
-	{MARK_LTR,                       "MARK_LTR"                   },
-	{BASELAYER_PRIORITY,             "BASELAYER_PRIORITY"         },
-	{IR_TYPE,                        "IR_TYPE"                    },
-	{AU_DELIMITER,                   "AU_DELIMITER"               },
-	{GRID,                           "GRID"                       },
-	{I_FRAME_MIN_QP,                 "I_FRAME_MIN_QP"             },
-	{P_FRAME_MIN_QP,                 "P_FRAME_MIN_QP"             },
-	{B_FRAME_MIN_QP,                 "B_FRAME_MIN_QP"             },
-	{I_FRAME_MAX_QP,                 "I_FRAME_MAX_QP"             },
-	{P_FRAME_MAX_QP,                 "P_FRAME_MAX_QP"             },
-	{B_FRAME_MAX_QP,                 "B_FRAME_MAX_QP"             },
-	{LAYER_TYPE,                     "LAYER_TYPE"                 },
-	{LAYER_ENABLE,                   "LAYER_ENABLE"               },
-	{L0_BR,                          "L0_BR"                      },
-	{L1_BR,                          "L1_BR"                      },
-	{L2_BR,                          "L2_BR"                      },
-	{L3_BR,                          "L3_BR"                      },
-	{L4_BR,                          "L4_BR"                      },
-	{L5_BR,                          "L5_BR"                      },
-	{LEVEL,                          "LEVEL"                      },
-	{HEVC_TIER,                      "HEVC_TIER"                  },
-	{AV1_TIER,                       "AV1_TIER"                   },
-	{DISPLAY_DELAY_ENABLE,           "DISPLAY_DELAY_ENABLE"       },
-	{DISPLAY_DELAY,                  "DISPLAY_DELAY"              },
-	{CONCEAL_COLOR_8BIT,             "CONCEAL_COLOR_8BIT"         },
-	{CONCEAL_COLOR_10BIT,            "CONCEAL_COLOR_10BIT"        },
-	{LF_MODE,                        "LF_MODE"                    },
-	{LF_ALPHA,                       "LF_ALPHA"                   },
-	{LF_BETA,                        "LF_BETA"                    },
-	{SLICE_MAX_BYTES,                "SLICE_MAX_BYTES"            },
-	{SLICE_MAX_MB,                   "SLICE_MAX_MB"               },
-	{MB_RC,                          "MB_RC"                      },
-	{CHROMA_QP_INDEX_OFFSET,         "CHROMA_QP_INDEX_OFFSET"     },
-	{PIPE,                           "PIPE"                       },
-	{POC,                            "POC"                        },
-	{CODED_FRAMES,                   "CODED_FRAMES"               },
-	{BIT_DEPTH,                      "BIT_DEPTH"                  },
-	{CODEC_CONFIG,                   "CODEC_CONFIG"               },
-	{BITSTREAM_SIZE_OVERWRITE,       "BITSTREAM_SIZE_OVERWRITE"   },
-	{THUMBNAIL_MODE,                 "THUMBNAIL_MODE"             },
-	{DEFAULT_HEADER,                 "DEFAULT_HEADER"             },
-	{RAP_FRAME,                      "RAP_FRAME"                  },
-	{SEQ_CHANGE_AT_SYNC_FRAME,       "SEQ_CHANGE_AT_SYNC_FRAME"   },
-	{QUALITY_MODE,                   "QUALITY_MODE"               },
-	{PRIORITY,                       "PRIORITY"                   },
-	{FIRMWARE_PRIORITY_OFFSET,       "FIRMWARE_PRIORITY_OFFSET"   },
-	{CRITICAL_PRIORITY,              "CRITICAL_PRIORITY"          },
-	{RESERVE_DURATION,               "RESERVE_DURATION"           },
-	{DPB_LIST,                       "DPB_LIST"                   },
-	{FILM_GRAIN,                     "FILM_GRAIN"                 },
-	{SUPER_BLOCK,                    "SUPER_BLOCK"                },
-	{DRAP,                           "DRAP"                       },
-	{ENC_IP_CR,                      "ENC_IP_CR"                  },
-	{COMPLEXITY,                     "COMPLEXITY"                 },
-	{CABAC_MAX_BITRATE,              "CABAC_MAX_BITRATE"          },
-	{CAVLC_MAX_BITRATE,              "CAVLC_MAX_BITRATE"          },
-	{ALLINTRA_MAX_BITRATE,           "ALLINTRA_MAX_BITRATE"       },
-	{LOWLATENCY_MAX_BITRATE,         "LOWLATENCY_MAX_BITRATE"     },
-	{LAST_FLAG_EVENT_ENABLE,         "LAST_FLAG_EVENT_ENABLE"     },
-	{NUM_COMV,                       "NUM_COMV"                   },
-	{PROFILE,                        "PROFILE"                    },
-	{ENH_LAYER_COUNT,                "ENH_LAYER_COUNT"            },
-	{BIT_RATE,                       "BIT_RATE"                   },
-	{LOWLATENCY_MODE,                "LOWLATENCY_MODE"            },
-	{GOP_SIZE,                       "GOP_SIZE"                   },
-	{B_FRAME,                        "B_FRAME"                    },
-	{ALL_INTRA,                      "ALL_INTRA"                  },
-	{MIN_QUALITY,                    "MIN_QUALITY"                },
-	{CONTENT_ADAPTIVE_CODING,        "CONTENT_ADAPTIVE_CODING"    },
-	{BLUR_TYPES,                     "BLUR_TYPES"                 },
-	{REQUEST_PREPROCESS,             "REQUEST_PREPROCESS"         },
-	{SLICE_MODE,                     "SLICE_MODE"                 },
-	{MIN_FRAME_QP,                   "MIN_FRAME_QP"               },
-	{MAX_FRAME_QP,                   "MAX_FRAME_QP"               },
-	{I_FRAME_QP,                     "I_FRAME_QP"                 },
-	{P_FRAME_QP,                     "P_FRAME_QP"                 },
-	{B_FRAME_QP,                     "B_FRAME_QP"                 },
-	{TIME_DELTA_BASED_RC,            "TIME_DELTA_BASED_RC"        },
-	{CONSTANT_QUALITY,               "CONSTANT_QUALITY"           },
-	{VBV_DELAY,                      "VBV_DELAY"                  },
-	{PEAK_BITRATE,                   "PEAK_BITRATE"               },
-	{ENTROPY_MODE,                   "ENTROPY_MODE"               },
-	{TRANSFORM_8X8,                  "TRANSFORM_8X8"              },
-	{STAGE,                          "STAGE"                      },
-	{LTR_COUNT,                      "LTR_COUNT"                  },
-	{IR_PERIOD,                      "IR_PERIOD"                  },
-	{BITRATE_BOOST,                  "BITRATE_BOOST"              },
-	{BLUR_RESOLUTION,                "BLUR_RESOLUTION"            },
-	{OUTPUT_ORDER,                   "OUTPUT_ORDER"               },
-	{INPUT_BUF_HOST_MAX_COUNT,       "INPUT_BUF_HOST_MAX_COUNT"   },
-	{OUTPUT_BUF_HOST_MAX_COUNT,      "OUTPUT_BUF_HOST_MAX_COUNT"  },
-	{DELIVERY_MODE,                  "DELIVERY_MODE"              },
-	{VUI_TIMING_INFO,                "VUI_TIMING_INFO"            },
-	{SLICE_DECODE,                   "SLICE_DECODE"               },
-	{INST_CAP_MAX,                   "INST_CAP_MAX"               },
-};
+static const char * const cap_name_arr[] =
+	FOREACH_CAP(GENERATE_STRING);
 
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id)
 {
 	const char *name = "UNKNOWN CAP";
 
-	if (cap_id > ARRAY_SIZE(cap_name_arr))
+	if (cap_id >= ARRAY_SIZE(cap_name_arr))
 		goto exit;
 
-	if (cap_name_arr[cap_id].cap_id != cap_id)
-		goto exit;
-
-	name = cap_name_arr[cap_id].name;
+	name = cap_name_arr[cap_id];
 
 exit:
 	return name;
 }
 
-struct msm_vidc_buf_type_name {
-	enum msm_vidc_buffer_type type;
-	char *name;
-};
-
-static const struct msm_vidc_buf_type_name buf_type_name_arr[] = {
-	{MSM_VIDC_BUF_INPUT,             "INPUT"                      },
-	{MSM_VIDC_BUF_OUTPUT,            "OUTPUT"                     },
-	{MSM_VIDC_BUF_INPUT_META,        "INPUT_META"                 },
-	{MSM_VIDC_BUF_OUTPUT_META,       "OUTPUT_META"                },
-	{MSM_VIDC_BUF_READ_ONLY,         "READ_ONLY"                  },
-	{MSM_VIDC_BUF_QUEUE,             "QUEUE"                      },
-	{MSM_VIDC_BUF_BIN,               "BIN"                        },
-	{MSM_VIDC_BUF_ARP,               "ARP"                        },
-	{MSM_VIDC_BUF_COMV,              "COMV"                       },
-	{MSM_VIDC_BUF_NON_COMV,          "NON_COMV"                   },
-	{MSM_VIDC_BUF_LINE,              "LINE"                       },
-	{MSM_VIDC_BUF_DPB,               "DPB"                        },
-	{MSM_VIDC_BUF_PERSIST,           "PERSIST"                    },
-	{MSM_VIDC_BUF_VPSS,              "VPSS"                       },
-	{MSM_VIDC_BUF_PARTIAL_DATA,      "PARTIAL_DATA"               },
-};
+static const char * const buf_type_name_arr[] =
+	FOREACH_BUF_TYPE(GENERATE_STRING);
 
 const char *buf_name(enum msm_vidc_buffer_type type)
 {
 	const char *name = "UNKNOWN BUF";
 
-	if (!type || type > ARRAY_SIZE(buf_type_name_arr))
+	if (type >= ARRAY_SIZE(buf_type_name_arr))
 		goto exit;
 
-	if (buf_type_name_arr[type - 1].type != type)
-		goto exit;
-
-	name = buf_type_name_arr[type - 1].name;
+	name = buf_type_name_arr[type];
 
 exit:
 	return name;
 }
 
-struct msm_vidc_allow_name {
-	enum msm_vidc_allow allow;
-	char *name;
-};
-
-static const struct msm_vidc_allow_name inst_allow_name_arr[] = {
-	{MSM_VIDC_DISALLOW,                  "MSM_VIDC_DISALLOW"   },
-	{MSM_VIDC_ALLOW,                     "MSM_VIDC_ALLOW"      },
-	{MSM_VIDC_DEFER,                     "MSM_VIDC_DEFER"      },
-	{MSM_VIDC_DISCARD,                   "MSM_VIDC_DISCARD"    },
-	{MSM_VIDC_IGNORE,                    "MSM_VIDC_IGNORE"     },
-};
+static const char * const inst_allow_name_arr[] =
+	FOREACH_ALLOW(GENERATE_STRING);
 
 const char *allow_name(enum msm_vidc_allow allow)
 {
 	const char *name = "UNKNOWN";
 
-	if (allow > ARRAY_SIZE(inst_allow_name_arr))
+	if (allow >= ARRAY_SIZE(inst_allow_name_arr))
 		goto exit;
 
-	if (inst_allow_name_arr[allow].allow != allow)
-		goto exit;
-
-	name = inst_allow_name_arr[allow].name;
+	name = inst_allow_name_arr[allow];
 
 exit:
 	return name;
 }
 
-struct msm_vidc_state_name {
-	enum msm_vidc_state state;
-	char *name;
-};
-
 /* do not modify the state names as it is used in test scripts */
-static const struct msm_vidc_state_name state_name_arr[] = {
-	{MSM_VIDC_OPEN,                  "OPEN"                          },
-	{MSM_VIDC_INPUT_STREAMING,       "INPUT_STREAMING"               },
-	{MSM_VIDC_OUTPUT_STREAMING,      "OUTPUT_STREAMING"              },
-	{MSM_VIDC_STREAMING,             "STREAMING"                     },
-	{MSM_VIDC_CLOSE,                 "CLOSE"                         },
-	{MSM_VIDC_ERROR,                 "ERROR"                         },
-};
+static const char * const state_name_arr[] =
+	FOREACH_STATE(GENERATE_STRING);
 
 const char *state_name(enum msm_vidc_state state)
 {
 	const char *name = "UNKNOWN STATE";
 
-	if (!state || state > ARRAY_SIZE(state_name_arr))
+	if (state >= ARRAY_SIZE(state_name_arr))
 		goto exit;
 
-	if (state_name_arr[state - 1].state != state)
-		goto exit;
-
-	name = state_name_arr[state - 1].name;
+	name = state_name_arr[state];
 
 exit:
 	return name;
@@ -356,16 +130,8 @@ const char *sub_state_name(enum msm_vidc_sub_state sub_state)
 	return "SUB_STATE_NONE";
 }
 
-struct msm_vidc_core_state_name {
-	enum msm_vidc_core_state state;
-	char *name;
-};
-
-static const struct msm_vidc_core_state_name core_state_name_arr[] = {
-	{MSM_VIDC_CORE_DEINIT,           "CORE_DEINIT"                },
-	{MSM_VIDC_CORE_INIT_WAIT,        "CORE_INIT_WAIT"             },
-	{MSM_VIDC_CORE_INIT,             "CORE_INIT"                  },
-};
+static const char * const core_state_name_arr[] =
+	FOREACH_CORE_STATE(GENERATE_STRING);
 
 const char *core_state_name(enum msm_vidc_core_state state)
 {
@@ -374,10 +140,7 @@ const char *core_state_name(enum msm_vidc_core_state state)
 	if (state >= ARRAY_SIZE(core_state_name_arr))
 		goto exit;
 
-	if (core_state_name_arr[state].state != state)
-		goto exit;
-
-	name = core_state_name_arr[state].name;
+	name = core_state_name_arr[state];
 
 exit:
 	return name;
@@ -5057,13 +4820,13 @@ int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst)
 	}
 
 	/* Print buffer details */
-	for (i = 0; i < ARRAY_SIZE(buf_type_name_arr); i++) {
-		buffers = msm_vidc_get_buffers(inst, buf_type_name_arr[i].type, __func__);
+	for (i = 1; i < ARRAY_SIZE(buf_type_name_arr); i++) {
+		buffers = msm_vidc_get_buffers(inst, i, __func__);
 		if (!buffers)
 			continue;
 
 		i_vpr_h(inst, "buf: type: %11s, count %2d, extra %2d, actual %2d, size %9u\n",
-			buf_type_name_arr[i].name, buffers->min_count,
+			buf_name(i), buffers->min_count,
 			buffers->extra_count, buffers->actual_count,
 			buffers->size);
 	}
@@ -5105,13 +4868,13 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 		frame_rate, bit_rate, bit_depth);
 
 	/* Print buffer details */
-	for (i = 0; i < ARRAY_SIZE(buf_type_name_arr); i++) {
-		buffers = msm_vidc_get_buffers(inst, buf_type_name_arr[i].type, __func__);
+	for (i = 1; i < ARRAY_SIZE(buf_type_name_arr); i++) {
+		buffers = msm_vidc_get_buffers(inst, i, __func__);
 		if (!buffers)
 			continue;
 
 		i_vpr_e(inst, "count: type: %11s, min: %2d, extra: %2d, actual: %2d\n",
-			buf_type_name_arr[i].name, buffers->min_count,
+			buf_name(i), buffers->min_count,
 			buffers->extra_count, buffers->actual_count);
 
 		list_for_each_entry(buf, &buffers->list, list) {
@@ -5127,7 +4890,7 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 			}
 			i_vpr_e(inst,
 				"buf: type: %11s, index: %2d, fd: %4d, size: %9u, off: %8u, filled: %9u, daddr: %#llx, inode: %8lu, ref: %2ld, flags: %8x, ts: %16lld, attr: %8x\n",
-				buf_type_name_arr[i].name, buf->index, buf->fd, buf->buffer_size,
+				buf_name(i), buf->index, buf->fd, buf->buffer_size,
 				buf->data_offset, buf->data_size, buf->device_addr,
 				inode_num, ref_count, buf->flags, buf->timestamp, buf->attr);
 		}

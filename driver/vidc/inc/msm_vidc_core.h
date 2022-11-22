@@ -17,6 +17,12 @@ struct msm_vidc_core;
 
 #define MAX_EVENTS 30
 
+#define FOREACH_CORE_STATE(CORE_STATE) {               \
+	CORE_STATE(CORE_DEINIT)                        \
+	CORE_STATE(CORE_INIT_WAIT)                     \
+	CORE_STATE(CORE_INIT)                          \
+}
+
 #define call_venus_op(d, op, ...)			\
 	(((d) && (d)->venus_ops && (d)->venus_ops->op) ? \
 	((d)->venus_ops->op(__VA_ARGS__)):0)
@@ -57,11 +63,7 @@ struct msm_vidc_core_power {
 	u64 bw_llcc;
 };
 
-enum msm_vidc_core_state {
-	MSM_VIDC_CORE_DEINIT       = 0,
-	MSM_VIDC_CORE_INIT_WAIT    = 1,
-	MSM_VIDC_CORE_INIT         = 2,
-};
+enum msm_vidc_core_state FOREACH_CORE_STATE(GENERATE_MSM_VIDC_ENUM);
 
 struct msm_vidc_core {
 	struct platform_device                *pdev;
