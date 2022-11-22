@@ -62,6 +62,7 @@ MODULE_LICENSE("GPL");
 #define QNS4_PARAMS			0x1124
 #define OVERRIDE			0x112C
 #define VERSION_CONTROL			0x1130
+#define SPARE				0x1188
 
 
 /* read/write register */
@@ -363,9 +364,12 @@ void ubwcp_hw_one_time_init(void __iomem *base)
 	u32 reg;
 
 	/* hack: set dataless hazard override bit */
-	reg = UBWCP_REG_READ(base, OVERRIDE);
 	UBWCP_REG_WRITE(base, OVERRIDE, 0x2000);
-	reg = UBWCP_REG_READ(base, OVERRIDE);
+
+	/* Spare reg config: set bit-9: SCC & bit-1: padding */
+	reg = UBWCP_REG_READ(base, SPARE);
+	reg |= BIT(9) | BIT(1);
+	UBWCP_REG_WRITE(base, SPARE, reg);
 
 	/* Configure SID */
 	reg = UBWCP_REG_READ(base, QNS4_PARAMS);
@@ -373,7 +377,6 @@ void ubwcp_hw_one_time_init(void __iomem *base)
 	reg |= 0x1;      /* desc buffer */
 	reg |= (0 << 3); /* pixel data  */
 	UBWCP_REG_WRITE(base, QNS4_PARAMS, reg);
-	reg = UBWCP_REG_READ(base, QNS4_PARAMS);
 
 	ubwcp_hw_decoder_config(base);
 	ubwcp_hw_encoder_config(base);
