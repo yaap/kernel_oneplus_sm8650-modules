@@ -229,6 +229,11 @@ static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 	return !!core->platform->data.supports_mmrm;
 }
 
+static inline bool is_regulator_supported(struct msm_vidc_core *core)
+{
+	return !!core->platform->data.regulator_tbl_size;
+}
+
 int msm_vidc_init_platform(struct platform_device *pdev);
 int msm_vidc_deinit_platform(struct platform_device *pdev);
 
