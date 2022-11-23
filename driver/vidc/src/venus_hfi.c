@@ -27,6 +27,7 @@
 #include "venus_hfi_response.h"
 #include "venus_hfi_queue.h"
 #include "msm_vidc_events.h"
+#include "msm_vidc_state.h"
 #include "firmware.h"
 
 #define update_offset(offset, val)		((offset) += (val))

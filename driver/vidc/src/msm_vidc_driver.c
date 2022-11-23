@@ -13,6 +13,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_power.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
@@ -128,39 +129,6 @@ const char *sub_state_name(enum msm_vidc_sub_state sub_state)
 	}
 
 	return "SUB_STATE_NONE";
-}
-
-static const char * const core_state_name_arr[] =
-	FOREACH_CORE_STATE(GENERATE_STRING);
-
-const char *core_state_name(enum msm_vidc_core_state state)
-{
-	const char *name = "UNKNOWN STATE";
-
-	if (state >= ARRAY_SIZE(core_state_name_arr))
-		goto exit;
-
-	name = core_state_name_arr[state];
-
-exit:
-	return name;
-}
-
-const char *core_sub_state_name(enum msm_vidc_core_sub_state sub_state)
-{
-	switch (sub_state) {
-	case CORE_SUBSTATE_NONE:                 return "NONE ";
-	case CORE_SUBSTATE_GDSC_HANDOFF:         return "GDSC_HANDOFF ";
-	case CORE_SUBSTATE_PM_SUSPEND:           return "PM_SUSPEND ";
-	case CORE_SUBSTATE_FW_PWR_CTRL:          return "FW_PWR_CTRL ";
-	case CORE_SUBSTATE_POWER_ENABLE:         return "POWER_ENABLE ";
-	case CORE_SUBSTATE_PAGE_FAULT:           return "PAGE_FAULT ";
-	case CORE_SUBSTATE_CPU_WATCHDOG:         return "CPU_WATCHDOG ";
-	case CORE_SUBSTATE_VIDEO_UNRESPONSIVE:   return "VIDEO_UNRESPONSIVE ";
-	case CORE_SUBSTATE_MAX:                  return "MAX ";
-	}
-
-	return "UNKNOWN ";
 }
 
 const char *v4l2_type_name(u32 port)
@@ -1026,77 +994,6 @@ int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 {
 	if (cmd < MAX_SIGNAL)
 		complete(&inst->completions[cmd]);
-	return 0;
-}
-
-int msm_vidc_change_core_state(struct msm_vidc_core *core,
-	enum msm_vidc_core_state request_state, const char *func)
-{
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	/* core must be locked */
-	rc = __strict_check(core, func);
-	if (rc) {
-		d_vpr_e("%s(): core was not locked\n", func);
-		return rc;
-	}
-
-	d_vpr_h("%s: core state changed to %s from %s\n",
-		func, core_state_name(request_state),
-		core_state_name(core->state));
-	core->state = request_state;
-	return 0;
-}
-
-int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
-		enum msm_vidc_core_sub_state clear_sub_state,
-		enum msm_vidc_core_sub_state set_sub_state, const char *func)
-{
-	int i = 0;
-	enum msm_vidc_core_sub_state prev_sub_state;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	/* final value will not change */
-	if (clear_sub_state == set_sub_state)
-		return 0;
-
-	/* sanitize clear & set value */
-	if (set_sub_state > CORE_SUBSTATE_MAX ||
-		clear_sub_state > CORE_SUBSTATE_MAX) {
-		d_vpr_e("%s: invalid sub states. clear %#x or set %#x\n",
-			func, clear_sub_state, set_sub_state);
-		return -EINVAL;
-	}
-
-	prev_sub_state = core->sub_state;
-	core->sub_state |= set_sub_state;
-	core->sub_state &= ~clear_sub_state;
-
-	/* print substates only when there is a change */
-	if (core->sub_state != prev_sub_state) {
-		strscpy(core->sub_state_name, "\0", sizeof(core->sub_state_name));
-		for (i = 0; BIT(i) < CORE_SUBSTATE_MAX; i++) {
-			if (core->sub_state == CORE_SUBSTATE_NONE) {
-				strscpy(core->sub_state_name, "CORE_SUBSTATE_NONE",
-					sizeof(core->sub_state_name));
-				break;
-			}
-			if (core->sub_state & BIT(i))
-				strlcat(core->sub_state_name, core_sub_state_name(BIT(i)),
-					sizeof(core->sub_state_name));
-		}
-		d_vpr_h("%s: core sub state changed to %s\n", func, core->sub_state_name);
-	}
-
 	return 0;
 }
 
@@ -4722,6 +4619,7 @@ int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst, *dummy;
+	enum msm_vidc_allow allow;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -4736,6 +4634,13 @@ int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force)
 
 	if (is_core_state(core, MSM_VIDC_CORE_DEINIT))
 		return 0;
+
+	/* print error for state change not allowed case */
+	allow = msm_vidc_allow_core_state_change(core, MSM_VIDC_CORE_DEINIT);
+	if (allow != MSM_VIDC_ALLOW)
+		d_vpr_e("%s: %s core state change %s -> %s\n", __func__,
+			allow_name(allow), core_state_name(core->state),
+			core_state_name(MSM_VIDC_CORE_DEINIT));
 
 	if (force) {
 		d_vpr_e("%s(): force deinit core\n", __func__);
@@ -4840,6 +4745,7 @@ unlock:
 
 int msm_vidc_core_init(struct msm_vidc_core *core)
 {
+	enum msm_vidc_allow allow;
 	int rc = 0;
 
 	if (!core || !core->capabilities) {
@@ -4856,6 +4762,13 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 		rc = -EINVAL;
 		goto unlock;
 	}
+
+	/* print error for state change not allowed case */
+	allow = msm_vidc_allow_core_state_change(core, MSM_VIDC_CORE_INIT_WAIT);
+	if (allow != MSM_VIDC_ALLOW)
+		d_vpr_e("%s: %s core state change %s -> %s\n", __func__,
+			allow_name(allow), core_state_name(core->state),
+			core_state_name(MSM_VIDC_CORE_INIT_WAIT));
 
 	msm_vidc_change_core_state(core, MSM_VIDC_CORE_INIT_WAIT, __func__);
 	/* clear PM suspend from core sub_state */

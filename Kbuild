@@ -79,6 +79,7 @@ msm_video-objs += driver/vidc/src/msm_vidc_v4l2.o \
                   driver/vidc/src/msm_vdec.o \
                   driver/vidc/src/msm_venc.o \
                   driver/vidc/src/msm_vidc_driver.o \
+                  driver/vidc/src/msm_vidc_state.o \
                   driver/vidc/src/msm_vidc_control.o \
                   driver/vidc/src/msm_vidc_control_ext.o \
                   driver/vidc/src/msm_vidc_buffer.o \

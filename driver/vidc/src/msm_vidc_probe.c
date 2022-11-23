@@ -19,6 +19,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
@@ -274,7 +275,7 @@ static int msm_vidc_deinitialize_core(struct msm_vidc_core *core)
 	d_vpr_h("%s()\n", __func__);
 
 	mutex_destroy(&core->lock);
-	msm_vidc_change_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
+	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
 	msm_vidc_vmem_free((void **)&core->response_packet);
 	msm_vidc_vmem_free((void **)&core->packet);
@@ -303,7 +304,7 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 	}
 	d_vpr_h("%s()\n", __func__);
 
-	msm_vidc_change_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
+	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
 	core->pm_workq = create_singlethread_workqueue("pm_workq");
 	if (!core->pm_workq) {
