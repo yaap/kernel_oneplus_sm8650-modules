@@ -307,6 +307,16 @@ static void gen7_hwcg_set(struct adreno_device *adreno_dev, bool on)
 		gmu_core_regwrite(device, gen7_core->ao_hwcg[i].offset,
 			on ? gen7_core->ao_hwcg[i].val : 0);
 
+	if (!gen7_core->hwcg) {
+		kgsl_regread(device, GEN7_RBBM_CGC_GLOBAL_LOAD_CMD, &value);
+
+		if (value != on)
+			kgsl_regwrite(device, GEN7_RBBM_CGC_GLOBAL_LOAD_CMD,
+				      on ? 1 : 0);
+
+		return;
+	}
+
 	kgsl_regread(device, GEN7_RBBM_CLOCK_CNTL, &value);
 
 	if (value == RBBM_CLOCK_CNTL_ON && on)
