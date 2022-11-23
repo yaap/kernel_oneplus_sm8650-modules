@@ -1023,6 +1023,11 @@ int venus_hfi_suspend(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	if (!core->capabilities[SW_PC].value) {
+		d_vpr_h("Skip suspending venus\n");
+		return 0;
+	}
+
 	d_vpr_h("Suspending Venus\n");
 	rc = __power_collapse(core, true);
 	if (!rc) {
