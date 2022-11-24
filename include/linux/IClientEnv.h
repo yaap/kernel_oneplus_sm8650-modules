@@ -12,6 +12,8 @@
 #define IClientEnv_OP_notifyDomainChange 4
 #define IClientEnv_OP_registerWithCredentials 5
 
+#include "smcinvoke_object.h"
+
 static inline int32_t
 IClientEnv_release(struct Object self)
 {
