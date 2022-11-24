@@ -25,6 +25,7 @@
 #include <linux/uaccess.h>
 #include <linux/of_device.h>
 #include <soc/qcom/cmd-db.h>
+#include <linux/pinctrl/qcom-pinctrl.h>
 #include "btpower.h"
 #if (defined CONFIG_BT_SLIM)
 #include "btfm_slim.h"
@@ -545,6 +546,14 @@ static int bt_configure_gpios(int on)
 		if (bt_sw_ctrl_gpio >= 0) {
 			bt_power_src_status[BT_SW_CTRL_GPIO] =
 			gpio_get_value(bt_sw_ctrl_gpio);
+			rc = msm_gpio_mpm_wake_set(bt_power_pdata->sw_cntrl_gpio, 1);
+			if (rc < 0) {
+				pr_err("Failed to set msm_gpio_mpm_wake_set for sw_cntrl gpio, ret: %d\n",
+						rc);
+				return rc;
+			} else {
+				pr_info("Set msm_gpio_mpm_wake_set for sw_cntrl gpio successful\n");
+			}
 			pr_info("BTON:Turn Bt OFF bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
 				bt_power_src_status[BT_SW_CTRL_GPIO]);
@@ -1010,6 +1019,11 @@ static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 						"qcom,bt-sw-ctrl-gpio",  0);
 		if (bt_power_pdata->bt_gpio_sw_ctrl < 0)
 			pr_warn("bt-sw-ctrl-gpio not provided in devicetree\n");
+
+		rc = of_property_read_u32(pdev->dev.of_node,
+			 "mpm_wake_set_gpios",&bt_power_pdata->sw_cntrl_gpio);
+		if (rc)
+			pr_warn("sw_cntrl-gpio not provided in devicetree\n");
 
 		bt_power_pdata->bt_gpio_debug  =
 			of_get_named_gpio(pdev->dev.of_node,

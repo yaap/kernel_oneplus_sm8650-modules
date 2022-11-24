@@ -64,6 +64,7 @@ struct btpower_platform_data {
 	int bt_gpio_host_wake;                 /* Bluetooth bt_host_wake */
 	int irq;                               /* Bluetooth host_wake IRQ */
 #endif
+	int sw_cntrl_gpio;
 	int xo_gpio_clk;                       /* XO clock gpio*/
 	struct device *slim_dev;
 	struct bt_power_vreg_data *vreg_info;  /* VDDIO voltage regulator */
