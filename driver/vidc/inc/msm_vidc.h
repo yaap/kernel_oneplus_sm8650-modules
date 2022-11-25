@@ -41,7 +41,8 @@ int msm_vidc_query_ctrl(void *instance, struct v4l2_queryctrl *ctrl);
 int msm_vidc_query_menu(void *instance, struct v4l2_querymenu *qmenu);
 int msm_vidc_streamoff(void *instance, enum v4l2_buf_type i);
 int msm_vidc_try_cmd(void *instance, union msm_v4l2_cmd *cmd);
-int msm_vidc_cmd(void *instance, union msm_v4l2_cmd *cmd);
+int msm_vidc_start_cmd(void *instance);
+int msm_vidc_stop_cmd(void *instance);
 int msm_vidc_poll(void *instance, struct file *filp,
 		struct poll_table_struct *pt);
 int msm_vidc_subscribe_event(void *instance,

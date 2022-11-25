@@ -509,7 +509,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	}
 
 	memset(&mem, 0, sizeof(mem));
-	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
 	mem.region = MSM_VIDC_NON_SECURE;
 	mem.size = TOTAL_QSIZE;
 	mem.secure = false;
@@ -570,7 +570,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 
 	/* sfr buffer */
 	memset(&mem, 0, sizeof(mem));
-	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
 	mem.region = MSM_VIDC_NON_SECURE;
 	mem.size = ALIGNED_SFR_SIZE;
 	mem.secure = false;
@@ -610,7 +610,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 
 	/* allocate 4k buffer for HFI_MMAP_ADDR */
 	memset(&mem, 0, sizeof(mem));
-	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
 	mem.region = MSM_VIDC_NON_SECURE;
 	mem.size = ALIGNED_MMAP_BUF_SIZE;
 	mem.secure = false;

@@ -404,8 +404,8 @@ const char *state_name(enum msm_vidc_state state);
 int msm_vidc_change_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_state request_state, const char *func);
 int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
-	enum msm_vidc_sub_state clear_sub_states,
-	enum msm_vidc_sub_state set_sub_states, const char *func);
+	enum msm_vidc_sub_state clear_sub_state,
+	enum msm_vidc_sub_state set_sub_state, const char *func);
 int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type, u32 index);
 int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
@@ -436,6 +436,8 @@ int msm_vidc_change_core_state(struct msm_vidc_core *core,
 int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_sub_state clear_sub_states,
 	enum msm_vidc_core_sub_state set_sub_states, const char *func);
+int prepare_sub_state_name(enum msm_vidc_sub_state sub_state,
+	char *buf, u32 size);
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
@@ -482,6 +484,7 @@ int cancel_stats_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_print_stats(struct msm_vidc_inst *inst);
 enum msm_vidc_buffer_type v4l2_type_to_driver(u32 type,
 	const char *func);
+int msm_vidc_buf_queue(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf);
 int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst,
 	struct vb2_buffer *vb2);
 int msm_vidc_queue_deferred_buffers(struct msm_vidc_inst *inst,
@@ -501,8 +504,6 @@ struct msm_vidc_inst *get_inst(struct msm_vidc_core *core,
 		u32 session_id);
 void put_inst(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_s_fmt(struct msm_vidc_inst *inst, u32 type);
-bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst,
-	enum msm_vidc_inst_capability_type cap_id);
 bool msm_vidc_allow_metadata_delivery(struct msm_vidc_inst *inst,
 	u32 cap_id, u32 port);
 bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst,
@@ -514,8 +515,6 @@ bool msm_vidc_allow_reqbufs(struct msm_vidc_inst *inst, u32 type);
 enum msm_vidc_allow msm_vidc_allow_stop(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_start(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_streamon(struct msm_vidc_inst *inst, u32 type);
-enum msm_vidc_allow msm_vidc_allow_streamoff(struct msm_vidc_inst *inst, u32 type);
-enum msm_vidc_allow msm_vidc_allow_qbuf(struct msm_vidc_inst *inst, u32 type);
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst);

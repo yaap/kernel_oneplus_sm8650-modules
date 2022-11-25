@@ -377,7 +377,7 @@ enum msm_vidc_metadata_bits {
 	BUF_TYPE(INPUT_META)                      \
 	BUF_TYPE(OUTPUT_META)                     \
 	BUF_TYPE(READ_ONLY)                       \
-	BUF_TYPE(QUEUE)                           \
+	BUF_TYPE(INTERFACE_QUEUE)                 \
 	BUF_TYPE(BIN)                             \
 	BUF_TYPE(ARP)                             \
 	BUF_TYPE(COMV)                            \
