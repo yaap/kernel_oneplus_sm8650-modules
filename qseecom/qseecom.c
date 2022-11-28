@@ -333,6 +333,7 @@ struct qseecom_control {
 	bool  whitelist_support;
 	bool  commonlib_loaded;
 	bool  commonlib64_loaded;
+	bool  commonlib_loaded_by_hostvm;
 	struct ce_hw_usage_info ce_info;
 
 	int qsee_bw_count;
@@ -2772,7 +2773,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 
 	/* Check and load cmnlib */
 	if (qseecom.qsee_version > QSEEE_VERSION_00) {
-		if (!qseecom.commonlib_loaded &&
+		if (!(qseecom.commonlib_loaded ||
+				qseecom.commonlib_loaded_by_hostvm) &&
 				load_img_req.app_arch == ELFCLASS32) {
 			ret = qseecom_load_commonlib_image(data, "cmnlib");
 			if (ret) {
@@ -2783,7 +2785,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			pr_debug("cmnlib is loaded\n");
 		}
 
-		if (!qseecom.commonlib64_loaded &&
+		if (!(qseecom.commonlib64_loaded ||
+				qseecom.commonlib_loaded_by_hostvm) &&
 				load_img_req.app_arch == ELFCLASS64) {
 			ret = qseecom_load_commonlib_image(data, "cmnlib64");
 			if (ret) {
@@ -4748,7 +4751,9 @@ static int __qseecom_load_fw(struct qseecom_dev_handle *data, char *appname,
 
 	/* Check and load cmnlib */
 	if (qseecom.qsee_version > QSEEE_VERSION_00) {
-		if (!qseecom.commonlib_loaded && app_arch == ELFCLASS32) {
+		if (!(qseecom.commonlib_loaded ||
+				qseecom.commonlib_loaded_by_hostvm) &&
+				app_arch == ELFCLASS32) {
 			ret = qseecom_load_commonlib_image(data, "cmnlib");
 			if (ret) {
 				pr_err("failed to load cmnlib\n");
@@ -4758,7 +4763,9 @@ static int __qseecom_load_fw(struct qseecom_dev_handle *data, char *appname,
 			pr_debug("cmnlib is loaded\n");
 		}
 
-		if (!qseecom.commonlib64_loaded && app_arch == ELFCLASS64) {
+		if (!(qseecom.commonlib64_loaded ||
+				qseecom.commonlib_loaded_by_hostvm) &&
+				app_arch == ELFCLASS64) {
 			ret = qseecom_load_commonlib_image(data, "cmnlib64");
 			if (ret) {
 				pr_err("failed to load cmnlib64\n");
@@ -9376,6 +9383,7 @@ static int qseecom_init_control(void)
 	qseecom.qseos_version = QSEOS_VERSION_14;
 	qseecom.commonlib_loaded = false;
 	qseecom.commonlib64_loaded = false;
+	qseecom.commonlib_loaded_by_hostvm = false;
 	qseecom.whitelist_support = qseecom_check_whitelist_feature();
 
 	return rc;
@@ -9397,6 +9405,9 @@ static int qseecom_parse_dt(struct platform_device *pdev)
 	qseecom.commonlib64_loaded =
 			of_property_read_bool((&pdev->dev)->of_node,
 			"qcom,commonlib64-loaded-by-uefi");
+	qseecom.commonlib_loaded_by_hostvm =
+			of_property_read_bool((&pdev->dev)->of_node,
+			"qcom,commonlib-loaded-by-hostvm");
 	qseecom.fde_key_size =
 			of_property_read_bool((&pdev->dev)->of_node,
 			"qcom,fde-key-size");
