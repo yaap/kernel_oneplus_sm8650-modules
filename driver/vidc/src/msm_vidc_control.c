@@ -137,19 +137,14 @@ static const char * const * msm_vidc_get_qmenu_type(
 	}
 }
 
-static inline bool has_parents(struct msm_vidc_inst_cap *cap)
-{
-	return !!cap->parents[0];
-}
-
-static inline bool has_childrens(struct msm_vidc_inst_cap *cap)
+static inline bool has_children(struct msm_vidc_inst_cap *cap)
 {
 	return !!cap->children[0];
 }
 
-static inline bool is_root(struct msm_vidc_inst_cap *cap)
+static inline bool is_leaf(struct msm_vidc_inst_cap *cap)
 {
-	return !has_parents(cap);
+	return !has_children(cap);
 }
 
 bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
@@ -162,16 +157,16 @@ static inline bool is_valid_cap(struct msm_vidc_inst_cap *cap)
 	return is_valid_cap_id(cap->cap_id);
 }
 
-static inline bool is_all_parents_visited(
+static inline bool is_all_childrens_visited(
 	struct msm_vidc_inst_cap *cap, bool lookup[INST_CAP_MAX]) {
 	bool found = true;
 	int i;
 
-	for (i = 0; i < MAX_CAP_PARENTS; i++) {
-		if (cap->parents[i] == INST_CAP_NONE)
+	for (i = 0; i < MAX_CAP_CHILDREN; i++) {
+		if (cap->children[i] == INST_CAP_NONE)
 			continue;
 
-		if (!lookup[cap->parents[i]]) {
+		if (!lookup[cap->children[i]]) {
 			found = false;
 			break;
 		}
@@ -191,65 +186,28 @@ static int add_node_list(struct list_head *list, enum msm_vidc_inst_capability_t
 
 	INIT_LIST_HEAD(&entry->list);
 	entry->cap_id = cap_id;
-	list_add_tail(&entry->list, list);
+	list_add(&entry->list, list);
 
 	return rc;
 }
 
 static int add_node(
-	struct list_head *list, struct msm_vidc_inst_cap *rcap, bool lookup[INST_CAP_MAX])
+	struct list_head *list, struct msm_vidc_inst_cap *lcap, bool lookup[INST_CAP_MAX])
 {
 	int rc = 0;
 
-	if (lookup[rcap->cap_id])
+	if (lookup[lcap->cap_id])
 		return 0;
 
-	rc = add_node_list(list, rcap->cap_id);
+	rc = add_node_list(list, lcap->cap_id);
 	if (rc)
 		return rc;
 
-	lookup[rcap->cap_id] = true;
+	lookup[lcap->cap_id] = true;
 	return 0;
 }
 
-static int swap_node(struct msm_vidc_inst_cap *rcap,
-	struct list_head *src_list, bool src_lookup[INST_CAP_MAX],
-	struct list_head *dest_list, bool dest_lookup[INST_CAP_MAX])
-{
-	struct msm_vidc_inst_cap_entry *entry, *temp;
-	bool found = false;
 
-	/* cap must be available in src and not present in dest */
-	if (!src_lookup[rcap->cap_id] || dest_lookup[rcap->cap_id]) {
-		d_vpr_e("%s: not found in src or already found in dest for cap %s\n",
-			__func__, cap_name(rcap->cap_id));
-		return -EINVAL;
-	}
-
-	/* check if entry present in src_list */
-	list_for_each_entry_safe(entry, temp, src_list, list) {
-		if (entry->cap_id == rcap->cap_id) {
-			found = true;
-			break;
-		}
-	}
-
-	if (!found) {
-		d_vpr_e("%s: cap %s not found in src list\n",
-			__func__, cap_name(rcap->cap_id));
-		return -EINVAL;
-	}
-
-	/* remove from src_list */
-	list_del_init(&entry->list);
-	src_lookup[rcap->cap_id] = false;
-
-	/* add it to dest_list */
-	list_add_tail(&entry->list, dest_list);
-	dest_lookup[rcap->cap_id] = true;
-
-	return 0;
-}
 
 static int msm_vidc_add_capid_to_fw_list(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id)
@@ -953,11 +911,11 @@ unlock:
 
 int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 {
-	struct list_head root_list, opt_list;
+	struct list_head leaf_list, opt_list;
 	struct msm_vidc_inst_capability *capability;
-	struct msm_vidc_inst_cap *cap, *rcap;
+	struct msm_vidc_inst_cap *cap, *lcap;
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
-	bool root_visited[INST_CAP_MAX];
+	bool leaf_visited[INST_CAP_MAX];
 	bool opt_visited[INST_CAP_MAX];
 	int tmp_count_total, tmp_count, num_nodes = 0;
 	int i, rc = 0;
@@ -974,72 +932,34 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 	}
 
 	/* init local list and lookup table entries */
-	INIT_LIST_HEAD(&root_list);
+	INIT_LIST_HEAD(&leaf_list);
 	INIT_LIST_HEAD(&opt_list);
-	memset(&root_visited, 0, sizeof(root_visited));
+	memset(&leaf_visited, 0, sizeof(leaf_visited));
 	memset(&opt_visited, 0, sizeof(opt_visited));
 
-	/* populate root nodes first */
+	/* populate leaf nodes first */
 	for (i = 1; i < INST_CAP_MAX; i++) {
-		rcap = &capability->cap[i];
-		if (!is_valid_cap(rcap))
+		lcap = &capability->cap[i];
+		if (!is_valid_cap(lcap))
 			continue;
 
 		/* sanitize cap value */
-		if (i != rcap->cap_id) {
+		if (i != lcap->cap_id) {
 			i_vpr_e(inst, "%s: cap id mismatch. expected %s, actual %s\n",
-				__func__, cap_name(i), cap_name(rcap->cap_id));
+				__func__, cap_name(i), cap_name(lcap->cap_id));
 			rc = -EINVAL;
 			goto error;
 		}
 
-		/* add all root nodes */
-		if (is_root(rcap)) {
-			rc = add_node(&root_list, rcap, root_visited);
+		/* add all leaf nodes */
+		if (is_leaf(lcap)) {
+			rc = add_node(&leaf_list, lcap, leaf_visited);
 			if (rc)
 				goto error;
 		} else {
-			rc = add_node(&opt_list, rcap, opt_visited);
+			rc = add_node(&opt_list, lcap, opt_visited);
 			if (rc)
 				goto error;
-		}
-	}
-
-	/* add all dependent parents */
-	list_for_each_entry_safe(entry, temp, &root_list, list) {
-		rcap = &capability->cap[entry->cap_id];
-		/* skip leaf node */
-		if (!has_childrens(rcap))
-			continue;
-
-		for (i = 0; i < MAX_CAP_CHILDREN; i++) {
-			if (!rcap->children[i])
-				break;
-
-			if (!is_valid_cap_id(rcap->children[i]))
-				continue;
-
-			cap = &capability->cap[rcap->children[i]];
-			if (!is_valid_cap(cap))
-				continue;
-
-			/**
-			 * if child node is already part of root list
-			 * then no need to add it again.
-			 */
-			if (root_visited[cap->cap_id])
-				continue;
-
-			/**
-			 * if child node's all parents are already present in root list
-			 * then add it to root list else remains in optional list.
-			 */
-			if (is_all_parents_visited(cap, root_visited)) {
-				rc = swap_node(cap,
-						&opt_list, opt_visited, &root_list, root_visited);
-				if (rc)
-					goto error;
-			}
 		}
 	}
 
@@ -1060,12 +980,12 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 		cap = &capability->cap[entry->cap_id];
 
 		/**
-		 * if all parents are visited then add this entry to
-		 * root list else add it to the end of optional list.
+		 * if all child are visited then add this entry to
+		 * leaf list else add it to the end of optional list.
 		 */
-		if (is_all_parents_visited(cap, root_visited)) {
-			list_add_tail(&entry->list, &root_list);
-			root_visited[entry->cap_id] = true;
+		if (is_all_childrens_visited(cap, leaf_visited)) {
+			list_add(&entry->list, &leaf_list);
+			leaf_visited[entry->cap_id] = true;
 			tmp_count_total--;
 		} else {
 			list_add_tail(&entry->list, &opt_list);
@@ -1093,7 +1013,7 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 	}
 
 	/* move elements to &inst->caps_list from local */
-	list_replace_init(&root_list, &inst->caps_list);
+	list_replace_init(&leaf_list, &inst->caps_list);
 
 	return 0;
 error:
@@ -1102,8 +1022,8 @@ error:
 		list_del_init(&entry->list);
 		msm_vidc_vmem_free((void **)&entry);
 	}
-	list_for_each_entry_safe(entry, temp, &root_list, list) {
-		i_vpr_e(inst, "%s: root_list: %s\n", __func__, cap_name(entry->cap_id));
+	list_for_each_entry_safe(entry, temp, &leaf_list, list) {
+		i_vpr_e(inst, "%s: leaf_list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
 		msm_vidc_vmem_free((void **)&entry);
 	}

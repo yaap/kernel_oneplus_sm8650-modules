@@ -189,15 +189,15 @@ enum msm_vidc_metadata_bits {
  * in the back.
  *
  * caps_list preparation may become CPU intensive task, so to save CPU cycles,
- * organize enum in proper order(root caps at the beginning and dependent caps
+ * organize enum in proper order(leaf caps at the beginning and dependent parent caps
  * at back), so that during caps_list preparation num CPU cycles spent will reduce.
  *
  * Note: It will work, if enum kept at different places, but not efficient.
  *
  * - place all metadata cap(META_*) af the front.
- * - place all root(no parent) enums before PROFILE cap.
- * - place all intermittent(having both parent and child) enums before MIN_FRAME_QP cap.
- * - place all leaf(no child) enums before INST_CAP_MAX cap.
+ * - place all leaf(no child) enums before PROFILE cap.
+ * - place all intermittent(having both parent and child) enums before FRAME_WIDTH cap.
+ * - place all root(no parent) enums before INST_CAP_MAX cap.
  */
 #define FOREACH_CAP(CAP) {                        \
 	CAP(INST_CAP_NONE)                        \
@@ -227,6 +227,40 @@ enum msm_vidc_metadata_bits {
 	CAP(META_SALIENCY_INFO)                   \
 	CAP(META_TRANSCODING_STAT_INFO)           \
 	CAP(META_DOLBY_RPU)                       \
+	CAP(MIN_FRAME_QP)                         \
+	CAP(MAX_FRAME_QP)                         \
+	CAP(I_FRAME_QP)                           \
+	CAP(P_FRAME_QP)                           \
+	CAP(B_FRAME_QP)                           \
+	CAP(TIME_DELTA_BASED_RC)                  \
+	CAP(CONSTANT_QUALITY)                     \
+	CAP(VBV_DELAY)                            \
+	CAP(PEAK_BITRATE)                         \
+	CAP(ENTROPY_MODE)                         \
+	CAP(TRANSFORM_8X8)                        \
+	CAP(STAGE)                                \
+	CAP(LTR_COUNT)                            \
+	CAP(IR_PERIOD)                            \
+	CAP(BITRATE_BOOST)                        \
+	CAP(BLUR_RESOLUTION)                      \
+	CAP(OUTPUT_ORDER)                         \
+	CAP(INPUT_BUF_HOST_MAX_COUNT)             \
+	CAP(OUTPUT_BUF_HOST_MAX_COUNT)            \
+	CAP(DELIVERY_MODE)                        \
+	CAP(VUI_TIMING_INFO)                      \
+	CAP(SLICE_DECODE)                         \
+	CAP(PROFILE)                              \
+	CAP(ENH_LAYER_COUNT)                      \
+	CAP(BIT_RATE)                             \
+	CAP(LOWLATENCY_MODE)                      \
+	CAP(GOP_SIZE)                             \
+	CAP(B_FRAME)                              \
+	CAP(ALL_INTRA)                            \
+	CAP(MIN_QUALITY)                          \
+	CAP(CONTENT_ADAPTIVE_CODING)              \
+	CAP(BLUR_TYPES)                           \
+	CAP(REQUEST_PREPROCESS)                   \
+	CAP(SLICE_MODE)                           \
 	CAP(FRAME_WIDTH)                          \
 	CAP(LOSSLESS_FRAME_WIDTH)                 \
 	CAP(SECURE_FRAME_WIDTH)                   \
@@ -333,40 +367,6 @@ enum msm_vidc_metadata_bits {
 	CAP(LOWLATENCY_MAX_BITRATE)               \
 	CAP(LAST_FLAG_EVENT_ENABLE)               \
 	CAP(NUM_COMV)                             \
-	CAP(PROFILE)                              \
-	CAP(ENH_LAYER_COUNT)                      \
-	CAP(BIT_RATE)                             \
-	CAP(LOWLATENCY_MODE)                      \
-	CAP(GOP_SIZE)                             \
-	CAP(B_FRAME)                              \
-	CAP(ALL_INTRA)                            \
-	CAP(MIN_QUALITY)                          \
-	CAP(CONTENT_ADAPTIVE_CODING)              \
-	CAP(BLUR_TYPES)                           \
-	CAP(REQUEST_PREPROCESS)                   \
-	CAP(SLICE_MODE)                           \
-	CAP(MIN_FRAME_QP)                         \
-	CAP(MAX_FRAME_QP)                         \
-	CAP(I_FRAME_QP)                           \
-	CAP(P_FRAME_QP)                           \
-	CAP(B_FRAME_QP)                           \
-	CAP(TIME_DELTA_BASED_RC)                  \
-	CAP(CONSTANT_QUALITY)                     \
-	CAP(VBV_DELAY)                            \
-	CAP(PEAK_BITRATE)                         \
-	CAP(ENTROPY_MODE)                         \
-	CAP(TRANSFORM_8X8)                        \
-	CAP(STAGE)                                \
-	CAP(LTR_COUNT)                            \
-	CAP(IR_PERIOD)                            \
-	CAP(BITRATE_BOOST)                        \
-	CAP(BLUR_RESOLUTION)                      \
-	CAP(OUTPUT_ORDER)                         \
-	CAP(INPUT_BUF_HOST_MAX_COUNT)             \
-	CAP(OUTPUT_BUF_HOST_MAX_COUNT)            \
-	CAP(DELIVERY_MODE)                        \
-	CAP(VUI_TIMING_INFO)                      \
-	CAP(SLICE_DECODE)                         \
 	CAP(INST_CAP_MAX)                         \
 }
 

@@ -2306,9 +2306,15 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_anor
 		NULL,
 		msm_vidc_set_pipe},
 
-	{THUMBNAIL_MODE, DEC, CODECS_ALL,
+	{THUMBNAIL_MODE, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		{OUTPUT_ORDER},
+		NULL,
+		msm_vidc_set_u32},
+
+	{THUMBNAIL_MODE, DEC, HEIC,
+		{0},
+		{0},
 		NULL,
 		msm_vidc_set_u32},
 
@@ -2360,9 +2366,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_anor
 		msm_vidc_adjust_all_intra,
 		NULL},
 
-	{META_EVA_STATS, ENC, CODECS_ALL,
+	{META_EVA_STATS, ENC, H264|HEVC,
 		{0},
 		{ENH_LAYER_COUNT, REQUEST_PREPROCESS}},
+
+	{META_EVA_STATS, ENC, HEIC,
+		{0},
+		{0}},
 
 	{META_ROI_INFO, ENC, H264|HEVC,
 		{BITRATE_MODE, PIX_FMTS},
