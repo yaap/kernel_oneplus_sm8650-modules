@@ -1497,6 +1497,27 @@ update:
 	return 0;
 }
 
+u64 gen7_9_0_read_alwayson(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	u32 lo = 0, hi = 0, tmp = 0;
+
+	/* Always use the GMU AO counter when doing a AHB read */
+	gmu_core_regread(device, GEN7_GMU_CX_AO_COUNTER_HI, &hi);
+	gmu_core_regread(device, GEN7_GMU_CX_AO_COUNTER_LO, &lo);
+
+	/* Check for overflow */
+	gmu_core_regread(device, GEN7_GMU_CX_AO_COUNTER_HI, &tmp);
+
+	if (hi != tmp) {
+		gmu_core_regread(device, GEN7_GMU_CX_AO_COUNTER_LO,
+				&lo);
+		hi = tmp;
+	}
+
+	return (((u64) hi) << 32) | lo;
+}
+
 u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -1706,6 +1727,33 @@ static void gen7_swfuse_irqctrl(struct adreno_device *adreno_dev, bool state)
 		kgsl_regwrite(KGSL_DEVICE(adreno_dev), GEN7_RBBM_SW_FUSE_INT_MASK,
 			state ? GEN7_SW_FUSE_INT_MASK : 0);
 }
+
+const struct gen7_gpudev adreno_gen7_9_0_hwsched_gpudev = {
+	.base = {
+		.reg_offsets = gen7_register_offsets,
+		.probe = gen7_hwsched_probe,
+		.snapshot = gen7_hwsched_snapshot,
+		.irq_handler = gen7_irq_handler,
+		.iommu_fault_block = gen7_iommu_fault_block,
+		.preemption_context_init = gen7_preemption_context_init,
+		.context_detach = gen7_hwsched_context_detach,
+		.read_alwayson = gen7_9_0_read_alwayson,
+		.reset = gen7_hwsched_reset,
+		.power_ops = &gen7_hwsched_power_ops,
+		.power_stats = gen7_power_stats,
+		.setproperty = gen7_setproperty,
+		.hw_isidle = gen7_hw_isidle,
+		.add_to_va_minidump = gen7_hwsched_add_to_minidump,
+		.gx_is_on = gen7_gmu_gx_is_on,
+		.send_recurring_cmdobj = gen7_hwsched_send_recurring_cmdobj,
+		.perfcounter_remove = gen7_perfcounter_remove,
+		.set_isdb_breakpoint_registers = gen7_set_isdb_breakpoint_registers,
+		.context_destroy = gen7_hwsched_context_destroy,
+	},
+	.hfi_probe = gen7_hwsched_hfi_probe,
+	.hfi_remove = gen7_hwsched_hfi_remove,
+	.handle_watchdog = gen7_hwsched_handle_watchdog,
+};
 
 const struct gen7_gpudev adreno_gen7_hwsched_gpudev = {
 	.base = {
