@@ -523,12 +523,15 @@ bool is_parent_available(struct msm_vidc_inst *inst,
 	u32 cap_id, u32 check_parent, const char *func)
 {
 	int i = 0;
-	u32 cap_parent;
+	u32 cap_child;
 
-	while (i < MAX_CAP_PARENTS &&
-		inst->capabilities->cap[cap_id].parents[i]) {
-		cap_parent = inst->capabilities->cap[cap_id].parents[i];
-		if (cap_parent == check_parent)
+	if (!is_valid_cap_id(cap_id) || !is_valid_cap_id(check_parent))
+		return false;
+
+	while (i < MAX_CAP_CHILDREN &&
+		inst->capabilities->cap[check_parent].children[i]) {
+		cap_child = inst->capabilities->cap[check_parent].children[i];
+		if (cap_child == cap_id)
 			return true;
 		i++;
 	}

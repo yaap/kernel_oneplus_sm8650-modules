@@ -4568,8 +4568,6 @@ static void update_inst_cap_dependency(
 	}
 
 	capability->cap[in->cap_id].cap_id = in->cap_id;
-	memcpy(capability->cap[in->cap_id].parents, in->parents,
-		sizeof(capability->cap[in->cap_id].parents));
 	memcpy(capability->cap[in->cap_id].children, in->children,
 		sizeof(capability->cap[in->cap_id].children));
 	capability->cap[in->cap_id].adjust = in->adjust;

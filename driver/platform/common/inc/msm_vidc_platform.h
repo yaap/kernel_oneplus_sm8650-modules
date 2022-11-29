@@ -146,7 +146,6 @@ struct msm_platform_inst_cap_dependency {
 	enum msm_vidc_inst_capability_type cap_id;
 	enum msm_vidc_domain_type domain;
 	enum msm_vidc_codec_type codec;
-	enum msm_vidc_inst_capability_type parents[MAX_CAP_PARENTS];
 	enum msm_vidc_inst_capability_type children[MAX_CAP_CHILDREN];
 	int (*adjust)(void *inst,
 		struct v4l2_ctrl *ctrl);

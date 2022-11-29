@@ -612,7 +612,6 @@ struct msm_vidc_inst_cap {
 	u32 v4l2_id;
 	u32 hfi_id;
 	enum msm_vidc_inst_capability_flags flags;
-	enum msm_vidc_inst_capability_type parents[MAX_CAP_PARENTS];
 	enum msm_vidc_inst_capability_type children[MAX_CAP_CHILDREN];
 	int (*adjust)(void *inst,
 		struct v4l2_ctrl *ctrl);
