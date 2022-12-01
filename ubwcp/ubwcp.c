@@ -1842,15 +1842,16 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 		 * care of flush. Just a note for now. Might need to add the
 		 * flush here for debug purpose.
 		 */
-		DBG("Calling remove_memory() for ULA PA pool");
-		ret = remove_memory(ubwcp->ula_pool_base, ubwcp->ula_pool_size);
+		DBG("Calling offline_and_remove_memory() for ULA PA pool");
+		ret = offline_and_remove_memory(ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size);
 		if (ret) {
-			ERR("remove_memory failed st:0x%lx sz:0x%lx err: %d",
+			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
 				ubwcp->ula_pool_base,
 				ubwcp->ula_pool_size, ret);
 			goto err_remove_mem;
 		} else {
-			DBG("DONE: calling remove_memory() for ULA PA pool");
+			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
 		}
 		DBG("Don't Call power OFF ...");
 	}
