@@ -24,7 +24,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/delay.h>
-
+#include <linux/pinctrl/qcom-pinctrl.h>
 #include "common.h"
 
 
@@ -413,6 +413,7 @@ long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
 int nfc_post_init(struct nfc_dev *nfc_dev)
 {
 	int ret=0;
+	unsigned int clkreq_gpio = 0;
 	static int post_init_success;
 	struct platform_configs nfc_configs;
 	struct platform_gpio *nfc_gpio;
@@ -444,6 +445,22 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
                         pr_err("%s: unable to request nfc clkreq gpio [%d]\n",
                               __func__, nfc_gpio->clkreq);
                         return ret;
+                }
+
+                /* Read clkreq GPIO number from device tree*/
+                ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node, DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
+                if (ret < 0) {
+                         pr_err("%s Failed to read clkreq gipo number, ret: %d\n", __func__, ret);
+                         return ret;
+                }
+
+                /* configure clkreq GPIO as wakeup capable */
+                ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
+                if (ret < 0) {
+                         pr_err("%s Failed to setup clkreq gpio %d as wakeup capable, ret: %d\n", __func__, clkreq_gpio , ret);
+                         return ret;
+                } else {
+                         pr_info("%s clkreq gpio %d successfully setup for wakeup capable\n", __func__, clkreq_gpio);
                 }
         }
 
