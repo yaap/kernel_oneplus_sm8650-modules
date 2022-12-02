@@ -238,12 +238,46 @@ int msm_hw_fence_destroy(void *client_handle,
 }
 EXPORT_SYMBOL(msm_hw_fence_destroy);
 
-int msm_hw_fence_wait_update(void *client_handle,
-	struct dma_fence **fence_list, u32 num_fences, bool create)
+int msm_hw_fence_destroy_with_handle(void *client_handle, u64 handle)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+	int ret;
+
+	if (IS_ERR_OR_NULL(client_handle)) {
+		HWFNC_ERR("Invalid data\n");
+		return -EINVAL;
+	}
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+
+	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid client_id:%d\n", hw_fence_client->client_id);
+		return -EINVAL;
+	}
+
+	HWFNC_DBG_H("+\n");
+
+	/* Destroy the HW Fence, i.e. remove entry in the Global Table for the Fence */
+	ret = hw_fence_destroy_with_hash(hw_fence_drv_data, hw_fence_client, handle);
+	if (ret) {
+		HWFNC_ERR("Error destroying the HW fence handle:%llu client_id:%d\n", handle,
+			hw_fence_client->client_id);
+		return ret;
+	}
+
+	HWFNC_DBG_H("-\n");
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_destroy_with_handle);
+
+int msm_hw_fence_wait_update_v2(void *client_handle,
+	struct dma_fence **fence_list, u64 *handles, u64 *client_data_list, u32 num_fences,
+	bool create)
 {
 	struct msm_hw_fence_client *hw_fence_client;
 	struct dma_fence_array *array;
 	int i, ret = 0;
+	enum hw_fence_client_data_id data_id;
 
 	if (IS_ERR_OR_NULL(client_handle) || !fence_list || !*fence_list) {
 		HWFNC_ERR("Invalid data\n");
@@ -256,35 +290,57 @@ int msm_hw_fence_wait_update(void *client_handle,
 	}
 
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+	data_id = hw_fence_get_client_data_id(hw_fence_client->client_id);
+	if (client_data_list && data_id >= HW_FENCE_MAX_CLIENTS_WITH_DATA) {
+		HWFNC_ERR("Populating non-NULL client_data_list with unsupported client id:%d\n",
+			hw_fence_client->client_id);
+		return -EINVAL;
+	}
 
 	HWFNC_DBG_H("+\n");
 
 	/* Process all the list of fences */
 	for (i = 0; i < num_fences; i++) {
 		struct dma_fence *fence = fence_list[i];
+		u64 hash, client_data = 0;
+
+		if (client_data_list)
+			client_data = client_data_list[i];
 
 		/* Process a Fence-Array */
 		array = to_dma_fence_array(fence);
 		if (array) {
 			ret = hw_fence_process_fence_array(hw_fence_drv_data, hw_fence_client,
-				array);
+				array, &hash, client_data);
 			if (ret) {
-				HWFNC_ERR("Failed to create FenceArray\n");
+				HWFNC_ERR("Failed to process FenceArray\n");
 				return ret;
 			}
 		} else {
 			/* Process individual Fence */
-			ret = hw_fence_process_fence(hw_fence_drv_data, hw_fence_client, fence);
+			ret = hw_fence_process_fence(hw_fence_drv_data, hw_fence_client, fence,
+				&hash, client_data);
 			if (ret) {
-				HWFNC_ERR("Failed to create Fence\n");
+				HWFNC_ERR("Failed to process Fence\n");
 				return ret;
 			}
 		}
+
+		if (handles)
+			handles[i] = hash;
 	}
 
 	HWFNC_DBG_H("-\n");
 
 	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_wait_update_v2);
+
+int msm_hw_fence_wait_update(void *client_handle,
+	struct dma_fence **fence_list, u32 num_fences, bool create)
+{
+	return msm_hw_fence_wait_update_v2(client_handle, fence_list, NULL, NULL, num_fences,
+		create);
 }
 EXPORT_SYMBOL(msm_hw_fence_wait_update);
 
@@ -316,6 +372,18 @@ int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags)
 }
 EXPORT_SYMBOL(msm_hw_fence_reset_client);
 
+int msm_hw_fence_reset_client_by_id(enum hw_fence_client_id client_id, u32 reset_flags)
+{
+	if (client_id >= HW_FENCE_CLIENT_MAX) {
+		HWFNC_ERR("Invalid client_id:%d\n", client_id);
+		return -EINVAL;
+	}
+
+	return msm_hw_fence_reset_client(hw_fence_drv_data->clients[client_id],
+		reset_flags);
+}
+EXPORT_SYMBOL(msm_hw_fence_reset_client_by_id);
+
 int msm_hw_fence_update_txq(void *client_handle, u64 handle, u64 flags, u32 error)
 {
 	struct msm_hw_fence_client *hw_fence_client;
@@ -336,7 +404,7 @@ int msm_hw_fence_update_txq(void *client_handle, u64 handle, u64 flags, u32 erro
 	hw_fence_update_queue(hw_fence_drv_data, hw_fence_client,
 		hw_fence_drv_data->hw_fences_tbl[handle].ctx_id,
 		hw_fence_drv_data->hw_fences_tbl[handle].seq_id, handle,
-		flags, error, HW_FENCE_TX_QUEUE - 1);
+		flags, 0, error, HW_FENCE_TX_QUEUE - 1);
 
 	return 0;
 }
