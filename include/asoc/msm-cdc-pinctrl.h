@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MFD_CDC_PINCTRL_H_
@@ -47,7 +48,7 @@ int msm_cdc_pinctrl_get_state(struct device_node *np)
 {
 	return true;
 }
-static int msm_cdc_pinctrl_set_wakeup_capable(struct device_node *np,
+int msm_cdc_pinctrl_set_wakeup_capable(struct device_node *np,
 					      bool enable)
 {
 	return 0;
