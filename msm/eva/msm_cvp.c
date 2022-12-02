@@ -591,9 +591,6 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 		goto exit;
 	}
 
-	if (!cvp_kernel_fence_enabled)
-		goto exit;
-
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	rc = cvp_alloc_fence_data((&f), cmd_hdr->size);
 	if (rc)
@@ -603,9 +600,28 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	f->mode = OP_NORMAL;
 	f->signature = 0xFEEDFACE;
 	f->num_fences = 0;
+	f->output_index = 0;
+	buf_offset = offset;
+
+	if (!cvp_kernel_fence_enabled) {
+		for (i = 0; i < num; i++) {
+			buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];
+			buf_offset += sizeof(*buf) >> 2;
+
+			if (buf->input_handle || buf->output_handle) {
+				f->num_fences++;
+				if (buf->input_handle)
+					f->output_index++;
+			}
+		}
+		f->signature = 0xB0BABABE;
+		if (f->num_fences)
+			goto fence_cmd_queue;
+
+		goto free_exit;
+	}
 
 	/* First pass to find INPUT synx handles */
-	buf_offset = offset;
 	for (i = 0; i < num; i++) {
 		buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];
 		buf_offset += sizeof(*buf) >> 2;
@@ -652,6 +668,7 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	if (rc)
 			goto free_exit;
 
+fence_cmd_queue:
 	memcpy(f->pkt, cmd_hdr, cmd_hdr->size);
 	f->pkt->client_data.kdata |= FENCE_BIT;
 
