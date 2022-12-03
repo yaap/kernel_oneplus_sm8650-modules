@@ -156,7 +156,7 @@ struct cvp_buf_type {
 #define EVA_KMD_WNCC_MAX_ADDRESSES            4095
 #define EVA_KMD_WNCC_MAX_SRC_BUFS             2400
 #define EVA_KMD_WNCC_SRC_BUF_ID_OFFSET        1
-#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET 44
+#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET (14 + sizeof(struct cvp_buf_type) / sizeof(__u32) * 5)
 
 struct eva_kmd_wncc_metadata {
 	__u64 loc_x_dec   : 12;
