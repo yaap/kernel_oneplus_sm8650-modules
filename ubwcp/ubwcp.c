@@ -1446,21 +1446,6 @@ static struct ubwcp_desc *ubwcp_buf_desc_allocate(struct ubwcp_driver *ubwcp)
 	return NULL;
 }
 
-#define FLUSH_WA_SIZE		64
-#define FLUSH_WA_UDELAY	89
-void ubwcp_flush_cache_wa(struct device *dev, phys_addr_t paddr, size_t size)
-{
-	phys_addr_t cline = paddr;
-	int num_line = size / FLUSH_WA_SIZE;
-	int i;
-
-	for (i = 0; i < num_line; i++) {
-		dma_sync_single_for_cpu(dev, cline, FLUSH_WA_SIZE, 0);
-		udelay(FLUSH_WA_UDELAY);
-		cline += FLUSH_WA_SIZE;
-	}
-}
-
 /**
  * Lock buffer for CPU access. This prepares ubwcp hw to allow
  * CPU access to the compressed buffer. It will perform
@@ -1595,8 +1580,6 @@ err:
 
 /* This can be called as a result of external unlock() call or
  * internally if free() is called without unlock().
- * It can fail only for 1 reason: ubwcp_flush fails. currently we are ignoring the flush failure
- * because it is hardware failure and no recovery path is defined.
  */
 static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, bool free_buffer)
 {
@@ -1620,9 +1603,7 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 
 	/* Flush/invalidate ULA PA from CPU caches */
 	//TBD: if (dir == WRITE or BIDIRECTION)
-	//dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-	/* TODO: Use flush work around, remove when no longer needed */
-	ubwcp_flush_cache_wa(ubwcp->dev, buf->ula_pa, buf->ula_size);
+	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
 
 	/* disable range check with ubwcp flush */
 	DBG("disabling range check");
