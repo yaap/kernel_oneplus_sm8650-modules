@@ -119,6 +119,33 @@ struct eva_kmd_client_data {
 	__u32 client_data1;
 	__u32 client_data2;
 };
+#ifdef CVP_CONFIG_SYNX_V2
+struct cvp_buf_type {
+	__s32 fd;
+	__u32 size;
+	__u32 offset;
+	__u32 flags;
+	__u32 reserved1;
+	__u32 reserved2;
+	__u32 fence_type;
+	__u32 input_handle;
+	__u32 output_handle;
+};
+#else
+struct cvp_buf_type {
+	__s32 fd;
+	__u32 size;
+	__u32 offset;
+	__u32 flags;
+	union {
+		struct dma_buf *dbuf;
+		struct {
+			__u32 reserved1;
+			__u32 reserved2;
+		};
+	};
+};
+#endif
 
 /**
  * Structures and macros for Out-of-Band (OOB) buffer
