@@ -2011,7 +2011,8 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 		} else {
 			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
 		}
-		DBG("Don't Call power OFF ...");
+		DBG("Calling power OFF ...");
+		ubwcp_power(ubwcp, false);
 	}
 	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	return ret;
