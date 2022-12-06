@@ -175,6 +175,13 @@ struct cvp_iface_q_info {
 	iris_hfi_for_each_thing_reverse_continue(__device, __rinfo, \
 			clock, __from)
 
+/* reset set helpers */
+#define iris_hfi_for_each_reset_clock(__device, __resetinfo) \
+	iris_hfi_for_each_thing(__device, __resetinfo, reset)
+
+#define iris_hfi_for_each_reset_clock_reverse(__device, __resetinfo) \
+	iris_hfi_for_each_thing_reverse(__device, __resetinfo, reset)
+
 /* Bus set helpers */
 #define iris_hfi_for_each_bus(__device, __binfo) \
 	iris_hfi_for_each_thing(__device, __binfo, bus)
@@ -224,6 +231,8 @@ struct iris_hfi_vpu_ops {
 	int (*reset_ahb2axi_bridge)(struct iris_hfi_device *device);
 	void (*power_off)(struct iris_hfi_device *device);
 	void (*noc_error_info)(struct iris_hfi_device *device);
+	int (*reset_control_assert_name)(struct iris_hfi_device *device, const char *name);
+	int (*reset_control_deassert_name)(struct iris_hfi_device *device, const char *name);
 };
 
 struct iris_hfi_device {
