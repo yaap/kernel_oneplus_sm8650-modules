@@ -449,11 +449,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* assert MVP_CTL reset */
-	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
-	if (rc)
-		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
-
 	/* enable MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
 			0x1, BIT(0));
@@ -471,13 +466,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = call_res_op(core, reset_control_assert, core, "video_xo_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_xo_reset failed\n", __func__);
-
-	/* do we need 80us sleep before deassert? */
-	usleep_range(400, 500);
-	/* De-assert MVP_CTL reset */
-	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
-	if (rc)
-		d_vpr_e("%s: deassert video_mvs0c_reset failed\n", __func__);
 
 	/* De-assert MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
