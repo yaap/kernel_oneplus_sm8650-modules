@@ -451,6 +451,7 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
+int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force);
 int msm_vidc_inst_timeout(struct msm_vidc_inst *inst);
 int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst);
 int msm_vidc_print_inst_info(struct msm_vidc_inst *inst);

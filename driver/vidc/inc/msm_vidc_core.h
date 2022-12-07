@@ -21,6 +21,7 @@ struct msm_vidc_core;
 	CORE_STATE(CORE_DEINIT)                        \
 	CORE_STATE(CORE_INIT_WAIT)                     \
 	CORE_STATE(CORE_INIT)                          \
+	CORE_STATE(CORE_ERROR)                         \
 }
 
 #define call_venus_op(d, op, ...)			\
@@ -133,7 +134,8 @@ struct msm_vidc_core {
 
 static inline bool core_in_valid_state(struct msm_vidc_core *core)
 {
-	return core->state != MSM_VIDC_CORE_DEINIT;
+	return (core->state == MSM_VIDC_CORE_INIT ||
+		core->state == MSM_VIDC_CORE_INIT_WAIT);
 }
 
 #endif // _MSM_VIDC_CORE_H_

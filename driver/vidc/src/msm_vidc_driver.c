@@ -1032,9 +1032,18 @@ int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 int msm_vidc_change_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_state request_state, const char *func)
 {
+	int rc = 0;
+
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
+	}
+
+	/* core must be locked */
+	rc = __strict_check(core, func);
+	if (rc) {
+		d_vpr_e("%s(): core was not locked\n", func);
+		return rc;
 	}
 
 	d_vpr_h("%s: core state changed to %s from %s\n",
@@ -4781,7 +4790,10 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 	if (is_core_state(core, MSM_VIDC_CORE_INIT)) {
 		rc = 0;
 		goto unlock;
-	} else if (is_core_state(core, MSM_VIDC_CORE_DEINIT)) {
+	} else if (is_core_state(core, MSM_VIDC_CORE_DEINIT) ||
+		   is_core_state(core, MSM_VIDC_CORE_ERROR)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		rc = -EINVAL;
 		goto unlock;
 	}
@@ -4804,18 +4816,24 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 		d_vpr_h("%s: sys init successful\n", __func__);
 		rc = 0;
 		goto unlock;
-	} else {
+	} else if (is_core_state(core, MSM_VIDC_CORE_INIT_WAIT)) {
 		d_vpr_h("%s: sys init wait timedout. state %s\n",
 			__func__, core_state_name(core->state));
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		/* mark video hw unresponsive */
 		msm_vidc_change_core_sub_state(core,
 			0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
+		/* core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
+		rc = -EINVAL;
+		goto unlock;
+	} else {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		rc = -EINVAL;
 		goto unlock;
 	}
 unlock:
-	if (rc)
-		msm_vidc_core_deinit_locked(core, true);
 	core_unlock(core, __func__);
 	return rc;
 }
@@ -4830,9 +4848,14 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 	}
 
 	core_lock(core, __func__);
-	if (is_core_state(core, MSM_VIDC_CORE_INIT) ||
-			is_core_state(core, MSM_VIDC_CORE_INIT_WAIT))
+	if (core_in_valid_state(core)) {
 		goto unlock;
+	} else if (is_core_state(core, MSM_VIDC_CORE_ERROR)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
+		rc = -EINVAL;
+		goto unlock;
+	}
 
 	msm_vidc_change_core_state(core, MSM_VIDC_CORE_INIT_WAIT, __func__);
 	/* clear PM suspend from core sub_state */
@@ -4841,13 +4864,14 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 
 	rc = venus_hfi_core_init(core);
 	if (rc) {
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		d_vpr_e("%s: core init failed\n", __func__);
+		/* do core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
 		goto unlock;
 	}
 
 unlock:
-	if (rc)
-		msm_vidc_core_deinit_locked(core, true);
 	core_unlock(core, __func__);
 	return rc;
 }
@@ -4885,6 +4909,7 @@ int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 		goto unlock;
 	}
 	/* mark video hw unresponsive */
+	msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 	msm_vidc_change_core_sub_state(core,
 		0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
 
@@ -5038,7 +5063,9 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 	d_vpr_e(FMT_STRING_FAULT_HANDLER, __func__, iova);
 
 	/* mark smmu fault as handled */
+	core_lock(core, __func__);
 	msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PAGE_FAULT, __func__);
+	core_unlock(core, __func__);
 
 	/* print noc error log registers */
 	venus_hfi_noc_error_info(core);
