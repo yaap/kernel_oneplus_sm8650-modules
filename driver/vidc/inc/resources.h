@@ -167,6 +167,7 @@ struct context_bank_info {
 	struct device             *dev;
 	struct iommu_domain       *domain;
 	u32                        region;
+	u64                        dma_mask;
 };
 
 struct context_bank_set {

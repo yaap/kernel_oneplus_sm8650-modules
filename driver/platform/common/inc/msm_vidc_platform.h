@@ -74,6 +74,7 @@ struct context_bank_table {
 	bool             secure;
 	bool             dma_coherant;
 	u32              region;
+	u64              dma_mask;
 };
 
 struct freq_table {

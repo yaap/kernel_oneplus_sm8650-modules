@@ -376,6 +376,14 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	cb->dev = dev;
 	cb->domain = iommu_get_domain_for_dev(cb->dev);
 
+	if (cb->dma_mask) {
+		rc = dma_set_mask_and_coherent(cb->dev, cb->dma_mask);
+		if (rc) {
+			d_vpr_e("%s: dma_set_mask_and_coherent failed\n", __func__);
+			return rc;
+		}
+	}
+
 	/*
 	 * When memory is fragmented, below configuration increases the
 	 * possibility to get a mapping for buffer in the configured CB.
@@ -401,10 +409,11 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 		msm_vidc_smmu_fault_handler, (void *)core);
 
 	d_vpr_h(
-		"%s: name %s addr start %x size %x secure %d dma_coherant %d region %d dev_name %s domain %pK\n",
+		"%s: name %s addr start %x size %x secure %d dma_coherant %d "
+		"region %d dev_name %s domain %pK dma_mask %llu\n",
 		__func__, cb->name, cb->addr_range.start,
 		cb->addr_range.size, cb->secure, cb->dma_coherant,
-		cb->region, dev_name(cb->dev), cb->domain);
+		cb->region, dev_name(cb->dev), cb->domain, cb->dma_mask);
 
 	return rc;
 }
@@ -610,7 +619,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 	struct component_match *match = NULL;
 	struct msm_vidc_core *core = NULL;
 	struct device_node *child = NULL;
-	int sub_device_count = 0, nr = BASE_DEVICE_NUMBER;
+	int sub_node_count = 0, nr = BASE_DEVICE_NUMBER;
 
 	d_vpr_h("%s: %s\n", __func__, dev_name(&pdev->dev));
 
@@ -709,7 +718,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 
 	/* registering sub-device with component model framework */
 	for_each_available_child_of_node(pdev->dev.of_node, child) {
-		sub_device_count++;
+		sub_node_count++;
 		of_node_get(child);
 		component_match_add_release(&pdev->dev, &match, msm_vidc_component_release_of,
 			msm_vidc_component_compare_of, child);
@@ -721,7 +730,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		}
 	}
 
-	d_vpr_h("populating sub devices. count %d\n", sub_device_count);
+	d_vpr_h("populating sub devices. count %d\n", sub_node_count);
 	/*
 	 * Trigger probe for each sub-device i.e. qcom,msm-vidc,context-bank.
 	 * When msm_vidc_probe is called for each sub-device, parse the
