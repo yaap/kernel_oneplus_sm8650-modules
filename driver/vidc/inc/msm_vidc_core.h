@@ -65,6 +65,18 @@ struct msm_vidc_core_power {
 
 enum msm_vidc_core_state FOREACH_CORE_STATE(GENERATE_MSM_VIDC_ENUM);
 
+enum msm_vidc_core_sub_state {
+	CORE_SUBSTATE_NONE                   = 0x0,
+	CORE_SUBSTATE_POWER_ENABLE           = BIT(0),
+	CORE_SUBSTATE_GDSC_HANDOFF           = BIT(1),
+	CORE_SUBSTATE_PM_SUSPEND             = BIT(2),
+	CORE_SUBSTATE_FW_PWR_CTRL            = BIT(3),
+	CORE_SUBSTATE_PAGE_FAULT             = BIT(4),
+	CORE_SUBSTATE_CPU_WATCHDOG           = BIT(5),
+	CORE_SUBSTATE_VIDEO_UNRESPONSIVE     = BIT(6),
+	CORE_SUBSTATE_MAX                    = BIT(7),
+};
+
 struct msm_vidc_core {
 	struct platform_device                *pdev;
 	struct msm_video_device                vdev[2];
@@ -76,13 +88,14 @@ struct msm_vidc_core {
 	struct dentry                         *debugfs_root;
 	char                                   fw_version[MAX_NAME_LENGTH];
 	enum msm_vidc_core_state               state;
+	enum msm_vidc_core_sub_state           sub_state;
+	char                                   sub_state_name[MAX_NAME_LENGTH];
 	struct mutex                           lock;
 	struct msm_vidc_resource              *resource;
 	struct msm_vidc_platform              *platform;
 	u32                                    intr_status;
 	u32                                    spur_count;
 	u32                                    reg_count;
-	bool                                   power_enabled;
 	u32                                    codecs_count;
 	struct msm_vidc_core_capability       *capabilities;
 	struct msm_vidc_inst_capability       *inst_caps;
@@ -96,7 +109,6 @@ struct msm_vidc_core {
 	struct work_struct                     ssr_work;
 	struct msm_vidc_core_power             power;
 	struct msm_vidc_ssr                    ssr;
-	bool                                   smmu_fault_handled;
 	u32                                    skip_pc_count;
 	u32                                    last_packet_type;
 	u8                                    *packet;
@@ -117,11 +129,11 @@ struct msm_vidc_core {
 	u32                                    header_id;
 	u32                                    packet_id;
 	u32                                    sys_init_id;
-	bool                                   handoff_done;
-	bool                                   hw_power_control;
-	bool                                   pm_suspended;
-	bool                                   cpu_watchdog;
-	bool                                   video_unresponsive;
 };
+
+static inline bool core_in_valid_state(struct msm_vidc_core *core)
+{
+	return core->state != MSM_VIDC_CORE_DEINIT;
+}
 
 #endif // _MSM_VIDC_CORE_H_

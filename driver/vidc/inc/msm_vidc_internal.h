@@ -949,7 +949,6 @@ struct msm_vidc_input_timer {
 enum msm_vidc_allow FOREACH_ALLOW(GENERATE_ENUM);
 
 struct msm_vidc_ssr {
-	bool                               trigger;
 	enum msm_vidc_ssr_trigger_type     ssr_type;
 	u32                                sub_client_id;
 	u32                                test_addr;

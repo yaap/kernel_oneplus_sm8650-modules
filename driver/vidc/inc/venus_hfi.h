@@ -73,6 +73,5 @@ irqreturn_t venus_hfi_isr(int irq, void *data);
 irqreturn_t venus_hfi_isr_handler(int irq, void *data);
 
 int __prepare_pc(struct msm_vidc_core *core);
-bool __core_in_valid_state(struct msm_vidc_core *core);
 
 #endif // _VENUS_HFI_H_
