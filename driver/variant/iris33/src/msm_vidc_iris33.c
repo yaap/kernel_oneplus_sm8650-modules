@@ -11,7 +11,7 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_platform.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
 #include "msm_vidc_debug.h"
