@@ -716,11 +716,23 @@ static size_t pixeldata_buf_sz(struct ubwcp_driver *ubwcp,
 	return size;
 }
 
+static int get_tile_height(struct ubwcp_driver *ubwcp, enum ubwcp_std_image_format format,
+			   u8 plane)
+{
+	struct ubwcp_image_format_info f_info;
+	struct ubwcp_plane_info p_info;
+
+	f_info = ubwcp->format_info[format];
+	p_info = f_info.p_info[plane];
+	return p_info.tilesize_p.height;
+}
+
 /*
  * plane: must be 0 or 1 (1st plane == 0, 2nd plane == 1)
  */
 static size_t ubwcp_ula_size(struct ubwcp_driver *ubwcp, u16 format,
-					u32 stride_b, u32 scanlines, u8 plane)
+					u32 stride_b, u32 scanlines, u8 plane,
+					bool add_tile_pad)
 {
 	size_t size;
 
@@ -728,6 +740,13 @@ static size_t ubwcp_ula_size(struct ubwcp_driver *ubwcp, u16 format,
 	/* UV plane */
 	if (plane == 1)
 		scanlines = scanlines/2;
+
+	if (add_tile_pad) {
+		int tile_height = get_tile_height(ubwcp, format, plane);
+
+		/* Align plane size to plane tile height */
+		scanlines = ((scanlines + tile_height - 1) / tile_height) * tile_height;
+	}
 	size = stride_b*scanlines;
 	DBG_BUF_ATTR("Size of plane-%u: (%u * %u) = %zu (0x%zx)",
 		plane, stride_b, scanlines, size, size);
@@ -838,6 +857,52 @@ unsigned int ubwcp_get_hw_image_format_value(u16 ioctl_image_format)
 	}
 }
 
+static int ubwcp_validate_uv_align(struct ubwcp_driver *ubwcp,
+					struct ubwcp_buffer_attrs *attr,
+					size_t ula_y_plane_size,
+					size_t uv_start_offset)
+{
+	int ret = 0;
+	size_t ula_y_plane_size_align;
+	size_t y_tile_align_bytes;
+	int y_tile_height;
+	int planes;
+
+	/* Only validate UV align if there is both a Y and UV plane */
+	planes = planes_in_format(to_std_format(attr->image_format));
+	if (planes != 2)
+		return 0;
+
+	/* Check it is cache line size aligned */
+	if ((uv_start_offset % 64) != 0) {
+		ret = -EINVAL;
+		ERR("uv_start_offset %zu not cache line aligned",
+				uv_start_offset);
+		goto err;
+	}
+
+	/*
+	 * Check that UV plane does not overlap with any of the Y plane’s tiles
+	 */
+	y_tile_height = get_tile_height(ubwcp, to_std_format(attr->image_format), 0);
+	y_tile_align_bytes = y_tile_height * attr->stride;
+	ula_y_plane_size_align = ((ula_y_plane_size + y_tile_align_bytes - 1) /
+					y_tile_align_bytes) * y_tile_align_bytes;
+
+	if (uv_start_offset < ula_y_plane_size_align) {
+		ret = -EINVAL;
+		ERR("uv offset %zu less than y plane align %zu for y plane size %zu",
+			uv_start_offset, ula_y_plane_size_align,
+			ula_y_plane_size);
+		goto err;
+	}
+
+	return 0;
+
+err:
+	return ret;
+}
+
 /* calculate ULA buffer parms
  * TBD: how do we make sure uv_start address (not the offset)
  * is aligned per requirement: cache line
@@ -845,6 +910,7 @@ unsigned int ubwcp_get_hw_image_format_value(u16 ioctl_image_format)
 static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 					struct ubwcp_buffer_attrs *attr,
 					size_t *ula_size,
+					size_t *ula_y_plane_size,
 					size_t *uv_start_offset)
 {
 	size_t size;
@@ -881,24 +947,30 @@ static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 
 	if (planes == 1) {
 		/* uv_start beyond ULA range */
-		size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0);
+		size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0, true);
 		*uv_start_offset = size;
+		*ula_y_plane_size = size;
 	} else {
 		if (!missing_plane) {
 			/* size for both planes and padding */
-			size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0);
+
+			/* Don't pad out Y plane as client would not expect this padding */
+			size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0, false);
+			*ula_y_plane_size = size;
 			size += planar_padding;
 			*uv_start_offset = size;
-			size += ubwcp_ula_size(ubwcp, format, stride, scanlines, 1);
+			size += ubwcp_ula_size(ubwcp, format, stride, scanlines, 1, true);
 		} else  {
 			if (missing_plane == 2) {
 				/* Y-only image, set uv_start beyond ULA range */
-				size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0);
+				size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 0, true);
 				*uv_start_offset = size;
+				*ula_y_plane_size = size;
 			} else {
 				/* first plane data is not there */
-				size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 1);
+				size = ubwcp_ula_size(ubwcp, format, stride, scanlines, 1, true);
 				*uv_start_offset = 0; /* uv data is at the beginning */
+				*ula_y_plane_size = 0;
 			}
 		}
 	}
@@ -1169,6 +1241,7 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	int ret = 0;
 	size_t ula_size = 0;
 	size_t uv_start_offset = 0;
+	size_t ula_y_plane_size = 0;
 	phys_addr_t ula_pa = 0x0;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp;
@@ -1259,9 +1332,15 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("");
 	DBG_BUF_ATTR("");
 	DBG_BUF_ATTR("Calculating ula params -->");
-	ret = ubwcp_calc_ula_params(ubwcp, attr, &ula_size, &uv_start_offset);
+	ret = ubwcp_calc_ula_params(ubwcp, attr, &ula_size, &ula_y_plane_size, &uv_start_offset);
 	if (ret) {
 		ERR("ubwcp_calc_ula_params() failed: %d", ret);
+		goto err;
+	}
+
+	ret = ubwcp_validate_uv_align(ubwcp, attr, ula_y_plane_size, uv_start_offset);
+	if (ret) {
+		ERR("ubwcp_validate_uv_align() failed: %d", ret);
 		goto err;
 	}
 
