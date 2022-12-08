@@ -112,34 +112,6 @@ static inline void DEINIT_DMAMAP_CACHE(struct cvp_dmamap_cache *cache)
 #define INPUT_FENCE_BITMASK 0x1
 #define OUTPUT_FENCE_BITMASK 0x2
 
-#ifdef CVP_CONFIG_SYNX_V2
-struct cvp_buf_type {
-	s32 fd;
-	u32 size;
-	u32 offset;
-	u32 flags;
-	u32 reserved1;
-	u32 reserved2;
-	u32 fence_type;
-	u32 input_handle;
-	u32 output_handle;
-};
-#else
-struct cvp_buf_type {
-	s32 fd;
-	u32 size;
-	u32 offset;
-	u32 flags;
-	union {
-		struct dma_buf *dbuf;
-		struct {
-			u32 reserved1;
-			u32 reserved2;
-		};
-	};
-};
-#endif
-
 enum buffer_owner {
 	DRIVER,
 	FIRMWARE,
