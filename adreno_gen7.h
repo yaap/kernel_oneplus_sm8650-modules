@@ -174,7 +174,7 @@ struct gen7_cp_smmu_info {
 
 #define GEN7_CP_CTXRECORD_MAGIC_REF		0xae399d6eUL
 /* Size of each CP preemption record */
-#define GEN7_CP_CTXRECORD_SIZE_IN_BYTES		(2860 * 1024)
+#define GEN7_CP_CTXRECORD_SIZE_IN_BYTES		(4192 * 1024)
 /* Size of the user context record block (in bytes) */
 #define GEN7_CP_CTXRECORD_USER_RESTORE_SIZE	(192 * 1024)
 /* Size of the performance counter save/restore block (in bytes) */
