@@ -1272,7 +1272,7 @@ int hdcp2_app_comm(void *ctx, enum hdcp2_app_cmd cmd,
 		break;
 	case HDCP2_CMD_STOP:
 		rc = hdcp2_app_stop(handle);
-		break;
+		goto error;
 	default:
 		rc = -EINVAL;
 		break;
