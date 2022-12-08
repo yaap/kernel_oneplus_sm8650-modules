@@ -15,7 +15,7 @@
 #include "hw_fence_drv_ipc.h"
 
 struct hw_fence_driver_data *hw_fence_drv_data;
-static bool hw_fence_driver_enable;
+bool hw_fence_driver_enable;
 
 void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	struct msm_hw_fence_mem_addr *mem_descriptor)
