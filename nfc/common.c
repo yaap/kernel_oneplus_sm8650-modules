@@ -649,6 +649,19 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 	case NFC_SET_PWR:
 		ret = nfc_ioctl_power_states(nfc_dev, arg);
 		break;
+        case NFC_SET_RESET_READ_PENDING:
+               if (arg == NFC_SET_READ_PENDING) {
+                       nfc_dev->cold_reset.is_nfc_read_pending = true;
+                        /* Set default NFC state as NCI for Nfc read pending request */
+                       nfc_dev->nfc_state = NFC_STATE_NCI;
+               }
+               else if (arg == NFC_RESET_READ_PENDING){
+                       nfc_dev->cold_reset.is_nfc_read_pending = false;
+               }
+               else {
+                       ret = -EINVAL;
+               }
+               break;
 	case ESE_SET_PWR:
 		ret = nfc_ese_pwr(nfc_dev, arg);
 		break;
