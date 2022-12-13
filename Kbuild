@@ -39,3 +39,13 @@ hdcp_qseecom_dlkm-objs := hdcp/hdcp_qseecom.o
 
 obj-$(CONFIG_HW_RANDOM_MSM_LEGACY) += qrng_dlkm.o
 qrng_dlkm-objs := qrng/msm_rng.o
+
+include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smmu_proxy.conf
+LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smmu_proxy.h
+
+ifneq ($(CONFIG_ARCH_QTI_VM), y)
+
+obj-$(CONFIG_QTI_SMMU_PROXY) += smmu_proxy_dlkm.o
+smmu_proxy_dlkm-objs := smmu-proxy/qti-smmu-proxy.o
+
+endif
