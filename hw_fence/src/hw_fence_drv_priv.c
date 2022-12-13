@@ -32,10 +32,12 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 {
 	struct msm_hw_fence_hfi_queue_table_header *hfi_table_header;
 	struct msm_hw_fence_hfi_queue_header *hfi_queue_header;
+	struct hw_fence_client_type_desc *desc;
 	void *ptr, *qptr;
 	phys_addr_t phys, qphys;
 	u32 size, start_queue_offset;
 	int headers_size, queue_size, payload_size;
+	int start_padding = 0, end_padding = 0;
 	int i, ret = 0;
 
 	HWFNC_DBG_INIT("mem_reserve_id:%d client_id:%d\n", mem_reserve_id, client_id);
@@ -46,14 +48,19 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 		payload_size = HW_FENCE_CTRL_QUEUE_PAYLOAD;
 		break;
 	case HW_FENCE_MEM_RESERVE_CLIENT_QUEUE:
-		if (client_id >= drv_data->clients_num) {
-			HWFNC_ERR("Invalid client_id: %d\n", client_id);
+		if (client_id >= drv_data->clients_num ||
+				!drv_data->hw_fence_client_queue_size[client_id].type) {
+			HWFNC_ERR("Invalid client_id:%d for clients_num:%lu\n", client_id,
+				drv_data->clients_num);
 			return -EINVAL;
 		}
 
-		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num);
-		queue_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD *
-			drv_data->hw_fence_client_queue_size[client_id].queue_entries;
+		desc = drv_data->hw_fence_client_queue_size[client_id].type;
+		start_padding = desc->start_padding;
+		end_padding = desc->end_padding;
+		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num) + start_padding +
+			end_padding;
+		queue_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD * desc->queue_entries;
 		payload_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD;
 		break;
 	default:
@@ -75,16 +82,15 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 	mem_descriptor->size = size; /* bytes */
 	mem_descriptor->mem_data = NULL; /* Currently we don't need any special info */
 
-	HWFNC_DBG_INIT("Initialize headers\n");
+	HWFNC_DBG_INIT("Initialize headers: headers_size:%d start_padding:%d end_padding:%d\n",
+		headers_size, start_padding, end_padding);
 	/* Initialize headers info within hfi memory */
 	hfi_table_header = (struct msm_hw_fence_hfi_queue_table_header *)ptr;
 	hfi_table_header->version = 0;
 	hfi_table_header->size = size; /* bytes */
 	/* Offset, from the Base Address, where the first queue header starts */
-	hfi_table_header->qhdr0_offset =
-		sizeof(struct msm_hw_fence_hfi_queue_table_header);
-	hfi_table_header->qhdr_size =
-		sizeof(struct msm_hw_fence_hfi_queue_header);
+	hfi_table_header->qhdr0_offset = HW_FENCE_HFI_TABLE_HEADER_SIZE + start_padding;
+	hfi_table_header->qhdr_size = HW_FENCE_HFI_QUEUE_HEADER_SIZE;
 	hfi_table_header->num_q = queues_num; /* number of queues */
 	hfi_table_header->num_active_q = queues_num;
 
@@ -96,7 +102,7 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 	 */
 	HWFNC_DBG_INIT("Initialize queues\n");
 	hfi_queue_header = (struct msm_hw_fence_hfi_queue_header *)
-					   ((char *)ptr + HW_FENCE_HFI_TABLE_HEADER_SIZE);
+					   ((char *)ptr + hfi_table_header->qhdr0_offset);
 	for (i = 0; i < queues_num; i++) {
 		HWFNC_DBG_INIT("init queue[%d]\n", i);
 
@@ -251,10 +257,9 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	u32 *wr_ptr;
 	int ret = 0;
 
-	if (queue_type >=
-		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num) {
-		HWFNC_ERR("Invalid queue type:%s client_id:%d\n", queue_type,
-			hw_fence_client->client_id);
+	if (queue_type >= hw_fence_client->queues_num) {
+		HWFNC_ERR("Invalid queue type:%d client_id:%d q_num:%lu\n", queue_type,
+			hw_fence_client->client_id, hw_fence_client->queues_num);
 		return -EINVAL;
 	}
 
@@ -539,10 +544,16 @@ int hw_fence_alloc_client_resources(struct hw_fence_driver_data *drv_data,
 {
 	int ret;
 
+	if (!drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].type) {
+		HWFNC_ERR("invalid client_id:%d not reserved client queue; check dt props\n",
+			hw_fence_client->client_id);
+		return -EINVAL;
+	}
+
 	/* Init client queues */
 	ret = init_hw_fences_queues(drv_data, HW_FENCE_MEM_RESERVE_CLIENT_QUEUE,
 		&hw_fence_client->mem_descriptor, hw_fence_client->queues,
-		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num,
+		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].type->queues_num,
 		hw_fence_client->client_id);
 	if (ret) {
 		HWFNC_ERR("Failure to init the queue for client:%d\n",
