@@ -432,11 +432,6 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		nfc_post_init(nfc_dev);
 	}
 
-	if(nfc_dev->configs.clk_pin_voting)
-		nfc_dev->clk_run = false;
-	else
-		nfc_dev->clk_run = true;
-
 	device_init_wakeup(&client->dev, true);
 	i2c_set_clientdata(client, nfc_dev);
 	i2c_dev->irq_wake_up = false;

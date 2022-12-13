@@ -64,21 +64,16 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	/* some products like sn220 does not required fw dwl pin */
 	nfc_gpio->dwl_req = of_get_named_gpio(np, DTS_FWDN_GPIO_STR, 0);
 	/* not returning failure for dwl gpio as it is optional for sn220 */
-	if ((!gpio_is_valid(nfc_gpio->dwl_req)))
+	if ((!gpio_is_valid(nfc_gpio->dwl_req))){
 		pr_warn("%s: nfc dwl_req gpio invalid %d\n", __func__,
 			nfc_gpio->dwl_req);
-        /* Read clock request gpio configuration if MGPIO configurations are not preasent */
-	if (of_property_read_string(np, DTS_CLKSRC_GPIO_STR, &nfc_configs->clk_src_name)) {
-		nfc_configs->clk_pin_voting = false;
-	        nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
-	        if (!gpio_is_valid(nfc_gpio->clkreq)) {
+        }
+        /* Read clkreq GPIO pin number from DTSI */
+	nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
+	if (!gpio_is_valid(nfc_gpio->clkreq)) {
 		   dev_err(dev, "clkreq gpio invalid %d\n", nfc_gpio->clkreq);
 		   return -EINVAL;
-	        }
-	}
-	else {
-		nfc_configs->clk_pin_voting = true;
-	}
+        }
 
 	/* Read DTS_SZONE_STR to check secure zone support */
 	if (of_property_read_string(np, DTS_SZONE_STR, &nfc_configs->szone)) {
@@ -86,8 +81,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	}else
 		nfc_configs->CNSS_NFC_HW_SECURE_ENABLE = true;
 
-	pr_info("%s: irq %d, ven %d, dwl %d, clkreq %d, clk_pin_voting %d \n", __func__, nfc_gpio->irq, nfc_gpio->ven,
-		nfc_gpio->dwl_req, nfc_gpio->clkreq, nfc_configs->clk_pin_voting);
+	pr_info("%s: irq %d, ven %d, dwl %d, clkreq %d \n", __func__, nfc_gpio->irq, nfc_gpio->ven,
+		nfc_gpio->dwl_req, nfc_gpio->clkreq);
 
 	/* optional property */
 	ret = of_property_read_u32_array(np, NFC_LDO_VOL_DT_NAME,
@@ -353,21 +348,9 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
 		nfc_dev->nfc_state = NFC_STATE_NCI;
 
 	} else if (arg == NFC_ENABLE) {
-		if(nfc_dev->configs.clk_pin_voting) {
-			/* Enabling nfc clock */
-			ret = nfc_clock_select(nfc_dev);
-			if (ret)
-				pr_err("%s unable to select clock\n", __func__);
-		}
 		/* Setting flag true when NFC is enabled */
 		nfc_dev->cold_reset.is_nfc_enabled = true;
 	} else if (arg == NFC_DISABLE) {
-		if(nfc_dev->configs.clk_pin_voting) {
-			/* Disabling nfc clock */
-			ret = nfc_clock_deselect(nfc_dev);
-			if (ret)
-				pr_err("%s unable to disable clock\n", __func__);
-		}
 		/* Setting flag true when NFC is disabled */
 		nfc_dev->cold_reset.is_nfc_enabled = false;
 	}  else {
@@ -439,29 +422,19 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 			__func__, nfc_gpio->dwl_req);
 	}
 
-        if(!(nfc_configs.clk_pin_voting)){
-                ret = configure_gpio(nfc_gpio->clkreq, GPIO_INPUT);
-                if (ret) {
-                        pr_err("%s: unable to request nfc clkreq gpio [%d]\n",
-                              __func__, nfc_gpio->clkreq);
-                        return ret;
-                }
-
-                /* Read clkreq GPIO number from device tree*/
-                ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node, DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
-                if (ret < 0) {
-                         pr_err("%s Failed to read clkreq gipo number, ret: %d\n", __func__, ret);
-                         return ret;
-                }
-
-                /* configure clkreq GPIO as wakeup capable */
-                ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
-                if (ret < 0) {
-                         pr_err("%s Failed to setup clkreq gpio %d as wakeup capable, ret: %d\n", __func__, clkreq_gpio , ret);
-                         return ret;
-                } else {
-                         pr_info("%s clkreq gpio %d successfully setup for wakeup capable\n", __func__, clkreq_gpio);
-                }
+        /* Read clkreq GPIO number from device tree*/
+        ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node, DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
+        if (ret < 0) {
+            pr_err("%s Failed to read clkreq gipo number, ret: %d\n", __func__, ret);
+            return ret;
+        }
+        /* configure clkreq GPIO as wakeup capable */
+        ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
+        if (ret < 0) {
+            pr_err("%s Failed to setup clkreq gpio %d as wakeup capable, ret: %d\n", __func__, clkreq_gpio , ret);
+            return ret;
+        } else {
+                pr_info("%s clkreq gpio %d successfully setup for wakeup capable\n", __func__, clkreq_gpio);
         }
 
 	ret = nfcc_hw_check(nfc_dev);
