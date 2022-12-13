@@ -157,6 +157,12 @@
 #define GEN7_CP_LPAC_ROQ_DBG_DATA        0xb35
 #define GEN7_CP_LPAC_FIFO_DBG_DATA       0xb36
 #define GEN7_CP_LPAC_FIFO_DBG_ADDR       0xb40
+#define GEN7_CP_AQE_INSTR_BASE_LO_0      0xb70
+#define GEN7_CP_AQE_INSTR_BASE_HI_0      0xb71
+#define GEN7_CP_AQE_INSTR_BASE_LO_1      0xb72
+#define GEN7_CP_AQE_INSTR_BASE_HI_1      0xb73
+#define GEN7_CP_AQE_APRIV_CNTL           0xb78
+
 #define GEN7_CP_AQE_ROQ_DBG_ADDR_0       0xba8
 #define GEN7_CP_AQE_ROQ_DBG_ADDR_1       0xba9
 #define GEN7_CP_AQE_ROQ_DBG_DATA_0       0xbac

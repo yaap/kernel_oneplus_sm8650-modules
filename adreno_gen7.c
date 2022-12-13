@@ -624,6 +624,10 @@ int gen7_start(struct adreno_device *adreno_dev)
 	kgsl_regwrite(device, GEN7_CP_BV_APRIV_CNTL, GEN7_APRIV_DEFAULT);
 	kgsl_regwrite(device, GEN7_CP_LPAC_APRIV_CNTL, GEN7_APRIV_DEFAULT);
 
+	/* Marking AQE Instruction cache fetches as privileged */
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_AQE))
+		kgsl_regwrite(device, GEN7_CP_AQE_APRIV_CNTL, BIT(0));
+
 	/*
 	 * CP Icache prefetch brings no benefit on few gen7 variants because of
 	 * the prefetch granularity size.

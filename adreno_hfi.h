@@ -75,7 +75,7 @@
 #define HFI_FEATURE_HW_FENCE	25
 #define HFI_FEATURE_PERF_NORETAIN	26
 #define HFI_FEATURE_DMS		27
-
+#define HFI_FEATURE_AQE		29
 
 /* A6xx uses a different value for KPROF */
 #define HFI_FEATURE_A6XX_KPROF	14
@@ -220,6 +220,11 @@ enum hfi_mem_kind {
 	HFI_MEMKIND_HW_FENCE,
 	/** @HFI_MEMKIND_PREEMPT_SCRATCH: Used for Preemption scratch memory */
 	HFI_MEMKIND_PREEMPT_SCRATCH,
+	/**
+	 * @HFI_MEMKIND_AQE_BUFFER: Sandbox memory used by AQE to switch
+	 * between LPAC and GC
+	 */
+	HFI_MEMKIND_AQE_BUFFER,
 	HFI_MEMKIND_MAX,
 };
 
@@ -249,6 +254,7 @@ static const char * const hfi_memkind_strings[] = {
 	[HFI_MEMKIND_MEMSTORE] = "GMU MEMSTORE",
 	[HFI_MEMKIND_HW_FENCE] = "GMU HW FENCE",
 	[HFI_MEMKIND_PREEMPT_SCRATCH] = "GMU PREEMPTION",
+	[HFI_MEMKIND_AQE_BUFFER] = "GMU AQE BUFFER",
 	[HFI_MEMKIND_MAX] = "GMU UNKNOWN",
 };
 
@@ -938,6 +944,10 @@ struct payload_section {
 #define KEY_CP_LPAC_PROTECTED_ERROR 8
 #define KEY_CP_LPAC_HW_FAULT 9
 #define KEY_SWFUSE_VIOLATION_FAULT 10
+#define KEY_AQE0_OPCODE_ERROR 11
+#define KEY_AQE0_HW_FAULT 12
+#define KEY_AQE1_OPCODE_ERROR 13
+#define KEY_AQE1_HW_FAULT 14
 
 /* Keys for PAYLOAD_RB type payload */
 #define KEY_RB_ID 1
@@ -999,6 +1009,16 @@ struct payload_section {
 #define GMU_GPU_LPAC_SW_HANG 620
 /* Fault due to software fuse violation interrupt */
 #define GMU_GPU_SW_FUSE_VIOLATION 621
+/* AQE related error codes */
+#define GMU_GPU_AQE0_OPCODE_ERRROR 622
+#define GMU_GPU_AQE0_UCODE_ERROR 623
+#define GMU_GPU_AQE0_HW_FAULT_ERROR 624
+#define GMU_GPU_AQE0_ILLEGAL_INST_ERROR 625
+#define GMU_GPU_AQE1_OPCODE_ERRROR 626
+#define GMU_GPU_AQE1_UCODE_ERROR 627
+#define GMU_GPU_AQE1_HW_FAULT_ERROR 628
+#define GMU_GPU_AQE1_ILLEGAL_INST_ERROR 629
+
 /* GPU encountered an unknown CP error */
 #define GMU_CP_UNKNOWN_ERROR 700
 

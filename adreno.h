@@ -131,6 +131,8 @@
 #define ADRENO_HW_FENCE BIT(16)
 /* Dynamic Mode Switching supported on this target */
 #define ADRENO_DMS BIT(17)
+/* AQE supported on this target */
+#define ADRENO_AQE BIT(18)
 
 
 /*
@@ -178,6 +180,7 @@
 #define ADRENO_FW_PFP 0
 #define ADRENO_FW_SQE 0
 #define ADRENO_FW_PM4 1
+#define ADRENO_FW_AQE 1
 
 enum adreno_gpurev {
 	ADRENO_REV_UNKNOWN = 0,

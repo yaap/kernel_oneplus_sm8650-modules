@@ -76,6 +76,8 @@ struct adreno_gen7_core {
 	u32 gmu_fw_version;
 	/** @sqefw_name: Name of the SQE microcode file */
 	const char *sqefw_name;
+	/** @aqefw_name: Name of the AQE microcode file */
+	const char *aqefw_name;
 	/** @gmufw_name: Name of the GMU firmware file */
 	const char *gmufw_name;
 	/** @gmufw_name: Name of the backup GMU firmware file */

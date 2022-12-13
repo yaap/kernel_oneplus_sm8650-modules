@@ -350,6 +350,38 @@ static void log_gpu_fault_legacy(struct adreno_device *adreno_dev)
 			gen7_hwsched_lookup_key_value_legacy(adreno_dev, PAYLOAD_FAULT_REGS,
 				KEY_SWFUSE_VIOLATION_FAULT));
 		break;
+	case GMU_GPU_AQE0_OPCODE_ERRROR:
+		dev_crit_ratelimited(dev, "AQE0 opcode error | opcode=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value_legacy(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE0_OPCODE_ERROR));
+		break;
+	case GMU_GPU_AQE0_UCODE_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 ucode error interrupt\n");
+		break;
+	case GMU_GPU_AQE0_HW_FAULT_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 HW fault | status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value_legacy(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE0_HW_FAULT));
+		break;
+	case GMU_GPU_AQE0_ILLEGAL_INST_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 Illegal instruction error\n");
+		break;
+	case GMU_GPU_AQE1_OPCODE_ERRROR:
+		dev_crit_ratelimited(dev, "AQE1 opcode error | opcode=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value_legacy(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE1_OPCODE_ERROR));
+		break;
+	case GMU_GPU_AQE1_UCODE_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 ucode error interrupt\n");
+		break;
+	case GMU_GPU_AQE1_HW_FAULT_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 HW fault | status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value_legacy(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE1_HW_FAULT));
+		break;
+	case GMU_GPU_AQE1_ILLEGAL_INST_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 Illegal instruction error\n");
+		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
 	default:
@@ -545,6 +577,38 @@ static void log_gpu_fault(struct adreno_device *adreno_dev)
 		dev_crit_ratelimited(dev, "RBBM: SW Feature Fuse violation status=0x%8.8x\n",
 			gen7_hwsched_lookup_key_value(adreno_dev, PAYLOAD_FAULT_REGS,
 				KEY_SWFUSE_VIOLATION_FAULT));
+		break;
+	case GMU_GPU_AQE0_OPCODE_ERRROR:
+		dev_crit_ratelimited(dev, "AQE0 opcode error | opcode=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE0_OPCODE_ERROR));
+		break;
+	case GMU_GPU_AQE0_UCODE_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 ucode error interrupt\n");
+		break;
+	case GMU_GPU_AQE0_HW_FAULT_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 HW fault | status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE0_HW_FAULT));
+		break;
+	case GMU_GPU_AQE0_ILLEGAL_INST_ERROR:
+		dev_crit_ratelimited(dev, "AQE0 Illegal instruction error\n");
+		break;
+	case GMU_GPU_AQE1_OPCODE_ERRROR:
+		dev_crit_ratelimited(dev, "AQE1 opcode error | opcode=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE1_OPCODE_ERROR));
+		break;
+	case GMU_GPU_AQE1_UCODE_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 ucode error interrupt\n");
+		break;
+	case GMU_GPU_AQE1_HW_FAULT_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 HW fault | status=0x%8.8x\n",
+			gen7_hwsched_lookup_key_value(adreno_dev,
+				PAYLOAD_FAULT_REGS, KEY_AQE1_HW_FAULT));
+		break;
+	case GMU_GPU_AQE1_ILLEGAL_INST_ERROR:
+		dev_crit_ratelimited(dev, "AQE1 Illegal instruction error\n");
 		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
@@ -1497,6 +1561,12 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_AQE)) {
+		ret = gen7_hfi_send_feature_ctrl(adreno_dev, HFI_FEATURE_AQE, 1, 0);
+		if (ret)
+			goto err;
+	}
+
 	ret = send_start_msg(adreno_dev);
 	if (ret)
 		goto err;
@@ -1630,6 +1700,24 @@ int gen7_hwsched_cp_init(struct adreno_device *adreno_dev)
 		lower_32_bits(fw->memdesc->gpuaddr));
 	kgsl_regwrite(device, GEN7_CP_SQE_INSTR_BASE_HI,
 		upper_32_bits(fw->memdesc->gpuaddr));
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_AQE)) {
+		fw = ADRENO_FW(adreno_dev, ADRENO_FW_AQE);
+
+		/* Program the ucode base for AQE0 (BV coprocessor) */
+		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_0,
+			lower_32_bits(fw->memdesc->gpuaddr));
+		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_0,
+			upper_32_bits(fw->memdesc->gpuaddr));
+
+		/* Program the ucode base for AQE1 (LPAC coprocessor) */
+		if (adreno_dev->lpac_enabled) {
+			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_1,
+				      lower_32_bits(fw->memdesc->gpuaddr));
+			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_1,
+				      upper_32_bits(fw->memdesc->gpuaddr));
+		}
+	}
 
 	ret = cp_init(adreno_dev);
 	if (ret)
