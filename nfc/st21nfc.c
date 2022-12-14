@@ -43,6 +43,7 @@
 #include <linux/of_irq.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "st21nfc.h"
+#include <linux/version.h>
 
 /*secure library headers*/
 #include "smcinvoke.h"
@@ -1271,7 +1272,11 @@ err_misc_register:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void st21nfc_remove(struct i2c_client *client)
+#else
 static int st21nfc_remove(struct i2c_client *client)
+#endif
 {
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
@@ -1288,7 +1293,9 @@ static int st21nfc_remove(struct i2c_client *client)
 	mutex_destroy(&st21nfc_dev->irq_dir_mutex);
 	acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return 0;
+#endif
 }
 
 static int st21nfc_suspend(struct device *device)
