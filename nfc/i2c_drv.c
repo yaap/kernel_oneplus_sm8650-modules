@@ -461,21 +461,27 @@ err:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+void nfc_i2c_dev_remove(struct i2c_client *client)
+#else
 int nfc_i2c_dev_remove(struct i2c_client *client)
+#endif
 {
-	int ret = 0;
 	struct nfc_dev *nfc_dev = NULL;
 
 	pr_info("%s: remove device\n", __func__);
 	nfc_dev = i2c_get_clientdata(client);
 	if (!nfc_dev) {
 		pr_err("%s: device doesn't exist anymore\n", __func__);
-		ret = -ENODEV;
-		return ret;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+		return -ENODEV;
+#endif
 	}
 	if (nfc_dev->dev_ref_count > 0) {
 		pr_err("%s: device already in use\n", __func__);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		return -EBUSY;
+#endif
 	}
 
 	gpio_set_value(nfc_dev->configs.gpio.ven, 0);
@@ -496,7 +502,9 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 	kfree(nfc_dev->read_kbuf);
 	kfree(nfc_dev->write_kbuf);
 	kfree(nfc_dev);
-	return ret;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return 0;
+#endif
 }
 
 int nfc_i2c_dev_suspend(struct device *device)
