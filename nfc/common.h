@@ -100,10 +100,11 @@
 // Ioctls
 // The type should be aligned with MW HAL definitions
 
-#define NFC_SET_PWR		_IOW(NFC_MAGIC, 0x01, uint32_t)
-#define ESE_SET_PWR		_IOW(NFC_MAGIC, 0x02, uint32_t)
-#define ESE_GET_PWR		_IOR(NFC_MAGIC, 0x03, uint32_t)
-#define NFC_SECURE_ZONE		_IOW(NFC_MAGIC, 0x0A, uint32_t)
+#define NFC_SET_PWR                   _IOW(NFC_MAGIC, 0x01, uint32_t)
+#define ESE_SET_PWR                   _IOW(NFC_MAGIC, 0x02, uint32_t)
+#define ESE_GET_PWR                   _IOR(NFC_MAGIC, 0x03, uint32_t)
+#define NFC_SET_RESET_READ_PENDING    _IOW(NFC_MAGIC, 0x04, uint32_t)
+#define NFC_SECURE_ZONE               _IOW(NFC_MAGIC, 0x0A, uint32_t)
 
 #define DTS_IRQ_GPIO_STR	"qcom,sn-irq"
 #define DTS_VEN_GPIO_STR	"qcom,sn-ven"
@@ -175,6 +176,11 @@ enum nfcc_ioctl_request {
 	NFC_ENABLE,
 	/* NFC disable without VEN gpio modification */
 	NFC_DISABLE,
+};
+
+enum nfc_read_pending {
+       NFC_RESET_READ_PENDING,
+       NFC_SET_READ_PENDING,
 };
 
 /* nfc platform interface type */
