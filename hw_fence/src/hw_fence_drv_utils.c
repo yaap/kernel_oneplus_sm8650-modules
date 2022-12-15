@@ -52,7 +52,7 @@
 
 /*
  * Each bit in this mask represents each of the loopback clients supported in
- * the enum hw_fence_loopback_id
+ * the enum hw_fence_client_id
  */
 #define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7fff
 
@@ -170,89 +170,20 @@ void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, 
 	}
 }
 
-static inline int _process_dpu_client_loopback(struct hw_fence_driver_data *drv_data,
-	int client_id)
-{
-	int ctl_id = client_id; /* dpu ctl path id is mapped to client id used for the loopback */
-	void *ctl_start_reg;
-	u32 val;
-
-	if (ctl_id > HW_FENCE_LOOPBACK_DPU_CTL_5) {
-		HWFNC_ERR("invalid ctl_id:%d\n", ctl_id);
-		return -EINVAL;
-	}
-
-	ctl_start_reg = drv_data->ctl_start_ptr[ctl_id];
-	if (!ctl_start_reg) {
-		HWFNC_ERR("ctl_start reg not valid for ctl_id:%d\n", ctl_id);
-		return -EINVAL;
-	}
-
-	HWFNC_DBG_H("Processing DPU loopback ctl_id:%d\n", ctl_id);
-
-	val = 0x1; /* ctl_start trigger */
-#ifdef CTL_START_SIM
-	HWFNC_DBG_IRQ("ctl_id:%d Write: to RegOffset:0x%pK val:0x%x\n", ctl_start_reg, val, ctl_id);
-	writel_relaxed(val, ctl_start_reg);
-#else
-	HWFNC_DBG_IRQ("ctl_id:%d Write: to RegOffset:0x%pK val:0x%x (COMMENTED)\n", ctl_id,
-		ctl_start_reg, val);
-#endif
-
-	return 0;
-}
-
-static inline int _process_gfx_client_loopback(struct hw_fence_driver_data *drv_data,
-	int client_id)
-{
-	int queue_type = HW_FENCE_RX_QUEUE - 1; /* rx queue index */
-	struct msm_hw_fence_queue_payload payload;
-	int read = 1;
-
-	HWFNC_DBG_IRQ("Processing GFX loopback client_id:%d\n", client_id);
-	while (read) {
-		/*
-		 * 'client_id' is the loopback-client-id, not the hw-fence client_id,
-		 * so use GFX hw-fence client id, to get the client data
-		 */
-		read = hw_fence_read_queue(drv_data->clients[HW_FENCE_CLIENT_ID_CTX0], &payload,
-			queue_type);
-		if (read < 0) {
-			HWFNC_ERR("unable to read gfx rxq\n");
-			break;
-		}
-		HWFNC_DBG_L("GFX loopback rxq read: hash:%llu ctx:%llu seq:%llu f:%llu e:%lu\n",
-			payload.hash, payload.ctxt_id, payload.seqno, payload.flags, payload.error);
-	}
-
-	return read;
-}
-
 static int _process_doorbell_client(struct hw_fence_driver_data *drv_data, int client_id)
 {
 	int ret;
 
-	HWFNC_DBG_H("Processing loopback client_id:%d\n", client_id);
+	HWFNC_DBG_H("Processing doorbell client_id:%d\n", client_id);
 	switch (client_id) {
-	case HW_FENCE_LOOPBACK_DPU_CTL_0:
-	case HW_FENCE_LOOPBACK_DPU_CTL_1:
-	case HW_FENCE_LOOPBACK_DPU_CTL_2:
-	case HW_FENCE_LOOPBACK_DPU_CTL_3:
-	case HW_FENCE_LOOPBACK_DPU_CTL_4:
-	case HW_FENCE_LOOPBACK_DPU_CTL_5:
-		ret = _process_dpu_client_loopback(drv_data, client_id);
-		break;
-	case HW_FENCE_LOOPBACK_GFX_CTX_0:
-		ret = _process_gfx_client_loopback(drv_data, client_id);
-		break;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	case HW_FENCE_LOOPBACK_VAL_0:
-	case HW_FENCE_LOOPBACK_VAL_1:
-	case HW_FENCE_LOOPBACK_VAL_2:
-	case HW_FENCE_LOOPBACK_VAL_3:
-	case HW_FENCE_LOOPBACK_VAL_4:
-	case HW_FENCE_LOOPBACK_VAL_5:
-	case HW_FENCE_LOOPBACK_VAL_6:
+	case HW_FENCE_CLIENT_ID_VAL0:
+	case HW_FENCE_CLIENT_ID_VAL1:
+	case HW_FENCE_CLIENT_ID_VAL2:
+	case HW_FENCE_CLIENT_ID_VAL3:
+	case HW_FENCE_CLIENT_ID_VAL4:
+	case HW_FENCE_CLIENT_ID_VAL5:
+	case HW_FENCE_CLIENT_ID_VAL6:
 		ret = process_validation_client_loopback(drv_data, client_id);
 		break;
 #endif /* CONFIG_DEBUG_FS */
@@ -266,10 +197,10 @@ static int _process_doorbell_client(struct hw_fence_driver_data *drv_data, int c
 
 void hw_fence_utils_process_doorbell_mask(struct hw_fence_driver_data *drv_data, u64 db_flags)
 {
-	int client_id = HW_FENCE_LOOPBACK_DPU_CTL_0;
+	int client_id = HW_FENCE_CLIENT_ID_CTL0;
 	u64 mask;
 
-	for (; client_id < HW_FENCE_LOOPBACK_MAX; client_id++) {
+	for (; client_id <= HW_FENCE_CLIENT_ID_VAL6; client_id++) {
 		mask = 1 << client_id;
 		if (mask & db_flags) {
 			HWFNC_DBG_H("client_id:%d signaled! flags:0x%llx\n", client_id, db_flags);
@@ -944,54 +875,6 @@ int hw_fence_utils_map_qtime(struct hw_fence_driver_data *drv_data)
 	drv_data->qtime_io_mem = ptr;
 
 	return ret;
-}
-
-static int _map_ctl_start(struct hw_fence_driver_data *drv_data, u32 ctl_id,
-	void **iomem_ptr, uint32_t *iomem_size)
-{
-	u32 reg_config[2];
-	void __iomem *ptr;
-	char name[30] = {0};
-	int ret;
-
-	snprintf(name, sizeof(name), "qcom,dpu-ctl-start-%d-reg", ctl_id);
-	ret = of_property_read_u32_array(drv_data->dev->of_node, name, reg_config, 2);
-	if (ret)
-		return 0; /* this is an optional property */
-
-	/* Mmap registers */
-	ptr = devm_ioremap(drv_data->dev, reg_config[0], reg_config[1]);
-	if (!ptr) {
-		HWFNC_ERR("failed to ioremap %s reg\n", name);
-		return -ENOMEM;
-	}
-
-	*iomem_ptr = ptr;
-	*iomem_size = reg_config[1];
-
-	HWFNC_DBG_INIT("mapped ctl_start ctl_id:%d name:%s address:0x%x size:0x%x io_mem:0x%pK\n",
-		ctl_id, name, reg_config[0], reg_config[1], ptr);
-
-	return 0;
-}
-
-int hw_fence_utils_map_ctl_start(struct hw_fence_driver_data *drv_data)
-{
-	u32 ctl_id = HW_FENCE_LOOPBACK_DPU_CTL_0;
-
-	for (; ctl_id <= HW_FENCE_LOOPBACK_DPU_CTL_5; ctl_id++) {
-		if (_map_ctl_start(drv_data, ctl_id, &drv_data->ctl_start_ptr[ctl_id],
-			&drv_data->ctl_start_size[ctl_id])) {
-			HWFNC_ERR("cannot map ctl_start ctl_id:%d\n", ctl_id);
-		} else {
-			if (drv_data->ctl_start_ptr[ctl_id])
-				HWFNC_DBG_INIT("mapped ctl_id:%d ctl_start_ptr:0x%pK size:%u\n",
-					ctl_id, drv_data->ctl_start_ptr[ctl_id],
-					drv_data->ctl_start_size[ctl_id]);
-		}
-	}
-
-	return 0;
 }
 
 enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver_data *drv_data,

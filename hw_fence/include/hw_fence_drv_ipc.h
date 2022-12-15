@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HW_FENCE_DRV_IPC_H
@@ -36,14 +36,10 @@
 #define HW_FENCE_IPC_CLIENT_ID_IFE6_PID 17
 #define HW_FENCE_IPC_CLIENT_ID_IFE7_PID 18
 
-#define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_LAHAINA 2
-#define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_WAIPIO 1
 #define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_KALAMA 2
 #define HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_PINEAPPLE 2
 #define HW_FENCE_IPC_FENCE_PROTOCOL_ID_PINEAPPLE 4
 
-#define HW_FENCE_IPCC_HW_REV_100 0x00010000  /* Lahaina */
-#define HW_FENCE_IPCC_HW_REV_110 0x00010100  /* Waipio */
 #define HW_FENCE_IPCC_HW_REV_170 0x00010700  /* Kalama */
 #define HW_FENCE_IPCC_HW_REV_203 0x00020003  /* Pineapple */
 
@@ -73,7 +69,6 @@ void hw_fence_ipcc_trigger_signal(struct hw_fence_driver_data *drv_data,
  */
 int hw_fence_ipcc_enable_signaling(struct hw_fence_driver_data *drv_data);
 
-#ifdef HW_DPU_IPCC
 /**
  * hw_fence_ipcc_enable_dpu_signaling() - Enable ipcc signaling for dpu client.
  * @drv_data: driver data.
@@ -81,7 +76,6 @@ int hw_fence_ipcc_enable_signaling(struct hw_fence_driver_data *drv_data);
  * Return: 0 on success or negative errno (-EINVAL)
  */
 int hw_fence_ipcc_enable_dpu_signaling(struct hw_fence_driver_data *drv_data);
-#endif /* HW_DPU_IPCC */
 
 /**
  * hw_fence_ipcc_get_client_virt_id() - Returns the ipc client virtual id that corresponds to the

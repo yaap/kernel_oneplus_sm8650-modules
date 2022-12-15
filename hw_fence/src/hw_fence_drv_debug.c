@@ -112,7 +112,6 @@ static ssize_t hw_fence_dbg_ipcc_write(struct file *file, const char __user *use
 		drv_data->ipcc_client_vid);
 }
 
-#ifdef HW_DPU_IPCC
 /**
  * hw_fence_dbg_ipcc_dpu_write() - debugfs write to trigger an ipcc irq to dpu core.
  * @file: file handler.
@@ -137,7 +136,6 @@ static const struct file_operations hw_fence_dbg_ipcc_dpu_fops = {
 	.open = simple_open,
 	.write = hw_fence_dbg_ipcc_dpu_write,
 };
-#endif /* HW_DPU_IPCC */
 
 static const struct file_operations hw_fence_dbg_ipcc_fops = {
 	.open = simple_open,
@@ -897,9 +895,9 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 {
 	struct msm_hw_fence_client *hw_fence_client;
 
-	if (client_id < HW_FENCE_LOOPBACK_VAL_0 || client_id > HW_FENCE_LOOPBACK_VAL_6) {
+	if (client_id < HW_FENCE_CLIENT_ID_VAL0 || client_id > HW_FENCE_CLIENT_ID_VAL6) {
 		HWFNC_ERR("invalid client_id: %d min: %d max: %d\n", client_id,
-				HW_FENCE_LOOPBACK_VAL_0, HW_FENCE_LOOPBACK_VAL_6);
+				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_ID_VAL6);
 		return -EINVAL;
 	}
 
@@ -982,10 +980,8 @@ int hw_fence_debug_debugfs_register(struct hw_fence_driver_data *drv_data)
 
 	debugfs_create_file("ipc_trigger", 0600, debugfs_root, drv_data,
 		&hw_fence_dbg_ipcc_fops);
-#ifdef HW_DPU_IPCC
 	debugfs_create_file("dpu_trigger", 0600, debugfs_root, drv_data,
 		&hw_fence_dbg_ipcc_dpu_fops);
-#endif /* HW_DPU_IPCC */
 	debugfs_create_file("hw_fence_reset_client", 0600, debugfs_root, drv_data,
 		&hw_fence_reset_client_fops);
 	debugfs_create_file("hw_fence_register_clients", 0600, debugfs_root, drv_data,

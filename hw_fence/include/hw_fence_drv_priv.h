@@ -14,9 +14,6 @@
 #include <linux/dma-fence-array.h>
 #include <linux/slab.h>
 
-/* Add define only for platforms that support IPCC in dpu-hw */
-#define HW_DPU_IPCC 1
-
 /* max u64 to indicate invalid fence */
 #define HW_FENCE_INVALID_PARENT_FENCE (~0ULL)
 
@@ -81,45 +78,6 @@ enum hw_fence_lookup_ops {
 	HW_FENCE_LOOKUP_OP_CREATE_JOIN,
 	HW_FENCE_LOOKUP_OP_FIND_FENCE
 };
-
-/**
- * enum hw_fence_loopback_id - Enum with the clients having a loopback signal (i.e AP to AP signal).
- * HW_FENCE_LOOPBACK_DPU_CTL_0: dpu client 0. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_1: dpu client 1. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_2: dpu client 2. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_3: dpu client 3. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_4: dpu client 4. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_5: dpu client 5. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTX_0: gfx client 0. Used in platforms with no gmu support.
- * HW_FENCE_LOOPBACK_VAL_0: debug validation client 0.
- * HW_FENCE_LOOPBACK_VAL_1: debug validation client 1.
- * HW_FENCE_LOOPBACK_VAL_2: debug validation client 2.
- * HW_FENCE_LOOPBACK_VAL_3: debug validation client 3.
- * HW_FENCE_LOOPBACK_VAL_4: debug validation client 4.
- * HW_FENCE_LOOPBACK_VAL_5: debug validation client 5.
- * HW_FENCE_LOOPBACK_VAL_6: debug validation client 6.
- */
-enum hw_fence_loopback_id {
-	HW_FENCE_LOOPBACK_DPU_CTL_0,
-	HW_FENCE_LOOPBACK_DPU_CTL_1,
-	HW_FENCE_LOOPBACK_DPU_CTL_2,
-	HW_FENCE_LOOPBACK_DPU_CTL_3,
-	HW_FENCE_LOOPBACK_DPU_CTL_4,
-	HW_FENCE_LOOPBACK_DPU_CTL_5,
-	HW_FENCE_LOOPBACK_GFX_CTX_0,
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	HW_FENCE_LOOPBACK_VAL_0 = HW_FENCE_CLIENT_ID_VAL0,
-	HW_FENCE_LOOPBACK_VAL_1,
-	HW_FENCE_LOOPBACK_VAL_2,
-	HW_FENCE_LOOPBACK_VAL_3,
-	HW_FENCE_LOOPBACK_VAL_4,
-	HW_FENCE_LOOPBACK_VAL_5,
-	HW_FENCE_LOOPBACK_VAL_6,
-#endif /* CONFIG_DEBUG_FS */
-	HW_FENCE_LOOPBACK_MAX,
-};
-
-#define HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS (HW_FENCE_LOOPBACK_DPU_CTL_5 + 1)
 
 /**
  * enum hw_fence_client_data_id - Enum with the clients having client_data, an optional
@@ -334,8 +292,6 @@ struct hw_fence_client_queue_desc {
  * @qtime_reg_base: qtimer register base address
  * @qtime_io_mem: qtimer io mem map
  * @qtime_size: qtimer io mem map size
- * @ctl_start_ptr: pointer to the ctl_start registers of the display hw (platforms with no dpu-ipc)
- * @ctl_start_size: size of the ctl_start registers of the display hw (platforms with no dpu-ipc)
  * @client_id_mask: bitmask for tracking registered client_ids
  * @clients_register_lock: lock to synchronize clients registration and deregistration
  * @clients: table with the handles of the registered clients; size is equal to clients_num
@@ -409,10 +365,6 @@ struct hw_fence_driver_data {
 	void __iomem *qtime_io_mem;
 	uint32_t qtime_size;
 
-	/* base address for dpu ctl start regs */
-	void *ctl_start_ptr[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
-	uint32_t ctl_start_size[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
-
 	/* synchronize client_ids registration and deregistration */
 	struct mutex clients_register_lock;
 
@@ -420,10 +372,8 @@ struct hw_fence_driver_data {
 	struct msm_hw_fence_client **clients;
 
 	bool vm_ready;
-#ifdef HW_DPU_IPCC
 	/* state variables */
 	bool ipcc_dpu_initialized;
-#endif /* HW_DPU_IPCC */
 };
 
 /**

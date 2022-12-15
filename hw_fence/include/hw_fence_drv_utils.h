@@ -107,15 +107,6 @@ int hw_fence_utils_map_ipcc(struct hw_fence_driver_data *drv_data);
 int hw_fence_utils_map_qtime(struct hw_fence_driver_data *drv_data);
 
 /**
- * hw_fence_utils_map_ctl_start() -  Maps ctl_start registers from dpu hw
- * @drv_data: hw fence driver data
- *
- * Returns zero if success, otherwise returns negative error code. This API is only used
- * for simulation purposes in platforms where dpu does not support ipc signal.
- */
-int hw_fence_utils_map_ctl_start(struct hw_fence_driver_data *drv_data);
-
-/**
  * hw_fence_utils_cleanup_fence() -  Cleanup the hw-fence from a specified client
  * @drv_data: hw fence driver data
  * @hw_fence_client: client, for which the fence must be cleared

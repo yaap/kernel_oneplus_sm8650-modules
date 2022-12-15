@@ -567,15 +567,6 @@ int hw_fence_init(struct hw_fence_driver_data *drv_data)
 		goto exit;
 	}
 
-	/* Map ctl_start registers */
-	ret = hw_fence_utils_map_ctl_start(drv_data);
-	if (ret) {
-		/* This is not fatal error, since platfoms with dpu-ipc
-		 * won't use this option
-		 */
-		HWFNC_WARN("no ctl_start regs, won't trigger the frame\n");
-	}
-
 	/* Init debugfs */
 	ret = hw_fence_debug_debugfs_register(drv_data);
 	if (ret) {
@@ -665,7 +656,6 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	case HW_FENCE_CLIENT_ID_CTL3:
 	case HW_FENCE_CLIENT_ID_CTL4:
 	case HW_FENCE_CLIENT_ID_CTL5:
-#ifdef HW_DPU_IPCC
 		/* initialize ipcc signals for dpu clients */
 		HWFNC_DBG_H("init_controller_signal: DPU client_id_ext:%d initialized:%d\n",
 			hw_fence_client->client_id_ext, drv_data->ipcc_dpu_initialized);
@@ -675,7 +665,6 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 			/* Init dpu client ipcc signal */
 			hw_fence_ipcc_enable_dpu_signaling(drv_data);
 		}
-#endif /* HW_DPU_IPCC */
 		break;
 	case HW_FENCE_CLIENT_ID_IPE ... HW_FENCE_CLIENT_ID_IPE +
 			MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - 1:
