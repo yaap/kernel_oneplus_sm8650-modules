@@ -1381,7 +1381,7 @@ static int invoke_cmd_handler(int cmd, phys_addr_t in_paddr, size_t in_buf_len,
 
 	case SMCINVOKE_CB_RSP_CMD:
 		if (legacy_smc_call)
-			qtee_shmbridge_inv_shm_buf(out_shm);
+			qtee_shmbridge_flush_shm_buf(out_shm);
 		ret = qcom_scm_invoke_callback_response(virt_to_phys(out_buf), out_buf_len,
 				result, response_type, data);
 		if (legacy_smc_call) {
