@@ -4,8 +4,6 @@
  * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <linux/iopoll.h>
-
 #include "adreno.h"
 #include "adreno_a6xx.h"
 #include "adreno_snapshot.h"
