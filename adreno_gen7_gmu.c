@@ -233,6 +233,7 @@ static void gen7_gmu_power_config(struct adreno_device *adreno_dev)
 
 static void gmu_ao_sync_event(struct adreno_device *adreno_dev)
 {
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned long flags;
 	u64 ticks;
 
@@ -245,7 +246,7 @@ static void gmu_ao_sync_event(struct adreno_device *adreno_dev)
 
 	local_irq_save(flags);
 
-	ticks = gen7_read_alwayson(adreno_dev);
+	ticks = gpudev->read_alwayson(adreno_dev);
 
 	trace_gmu_ao_sync(ticks);
 
@@ -697,11 +698,12 @@ int gen7_gmu_wait_for_lowest_idle(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned int reg, reg1, reg2, reg3, reg4, reg5, reg6, reg7, reg8;
 	unsigned long t;
 	u64 ts1, ts2;
 
-	ts1 = gen7_read_alwayson(adreno_dev);
+	ts1 = gpudev->read_alwayson(adreno_dev);
 
 	t = jiffies + msecs_to_jiffies(100);
 	do {
@@ -733,7 +735,7 @@ int gen7_gmu_wait_for_lowest_idle(struct adreno_device *adreno_dev)
 		if (!(gmu->idle_level == GPU_HW_IFPC && is_on(reg1)))
 			return 0;
 
-	ts2 = gen7_read_alwayson(adreno_dev);
+	ts2 = gpudev->read_alwayson(adreno_dev);
 
 	/* Collect abort data to help with debugging */
 	gmu_core_regread(device, GEN7_GPU_GMU_AO_GPU_CX_BUSY_STATUS, &reg2);
@@ -780,10 +782,11 @@ int gen7_gmu_wait_for_idle(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	u32 status2;
 	u64 ts1;
 
-	ts1 = gen7_read_alwayson(adreno_dev);
+	ts1 = gpudev->read_alwayson(adreno_dev);
 	if (gmu_core_timed_poll_check(device, GEN7_GPU_GMU_AO_GPU_CX_BUSY_STATUS,
 			0, 100, CXGXCPUBUSYIGNAHB)) {
 		gmu_core_regread(device,
@@ -791,7 +794,7 @@ int gen7_gmu_wait_for_idle(struct adreno_device *adreno_dev)
 		dev_err(&gmu->pdev->dev,
 				"GMU not idling: status2=0x%x %llx %llx\n",
 				status2, ts1,
-				gen7_read_alwayson(ADRENO_DEVICE(device)));
+				gpudev->read_alwayson(adreno_dev));
 		gmu_core_fault_snapshot(device);
 		return -ETIMEDOUT;
 	}

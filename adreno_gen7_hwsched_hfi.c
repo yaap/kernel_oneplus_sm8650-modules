@@ -1671,6 +1671,7 @@ static void gen7_add_profile_events(struct adreno_device *adreno_dev,
 	struct kgsl_context *context = drawobj->context;
 	struct submission_info info = {0};
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 
 	/*
 	 * Here we are attempting to create a mapping between the
@@ -1685,7 +1686,7 @@ static void gen7_add_profile_events(struct adreno_device *adreno_dev,
 	local_irq_save(flags);
 
 	/* Read always on registers */
-	time->ticks = gen7_read_alwayson(adreno_dev);
+	time->ticks = gpudev->read_alwayson(adreno_dev);
 
 	/* Trace the GPU time to create a mapping to ftrace time */
 	trace_adreno_cmdbatch_sync(context->id, context->priority,
@@ -1933,6 +1934,7 @@ int gen7_gmu_context_queue_write(struct adreno_device *adreno_dev,
 	struct kgsl_drawobj *drawobj, struct adreno_submit_time *time)
 {
 	struct gmu_context_queue_header *hdr = drawctxt->gmu_context_queue.hostptr;
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	u32 *queue = drawctxt->gmu_context_queue.hostptr + sizeof(*hdr);
 	u32 i, empty_space, write_idx = hdr->write_index, read_idx = hdr->read_index;
 	u32 size = MSG_HDR_GET_SIZE(*msg);
@@ -1965,7 +1967,7 @@ int gen7_gmu_context_queue_write(struct adreno_device *adreno_dev,
 		struct kgsl_drawobj_sync *syncobj = SYNCOBJ(drawobj);
 
 		trace_adreno_syncobj_submitted(drawobj->context->id, drawobj->timestamp,
-			syncobj->numsyncs, gen7_read_alwayson(adreno_dev));
+			syncobj->numsyncs, gpudev->read_alwayson(adreno_dev));
 		goto done;
 	}
 

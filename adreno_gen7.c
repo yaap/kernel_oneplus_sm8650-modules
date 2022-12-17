@@ -189,11 +189,12 @@ int gen7_fenced_write(struct adreno_device *adreno_dev, u32 offset,
 		u32 value, u32 mask)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned int status, i;
 	u64 ts1, ts2;
 
 	kgsl_regwrite(device, offset, value);
-	ts1 = gen7_read_alwayson(adreno_dev);
+	ts1 = gpudev->read_alwayson(adreno_dev);
 	for (i = 0; i < GMU_CORE_LONG_WAKEUP_RETRY_LIMIT; i++) {
 		/*
 		 * Make sure the previous register write is posted before
@@ -221,7 +222,7 @@ int gen7_fenced_write(struct adreno_device *adreno_dev, u32 offset,
 		return 0;
 
 	if (i == GMU_CORE_LONG_WAKEUP_RETRY_LIMIT) {
-		ts2 = gen7_read_alwayson(adreno_dev);
+		ts2 = gpudev->read_alwayson(adreno_dev);
 		dev_err(device->dev,
 				"Timed out waiting %d usecs to write fenced register 0x%x, timestamps: %llx %llx\n",
 				i * GMU_CORE_WAKEUP_DELAY_US, offset, ts1, ts2);
@@ -1265,22 +1266,23 @@ static const struct adreno_irq_funcs gen7_irq_funcs[32] = {
 static int gen7_irq_poll_fence(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	u32 status, fence, fence_retries = 0;
 	u64 a, b, c;
 
-	a = gen7_read_alwayson(adreno_dev);
+	a = gpudev->read_alwayson(adreno_dev);
 
 	kgsl_regread(device, GEN7_GMU_AO_AHB_FENCE_CTRL, &fence);
 
 	while (fence != 0) {
-		b = gen7_read_alwayson(adreno_dev);
+		b = gpudev->read_alwayson(adreno_dev);
 
 		/* Wait for small time before trying again */
 		udelay(1);
 		kgsl_regread(device, GEN7_GMU_AO_AHB_FENCE_CTRL, &fence);
 
 		if (fence_retries == 100 && fence != 0) {
-			c = gen7_read_alwayson(adreno_dev);
+			c = gpudev->read_alwayson(adreno_dev);
 
 			kgsl_regread(device, GEN7_GMU_RBBM_INT_UNMASKED_STATUS,
 				&status);
@@ -1536,7 +1538,7 @@ update:
 	return 0;
 }
 
-u64 gen7_9_0_read_alwayson(struct adreno_device *adreno_dev)
+static u64 gen7_9_0_read_alwayson(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	u32 lo = 0, hi = 0, tmp = 0;
@@ -1557,7 +1559,7 @@ u64 gen7_9_0_read_alwayson(struct adreno_device *adreno_dev)
 	return (((u64) hi) << 32) | lo;
 }
 
-u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
+static u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	u32 lo = 0, hi = 0, tmp = 0;

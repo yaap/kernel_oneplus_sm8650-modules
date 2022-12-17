@@ -276,14 +276,6 @@ void gen7_snapshot_external_core_regs(struct kgsl_device *device,
 		struct kgsl_snapshot *snapshot);
 
 /**
- * gen7_read_alwayson - Read the current always on clock value
- * @adreno_dev: An Adreno GPU handle
- *
- * Return: The current value of the GMU always on counter
- */
-u64 gen7_read_alwayson(struct adreno_device *adreno_dev);
-
-/**
  * gen7_start - Program gen7 registers
  * @adreno_dev: An Adreno GPU handle
  *
