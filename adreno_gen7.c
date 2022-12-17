@@ -1610,6 +1610,7 @@ int gen7_probe_common(struct platform_device *pdev,
 	device->pwrscale.avoid_ddr_stall = true;
 
 	device->pwrctrl.rt_bus_hint = gen7_core->rt_bus_hint;
+	device->pwrctrl.cx_gdsc_offset = GEN7_GPU_CC_CX_GDSCR;
 
 	ret = adreno_device_probe(pdev, adreno_dev);
 	if (ret)

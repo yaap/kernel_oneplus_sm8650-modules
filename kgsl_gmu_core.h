@@ -236,7 +236,6 @@ enum {
 	GMU_PRIV_RSCC_SLEEP_DONE,
 	GMU_PRIV_PM_SUSPEND,
 	GMU_PRIV_PDC_RSC_LOADED,
-	GMU_PRIV_CX_GDSC_WAIT,
 	/* Indicates if GMU INIT HFI messages are recorded successfully */
 	GMU_PRIV_WARMBOOT_GMU_INIT_DONE,
 	/* Indicates if GPU BOOT HFI messages are recorded successfully */
