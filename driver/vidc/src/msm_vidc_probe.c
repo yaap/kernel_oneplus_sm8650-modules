@@ -375,6 +375,10 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	/* populate dev & domain field */
 	cb->dev = dev;
 	cb->domain = iommu_get_domain_for_dev(cb->dev);
+	if (!cb->domain) {
+		d_vpr_e("%s: Failed to get iommu domain for %s\n", __func__, dev_name(dev));
+		return -EIO;
+	}
 
 	if (cb->dma_mask) {
 		rc = dma_set_mask_and_coherent(cb->dev, cb->dma_mask);
