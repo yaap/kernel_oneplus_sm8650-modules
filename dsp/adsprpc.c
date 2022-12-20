@@ -35,7 +35,6 @@
 #include <linux/of_platform.h>
 #include <linux/dma-map-ops.h>
 #include <linux/cma.h>
-#include <linux/iommu.h>
 #include <linux/sort.h>
 #include <linux/cred.h>
 #include <linux/msm_dma_iommu_mapping.h>
@@ -53,7 +52,7 @@
 #include <linux/soc/qcom/pdr.h>
 #include <linux/soc/qcom/qmi.h>
 #include <linux/mem-buf.h>
-#include <linux/dma-iommu.h>
+#include <linux/iommu.h>
 #include <asm/arch_timer.h>
 #include <linux/genalloc.h>
 
