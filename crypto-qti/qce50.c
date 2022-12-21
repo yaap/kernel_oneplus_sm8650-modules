@@ -25,7 +25,6 @@
 #include <crypto/hash.h>
 #include <crypto/sha1.h>
 #include <soc/qcom/socinfo.h>
-#include <linux/dma-iommu.h>
 #include <linux/iommu.h>
 
 #include "qce.h"

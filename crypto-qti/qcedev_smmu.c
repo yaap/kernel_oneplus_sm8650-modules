@@ -5,7 +5,6 @@
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
-#include <linux/dma-iommu.h>
 #include <linux/dma-mapping.h>
 #include <linux/qcom-dma-mapping.h>
 #include <linux/list.h>
