@@ -1982,8 +1982,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_u32},
 
-	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9|AV1,
+	{META_OUTBUF_FENCE, DEC, H264|HEVC|AV1,
 		{LOWLATENCY_MODE, SLICE_DECODE},
+		msm_vidc_adjust_dec_outbuf_fence,
+		NULL},
+
+	{META_OUTBUF_FENCE, DEC, VP9,
+		{LOWLATENCY_MODE},
 		msm_vidc_adjust_dec_outbuf_fence,
 		NULL},
 
@@ -2110,8 +2115,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_enc_lowlatency_mode,
 		NULL},
 
-	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9|AV1,
+	{LOWLATENCY_MODE, DEC, H264|HEVC|AV1,
 		{STAGE, SLICE_DECODE},
+		msm_vidc_adjust_dec_lowlatency_mode,
+		NULL},
+
+	{LOWLATENCY_MODE, DEC, VP9,
+		{STAGE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
@@ -2361,8 +2371,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		NULL},
 
-	{OUTPUT_ORDER, DEC, H264|HEVC|VP9|AV1,
+	{OUTPUT_ORDER, DEC, H264|HEVC|AV1,
 		{META_OUTBUF_FENCE, SLICE_DECODE},
+		msm_vidc_adjust_output_order,
+		msm_vidc_set_u32},
+
+	{OUTPUT_ORDER, DEC, VP9,
+		{META_OUTBUF_FENCE},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 
