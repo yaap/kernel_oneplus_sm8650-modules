@@ -435,6 +435,15 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = call_res_op(core, reset_control_assert, core, "video_axi_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_axi_reset failed\n", __func__);
+	/* set retain mem and peripheral before asset mvs0c reset */
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_MEM);
+	if (rc)
+		d_vpr_e("%s: set retain mem failed\n", __func__);
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_PERIPH);
+	if (rc)
+		d_vpr_e("%s: set retain peripheral failed\n", __func__);
 	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
@@ -496,6 +505,16 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 			0x0, BIT(0));
 	if (rc)
 		return rc;
+
+        /* remove retain mem and retain peripheral */
+        rc = call_res_op(core, clk_set_flag, core,
+                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_PERIPH);
+        if (rc)
+                d_vpr_e("%s: set noretain peripheral failed\n", __func__);
+        rc = call_res_op(core, clk_set_flag, core,
+                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_MEM);
+        if (rc)
+                d_vpr_e("%s: set noretain mem failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
 	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
