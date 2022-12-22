@@ -11,7 +11,10 @@
 #include <linux/component.h>
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
+#endif
 #ifdef CONFIG_MSM_MMRM
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
