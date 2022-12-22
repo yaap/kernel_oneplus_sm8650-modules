@@ -458,9 +458,13 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	rc = __read_register(core, AON_WRAPPER_SPARE, &value);
-	if (rc)
-		return rc;
+	/* poll AON spare register bit0 to become zero with 50ms timeout */
+	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_SPARE,
+			0x1, 0x0, 1000, 50 * 1000);
+        if (rc)
+                d_vpr_e("%s: AON spare register is not zero\n", __func__);
+
+	/* enable bit(1) to avoid cvp noc xo reset */
 	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
 	if (rc)
 		return rc;
@@ -474,13 +478,18 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
 			0x0, BIT(0));
 	if (rc)
-		return rc;
+		d_vpr_e("%s: MVP_NOC_CORE_SW_RESET failed\n", __func__);
 
 	/* De-assert video_cc XO reset */
 	usleep_range(80, 100);
 	rc = call_res_op(core, reset_control_deassert, core, "video_xo_reset");
 	if (rc)
 		d_vpr_e("%s: deassert video_xo_reset failed\n", __func__);
+
+	/* reset AON spare register */
+	rc = __write_register(core, AON_WRAPPER_SPARE, 0x0);
+	if (rc)
+		return rc;
 
 	/* Enable MVP NoC clock */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
