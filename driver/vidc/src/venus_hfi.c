@@ -27,6 +27,7 @@
 #include "venus_hfi_response.h"
 #include "venus_hfi_queue.h"
 #include "msm_vidc_events.h"
+#include "msm_vidc_state.h"
 #include "firmware.h"
 
 #define update_offset(offset, val)		((offset) += (val))
@@ -750,10 +751,13 @@ static int __response_handler(struct msm_vidc_core *core)
 	if (call_venus_op(core, watchdog, core, core->intr_status)) {
 		struct hfi_packet pkt = {.type = HFI_SYS_ERROR_WD_TIMEOUT};
 
+		core_lock(core, __func__);
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		/* mark cpu watchdog error */
 		msm_vidc_change_core_sub_state(core,
 			0, CORE_SUBSTATE_CPU_WATCHDOG, __func__);
 		d_vpr_e("%s: CPU WD error received\n", __func__);
+		core_unlock(core, __func__);
 
 		return handle_system_error(core, &pkt);
 	}
@@ -822,6 +826,7 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 		return;
 	}
 
+	core_lock(core, __func__);
 	d_vpr_h("%s: try power collapse\n", __func__);
 	/*
 	 * It is ok to check this variable outside the lock since
@@ -831,14 +836,15 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 		d_vpr_e("Failed to PC for %d times\n",
 				core->skip_pc_count);
 		core->skip_pc_count = 0;
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		/* mark video hw unresponsive */
 		msm_vidc_change_core_sub_state(core,
 			0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
-		msm_vidc_core_deinit(core, true);
-		return;
+		/* do core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
+		goto unlock;
 	}
 
-	core_lock(core, __func__);
 	/* core already deinited - skip power collapse */
 	if (is_core_state(core, MSM_VIDC_CORE_DEINIT)) {
 		d_vpr_e("%s: invalid core state %s\n",

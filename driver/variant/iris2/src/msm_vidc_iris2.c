@@ -12,6 +12,7 @@
 #include "msm_vidc_platform.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 

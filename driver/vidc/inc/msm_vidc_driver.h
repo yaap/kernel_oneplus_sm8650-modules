@@ -370,17 +370,6 @@ static inline bool is_sub_state(struct msm_vidc_inst *inst,
 	return (inst->sub_state & sub_state);
 }
 
-static inline bool is_core_state(struct msm_vidc_core *core, enum msm_vidc_core_state state)
-{
-	return core->state == state;
-}
-
-static inline bool is_core_sub_state(struct msm_vidc_core *core,
-	enum msm_vidc_core_sub_state sub_state)
-{
-	return !!(core->sub_state & sub_state);
-}
-
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id);
 const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixelfmt);
 const char *v4l2_type_name(u32 port);
@@ -412,7 +401,6 @@ int v4l2_type_to_driver_port(struct msm_vidc_inst *inst, u32 type,
 	const char *func);
 const char *allow_name(enum msm_vidc_allow allow);
 const char *state_name(enum msm_vidc_state state);
-const char *core_state_name(enum msm_vidc_core_state state);
 int msm_vidc_change_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_state request_state, const char *func);
 int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
@@ -451,6 +439,7 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
+int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force);
 int msm_vidc_inst_timeout(struct msm_vidc_inst *inst);
 int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst);
 int msm_vidc_print_inst_info(struct msm_vidc_inst *inst);

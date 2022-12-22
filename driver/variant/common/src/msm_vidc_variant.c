@@ -9,6 +9,7 @@
 
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 #include "msm_vidc_platform.h"

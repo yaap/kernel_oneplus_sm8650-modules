@@ -636,6 +636,17 @@ struct msm_vidc_inst_cap_entry {
 	enum msm_vidc_inst_capability_type cap_id;
 };
 
+struct msm_vidc_event_data {
+	union {
+		bool                         bval;
+		u32                          uval;
+		u64                          uval64;
+		s32                          val;
+		s64                          val64;
+		void                        *ptr;
+	} edata;
+};
+
 struct debug_buf_count {
 	u64 etb;
 	u64 ftb;
