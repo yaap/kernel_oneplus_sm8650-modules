@@ -677,6 +677,7 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	struct frequency_table *freq_tbl;
 	u32 freq = 0;
 	int rc = 0;
+	int count = 0;
 
 	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
@@ -722,15 +723,45 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	/*
 	 * Re-program all of the registers that get reset as a result of
 	 * regulator_disable() and _enable()
+	 * When video module writing to QOS registers EVA module is not
+	 * supposed to do video_xo_reset operations else we will see register
+	 * access failure, so acquire video_xo_reset to ensure EVA module is
+	 * not doing assert or de-assert on video_xo_reset.
 	 */
+	do {
+		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+		if (!rc) {
+			break;
+		} else {
+			d_vpr_e(
+				"%s: failed to acquire video_xo_reset control, count %d\n",
+				__func__, count);
+			count++;
+			usleep_range(1000, 1000);
+		}
+	} while (count < 100);
+
+	if (count >= 100) {
+		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+		goto fail_assert_xo_reset;
+	}
+
 	__set_registers(core);
 
+	/* release reset control for other consumers */
+	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to release video_xo_reset reset\n", __func__);
+		goto fail_deassert_xo_reset;
+	}
 	__interrupt_init_iris33(core);
 	core->intr_status = 0;
 	enable_irq(core->resource->irq);
 
 	return rc;
 
+fail_deassert_xo_reset:
+fail_assert_xo_reset:
 fail_power_on_substate:
 	__power_off_iris33_hardware(core);
 fail_power_on_hardware:
