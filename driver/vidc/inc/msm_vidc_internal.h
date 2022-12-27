@@ -847,7 +847,7 @@ struct msm_vidc_fence {
 	int                         fd;
 };
 
-struct msm_vidc_alloc {
+struct msm_vidc_mem {
 	struct list_head            list;
 	enum msm_vidc_buffer_type   type;
 	enum msm_vidc_buffer_region region;
@@ -865,25 +865,15 @@ struct msm_vidc_alloc {
 	struct dma_buf_map          dmabuf_map;
 #endif
 	void                       *kvaddr;
-};
-
-struct msm_vidc_allocations {
-	struct list_head            list; // list of "struct msm_vidc_alloc"
-};
-
-struct msm_vidc_map {
-	struct list_head            list;
-	enum msm_vidc_buffer_type   type;
-	enum msm_vidc_buffer_region region;
-	struct dma_buf             *dmabuf;
+	dma_addr_t                  device_addr;
+	unsigned long               attrs;
 	u32                         refcount;
-	u64                         device_addr;
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
 };
 
-struct msm_vidc_mappings {
-	struct list_head            list; // list of "struct msm_vidc_map"
+struct msm_vidc_mem_list {
+	struct list_head            list; // list of "struct msm_vidc_mem"
 };
 
 struct msm_vidc_buffer {

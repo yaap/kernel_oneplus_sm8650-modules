@@ -79,7 +79,7 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_co
 	return attach;
 }
 
-static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
+static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
 {
 	int rc = 0;
 
@@ -114,7 +114,7 @@ static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_
 	return rc;
 }
 
-static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc_alloc *mem)
+static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
 {
 	int rc = 0;
 	int size = 0;
@@ -224,39 +224,39 @@ error:
 	return rc;
 }
 
-static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_map *map)
+static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
 {
 	int rc = 0;
 	struct dma_buf_attachment *attach = NULL;
 	struct sg_table *table = NULL;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !map) {
+	if (!core || !mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	if (map->refcount) {
-		map->refcount++;
+	if (mem->refcount) {
+		mem->refcount++;
 		goto exit;
 	}
 
 	/* reject non-secure mapping request for a secure buffer(or vice versa) */
-	if (map->region == MSM_VIDC_NON_SECURE || map->region == MSM_VIDC_NON_SECURE_PIXEL) {
-		if (!is_non_secure_buffer(map->dmabuf)) {
+	if (mem->region == MSM_VIDC_NON_SECURE || mem->region == MSM_VIDC_NON_SECURE_PIXEL) {
+		if (!is_non_secure_buffer(mem->dmabuf)) {
 			d_vpr_e("%s: secure buffer mapping to non-secure region %d not allowed\n",
-				__func__, map->region);
+				__func__, mem->region);
 			return -EINVAL;
 		}
 	} else {
-		if (is_non_secure_buffer(map->dmabuf)) {
+		if (is_non_secure_buffer(mem->dmabuf)) {
 			d_vpr_e("%s: non-secure buffer mapping to secure region %d not allowed\n",
-				__func__, map->region);
+				__func__, mem->region);
 			return -EINVAL;
 		}
 	}
 
-	cb = msm_vidc_get_context_bank_for_region(core, map->region);
+	cb = msm_vidc_get_context_bank_for_region(core, mem->region);
 	if (!cb) {
 		d_vpr_e("%s: Failed to get context bank device\n",
 			 __func__);
@@ -265,7 +265,7 @@ static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_m
 	}
 
 	/* Prepare a dma buf for dma on the given device */
-	attach = msm_vidc_dma_buf_attach_ext(core, map->dmabuf, cb->dev);
+	attach = msm_vidc_dma_buf_attach_ext(core, mem->dmabuf, cb->dev);
 	if (IS_ERR_OR_NULL(attach)) {
 		rc = PTR_ERR(attach) ? PTR_ERR(attach) : -ENOMEM;
 		d_vpr_e("Failed to attach dmabuf\n");
@@ -279,21 +279,56 @@ static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_m
 		goto error_table;
 	}
 
-	map->device_addr = sg_dma_address(table->sgl);
-	map->table = table;
-	map->attach = attach;
-	map->refcount++;
+	mem->device_addr = sg_dma_address(table->sgl);
+	mem->table = table;
+	mem->attach = attach;
+	mem->refcount++;
 
 exit:
 	d_vpr_l("%s: type %11s, device_addr %#llx, refcount %d, region %d\n",
-		__func__, buf_name(map->type), map->device_addr, map->refcount, map->region);
+		__func__, buf_name(mem->type), mem->device_addr, mem->refcount, mem->region);
 
 	return 0;
 
 error_table:
-	call_mem_op(core, dma_buf_detach, core, map->dmabuf, attach);
+	call_mem_op(core, dma_buf_detach, core, mem->dmabuf, attach);
 error_attach:
 error_cb:
+	return rc;
+}
+
+static int msm_vidc_memory_unmap_ext(struct msm_vidc_core *core,
+	struct msm_vidc_mem *mem)
+{
+	int rc = 0;
+
+	if (!core || !mem) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (mem->refcount) {
+		mem->refcount--;
+	} else {
+		d_vpr_e("unmap called while refcount is zero already\n");
+		return -EINVAL;
+	}
+
+	d_vpr_l(
+		"%s: type %11s, device_addr %#llx, refcount %d, region %d\n",
+		__func__, buf_name(mem->type), mem->device_addr, mem->refcount, mem->region);
+
+	if (mem->refcount)
+		goto exit;
+
+	call_mem_op(core, dma_buf_unmap_attachment, core, mem->attach, mem->table);
+	call_mem_op(core, dma_buf_detach, core, mem->dmabuf, mem->attach);
+
+	mem->device_addr = 0x0;
+	mem->attach = NULL;
+	mem->table = NULL;
+
+exit:
 	return rc;
 }
 
@@ -379,17 +414,54 @@ static u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
 	return region;
 }
 
+static int msm_vidc_memory_alloc_map_ext(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
+{
+	int rc = 0;
+
+	rc = msm_vidc_memory_alloc_ext(core, mem);
+	if (rc) {
+		d_vpr_e("%s: memory_alloc failed\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = msm_vidc_memory_map_ext(core, mem);
+	if (rc) {
+		d_vpr_e("%s: memory_map failed\n", __func__);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
+static int msm_vidc_memory_unmap_free_ext(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
+{
+	int rc = 0;
+
+	rc = msm_vidc_memory_unmap_ext(core, mem);
+	if (rc) {
+		d_vpr_e("%s: memory_unmap failed\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = msm_vidc_memory_free_ext(core, mem);
+	if (rc) {
+		d_vpr_e("%s: memory_free failed\n", __func__);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
 struct msm_vidc_memory_ops *get_mem_ops_ext(void)
 {
 	struct msm_vidc_memory_ops *mem_ops = get_mem_ops();
 	static struct msm_vidc_memory_ops mem_ops_ext;
 
 	memcpy(&mem_ops_ext, mem_ops, sizeof(struct msm_vidc_memory_ops));
-	mem_ops_ext.dma_buf_attach   = msm_vidc_dma_buf_attach_ext;
-	mem_ops_ext.memory_free      = msm_vidc_memory_free_ext;
-	mem_ops_ext.memory_alloc     = msm_vidc_memory_alloc_ext;
-	mem_ops_ext.memory_map       = msm_vidc_memory_map_ext;
-	mem_ops_ext.buffer_region    = msm_vidc_buffer_region_ext;
+	mem_ops_ext.dma_buf_attach    = msm_vidc_dma_buf_attach_ext;
+	mem_ops_ext.memory_alloc_map  = msm_vidc_memory_alloc_map_ext;
+	mem_ops_ext.memory_unmap_free = msm_vidc_memory_unmap_free_ext;
+	mem_ops_ext.buffer_region     = msm_vidc_buffer_region_ext;
 
 	return &mem_ops_ext;
 }

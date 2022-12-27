@@ -21,8 +21,7 @@ struct msm_memory_dmabuf {
 
 enum msm_memory_pool_type {
 	MSM_MEM_POOL_BUFFER  = 0,
-	MSM_MEM_POOL_MAP,
-	MSM_MEM_POOL_ALLOC,
+	MSM_MEM_POOL_ALLOC_MAP,
 	MSM_MEM_POOL_TIMESTAMP,
 	MSM_MEM_POOL_DMABUF,
 	MSM_MEM_POOL_PACKET,
@@ -72,14 +71,10 @@ struct msm_vidc_memory_ops {
 		struct dma_buf_attachment *attach);
 	int (*dma_buf_unmap_attachment)(struct msm_vidc_core *core,
 		struct dma_buf_attachment *attach, struct sg_table *table);
-	int (*memory_map)(struct msm_vidc_core *core,
-		struct msm_vidc_map *map);
-	int (*memory_unmap)(struct msm_vidc_core *core,
-		struct msm_vidc_map *map);
-	int (*memory_alloc)(struct msm_vidc_core *core,
-		struct msm_vidc_alloc *alloc);
-	int (*memory_free)(struct msm_vidc_core *core,
-		struct msm_vidc_alloc *alloc);
+	int (*memory_alloc_map)(struct msm_vidc_core *core,
+		struct msm_vidc_mem *mem);
+	int (*memory_unmap_free)(struct msm_vidc_core *core,
+		struct msm_vidc_mem *mem);
 	u32 (*buffer_region)(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type buffer_type);
 };
