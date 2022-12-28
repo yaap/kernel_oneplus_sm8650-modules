@@ -34,6 +34,7 @@ struct gen7_gpudev {
 
 extern const struct gen7_gpudev adreno_gen7_gmu_gpudev;
 extern const struct gen7_gpudev adreno_gen7_hwsched_gpudev;
+extern const struct gen7_gpudev adreno_gen7_9_0_hwsched_gpudev;
 
 /**
  * struct gen7_device - Container for the gen7_device
