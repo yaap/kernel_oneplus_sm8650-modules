@@ -2017,6 +2017,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_0_0 = {
 	.highest_bank_bit = 16,
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
+	.ctxt_record_size = (2860 * SZ_1K),
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_0_1 = {
@@ -2051,6 +2052,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_0_1 = {
 	.highest_bank_bit = 16,
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
+	.ctxt_record_size = (2860 * SZ_1K),
 };
 
 extern const struct gen7_snapshot_block_list gen7_2_0_snapshot_block_list;
@@ -2160,6 +2162,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_2_0 = {
 	.gen7_snapshot_block_list = &gen7_2_0_snapshot_block_list,
 	.bcl_data = 1,
 	.preempt_level = 1,
+	.ctxt_record_size = (4192 * SZ_1K),
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_2_1 = {
@@ -2195,6 +2198,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_2_1 = {
 	.gen7_snapshot_block_list = &gen7_2_0_snapshot_block_list,
 	.bcl_data = 1,
 	.preempt_level = 1,
+	.ctxt_record_size = (4192 * SZ_1K),
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_4_0 = {
@@ -2229,6 +2233,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_4_0 = {
 	.highest_bank_bit = 16,
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
+	.ctxt_record_size = (2860 * SZ_1K),
 };
 
 extern const struct gen7_snapshot_block_list gen7_9_0_snapshot_block_list;
