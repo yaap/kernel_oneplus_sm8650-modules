@@ -723,7 +723,7 @@ static int a6xx_hwsched_first_boot(struct adreno_device *adreno_dev)
 	if (test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags))
 		return a6xx_hwsched_boot(adreno_dev);
 
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION))
+	if (adreno_preemption_feature_set(adreno_dev))
 		set_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv);
 
 	adreno_hwsched_start(adreno_dev);

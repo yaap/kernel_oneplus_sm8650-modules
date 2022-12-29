@@ -1309,7 +1309,11 @@ int gen7_probe_common(struct platform_device *pdev,
 	adreno_dev->hwcg_enabled = true;
 	adreno_dev->uche_client_pf = 1;
 
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION)) {
+	ret = adreno_device_probe(pdev, adreno_dev);
+	if (ret)
+		return ret;
+
+	if (adreno_preemption_feature_set(adreno_dev)) {
 		const struct adreno_gen7_core *gen7_core = to_gen7_core(adreno_dev);
 
 		adreno_dev->preempt.preempt_level = gen7_core->preempt_level;
@@ -1317,10 +1321,6 @@ int gen7_probe_common(struct platform_device *pdev,
 		adreno_dev->preempt.usesgmem = true;
 		set_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv);
 	}
-
-	ret = adreno_device_probe(pdev, adreno_dev);
-	if (ret)
-		return ret;
 
 	/* debugfs node for ACD calibration */
 	debugfs_create_file("acd_calibrate", 0644, device->d_debugfs, device, &acd_cal_fops);
@@ -1541,7 +1541,7 @@ u64 gen7_read_alwayson(struct adreno_device *adreno_dev)
 
 static void gen7_remove(struct adreno_device *adreno_dev)
 {
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION))
+	if (adreno_preemption_feature_set(adreno_dev))
 		del_timer(&adreno_dev->preempt.timer);
 }
 
