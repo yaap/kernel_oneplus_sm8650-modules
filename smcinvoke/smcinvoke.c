@@ -164,6 +164,7 @@ static DEFINE_MUTEX(g_smcinvoke_lock);
 enum worker_thread_type {
 	SHMB_WORKER_THREAD      = 0,
 	OBJECT_WORKER_THREAD,
+	ADCI_WORKER_THREAD,
 	MAX_THREAD_NUMBER
 };
 
@@ -324,7 +325,8 @@ struct smcinvoke_worker_thread {
 
 static struct smcinvoke_worker_thread smcinvoke[MAX_THREAD_NUMBER];
 static const char thread_name[MAX_THREAD_NUMBER][MAX_CHAR_NAME] = {
-	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess"};
+	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess", "smcinvoke_adci_thread"};
+static struct Object adci_clientEnv = Object_NULL;
 
 static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		size_t in_buf_len,
@@ -560,6 +562,38 @@ out:
 	return ret;
 }
 
+static void smcinvoke_start_adci_thread(void)
+{
+
+	int32_t  ret = OBJECT_ERROR;
+	int retry_count = 0;
+
+	ret = get_client_env_object(&adci_clientEnv);
+	if (ret) {
+		pr_err("failed to get clientEnv for ADCI invoke thread. ret = %d\n", ret);
+		adci_clientEnv = Object_NULL;
+		goto out;
+	}
+	/* Invoke call to QTEE which should never return if ADCI is supported */
+	do {
+		ret = IClientEnv_accept(adci_clientEnv);
+		if (ret == OBJECT_ERROR_BUSY) {
+			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+			msleep(5);
+		}
+	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
+
+	if (ret == OBJECT_ERROR_INVALID)
+		pr_err("ADCI feature is not supported on this chipsets, ret = %d\n", ret);
+	/* Need to take decesion here if we want to restart the ADCI thread */
+	else
+		pr_err("Received response from QTEE, ret = %d\n", ret);
+out:
+	/* Control should reach to this point only if ADCI feature is not supported by QTEE
+	  (or) ADCI thread held in QTEE is released. */
+	Object_ASSIGN_NULL(adci_clientEnv);
+}
+
 static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvoke)
 {
 	if (smcinvoke) {
@@ -582,29 +616,45 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 		return -EINVAL;
 	}
 
-	tag = smcinvoke_wrk_trd->type == SHMB_WORKER_THREAD ? "shmbridge":"object";
-
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(
 			smcinvoke_wrk_trd->postprocess_kthread_wq,
 			kthread_should_stop() ||
 			(atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state)
 			== POST_KT_WAKEUP));
-		pr_debug("kthread to %s postprocess is called %d\n",
-			tag,
-			atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 		switch (smcinvoke_wrk_trd->type) {
 		case SHMB_WORKER_THREAD:
+			tag = "shmbridge";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_shmbridge_post_process();
 			break;
 		case OBJECT_WORKER_THREAD:
+			tag = "object";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_object_post_process();
+			break;
+		case ADCI_WORKER_THREAD:
+			tag = "adci";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			smcinvoke_start_adci_thread();
 			break;
 		default:
 			pr_err("Invalid thread type(%d), do nothing.\n",
 					(int)smcinvoke_wrk_trd->type);
 			break;
 		}
+		/* For ADCI thread, if control reaches here, that indicates either ADCI
+		 * thread is not supported (or) released by QTEE. Since ADCI thread is
+		 * getting signaled only during the smcinvoke driver initialization,
+		 * there is no point of putting the thread into sleep state again. All the
+		 * required post-processing will be taken care by object and shmbridge threads.
+		 */
+		if(smcinvoke_wrk_trd->type == ADCI_WORKER_THREAD) {
+			break;
+		  }
 		atomic_set(&smcinvoke_wrk_trd->postprocess_kthread_state,
 			POST_KT_SLEEP);
 	}
@@ -618,7 +668,7 @@ static int smcinvoke_create_kthreads(void)
 {
 	int i, rc = 0;
 	const enum worker_thread_type thread_type[MAX_THREAD_NUMBER] = {
-		SHMB_WORKER_THREAD, OBJECT_WORKER_THREAD};
+		SHMB_WORKER_THREAD, OBJECT_WORKER_THREAD, ADCI_WORKER_THREAD};
 
 	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
 		init_waitqueue_head(&smcinvoke[i].postprocess_kthread_wq);
@@ -642,9 +692,26 @@ static int smcinvoke_create_kthreads(void)
 static void smcinvoke_destroy_kthreads(void)
 {
 	int i;
+	int32_t  ret = OBJECT_ERROR;
+	int retry_count = 0;
 
-	for (i = 0; i < MAX_THREAD_NUMBER; i++)
+	if(!Object_isNull(adci_clientEnv)) {
+		do {
+			ret = IClientEnv_adciShutdown(adci_clientEnv);
+			if (ret == OBJECT_ERROR_BUSY) {
+				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+				msleep(5);
+			}
+		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
+		if(OBJECT_isERROR(ret)) {
+			pr_err("adciShutdown in QTEE failed with error = %d\n", ret);
+		}
+		Object_ASSIGN_NULL(adci_clientEnv);
+	}
+
+	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
 		kthread_stop(smcinvoke[i].postprocess_kthread_task);
+	}
 }
 
 static inline void free_mem_obj_locked(struct smcinvoke_mem_obj *mem_obj)
@@ -2349,7 +2416,9 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	if (context_type == SMCINVOKE_OBJ_TYPE_TZ_OBJ &&
 			tzobj->tzhandle == SMCINVOKE_TZ_ROOT_OBJ &&
 			(req.op == IClientEnv_OP_notifyDomainChange ||
-			req.op == IClientEnv_OP_registerWithCredentials)) {
+			req.op == IClientEnv_OP_registerWithCredentials ||
+			req.op == IClientEnv_OP_accept ||
+			req.op == IClientEnv_OP_adciShutdown)) {
 		pr_err("invalid rootenv op\n");
 		return -EINVAL;
 	}
@@ -2814,6 +2883,7 @@ static int smcinvoke_probe(struct platform_device *pdev)
 		pr_err("failed to get qseecom kernel func ops %d", rc);
 	}
 #endif
+	__wakeup_postprocess_kthread(&smcinvoke[ADCI_WORKER_THREAD]);
 	return 0;
 
 exit_destroy_device:

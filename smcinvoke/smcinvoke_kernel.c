@@ -7,6 +7,7 @@
 #include <linux/fs.h>
 #include <linux/fdtable.h>
 #include <linux/anon_inodes.h>
+#include <linux/delay.h>
 #include <linux/kref.h>
 #include <linux/types.h>
 #include <linux/slab.h>
@@ -295,6 +296,7 @@ static int get_root_obj(struct Object *rootObj)
 int32_t get_client_env_object(struct Object *clientEnvObj)
 {
 	int32_t  ret = OBJECT_ERROR;
+	int retry_count = 0;
 	struct Object rootObj = Object_NULL;
 
 	/* get rootObj */
@@ -305,8 +307,15 @@ int32_t get_client_env_object(struct Object *clientEnvObj)
 	}
 
 	/* get client env */
-	ret = IClientEnv_registerWithCredentials(rootObj,
+	do {
+		ret = IClientEnv_registerWithCredentials(rootObj,
 			Object_NULL, clientEnvObj);
+		if (ret == OBJECT_ERROR_BUSY) {
+			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+			msleep(5);
+		}
+	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
+
 	if (ret)
 		pr_err("Failed to get ClientEnvObject, ret = %d\n", ret);
 	Object_release(rootObj);

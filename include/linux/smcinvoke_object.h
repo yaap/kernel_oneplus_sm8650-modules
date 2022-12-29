@@ -184,6 +184,7 @@ static inline void Object_replace(struct Object *loc, struct Object objNew)
 }
 
 #define Object_ASSIGN_NULL(loc)  Object_replace(&(loc), Object_NULL)
+#define SMCINVOKE_INTERFACE_MAX_RETRY		5
 
 int smcinvoke_release_from_kernel_client(int fd);
 
