@@ -20,24 +20,36 @@
 
 #define DEVICE_NAME_MAX_LEN	64
 
-enum btfmcodec_states {
-	/*Default state of btfm codec driver */
+typedef enum btfmcodec_states {
+	/*Default state of kernel proxy driver */
 	IDLE = 0,
-	/* When BT is active transport */
-	BT_Connected = 1,
 	/* Waiting for BT bearer indication after configuring HW ports */
-	BT_Connecting = 2,
-	/* When BTADV_AUDIO is active transport */
-	BTADV_AUDIO_Connected = 3,
-	/* Waiting for BTADV_AUDIO bearer switch indications */
-	BTADV_AUDIO_Connecting = 4
+	BT_Connecting = 1,
+	/* When BT is active transport */
+	BT_Connected = 2,
+	/* Waiting for BTADV Audio bearer switch indications */
+	BTADV_AUDIO_Connecting = 3,
+	/* When BTADV audio is active transport */
+	BTADV_AUDIO_Connected = 4
+} btfmcodec_state;
+
+enum btfm_pkt_type {
+	BTM_PKT_TYPE_PREPARE_REQ = 0,
+	BTM_PKT_TYPE_MASTER_CONFIG_RSP,
+	BTM_PKT_TYPE_MASTER_SHUTDOWN_RSP,
+	BTM_PKT_TYPE_BEARER_SWITCH_IND,
+	BTM_PKT_TYPE_HWEP_SHUTDOWN,
+	BTM_PKT_TYPE_HWEP_CONFIG,
+	BTM_PKT_TYPE_MAX,
 };
+
 
 char *coverttostring(enum btfmcodec_states);
 struct btfmcodec_state_machine {
-	enum btfmcodec_states prev_state;
-	enum btfmcodec_states current_state;
-	enum btfmcodec_states next_state;
+	struct mutex state_machine_lock;
+	btfmcodec_state prev_state;
+	btfmcodec_state current_state;
+	btfmcodec_state next_state;
 };
 
 struct btfmcodec_char_device {
@@ -46,11 +58,17 @@ struct btfmcodec_char_device {
 	struct mutex lock;
 	int reuse_minor;
 	char dev_name[DEVICE_NAME_MAX_LEN];
+	struct workqueue_struct *workqueue;
 	struct sk_buff_head rxq;
 	struct work_struct rx_work;
+	struct work_struct wq_hwep_shutdown;
+	struct work_struct wq_prepare_bearer;
+	struct work_struct wq_hwep_configure;
 	wait_queue_head_t readq;
 	spinlock_t tx_queue_lock;
 	struct sk_buff_head txq;
+	wait_queue_head_t rsp_wait_q[BTM_PKT_TYPE_MAX];
+	uint8_t status[BTM_PKT_TYPE_MAX];
 	void *btfmcodec;
 };
 
@@ -59,8 +77,8 @@ struct btfmcodec_data {
 	struct btfmcodec_state_machine states;
 	struct btfmcodec_char_device *btfmcodec_dev;
 	struct hwep_data *hwep_info;
+	struct list_head config_head;
 };
 
-int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *, uint8_t *, int);
 struct btfmcodec_data *btfm_get_btfmcodec(void);
 #endif /*__LINUX_BTFM_CODEC_H */

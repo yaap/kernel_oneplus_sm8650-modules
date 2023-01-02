@@ -24,7 +24,7 @@ struct btfmcodec_data *btfmcodec;
 struct device_driver driver = {.name = "btfmcodec-driver", .owner = THIS_MODULE};
 struct btfmcodec_char_device *btfmcodec_dev;
 #define cdev_to_btfmchardev(_cdev) container_of(_cdev, struct btfmcodec_char_device, cdev)
-#define MIN_PKT_LEN  0x3
+#define MIN_PKT_LEN  0x9
 
 char *coverttostring(enum btfmcodec_states state) {
 	switch (state) {
@@ -63,15 +63,15 @@ static int btfmcodec_dev_open(struct inode *inode, struct file *file)
 {
 	struct btfmcodec_char_device *btfmcodec_dev = cdev_to_btfmchardev(inode->i_cdev);
 	struct btfmcodec_data *btfmcodec = (struct btfmcodec_data *)btfmcodec_dev->btfmcodec;
-	int active_clients = refcount_read(&btfmcodec_dev->active_clients);
+	unsigned int active_clients = refcount_read(&btfmcodec_dev->active_clients);
 
 	btfmcodec->states.current_state = IDLE; /* Just a temp*/
-	BTFMCODEC_INFO("File mode :%u", file->f_mode);
+	btfmcodec->states.next_state = IDLE;
 	BTFMCODEC_INFO("for %s by %s:%d active_clients[%d]\n",
 		       btfmcodec_dev->dev_name, current->comm,
 		       task_pid_nr(current), refcount_read(&btfmcodec_dev->active_clients));
 	/* Don't allow a new client if already one is active. */
-	if (active_clients > 0) {
+	if (active_clients > 1) {
 		BTFMCODEC_WARN("%s: Not honoring open as other client is active", __func__);
 		return EACCES;
 	}
@@ -95,12 +95,12 @@ static int btfmcodec_dev_release(struct inode *inode, struct file *file)
 	struct btfmcodec_char_device *btfmcodec_dev = cdev_to_btfmchardev(inode->i_cdev);
 	unsigned long flags;
 
-	BTFMCODEC_INFO("for %s by %s:%d active_clients[%d]\n",
+	BTFMCODEC_INFO("for %s by %s:%d active_clients[%u]\n",
 		       btfmcodec_dev->dev_name, current->comm,
 		       task_pid_nr(current), refcount_read(&btfmcodec_dev->active_clients));
 
 	refcount_dec(&btfmcodec_dev->active_clients);
-	if (refcount_read(&btfmcodec_dev->active_clients) == 0) {
+	if (refcount_read(&btfmcodec_dev->active_clients) == 1) {
 		spin_lock_irqsave(&btfmcodec_dev->tx_queue_lock, flags);
 		skb_queue_purge(&btfmcodec_dev->txq);
 		/* Wakeup the device if waiting for the data */
@@ -110,42 +110,93 @@ static int btfmcodec_dev_release(struct inode *inode, struct file *file)
 		skb_queue_purge(&btfmcodec_dev->rxq);
 	}
 
+	btfmcodec->states.current_state = IDLE;
+	btfmcodec->states.next_state = IDLE;
 	return 0;
 }
 
-btm_opcode get_opcode (struct sk_buff *skb)
+btm_opcode STREAM_TO_UINT32 (struct sk_buff *skb)
 {
-	return ((skb->data[0]<< 8) | skb->data[1]);
+	return (skb->data[0] | (skb->data[1] << 8) |
+		(skb->data[2] << 16) | (skb->data[3] << 24));
 }
 
 static void btfmcodec_dev_rxwork(struct work_struct *work)
 {
 	struct btfmcodec_char_device *btfmcodec_dev = container_of(work, struct btfmcodec_char_device, rx_work);
 	struct sk_buff *skb;
-	struct btm_req *req_pkt;
+	uint32_t len;
+	uint8_t status;
+	int idx;
 
 	BTFMCODEC_DBG("start");
 	while ((skb = skb_dequeue(&btfmcodec_dev->rxq))) {
-		btm_opcode opcode = get_opcode(skb);
-//		skb_pull(skb, sizeof(btm_opcode));
+		btm_opcode opcode = STREAM_TO_UINT32(skb);
+		skb_pull(skb, sizeof(btm_opcode));
+		len = STREAM_TO_UINT32(skb);
+		skb_pull(skb, sizeof(len));
 		switch (opcode) {
 		case BTM_BTFMCODEC_PREPARE_AUDIO_BEARER_SWITCH_REQ:
-			req_pkt = (void *)skb->data;
-			req_pkt->opcode  = opcode;
-			BTFMCODEC_DBG("BTM_BTFMCODEC_PREPARE_AUDIO_BEARER_SWITCH_REQ opcode %4x and len %d", req_pkt->opcode, req_pkt->len);
-			btfmcodec_dev_enqueue_pkt(btfmcodec_dev, skb->data, skb->len);
+			idx = BTM_PKT_TYPE_PREPARE_REQ;
+			BTFMCODEC_DBG("BTM_BTFMCODEC_PREPARE_AUDIO_BEARER_SWITCH_REQ");
+			if (len == BTM_PREPARE_AUDIO_BEARER_SWITCH_REQ_LEN) {
+				btfmcodec_dev->status[idx] = skb->data[0];
+				BTFMCODEC_INFO("prepare wq_prepare_bearer:%p", btfmcodec_dev->wq_prepare_bearer);
+				queue_work(btfmcodec_dev->workqueue, &btfmcodec_dev->wq_prepare_bearer);
+			} else {
+				BTFMCODEC_ERR("wrong packet format with len:%d", len);
+			}
 			break;
 		case BTM_BTFMCODEC_MASTER_CONFIG_RSP:
-			BTFMCODEC_DBG("BTM_BTFMCODEC_MASTER_CONFIG_RSP");
+			idx = BTM_PKT_TYPE_MASTER_CONFIG_RSP;
+			if (len == BTM_MASTER_CONFIG_RSP_LEN) {
+				status = skb->data[1];
+				if (status == MSG_SUCCESS)
+				  btfmcodec_dev->status[idx] = BTM_RSP_RECV;
+				else
+				  btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			} else {
+				BTFMCODEC_ERR("wrong packet format with len:%d", len);
+				btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			}
+			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_MASTER_CONFIG_RSP status:%d",
+				status);
+			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
 			break;
 		case BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP:
-			BTFMCODEC_DBG("BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP");
+			idx = BTM_PKT_TYPE_MASTER_SHUTDOWN_RSP;
+			if (len == BTM_MASTER_CONFIG_RSP_LEN) {
+				status = skb->data[1];
+				if (status == MSG_SUCCESS)
+				  btfmcodec_dev->status[idx] = BTM_RSP_RECV;
+				else
+				  btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			} else {
+				BTFMCODEC_ERR("wrong packet format with len:%d", len);
+				btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			}
+			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP status:%d",
+				status);
+			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
 			break;
 		case BTM_BTFMCODEC_BEARER_SWITCH_IND:
-			BTFMCODEC_DBG("BTM_BTFMCODEC_BEARER_SWITCH_IND");
+			idx = BTM_PKT_TYPE_BEARER_SWITCH_IND;
+			if (len == BTM_BEARER_SWITCH_IND_LEN) {
+				status = skb->data[0];
+				if (status == MSG_SUCCESS)
+				  btfmcodec_dev->status[idx] = BTM_RSP_RECV;
+				else
+				  btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			} else {
+				BTFMCODEC_ERR("wrong packet format with len:%d", len);
+				btfmcodec_dev->status[idx] = BTM_FAIL_RESP_RECV;
+			}
+			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_BEARER_SWITCH_IND status:%d",
+				status);
+			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
 			break;
 		default:
-			BTFMCODEC_ERR("wrong opcode:%04x", opcode);
+			BTFMCODEC_ERR("wrong opcode:%08x", opcode);
 		}
 		kfree_skb(skb);
 	}
@@ -172,7 +223,7 @@ static ssize_t btfmcodec_dev_write(struct file *file,
 	void *kbuf;
 	int ret =  0;
 
-	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 0) {
+	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 1) {
 		BTFMCODEC_INFO("%s: %d\n", current->comm, task_pid_nr(current));
 		return -EINVAL;
 	} else {
@@ -219,16 +270,22 @@ static ssize_t btfmcodec_dev_write(struct file *file,
 free_kbuf:
 	mutex_unlock(&btfmcodec_dev->lock);
 	BTFMCODEC_DBG("finish to %s ret %d\n", btfmcodec_dev->dev_name, ret);
-	return ret;
+	return ret < 0 ? ret : count;
 }
 
-int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *btfmcodec_dev, uint8_t *buf, int len)
+int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *btfmcodec_dev, void *buf, int len)
 {
 	struct sk_buff *skb;
 	unsigned long flags;
+	uint8_t *cmd = buf;
 
 	BTFMCODEC_DBG("start");
 	spin_lock_irqsave(&btfmcodec_dev->tx_queue_lock, flags);
+	if (refcount_read(&btfmcodec_dev->active_clients) == 1) {
+		BTFMCODEC_WARN("no active clients discarding the packet");
+		spin_unlock_irqrestore(&btfmcodec_dev->tx_queue_lock, flags);
+		return -EINVAL;
+	}
 	skb = alloc_skb(len, GFP_ATOMIC);
 	if (!skb) {
 		BTFMCODEC_ERR("failed to allocate memory");
@@ -236,7 +293,7 @@ int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *btfmcodec_dev, uint8
 		return -ENOMEM;
 	}
 
-	skb_put_data(skb, buf, len);
+	skb_put_data(skb, cmd, len);
 	skb_queue_tail(&btfmcodec_dev->txq, skb);
 	wake_up_interruptible(&btfmcodec_dev->readq);
 	spin_unlock_irqrestore(&btfmcodec_dev->tx_queue_lock, flags);
@@ -261,7 +318,7 @@ static __poll_t btfmcodec_dev_poll(struct file *file, poll_table *wait)
 	unsigned long flags;
 
 	BTFMCODEC_DBG("start");
-	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 0) {
+	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 1) {
 		BTFMCODEC_INFO("%s: %d\n", current->comm, task_pid_nr(current));
 		return -EINVAL;
 	} else {
@@ -273,7 +330,7 @@ static __poll_t btfmcodec_dev_poll(struct file *file, poll_table *wait)
 
 	mutex_lock(&btfmcodec_dev->lock);
 	/* recheck if the client has released by the driver */
-	if (refcount_read(&btfmcodec_dev->active_clients) == 0) {
+	if (refcount_read(&btfmcodec_dev->active_clients) == 1) {
 		BTFMCODEC_WARN("port has been closed alreadt");
 		mutex_unlock(&btfmcodec_dev->lock);
 		return POLLHUP;
@@ -312,7 +369,7 @@ static ssize_t btfmcodec_dev_read(struct file *file,
 	int use;
 
 	BTFMCODEC_DBG("start");
-	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 0) {
+	if (!btfmcodec || !btfmcodec->btfmcodec_dev || refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 1) {
 		BTFMCODEC_INFO("%s: %d\n", current->comm, task_pid_nr(current));
 		return -EINVAL;
 	} else {
@@ -333,7 +390,7 @@ static ssize_t btfmcodec_dev_read(struct file *file,
 			return -ERESTARTSYS;
 
 		/* We lost the client while waiting */
-		if (!refcount_read(&btfmcodec->btfmcodec_dev->active_clients))
+		if (refcount_read(&btfmcodec->btfmcodec_dev->active_clients) == 1)
 			return -ENETRESET;
 
 		spin_lock_irqsave(&btfmcodec_dev->tx_queue_lock, flags);
@@ -391,7 +448,7 @@ static ssize_t btfmcodec_attributes_show(struct device *dev,
 				 struct device_attribute *attr,
 				 char *buf)
 {
-//	struct btfmcodec_char_device *btfmcodec_dev = dev_to_btfmcodec(dev);
+//	struct btfmcodec_get_current_transport *btfmcodec_dev = dev_to_btfmcodec(dev);
 
 	return 0;
 }
@@ -409,7 +466,7 @@ static int __init btfmcodec_init(void)
 	struct btfmcodec_state_machine *states;
 	struct btfmcodec_char_device *btfmcodec_dev;
 	struct device *dev;
-	int ret;
+	int ret, i;
 
 	BTFMCODEC_INFO("starting up the module");
 	btfmcodec = kzalloc(sizeof(struct btfmcodec_data), GFP_KERNEL);
@@ -457,7 +514,7 @@ static int __init btfmcodec_init(void)
 
 	// ToDo Rethink of having btfmcodec alone instead of btfmcodec
 	btfmcodec->btfmcodec_dev = btfmcodec_dev;
-	refcount_set(&btfmcodec_dev->active_clients, 0);
+	refcount_set(&btfmcodec_dev->active_clients, 1);
 	mutex_init(&btfmcodec_dev->lock);
 	strlcpy(btfmcodec_dev->dev_name, "btfmcodec_dev", DEVICE_NAME_MAX_LEN);
 	device_initialize(dev);
@@ -499,6 +556,17 @@ static int __init btfmcodec_init(void)
 	init_waitqueue_head(&btfmcodec_dev->readq);
 	spin_lock_init(&btfmcodec_dev->tx_queue_lock);
 	skb_queue_head_init(&btfmcodec_dev->txq);
+	INIT_LIST_HEAD(&btfmcodec->config_head);
+	for (i = 0; i < BTM_PKT_TYPE_MAX; i++) {
+		init_waitqueue_head(&btfmcodec_dev->rsp_wait_q[i]);
+	}
+	mutex_init(&states->state_machine_lock);
+	btfmcodec_dev->workqueue = alloc_ordered_workqueue("btfmcodec_wq", 0);
+	if (!btfmcodec_dev->workqueue) {
+		BTFMCODEC_ERR("btfmcodec_dev Workqueue not initialized properly");
+		ret = -ENOMEM;
+		goto free_device;
+	}
 	return ret;
 
 free_device:

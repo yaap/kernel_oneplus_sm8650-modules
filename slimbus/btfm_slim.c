@@ -515,6 +515,67 @@ int btfm_slim_hw_deinit(struct btfmslim *btfmslim)
 	return ret;
 }
 
+#if IS_ENABLED (CONFIG_BTFM_SLIM)
+void btfm_slim_get_hwep_details(struct slim_device *dev, struct btfmslim *btfm_slim)
+{
+}
+#else
+void btfm_slim_get_hwep_details(struct slim_device *slim, struct btfmslim *btfm_slim)
+{
+	struct device_node *np = slim->dev.of_node;
+	const __be32 *prop;
+	struct btfmslim_ch *rx_chs = btfm_slim->rx_chs;
+	struct btfmslim_ch *tx_chs = btfm_slim->tx_chs;
+	int len;
+
+	prop = of_get_property(np, "qcom,btslim-address", &len);
+	if (prop) {
+		btfm_slim->device_id = be32_to_cpup(&prop[0]);
+		BTFMSLIM_DBG("hwep slim address define in dt %08x", btfm_slim->device_id);
+	} else {
+		BTFMSLIM_ERR("btslim-address is not defined in dt using default address");
+		btfm_slim->device_id = 0;
+	}
+
+	if (!rx_chs || !tx_chs) {
+		BTFMSLIM_ERR("either rx/tx channels are configured to null");
+		return;
+	}
+
+	prop = of_get_property(np, "qcom,btslimrx-channels", &len);
+	if (prop) {
+		/* Check if we need any protection for index */
+		rx_chs[0].ch = (uint8_t)be32_to_cpup(&prop[0]);
+		rx_chs[1].ch = (uint8_t)be32_to_cpup(&prop[1]);
+		BTFMSLIM_DBG("Rx: id\tname\tport\tch");
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%d", rx_chs[0].id,
+				rx_chs[0].name, rx_chs[0].port,
+				rx_chs[0].ch);
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%d", rx_chs[1].id,
+				rx_chs[1].name, rx_chs[1].port,
+				rx_chs[1].ch);
+	} else {
+		BTFMSLIM_ERR("btslimrx channels are missing in dt using default values");
+	}
+
+	prop = of_get_property(np, "qcom,btslimtx-channels", &len);
+	if (prop) {
+		/* Check if we need any protection for index */
+		tx_chs[0].ch = (uint8_t)be32_to_cpup(&prop[0]);
+		tx_chs[1].ch = (uint8_t)be32_to_cpup(&prop[1]);
+		BTFMSLIM_DBG("Tx: id\tname\tport\tch");
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%x", tx_chs[0].id,
+				tx_chs[0].name, tx_chs[0].port,
+				tx_chs[0].ch);
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%x", tx_chs[1].id,
+				tx_chs[1].name, tx_chs[1].port,
+				tx_chs[1].ch);
+	} else {
+		BTFMSLIM_ERR("btslimtx channels are missing in dt using default values");
+	}
+
+}
+#endif
 static int btfm_slim_status(struct slim_device *sdev,
 				enum slim_device_status status)
 {
@@ -526,6 +587,7 @@ static int btfm_slim_status(struct slim_device *sdev,
 #if IS_ENABLED(CONFIG_BTFM_SLIM)
 	ret = btfm_slim_register_codec(btfm_slim);
 #else
+	btfm_slim_get_hwep_details(sdev, btfm_slim);
 	ret = btfm_slim_register_hw_ep(btfm_slim);
 #endif
 	if (ret)

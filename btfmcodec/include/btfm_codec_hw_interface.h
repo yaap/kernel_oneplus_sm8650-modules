@@ -20,11 +20,32 @@
 #define BTADV_AUDIO_MASTER_CONFIG	0
 #define DEVICE_NAME_MAX_LEN	64
 
+struct hwep_configurations {
+	void *btfmcodec;
+	uint8_t stream_id;
+	uint32_t sample_rate;
+	uint8_t bit_width;
+	uint8_t codectype;
+	uint32_t direction;
+	struct list_head dai_list;
+};
+
+struct master_hwep_configurations {
+	uint8_t stream_id;
+	uint32_t device_id;
+	uint32_t sample_rate;
+	uint8_t bit_width;
+	uint8_t num_channels;
+	uint8_t chan_num;
+	uint8_t codectype;
+	uint16_t direction;
+};
 struct hwep_comp_drv {
-	int  (*hwep_probe)  (struct snd_soc_component *component);
-	void (*hwep_remove) (struct snd_soc_component *component);
-	unsigned int  (*hwep_read)(struct snd_soc_component *component, unsigned int reg);
-	int  (*hwep_write)(struct snd_soc_component *componentm, unsigned int reg, unsigned int value);
+	int  (*hwep_probe)  (struct snd_soc_component *);
+	void (*hwep_remove) (struct snd_soc_component *);
+	unsigned int  (*hwep_read)(struct snd_soc_component *, unsigned int );
+	int  (*hwep_write)(struct snd_soc_component *, unsigned int,
+			   unsigned int);
 };
 
 struct hwep_dai_ops {
@@ -36,6 +57,9 @@ struct hwep_dai_ops {
 				unsigned int, unsigned int *);
 	int (*hwep_get_channel_map)(void *, unsigned int *, unsigned int *,
 				unsigned int *, unsigned int *, int);
+	int (*hwep_get_configs)(void *, struct master_hwep_configurations *,
+				uint8_t);
+	uint8_t *hwep_codectype;
 };
 
 struct hwep_dai_driver {
@@ -51,7 +75,9 @@ struct hwep_data {
 	char driver_name [DEVICE_NAME_MAX_LEN];
         struct hwep_comp_drv *drv;
         struct hwep_dai_driver *dai_drv;
+	struct snd_kcontrol_new *mixer_ctrl;
 	int num_dai;
+	int num_mixer_ctrl;
 	unsigned long flags;
 };
 

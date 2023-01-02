@@ -26,15 +26,16 @@
 
 static int bt_soc_enable_status;
 int btfm_feedback_ch_setting;
+static uint8_t usecase_codec;
 
-static int btfm_slim_codec_write(struct snd_soc_component *codec,
+static int btfm_slim_hwep_write(struct snd_soc_component *codec,
 			unsigned int reg, unsigned int value)
 {
 	BTFMSLIM_DBG("");
 	return 0;
 }
 
-static unsigned int btfm_slim_codec_read(struct snd_soc_component *codec,
+static unsigned int btfm_slim_hwep_read(struct snd_soc_component *codec,
 				unsigned int reg)
 {
 	BTFMSLIM_DBG("");
@@ -72,25 +73,39 @@ static int btfm_put_feedback_ch_setting(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
-static const struct snd_kcontrol_new status_controls[] = {
+static int btfm_get_codec_type(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	BTFMSLIM_DBG("current codec type:%s", codec_text[usecase_codec]);
+	ucontrol->value.integer.value[0] = usecase_codec;
+	return 1;
+}
+
+static int btfm_put_codec_type(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	usecase_codec = ucontrol->value.integer.value[0];
+	BTFMSLIM_DBG("codec type set to:%s", codec_text[usecase_codec]);
+	return 1;
+}
+static struct snd_kcontrol_new status_controls[] = {
 	SOC_SINGLE_EXT("BT SOC status", 0, 0, 1, 0,
-			btfm_soc_status_get,
-			btfm_soc_status_put),
+	btfm_soc_status_get, btfm_soc_status_put),
 	SOC_SINGLE_EXT("BT set feedback channel", 0, 0, 1, 0,
 	btfm_get_feedback_ch_setting,
-	btfm_put_feedback_ch_setting)
+	btfm_put_feedback_ch_setting),
+	SOC_ENUM_EXT("BT codec type", codec_display,
+	btfm_get_codec_type, btfm_put_codec_type),
 };
 
 
-static int btfm_slim_codec_probe(struct snd_soc_component *codec)
+static int btfm_slim_hwep_probe(struct snd_soc_component *codec)
 {
 	BTFMSLIM_DBG("");
-	snd_soc_add_component_controls(codec, status_controls,
-				   ARRAY_SIZE(status_controls));
 	return 0;
 }
 
-static void btfm_slim_codec_remove(struct snd_soc_component *codec)
+static void btfm_slim_hwep_remove(struct snd_soc_component *codec)
 {
 	BTFMSLIM_DBG("");
 }
@@ -163,6 +178,30 @@ static int btfm_slim_dai_hw_params(void *dai, uint32_t bps,
 	return 0;
 }
 
+void btfm_get_sampling_rate(uint32_t *sampling_rate)
+{
+	uint8_t codec_types_avb = ARRAY_SIZE(codec_text);
+	if (usecase_codec > (codec_types_avb - 1)) {
+		BTFMSLIM_ERR("falling back to use default sampling_rate: %u",
+				*sampling_rate);
+		return;
+	}
+
+	if (*sampling_rate == 44100 || *sampling_rate == 48000) {
+		if (usecase_codec == LDAC ||
+		    usecase_codec == APTX_AD)
+			*sampling_rate = (*sampling_rate) *2;
+	}
+
+	if (usecase_codec == LC3_VOICE ||
+	    usecase_codec == APTX_AD_SPEECH ||
+	    usecase_codec == LC3 || usecase_codec == APTX_AD_QLEA) {
+		*sampling_rate = 96000;
+	}
+
+	BTFMSLIM_INFO("current usecase codec type %s and sampling rate:%u khz",
+			codec_text[usecase_codec], *sampling_rate);
+}
 static int btfm_slim_dai_prepare(void *dai, uint32_t sampling_rate, uint32_t direction, int id)
 {
 	struct hwep_data *hwep_info = (struct hwep_data *)dai;
@@ -175,6 +214,7 @@ static int btfm_slim_dai_prepare(void *dai, uint32_t sampling_rate, uint32_t dir
 	btfmslim->direction = direction;
 	bt_soc_enable_status = 0;
 
+	btfm_get_sampling_rate(&sampling_rate);
 	/* save sample rate */
 	btfmslim->sample_rate = sampling_rate;
 
@@ -254,7 +294,7 @@ static int btfm_slim_dai_set_channel_map(void *dai,
 		 * get channel handler from slimbus driver
 		*/
 		rx_chs->ch = *(uint8_t *)(rx_slot + i);
-		BTFMSLIM_DBG("    %d\t%s\t%d\t%x\t%d\t%x", rx_chs->id,
+		BTFMSLIM_DBG("    %d\t%s\t%d\t%x", rx_chs->id,
 			rx_chs->name, rx_chs->port, rx_chs->ch);
 	}
 
@@ -265,7 +305,7 @@ static int btfm_slim_dai_set_channel_map(void *dai,
 		 * get channel handler from slimbus driver
 		*/
 		tx_chs->ch = *(uint8_t *)(tx_slot + i);
-	BTFMSLIM_DBG("    %d\t%s\t%d\t%x\t%d\t%x", tx_chs->id,
+	BTFMSLIM_DBG("    %d\t%s\t%d\t%x", tx_chs->id,
 			tx_chs->name, tx_chs->port, tx_chs->ch);
 	}
 
@@ -352,6 +392,45 @@ static int btfm_slim_dai_get_channel_map(void *dai,
 	return 0;
 }
 
+int btfm_slim_dai_get_configs (void * dai,
+				struct master_hwep_configurations *hwep_config,
+				uint8_t id)
+{
+	struct hwep_data *hwep_info = (struct hwep_data *)dai;
+	struct btfmslim *btfmslim = dev_get_drvdata(hwep_info->dev);
+	struct btfmslim_ch *ch = NULL;
+	int i = 0;
+
+	BTFMSLIM_DBG("");
+	hwep_config->stream_id = id;
+	hwep_config->device_id = btfmslim->device_id;
+	hwep_config->sample_rate = btfmslim->sample_rate;
+	hwep_config->bit_width = (uint8_t)btfmslim->bps;
+	hwep_config->codectype = usecase_codec;
+	hwep_config->direction = btfmslim->direction;
+
+	switch (id) {
+		case BTFM_FM_SLIM_TX:
+		case BTFM_BT_SCO_SLIM_TX:
+			ch = btfmslim->tx_chs;
+			break;
+		case BTFM_BT_SCO_A2DP_SLIM_RX:
+		case BTFM_BT_SPLIT_A2DP_SLIM_RX:
+			ch = btfmslim->rx_chs;
+			break;
+	}
+
+	for (; i < id ; i++) {
+		if (ch[i].id == id) {
+			BTFMSLIM_DBG("id matched");
+			hwep_config->num_channels = 1;
+			hwep_config->chan_num = ch[i].ch;
+			break;
+		}
+	}
+
+	return 1;
+}
 static struct hwep_dai_ops  btfmslim_hw_dai_ops = {
 	.hwep_startup = btfm_slim_dai_startup,
 	.hwep_shutdown = btfm_slim_dai_shutdown,
@@ -359,6 +438,8 @@ static struct hwep_dai_ops  btfmslim_hw_dai_ops = {
 	.hwep_prepare = btfm_slim_dai_prepare,
 	.hwep_set_channel_map = btfm_slim_dai_set_channel_map,
 	.hwep_get_channel_map = btfm_slim_dai_get_channel_map,
+	.hwep_get_configs = btfm_slim_dai_get_configs,
+	.hwep_codectype = &usecase_codec,
 };
 
 static struct hwep_dai_driver btfmslim_dai_driver[] = {
@@ -403,10 +484,10 @@ static struct hwep_dai_driver btfmslim_dai_driver[] = {
 };
 
 static struct hwep_comp_drv btfmslim_hw_driver = {
-	.hwep_probe	= btfm_slim_codec_probe,
-	.hwep_remove	= btfm_slim_codec_remove,
-	.hwep_read	= btfm_slim_codec_read,
-	.hwep_write	= btfm_slim_codec_write,
+	.hwep_probe	= btfm_slim_hwep_probe,
+	.hwep_remove	= btfm_slim_hwep_remove,
+	.hwep_read	= btfm_slim_hwep_read,
+	.hwep_write	= btfm_slim_hwep_write,
 };
 
 int btfm_slim_register_hw_ep(struct btfmslim *btfm_slim)
@@ -431,6 +512,8 @@ int btfm_slim_register_hw_ep(struct btfmslim *btfm_slim)
 	hwep_info->dai_drv = btfmslim_dai_driver;
 	hwep_info->num_dai = ARRAY_SIZE(btfmslim_dai_driver);
 	hwep_info->num_dai = 2;
+	hwep_info->num_mixer_ctrl = ARRAY_SIZE(status_controls);
+	hwep_info->mixer_ctrl = status_controls;
 	set_bit(BTADV_AUDIO_MASTER_CONFIG, &hwep_info->flags);
 	/* Register to hardware endpoint */
 	ret = btfmcodec_register_hw_ep(hwep_info);
