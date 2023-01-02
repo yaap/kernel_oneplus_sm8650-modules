@@ -166,6 +166,7 @@ static int btfmcodec_dai_prepare(struct snd_pcm_substream *substream,
 	uint32_t sampling_rate = dai->rate;
 	uint32_t direction = substream->stream;
 	int id = dai->id;
+	int ret;
 
 
 	BTFMCODEC_INFO("dai->name: %s, dai->id: %d, dai->rate: %d direction: %d", dai->name,
@@ -174,8 +175,11 @@ static int btfmcodec_dai_prepare(struct snd_pcm_substream *substream,
 	if (states.current_state != IDLE) {
 		BTFMCODEC_WARN("Received probe when state is :%s", coverttostring(states.current_state));
 	} else if (dai_drv && dai_drv->dai_ops && dai_drv->dai_ops->hwep_prepare) {
-		return dai_drv->dai_ops->hwep_prepare((void *)btfmcodec->hwep_info, sampling_rate,
+		ret = dai_drv->dai_ops->hwep_prepare((void *)btfmcodec->hwep_info, sampling_rate,
 							direction, id);
+		if (ret == 0 && test_bit(BTADV_AUDIO_MASTER_CONFIG, &btfmcodec->hwep_info->flags)) {
+			BTFMCODEC_DBG("configuring master now");
+		}
 	} else {
 		return -1;
 	}

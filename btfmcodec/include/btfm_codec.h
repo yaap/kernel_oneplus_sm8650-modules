@@ -10,6 +10,7 @@
 #include <linux/bitops.h>
 #include <linux/printk.h>
 #include <linux/cdev.h>
+#include <linux/skbuff.h>
 #include "btfm_codec_hw_interface.h"
 
 #define BTFMCODEC_DBG(fmt, arg...)  pr_err("%s: " fmt "\n", __func__, ## arg)
@@ -45,6 +46,12 @@ struct btfmcodec_char_device {
 	struct mutex lock;
 	int reuse_minor;
 	char dev_name[DEVICE_NAME_MAX_LEN];
+	struct sk_buff_head rxq;
+	struct work_struct rx_work;
+	wait_queue_head_t readq;
+	spinlock_t tx_queue_lock;
+	struct sk_buff_head txq;
+	void *btfmcodec;
 };
 
 struct btfmcodec_data {
@@ -54,5 +61,6 @@ struct btfmcodec_data {
 	struct hwep_data *hwep_info;
 };
 
+int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *, uint8_t *, int);
 struct btfmcodec_data *btfm_get_btfmcodec(void);
 #endif /*__LINUX_BTFM_CODEC_H */
