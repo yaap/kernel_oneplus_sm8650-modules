@@ -4046,17 +4046,17 @@ exit:
 	return rc;
 }
 
-static void update_inst_capability(struct msm_platform_inst_capability *in,
+static int update_inst_capability(struct msm_platform_inst_capability *in,
 		struct msm_vidc_inst_capability *capability)
 {
 	if (!in || !capability) {
 		d_vpr_e("%s: invalid params %pK %pK\n",
 			__func__, in, capability);
-		return;
+		return -EINVAL;
 	}
 	if (in->cap_id >= INST_CAP_MAX) {
 		d_vpr_e("%s: invalid cap id %d\n", __func__, in->cap_id);
-		return;
+		return -EINVAL;
 	}
 
 	capability->cap[in->cap_id].cap_id = in->cap_id;
@@ -4067,27 +4067,35 @@ static void update_inst_capability(struct msm_platform_inst_capability *in,
 	capability->cap[in->cap_id].flags = in->flags;
 	capability->cap[in->cap_id].v4l2_id = in->v4l2_id;
 	capability->cap[in->cap_id].hfi_id = in->hfi_id;
+
+	return 0;
 }
 
-static void update_inst_cap_dependency(
+static int update_inst_cap_dependency(
 	struct msm_platform_inst_cap_dependency *in,
 	struct msm_vidc_inst_capability *capability)
 {
 	if (!in || !capability) {
 		d_vpr_e("%s: invalid params %pK %pK\n",
 			__func__, in, capability);
-		return;
+		return -EINVAL;
 	}
 	if (in->cap_id >= INST_CAP_MAX) {
 		d_vpr_e("%s: invalid cap id %d\n", __func__, in->cap_id);
-		return;
+		return -EINVAL;
 	}
 
-	capability->cap[in->cap_id].cap_id = in->cap_id;
+	if (capability->cap[in->cap_id].cap_id != in->cap_id) {
+		d_vpr_e("%s: invalid cap id %d\n", __func__, in->cap_id);
+		return -EINVAL;
+	}
+
 	memcpy(capability->cap[in->cap_id].children, in->children,
 		sizeof(capability->cap[in->cap_id].children));
 	capability->cap[in->cap_id].adjust = in->adjust;
 	capability->cap[in->cap_id].set = in->set;
+
+	return 0;
 }
 
 int msm_vidc_deinit_instance_caps(struct msm_vidc_core *core)
@@ -4199,8 +4207,10 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 				(platform_cap_data[i].codec &
 				core->inst_caps[j].codec)) {
 				/* update core capability */
-				update_inst_capability(&platform_cap_data[i],
+				rc = update_inst_capability(&platform_cap_data[i],
 					&core->inst_caps[j]);
+				if (rc)
+					return rc;
 			}
 		}
 	}
@@ -4214,9 +4224,11 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 				(platform_cap_dependency_data[i].codec &
 				core->inst_caps[j].codec)) {
 				/* update core dependency capability */
-				update_inst_cap_dependency(
+				rc = update_inst_cap_dependency(
 					&platform_cap_dependency_data[i],
 					&core->inst_caps[j]);
+				if (rc)
+					return rc;
 			}
 		}
 	}
