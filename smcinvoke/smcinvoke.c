@@ -1771,18 +1771,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		return -EINVAL;
 
 	cmd = invoke_cmd;
-	/*
-	 * purpose of lock here is to ensure that any CB obj that may be going
-	 * to user as OO is not released by piggyback message on another invoke
-	 * request. We should not move this lock to process_invoke_req() because
-	 * that will either cause deadlock or prevent any other invoke request
-	 * to come in. We release this lock when either
-	 *     a) TZ requires HLOS action to complete ongoing invoke operation
-	 *     b) Final response to invoke has been marshalled out
-	 */
-	while (1) {
-		mutex_lock(&g_smcinvoke_lock);
 
+	while (1) {
 		do {
 			ret = invoke_cmd_handler(cmd, in_paddr, in_buf_len, out_buf,
 					out_paddr, out_buf_len, &req->result,
@@ -1790,9 +1780,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 
 			if (ret == -EBUSY) {
 				pr_err("Secure side is busy,will retry after 30 ms, retry_count = %d",retry_count);
-				mutex_unlock(&g_smcinvoke_lock);
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
-				mutex_lock(&g_smcinvoke_lock);
 			}
 
 		} while ((ret == -EBUSY) &&
@@ -1808,7 +1796,6 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 			}
 			*tz_acked = true;
 		}
-		mutex_unlock(&g_smcinvoke_lock);
 
 		if (cmd == SMCINVOKE_CB_RSP_CMD)
 			release_filp(arr_filp, OBJECT_COUNTS_MAX_OO);
