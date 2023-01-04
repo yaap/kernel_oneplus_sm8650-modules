@@ -136,6 +136,7 @@ struct clock_set {
 struct reset_info {
 	struct reset_control      *rst;
 	const char                *name;
+	bool                       exclusive_release;
 };
 
 struct reset_set {
@@ -208,6 +209,10 @@ struct msm_vidc_resources_ops {
 	int (*init)(struct msm_vidc_core *core);
 
 	int (*reset_bridge)(struct msm_vidc_core *core);
+	int (*reset_control_acquire)(struct msm_vidc_core *core,
+			const char *name);
+	int (*reset_control_release)(struct msm_vidc_core *core,
+			const char *name);
 	int (*reset_control_assert)(struct msm_vidc_core *core,
 			const char *name);
 	int (*reset_control_deassert)(struct msm_vidc_core *core,

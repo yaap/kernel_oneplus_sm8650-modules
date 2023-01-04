@@ -60,6 +60,7 @@ struct clk_table {
 
 struct clk_rst_table {
 	const char      *name;
+	bool             exclusive_release;
 };
 
 struct subcache_table {

@@ -401,17 +401,24 @@ static int __init_reset_clocks(struct msm_vidc_core *core)
 	rsts->count = rst_count;
 
 	/* populate clock field from platform data */
-	for (cnt = 0; cnt < rsts->count; cnt++)
+	for (cnt = 0; cnt < rsts->count; cnt++) {
 		rsts->reset_tbl[cnt].name = rst_tbl[cnt].name;
+		rsts->reset_tbl[cnt].exclusive_release = rst_tbl[cnt].exclusive_release;
+	}
 
 	/* print reset clock fields */
 	venus_hfi_for_each_reset_clock(core, rinfo) {
-		d_vpr_h("%s: reset clk %s\n", __func__, rinfo->name);
+		d_vpr_h("%s: reset clk %s, exclusive %d\n",
+			__func__, rinfo->name, rinfo->exclusive_release);
 	}
 
 	/* get reset clock handle */
 	venus_hfi_for_each_reset_clock(core, rinfo) {
-		rinfo->rst = devm_reset_control_get(&core->pdev->dev, rinfo->name);
+		if (rinfo->exclusive_release)
+			rinfo->rst = devm_reset_control_get_exclusive_released(
+				&core->pdev->dev, rinfo->name);
+		else
+			rinfo->rst = devm_reset_control_get(&core->pdev->dev, rinfo->name);
 		if (IS_ERR_OR_NULL(rinfo->rst)) {
 			d_vpr_e("%s: failed to get reset clock: %s\n", __func__, rinfo->name);
 			rc = PTR_ERR(rinfo->rst) ?
@@ -1323,6 +1330,73 @@ static int __init_resources(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __reset_control_acquire_name(struct msm_vidc_core *core,
+		const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	venus_hfi_for_each_reset_clock(core, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+
+		/* this function is valid only for exclusive_release reset clocks*/
+		if (!rcinfo->exclusive_release) {
+			d_vpr_e("%s: unsupported reset control (%s), exclusive %d\n",
+				__func__, name, rcinfo->exclusive_release);
+			return -EINVAL;
+		}
+
+		found = true;
+		rc = reset_control_acquire(rcinfo->rst);
+		if (rc)
+			d_vpr_e("%s: failed to acquire reset control (%s), rc = %d\n",
+				__func__, rcinfo->name, rc);
+		else
+			d_vpr_h("%s: acquire reset control (%s)\n",
+				__func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int __reset_control_release_name(struct msm_vidc_core *core,
+		const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	venus_hfi_for_each_reset_clock(core, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+
+		/* this function is valid only for exclusive_release reset clocks*/
+		if (!rcinfo->exclusive_release) {
+			d_vpr_e("%s: unsupported reset control (%s), exclusive %d\n",
+				__func__, name, rcinfo->exclusive_release);
+			return -EINVAL;
+		}
+
+		found = true;
+		reset_control_release(rcinfo->rst);
+		d_vpr_h("%s: release reset control (%s)\n", __func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: reset control (%s) not found\n", __func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
 static int __reset_control_assert_name(struct msm_vidc_core *core,
 		const char *name)
 {
@@ -1448,6 +1522,8 @@ static int __reset_ahb2axi_bridge(struct msm_vidc_core *core)
 static const struct msm_vidc_resources_ops res_ops = {
 	.init = __init_resources,
 	.reset_bridge = __reset_ahb2axi_bridge,
+	.reset_control_acquire = __reset_control_acquire_name,
+	.reset_control_release = __reset_control_release_name,
 	.reset_control_assert = __reset_control_assert_name,
 	.reset_control_deassert = __reset_control_deassert_name,
 	.gdsc_on = __enable_regulator,

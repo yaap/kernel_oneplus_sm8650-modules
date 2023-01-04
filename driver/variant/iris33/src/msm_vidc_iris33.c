@@ -4,6 +4,7 @@
  * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/reset.h>
 #include "msm_vidc_iris33.h"
 #include "msm_vidc_buffer_iris33.h"
 #include "msm_vidc_power_iris33.h"
@@ -384,6 +385,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	int value = 0;
+	u32 count = 0;
 
 	/*
 	 * mask fal10_veto QLPAC error since fal10_veto can go 1
@@ -467,6 +469,28 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	/*
+	 * need to acquire "video_xo_reset" before assert and release
+	 * after de-assert "video_xo_reset" reset clock to avoid other
+	 * drivers (eva driver) operating on this shared reset clock
+	 * and AON_WRAPPER_SPARE register in parallel.
+	 */
+	count = 0;
+	do {
+		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+		if (rc) {
+			d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
+		} else {
+			count++;
+			usleep_range(1000, 1000);
+		}
+	} while (rc && count < 100);
+
+	if (count >= 100) {
+		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+		goto skip_video_xo_reset;
+	}
+
 	/* poll AON spare register bit0 to become zero with 50ms timeout */
 	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_SPARE,
 			0x1, 0x0, 1000, 50 * 1000);
@@ -500,6 +524,12 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	/* release reset control for other consumers */
+	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
+	if (rc)
+		d_vpr_e("%s: failed to release video_xo_reset reset\n", __func__);
+
+skip_video_xo_reset:
 	/* Enable MVP NoC clock */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
 			0x0, BIT(0));
