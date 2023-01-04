@@ -99,14 +99,6 @@ enum CVP_DSP_COMMAND {
 	CVP_DSP_MAX_CMD = 21,
 };
 
-enum eva_dsp_debug_bits {
-	EVA_PORT_INFO_ON = 0,
-	EVA_PORT_DEBUG_ON = 1,
-	EVA_QDI_INFO_ON = 2,
-	EVA_QDI_DEBUG_ON = 3,
-	EVA_MEM_DEBUG_ON = 4
-};
-
 struct eva_power_req {
 	uint32_t clock_fdu;
 	uint32_t clock_ica;

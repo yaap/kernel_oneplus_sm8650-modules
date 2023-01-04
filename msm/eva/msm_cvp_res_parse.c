@@ -764,7 +764,7 @@ static int msm_cvp_load_reset_table(
 
 		of_property_read_string_index(pdev->dev.of_node,
 				"reset-names", c, &rc->name);
-		rc->required_state = pwr_stats[c];
+		rc->required_stage = pwr_stats[c];
 	}
 
 	return 0;

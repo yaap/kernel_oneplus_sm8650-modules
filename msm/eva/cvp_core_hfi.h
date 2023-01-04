@@ -228,11 +228,12 @@ struct iris_hfi_vpu_ops {
 	void (*interrupt_init)(struct iris_hfi_device *ptr);
 	void (*setup_dsp_uc_memmap)(struct iris_hfi_device *device);
 	void (*clock_config_on_enable)(struct iris_hfi_device *device);
-	int (*reset_ahb2axi_bridge)(struct iris_hfi_device *device);
 	void (*power_off)(struct iris_hfi_device *device);
 	void (*noc_error_info)(struct iris_hfi_device *device);
 	int (*reset_control_assert_name)(struct iris_hfi_device *device, const char *name);
 	int (*reset_control_deassert_name)(struct iris_hfi_device *device, const char *name);
+	int (*reset_control_acquire_name)(struct iris_hfi_device *device, const char *name);
+	int (*reset_control_release_name)(struct iris_hfi_device *device, const char *name);
 };
 
 struct iris_hfi_device {

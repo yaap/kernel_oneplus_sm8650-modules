@@ -85,16 +85,21 @@ struct bus_set {
 	u32 count;
 };
 
-enum power_state {
-	CVP_POWER_INIT,
-	CVP_POWER_ON,
-	CVP_POWER_OFF,
-	CVP_POWER_IGNORED,
+enum action_stage {
+	CVP_ON_INIT,
+	CVP_ON_USE,
+	CVP_ON_INVALID,
+};
+enum reset_clk_state {
+	RESET_INIT,
+	RESET_ACQUIRED,
+	RESET_RELEASED,
 };
 
 struct reset_info {
 	struct reset_control *rst;
-	enum power_state required_state;
+	enum action_stage required_stage;
+	enum reset_clk_state state;
 	const char *name;
 };
 
