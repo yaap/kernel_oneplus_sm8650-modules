@@ -25,10 +25,11 @@
 #include <linux/ubwcp_dma_heap.h>
 #include <linux/debugfs.h>
 #include <linux/clk.h>
+#include <linux/iommu.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
-#include "ubwcp.h"
+#include "include/kernel/ubwcp.h"
 #include "ubwcp_hw.h"
 #include "include/uapi/ubwcp_ioctl.h"
 
@@ -148,10 +149,13 @@ struct ubwcp_driver {
 	struct ubwcp_image_format_info format_info[INFO_FORMAT_LIST_SIZE];
 
 	struct mutex desc_lock;        /* allocate/free descriptors */
-	struct mutex buf_table_lock;   /* add/remove dma_buf into list of managed bufffers */
+	spinlock_t buf_table_lock;     /* add/remove dma_buf into list of managed bufffers */
+	struct mutex mem_hotplug_lock; /* memory hotplug lock */
 	struct mutex ula_lock;         /* allocate/free ula */
 	struct mutex ubwcp_flush_lock; /* ubwcp flush */
 	struct mutex hw_range_ck_lock; /* range ck */
+	struct list_head err_handler_list; /* error handler list */
+	spinlock_t err_handler_list_lock;  /* err_handler_list lock */
 };
 
 struct ubwcp_buf {
@@ -378,17 +382,18 @@ static struct ubwcp_buf *dma_buf_to_ubwcp_buf(struct dma_buf *dmabuf)
 {
 	struct ubwcp_buf *buf = NULL;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+	unsigned long flags;
 
 	if (!dmabuf || !ubwcp)
 		return NULL;
 
-	mutex_lock(&ubwcp->buf_table_lock);
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	/* look up ubwcp_buf corresponding to this dma_buf */
 	hash_for_each_possible(ubwcp->buf_table, buf, hnode, (u64)dmabuf) {
 		if (buf->dma_buf == dmabuf)
 			break;
 	}
-	mutex_unlock(&ubwcp->buf_table_lock);
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
 
 	return buf;
 }
@@ -432,6 +437,8 @@ static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 	int nid;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+	unsigned long flags;
+	bool table_empty;
 
 	FENTRY();
 
@@ -458,9 +465,11 @@ static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 	buf->dma_buf = dmabuf;
 	buf->ubwcp   = ubwcp;
 
-	mutex_lock(&ubwcp->buf_table_lock);
-	if (hash_empty(ubwcp->buf_table)) {
-
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
+	table_empty = hash_empty(ubwcp->buf_table);
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
+	if (table_empty) {
 		ret = ubwcp_power(ubwcp, true);
 		if (ret)
 			goto err_power_on;
@@ -481,14 +490,16 @@ static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 				page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
 		}
 	}
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_add(ubwcp->buf_table, &buf->hnode, (u64)buf->dma_buf);
-	mutex_unlock(&ubwcp->buf_table_lock);
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	return ret;
 
 err_add_memory:
 	ubwcp_power(ubwcp, false);
 err_power_on:
-	mutex_unlock(&ubwcp->buf_table_lock);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	kfree(buf);
 	if (!ret)
 		ret = -1;
@@ -1937,6 +1948,8 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	int ret = 0;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp;
+	bool table_empty;
+	unsigned long flags;
 
 	FENTRY();
 
@@ -1971,12 +1984,16 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	if (buf->buf_attr_set)
 		reset_buf_attrs(buf);
 
-	mutex_lock(&ubwcp->buf_table_lock);
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_del(&buf->hnode);
+	table_empty = hash_empty(ubwcp->buf_table);
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
+
 	kfree(buf);
 
 	/* If this is the last buffer being freed, power off ubwcp */
-	if (hash_empty(ubwcp->buf_table)) {
+	if (table_empty) {
 		DBG("last buffer: ~~~~~~~~~~~");
 		/* TBD: If everything is working fine, ubwcp_flush() should not
 		 * be needed here. Each buffer free logic should be taking
@@ -1996,11 +2013,11 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 		}
 		DBG("Don't Call power OFF ...");
 	}
-	mutex_unlock(&ubwcp->buf_table_lock);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	return ret;
 
 err_remove_mem:
-	mutex_unlock(&ubwcp->buf_table_lock);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	if (!ret)
 		ret = -1;
 	DBG("returning error: %d", ret);
@@ -2142,14 +2159,183 @@ static void ubwcp_cdev_deinit(struct ubwcp_driver *ubwcp)
 	unregister_chrdev_region(ubwcp->devt, UBWCP_NUM_DEVICES);
 }
 
+struct handler_node {
+	struct list_head list;
+	u32 client_id;
+	ubwcp_error_handler_t handler;
+	void *data;
+};
+
+int ubwcp_register_error_handler(u32 client_id, ubwcp_error_handler_t handler,
+				void *data)
+{
+	struct handler_node *node;
+	unsigned long flags;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+
+	if (!ubwcp)
+		return -EINVAL;
+
+	if (client_id != -1)
+		return -EINVAL;
+
+	if (!handler)
+		return -EINVAL;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return -ENOMEM;
+
+	node->client_id = client_id;
+	node->handler = handler;
+	node->data = data;
+
+	spin_lock_irqsave(&ubwcp->err_handler_list_lock, flags);
+	list_add_tail(&node->list, &ubwcp->err_handler_list);
+	spin_unlock_irqrestore(&ubwcp->err_handler_list_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(ubwcp_register_error_handler);
+
+static void ubwcp_notify_error_handlers(struct unwcp_err_info *err)
+{
+	struct handler_node *node;
+	unsigned long flags;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+
+	if (!ubwcp)
+		return;
+
+	spin_lock_irqsave(&ubwcp->err_handler_list_lock, flags);
+	list_for_each_entry(node, &ubwcp->err_handler_list, list)
+		node->handler(err, node->data);
+
+	spin_unlock_irqrestore(&ubwcp->err_handler_list_lock, flags);
+}
+
+int ubwcp_unregister_error_handler(u32 client_id)
+{
+	int ret = -EINVAL;
+	struct handler_node *node;
+	unsigned long flags;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+
+	if (!ubwcp)
+		return -EINVAL;
+
+	spin_lock_irqsave(&ubwcp->err_handler_list_lock, flags);
+	list_for_each_entry(node, &ubwcp->err_handler_list, list)
+		if (node->client_id == client_id) {
+			list_del(&node->list);
+			kfree(node);
+			ret = 0;
+			break;
+		}
+	spin_unlock_irqrestore(&ubwcp->err_handler_list_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL(ubwcp_unregister_error_handler);
+
+/* get ubwcp_buf corresponding to the ULA PA*/
+static struct dma_buf *get_dma_buf_from_ulapa(phys_addr_t addr)
+{
+	struct ubwcp_buf *buf = NULL;
+	struct dma_buf *ret_buf = NULL;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+	unsigned long flags;
+	u32 i;
+
+	if (!ubwcp)
+		return NULL;
+
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
+	hash_for_each(ubwcp->buf_table, i, buf, hnode) {
+		if (buf->ula_pa <= addr && addr < buf->ula_pa + buf->ula_size) {
+			ret_buf = buf->dma_buf;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
+
+	return ret_buf;
+}
+
+/* get ubwcp_buf corresponding to the IOVA*/
+static struct dma_buf *get_dma_buf_from_iova(unsigned long addr)
+{
+	struct ubwcp_buf *buf = NULL;
+	struct dma_buf *ret_buf = NULL;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+	unsigned long flags;
+	u32 i;
+
+	if (!ubwcp)
+		return NULL;
+
+	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
+	hash_for_each(ubwcp->buf_table, i, buf, hnode) {
+		unsigned long iova_base = sg_dma_address(buf->sgt->sgl);
+		unsigned int iova_size = sg_dma_len(buf->sgt->sgl);
+
+		if (iova_base <= addr && addr < iova_base + iova_size) {
+			ret_buf = buf->dma_buf;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
+
+	return ret_buf;
+}
 
 #define ERR_PRINT_COUNT_MAX 21
 /* TBD: use proper rate limit for debug prints */
+
+int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
+		unsigned long iova, int flags, void *data)
+{
+	int ret = 0;
+	struct unwcp_err_info err;
+	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
+	struct device *cb_dev = (struct device *)data;
+
+	if (!ubwcp) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	error_print_count++;
+	if (error_print_count < ERR_PRINT_COUNT_MAX) {
+		err.err_code = UBWCP_SMMU_FAULT;
+
+		if (cb_dev == ubwcp->dev_desc_cb)
+			err.smmu_err.iommu_dev_id = UBWCP_DESC_CB_ID;
+		else if (cb_dev == ubwcp->dev_buf_cb)
+			err.smmu_err.iommu_dev_id = UBWCP_BUF_CB_ID;
+		else
+			err.smmu_err.iommu_dev_id = UBWCP_UNKNOWN_CB_ID;
+
+		ERR("smmu fault error: iommu_dev_id:%d iova 0x%llx flags:0x%x",
+				err.smmu_err.iommu_dev_id, iova, flags);
+		err.smmu_err.dmabuf = get_dma_buf_from_iova(iova);
+		err.smmu_err.iova = iova;
+		err.smmu_err.iommu_fault_flags = flags;
+		ubwcp_notify_error_handlers(&err);
+	}
+
+err:
+	return ret;
+}
+
+
 irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 {
 	struct ubwcp_driver *ubwcp;
 	void __iomem *base;
 	u64 src;
+	phys_addr_t addr;
+	struct unwcp_err_info err;
 
 	error_print_count++;
 
@@ -2159,25 +2345,47 @@ irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 	if (irq == ubwcp->irq_range_ck_rd) {
 		if (error_print_count < ERR_PRINT_COUNT_MAX) {
 			src = ubwcp_hw_interrupt_src_address(base, 0);
-			ERR("check range read error: src: 0x%llx", src << 6);
+			addr = src << 6;
+			ERR("check range read error: src: 0x%llx", addr);
+			err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
+			err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
+			err.translation_err.ula_pa = addr;
+			err.translation_err.read = true;
+			ubwcp_notify_error_handlers(&err);
 		}
 		ubwcp_hw_interrupt_clear(ubwcp->base, 0);
 	} else if (irq == ubwcp->irq_range_ck_wr) {
 		if (error_print_count < ERR_PRINT_COUNT_MAX) {
 			src = ubwcp_hw_interrupt_src_address(base, 1);
-			ERR("check range write error: src: 0x%llx", src << 6);
+			addr = src << 6;
+			ERR("check range write error: src: 0x%llx", addr);
+			err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
+			err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
+			err.translation_err.ula_pa = addr;
+			err.translation_err.read = false;
+			ubwcp_notify_error_handlers(&err);
 		}
 		ubwcp_hw_interrupt_clear(ubwcp->base, 1);
 	} else if (irq == ubwcp->irq_encode) {
 		if (error_print_count < ERR_PRINT_COUNT_MAX) {
 			src = ubwcp_hw_interrupt_src_address(base, 3);
-			ERR("encode error: src: 0x%llx", src << 6);
+			addr = src << 6;
+			ERR("encode error: src: 0x%llx", addr);
+			err.err_code = UBWCP_ENCODE_ERROR;
+			err.enc_err.dmabuf = get_dma_buf_from_ulapa(addr);
+			err.enc_err.ula_pa = addr;
+			ubwcp_notify_error_handlers(&err);
 		}
 		ubwcp_hw_interrupt_clear(ubwcp->base, 3); //TBD: encode is bit-3 instead of bit-2
 	} else if (irq == ubwcp->irq_decode) {
 		if (error_print_count < ERR_PRINT_COUNT_MAX) {
 			src = ubwcp_hw_interrupt_src_address(base, 2);
-			ERR("decode error: src: 0x%llx", src << 6);
+			addr = src << 6;
+			ERR("decode error: src: 0x%llx", addr);
+			err.err_code = UBWCP_DECODE_ERROR;
+			err.dec_err.dmabuf = get_dma_buf_from_ulapa(addr);
+			err.dec_err.ula_pa = addr;
+			ubwcp_notify_error_handlers(&err);
 		}
 		ubwcp_hw_interrupt_clear(ubwcp->base, 2); //TBD: decode is bit-2 instead of bit-3
 	} else {
@@ -2300,6 +2508,16 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	/*TBD: remove later. reducing size for quick testing...*/
 	ubwcp->ula_pool_size = 0x20000000; //500MB instead of 8GB
 
+	INIT_LIST_HEAD(&ubwcp->err_handler_list);
+
+	mutex_init(&ubwcp->desc_lock);
+	spin_lock_init(&ubwcp->buf_table_lock);
+	mutex_init(&ubwcp->mem_hotplug_lock);
+	mutex_init(&ubwcp->ula_lock);
+	mutex_init(&ubwcp->ubwcp_flush_lock);
+	mutex_init(&ubwcp->hw_range_ck_lock);
+	spin_lock_init(&ubwcp->err_handler_list_lock);
+
 	if (ubwcp_interrupt_register(pdev, ubwcp))
 		return -1;
 
@@ -2316,13 +2534,6 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 		ERR("failed to initialize ubwcp clocks err: %d", ret);
 		return ret;
 	}
-
-	mutex_init(&ubwcp->desc_lock);
-	mutex_init(&ubwcp->buf_table_lock);
-	mutex_init(&ubwcp->ula_lock);
-	mutex_init(&ubwcp->ubwcp_flush_lock);
-	mutex_init(&ubwcp->hw_range_ck_lock);
-
 
 	if (ubwcp_power(ubwcp, true))
 		return -1;
@@ -2412,6 +2623,7 @@ err_pool_create:
 static int ubwcp_probe_cb_buf(struct platform_device *pdev)
 {
 	struct ubwcp_driver *ubwcp;
+	struct iommu_domain *domain = NULL;
 
 	FENTRY();
 
@@ -2423,6 +2635,11 @@ static int ubwcp_probe_cb_buf(struct platform_device *pdev)
 
 	/* save the buffer cb device */
 	ubwcp->dev_buf_cb = &pdev->dev;
+
+	domain = iommu_get_domain_for_dev(ubwcp->dev_buf_cb);
+	if (domain)
+		iommu_set_fault_handler(domain, ubwcp_iommu_fault_handler, ubwcp->dev_buf_cb);
+
 	return 0;
 }
 
@@ -2431,6 +2648,7 @@ static int ubwcp_probe_cb_desc(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct ubwcp_driver *ubwcp;
+	struct iommu_domain *domain = NULL;
 
 	FENTRY();
 
@@ -2476,6 +2694,10 @@ static int ubwcp_probe_cb_desc(struct platform_device *pdev)
 		ERR("failed to power off");
 		goto err;
 	}
+
+	domain = iommu_get_domain_for_dev(ubwcp->dev_desc_cb);
+	if (domain)
+		iommu_set_fault_handler(domain, ubwcp_iommu_fault_handler, ubwcp->dev_desc_cb);
 
 	return ret;
 

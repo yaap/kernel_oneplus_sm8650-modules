@@ -1,9 +1,11 @@
 headers_src = [
     "include/uapi/*.h",
+    "include/kernel/*.h",
 ]
 
 ubwcp_headers_out = [
     "ubwcp_ioctl.h",
+    "ubwcp.h",
 ]
 
 ubwcp_kernel_headers_verbose = "--verbose "
@@ -21,7 +23,7 @@ genrule {
           ubwcp_kernel_headers_verbose +
          "--header_arch arm64 " +
          "--gen_dir $(genDir) " +
-         "--ubwcp_include_uapi $(locations include/uapi/*.h) " +
+         "--ubwcp_include $(locations include/uapi/*.h) $(locations include/kernel/*.h) " +
          "--unifdef $(location unifdef) " +
          "--headers_install $(location headers_install.sh)",
     out: ubwcp_headers_out,
