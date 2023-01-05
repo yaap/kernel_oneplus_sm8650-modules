@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -24,6 +24,7 @@
 #include <linux/delay.h>
 #include <linux/ubwcp_dma_heap.h>
 #include <linux/debugfs.h>
+#include <linux/clk.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
@@ -112,6 +113,9 @@ struct ubwcp_driver {
 
 	void __iomem *base; //ubwcp base address
 	struct regulator *vdd;
+
+	struct clk **clocks;
+	int num_clocks;
 
 	/* interrupts */
 	int irq_range_ck_rd;
@@ -220,6 +224,67 @@ static void ubwcp_buf_desc_list_init(struct ubwcp_driver *ubwcp)
 	}
 }
 
+static int ubwcp_init_clocks(struct ubwcp_driver *ubwcp, struct device *dev)
+{
+	const char *cname;
+	struct property *prop;
+	int i;
+
+	ubwcp->num_clocks =
+		of_property_count_strings(dev->of_node, "clock-names");
+
+	if (ubwcp->num_clocks < 1) {
+		ubwcp->num_clocks = 0;
+		return 0;
+	}
+
+	ubwcp->clocks = devm_kzalloc(dev,
+		sizeof(*ubwcp->clocks) * ubwcp->num_clocks, GFP_KERNEL);
+	if (!ubwcp->clocks)
+		return -ENOMEM;
+
+	i = 0;
+	of_property_for_each_string(dev->of_node, "clock-names",
+				prop, cname) {
+		struct clk *c = devm_clk_get(dev, cname);
+
+		if (IS_ERR(c)) {
+			ERR("Couldn't get clock: %s\n", cname);
+			return PTR_ERR(c);
+		}
+
+		ubwcp->clocks[i] = c;
+
+		++i;
+	}
+	return 0;
+}
+
+static int ubwcp_enable_clocks(struct ubwcp_driver *ubwcp)
+{
+	int i, ret = 0;
+
+	for (i = 0; i < ubwcp->num_clocks; ++i) {
+		ret = clk_prepare_enable(ubwcp->clocks[i]);
+		if (ret) {
+			ERR("Couldn't enable clock #%d\n", i);
+			while (i--)
+				clk_disable_unprepare(ubwcp->clocks[i]);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static void ubwcp_disable_clocks(struct ubwcp_driver *ubwcp)
+{
+	int i;
+
+	for (i = ubwcp->num_clocks; i; --i)
+		clk_disable_unprepare(ubwcp->clocks[i - 1]);
+}
+
 /* UBWCP Power control */
 static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 {
@@ -243,6 +308,16 @@ static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 		} else {
 			DBG("regulator_enable() success");
 		}
+
+		if (!ret) {
+			ret = ubwcp_enable_clocks(ubwcp);
+			if (ret) {
+				ERR("enable clocks failed: %d", ret);
+				regulator_disable(ubwcp->vdd);
+			} else {
+				DBG("enable clocks success");
+			}
+		}
 	} else {
 		ret = regulator_disable(ubwcp->vdd);
 		if (ret < 0) {
@@ -251,7 +326,13 @@ static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 		} else {
 			DBG("regulator_disable() success");
 		}
+
+		if (!ret) {
+			ubwcp_disable_clocks(ubwcp);
+			DBG("disable clocks success");
+		}
 	}
+
 	return ret;
 }
 
@@ -2228,6 +2309,12 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 		ret = PTR_ERR(ubwcp->vdd);
 		ERR("devm_regulator_get() failed: %d", ret);
 		return -1;
+	}
+
+	ret = ubwcp_init_clocks(ubwcp, ubwcp_dev);
+	if (ret) {
+		ERR("failed to initialize ubwcp clocks err: %d", ret);
+		return ret;
 	}
 
 	mutex_init(&ubwcp->desc_lock);
