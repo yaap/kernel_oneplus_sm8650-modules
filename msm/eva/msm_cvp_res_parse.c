@@ -146,6 +146,7 @@ static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 	int ret = 0;
 	unsigned int ipclite_mapping_config[3];
 	unsigned int hwmutex_mapping_config[3];
+	unsigned int aon_mapping_config[3];
 	struct platform_device *pdev = res->pdev;
 
 	ret = of_property_read_u32_array(pdev->dev.of_node, "ipclite_mappings",
@@ -170,6 +171,20 @@ static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 	dprintk(CVP_CORE, "ipclite %#x %#x %#x hwmutex %#x %#x %#x\n",
 		res->ipclite_iova, res->ipclite_phyaddr, res->ipclite_size,
 		res->hwmutex_iova, res->hwmutex_phyaddr, res->hwmutex_size);
+
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "aon_mappings",
+		aon_mapping_config, 3);
+	if (ret) {
+		dprintk(CVP_ERR, "Failed to read aon reg: %d\n", ret);
+		return ret;
+	}
+	res->aon_iova = aon_mapping_config[0];
+	res->aon_size = aon_mapping_config[1];
+	res->aon_phyaddr = aon_mapping_config[2];
+	dprintk(CVP_CORE, "aon %#x %#x %#x \n",
+		res->hwmutex_iova, res->hwmutex_phyaddr, res->hwmutex_size);
+
 	return ret;
 }
 

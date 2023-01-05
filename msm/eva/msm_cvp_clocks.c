@@ -416,10 +416,11 @@ int msm_cvp_init_clocks(struct iris_hfi_device *device)
 	iris_hfi_for_each_clock(device, cl) {
 		if (!cl->clk) {
 			cl->clk = clk_get(&device->res->pdev->dev, cl->name);
-			if (IS_ERR_OR_NULL(cl->clk)) {
+			if (IS_ERR(cl->clk)) {
+				rc = PTR_ERR(cl->clk);
 				dprintk(CVP_ERR,
-					"Failed to get clock: %s\n", cl->name);
-				rc = PTR_ERR(cl->clk) ? : -EINVAL;
+					"Failed to get clock: %s, rc %d\n",
+					cl->name, rc);
 				cl->clk = NULL;
 				goto err_clk_get;
 			}

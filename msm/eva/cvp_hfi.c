@@ -1928,27 +1928,44 @@ static int __hwfence_regs_map(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	rc = iommu_map(cb->domain, device->res->ipclite_iova,
+	if (device->res->ipclite_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->ipclite_iova,
 			device->res->ipclite_phyaddr,
 			device->res->ipclite_size,
 			IOMMU_READ | IOMMU_WRITE);
-	if (rc) {
-		dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
-			rc, device->res->ipclite_iova,
-			device->res->ipclite_phyaddr,
-			device->res->ipclite_size);
-		return rc;
+		if (rc) {
+			dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
+				rc, device->res->ipclite_iova,
+				device->res->ipclite_phyaddr,
+				device->res->ipclite_size);
+			return rc;
+		}
 	}
-	rc = iommu_map(cb->domain, device->res->hwmutex_iova,
+	if (device->res->hwmutex_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->hwmutex_iova,
 			device->res->hwmutex_phyaddr,
 			device->res->hwmutex_size,
 			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
-	if (rc) {
-		dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
-			rc, device->res->hwmutex_iova,
-			device->res->hwmutex_phyaddr,
-			device->res->hwmutex_size);
-		return rc;
+		if (rc) {
+			dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
+				rc, device->res->hwmutex_iova,
+				device->res->hwmutex_phyaddr,
+				device->res->hwmutex_size);
+			return rc;
+		}
+	}
+	if (device->res->aon_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->aon_iova,
+			device->res->aon_phyaddr,
+			device->res->aon_size,
+			IOMMU_READ | IOMMU_WRITE);
+		if (rc) {
+			dprintk(CVP_ERR, "map aon fail %d %#x %#x %#x\n",
+				rc, device->res->aon_iova,
+				device->res->aon_phyaddr,
+				device->res->aon_size);
+			return rc;
+		}
 	}
 	return rc;
 }
@@ -1964,10 +1981,18 @@ static int __hwfence_regs_unmap(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	iommu_unmap(cb->domain, device->res->ipclite_iova,
+	if (device->res->ipclite_iova != 0) {
+		iommu_unmap(cb->domain, device->res->ipclite_iova,
 			device->res->ipclite_size);
-	iommu_unmap(cb->domain, device->res->hwmutex_iova,
+	}
+	if (device->res->hwmutex_iova != 0) {
+		iommu_unmap(cb->domain, device->res->hwmutex_iova,
 			device->res->hwmutex_size);
+	}
+	if (device->res->aon_iova != 0) {
+		iommu_unmap(cb->domain, device->res->aon_iova,
+			device->res->aon_size);
+	}
 	return rc;
 }
 
