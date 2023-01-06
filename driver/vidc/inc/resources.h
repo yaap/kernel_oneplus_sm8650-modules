@@ -117,6 +117,13 @@ struct regulator_set {
 	u32                        count;
 };
 
+struct clock_residency {
+	struct list_head           list;
+	u64                        rate;
+	u64                        start_time_us;
+	u64                        total_time_us;
+};
+
 struct clock_info {
 	struct clk                *clk;
 	const char                *name;
@@ -126,6 +133,7 @@ struct clock_info {
 #ifdef CONFIG_MSM_MMRM
 	struct mmrm_client        *mmrm_client;
 #endif
+	struct list_head           residency_list;  /* list of struct clock_residency */
 };
 
 struct clock_set {
@@ -232,6 +240,8 @@ struct msm_vidc_resources_ops {
 	int (*clk_enable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_set_flag)(struct msm_vidc_core *core,
 		const char *name, enum branch_mem_flags flag);
+	int (*clk_print_residency_stats)(struct msm_vidc_core *core);
+	int (*clk_reset_residency_stats)(struct msm_vidc_core *core);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);

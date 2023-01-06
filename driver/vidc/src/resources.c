@@ -288,11 +288,13 @@ static int __init_regulators(struct msm_vidc_core *core)
 
 static int __init_clocks(struct msm_vidc_core *core)
 {
+	struct clock_residency *residency = NULL;
 	const struct clk_table *clk_tbl;
+	struct freq_table *freq_tbl;
 	struct clock_set *clocks;
 	struct clock_info *cinfo = NULL;
-	u32 clk_count = 0, cnt = 0;
-	int rc = 0;
+	u32 clk_count = 0, freq_count = 0;
+	int fcnt = 0, cnt = 0, rc = 0;
 
 	if (!core || !core->resource || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -323,6 +325,42 @@ static int __init_clocks(struct msm_vidc_core *core)
 		clocks->clock_tbl[cnt].name = clk_tbl[cnt].name;
 		clocks->clock_tbl[cnt].clk_id = clk_tbl[cnt].clk_id;
 		clocks->clock_tbl[cnt].has_scaling = clk_tbl[cnt].scaling;
+	}
+
+	freq_tbl = core->platform->data.freq_tbl;
+	freq_count = core->platform->data.freq_tbl_size;
+
+	/* populate clk residency stats table */
+	for (cnt = 0; cnt < clocks->count; cnt++) {
+		/* initialize residency_list */
+		INIT_LIST_HEAD(&clocks->clock_tbl[cnt].residency_list);
+
+		/* skip if scaling not supported */
+		if (!clocks->clock_tbl[cnt].has_scaling)
+			continue;
+
+		for (fcnt = 0; fcnt < freq_count; fcnt++) {
+			residency = devm_kzalloc(&core->pdev->dev,
+				sizeof(struct clock_residency), GFP_KERNEL);
+			if (!residency) {
+				d_vpr_e("%s: failed to alloc clk residency stat node\n", __func__);
+				return -ENOMEM;
+			}
+
+			if (!freq_tbl) {
+				d_vpr_e("%s: invalid freq tbl %#x\n", __func__, freq_tbl);
+				return -EINVAL;
+			}
+
+			/* update residency node */
+			residency->rate = freq_tbl[fcnt].freq;
+			residency->start_time_us = 0;
+			residency->total_time_us = 0;
+			INIT_LIST_HEAD(&residency->list);
+
+			/* add entry into residency_list */
+			list_add_tail(&residency->list, &clocks->clock_tbl[cnt].residency_list);
+		}
 	}
 
 	/* print clock fields */
@@ -1073,6 +1111,133 @@ static int set_bw(struct msm_vidc_core *core, unsigned long bw_ddr,
 	return __vote_buses(core, bw_ddr, bw_llcc);
 }
 
+static int print_residency_stats(struct msm_vidc_core *core, struct clock_info *cl)
+{
+	struct clock_residency *residency = NULL;
+	u64 total_time_us = 0;
+	int rc = 0;
+
+	if (!core || !cl) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/* skip if scaling not supported */
+	if (!cl->has_scaling)
+		return 0;
+
+	/* grand total residency time */
+	list_for_each_entry(residency, &cl->residency_list, list)
+		total_time_us += residency->total_time_us;
+
+	/* sanity check to avoid divide by 0 */
+	total_time_us = (total_time_us > 0) ? total_time_us : 1;
+
+	/* print residency percent for each clock */
+	list_for_each_entry(residency, &cl->residency_list, list) {
+		d_vpr_h("%s: %s clock rate [%d] total %lluus residency %u%%\n",
+			__func__, cl->name, residency->rate, residency->total_time_us,
+			residency->total_time_us * 100 / total_time_us);
+	}
+
+	return rc;
+}
+
+static int reset_residency_stats(struct msm_vidc_core *core, struct clock_info *cl)
+{
+	struct clock_residency *residency = NULL;
+	int rc = 0;
+
+	if (!core || !cl) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/* skip if scaling not supported */
+	if (!cl->has_scaling)
+		return 0;
+
+	d_vpr_h("%s: reset %s residency stats\n", __func__, cl->name);
+
+	/* reset clock residency stats */
+	list_for_each_entry(residency, &cl->residency_list, list) {
+		residency->start_time_us = 0;
+		residency->total_time_us = 0;
+	}
+
+	return rc;
+}
+
+static struct clock_residency *get_residency_stats(struct clock_info *cl, u64 rate)
+{
+	struct clock_residency *residency = NULL;
+	bool found = false;
+
+	if (!cl) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+
+	list_for_each_entry(residency, &cl->residency_list, list) {
+		if (residency->rate == rate) {
+			found = true;
+			break;
+		}
+	}
+
+	return found ? residency : NULL;
+}
+
+static int update_residency_stats(
+	struct msm_vidc_core *core, struct clock_info *cl, u64 rate)
+{
+	struct clock_residency *cur_residency = NULL, *prev_residency = NULL;
+	u64 cur_time_us = 0;
+	int rc = 0;
+
+	if (!core || !cl) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/* skip update if scaling not supported */
+	if (!cl->has_scaling)
+		return 0;
+
+	/* skip update if rate not changed */
+	if (rate == cl->prev)
+		return 0;
+
+	/* get current time in ns */
+	cur_time_us = ktime_get_ns() / 1000;
+
+	/* update previous rate residency end or total time */
+	prev_residency = get_residency_stats(cl, cl->prev);
+	if (prev_residency) {
+		if (prev_residency->start_time_us)
+			prev_residency->total_time_us = cur_time_us - prev_residency->start_time_us;
+
+		/* reset start time us */
+		prev_residency->start_time_us = 0;
+	}
+
+	/* clk disable case - no need to update new entry */
+	if (rate == 0)
+		return 0;
+
+	/* check if rate entry is present */
+	cur_residency = get_residency_stats(cl, rate);
+	if (!cur_residency) {
+		d_vpr_e("%s: entry not found. rate %llu\n", __func__, rate);
+		return -EINVAL;
+	}
+
+	/* update residency start time for current rate/freq */
+	cur_residency->start_time_us = cur_time_us;
+
+	return rc;
+}
+
 #ifdef CONFIG_MSM_MMRM
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
@@ -1080,6 +1245,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	int rc = 0;
 	struct mmrm_client_data client_data;
 	struct mmrm_client *client;
+	u64 srate;
 
 	/* not registered */
 	if (!core || !cl || !core->platform) {
@@ -1092,37 +1258,41 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 		return -EINVAL;
 	}
 
+	/* update clock residency stats */
+	update_residency_stats(core, cl, rate);
+
 	/*
 	 * This conversion is necessary since we are scaling clock values based on
 	 * the branch clock. However, mmrm driver expects source clock to be registered
 	 * and used for scaling.
 	 * TODO: Remove this scaling if using source clock instead of branch clock.
 	 */
-	rate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
+	srate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
 
 	/* bail early if requested clk rate is not changed */
 	if (rate == cl->prev)
 		return 0;
 
-	d_vpr_p("Scaling clock %s to %llu, prev %llu\n", cl->name, rate, cl->prev);
+	d_vpr_p("Scaling clock %s to %llu, prev %llu\n",
+		cl->name, srate, cl->prev * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO);
 
 	if (is_mmrm_supported(core)) {
 		/* set clock rate to mmrm driver */
 		client = cl->mmrm_client;
 		memset(&client_data, 0, sizeof(client_data));
 		client_data.num_hw_blocks = 1;
-		rc = mmrm_client_set_value(client, &client_data, rate);
+		rc = mmrm_client_set_value(client, &client_data, srate);
 		if (rc) {
 			d_vpr_e("%s: Failed to set mmrm clock rate %llu %s: %d\n",
-				__func__, rate, cl->name, rc);
+				__func__, srate, cl->name, rc);
 			return rc;
 		}
 	} else {
 		/* set clock rate to clock driver */
-		rc = clk_set_rate(cl->clk, rate);
+		rc = clk_set_rate(cl->clk, srate);
 		if (rc) {
 			d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-				__func__, rate, cl->name, rc);
+				__func__, srate, cl->name, rc);
 			return rc;
 		}
 	}
@@ -1133,6 +1303,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
 {
+	u64 srate;
 	int rc = 0;
 
 	/* not registered */
@@ -1141,24 +1312,28 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 		return -EINVAL;
 	}
 
+	/* update clock residency stats */
+	update_residency_stats(core, cl, rate);
+
 	/*
 	 * This conversion is necessary since we are scaling clock values based on
 	 * the branch clock. However, mmrm driver expects source clock to be registered
 	 * and used for scaling.
 	 * TODO: Remove this scaling if using source clock instead of branch clock.
 	 */
-	rate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
+	srate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
 
 	/* bail early if requested clk rate is not changed */
 	if (rate == cl->prev)
 		return 0;
 
-	d_vpr_p("Scaling clock %s to %llu, prev %llu\n", cl->name, rate, cl->prev);
+	d_vpr_p("Scaling clock %s to %llu, prev %llu\n",
+		cl->name, srate, cl->prev * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO);
 
-	rc = clk_set_rate(cl->clk, rate);
+	rc = clk_set_rate(cl->clk, srate);
 	if (rc) {
 		d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-			__func__, rate, cl->name, rc);
+			__func__, srate, cl->name, rc);
 		return rc;
 	}
 
@@ -1248,6 +1423,9 @@ static int __prepare_enable_clock(struct msm_vidc_core *core,
 		 * it to the lowest frequency possible
 		 */
 		if (cl->has_scaling) {
+			/* reset clk residency stats */
+			reset_residency_stats(core, cl);
+
 			rate = clk_round_rate(cl->clk, 0);
 			/**
 			 * source clock is already multipled with scaling ratio and __set_clk_rate
@@ -1519,6 +1697,50 @@ static int __reset_ahb2axi_bridge(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __print_clock_residency_stats(struct msm_vidc_core *core)
+{
+	struct clock_info *cl;
+	int rc = 0;
+
+	if (!core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	venus_hfi_for_each_clock(core, cl) {
+		/* skip if scaling not supported */
+		if (!cl->has_scaling)
+			continue;
+
+		/* print clock residency stats */
+		print_residency_stats(core, cl);
+	}
+
+	return rc;
+}
+
+static int __reset_clock_residency_stats(struct msm_vidc_core *core)
+{
+	struct clock_info *cl;
+	int rc = 0;
+
+	if (!core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	venus_hfi_for_each_clock(core, cl) {
+		/* skip if scaling not supported */
+		if (!cl->has_scaling)
+			continue;
+
+		/* reset clock residency stats */
+		reset_residency_stats(core, cl);
+	}
+
+	return rc;
+}
+
 static const struct msm_vidc_resources_ops res_ops = {
 	.init = __init_resources,
 	.reset_bridge = __reset_ahb2axi_bridge,
@@ -1536,6 +1758,8 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.clk_enable = __prepare_enable_clock,
 	.clk_disable = __disable_unprepare_clock,
 	.clk_set_flag = __clock_set_flag,
+	.clk_print_residency_stats = __print_clock_residency_stats,
+	.clk_reset_residency_stats = __reset_clock_residency_stats,
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void)

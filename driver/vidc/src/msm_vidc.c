@@ -992,6 +992,10 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 		i_vpr_e(inst, "%s: failed to get session id\n", __func__);
 		goto error;
 	}
+
+	/* reset clock residency stats */
+	msm_vidc_reset_residency_stats(core);
+
 	msm_vidc_scale_power(inst, true);
 
 	rc = msm_vidc_session_open(inst);
@@ -1031,6 +1035,7 @@ int msm_vidc_close(void *instance)
 	inst_lock(inst, __func__);
 	/* print final stats */
 	msm_vidc_print_stats(inst);
+	msm_vidc_print_residency_stats(core);
 	msm_vidc_session_close(inst);
 	msm_vidc_event_queue_deinit(inst);
 	msm_vidc_vb2_queue_deinit(inst);

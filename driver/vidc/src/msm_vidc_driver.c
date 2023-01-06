@@ -4726,6 +4726,34 @@ unlock:
 	return rc;
 }
 
+int msm_vidc_print_residency_stats(struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+	core_lock(core, __func__);
+	rc = call_res_op(core, clk_print_residency_stats, core);
+	if (rc)
+		goto unlock;
+
+unlock:
+	core_unlock(core, __func__);
+	return rc;
+}
+
+int msm_vidc_reset_residency_stats(struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+	core_lock(core, __func__);
+	rc = call_res_op(core, clk_reset_residency_stats, core);
+	if (rc)
+		goto unlock;
+
+unlock:
+	core_unlock(core, __func__);
+	return rc;
+}
+
 int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
