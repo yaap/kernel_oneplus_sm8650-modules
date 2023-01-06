@@ -1482,6 +1482,14 @@ int msm_vidc_adjust_layer_count(void *instance, struct v4l2_ctrl *ctrl)
 		if (rc)
 			goto exit;
 	} else {
+		if (inst->hfi_rc_type == HFI_RC_CBR_CFR ||
+				inst->hfi_rc_type == HFI_RC_CBR_VFR) {
+			i_vpr_h(inst,
+				"%s: ignoring dynamic layer count change for CBR mode\n",
+				__func__);
+			goto exit;
+		}
+
 		if (inst->hfi_layer_type == HFI_HIER_P_HYBRID_LTR ||
 			inst->hfi_layer_type == HFI_HIER_P_SLIDING_WINDOW) {
 			/* dynamic layer count change is only supported for HP */
@@ -1666,7 +1674,7 @@ int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
+int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
@@ -1689,6 +1697,10 @@ int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl
 	if (capability->cap[BIT_RATE].flags & CAP_FLAG_CLIENT_SET)
 		return 0;
 
+	/*
+	 * This is no-op function because layer bitrates were already adjusted
+	 * in msm_vidc_adjust_bitrate function
+	 */
 	if (!inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
 
@@ -3134,11 +3146,9 @@ int msm_vidc_set_gop_size(void *instance,
 int msm_vidc_set_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
-	int rc = 0, i;
+	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 hfi_value = 0;
-	s32 rc_type = -1, enh_layer_count = -1;
-	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -3158,60 +3168,22 @@ int msm_vidc_set_bitrate(void *instance,
 	if (inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
 
-	if (msm_vidc_get_parent_value(inst, BIT_RATE,
-		BITRATE_MODE, &rc_type, __func__))
-		return -EINVAL;
-
-	if (rc_type != HFI_RC_CBR_CFR && rc_type != HFI_RC_CBR_VFR) {
-		i_vpr_h(inst, "%s: set total bitrate for non CBR rc type\n",
-			__func__);
-		goto set_total_bitrate;
-	}
-
-	if (msm_vidc_get_parent_value(inst, BIT_RATE,
-		ENH_LAYER_COUNT, &enh_layer_count, __func__))
-		return -EINVAL;
-
-	/*
-	 * ENH_LAYER_COUNT cap max is positive only if
-	 *    layer encoding is enabled during streamon.
-	 */
-	if (inst->capabilities->cap[ENH_LAYER_COUNT].max) {
-		if (!msm_vidc_check_all_layer_bitrate_set(inst))
-			goto set_total_bitrate;
-
-		/* set Layer Bitrate */
-		for (i = 0; i <= enh_layer_count; i++) {
-			if (i >= ARRAY_SIZE(layer_br_caps))
-				break;
-			cap_id = layer_br_caps[i];
-			hfi_value = inst->capabilities->cap[cap_id].value;
-			rc = msm_vidc_packetize_control(inst, cap_id,
-				HFI_PAYLOAD_U32, &hfi_value,
-				sizeof(u32), __func__);
-			if (rc)
-				return rc;
-		}
-		goto exit;
-	}
-
 set_total_bitrate:
 	hfi_value = inst->capabilities->cap[BIT_RATE].value;
 	rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
 			&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;
-exit:
+
 	return rc;
 }
 
-int msm_vidc_set_dynamic_layer_bitrate(void *instance,
+int msm_vidc_set_layer_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 hfi_value = 0;
-	s32 rc_type = -1;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -3241,27 +3213,15 @@ int msm_vidc_set_dynamic_layer_bitrate(void *instance,
 		return 0;
 	}
 
-	if (inst->hfi_rc_type == HFI_RC_CBR_CFR ||
-		rc_type == HFI_RC_CBR_VFR) {
-		/* set layer bitrate for the client set layer */
-		hfi_value = inst->capabilities->cap[cap_id].value;
-		rc = msm_vidc_packetize_control(inst, cap_id,
-			HFI_PAYLOAD_U32, &hfi_value,
-			sizeof(u32), __func__);
-		if (rc)
-			return rc;
-	} else {
-		/*
-		 * All layer bitartes set for unsupported rc type.
-		 * Hence accept layer bitrates, but set total bitrate prop
-		 * with cumulative bitrate.
-		 */
-		hfi_value = inst->capabilities->cap[BIT_RATE].value;
-		rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
-				&hfi_value, sizeof(u32), __func__);
-		if (rc)
-			return rc;
-	}
+	/*
+	 * Accept layerwise bitrate but set total bitrate which was already
+	 * adjusted based on layer bitrate
+	 */
+	hfi_value = inst->capabilities->cap[BIT_RATE].value;
+	rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
+			&hfi_value, sizeof(u32), __func__);
+	if (rc)
+		return rc;
 
 	return rc;
 }

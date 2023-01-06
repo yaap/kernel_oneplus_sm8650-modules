@@ -260,7 +260,7 @@ int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
 	void *hfi_val, u32 payload_size, const char *func);
 
 int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl);
-int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_bitrate_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_entropy_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_profile(void *instance, struct v4l2_ctrl *ctrl);
@@ -320,7 +320,7 @@ int msm_vidc_set_gop_size(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
-int msm_vidc_set_dynamic_layer_bitrate(void *instance,
+int msm_vidc_set_layer_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_u32(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
