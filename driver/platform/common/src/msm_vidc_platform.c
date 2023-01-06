@@ -214,6 +214,15 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	core->media_device_ops = &msm_v4l2_media_ops;
 	core->v4l2_m2m_ops = &msm_v4l2_m2m_ops;
 	core->mem_ops = get_mem_ops();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_resources_ops();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ops\n", __func__);
+		return -EINVAL;
+	}
 
 	return 0;
 }

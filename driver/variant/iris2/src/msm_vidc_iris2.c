@@ -1038,7 +1038,6 @@ int msm_vidc_init_iris2(struct msm_vidc_core *core)
 	d_vpr_h("%s()\n", __func__);
 	core->venus_ops = &iris2_ops;
 	core->session_ops = &msm_session_ops;
-	core->res_ops = get_resources_ops();
 
 	return 0;
 }

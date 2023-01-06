@@ -67,6 +67,10 @@ struct msm_vidc_core;
 	venus_hfi_for_each_thing_reverse_continue(__device, __rinfo, \
 			regulator, __from)
 
+/* Power domain set helpers */
+#define venus_hfi_for_each_power_domain(__device, __pdinfo) \
+	venus_hfi_for_each_thing(__device, __pdinfo, power_domain)
+
 /* Clock set helpers */
 #define venus_hfi_for_each_clock(__device, __cinfo) \
 	venus_hfi_for_each_thing(__device, __cinfo, clock)
@@ -115,6 +119,16 @@ struct regulator_info {
 
 struct regulator_set {
 	struct regulator_info     *regulator_tbl;
+	u32                        count;
+};
+
+struct power_domain_info {
+	struct device             *genpd_dev;
+	const char                *name;
+};
+
+struct power_domain_set {
+	struct power_domain_info  *power_domain_tbl;
 	u32                        count;
 };
 
@@ -202,6 +216,7 @@ struct msm_vidc_resource {
 	u32                        irq;
 	struct bus_set             bus_set;
 	struct regulator_set       regulator_set;
+	struct power_domain_set    power_domain_set;
 	struct clock_set           clock_set;
 	struct reset_set           reset_set;
 	struct subcache_set        subcache_set;
@@ -227,6 +242,7 @@ struct msm_vidc_resources_ops {
 	int (*reset_control_deassert)(struct msm_vidc_core *core,
 			const char *name);
 
+	int (*gdsc_init)(struct msm_vidc_core *core);
 	int (*gdsc_on)(struct msm_vidc_core *core, const char *name);
 	int (*gdsc_off)(struct msm_vidc_core *core, const char *name);
 	int (*gdsc_hw_ctrl)(struct msm_vidc_core *core);

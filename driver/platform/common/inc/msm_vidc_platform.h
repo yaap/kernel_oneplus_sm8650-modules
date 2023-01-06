@@ -48,6 +48,10 @@ struct bw_table {
 	u32              max_kbps;
 };
 
+struct pd_table {
+	const char      *name;
+};
+
 struct regulator_table {
 	const char      *name;
 	bool             hw_trigger;
@@ -187,6 +191,10 @@ struct msm_vidc_platform_data {
 	unsigned int bw_tbl_size;
 	const struct regulator_table *regulator_tbl;
 	unsigned int regulator_tbl_size;
+	const struct pd_table *pd_tbl;
+	unsigned int pd_tbl_size;
+	const char **opp_tbl;
+	unsigned int opp_tbl_size;
 	const struct clk_table *clk_tbl;
 	unsigned int clk_tbl_size;
 	const struct clk_rst_table *clk_rst_tbl;
@@ -229,11 +237,6 @@ static inline bool is_sys_cache_present(struct msm_vidc_core *core)
 static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 {
 	return !!core->platform->data.supports_mmrm;
-}
-
-static inline bool is_regulator_supported(struct msm_vidc_core *core)
-{
-	return !!core->platform->data.regulator_tbl_size;
 }
 
 int msm_vidc_init_platform(struct platform_device *pdev);
