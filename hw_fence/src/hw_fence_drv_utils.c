@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_platform.h>
@@ -471,7 +471,7 @@ int hw_fence_utils_alloc_mem(struct hw_fence_driver_data *drv_data)
 		return -EINVAL;
 	}
 
-	drv_data->io_mem_base = devm_ioremap(dev, drv_data->res.start,
+	drv_data->io_mem_base = devm_ioremap_wc(dev, drv_data->res.start,
 		resource_size(&drv_data->res));
 	if (!drv_data->io_mem_base) {
 		HWFNC_ERR("ioremap failed!\n");
