@@ -1958,7 +1958,7 @@ static int __hwfence_regs_map(struct iris_hfi_device *device)
 		rc = iommu_map(cb->domain, device->res->aon_iova,
 			device->res->aon_phyaddr,
 			device->res->aon_size,
-			IOMMU_READ | IOMMU_WRITE);
+			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
 		if (rc) {
 			dprintk(CVP_ERR, "map aon fail %d %#x %#x %#x\n",
 				rc, device->res->aon_iova,
