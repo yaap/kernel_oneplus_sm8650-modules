@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HW_FENCE_DRV_INTERNAL_H
@@ -108,7 +108,7 @@ enum hw_fence_loopback_id {
 	HW_FENCE_LOOPBACK_DPU_CTL_5,
 	HW_FENCE_LOOPBACK_GFX_CTX_0,
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	HW_FENCE_LOOPBACK_VAL_0,
+	HW_FENCE_LOOPBACK_VAL_0 = HW_FENCE_CLIENT_ID_VAL0,
 	HW_FENCE_LOOPBACK_VAL_1,
 	HW_FENCE_LOOPBACK_VAL_2,
 	HW_FENCE_LOOPBACK_VAL_3,
