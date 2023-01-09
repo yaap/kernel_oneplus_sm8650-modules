@@ -19,6 +19,27 @@
 #define KGSL_HFIMEM_ENTRY "kgsl_hfi_mem"
 #define KGSL_GMU_DUMPMEM_ENTRY "kgsl_gmu_dump_mem"
 
+/**
+ * Request TZ to program set of access controlled registers that KGSL needs
+ * irrespective of any features
+ */
+#define GPU_ALWAYS_EN_REQ BIT(0)
+/**
+ * Request TZ to program BCL id to access controlled register when BCL is
+ * enabled
+ */
+#define GPU_BCL_EN_REQ BIT(1)
+/**
+ * Request TZ to program set of access controlled register for CLX feature
+ * when enabled
+ */
+#define GPU_CLX_EN_REQ BIT(2)
+/**
+ * Request TZ to program tsense ids to access controlled registers for reading
+ * gpu temperature sensors
+ */
+#define GPU_TSENSE_EN_REQ BIT(3)
+
 struct regulator;
 struct clk_bulk_data;
 
@@ -113,6 +134,15 @@ int kgsl_regulator_set_voltage(struct device *dev,
  */
 int kgsl_clk_set_rate(struct clk_bulk_data *clks, int num_clks,
 		const char *id, unsigned long rate);
+
+/**
+ * kgsl_scm_gpu_init_regs - Load secure registers through tz
+ * @dev: Pointer to the GPU platform device
+ * @gpu_req: Bit mask of requests to enable
+ *
+ * Return: 0 on success or negative on failure
+ */
+int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req);
 
 /**
  * kgsl_zap_shader_load - Load a zap shader

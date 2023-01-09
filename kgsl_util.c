@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/soc/qcom/mdt_loader.h>
 #include <linux/string.h>
+#include <linux/version.h>
 #include <soc/qcom/minidump.h>
 
 #include "adreno.h"
@@ -80,6 +81,30 @@ int kgsl_clk_set_rate(struct clk_bulk_data *clks, int num_clks,
 
 	return clk_set_rate(clk, rate);
 }
+
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
+{
+	int ret;
+
+	/* Sanitize request inputs */
+	gpu_req &= (GPU_ALWAYS_EN_REQ | GPU_BCL_EN_REQ | GPU_TSENSE_EN_REQ);
+	if (!gpu_req)
+		return -EOPNOTSUPP;
+
+	ret = qcom_scm_kgsl_init_regs(gpu_req);
+	if (ret)
+		dev_err(dev, "Scm call for requests:0x%x failed with ret:: %d\n",
+									gpu_req, ret);
+
+	return ret;
+}
+#else
+int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
+{
+	return -EOPNOTSUPP;
+}
+#endif
 
 /*
  * The PASID has stayed consistent across all targets thus far so we are
