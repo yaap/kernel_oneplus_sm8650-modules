@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _KGSL_UTIL_H_
 #define _KGSL_UTIL_H_
+
+#include <linux/version.h>
 
 #define KGSL_DRIVER "kgsl_driver"
 #define KGSL_ADRENO_DEVICE "kgsl_adreno_device"
@@ -140,9 +142,17 @@ int kgsl_clk_set_rate(struct clk_bulk_data *clks, int num_clks,
  * @dev: Pointer to the GPU platform device
  * @gpu_req: Bit mask of requests to enable
  *
- * Return: 0 on success or negative on failure
+ * Return: 0 on success or negative on failure and EOPNOTSUPP if scm call
+ * not supported
  */
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req);
+#else
+static inline int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
+{
+	return -EOPNOTSUPP;
+}
+#endif
 
 /**
  * kgsl_zap_shader_load - Load a zap shader
