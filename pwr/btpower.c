@@ -1339,7 +1339,7 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case BT_CMD_GETVAL_POWER_SRCS:
-		pr_err("BT_CMD_GETVAL_POWER_SRCS\n");
+		pr_info("BT_CMD_GETVAL_POWER_SRCS\n");
 		set_gpios_srcs_status("BT_RESET_GPIO", BT_RESET_GPIO_CURRENT,
 			bt_power_pdata->bt_gpio_sys_rst);
 		set_gpios_srcs_status("SW_CTRL_GPIO", BT_SW_CTRL_GPIO_CURRENT,
@@ -1357,8 +1357,12 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case BT_CMD_SET_IPA_TCS_INFO:
-		pr_err("%s: BT_CMD_SET_IPA_TCS_INFO\n", __func__);
+		pr_info("%s: BT_CMD_SET_IPA_TCS_INFO\n", __func__);
 		btpower_enable_ipa_vreg(bt_power_pdata);
+		break;
+	case BT_CMD_KERNEL_PANIC:
+		pr_info("%s: BT_CMD_KERNEL_PANIC\n", __func__);
+		panic("subsys-restart: Resetting the SoC - Bluetooth crashed\n");
 		break;
 	default:
 		return -ENOIOCTLCMD;

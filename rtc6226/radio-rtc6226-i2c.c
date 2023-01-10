@@ -36,6 +36,7 @@
 #include <linux/regulator/consumer.h>
 #include "radio-rtc6226.h"
 #include <linux/workqueue.h>
+#include <linux/version.h>
 
 static const struct of_device_id rtc6226_i2c_dt_ids[] = {
 	{.compatible = "rtc6226"},
@@ -929,7 +930,11 @@ err_vreg:
 /*
  * rtc6226_i2c_remove - remove the device
  */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void rtc6226_i2c_remove(struct i2c_client *client)
+#else
 static int rtc6226_i2c_remove(struct i2c_client *client)
+#endif
 {
 	struct rtc6226_device *radio = i2c_get_clientdata(client);
 
@@ -942,8 +947,9 @@ static int rtc6226_i2c_remove(struct i2c_client *client)
 	v4l2_device_unregister(&radio->v4l2_dev);
 	kfree(radio);
 	FMDBG("%s exit\n", __func__);
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return 0;
+#endif
 }
 
 #ifdef CONFIG_PM
