@@ -126,7 +126,6 @@
 #define HFI_CTXT_FLAG_PREEMPT_STYLE_ANY		0
 #define HFI_CTXT_FLAG_PREEMPT_STYLE_RB		1
 #define HFI_CTXT_FLAG_PREEMPT_STYLE_FG		2
-#define CMDBATCH_INDIRECT			0x00000200
 
 /* Default sampling interval in units of 50 us */
 #define HFI_FEATURE_GMU_STATS_INTERVAL		4
@@ -749,7 +748,9 @@ struct hfi_ts_notify_cmd {
 #define CMDBATCH_ERROR		2
 #define CMDBATCH_SKIP		3
 
-#define CMDBATCH_PROFILING  BIT(4)
+#define CMDBATCH_PROFILING		BIT(4)
+#define CMDBATCH_EOF			BIT(8)
+#define CMDBATCH_INDIRECT		BIT(9)
 #define CMDBATCH_RECURRING_START   BIT(18)
 #define CMDBATCH_RECURRING_STOP   BIT(19)
 
