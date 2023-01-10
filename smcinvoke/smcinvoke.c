@@ -30,10 +30,15 @@
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/kthread.h>
-#include "misc/qseecom_kernel.h"
 #include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#include <linux/qseecom_kernel.h>
+#include "misc/qseecom_priv.h"
+#else
+#include "misc/qseecom_kernel.h"
+#endif
 
 #define CREATE_TRACE_POINTS
 #include "trace_smcinvoke.h"
@@ -2795,6 +2800,14 @@ static int smcinvoke_probe(struct platform_device *pdev)
 	}
 	smcinvoke_pdev = pdev;
 
+#if !IS_ENABLED(CONFIG_QSEECOM) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
+	/*If the api fails to get the func ops, print the error and continue
+	* Do not treat it as fatal*/
+	rc = get_qseecom_kernel_fun_ops();
+	if (rc) {
+		pr_err("failed to get qseecom kernel func ops %d", rc);
+	}
+#endif
 	return 0;
 
 exit_destroy_device:

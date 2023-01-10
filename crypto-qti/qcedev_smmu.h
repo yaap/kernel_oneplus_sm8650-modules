@@ -8,7 +8,6 @@
 #ifndef _DRIVERS_CRYPTO_PARSE_H_
 #define _DRIVERS_CRYPTO_PARSE_H_
 
-#include <linux/dma-iommu.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-direction.h>
 #include <linux/iommu.h>

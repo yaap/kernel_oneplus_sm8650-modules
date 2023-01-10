@@ -35,7 +35,6 @@
 #include <soc/qcom/qseecom_scm.h>
 #include <soc/qcom/qseecomi.h>
 #include <asm/cacheflush.h>
-#include <misc/qseecom_kernel.h>
 #include <linux/delay.h>
 #include <linux/signal.h>
 #include <linux/compat.h>
@@ -48,6 +47,12 @@
 #include <linux/qtee_shmbridge.h>
 #include <linux/mem-buf.h>
 #include "ice.h"
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#include <linux/qseecom_kernel.h>
+#include "misc/qseecom_priv.h"
+#else
+#include "misc/qseecom_kernel.h"
+#endif
 
 #define QSEECOM_DEV			"qseecom"
 #define QSEOS_VERSION_14		0x14
@@ -4994,7 +4999,7 @@ static int qseecom_unload_commonlib_image(void)
 	return ret;
 }
 
-int qseecom_start_app(struct qseecom_handle **handle,
+static int __qseecom_start_app(struct qseecom_handle **handle,
 						char *app_name, uint32_t size)
 {
 	int32_t ret = 0;
@@ -5162,9 +5167,8 @@ err:
 	__wakeup_unload_app_kthread();
 	return ret;
 }
-EXPORT_SYMBOL(qseecom_start_app);
 
-int qseecom_shutdown_app(struct qseecom_handle **handle)
+static int __qseecom_shutdown_app(struct qseecom_handle **handle)
 {
 	int ret = -EINVAL;
 	struct qseecom_dev_handle *data;
@@ -5218,9 +5222,8 @@ int qseecom_shutdown_app(struct qseecom_handle **handle)
 	__wakeup_unload_app_kthread();
 	return ret;
 }
-EXPORT_SYMBOL(qseecom_shutdown_app);
 
-int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
+static int __qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 			uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len)
 {
 	int ret = 0;
@@ -5302,7 +5305,42 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 			req.resp_len, req.resp_buf);
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+const static struct qseecom_drv_ops qseecom_driver_ops = {
+       .qseecom_send_command = __qseecom_send_command,
+       .qseecom_start_app = __qseecom_start_app,
+       .qseecom_shutdown_app = __qseecom_shutdown_app,
+};
+
+int get_qseecom_kernel_fun_ops(void)
+{
+    return provide_qseecom_kernel_fun_ops(&qseecom_driver_ops);
+}
+
+#else
+
+int qseecom_start_app(struct qseecom_handle **handle,
+                    char *app_name, uint32_t size)
+{
+    return __qseecom_start_app(handle, app_name, size);
+}
+EXPORT_SYMBOL(qseecom_start_app);
+
+int qseecom_shutdown_app(struct qseecom_handle **handle)
+{
+    return __qseecom_shutdown_app(handle);
+}
+EXPORT_SYMBOL(qseecom_shutdown_app);
+
+int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
+            uint32_t sbuf_len, void *resp_buf, uint32_t rbuf_len)
+{
+    return __qseecom_send_command(handle, send_buf, sbuf_len,
+                        resp_buf, rbuf_len);
+}
 EXPORT_SYMBOL(qseecom_send_command);
+#endif
 
 int qseecom_set_bandwidth(struct qseecom_handle *handle, bool high)
 {
@@ -9577,6 +9615,14 @@ static int qseecom_probe(struct platform_device *pdev)
 	rc = qseecom_create_kthreads();
 	if (rc)
 		goto exit_deinit_bus;
+
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+	/*If the api fails to get the func ops, print the error and continue
+	* Do not treat it as fatal*/
+	rc = get_qseecom_kernel_fun_ops();
+	if (rc)
+		pr_err("failed to provide qseecom ops %d", rc);
+#endif
 	atomic_set(&qseecom.qseecom_state, QSEECOM_STATE_READY);
 	return 0;
 

@@ -23,7 +23,11 @@
 #include <linux/errno.h>
 #include <linux/kthread.h>
 #include <linux/hdcp_qseecom.h>
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#include <linux/qseecom_kernel.h>
+#else
 #include "misc/qseecom_kernel.h"
+#endif
 
 #define HDCP2P2_APP_NAME      "hdcp2p2"
 #define HDCP1_APP_NAME        "hdcp1"
