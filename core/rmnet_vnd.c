@@ -160,6 +160,7 @@ static netdev_tx_t rmnet_vnd_start_xmit(struct sk_buff *skb,
 				tmp = skb->next;
 				skb->dev = dev;
 				priv->stats.ll_tso_segs++;
+				skb_mark_not_on_list(skb);
 				rmnet_egress_handler(skb, low_latency);
 			}
 		} else if (!low_latency && skb_is_gso(skb)) {
@@ -198,6 +199,7 @@ static netdev_tx_t rmnet_vnd_start_xmit(struct sk_buff *skb,
 						skb_shinfo(skb)->gso_type = orig_gso_type;
 
 						priv->stats.tso_segment_success++;
+						skb_mark_not_on_list(skb);
 						rmnet_egress_handler(skb, low_latency);
 					}
 				}
@@ -707,7 +709,7 @@ void rmnet_vnd_setup(struct net_device *rmnet_dev)
 	rmnet_dev->netdev_ops = &rmnet_vnd_ops;
 	rmnet_dev->mtu = RMNET_DFLT_PACKET_SIZE;
 	rmnet_dev->needed_headroom = RMNET_NEEDED_HEADROOM;
-	eth_hw_addr_random(rmnet_dev);
+	eth_random_addr(rmnet_dev->perm_addr);
 	rmnet_dev->tx_queue_len = RMNET_TX_QUEUE_LEN;
 
 	/* Raw IP mode */
@@ -804,5 +806,5 @@ void rmnet_vnd_reset_mac_addr(struct net_device *dev)
 	if (dev->netdev_ops != &rmnet_vnd_ops)
 		return;
 
-	eth_hw_addr_random(dev);
+	eth_random_addr(dev->perm_addr);
 }
