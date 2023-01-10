@@ -5,6 +5,9 @@
  * Copyright (C) 2010 Stollmann E+V GmbH
  * Copyright (C) 2010 Trusted Logic S.A.
  */
+/*
+   Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+*/
 
 #define DEBUG
 #include <linux/kernel.h>
@@ -38,7 +41,9 @@
 #include <linux/of_address.h>
 #endif
 #include <linux/of_irq.h>
+#include <linux/pinctrl/qcom-pinctrl.h>
 #include "st21nfc.h"
+#include <linux/version.h>
 
 /*secure library headers*/
 #include "smcinvoke.h"
@@ -1088,6 +1093,8 @@ static int st21nfc_probe(struct i2c_client *client,
 	int ret;
 	struct st21nfc_device *st21nfc_dev;
 	struct device *dev = &client->dev;
+	unsigned int clkreq_gpio = 0;
+	pr_info("%s: enter\n",__func__);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("%s : need I2C_FUNC_I2C\n", __func__);
@@ -1181,6 +1188,20 @@ static int st21nfc_probe(struct i2c_client *client,
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_clkreq)) {
 		st21nfc_dev->clk_run = false;
 	} else {
+		/* Read clkreq GPIO number from device tree*/
+		ret = of_property_read_u32_index(client->dev.of_node, "clkreq-gpios", 1, &clkreq_gpio);
+		if (ret < 0) {
+			pr_err("%s Failed to read clkreq gipo number, ret: %d\n", __func__, ret);
+			return ret;
+		}
+		/* configure clkreq GPIO as wakeup capable */
+		ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
+		if (ret < 0) {
+			pr_err("%s Failed to setup clkreq gpio %d as wakeup capable, ret: %d\n", __func__, clkreq_gpio , ret);
+			return ret;
+		} else
+			pr_info("%s clkreq gpio %d successfully setup for wakeup capable\n", __func__, clkreq_gpio);
+
 		if (!device_property_read_bool(dev, "st,clk_pinctrl")) {
 			pr_debug("[dsc]%s:[OPTIONAL] clk_pinctrl not set\n",
 				 __func__);
@@ -1234,6 +1255,7 @@ static int st21nfc_probe(struct i2c_client *client,
 	device_init_wakeup(&client->dev, true);
 	device_set_wakeup_capable(&client->dev, true);
 	st21nfc_dev->irq_wake_up = false;
+	pr_info("%s: probing nfc i2c success\n",__func__);
 
 	return 0;
 
@@ -1250,7 +1272,11 @@ err_misc_register:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void st21nfc_remove(struct i2c_client *client)
+#else
 static int st21nfc_remove(struct i2c_client *client)
+#endif
 {
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
@@ -1267,7 +1293,9 @@ static int st21nfc_remove(struct i2c_client *client)
 	mutex_destroy(&st21nfc_dev->irq_dir_mutex);
 	acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return 0;
+#endif
 }
 
 static int st21nfc_suspend(struct device *device)
