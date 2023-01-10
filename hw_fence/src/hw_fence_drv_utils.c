@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_platform.h>
@@ -8,6 +8,7 @@
 #include <linux/io.h>
 #include <linux/gunyah/gh_rm_drv.h>
 #include <linux/gunyah/gh_dbl.h>
+#include <linux/qcom_scm.h>
 #include <soc/qcom/secure_buffer.h>
 
 #include "hw_fence_drv_priv.h"
@@ -339,18 +340,19 @@ int hw_fence_utils_init_virq(struct hw_fence_driver_data *drv_data)
 static int hw_fence_gunyah_share_mem(struct hw_fence_driver_data *drv_data,
 				gh_vmid_t self, gh_vmid_t peer)
 {
-	u32 src_vmlist[1] = {self};
-	int src_perms[2] = {PERM_READ | PERM_WRITE | PERM_EXEC};
-	int dst_vmlist[2] = {self, peer};
-	int dst_perms[2] = {PERM_READ | PERM_WRITE, PERM_READ | PERM_WRITE};
+	struct qcom_scm_vmperm src_vmlist[] = {{self, PERM_READ | PERM_WRITE | PERM_EXEC}};
+	struct qcom_scm_vmperm dst_vmlist[] = {{self, PERM_READ | PERM_WRITE},
+					       {peer, PERM_READ | PERM_WRITE}};
+	int srcvmids = BIT(src_vmlist[0].vmid);
+	int dstvmids = BIT(dst_vmlist[0].vmid) | BIT(dst_vmlist[1].vmid);
 	struct gh_acl_desc *acl;
 	struct gh_sgl_desc *sgl;
 	int ret;
 
-	ret = hyp_assign_phys(drv_data->res.start, resource_size(&drv_data->res),
-			src_vmlist, 1, dst_vmlist, dst_perms, 2);
+	ret = qcom_scm_assign_mem(drv_data->res.start, resource_size(&drv_data->res), &srcvmids,
+			dst_vmlist, ARRAY_SIZE(dst_vmlist));
 	if (ret) {
-		HWFNC_ERR("%s: hyp_assign_phys failed addr=%x size=%u err=%d\n",
+		HWFNC_ERR("%s: qcom_scm_assign_mem failed addr=%x size=%u err=%d\n",
 			__func__, drv_data->res.start, drv_data->size, ret);
 		return ret;
 	}
@@ -379,9 +381,8 @@ static int hw_fence_gunyah_share_mem(struct hw_fence_driver_data *drv_data,
 		HWFNC_ERR("%s: gh_rm_mem_share failed addr=%x size=%u err=%d\n",
 			__func__, drv_data->res.start, drv_data->size, ret);
 		/* Attempt to give resource back to HLOS */
-		hyp_assign_phys(drv_data->res.start, resource_size(&drv_data->res),
-				dst_vmlist, 2,
-				src_vmlist, src_perms, 1);
+		qcom_scm_assign_mem(drv_data->res.start, resource_size(&drv_data->res),
+				&dstvmids, src_vmlist, ARRAY_SIZE(src_vmlist));
 		ret = -EPROBE_DEFER;
 	}
 
