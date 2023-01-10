@@ -119,6 +119,17 @@ struct eva_kmd_client_data {
 	__u32 client_data1;
 	__u32 client_data2;
 };
+struct cvp_buf_type {
+	__s32 fd;
+	__u32 size;
+	__u32 offset;
+	__u32 flags;
+	__u32 reserved1;
+	__u32 reserved2;
+	__u32 fence_type;
+	__u32 input_handle;
+	__u32 output_handle;
+};
 
 /**
  * Structures and macros for Out-of-Band (OOB) buffer
@@ -129,7 +140,7 @@ struct eva_kmd_client_data {
 #define EVA_KMD_WNCC_MAX_ADDRESSES            4095
 #define EVA_KMD_WNCC_MAX_SRC_BUFS             2400
 #define EVA_KMD_WNCC_SRC_BUF_ID_OFFSET        1
-#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET 44
+#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET (14 + sizeof(struct cvp_buf_type) / sizeof(__u32) * 5)
 
 struct eva_kmd_wncc_metadata {
 	__u64 loc_x_dec   : 12;

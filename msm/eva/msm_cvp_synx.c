@@ -254,6 +254,9 @@ static int cvp_synx_ops_v2(struct msm_cvp_inst *inst, enum cvp_synx_type type,
 {
 	struct synx_session *ssid;
 
+	if (fc->signature == 0xB0BABABE)
+		return 0;
+
 	ssid = inst->synx_session_id;
 
 	if (type == CVP_INPUT_SYNX) {
