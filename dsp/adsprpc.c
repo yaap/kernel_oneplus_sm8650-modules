@@ -3661,6 +3661,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 			    "init memory for process %d should be between %d and %d\n",
 			     init->memlen, INIT_MEMLEN_MIN_DYNAMIC, INIT_MEMLEN_MAX_DYNAMIC);
 		    err = -EINVAL;
+		    spin_unlock(&fl->hlock);
 		    goto bail;
 		}
 		dsp_userpd_memlen = init->memlen;
