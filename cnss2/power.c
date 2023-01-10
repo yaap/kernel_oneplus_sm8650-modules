@@ -76,6 +76,7 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 
 #define BOOTSTRAP_DELAY			1000
 #define WLAN_ENABLE_DELAY		1000
+#define WLAN_ENABLE_DELAY_ROME		10000
 
 #define TCS_CMD_DATA_ADDR_OFFSET	0x4
 #define TCS_OFFSET			0xC8
@@ -90,6 +91,7 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define CNSS_PMIC_AUTO_HEADROOM 16
 #define CNSS_IR_DROP_WAKE 30
 #define CNSS_IR_DROP_SLEEP 10
+#define VREG_NOTFOUND 1
 
 /**
  * enum cnss_aop_vreg_param: Voltage regulator TCS param
@@ -326,8 +328,10 @@ static struct cnss_vreg_cfg *get_vreg_list(u32 *vreg_list_size,
  * For multi-exchg dt node, get the required vregs' names from property
  * 'wlan_vregs', which is string array;
  *
- * if the property is present but no value is set, then no additional wlan
- * verg is required.
+ * If the property is not present or present but no value is set, then no
+ * additional wlan verg is required, function return VREG_NOTFOUND.
+ * If property is present with valid value, function return 0.
+ * Other cases a negative value is returned.
  *
  * For non-multi-exchg dt, go through all vregs in the static array
  * 'cnss_vreg_list'.
@@ -355,14 +359,19 @@ static int cnss_get_vreg(struct cnss_plat_data *plat_priv,
 		id_n = of_property_count_strings(dt_node,
 						 WLAN_VREGS_PROP);
 		if (id_n <= 0) {
-			if (id_n == -ENODATA) {
+			if (id_n == -ENODATA || id_n == -EINVAL) {
 				cnss_pr_dbg("No additional vregs for: %s:%lx\n",
 					    dt_node->name,
 					    plat_priv->device_id);
-				return 0;
+				/* By returning a positive value, give the caller a
+				 * chance to know no additional regulator is needed
+				 * by this device, and shall not treat this case as
+				 * an error.
+				 */
+				return VREG_NOTFOUND;
 			}
 
-			cnss_pr_err("property %s is invalid or missed: %s:%lx\n",
+			cnss_pr_err("property %s is invalid: %s:%lx\n",
 				    WLAN_VREGS_PROP, dt_node->name,
 				    plat_priv->device_id);
 			return -EINVAL;
@@ -1012,12 +1021,19 @@ static int cnss_select_pinctrl_state(struct cnss_plat_data *plat_priv,
 					    ret);
 				goto out;
 			}
-			udelay(WLAN_ENABLE_DELAY);
+
+			if (plat_priv->device_id == QCA6174_DEVICE_ID ||
+			    plat_priv->device_id == 0)
+				udelay(WLAN_ENABLE_DELAY_ROME);
+			else
+				udelay(WLAN_ENABLE_DELAY);
+
 			cnss_set_xo_clk_gpio_state(plat_priv, false);
 		} else {
 			cnss_set_xo_clk_gpio_state(plat_priv, false);
 			goto out;
 		}
+
 	} else {
 		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_en_sleep)) {
 			cnss_wlan_hw_disable_check(plat_priv);
@@ -1104,7 +1120,7 @@ int cnss_get_input_gpio_value(struct cnss_plat_data *plat_priv, int gpio_num)
 	return gpio_get_value(gpio_num);
 }
 
-int cnss_power_on_device(struct cnss_plat_data *plat_priv)
+int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 {
 	int ret = 0;
 
@@ -1130,6 +1146,26 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 		cnss_pr_err("Failed to turn on clocks, err = %d\n", ret);
 		goto vreg_off;
 	}
+
+#ifdef CONFIG_PULLDOWN_WLANEN
+	if (reset) {
+		/* The default state of wlan_en maybe not low,
+		 * according to datasheet, we should put wlan_en
+		 * to low first, and trigger high.
+		 * And the default delay for qca6390 is at least 4ms,
+		 * for qcn7605/qca6174, it is 10us. For safe, set 5ms delay
+		 * here.
+		 */
+		ret = cnss_select_pinctrl_state(plat_priv, false);
+		if (ret) {
+			cnss_pr_err("Failed to select pinctrl state, err = %d\n",
+				    ret);
+			goto clk_off;
+		}
+
+		usleep_range(4000, 5000);
+	}
+#endif
 
 	ret = cnss_select_pinctrl_enable(plat_priv);
 	if (ret) {
@@ -1788,5 +1824,5 @@ int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv)
 		return ret;
 
 	plat_priv->powered_on = false;
-	return cnss_power_on_device(plat_priv);
+	return cnss_power_on_device(plat_priv, false);
 }

@@ -126,7 +126,7 @@ static void icnss_set_plat_priv(struct icnss_priv *priv)
 	penv = priv;
 }
 
-static struct icnss_priv *icnss_get_plat_priv()
+static struct icnss_priv *icnss_get_plat_priv(void)
 {
 	return penv;
 }
@@ -787,12 +787,25 @@ void icnss_set_wlan_en_delay(struct icnss_priv *priv)
 	}
 }
 
+static enum wlfw_wlan_rf_subtype_v01 icnss_rf_subtype_value_to_type(u32 val)
+{
+	switch (val) {
+	case WLAN_RF_SLATE:
+		return WLFW_WLAN_RF_SLATE_V01;
+	case WLAN_RF_APACHE:
+		return WLFW_WLAN_RF_APACHE_V01;
+	default:
+		return WLFW_WLAN_RF_SUBTYPE_MAX_VAL_V01;
+	}
+}
+
 static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 						 void *data)
 {
 	int ret = 0;
 	int temp = 0;
 	bool ignore_assert = false;
+	enum wlfw_wlan_rf_subtype_v01 rf_subtype;
 
 	if (!priv)
 		return -ENODEV;
@@ -822,6 +835,19 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 		}
 		ignore_assert = true;
 		goto fail;
+	}
+
+	if (priv->is_rf_subtype_valid) {
+		rf_subtype = icnss_rf_subtype_value_to_type(priv->rf_subtype);
+		if (rf_subtype != WLFW_WLAN_RF_SUBTYPE_MAX_VAL_V01) {
+			ret = wlfw_wlan_hw_init_cfg_msg(priv, rf_subtype);
+			if (ret < 0)
+				icnss_pr_dbg("Sending rf_subtype failed ret %d\n",
+					     ret);
+		} else {
+			icnss_pr_dbg("Invalid rf subtype %d in DT\n",
+				     priv->rf_subtype);
+		}
 	}
 
 	if (priv->device_id == WCN6750_DEVICE_ID) {
@@ -3872,6 +3898,12 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 			} else {
 				priv->ce_irqs[i] = res->start;
 			}
+		}
+
+		if (of_property_read_u32(pdev->dev.of_node, "qcom,rf_subtype",
+					 &priv->rf_subtype) == 0) {
+			priv->is_rf_subtype_valid = true;
+			icnss_pr_dbg("RF subtype 0x%x\n", priv->rf_subtype);
 		}
 	} else if (priv->device_id == WCN6750_DEVICE_ID) {
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,

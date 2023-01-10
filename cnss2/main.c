@@ -219,6 +219,36 @@ int cnss_get_mem_segment_info(enum cnss_remote_mem_type type,
 }
 EXPORT_SYMBOL(cnss_get_mem_segment_info);
 
+static int cnss_get_audio_iommu_domain(struct cnss_plat_data *plat_priv)
+{
+	struct device_node *audio_ion_node;
+	struct platform_device *audio_ion_pdev;
+
+	audio_ion_node = of_find_compatible_node(NULL, NULL,
+						 "qcom,msm-audio-ion");
+	if (!audio_ion_node) {
+		cnss_pr_err("Unable to get Audio ion node");
+		return -EINVAL;
+	}
+
+	audio_ion_pdev = of_find_device_by_node(audio_ion_node);
+	of_node_put(audio_ion_node);
+	if (!audio_ion_pdev) {
+		cnss_pr_err("Unable to get Audio ion platform device");
+		return -EINVAL;
+	}
+
+	plat_priv->audio_iommu_domain =
+				iommu_get_domain_for_dev(&audio_ion_pdev->dev);
+	put_device(&audio_ion_pdev->dev);
+	if (!plat_priv->audio_iommu_domain) {
+		cnss_pr_err("Unable to get Audio ion iommu domain");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int cnss_set_feature_list(struct cnss_plat_data *plat_priv,
 			  enum cnss_feature_v01 feature)
 {
@@ -325,26 +355,28 @@ EXPORT_SYMBOL(cnss_get_platform_cap);
 bool cnss_get_fw_cap(struct device *dev, enum cnss_fw_caps fw_cap)
 {
 	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
-	bool ret = false;
+	bool is_supported = false;
 
 	if (!plat_priv)
-		return ret;
+		return is_supported;
 
 	if (!plat_priv->fw_caps)
-		return ret;
+		return is_supported;
 
 	switch (fw_cap) {
 	case CNSS_FW_CAP_DIRECT_LINK_SUPPORT:
-		ret = !!(plat_priv->fw_caps &
-			 QMI_WLFW_DIRECT_LINK_SUPPORT_V01);
+		is_supported = !!(plat_priv->fw_caps &
+				  QMI_WLFW_DIRECT_LINK_SUPPORT_V01);
+		if (is_supported && cnss_get_audio_iommu_domain(plat_priv))
+			is_supported = false;
 		break;
 	default:
 		cnss_pr_err("Invalid FW Capability: 0x%x\n", fw_cap);
 	}
 
 	cnss_pr_dbg("FW Capability 0x%x is %s\n", fw_cap,
-		    ret ? "supported" : "not supported");
-	return ret;
+		    is_supported ? "supported" : "not supported");
+	return is_supported;
 }
 EXPORT_SYMBOL(cnss_get_fw_cap);
 
@@ -375,9 +407,15 @@ int cnss_wlan_enable(struct device *dev,
 		     enum cnss_driver_mode mode,
 		     const char *host_version)
 {
-	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	int ret = 0;
+	struct cnss_plat_data *plat_priv;
 
+	if (!dev) {
+		cnss_pr_err("Invalid dev pointer\n");
+		return -EINVAL;
+	}
+
+	plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	if (!plat_priv)
 		return -ENODEV;
 
@@ -411,9 +449,15 @@ EXPORT_SYMBOL(cnss_wlan_enable);
 
 int cnss_wlan_disable(struct device *dev, enum cnss_driver_mode mode)
 {
-	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	int ret = 0;
+	struct cnss_plat_data *plat_priv;
 
+	if (!dev) {
+		cnss_pr_err("Invalid dev pointer\n");
+		return -EINVAL;
+	}
+
+	plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	if (!plat_priv)
 		return -ENODEV;
 
@@ -429,6 +473,52 @@ int cnss_wlan_disable(struct device *dev, enum cnss_driver_mode mode)
 	return ret;
 }
 EXPORT_SYMBOL(cnss_wlan_disable);
+
+int cnss_audio_smmu_map(struct device *dev, phys_addr_t paddr,
+			dma_addr_t iova, size_t size)
+{
+	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	uint32_t page_offset;
+
+	if (!plat_priv)
+		return -ENODEV;
+
+	if (!plat_priv->audio_iommu_domain)
+		return -EINVAL;
+
+	page_offset = iova & (PAGE_SIZE - 1);
+	if (page_offset + size > PAGE_SIZE)
+		size += PAGE_SIZE;
+
+	iova -= page_offset;
+	paddr -= page_offset;
+
+	return iommu_map(plat_priv->audio_iommu_domain, iova, paddr,
+			 roundup(size, PAGE_SIZE), IOMMU_READ | IOMMU_WRITE);
+}
+EXPORT_SYMBOL(cnss_audio_smmu_map);
+
+void cnss_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size)
+{
+	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	uint32_t page_offset;
+
+	if (!plat_priv)
+		return;
+
+	if (!plat_priv->audio_iommu_domain)
+		return;
+
+	page_offset = iova & (PAGE_SIZE - 1);
+	if (page_offset + size > PAGE_SIZE)
+		size += PAGE_SIZE;
+
+	iova -= page_offset;
+
+	iommu_unmap(plat_priv->audio_iommu_domain, iova,
+		    roundup(size, PAGE_SIZE));
+}
+EXPORT_SYMBOL(cnss_audio_smmu_unmap);
 
 int cnss_athdiag_read(struct device *dev, u32 offset, u32 mem_type,
 		      u32 data_len, u8 *output)
@@ -490,8 +580,14 @@ EXPORT_SYMBOL(cnss_athdiag_write);
 
 int cnss_set_fw_log_mode(struct device *dev, u8 fw_log_mode)
 {
-	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
+	struct cnss_plat_data *plat_priv;
 
+	if (!dev) {
+		cnss_pr_err("Invalid dev pointer\n");
+		return -EINVAL;
+	}
+
+	plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	if (!plat_priv)
 		return -ENODEV;
 
@@ -1155,7 +1251,7 @@ static int cnss_get_resources(struct cnss_plat_data *plat_priv)
 	int ret = 0;
 
 	ret = cnss_get_vreg_type(plat_priv, CNSS_VREG_PRIM);
-	if (ret) {
+	if (ret < 0) {
 		cnss_pr_err("Failed to get vreg, err = %d\n", ret);
 		goto out;
 	}
@@ -2042,6 +2138,18 @@ mark_cal_fail:
 		 */
 		plat_priv->cal_done = CNSS_CAL_FAILURE;
 		set_bit(CNSS_COLD_BOOT_CAL_DONE, &plat_priv->driver_state);
+
+		if (plat_priv->device_id == QCA6174_DEVICE_ID ||
+		    plat_priv->device_id == QCN7605_DEVICE_ID) {
+			if (!test_bit(CNSS_DRIVER_REGISTER, &plat_priv->driver_state))
+				goto out;
+
+			cnss_pr_info("Schedule WLAN driver load\n");
+
+			if (cancel_delayed_work_sync(&plat_priv->wlan_reg_driver_work))
+				schedule_delayed_work(&plat_priv->wlan_reg_driver_work,
+						      0);
+		}
 	}
 
 out:
@@ -4076,7 +4184,7 @@ static int cnss_wlan_device_init(struct cnss_plat_data *plat_priv)
 		return 0;
 
 retry:
-	ret = cnss_power_on_device(plat_priv);
+	ret = cnss_power_on_device(plat_priv, true);
 	if (ret)
 		goto end;
 
@@ -4108,7 +4216,6 @@ int cnss_wlan_hw_enable(void)
 
 	if (test_bit(CNSS_PCI_PROBE_DONE, &plat_priv->driver_state))
 		goto register_driver;
-
 	ret = cnss_wlan_device_init(plat_priv);
 	if (ret) {
 		if (!test_bit(CNSS_WLAN_HW_DISABLED, &plat_priv->driver_state))
@@ -4301,6 +4408,7 @@ static int cnss_remove(struct platform_device *plat_dev)
 {
 	struct cnss_plat_data *plat_priv = platform_get_drvdata(plat_dev);
 
+	plat_priv->audio_iommu_domain = NULL;
 	cnss_genl_exit();
 	cnss_unregister_ims_service(plat_priv);
 	cnss_unregister_coex_service(plat_priv);
