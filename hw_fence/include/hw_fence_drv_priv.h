@@ -35,8 +35,8 @@
 #define HW_FENCE_HFI_CTRL_HEADERS_SIZE (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
 			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * HW_FENCE_CTRL_QUEUES))
 
-#define HW_FENCE_HFI_CLIENT_HEADERS_SIZE (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
-			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * HW_FENCE_CLIENT_QUEUES))
+#define HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num) (HW_FENCE_HFI_TABLE_HEADER_SIZE + \
+			(HW_FENCE_HFI_QUEUE_HEADER_SIZE * queues_num))
 
 /*
  * Max Payload size is the bigest size of the message that we can have in the CTRL queue
@@ -48,8 +48,8 @@
 #define HW_FENCE_CTRL_QUEUE_PAYLOAD HW_FENCE_CTRL_QUEUE_MAX_PAYLOAD_SIZE
 #define HW_FENCE_CLIENT_QUEUE_PAYLOAD (sizeof(struct msm_hw_fence_queue_payload))
 
-/* Locks area for all the clients */
-#define HW_FENCE_MEM_LOCKS_SIZE (sizeof(u64) * (HW_FENCE_CLIENT_MAX - 1))
+/* Locks area for all clients with RxQ */
+#define HW_FENCE_MEM_LOCKS_SIZE(rxq_clients_num) (sizeof(u64) * rxq_clients_num)
 
 #define HW_FENCE_TX_QUEUE 1
 #define HW_FENCE_RX_QUEUE 2
@@ -165,7 +165,9 @@ enum payload_type {
 
 /**
  * struct msm_hw_fence_client - Structure holding the per-Client allocated resources.
- * @client_id: id of the client
+ * @client_id: internal client_id used within HW fence driver; index into the clients struct
+ * @client_id_ext: external client_id, equal to client_id except for clients with configurable
+ *                 number of sub-clients (e.g. ife clients)
  * @mem_descriptor: hfi header memory descriptor
  * @queues: queues descriptor
  * @ipc_signal_id: id of the signal to be triggered for this client
@@ -173,11 +175,14 @@ enum payload_type {
  * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
  * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
+ * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
+ *                   driver and hfi_header->tx_wm is updated instead
  * @wait_queue: wait queue for the validation clients
  * @val_signal: doorbell flag to signal the validation clients in the wait queue
  */
 struct msm_hw_fence_client {
 	enum hw_fence_client_id client_id;
+	enum hw_fence_client_id client_id_ext;
 	struct msm_hw_fence_mem_addr mem_descriptor;
 	struct msm_hw_fence_queue queues[HW_FENCE_CLIENT_QUEUES];
 	int ipc_signal_id;
@@ -185,6 +190,7 @@ struct msm_hw_fence_client {
 	int ipc_client_pid;
 	bool update_rxq;
 	bool send_ipc;
+	bool skip_txq_wr_idx;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	wait_queue_head_t wait_queue;
 	atomic_t val_signal;
@@ -231,6 +237,25 @@ struct msm_hw_fence_dbg_data {
 };
 
 /**
+ * struct hw_fence_client_queue_size_desc - Structure holding client queue properties for a client.
+ *
+ * @queues_num: number of client queues
+ * @queue_entries: number of queue entries per client queue
+ * @mem_size: size of memory allocated for client queues
+ * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
+ *                allocation for hw fence driver
+ * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
+ *                   driver and hfi_header->tx_wm is updated instead
+ */
+struct hw_fence_client_queue_size_desc {
+	u32 queues_num;
+	u32 queue_entries;
+	u32 mem_size;
+	u32 start_offset;
+	bool skip_txq_wr_idx;
+};
+
+/**
  * struct hw_fence_driver_data - Structure holding internal hw-fence driver data
  *
  * @dev: device driver pointer
@@ -240,8 +265,9 @@ struct msm_hw_fence_dbg_data {
  * @hw_fence_queue_entries: total number of entries that can be available in the queue
  * @hw_fence_ctrl_queue_size: size of the ctrl queue for the payload
  * @hw_fence_mem_ctrl_queues_size: total size of ctrl queues, including: header + rxq + txq
- * @hw_fence_client_queue_size: size of the client queue for the payload
- * @hw_fence_mem_clients_queues_size: total size of client queues, including: header + rxq + txq
+ * @hw_fence_client_queue_size: descriptors of client queue properties for each hw fence client
+ * @rxq_clients_num: number of supported hw fence clients with rxq (configured based on device-tree)
+ * @clients_num: number of supported hw fence clients (configured based on device-tree)
  * @hw_fences_tbl: pointer to the hw-fences table
  * @hw_fences_tbl_cnt: number of elements in the hw-fence table
  * @client_lock_tbl: pointer to the per-client locks table
@@ -257,6 +283,7 @@ struct msm_hw_fence_dbg_data {
  * @peer_name: peer name for this carved-out memory
  * @rm_nb: hyp resource manager notifier
  * @memparcel: memparcel for the allocated memory
+ * @used_mem_size: total memory size of global table, lock region, and ctrl and client queues
  * @db_label: doorbell label
  * @rx_dbl: handle to the Rx doorbell
  * @debugfs_data: debugfs info
@@ -274,7 +301,7 @@ struct msm_hw_fence_dbg_data {
  * @ctl_start_size: size of the ctl_start registers of the display hw (platforms with no dpu-ipc)
  * @client_id_mask: bitmask for tracking registered client_ids
  * @clients_register_lock: lock to synchronize clients registration and deregistration
- * @msm_hw_fence_client: table with the handles of the registered clients
+ * @clients: table with the handles of the registered clients; size is equal to clients_num
  * @vm_ready: flag to indicate if vm has been initialized
  * @ipcc_dpu_initialized: flag to indicate if dpu hw is initialized
  */
@@ -291,8 +318,10 @@ struct hw_fence_driver_data {
 	u32 hw_fence_ctrl_queue_size;
 	u32 hw_fence_mem_ctrl_queues_size;
 	/* client queues */
-	u32 hw_fence_client_queue_size;
-	u32 hw_fence_mem_clients_queues_size;
+	struct hw_fence_client_queue_size_desc *hw_fence_client_queue_size;
+	struct hw_fence_client_type_desc *hw_fence_client_types;
+	u32 rxq_clients_num;
+	u32 clients_num;
 
 	/* HW Fences Table VA */
 	struct msm_hw_fence *hw_fences_tbl;
@@ -316,6 +345,7 @@ struct hw_fence_driver_data {
 	u32 peer_name;
 	struct notifier_block rm_nb;
 	u32 memparcel;
+	u32 used_mem_size;
 
 	/* doorbell */
 	u32 db_label;
@@ -350,7 +380,7 @@ struct hw_fence_driver_data {
 	struct mutex clients_register_lock;
 
 	/* table with registered client handles */
-	struct msm_hw_fence_client *clients[HW_FENCE_CLIENT_MAX];
+	struct msm_hw_fence_client **clients;
 
 	bool vm_ready;
 #ifdef HW_DPU_IPCC

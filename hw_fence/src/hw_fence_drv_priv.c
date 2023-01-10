@@ -46,8 +46,14 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 		payload_size = HW_FENCE_CTRL_QUEUE_PAYLOAD;
 		break;
 	case HW_FENCE_MEM_RESERVE_CLIENT_QUEUE:
-		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE;
-		queue_size = drv_data->hw_fence_client_queue_size;
+		if (client_id >= drv_data->clients_num) {
+			HWFNC_ERR("Invalid client_id: %d\n", client_id);
+			return -EINVAL;
+		}
+
+		headers_size = HW_FENCE_HFI_CLIENT_HEADERS_SIZE(queues_num);
+		queue_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD *
+			drv_data->hw_fence_client_queue_size[client_id].queue_entries;
 		payload_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD;
 		break;
 	default:
@@ -242,10 +248,13 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	bool lock_client = false;
 	u32 lock_idx;
 	u64 timestamp;
+	u32 *wr_ptr;
 	int ret = 0;
 
-	if (queue_type >= HW_FENCE_CLIENT_QUEUES) {
-		HWFNC_ERR("Invalid queue type:%s\n", queue_type);
+	if (queue_type >=
+		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num) {
+		HWFNC_ERR("Invalid queue type:%s client_id:%d\n", queue_type,
+			hw_fence_client->client_id);
 		return -EINVAL;
 	}
 
@@ -260,6 +269,12 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 		HWFNC_ERR("Invalid queue\n");
 		return -EINVAL;
 	}
+
+	/* if skipping update txq wr_index, then use hfi_header->tx_wm instead */
+	if (queue_type == (HW_FENCE_TX_QUEUE - 1) && hw_fence_client->skip_txq_wr_idx)
+		wr_ptr = &hfi_header->tx_wm;
+	else
+		wr_ptr = &hfi_header->write_index;
 
 	/*
 	 * We need to lock the client if there is an Rx Queue update, since that
@@ -286,11 +301,12 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 
 	/* Get read and write index */
 	read_idx = readl_relaxed(&hfi_header->read_index);
-	write_idx = readl_relaxed(&hfi_header->write_index);
+	write_idx = readl_relaxed(wr_ptr);
 
-	HWFNC_DBG_Q("wr client:%d rd_ptr:0x%pK wr_ptr:0x%pK rd_idx:%d wr_idx:%d q:0x%pK type:%d\n",
-		hw_fence_client->client_id, &hfi_header->read_index, &hfi_header->write_index,
-		read_idx, write_idx, queue, queue_type);
+	HWFNC_DBG_Q("wr client:%d r_ptr:0x%pK w_ptr:0x%pK r_idx:%d w_idx:%d q:0x%pK type:%d s:%s\n",
+		hw_fence_client->client_id, &hfi_header->read_index, wr_ptr,
+		read_idx, write_idx, queue, queue_type,
+		hw_fence_client->skip_txq_wr_idx ? "true" : "false");
 
 	/* Check queue to make sure message will fit */
 	q_free_u32 = read_idx <= write_idx ? (q_size_u32 - (write_idx - read_idx)) :
@@ -343,7 +359,7 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	wmb();
 
 	/* update the write index */
-	writel_relaxed(to_write_idx, &hfi_header->write_index);
+	writel_relaxed(to_write_idx, wr_ptr);
 
 	/* update memory for the index */
 	wmb();
@@ -526,7 +542,8 @@ int hw_fence_alloc_client_resources(struct hw_fence_driver_data *drv_data,
 	/* Init client queues */
 	ret = init_hw_fences_queues(drv_data, HW_FENCE_MEM_RESERVE_CLIENT_QUEUE,
 		&hw_fence_client->mem_descriptor, hw_fence_client->queues,
-		HW_FENCE_CLIENT_QUEUES, hw_fence_client->client_id);
+		drv_data->hw_fence_client_queue_size[hw_fence_client->client_id].queues_num,
+		hw_fence_client->client_id);
 	if (ret) {
 		HWFNC_ERR("Failure to init the queue for client:%d\n",
 			hw_fence_client->client_id);
@@ -549,12 +566,12 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	/*
 	 * Initialize IPCC Signals for this client
 	 *
-	 * NOTE: Fore each Client HW-Core, the client drivers might be the ones making
+	 * NOTE: For each Client HW-Core, the client drivers might be the ones making
 	 * it's own initialization (in case that any hw-sequence must be enforced),
 	 * however, if that is  not the case, any per-client ipcc init to enable the
 	 * signaling, can go here.
 	 */
-	switch (hw_fence_client->client_id) {
+	switch ((int)hw_fence_client->client_id) {
 	case HW_FENCE_CLIENT_ID_CTX0:
 		/* nothing to initialize for gpu client */
 		break;
@@ -586,6 +603,16 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 			hw_fence_ipcc_enable_dpu_signaling(drv_data);
 		}
 #endif /* HW_DPU_IPCC */
+		break;
+	case HW_FENCE_CLIENT_ID_IPE:
+		/* nothing to initialize for IPE client */
+		break;
+	case HW_FENCE_CLIENT_ID_VPU:
+		/* nothing to initialize for VPU client */
+		break;
+	case HW_FENCE_CLIENT_ID_IFE0 ... HW_FENCE_CLIENT_ID_IFE7 +
+			MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - 1:
+		/* nothing to initialize for IFE clients */
 		break;
 	default:
 		HWFNC_ERR("Unexpected client:%d\n", hw_fence_client->client_id);
@@ -1388,7 +1415,7 @@ static void _signal_all_wait_clients(struct hw_fence_driver_data *drv_data,
 	u64 client_data = 0;
 
 	/* signal with an error all the waiting clients for this fence */
-	for (wait_client_id = 0; wait_client_id < HW_FENCE_CLIENT_MAX; wait_client_id++) {
+	for (wait_client_id = 0; wait_client_id <= drv_data->rxq_clients_num; wait_client_id++) {
 		if (hw_fence->wait_client_mask & BIT(wait_client_id)) {
 			hw_fence_wait_client = drv_data->clients[wait_client_id];
 			data_id = hw_fence_get_client_data_id(wait_client_id);
@@ -1456,6 +1483,12 @@ enum hw_fence_client_data_id hw_fence_get_client_data_id(enum hw_fence_client_id
 		break;
 	case HW_FENCE_CLIENT_ID_VAL1:
 		data_id = HW_FENCE_CLIENT_DATA_ID_VAL1;
+		break;
+	case HW_FENCE_CLIENT_ID_IPE:
+		data_id = HW_FENCE_CLIENT_DATA_ID_IPE;
+		break;
+	case HW_FENCE_CLIENT_ID_VPU:
+		data_id = HW_FENCE_CLIENT_DATA_ID_VPU;
 		break;
 	default:
 		data_id = HW_FENCE_MAX_CLIENTS_WITH_DATA;

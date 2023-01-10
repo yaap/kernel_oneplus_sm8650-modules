@@ -85,7 +85,7 @@ struct hw_fence_out_clients_map {
  * The index of this struct must match the enum hw_fence_client_id
  */
 static const struct hw_fence_out_clients_map
-			dbg_out_clients_signal_map_no_dpu[HW_FENCE_CLIENT_MAX] = {
+			dbg_out_clients_signal_map_no_dpu[HW_FENCE_CLIENT_ID_VAL6 + 1] = {
 	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 0},  /* CTRL_LOOPBACK */
 	{HW_FENCE_IPC_CLIENT_ID_GPU_VID, HW_FENCE_IPC_CLIENT_ID_GPU_VID, 0},  /* CTX0 */
 	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 2},  /* CTL0 */
