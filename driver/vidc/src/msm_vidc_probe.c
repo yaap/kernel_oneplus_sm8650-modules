@@ -11,7 +11,10 @@
 #include <linux/component.h>
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
+#endif
 #ifdef CONFIG_MSM_MMRM
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
@@ -19,6 +22,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
@@ -274,7 +278,7 @@ static int msm_vidc_deinitialize_core(struct msm_vidc_core *core)
 	d_vpr_h("%s()\n", __func__);
 
 	mutex_destroy(&core->lock);
-	msm_vidc_change_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
+	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
 	msm_vidc_vmem_free((void **)&core->response_packet);
 	msm_vidc_vmem_free((void **)&core->packet);
@@ -303,7 +307,7 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 	}
 	d_vpr_h("%s()\n", __func__);
 
-	msm_vidc_change_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
+	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
 	core->pm_workq = create_singlethread_workqueue("pm_workq");
 	if (!core->pm_workq) {
@@ -376,6 +380,14 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	cb->dev = dev;
 	cb->domain = iommu_get_domain_for_dev(cb->dev);
 
+	if (cb->dma_mask) {
+		rc = dma_set_mask_and_coherent(cb->dev, cb->dma_mask);
+		if (rc) {
+			d_vpr_e("%s: dma_set_mask_and_coherent failed\n", __func__);
+			return rc;
+		}
+	}
+
 	/*
 	 * When memory is fragmented, below configuration increases the
 	 * possibility to get a mapping for buffer in the configured CB.
@@ -401,10 +413,11 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 		msm_vidc_smmu_fault_handler, (void *)core);
 
 	d_vpr_h(
-		"%s: name %s addr start %x size %x secure %d dma_coherant %d region %d dev_name %s domain %pK\n",
+		"%s: name %s addr start %x size %x secure %d dma_coherant %d "
+		"region %d dev_name %s domain %pK dma_mask %llu\n",
 		__func__, cb->name, cb->addr_range.start,
 		cb->addr_range.size, cb->secure, cb->dma_coherant,
-		cb->region, dev_name(cb->dev), cb->domain);
+		cb->region, dev_name(cb->dev), cb->domain, cb->dma_mask);
 
 	return rc;
 }
@@ -610,7 +623,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 	struct component_match *match = NULL;
 	struct msm_vidc_core *core = NULL;
 	struct device_node *child = NULL;
-	int sub_device_count = 0, nr = BASE_DEVICE_NUMBER;
+	int sub_node_count = 0, nr = BASE_DEVICE_NUMBER;
 
 	d_vpr_h("%s: %s\n", __func__, dev_name(&pdev->dev));
 
@@ -709,7 +722,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 
 	/* registering sub-device with component model framework */
 	for_each_available_child_of_node(pdev->dev.of_node, child) {
-		sub_device_count++;
+		sub_node_count++;
 		of_node_get(child);
 		component_match_add_release(&pdev->dev, &match, msm_vidc_component_release_of,
 			msm_vidc_component_compare_of, child);
@@ -721,7 +734,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		}
 	}
 
-	d_vpr_h("populating sub devices. count %d\n", sub_device_count);
+	d_vpr_h("populating sub devices. count %d\n", sub_node_count);
 	/*
 	 * Trigger probe for each sub-device i.e. qcom,msm-vidc,context-bank.
 	 * When msm_vidc_probe is called for each sub-device, parse the
@@ -806,6 +819,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
+	bool allow = false;
 
 	/*
 	 * Bail out if
@@ -822,15 +836,25 @@ static int msm_vidc_pm_suspend(struct device *dev)
 		return -EINVAL;
 	}
 
+	core_lock(core, __func__);
+	allow = msm_vidc_allow_pm_suspend(core);
+	if (!allow) {
+		d_vpr_e("%s: pm suspend not allowed\n", __func__);
+		rc = 0;
+		goto unlock;
+	}
+
 	d_vpr_h("%s\n", __func__);
-	rc = msm_vidc_suspend(core);
+	rc = msm_vidc_suspend_locked(core);
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
 		d_vpr_e("Failed to suspend: %d\n", rc);
 	else
-		core->pm_suspended  = true;
+		msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PM_SUSPEND, __func__);
 
+unlock:
+	core_unlock(core, __func__);
 	return rc;
 }
 
@@ -854,7 +878,12 @@ static int msm_vidc_pm_resume(struct device *dev)
 	}
 
 	d_vpr_h("%s\n", __func__);
-	core->pm_suspended  = false;
+
+	/* remove PM suspend from core sub_state */
+	core_lock(core, __func__);
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_PM_SUSPEND, 0, __func__);
+	core_unlock(core, __func__);
+
 	return 0;
 }
 

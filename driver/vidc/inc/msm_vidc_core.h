@@ -10,18 +10,13 @@
 #include <linux/platform_device.h>
 
 #include "msm_vidc_internal.h"
+#include "msm_vidc_state.h"
 #include "venus_hfi_queue.h"
 #include "resources.h"
 
 struct msm_vidc_core;
 
 #define MAX_EVENTS 30
-
-#define FOREACH_CORE_STATE(CORE_STATE) {               \
-	CORE_STATE(CORE_DEINIT)                        \
-	CORE_STATE(CORE_INIT_WAIT)                     \
-	CORE_STATE(CORE_INIT)                          \
-}
 
 #define call_venus_op(d, op, ...)			\
 	(((d) && (d)->venus_ops && (d)->venus_ops->op) ? \
@@ -63,8 +58,6 @@ struct msm_vidc_core_power {
 	u64 bw_llcc;
 };
 
-enum msm_vidc_core_state FOREACH_CORE_STATE(GENERATE_MSM_VIDC_ENUM);
-
 struct msm_vidc_core {
 	struct platform_device                *pdev;
 	struct msm_video_device                vdev[2];
@@ -76,13 +69,17 @@ struct msm_vidc_core {
 	struct dentry                         *debugfs_root;
 	char                                   fw_version[MAX_NAME_LENGTH];
 	enum msm_vidc_core_state               state;
+	int                                  (*state_handle)(struct msm_vidc_core *core,
+					       enum msm_vidc_core_event_type type,
+					       struct msm_vidc_event_data *data);
+	enum msm_vidc_core_sub_state           sub_state;
+	char                                   sub_state_name[MAX_NAME_LENGTH];
 	struct mutex                           lock;
 	struct msm_vidc_resource              *resource;
 	struct msm_vidc_platform              *platform;
 	u32                                    intr_status;
 	u32                                    spur_count;
 	u32                                    reg_count;
-	bool                                   power_enabled;
 	u32                                    codecs_count;
 	struct msm_vidc_core_capability       *capabilities;
 	struct msm_vidc_inst_capability       *inst_caps;
@@ -96,7 +93,6 @@ struct msm_vidc_core {
 	struct work_struct                     ssr_work;
 	struct msm_vidc_core_power             power;
 	struct msm_vidc_ssr                    ssr;
-	bool                                   smmu_fault_handled;
 	u32                                    skip_pc_count;
 	u32                                    last_packet_type;
 	u8                                    *packet;
@@ -117,11 +113,6 @@ struct msm_vidc_core {
 	u32                                    header_id;
 	u32                                    packet_id;
 	u32                                    sys_init_id;
-	bool                                   handoff_done;
-	bool                                   hw_power_control;
-	bool                                   pm_suspended;
-	bool                                   cpu_watchdog;
-	bool                                   video_unresponsive;
 };
 
 #endif // _MSM_VIDC_CORE_H_

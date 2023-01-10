@@ -8,6 +8,8 @@
 #include <linux/iopoll.h>
 
 #include "msm_vidc_core.h"
+#include "msm_vidc_driver.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 #include "msm_vidc_platform.h"
@@ -44,7 +46,7 @@ int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 	if (rc)
 		return rc;
 
-	if (!core->power_enabled) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("HFI Write register failed : Power is OFF\n");
 		return -EINVAL;
 	}
@@ -83,7 +85,7 @@ int __write_register_masked(struct msm_vidc_core *core, u32 reg, u32 value,
 	if (rc)
 		return rc;
 
-	if (!core->power_enabled) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("%s: register write failed, power is off\n",
 			__func__);
 		return -EINVAL;
@@ -121,7 +123,7 @@ int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value)
 		return -EINVAL;
 	}
 
-	if (!core->power_enabled) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("HFI Read register failed : Power is OFF\n");
 		return -EINVAL;
 	}
@@ -152,7 +154,7 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 		return -EINVAL;
 	}
 
-	if (!core->power_enabled) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("%s failed: Power is OFF\n", __func__);
 		return -EINVAL;
 	}

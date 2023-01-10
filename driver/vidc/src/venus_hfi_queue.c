@@ -22,11 +22,6 @@ static int __strict_check(struct msm_vidc_core *core, const char *function)
 	return fatal ? -EINVAL : 0;
 }
 
-static bool __core_in_valid_state(struct msm_vidc_core *core)
-{
-	return core->state != MSM_VIDC_CORE_DEINIT;
-}
-
 static void __set_queue_hdr_defaults(struct hfi_queue_header *q_hdr)
 {
 	q_hdr->qhdr_status = 0x1;
@@ -290,7 +285,7 @@ static int __iface_cmdq_write_relaxed(struct msm_vidc_core *core,
 	if (rc)
 		return rc;
 
-	if (!__core_in_valid_state(core)) {
+	if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: fw not in init state\n", __func__);
 		rc = -EINVAL;
 		goto err_q_null;
@@ -355,7 +350,7 @@ int venus_hfi_queue_msg_read(struct msm_vidc_core *core, void *pkt)
 		return -EINVAL;
 	}
 
-	if (!__core_in_valid_state(core)) {
+	if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: fw not in init state\n", __func__);
 		rc = -EINVAL;
 		goto read_error_null;

@@ -6,6 +6,8 @@
 #ifndef _MSM_VIDC_RESOURCES_H_
 #define _MSM_VIDC_RESOURCES_H_
 
+#include <linux/clk/qcom.h>
+
 struct icc_path;
 struct regulator;
 struct clk;
@@ -167,6 +169,7 @@ struct context_bank_info {
 	struct device             *dev;
 	struct iommu_domain       *domain;
 	u32                        region;
+	u64                        dma_mask;
 };
 
 struct context_bank_set {
@@ -222,6 +225,8 @@ struct msm_vidc_resources_ops {
 
 	int (*clk_disable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_enable)(struct msm_vidc_core *core, const char *name);
+	int (*clk_set_flag)(struct msm_vidc_core *core,
+		const char *name, enum branch_mem_flags flag);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);

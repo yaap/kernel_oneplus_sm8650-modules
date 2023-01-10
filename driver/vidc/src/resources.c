@@ -16,6 +16,7 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
+#include "msm_vidc_driver.h"
 #include "msm_vidc_platform.h"
 #include "venus_hfi.h"
 
@@ -345,6 +346,28 @@ static int __init_clocks(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __clock_set_flag(struct msm_vidc_core *core,
+	const char *name, enum branch_mem_flags flag)
+{
+        struct clock_info *cinfo = NULL;
+	bool found = false;
+
+        /* get clock handle */
+        venus_hfi_for_each_clock(core, cinfo) {
+		if (strcmp(cinfo->name, name))
+			continue;
+		found = true;
+		qcom_clk_set_flags(cinfo->clk, flag);
+		d_vpr_h("%s: set flag %d on clock %s\n", __func__, flag, name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: failed to find clock: %s\n", __func__, name);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static int __init_reset_clocks(struct msm_vidc_core *core)
 {
 	const struct clk_rst_table *rst_tbl;
@@ -554,14 +577,16 @@ static int __init_context_banks(struct msm_vidc_core *core)
 		cbs->context_bank_tbl[cnt].secure = cb_tbl[cnt].secure;
 		cbs->context_bank_tbl[cnt].dma_coherant = cb_tbl[cnt].dma_coherant;
 		cbs->context_bank_tbl[cnt].region = cb_tbl[cnt].region;
+		cbs->context_bank_tbl[cnt].dma_mask = cb_tbl[cnt].dma_mask;
 	}
 
 	/* print context_bank fiels */
 	venus_hfi_for_each_context_bank(core, cbinfo) {
-		d_vpr_h("%s: name %s addr start %#x size %#x secure %d coherant %d region %d\n",
+		d_vpr_h("%s: name %s addr start %#x size %#x secure %d "
+			"coherant %d region %d dma_mask %llu\n",
 			__func__, cbinfo->name, cbinfo->addr_range.start,
 			cbinfo->addr_range.size, cbinfo->secure,
-			cbinfo->dma_coherant, cbinfo->region);
+			cbinfo->dma_coherant, cbinfo->region, cbinfo->dma_mask);
 	}
 
 	return rc;
@@ -666,7 +691,9 @@ static int __acquire_regulator(struct msm_vidc_core *core,
 
 		if (regulator_get_mode(rinfo->regulator) ==
 				REGULATOR_MODE_NORMAL) {
-			core->handoff_done = false;
+			/* clear handoff from core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 			d_vpr_h("Skip acquire regulator %s\n", rinfo->name);
 			goto exit;
 		}
@@ -683,7 +710,9 @@ static int __acquire_regulator(struct msm_vidc_core *core,
 				rinfo->name);
 			goto exit;
 		} else {
-			core->handoff_done = false;
+			/* reset handoff from core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 			d_vpr_h("Acquired regulator control from HW: %s\n",
 					rinfo->name);
 
@@ -729,7 +758,9 @@ static int __hand_off_regulator(struct msm_vidc_core *core,
 				rinfo->name);
 			return rc;
 		} else {
-			core->handoff_done = true;
+			/* set handoff done in core sub_state */
+			msm_vidc_change_core_sub_state(core,
+				0, CORE_SUBSTATE_GDSC_HANDOFF, __func__);
 			d_vpr_h("Hand off regulator control to HW: %s\n",
 					rinfo->name);
 		}
@@ -798,7 +829,8 @@ static int __disable_regulator(struct msm_vidc_core *core, const char *reg_name)
 			WARN_ON(true);
 			return rc;
 		}
-		core->handoff_done = false;
+		/* reset handoff done from core sub_state */
+		msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
 
 		rc = regulator_disable(rinfo->regulator);
 		if (rc) {
@@ -1427,6 +1459,7 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.set_clks = __set_clocks,
 	.clk_enable = __prepare_enable_clock,
 	.clk_disable = __disable_unprepare_clock,
+	.clk_set_flag = __clock_set_flag,
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void)

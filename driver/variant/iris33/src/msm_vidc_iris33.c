@@ -11,9 +11,10 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_platform.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 
@@ -280,24 +281,26 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 	 * Incase hw power control is enabled, for both CPU WD, video
 	 * hw unresponsive cases, check for power status to decide on
 	 * executing NOC reset sequence before disabling power. If there
-	 * is no CPU WD and hw_power_control is enabled, fw is expected
+	 * is no CPU WD and hw power control is enabled, fw is expected
 	 * to power collapse video hw always.
 	 */
-	if (core->hw_power_control) {
+	if (is_core_sub_state(core, CORE_SUBSTATE_FW_PWR_CTRL)) {
 		pwr_collapsed = is_iris33_hw_power_collapsed(core);
-		if (core->cpu_watchdog || core->video_unresponsive) {
+		if (is_core_sub_state(core, CORE_SUBSTATE_CPU_WATCHDOG) ||
+			is_core_sub_state(core, CORE_SUBSTATE_VIDEO_UNRESPONSIVE)) {
 			if (pwr_collapsed) {
-				d_vpr_e("%s: video hw power collapsed %d, %d\n",
-					__func__, core->cpu_watchdog, core->video_unresponsive);
+				d_vpr_e("%s: video hw power collapsed %s\n",
+					__func__, core->sub_state_name);
 				goto disable_power;
 			} else {
-				d_vpr_e("%s: video hw is power ON %d, %d\n",
-					__func__, core->cpu_watchdog, core->video_unresponsive);
+				d_vpr_e("%s: video hw is power ON %s\n",
+					__func__, core->sub_state_name);
 			}
 		} else {
 			if (!pwr_collapsed)
 				d_vpr_e("%s: video hw is not power collapsed\n", __func__);
 
+			d_vpr_h("%s: disabling hw power\n", __func__);
 			goto disable_power;
 		}
 	}
@@ -432,6 +435,15 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	rc = call_res_op(core, reset_control_assert, core, "video_axi_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_axi_reset failed\n", __func__);
+	/* set retain mem and peripheral before asset mvs0c reset */
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_MEM);
+	if (rc)
+		d_vpr_e("%s: set retain mem failed\n", __func__);
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_PERIPH);
+	if (rc)
+		d_vpr_e("%s: set retain peripheral failed\n", __func__);
 	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
 	if (rc)
 		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
@@ -449,20 +461,19 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	/* assert MVP_CTL reset */
-	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
-	if (rc)
-		d_vpr_e("%s: assert video_mvs0c_reset failed\n", __func__);
-
 	/* enable MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
 			0x1, BIT(0));
 	if (rc)
 		return rc;
 
-	rc = __read_register(core, AON_WRAPPER_SPARE, &value);
-	if (rc)
-		return rc;
+	/* poll AON spare register bit0 to become zero with 50ms timeout */
+	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_SPARE,
+			0x1, 0x0, 1000, 50 * 1000);
+        if (rc)
+                d_vpr_e("%s: AON spare register is not zero\n", __func__);
+
+	/* enable bit(1) to avoid cvp noc xo reset */
 	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
 	if (rc)
 		return rc;
@@ -472,18 +483,11 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("%s: assert video_xo_reset failed\n", __func__);
 
-	/* do we need 80us sleep before deassert? */
-	usleep_range(400, 500);
-	/* De-assert MVP_CTL reset */
-	rc = call_res_op(core, reset_control_deassert, core, "video_mvs0c_reset");
-	if (rc)
-		d_vpr_e("%s: deassert video_mvs0c_reset failed\n", __func__);
-
 	/* De-assert MVP NoC reset */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_SW_RESET,
 			0x0, BIT(0));
 	if (rc)
-		return rc;
+		d_vpr_e("%s: MVP_NOC_CORE_SW_RESET failed\n", __func__);
 
 	/* De-assert video_cc XO reset */
 	usleep_range(80, 100);
@@ -491,11 +495,26 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("%s: deassert video_xo_reset failed\n", __func__);
 
+	/* reset AON spare register */
+	rc = __write_register(core, AON_WRAPPER_SPARE, 0x0);
+	if (rc)
+		return rc;
+
 	/* Enable MVP NoC clock */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_CORE_CLK_CONTROL,
 			0x0, BIT(0));
 	if (rc)
 		return rc;
+
+        /* remove retain mem and retain peripheral */
+        rc = call_res_op(core, clk_set_flag, core,
+                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_PERIPH);
+        if (rc)
+                d_vpr_e("%s: set noretain peripheral failed\n", __func__);
+        rc = call_res_op(core, clk_set_flag, core,
+                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_MEM);
+        if (rc)
+                d_vpr_e("%s: set noretain mem failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
 	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
@@ -530,7 +549,7 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 		return -EINVAL;
 	}
 
-	if (!core->power_enabled)
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
 	/**
@@ -555,7 +574,7 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 		disable_irq_nosync(core->resource->irq);
 	core->intr_status = 0;
 
-	core->power_enabled = false;
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 
 	return rc;
 }
@@ -633,8 +652,14 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	u32 freq = 0;
 	int rc = 0;
 
-	if (core->power_enabled)
+	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
+
+	if (!core_in_valid_state(core)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
+		return -EINVAL;
+	}
 
 	/* Vote for all hardware resources */
 	rc = call_res_op(core, set_bw, core, INT_MAX, INT_MAX);
@@ -655,7 +680,9 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 		goto fail_power_on_hardware;
 	}
 	/* video controller and hardware powered on successfully */
-	core->power_enabled = true;
+	rc = msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_POWER_ENABLE, __func__);
+	if (rc)
+		goto fail_power_on_substate;
 
 	freq_tbl = core->resource->freq_set.freq_tbl;
 	freq = core->power.clk_freq ? core->power.clk_freq :
@@ -678,12 +705,14 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 
 	return rc;
 
+fail_power_on_substate:
+	__power_off_iris33_hardware(core);
 fail_power_on_hardware:
 	__power_off_iris33_controller(core);
 fail_power_on_controller:
 	call_res_op(core, set_bw, core, 0, 0);
 fail_vote_buses:
-	core->power_enabled = false;
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 	return rc;
 }
 

@@ -13,7 +13,7 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
 #include "msm_media_info.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_platform.h"
 
 static u32 msm_vidc_decoder_bin_size_iris3(struct msm_vidc_inst *inst)
 {

@@ -11,9 +11,10 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_control.h"
+#include "msm_vidc_platform.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 
@@ -277,24 +278,26 @@ static int __power_off_iris3_hardware(struct msm_vidc_core *core)
 	 * Incase hw power control is enabled, for both CPU WD, video
 	 * hw unresponsive cases, check for power status to decide on
 	 * executing NOC reset sequence before disabling power. If there
-	 * is no CPU WD and hw_power_control is enabled, fw is expected
+	 * is no CPU WD and hw power control is enabled, fw is expected
 	 * to power collapse video hw always.
 	 */
-	if (core->hw_power_control) {
+	if (is_core_sub_state(core, CORE_SUBSTATE_FW_PWR_CTRL)) {
 		pwr_collapsed = is_iris3_hw_power_collapsed(core);
-		if (core->cpu_watchdog || core->video_unresponsive) {
+		if (is_core_sub_state(core, CORE_SUBSTATE_CPU_WATCHDOG) ||
+			is_core_sub_state(core, CORE_SUBSTATE_VIDEO_UNRESPONSIVE)) {
 			if (pwr_collapsed) {
-				d_vpr_e("%s: video hw power collapsed %d, %d\n",
-					__func__, core->cpu_watchdog, core->video_unresponsive);
+				d_vpr_e("%s: video hw power collapsed %s\n",
+					__func__, core->sub_state_name);
 				goto disable_power;
 			} else {
-				d_vpr_e("%s: video hw is power ON %d, %d\n",
-					__func__, core->cpu_watchdog, core->video_unresponsive);
+				d_vpr_e("%s: video hw is power ON %s\n",
+					__func__, core->sub_state_name);
 			}
 		} else {
 			if (!pwr_collapsed)
 				d_vpr_e("%s: video hw is not power collapsed\n", __func__);
 
+			d_vpr_h("%s: disabling hw power\n", __func__);
 			goto disable_power;
 		}
 	}
@@ -465,7 +468,7 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 		return -EINVAL;
 	}
 
-	if (!core->power_enabled)
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
 	/**
@@ -490,7 +493,7 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 		disable_irq_nosync(core->resource->irq);
 	core->intr_status = 0;
 
-	core->power_enabled = false;
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 
 	return rc;
 }
@@ -552,8 +555,14 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 	u32 freq = 0;
 	int rc = 0;
 
-	if (core->power_enabled)
+	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
+
+	if (!core_in_valid_state(core)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
+		return -EINVAL;
+	}
 
 	/* Vote for all hardware resources */
 	rc = call_res_op(core, set_bw, core, INT_MAX, INT_MAX);
@@ -574,7 +583,9 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 		goto fail_power_on_hardware;
 	}
 	/* video controller and hardware powered on successfully */
-	core->power_enabled = true;
+	rc = msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_POWER_ENABLE, __func__);
+	if (rc)
+		goto fail_power_on_substate;
 
 	freq_tbl = core->resource->freq_set.freq_tbl;
 	freq = core->power.clk_freq ? core->power.clk_freq :
@@ -597,12 +608,14 @@ static int __power_on_iris3(struct msm_vidc_core *core)
 
 	return rc;
 
+fail_power_on_substate:
+	__power_off_iris3_hardware(core);
 fail_power_on_hardware:
 	__power_off_iris3_controller(core);
 fail_power_on_controller:
 	call_res_op(core, set_bw, core, 0, 0);
 fail_vote_buses:
-	core->power_enabled = false;
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 	return rc;
 }
 

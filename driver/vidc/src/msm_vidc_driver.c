@@ -13,6 +13,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_state.h"
 #include "msm_vidc_power.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
@@ -128,22 +129,6 @@ const char *sub_state_name(enum msm_vidc_sub_state sub_state)
 	}
 
 	return "SUB_STATE_NONE";
-}
-
-static const char * const core_state_name_arr[] =
-	FOREACH_CORE_STATE(GENERATE_STRING);
-
-const char *core_state_name(enum msm_vidc_core_state state)
-{
-	const char *name = "UNKNOWN STATE";
-
-	if (state >= ARRAY_SIZE(core_state_name_arr))
-		goto exit;
-
-	name = core_state_name_arr[state];
-
-exit:
-	return name;
 }
 
 const char *v4l2_type_name(u32 port)
@@ -304,7 +289,7 @@ static u32 msm_vidc_get_buffer_stats_flag(struct msm_vidc_inst *inst)
 	return flags;
 }
 
-static int msm_vidc_suspend_locked(struct msm_vidc_core *core)
+int msm_vidc_suspend_locked(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
@@ -1012,21 +997,6 @@ int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-int msm_vidc_change_core_state(struct msm_vidc_core *core,
-	enum msm_vidc_core_state request_state, const char *func)
-{
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	d_vpr_h("%s: core state changed to %s from %s\n",
-		func, core_state_name(request_state),
-		core_state_name(core->state));
-	core->state = request_state;
-	return 0;
-}
-
 int msm_vidc_change_state(struct msm_vidc_inst *inst,
 		enum msm_vidc_state request_state, const char *func)
 {
@@ -1559,6 +1529,29 @@ bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst)
 			__func__, inst->sub_state_name);
 
 	return false;
+}
+
+bool msm_vidc_allow_pm_suspend(struct msm_vidc_core *core)
+{
+	if (!core) {
+		d_vpr_e("%s: invalid param\n", __func__);
+		return false;
+	}
+
+	/* core must be in valid state to do pm_suspend */
+	if (!core_in_valid_state(core)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
+		return false;
+	}
+
+	/* check if power is enabled */
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
+		d_vpr_e("%s: Power already disabled\n", __func__);
+		return false;
+	}
+
+	return true;
 }
 
 bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
@@ -4481,8 +4474,6 @@ static void update_inst_cap_dependency(
 	}
 
 	capability->cap[in->cap_id].cap_id = in->cap_id;
-	memcpy(capability->cap[in->cap_id].parents, in->parents,
-		sizeof(capability->cap[in->cap_id].parents));
 	memcpy(capability->cap[in->cap_id].children, in->children,
 		sizeof(capability->cap[in->cap_id].children));
 	capability->cap[in->cap_id].adjust = in->adjust;
@@ -4628,6 +4619,7 @@ int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst, *dummy;
+	enum msm_vidc_allow allow;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -4640,8 +4632,15 @@ int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force)
 		return rc;
 	}
 
-	if (core->state == MSM_VIDC_CORE_DEINIT)
+	if (is_core_state(core, MSM_VIDC_CORE_DEINIT))
 		return 0;
+
+	/* print error for state change not allowed case */
+	allow = msm_vidc_allow_core_state_change(core, MSM_VIDC_CORE_DEINIT);
+	if (allow != MSM_VIDC_ALLOW)
+		d_vpr_e("%s: %s core state change %s -> %s\n", __func__,
+			allow_name(allow), core_state_name(core->state),
+			core_state_name(MSM_VIDC_CORE_DEINIT));
 
 	if (force) {
 		d_vpr_e("%s(): force deinit core\n", __func__);
@@ -4693,10 +4692,13 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 	}
 
 	core_lock(core, __func__);
-	if (core->state == MSM_VIDC_CORE_INIT) {
+	if (is_core_state(core, MSM_VIDC_CORE_INIT)) {
 		rc = 0;
 		goto unlock;
-	} else if (core->state == MSM_VIDC_CORE_DEINIT) {
+	} else if (is_core_state(core, MSM_VIDC_CORE_DEINIT) ||
+		   is_core_state(core, MSM_VIDC_CORE_ERROR)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		rc = -EINVAL;
 		goto unlock;
 	}
@@ -4715,26 +4717,35 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 	d_vpr_h("%s: state %s, interval %u, count %u, max_tries %u\n", __func__,
 		core_state_name(core->state), interval, count, max_tries);
 
-	if (core->state == MSM_VIDC_CORE_INIT) {
+	if (is_core_state(core, MSM_VIDC_CORE_INIT)) {
 		d_vpr_h("%s: sys init successful\n", __func__);
 		rc = 0;
 		goto unlock;
-	} else {
+	} else if (is_core_state(core, MSM_VIDC_CORE_INIT_WAIT)) {
 		d_vpr_h("%s: sys init wait timedout. state %s\n",
 			__func__, core_state_name(core->state));
-		core->video_unresponsive = true;
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
+		/* mark video hw unresponsive */
+		msm_vidc_change_core_sub_state(core,
+			0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
+		/* core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
+		rc = -EINVAL;
+		goto unlock;
+	} else {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		rc = -EINVAL;
 		goto unlock;
 	}
 unlock:
-	if (rc)
-		msm_vidc_core_deinit_locked(core, true);
 	core_unlock(core, __func__);
 	return rc;
 }
 
 int msm_vidc_core_init(struct msm_vidc_core *core)
 {
+	enum msm_vidc_allow allow;
 	int rc = 0;
 
 	if (!core || !core->capabilities) {
@@ -4743,24 +4754,37 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 	}
 
 	core_lock(core, __func__);
-	if (core->state == MSM_VIDC_CORE_INIT ||
-			core->state == MSM_VIDC_CORE_INIT_WAIT)
+	if (core_in_valid_state(core)) {
 		goto unlock;
+	} else if (is_core_state(core, MSM_VIDC_CORE_ERROR)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
+		rc = -EINVAL;
+		goto unlock;
+	}
+
+	/* print error for state change not allowed case */
+	allow = msm_vidc_allow_core_state_change(core, MSM_VIDC_CORE_INIT_WAIT);
+	if (allow != MSM_VIDC_ALLOW)
+		d_vpr_e("%s: %s core state change %s -> %s\n", __func__,
+			allow_name(allow), core_state_name(core->state),
+			core_state_name(MSM_VIDC_CORE_INIT_WAIT));
 
 	msm_vidc_change_core_state(core, MSM_VIDC_CORE_INIT_WAIT, __func__);
-	core->smmu_fault_handled = false;
-	core->ssr.trigger = false;
-	core->pm_suspended = false;
+	/* clear PM suspend from core sub_state */
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_PM_SUSPEND, 0, __func__);
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_PAGE_FAULT, 0, __func__);
 
 	rc = venus_hfi_core_init(core);
 	if (rc) {
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
 		d_vpr_e("%s: core init failed\n", __func__);
+		/* do core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
 		goto unlock;
 	}
 
 unlock:
-	if (rc)
-		msm_vidc_core_deinit_locked(core, true);
 	core_unlock(core, __func__);
 	return rc;
 }
@@ -4798,7 +4822,9 @@ int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 		goto unlock;
 	}
 	/* mark video hw unresponsive */
-	core->video_unresponsive = true;
+	msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
+	msm_vidc_change_core_sub_state(core,
+		0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
 
 	/* call core deinit for a valid instance timeout case */
 	msm_vidc_core_deinit_locked(core, true);
@@ -4938,7 +4964,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 		return -EINVAL;
 	}
 
-	if (core->smmu_fault_handled) {
+	if (is_core_sub_state(core, CORE_SUBSTATE_PAGE_FAULT)) {
 		if (core->capabilities[NON_FATAL_FAULTS].value) {
 			dprintk_ratelimit(VIDC_ERR, "err ",
 					"%s: non-fatal pagefault address: %lx\n",
@@ -4949,7 +4975,10 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 
 	d_vpr_e(FMT_STRING_FAULT_HANDLER, __func__, iova);
 
-	core->smmu_fault_handled = true;
+	/* mark smmu fault as handled */
+	core_lock(core, __func__);
+	msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PAGE_FAULT, __func__);
+	core_unlock(core, __func__);
 
 	/* print noc error log registers */
 	venus_hfi_noc_error_info(core);
@@ -5005,20 +5034,17 @@ void msm_vidc_ssr_handler(struct work_struct *work)
 	ssr = &core->ssr;
 
 	core_lock(core, __func__);
-	if (core->state == MSM_VIDC_CORE_INIT) {
+	if (is_core_state(core, MSM_VIDC_CORE_INIT)) {
 		/*
 		 * In current implementation, user-initiated SSR triggers
 		 * a fatal error from hardware. However, there is no way
 		 * to know if fatal error is due to SSR or not. Handle
 		 * user SSR as non-fatal.
 		 */
-		core->ssr.trigger = true;
 		rc = venus_hfi_trigger_ssr(core, ssr->ssr_type,
 			ssr->sub_client_id, ssr->test_addr);
-		if (rc) {
+		if (rc)
 			d_vpr_e("%s: trigger_ssr failed\n", __func__);
-			core->ssr.trigger = false;
-		}
 	} else {
 		d_vpr_e("%s: video core not initialized\n", __func__);
 	}
@@ -5114,26 +5140,6 @@ void msm_vidc_fw_unload_handler(struct work_struct *work)
 
 }
 
-int msm_vidc_suspend(struct msm_vidc_core *core)
-{
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	core_lock(core, __func__);
-	d_vpr_h("%s: initiate PM suspend\n", __func__);
-	rc = msm_vidc_suspend_locked(core);
-	if (rc)
-		goto exit;
-
-exit:
-	core_unlock(core, __func__);
-	return rc;
-}
-
 void msm_vidc_batch_handler(struct work_struct *work)
 {
 	struct msm_vidc_inst *inst;
@@ -5155,7 +5161,7 @@ void msm_vidc_batch_handler(struct work_struct *work)
 		goto exit;
 	}
 
-	if (core->pm_suspended) {
+	if (is_core_sub_state(core, CORE_SUBSTATE_PM_SUSPEND)) {
 		i_vpr_h(inst, "%s: device in pm suspend state\n", __func__);
 		goto exit;
 	}

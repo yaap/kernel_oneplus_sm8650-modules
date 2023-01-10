@@ -27,6 +27,7 @@
 #include "venus_hfi_response.h"
 #include "venus_hfi_queue.h"
 #include "msm_vidc_events.h"
+#include "msm_vidc_state.h"
 #include "firmware.h"
 
 #define update_offset(offset, val)		((offset) += (val))
@@ -57,11 +58,6 @@ static int __strict_check(struct msm_vidc_core *core, const char *function)
 		d_vpr_e("%s: strict check failed\n", function);
 
 	return fatal ? -EINVAL : 0;
-}
-
-bool __core_in_valid_state(struct msm_vidc_core *core)
-{
-	return core->state != MSM_VIDC_CORE_DEINIT;
 }
 
 static bool __valdiate_session(struct msm_vidc_core *core,
@@ -253,9 +249,15 @@ static int __sys_set_power_control(struct msm_vidc_core *core, bool enable)
 {
 	int rc = 0;
 
-	if (!core->handoff_done) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF)) {
 		d_vpr_e("%s: skipping as power control hanfoff was not done\n",
 			__func__);
+		return rc;
+	}
+
+	if (!core_in_valid_state(core)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		return rc;
 	}
 
@@ -268,7 +270,10 @@ static int __sys_set_power_control(struct msm_vidc_core *core, bool enable)
 	if (rc)
 		return rc;
 
-	core->hw_power_control = true;
+	rc = msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_FW_PWR_CTRL, __func__);
+	if (rc)
+		return rc;
+
 	d_vpr_h("%s: set hardware power control successful\n", __func__);
 
 	return rc;
@@ -300,12 +305,12 @@ static int __power_collapse(struct msm_vidc_core *core, bool force)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	if (!core->power_enabled) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_h("%s: Power already disabled\n", __func__);
 		goto exit;
 	}
 
-	if (!__core_in_valid_state(core)) {
+	if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: Core not in init state\n", __func__);
 		return -EINVAL;
 	}
@@ -534,7 +539,7 @@ static int __venus_power_off(struct msm_vidc_core* core)
 {
 	int rc = 0;
 
-	if (!core->power_enabled)
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
 	rc = call_venus_op(core, power_off, core);
@@ -542,7 +547,7 @@ static int __venus_power_off(struct msm_vidc_core* core)
 		d_vpr_e("Failed to power off, err: %d\n", rc);
 		return rc;
 	}
-	core->power_enabled = false;
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 
 	return rc;
 }
@@ -551,7 +556,7 @@ static int __venus_power_on(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (core->power_enabled)
+	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
 	rc = call_venus_op(core, power_on, core);
@@ -559,7 +564,10 @@ static int __venus_power_on(struct msm_vidc_core *core)
 		d_vpr_e("Failed to power on, err: %d\n", rc);
 		return rc;
 	}
-	core->power_enabled = true;
+
+	rc = msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_POWER_ENABLE, __func__);
+	if (rc)
+		return rc;
 
 	return rc;
 }
@@ -571,7 +579,7 @@ static int __suspend(struct msm_vidc_core *core)
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	} else if (!core->power_enabled) {
+	} else if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_h("Power already disabled\n");
 		return 0;
 	}
@@ -605,9 +613,9 @@ static int __resume(struct msm_vidc_core *core)
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	} else if (core->power_enabled) {
+	} else if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		goto exit;
-	} else if (!__core_in_valid_state(core)) {
+	} else if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: core not in valid state\n", __func__);
 		return -EINVAL;
 	}
@@ -617,8 +625,14 @@ static int __resume(struct msm_vidc_core *core)
 		return rc;
 
 	d_vpr_h("Resuming from power collapse\n");
-	core->handoff_done = false;
-	core->hw_power_control = false;
+	/* reset handoff done from core sub_state */
+	rc = msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
+	if (rc)
+		return rc;
+	/* reset hw pwr ctrl from core sub_state */
+	rc = msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_FW_PWR_CTRL, 0, __func__);
+	if (rc)
+		return rc;
 
 	rc = __venus_power_on(core);
 	if (rc) {
@@ -684,10 +698,8 @@ int __load_fw(struct msm_vidc_core *core)
 	int rc = 0;
 
 	d_vpr_h("%s\n", __func__);
-	core->handoff_done = false;
-	core->hw_power_control = false;
-	core->cpu_watchdog = false;
-	core->video_unresponsive = false;
+	/* clear all substates */
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_MAX - 1, 0, __func__);
 
 	trace_msm_v4l2_vidc_fw_load("START");
 	rc = __venus_power_on(core);
@@ -726,8 +738,8 @@ void __unload_fw(struct msm_vidc_core *core)
 	fw_unload(core);
 	__venus_power_off(core);
 
-	core->cpu_watchdog = false;
-	core->video_unresponsive = false;
+	/* clear all substates */
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_MAX - 1, 0, __func__);
 
 	d_vpr_h("%s done\n", __func__);
 }
@@ -738,8 +750,14 @@ static int __response_handler(struct msm_vidc_core *core)
 
 	if (call_venus_op(core, watchdog, core, core->intr_status)) {
 		struct hfi_packet pkt = {.type = HFI_SYS_ERROR_WD_TIMEOUT};
-		core->cpu_watchdog = true;
+
+		core_lock(core, __func__);
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
+		/* mark cpu watchdog error */
+		msm_vidc_change_core_sub_state(core,
+			0, CORE_SUBSTATE_CPU_WATCHDOG, __func__);
 		d_vpr_e("%s: CPU WD error received\n", __func__);
+		core_unlock(core, __func__);
 
 		return handle_system_error(core, &pkt);
 	}
@@ -808,6 +826,7 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 		return;
 	}
 
+	core_lock(core, __func__);
 	d_vpr_h("%s: try power collapse\n", __func__);
 	/*
 	 * It is ok to check this variable outside the lock since
@@ -817,15 +836,19 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 		d_vpr_e("Failed to PC for %d times\n",
 				core->skip_pc_count);
 		core->skip_pc_count = 0;
-		core->video_unresponsive = true;
-		msm_vidc_core_deinit(core, true);
-		return;
+		msm_vidc_change_core_state(core, MSM_VIDC_CORE_ERROR, __func__);
+		/* mark video hw unresponsive */
+		msm_vidc_change_core_sub_state(core,
+			0, CORE_SUBSTATE_VIDEO_UNRESPONSIVE, __func__);
+		/* do core deinit to handle error */
+		msm_vidc_core_deinit_locked(core, true);
+		goto unlock;
 	}
 
-	core_lock(core, __func__);
 	/* core already deinited - skip power collapse */
-	if (core->state == MSM_VIDC_CORE_DEINIT) {
-		d_vpr_e("%s: core is already de-inited\n", __func__);
+	if (is_core_state(core, MSM_VIDC_CORE_DEINIT)) {
+		d_vpr_e("%s: invalid core state %s\n",
+			__func__, core_state_name(core->state));
 		goto unlock;
 	}
 
@@ -962,7 +985,7 @@ int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 	if (rc)
 		return rc;
 
-	if (core->state == MSM_VIDC_CORE_DEINIT)
+	if (is_core_state(core, MSM_VIDC_CORE_DEINIT))
 		return 0;
 	__resume(core);
 	__flush_debug_queue(core, (!force ? core->packet : NULL), core->packet_size);
@@ -993,7 +1016,7 @@ int venus_hfi_noc_error_info(struct msm_vidc_core *core)
 		return 0;
 
 	core_lock(core, __func__);
-	if (core->state == MSM_VIDC_CORE_DEINIT)
+	if (is_core_state(core, MSM_VIDC_CORE_DEINIT))
 		goto unlock;
 
 	/* resume venus before accessing noc registers */

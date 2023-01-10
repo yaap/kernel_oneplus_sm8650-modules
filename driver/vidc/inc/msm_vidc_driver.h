@@ -401,7 +401,6 @@ int v4l2_type_to_driver_port(struct msm_vidc_inst *inst, u32 type,
 	const char *func);
 const char *allow_name(enum msm_vidc_allow allow);
 const char *state_name(enum msm_vidc_state state);
-const char *core_state_name(enum msm_vidc_core_state state);
 int msm_vidc_change_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_state request_state, const char *func);
 int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
@@ -434,9 +433,13 @@ int msm_vidc_kill_session(struct msm_vidc_inst* inst);
 int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst);
 int msm_vidc_change_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_state request_state, const char *func);
+int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
+	enum msm_vidc_core_sub_state clear_sub_states,
+	enum msm_vidc_core_sub_state set_sub_states, const char *func);
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
+int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force);
 int msm_vidc_inst_timeout(struct msm_vidc_inst *inst);
 int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst);
 int msm_vidc_print_inst_info(struct msm_vidc_inst *inst);
@@ -451,7 +454,7 @@ int msm_vidc_trigger_stability(struct msm_vidc_core *core,
 void msm_vidc_stability_handler(struct work_struct *work);
 int cancel_stability_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
-int msm_vidc_suspend(struct msm_vidc_core *core);
+int msm_vidc_suspend_locked(struct msm_vidc_core *core);
 void msm_vidc_batch_handler(struct work_struct *work);
 int msm_vidc_event_queue_init(struct msm_vidc_inst *inst);
 int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst);
@@ -516,6 +519,7 @@ enum msm_vidc_allow msm_vidc_allow_qbuf(struct msm_vidc_inst *inst, u32 type);
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst);
+bool msm_vidc_allow_pm_suspend(struct msm_vidc_core *core);
 int msm_vidc_state_change_streamon(struct msm_vidc_inst *inst, u32 type);
 int msm_vidc_state_change_streamoff(struct msm_vidc_inst *inst, u32 type);
 int msm_vidc_state_change_input_psc(struct msm_vidc_inst *inst);
