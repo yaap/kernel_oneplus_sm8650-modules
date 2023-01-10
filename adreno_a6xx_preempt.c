@@ -73,14 +73,16 @@ static void _power_collapse_set(struct adreno_device *adreno_dev, bool val)
 		return;
 
 	if (val) {
-		if (adreno_is_a660(adreno_dev))
+		if (adreno_is_a660(adreno_dev) ||
+				adreno_is_a663(adreno_dev))
 			gmu_core_regwrite(device,
 				 A6XX_GMU_PWR_COL_PREEMPT_KEEPALIVE, 0x1);
 		else
 			gmu_core_regrmw(device,
 				 A6XX_GMU_AO_SPARE_CNTL, 0x0, 0x2);
 	} else {
-		if (adreno_is_a660(adreno_dev))
+		if (adreno_is_a660(adreno_dev) ||
+				adreno_is_a663(adreno_dev))
 			gmu_core_regwrite(device,
 				 A6XX_GMU_PWR_COL_PREEMPT_KEEPALIVE, 0x0);
 		else
@@ -765,7 +767,7 @@ int a6xx_preemption_context_init(struct kgsl_context *context)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	uint64_t flags = 0;
 
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION))
+	if (!adreno_preemption_feature_set(adreno_dev))
 		return 0;
 
 	if (context->flags & KGSL_CONTEXT_SECURE)

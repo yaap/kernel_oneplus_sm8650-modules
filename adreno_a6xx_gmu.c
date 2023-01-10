@@ -600,13 +600,14 @@ int a6xx_rscc_wakeup_sequence(struct adreno_device *adreno_dev)
 	 /* A660 has a replacement register */
 	if (adreno_is_a662(adreno_dev) || adreno_is_a621(adreno_dev))
 		gmu_core_regread(device, A662_GPU_CC_GX_DOMAIN_MISC3, &val);
-	else if (adreno_is_a660(ADRENO_DEVICE(device)))
+	else if (adreno_is_a660(ADRENO_DEVICE(device)) ||
+			adreno_is_a663(adreno_dev))
 		gmu_core_regread(device, A6XX_GPU_CC_GX_DOMAIN_MISC3, &val);
 	else
 		gmu_core_regread(device, A6XX_GPU_CC_GX_DOMAIN_MISC, &val);
 
 	if (!(val & 0x1))
-		dev_err_ratelimited(&gmu->pdev->dev,
+		dev_info_ratelimited(&gmu->pdev->dev,
 			"GMEM CLAMP IO not set while GFX rail off\n");
 
 	/* RSC wake sequence */
@@ -1899,7 +1900,7 @@ void a6xx_gmu_suspend(struct adreno_device *adreno_dev)
 
 	dev_err(&gmu->pdev->dev, "Suspended GMU\n");
 
-	device->state = KGSL_STATE_NONE;
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 }
 
 static int a6xx_gmu_dcvs_set(struct adreno_device *adreno_dev,
@@ -2508,6 +2509,8 @@ static int a6xx_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int ret = 0;
 
+	kgsl_icc_set_tag(pwr, buslevel);
+
 	if (buslevel != pwr->cur_buslevel) {
 		ret = a6xx_gmu_dcvs_set(adreno_dev, INVALID_DCVS_IDX, buslevel);
 		if (ret)
@@ -3026,7 +3029,7 @@ static int a6xx_gmu_power_off(struct adreno_device *adreno_dev)
 
 	a6xx_rdpm_cx_freq_update(gmu, 0);
 
-	device->state = KGSL_STATE_NONE;
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 
 	return ret;
 
@@ -3054,6 +3057,19 @@ void a6xx_disable_gpu_irq(struct adreno_device *adreno_dev)
 	if (a6xx_gmu_gx_is_on(adreno_dev))
 		adreno_irqctrl(adreno_dev, 0);
 
+}
+
+void a6xx_fusa_init(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+	if (adreno_is_a663(adreno_dev)) {
+		/* disable fusa mode in bu stage */
+		kgsl_regrmw(device, A6XX_GPU_FUSA_REG_ECC_CTRL,
+				A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
+		kgsl_regrmw(device, A6XX_GPU_FUSA_REG_CSR_PRIY,
+				A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
+	}
 }
 
 static int a6xx_gpu_boot(struct adreno_device *adreno_dev)
@@ -3215,6 +3231,8 @@ static int a6xx_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
+	a6xx_fusa_init(adreno_dev);
+
 	ret = a6xx_gpu_boot(adreno_dev);
 	if (ret)
 		return ret;
@@ -3371,7 +3389,7 @@ static void gmu_idle_check(struct work_struct *work)
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (atomic_read(&device->active_cnt)) {
+	if (atomic_read(&device->active_cnt) || time_is_after_jiffies(device->idle_jiffies)) {
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
 		goto done;
@@ -3389,7 +3407,7 @@ static void gmu_idle_check(struct work_struct *work)
 		goto done;
 	}
 
-	device->slumber = true;
+	device->skip_inline_submit = true;
 	spin_unlock(&device->submit_lock);
 
 	ret = a6xx_power_off(adreno_dev);

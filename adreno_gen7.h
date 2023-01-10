@@ -34,6 +34,7 @@ struct gen7_gpudev {
 
 extern const struct gen7_gpudev adreno_gen7_gmu_gpudev;
 extern const struct gen7_gpudev adreno_gen7_hwsched_gpudev;
+extern const struct gen7_gpudev adreno_gen7_9_0_hwsched_gpudev;
 
 /**
  * struct gen7_device - Container for the gen7_device
@@ -173,7 +174,7 @@ struct gen7_cp_smmu_info {
 
 #define GEN7_CP_CTXRECORD_MAGIC_REF		0xae399d6eUL
 /* Size of each CP preemption record */
-#define GEN7_CP_CTXRECORD_SIZE_IN_BYTES		(2860 * 1024)
+#define GEN7_CP_CTXRECORD_SIZE_IN_BYTES		(4192 * 1024)
 /* Size of the user context record block (in bytes) */
 #define GEN7_CP_CTXRECORD_USER_RESTORE_SIZE	(192 * 1024)
 /* Size of the performance counter save/restore block (in bytes) */
@@ -199,7 +200,8 @@ struct gen7_cp_smmu_info {
 	 (1 << GEN7_INT_HANGDETECTINTERRUPT) |		\
 	 (1 << GEN7_INT_OUTOFBOUNDACCESS) |		\
 	 (1 << GEN7_INT_UCHETRAPINTERRUPT) |		\
-	 (1 << GEN7_INT_TSBWRITEERROR))
+	 (1 << GEN7_INT_TSBWRITEERROR) |		\
+	 (1 << GEN7_INT_SWFUSEVIOLATION))
 
 #define GEN7_HWSCHED_INT_MASK \
 	((1 << GEN7_INT_AHBERROR) |			\

@@ -45,6 +45,7 @@ static struct device_node *
 	adreno_get_gpu_model_node(struct platform_device *pdev);
 
 static struct adreno_device device_3d0;
+static bool adreno_preemption_enable;
 
 /* Nice level for the higher priority GPU start thread */
 int adreno_wake_nice = -7;
@@ -376,8 +377,13 @@ static void _soft_reset(struct adreno_device *adreno_dev)
  */
 void adreno_irqctrl(struct adreno_device *adreno_dev, int state)
 {
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+
 	adreno_writereg(adreno_dev, ADRENO_REG_RBBM_INT_0_MASK,
 		state ? adreno_dev->irq_mask : 0);
+
+	if (gpudev->swfuse_irqctrl)
+		gpudev->swfuse_irqctrl(adreno_dev, state);
 }
 
 /*
@@ -1265,6 +1271,9 @@ int adreno_device_probe(struct platform_device *pdev,
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_IOCOHERENT))
 		kgsl_mmu_set_feature(device, KGSL_MMU_IO_COHERENT);
 
+	if (adreno_preemption_enable)
+		adreno_dev->preempt_override = true;
+
 	device->pwrctrl.bus_width = adreno_dev->gpucore->bus_width;
 
 	device->mmu.secured = (IS_ENABLED(CONFIG_QCOM_SECURE_BUFFER) &&
@@ -1296,6 +1305,9 @@ int adreno_device_probe(struct platform_device *pdev,
 
 	/* Add CX_DBGC block to the regmap*/
 	kgsl_regmap_add_region(&device->regmap, pdev, "cx_dbgc", NULL, NULL);
+
+	/* Add FUSA block to the regmap */
+	kgsl_regmap_add_region(&device->regmap, pdev, "fusa", NULL, NULL);
 
 	/* Probe for the optional CX_MISC block */
 	adreno_cx_misc_probe(device);
@@ -3602,6 +3614,9 @@ static void __exit kgsl_3d_exit(void)
 	gmu_core_unregister();
 	kgsl_core_exit();
 }
+
+module_param_named(enable, adreno_preemption_enable, bool, 0600);
+MODULE_PARM_DESC(enable, "Enable GPU HW Preemption");
 
 module_init(kgsl_3d_init);
 module_exit(kgsl_3d_exit);

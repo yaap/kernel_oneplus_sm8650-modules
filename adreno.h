@@ -212,6 +212,7 @@ enum adreno_gpurev {
 	ADRENO_REV_A650 = 650,
 	ADRENO_REV_A660 = 660,
 	ADRENO_REV_A662 = 662,
+	ADRENO_REV_A663 = 663,
 	ADRENO_REV_A680 = 680,
 	ADRENO_REV_A702 = 702,
 	/*
@@ -594,6 +595,8 @@ struct adreno_device {
 	bool lpac_enabled;
 	/** @dms_enabled: True if DMS is enabled */
 	bool dms_enabled;
+	/** @preempt_override: True if command line param enables preemption */
+	bool preempt_override;
 	struct kgsl_memdesc *profile_buffer;
 	unsigned int profile_index;
 	struct kgsl_memdesc *pwrup_reglist;
@@ -917,6 +920,10 @@ struct adreno_gpudev {
 	 * @context_destroy: Target specific function called during context destruction
 	 */
 	void (*context_destroy)(struct adreno_device *adreno_dev, struct adreno_context *drawctxt);
+	/**
+	 * @swfuse_irqctrl: To enable/disable sw fuse violation interrupt
+	 */
+	void (*swfuse_irqctrl)(struct adreno_device *adreno_dev, bool state);
 };
 
 /**
@@ -1120,6 +1127,7 @@ ADRENO_TARGET(a635, ADRENO_REV_A635)
 ADRENO_TARGET(a662, ADRENO_REV_A662)
 ADRENO_TARGET(a640, ADRENO_REV_A640)
 ADRENO_TARGET(a650, ADRENO_REV_A650)
+ADRENO_TARGET(a663, ADRENO_REV_A663)
 ADRENO_TARGET(a680, ADRENO_REV_A680)
 ADRENO_TARGET(a702, ADRENO_REV_A702)
 
@@ -1159,7 +1167,7 @@ static inline int adreno_is_a640_family(struct adreno_device *adreno_dev)
  * Derived GPUs from A650 needs to be added to this list.
  * A650 is derived from A640 but register specs has been
  * changed hence do not belongs to A640 family. A620, A621,
- * A660, A690 follows the register specs of A650.
+ * A660, A663, A690 follows the register specs of A650.
  *
  */
 static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
@@ -1168,7 +1176,8 @@ static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
 
 	return (rev == ADRENO_REV_A650 || rev == ADRENO_REV_A620 ||
 		rev == ADRENO_REV_A660 || rev == ADRENO_REV_A635 ||
-		rev == ADRENO_REV_A662 ||  rev == ADRENO_REV_A621);
+		rev == ADRENO_REV_A662 || rev == ADRENO_REV_A621 ||
+		rev == ADRENO_REV_A663);
 }
 
 static inline int adreno_is_a619_holi(struct adreno_device *adreno_dev)
@@ -1483,6 +1492,17 @@ static inline bool adreno_is_preemption_enabled(
 				struct adreno_device *adreno_dev)
 {
 	return test_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv);
+}
+
+
+/**
+ * adreno_preemption_feature_set() - Check whether adreno preemption feature is statically enabled
+ * either via adreno feature bit, or via the cmdline override
+ * @adreno_dev: Device whose preemption state is checked
+ */
+static inline bool adreno_preemption_feature_set(struct adreno_device *adreno_dev)
+{
+	return ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION) || adreno_dev->preempt_override;
 }
 
 /*

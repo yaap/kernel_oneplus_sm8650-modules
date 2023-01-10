@@ -250,7 +250,7 @@ static void _retire_timestamp(struct kgsl_drawobj *drawobj)
 
 	if (drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME) {
 		atomic64_inc(&context->proc_priv->frame_count);
-		atomic_inc(&context->proc_priv->period.frames);
+		atomic_inc(&context->proc_priv->period->frames);
 	}
 
 	/*
@@ -966,8 +966,8 @@ static void adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	spin_lock(&device->submit_lock);
-	/* If state transition to SLUMBER, schedule the work for later */
-	if (device->slumber) {
+	/* If state is not ACTIVE, schedule the work for later */
+	if (device->skip_inline_submit) {
 		spin_unlock(&device->submit_lock);
 		goto done;
 	}
@@ -2219,6 +2219,11 @@ static void retire_cmdobj(struct adreno_device *adreno_dev,
 	info.eop = end;
 	info.active = active;
 
+	/* protected GPU work must not be reported */
+	if  (!(context->flags & KGSL_CONTEXT_SECURE))
+		kgsl_work_period_update(KGSL_DEVICE(adreno_dev),
+					     context->proc_priv->period, active);
+
 	msm_perf_events_update(MSM_PERF_GFX, MSM_PERF_RETIRED,
 			       pid_nr(context->proc_priv->pid),
 			       context->id, drawobj->timestamp,
@@ -2226,7 +2231,7 @@ static void retire_cmdobj(struct adreno_device *adreno_dev,
 
 	if (drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME) {
 		atomic64_inc(&context->proc_priv->frame_count);
-		atomic_inc(&context->proc_priv->period.frames);
+		atomic_inc(&context->proc_priv->period->frames);
 	}
 
 	/*
@@ -2568,9 +2573,8 @@ static void change_preemption(struct adreno_device *adreno_dev, void *priv)
 
 static int _preemption_store(struct adreno_device *adreno_dev, bool val)
 {
-	if (!(ADRENO_FEATURE(adreno_dev, ADRENO_PREEMPTION)) ||
-		(test_bit(ADRENO_DEVICE_PREEMPTION,
-		&adreno_dev->priv) == val))
+	if (!adreno_preemption_feature_set(adreno_dev) ||
+		(test_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv) == val))
 		return 0;
 
 	return adreno_power_cycle(adreno_dev, change_preemption, NULL);
