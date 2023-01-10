@@ -35,7 +35,6 @@
 #include <linux/of_platform.h>
 #include <linux/dma-map-ops.h>
 #include <linux/cma.h>
-#include <linux/iommu.h>
 #include <linux/sort.h>
 #include <linux/cred.h>
 #include <linux/msm_dma_iommu_mapping.h>
@@ -53,7 +52,7 @@
 #include <linux/soc/qcom/pdr.h>
 #include <linux/soc/qcom/qmi.h>
 #include <linux/mem-buf.h>
-#include <linux/dma-iommu.h>
+#include <linux/iommu.h>
 #include <asm/arch_timer.h>
 #include <linux/genalloc.h>
 
@@ -182,7 +181,9 @@
 #define FASTRPC_CPUINFO_EARLY_WAKEUP (1)
 
 #define INIT_FILELEN_MAX (2*1024*1024)
-#define INIT_MEMLEN_MAX  (8*1024*1024)
+#define INIT_MEMLEN_MAX_STATIC  (8*1024*1024)
+#define INIT_MEMLEN_MAX_DYNAMIC (200*1024*1024)
+#define INIT_MEMLEN_MIN_DYNAMIC (3*1024*1024)
 #define MAX_CACHE_BUF_SIZE (8*1024*1024)
 
 /* Maximum buffers cached in cached buffer list */
@@ -3622,7 +3623,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	remote_arg_t ra[6];
 	int fds[6];
 	unsigned int gid = 0, one_mb = 1024*1024;
-	unsigned int dsp_userpd_memlen = 3 * one_mb;
+	unsigned int dsp_userpd_memlen = 0;
 	struct fastrpc_buf *init_mem;
 
 	struct {
@@ -3642,6 +3643,20 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 		return err;
 	}
 	fl->dsp_process_state = PROCESS_CREATE_IS_INPROGRESS;
+
+	if (init->memlen) {
+		if(init->memlen > INIT_MEMLEN_MAX_DYNAMIC || init->memlen < INIT_MEMLEN_MIN_DYNAMIC) {
+		    ADSPRPC_ERR(
+			    "init memory for process %d should be between %d and %d\n",
+			     init->memlen, INIT_MEMLEN_MIN_DYNAMIC, INIT_MEMLEN_MAX_DYNAMIC);
+		    err = -EINVAL;
+		    goto bail;
+		}
+		dsp_userpd_memlen = init->memlen;
+	} else {
+		dsp_userpd_memlen = 3*one_mb;
+	}
+
 	spin_unlock(&fl->hlock);
 
 	inbuf.pgid = fl->tgid;
@@ -3733,7 +3748,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	 * additional static heap initialized within the process.
 	 */
 	if (fl->is_unsigned_pd)
-		dsp_userpd_memlen += 2*one_mb;
+		dsp_userpd_memlen = 5*one_mb;
 	memlen = ALIGN(max(dsp_userpd_memlen, init->filelen * 4), one_mb);
 	imem_dma_attr = DMA_ATTR_DELAYED_UNMAP | DMA_ATTR_NO_KERNEL_MAPPING;
 	err = fastrpc_buf_alloc(fl, memlen, imem_dma_attr, 0,
@@ -3858,6 +3873,14 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		ADSPRPC_ERR(
 			"untrusted app trying to attach to audio PD\n");
 		return err;
+	}
+	VERIFY(err, init->memlen <= INIT_MEMLEN_MAX_STATIC);
+	if (err) {
+		ADSPRPC_ERR(
+			"init memory for static process %d is more than max allowed init len %d\n",
+			init->memlen, INIT_MEMLEN_MAX_STATIC);
+		err = -EFBIG;
+		goto bail;
 	}
 
 	if (!init->filelen)
@@ -4038,12 +4061,12 @@ int fastrpc_init_process(struct fastrpc_file *fl,
 	struct fastrpc_channel_ctx *chan = NULL;
 
 	VERIFY(err, init->filelen < INIT_FILELEN_MAX
-			&& init->memlen < INIT_MEMLEN_MAX);
+			&& init->memlen <= INIT_MEMLEN_MAX_DYNAMIC);
 	if (err) {
 		ADSPRPC_ERR(
 			"file size 0x%x or init memory 0x%x is more than max allowed file size 0x%x or init len 0x%x\n",
 			init->filelen, init->memlen,
-			INIT_FILELEN_MAX, INIT_MEMLEN_MAX);
+			INIT_FILELEN_MAX, INIT_MEMLEN_MAX_DYNAMIC);
 		err = -EFBIG;
 		goto bail;
 	}
@@ -6581,7 +6604,6 @@ int fastrpc_dspsignal_cancel_wait(struct fastrpc_file *fl,
 bail:
 	return err;
 }
-
 
 static inline int fastrpc_mmap_device_ioctl(struct fastrpc_file *fl,
 		unsigned int ioctl_num,	union fastrpc_ioctl_param *p,
