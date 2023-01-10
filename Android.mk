@@ -7,11 +7,11 @@ LOCAL_PATH        := $(call my-dir)
 
 KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(PWD)/$(call intermediates-dir-for,DLKM,sec-module-symvers)/Module.symvers
 
+include $(CLEAR_VARS)
+ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
 LOCAL_REQUIRED_MODULES := sec-module-symvers
 LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,sec-module-symvers)/Module.symvers
-
-include $(CLEAR_VARS)
-
+endif
 LOCAL_MODULE      := nxp-nci.ko
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)

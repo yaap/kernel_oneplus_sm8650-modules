@@ -100,16 +100,16 @@
 // Ioctls
 // The type should be aligned with MW HAL definitions
 
-#define NFC_SET_PWR		_IOW(NFC_MAGIC, 0x01, uint32_t)
-#define ESE_SET_PWR		_IOW(NFC_MAGIC, 0x02, uint32_t)
-#define ESE_GET_PWR		_IOR(NFC_MAGIC, 0x03, uint32_t)
-#define NFC_SECURE_ZONE		_IOW(NFC_MAGIC, 0x0A, uint32_t)
+#define NFC_SET_PWR                   _IOW(NFC_MAGIC, 0x01, uint32_t)
+#define ESE_SET_PWR                   _IOW(NFC_MAGIC, 0x02, uint32_t)
+#define ESE_GET_PWR                   _IOR(NFC_MAGIC, 0x03, uint32_t)
+#define NFC_SET_RESET_READ_PENDING    _IOW(NFC_MAGIC, 0x04, uint32_t)
+#define NFC_SECURE_ZONE               _IOW(NFC_MAGIC, 0x0A, uint32_t)
 
 #define DTS_IRQ_GPIO_STR	"qcom,sn-irq"
 #define DTS_VEN_GPIO_STR	"qcom,sn-ven"
 #define DTS_FWDN_GPIO_STR	"qcom,sn-firm"
 #define DTS_CLKREQ_GPIO_STR     "qcom,sn-clkreq"
-#define DTS_CLKSRC_GPIO_STR	"qcom,clk-src"
 #define DTS_SZONE_STR	        "qcom,sn-szone"
 #define NFC_LDO_SUPPLY_DT_NAME		"qcom,sn-vdd-1p8"
 #define NFC_LDO_SUPPLY_NAME		"qcom,sn-vdd-1p8-supply"
@@ -177,6 +177,11 @@ enum nfcc_ioctl_request {
 	NFC_DISABLE,
 };
 
+enum nfc_read_pending {
+       NFC_RESET_READ_PENDING,
+       NFC_SET_READ_PENDING,
+};
+
 /* nfc platform interface type */
 enum interface_flags {
 	/* I2C physical IF for NFCC */
@@ -231,9 +236,6 @@ struct platform_ldo {
 struct platform_configs {
 	struct platform_gpio gpio;
 	struct platform_ldo ldo;
-        const char *clk_src_name;
-	/* NFC_CLK pin voting state */
-	bool clk_pin_voting;
 	const char *szone;
 	bool CNSS_NFC_HW_SECURE_ENABLE;
 };
@@ -278,10 +280,6 @@ struct nfc_dev {
 	/*secure zone state*/
 	bool secure_zone;
 
-	/* CLK control */
-	bool clk_run;
-	struct clk *s_clk;
-
 	void *ipcl;
 
 	/* function pointers for the common i2c functionality */
@@ -317,8 +315,6 @@ int nfc_ese_pwr(struct nfc_dev *nfc_dev, unsigned long arg);
 int nfc_ldo_unvote(struct nfc_dev *nfc_dev);
 int is_nfc_data_available_for_read(struct nfc_dev *nfc_dev);
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev);
-int nfc_clock_select(struct nfc_dev *nfc_dev);
-int nfc_clock_deselect(struct nfc_dev *nfc_dev);
 int nfc_post_init(struct nfc_dev *nfc_dev);
 int nfc_dynamic_protection_ioctl(struct nfc_dev *nfc_dev, unsigned long sec_zone_trans);
 bool nfc_hw_secure_check(void);

@@ -71,6 +71,7 @@ struct cold_reset {
 	bool rsp_pending;
 	/* Is NFC enabled from UI */
 	bool is_nfc_enabled;
+	bool is_nfc_read_pending;
 };
 
 struct nfc_dev;

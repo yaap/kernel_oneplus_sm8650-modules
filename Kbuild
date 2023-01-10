@@ -8,6 +8,7 @@ LINUXINCLUDE   += -include $(NFC_ROOT)/config/gki_nfc_conf.h
 
 LINUXINCLUDE   += -I$(NFC_ROOT)/../../../qcom/opensource/securemsm-kernel/smcinvoke/
 LINUXINCLUDE   += -I$(NFC_ROOT)/../../../qcom/opensource/securemsm-kernel/linux/
+LINUXINCLUDE   += -I$(NFC_ROOT)/../../../qcom/opensource/securemsm-kernel/include/linux/
 
 obj-$(CONFIG_NXP_NFC_I2C) += nxp-nci.o
 
