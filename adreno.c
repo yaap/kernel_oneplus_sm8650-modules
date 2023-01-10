@@ -3671,7 +3671,7 @@ module_exit(kgsl_3d_exit);
 
 MODULE_DESCRIPTION("3D Graphics driver");
 MODULE_LICENSE("GPL v2");
-MODULE_SOFTDEP("pre: qcom-arm-smmu-mod nvmem_qfprom socinfo");
+MODULE_SOFTDEP("pre: arm_smmu nvmem_qfprom socinfo");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0))
 MODULE_IMPORT_NS(DMA_BUF);
 #endif
