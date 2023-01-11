@@ -649,6 +649,191 @@ static void process_ctx_bad(struct adreno_device *adreno_dev)
 	adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
 }
 
+#define GET_QUERIED_FENCE_INDEX(x) (x / BITS_PER_SYNCOBJ_QUERY)
+#define GET_QUERIED_FENCE_BIT(x) (x % BITS_PER_SYNCOBJ_QUERY)
+
+static bool fence_is_queried(struct hfi_syncobj_query_cmd *cmd, u32 fence_index)
+{
+	u32 index = GET_QUERIED_FENCE_INDEX(fence_index);
+	u32 bit = GET_QUERIED_FENCE_BIT(fence_index);
+
+	return (cmd->queries[index].query_bitmask & BIT(bit));
+}
+
+static void set_fence_signal_bit(struct adreno_device *adreno_dev,
+	struct hfi_syncobj_query_cmd *reply, struct dma_fence *fence, u32 fence_index,
+	char *name)
+{
+	u32 index = GET_QUERIED_FENCE_INDEX(fence_index);
+	u32 bit = GET_QUERIED_FENCE_BIT(fence_index);
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	u64 flags = ADRENO_HW_FENCE_SW_STATUS_PENDING;
+	char value[32] = "unknown";
+
+	if (fence->ops->timeline_value_str)
+		fence->ops->timeline_value_str(fence, value, sizeof(value));
+
+	if (test_bit(DMA_FENCE_FLAG_SIGNALED_BIT, &fence->flags)) {
+		dev_err(&gmu->pdev->dev,
+			"GMU is waiting for signaled fence(ctx:%ld seqno:%ld value:%s)\n",
+			fence->context, fence->seqno, value);
+		reply->queries[index].query_bitmask |= BIT(bit);
+		flags = ADRENO_HW_FENCE_SW_STATUS_SIGNALED;
+	}
+	trace_adreno_hw_fence_query(fence->context, fence->seqno, flags, name, value);
+}
+
+static void gen7_syncobj_query_reply(struct adreno_device *adreno_dev,
+	struct kgsl_drawobj *drawobj, struct hfi_syncobj_query_cmd *cmd)
+{
+	struct hfi_syncobj_query_cmd reply = {0};
+	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
+	int i, j, fence_index = 0;
+	struct kgsl_drawobj_sync *syncobj = SYNCOBJ(drawobj);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+
+	for (i = 0; i < syncobj->numsyncs; i++) {
+		struct kgsl_drawobj_sync_event *event = &syncobj->synclist[i];
+		struct kgsl_sync_fence_cb *kcb = event->handle;
+		struct dma_fence **fences;
+		struct dma_fence_array *array;
+		struct event_fence_info *info = event->priv;
+		u32 num_fences;
+
+		array = to_dma_fence_array(kcb->fence);
+		if (array != NULL) {
+			num_fences = array->num_fences;
+			fences = array->fences;
+		} else {
+			num_fences = 1;
+			fences = &kcb->fence;
+		}
+
+		for (j = 0; j < num_fences; j++, fence_index++) {
+			if (!fence_is_queried(cmd, fence_index))
+				continue;
+
+			set_fence_signal_bit(adreno_dev, &reply, fences[j], fence_index,
+				info ? info->fences[j].name : "unknown");
+		}
+	}
+
+	reply.hdr = CREATE_MSG_HDR(F2H_MSG_SYNCOBJ_QUERY, sizeof(reply),
+			HFI_MSG_CMD);
+	reply.hdr = MSG_HDR_SET_SEQNUM(reply.hdr,
+			atomic_inc_return(&hfi->seqnum));
+	reply.gmu_ctxt_id = cmd->gmu_ctxt_id;
+	reply.sync_obj_ts = cmd->sync_obj_ts;
+
+	trace_adreno_syncobj_query_reply(reply.gmu_ctxt_id, reply.sync_obj_ts,
+		gpudev->read_alwayson(adreno_dev));
+
+	gen7_hfi_send_cmd_async(adreno_dev, &reply);
+}
+
+struct syncobj_query_work {
+	/** @cmd: The query command to be processed */
+	struct hfi_syncobj_query_cmd cmd;
+	/** @context: kgsl context that is waiting for this sync object */
+	struct kgsl_context *context;
+	/** @work: The work structure to execute syncobj query reply */
+	struct kthread_work work;
+};
+
+static void gen7_process_syncobj_query_work(struct kthread_work *work)
+{
+	struct syncobj_query_work *query_work = container_of(work,
+						struct syncobj_query_work, work);
+	struct hfi_syncobj_query_cmd *cmd = (struct hfi_syncobj_query_cmd *)&query_work->cmd;
+	struct kgsl_context *context = query_work->context;
+	struct kgsl_device *device = context->device;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	struct cmd_list_obj *obj;
+	bool missing = true;
+
+	mutex_lock(&hwsched->mutex);
+	mutex_lock(&device->mutex);
+
+	list_for_each_entry(obj, &hwsched->cmd_list, node) {
+		struct kgsl_drawobj *drawobj = obj->drawobj;
+
+		if ((drawobj->type & SYNCOBJ_TYPE) == 0)
+			continue;
+
+		if ((drawobj->context->id == cmd->gmu_ctxt_id) &&
+			(drawobj->timestamp == cmd->sync_obj_ts)) {
+			gen7_syncobj_query_reply(adreno_dev, drawobj, cmd);
+			missing = false;
+			break;
+		}
+	}
+
+	if (missing) {
+		struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+		struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
+		struct gmu_context_queue_header *hdr = drawctxt->gmu_context_queue.hostptr;
+
+		/*
+		 * If the sync object is not found, it can only mean that the sync object was
+		 * retired by the GMU in the meanwhile. However, if that is not the case, then
+		 * we have a problem.
+		 */
+		if (timestamp_cmp(cmd->sync_obj_ts, hdr->sync_obj_ts) > 0) {
+			dev_err(&gmu->pdev->dev, "Missing sync object ctx:%d ts:%d retired:%d\n",
+				context->id, cmd->sync_obj_ts, hdr->sync_obj_ts);
+			gmu_core_fault_snapshot(device);
+			adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
+		}
+	}
+
+	mutex_unlock(&device->mutex);
+	mutex_unlock(&hwsched->mutex);
+
+	kgsl_context_put(context);
+	kfree(query_work);
+}
+
+static void gen7_trigger_syncobj_query(struct adreno_device *adreno_dev,
+	u32 *rcvd)
+{
+	struct syncobj_query_work *query_work;
+	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	struct hfi_syncobj_query_cmd *cmd = (struct hfi_syncobj_query_cmd *)rcvd;
+	struct kgsl_context *context = NULL;
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	int ret;
+
+	trace_adreno_syncobj_query(cmd->gmu_ctxt_id, cmd->sync_obj_ts,
+		gpudev->read_alwayson(adreno_dev));
+
+	/*
+	 * We need the context even if it is detached. Hence, we can't use kgsl_context_get here.
+	 * We must make sure that this context id doesn't get destroyed (to avoid re-use) until GMU
+	 * has ack'd the query reply.
+	 */
+	read_lock(&device->context_lock);
+	context = idr_find(&device->context_idr, cmd->gmu_ctxt_id);
+	ret = _kgsl_context_get(context);
+	read_unlock(&device->context_lock);
+
+	if (!ret)
+		return;
+
+	query_work = kzalloc(sizeof(*query_work), GFP_KERNEL);
+	if (!query_work) {
+		kgsl_context_put(context);
+		return;
+	}
+
+	kthread_init_work(&query_work->work, gen7_process_syncobj_query_work);
+	memcpy(&query_work->cmd, cmd, sizeof(*cmd));
+	query_work->context = context;
+
+	kthread_queue_work(hwsched->worker, &query_work->work);
+}
+
 static void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
@@ -683,6 +868,8 @@ static void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev)
 		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_TS_RETIRE) {
 			log_profiling_info(adreno_dev, rcvd);
 			adreno_hwsched_trigger(adreno_dev);
+		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_SYNCOBJ_QUERY) {
+			gen7_trigger_syncobj_query(adreno_dev, rcvd);
 		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_GMU_CNTR_RELEASE) {
 			struct hfi_gmu_cntr_release_cmd *cmd =
 				(struct hfi_gmu_cntr_release_cmd *) rcvd;

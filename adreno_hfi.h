@@ -453,6 +453,7 @@ struct hfi_queue_table {
 #define F2H_MSG_CONTEXT_BAD		150
 #define H2F_MSG_HW_FENCE_INFO		151
 #define H2F_MSG_ISSUE_SYNCOBJ		152
+#define F2H_MSG_SYNCOBJ_QUERY		153
 
 enum gmu_ret_type {
 	GMU_SUCCESS = 0,
@@ -881,6 +882,37 @@ struct hfi_hw_fence_info {
 	u64 flags;
 	/** @hash_index: Index of the hw fence in hw fence table */
 	u64 hash_index;
+} __packed;
+
+/* The software fence corresponding to the queried hardware fence has not signaled */
+#define ADRENO_HW_FENCE_SW_STATUS_PENDING  BIT(0)
+/* The software fence corresponding to the queried hardware fence has signaled */
+#define ADRENO_HW_FENCE_SW_STATUS_SIGNALED BIT(1)
+
+struct hfi_syncobj_query {
+	/**
+	 * @query_bitmask: Bitmask representing the sync object descriptors to be queried. For
+	 * example, to query the second sync object descriptor(index=1) in a sync object,
+	 * bit(1) should be set in this bitmask.
+	 */
+	u32 query_bitmask;
+} __packed;
+
+#define MAX_SYNCOBJ_QUERY_BITS	128
+#define BITS_PER_SYNCOBJ_QUERY	32
+#define MAX_SYNCOBJ_QUERY_DWORDS (MAX_SYNCOBJ_QUERY_BITS / BITS_PER_SYNCOBJ_QUERY)
+
+struct hfi_syncobj_query_cmd {
+	/** @hdr: Header for the fence info packet */
+	u32 hdr;
+	/** @version: Version of the fence info packet */
+	u32 version;
+	/** @gmu_ctxt_id: GMU Context id to which this SYNC object belongs */
+	u32 gmu_ctxt_id;
+	/** @sync_obj_ts: Timestamp of this SYNC object */
+	u32 sync_obj_ts;
+	/** @queries: Array of query bitmasks */
+	struct hfi_syncobj_query queries[MAX_SYNCOBJ_QUERY_DWORDS];
 } __packed;
 
 /**

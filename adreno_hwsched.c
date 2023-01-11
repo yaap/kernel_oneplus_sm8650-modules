@@ -16,14 +16,6 @@
 #include "kgsl_timeline.h"
 #include <linux/msm_kgsl.h>
 
-/* This structure represents inflight command object */
-struct cmd_list_obj {
-	/** @drawobj: Handle to the draw object */
-	struct kgsl_drawobj *drawobj;
-	/** @node: List node to put it in the list of inflight commands */
-	struct list_head node;
-};
-
 /*
  * Number of commands that can be queued in a context before it sleeps
  *
