@@ -20,6 +20,7 @@
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/proc_fs.h>
+#include <linux/version.h>
 
 /* QSEE_LOG_BUF_SIZE = 32K */
 #define QSEE_LOG_BUF_SIZE 0x8000
@@ -1304,7 +1305,13 @@ static ssize_t tzdbg_fs_read(struct file *file, char __user *buf,
 
 static int tzdbg_procfs_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, NULL, pde_data(inode));
+
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(6,0,0))
+       return single_open(file, NULL, PDE_DATA(inode));
+#else
+       return single_open(file, NULL, pde_data(inode));
+#endif
+
 }
 
 static int tzdbg_procfs_release(struct inode *inode, struct file *file)
