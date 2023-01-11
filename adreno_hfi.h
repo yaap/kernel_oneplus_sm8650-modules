@@ -760,9 +760,22 @@ struct hfi_ts_notify_cmd {
 
 
 /* This indicates that the SYNCOBJ is kgsl output fence */
-#define GMU_SYNCOBJ_KGSL_FENCE  BIT(0)
-/* This indicates that the SYNCOBJ is already retired */
-#define GMU_SYNCOBJ_RETIRED     BIT(1)
+#define GMU_SYNCOBJ_FLAG_KGSL_FENCE_BIT		0
+/* This indicates that the SYNCOBJ is signaled */
+#define GMU_SYNCOBJ_FLAG_SIGNALED_BIT		1
+/* This indicates that the SYNCOBJ's software status is queried */
+#define GMU_SYNCOBJ_FLAG_QUERY_SW_STATUS_BIT	2
+/* This indicates that the SYNCOBJ's software status is signaled */
+#define GMU_SYNCOBJ_FLAG_SW_STATUS_SIGNALED_BIT	3
+/* This indicates that the SYNCOBJ's software status is pending */
+#define GMU_SYNCOBJ_FLAG_SW_STATUS_PENDING_BIT	4
+
+#define GMU_SYNCOBJ_FLAGS  \
+	{ BIT(GMU_SYNCOBJ_FLAG_KGSL_FENCE_BIT), "KGSL"}, \
+	{ BIT(GMU_SYNCOBJ_FLAG_SIGNALED_BIT), "SIGNALED"}, \
+	{ BIT(GMU_SYNCOBJ_FLAG_QUERY_SW_STATUS_BIT), "QUERIED"}, \
+	{ BIT(GMU_SYNCOBJ_FLAG_SW_STATUS_SIGNALED_BIT), "SW_SIGNALED"}, \
+	{ BIT(GMU_SYNCOBJ_FLAG_SW_STATUS_PENDING_BIT), "SW_PENDING"}
 
 /* F2H */
 struct hfi_ts_retire_cmd {
@@ -1054,7 +1067,8 @@ struct payload_section {
 #define GMU_GPU_AQE1_UCODE_ERROR 627
 #define GMU_GPU_AQE1_HW_FAULT_ERROR 628
 #define GMU_GPU_AQE1_ILLEGAL_INST_ERROR 629
-
+/* GMU encountered a sync object which is signaled via software but not via hardware */
+#define GMU_SYNCOBJ_TIMEOUT_ERROR 630
 /* GPU encountered an unknown CP error */
 #define GMU_CP_UNKNOWN_ERROR 700
 

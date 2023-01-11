@@ -254,6 +254,93 @@ static u32 get_payload_rb_key_legacy(struct adreno_device *adreno_dev,
 	return 0;
 }
 
+struct syncobj_flags {
+	unsigned long mask;
+	const char *name;
+};
+
+static void _get_syncobj_string(char *str, u32 max_size, struct hfi_syncobj *syncobj, u32 index)
+{
+	u32 count = scnprintf(str, max_size, "syncobj[%d] ctxt_id:%lu seqno:%lu flags:", index,
+			syncobj->ctxt_id, syncobj->seq_no);
+	u32 i;
+	bool first = true;
+	static const struct syncobj_flags _flags[] = {
+		GMU_SYNCOBJ_FLAGS, { -1, NULL }};
+
+	for (i = 0; _flags[i].name; i++) {
+		if (!(syncobj->flags & _flags[i].mask))
+			continue;
+
+		if (first) {
+			count += scnprintf(str + count, max_size - count, "%s", _flags[i].name);
+			first = false;
+		} else {
+			count += scnprintf(str + count, max_size - count, "|%s", _flags[i].name);
+		}
+	}
+}
+
+static void log_syncobj(struct gen7_gmu_device *gmu, struct hfi_submit_syncobj *cmd)
+{
+	struct hfi_syncobj *syncobj = (struct hfi_syncobj *)&cmd[1];
+	char str[128];
+	u32 i = 0;
+
+	for (i = 0; i < cmd->num_syncobj; i++) {
+		_get_syncobj_string(str, sizeof(str), syncobj, i);
+		dev_err(&gmu->pdev->dev, "%s\n", str);
+		syncobj++;
+	}
+}
+
+static void find_timeout_syncobj(struct adreno_device *adreno_dev, u32 ctxt_id, u32 ts)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct kgsl_context *context = NULL;
+	struct adreno_context *drawctxt;
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct gmu_context_queue_header *hdr;
+	struct hfi_submit_syncobj *cmd;
+	u32 *queue, i;
+	int ret;
+
+	/* We want to get the context even if it is detached */
+	read_lock(&device->context_lock);
+	context = idr_find(&device->context_idr, ctxt_id);
+	ret = _kgsl_context_get(context);
+	read_unlock(&device->context_lock);
+
+	if (!ret)
+		return;
+
+	drawctxt = ADRENO_CONTEXT(context);
+
+	hdr = drawctxt->gmu_context_queue.hostptr;
+	queue = (u32 *)(drawctxt->gmu_context_queue.hostptr + sizeof(*hdr));
+
+	for (i = hdr->read_index; i != hdr->write_index;) {
+		if (MSG_HDR_GET_ID(queue[i]) != H2F_MSG_ISSUE_SYNCOBJ) {
+			i = (i + MSG_HDR_GET_SIZE(queue[i])) % hdr->queue_size;
+			continue;
+		}
+
+		cmd = (struct hfi_submit_syncobj *)&queue[i];
+
+		if (cmd->timestamp == ts) {
+			log_syncobj(gmu, cmd);
+			break;
+		}
+		i = (i + MSG_HDR_GET_SIZE(queue[i])) % hdr->queue_size;
+	}
+
+	if (i == hdr->write_index)
+		dev_err(&gmu->pdev->dev, "Couldn't find unsignaled syncobj ctx:%d ts:%d\n",
+			ctxt_id, ts);
+
+	kgsl_context_put(context);
+}
+
 static void log_gpu_fault_legacy(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
@@ -381,6 +468,11 @@ static void log_gpu_fault_legacy(struct adreno_device *adreno_dev)
 		break;
 	case GMU_GPU_AQE1_ILLEGAL_INST_ERROR:
 		dev_crit_ratelimited(dev, "AQE1 Illegal instruction error\n");
+		break;
+	case GMU_SYNCOBJ_TIMEOUT_ERROR:
+		dev_crit_ratelimited(dev, "syncobj timeout ctx %d ts %u\n",
+			cmd->ctxt_id, cmd->ts);
+		find_timeout_syncobj(adreno_dev, cmd->ctxt_id, cmd->ts);
 		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
@@ -609,6 +701,11 @@ static void log_gpu_fault(struct adreno_device *adreno_dev)
 		break;
 	case GMU_GPU_AQE1_ILLEGAL_INST_ERROR:
 		dev_crit_ratelimited(dev, "AQE1 Illegal instruction error\n");
+		break;
+	case GMU_SYNCOBJ_TIMEOUT_ERROR:
+		dev_crit_ratelimited(dev, "syncobj timeout ctx %d ts %u\n",
+			cmd->gc.ctxt_id, cmd->gc.ts);
+		find_timeout_syncobj(adreno_dev, cmd->gc.ctxt_id, cmd->gc.ts);
 		break;
 	case GMU_CP_UNKNOWN_ERROR:
 		fallthrough;
@@ -2375,12 +2472,12 @@ static void populate_kgsl_fence(struct hfi_syncobj *obj,
 	struct kgsl_sync_timeline *ktimeline = kfence->parent;
 	unsigned long flags;
 
-	obj->flags |= GMU_SYNCOBJ_KGSL_FENCE;
+	obj->flags |= BIT(GMU_SYNCOBJ_FLAG_KGSL_FENCE_BIT);
 
 	spin_lock_irqsave(&ktimeline->lock, flags);
 	/* This means that the context is going away. Mark the fence as triggered */
 	if (!ktimeline->context) {
-		obj->flags |= GMU_SYNCOBJ_RETIRED;
+		obj->flags |= BIT(GMU_SYNCOBJ_FLAG_SIGNALED_BIT);
 		spin_unlock_irqrestore(&ktimeline->lock, flags);
 		return;
 	}
@@ -2445,8 +2542,9 @@ static int _submit_hw_fence(struct adreno_device *adreno_dev,
 					return ret;
 				}
 
-				if (test_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &fences[j]->flags))
-					obj->flags |= GMU_SYNCOBJ_RETIRED;
+				if (test_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &fences[j]->flags) ||
+					test_bit(DMA_FENCE_FLAG_SIGNALED_BIT, &fences[j]->flags))
+					obj->flags |= BIT(GMU_SYNCOBJ_FLAG_SIGNALED_BIT);
 
 				obj->ctxt_id = fences[j]->context;
 				obj->seq_no =  fences[j]->seqno;

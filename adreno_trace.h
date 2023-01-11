@@ -104,8 +104,7 @@ TRACE_EVENT(adreno_input_hw_fence,
 		"ctx=%u id=%lld seqno=%lld flags=%s name=%s",
 			__entry->id,  __entry->context, __entry->seqno,
 			__entry->flags ? __print_flags(__entry->flags, "|",
-				{ GMU_SYNCOBJ_KGSL_FENCE, "KGSL_FENCE" },
-				{ GMU_SYNCOBJ_RETIRED, "RETIRED" }) : "none",
+				GMU_SYNCOBJ_FLAGS) : "none",
 			__get_str(fence_name))
 );
 
