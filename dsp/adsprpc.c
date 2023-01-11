@@ -4713,7 +4713,7 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 		match = NULL;
 		spin_lock_irqsave(&me->hlock, irq_flags);
 		hlist_for_each_entry_safe(map, n, &me->maps, hn) {
-			if (map->servloc_name &&
+			if (map->servloc_name && fl &&
 				fl->servloc_name && !strcmp(map->servloc_name, fl->servloc_name)) {
 				match = map;
 				if (map->is_persistent && map->in_use) {
@@ -8287,8 +8287,9 @@ static int __init fastrpc_device_init(void)
 			VERIFY(err, NULL != (buf = kzalloc(sizeof(*buf), GFP_KERNEL)));
 			if (err) {
 				err = -ENOMEM;
-				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
+				ADSPRPC_ERR("%s: CMA alloc failed  err 0x%x\n",
 							__func__, err);
+				goto device_create_bail;
 			}
 			INIT_HLIST_NODE(&buf->hn);
 			buf->virt = region_vaddr;
