@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -87,8 +87,6 @@ int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
 {
 	int ret;
 
-	/* Sanitize request inputs */
-	gpu_req &= (GPU_ALWAYS_EN_REQ | GPU_BCL_EN_REQ | GPU_TSENSE_EN_REQ);
 	if (!gpu_req)
 		return -EOPNOTSUPP;
 
@@ -98,11 +96,6 @@ int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
 									gpu_req, ret);
 
 	return ret;
-}
-#else
-int kgsl_scm_gpu_init_regs(struct device *dev, u32 gpu_req)
-{
-	return -EOPNOTSUPP;
 }
 #endif
 
