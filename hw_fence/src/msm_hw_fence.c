@@ -99,16 +99,13 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 		goto error;
 	}
 
-	hw_fence_client->skip_txq_wr_idx = hw_fence_utils_skips_txq_wr_idx(hw_fence_drv_data,
-		client_id);
-
 	/* Alloc Client HFI Headers and Queues */
 	ret = hw_fence_alloc_client_resources(hw_fence_drv_data,
 		hw_fence_client, mem_descriptor);
 	if (ret)
 		goto error;
 
-	/* Initialize signal for communication withe FenceCTL */
+	/* Initialize signal for communication with FenceCTL */
 	ret = hw_fence_init_controller_signal(hw_fence_drv_data, hw_fence_client);
 	if (ret)
 		goto error;

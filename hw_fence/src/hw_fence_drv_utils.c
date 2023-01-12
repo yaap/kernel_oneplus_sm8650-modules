@@ -77,23 +77,31 @@
  */
 struct hw_fence_client_type_desc hw_fence_client_types[HW_FENCE_MAX_CLIENT_TYPE] = {
 	{"gpu", HW_FENCE_CLIENT_ID_CTX0, HW_FENCE_CLIENT_TYPE_MAX_GPU, HW_FENCE_CLIENT_TYPE_MAX_GPU,
-		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, false},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, 0, 0, false},
 	{"dpu", HW_FENCE_CLIENT_ID_CTL0, HW_FENCE_CLIENT_TYPE_MAX_DPU, HW_FENCE_CLIENT_TYPE_MAX_DPU,
-		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, false},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, 0, 0, false},
 	{"val", HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_TYPE_MAX_VAL, HW_FENCE_CLIENT_TYPE_MAX_VAL,
-		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, false},
-	{"ipe", HW_FENCE_CLIENT_ID_IPE, HW_FENCE_CLIENT_TYPE_MAX_IPE, 0,
-		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, false},
-	{"vpu", HW_FENCE_CLIENT_ID_VPU, HW_FENCE_CLIENT_TYPE_MAX_VPU, 0,
-		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, false},
-	{"ife0", HW_FENCE_CLIENT_ID_IFE0, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife1", HW_FENCE_CLIENT_ID_IFE1, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife2", HW_FENCE_CLIENT_ID_IFE2, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife3", HW_FENCE_CLIENT_ID_IFE3, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife4", HW_FENCE_CLIENT_ID_IFE4, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife5", HW_FENCE_CLIENT_ID_IFE5, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife6", HW_FENCE_CLIENT_ID_IFE6, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
-	{"ife7", HW_FENCE_CLIENT_ID_IFE7, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, true},
+		HW_FENCE_CLIENT_QUEUES, 0, 0, 0, 0, 0, 0, false},
+	{"ipe", HW_FENCE_CLIENT_ID_IPE, HW_FENCE_CLIENT_TYPE_MAX_IPE, 0, HW_FENCE_CLIENT_QUEUES,
+		0, 0, 0, 0, 0, 0, false},
+	{"vpu", HW_FENCE_CLIENT_ID_VPU, HW_FENCE_CLIENT_TYPE_MAX_VPU, 0, HW_FENCE_CLIENT_QUEUES,
+		0, 0, 0, 0, 0, 0, false},
+	{"ife0", HW_FENCE_CLIENT_ID_IFE0, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife1", HW_FENCE_CLIENT_ID_IFE1, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife2", HW_FENCE_CLIENT_ID_IFE2, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife3", HW_FENCE_CLIENT_ID_IFE3, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife4", HW_FENCE_CLIENT_ID_IFE4, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife5", HW_FENCE_CLIENT_ID_IFE5, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife6", HW_FENCE_CLIENT_ID_IFE6, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
+	{"ife7", HW_FENCE_CLIENT_ID_IFE7, HW_FENCE_CLIENT_TYPE_MAX_IFE, 0, 1, 0, 0, 0, 0, 0, 0,
+		true},
 };
 
 static void _lock(uint64_t *wait)
@@ -588,44 +596,87 @@ exit:
 static int _parse_client_queue_dt_props_extra(struct hw_fence_driver_data *drv_data,
 	struct hw_fence_client_type_desc *desc)
 {
+	u32 max_idx_from_zero, payload_size_u32 = HW_FENCE_CLIENT_QUEUE_PAYLOAD / sizeof(u32);
 	char name[40];
-	u32 tmp[2];
-	int ret;
+	u32 tmp[4];
+	bool idx_by_payload = false;
+	int count, ret;
 
 	snprintf(name, sizeof(name), "qcom,hw-fence-client-type-%s-extra", desc->name);
-	ret = of_property_read_u32_array(drv_data->dev->of_node, name, tmp, 2);
 
-	/* extra dt props not set */
-	if (ret)
+	/* check if property is present */
+	ret = of_property_read_bool(drv_data->dev->of_node, name);
+	if (!ret)
 		return 0;
 
+	count = of_property_count_u32_elems(drv_data->dev->of_node, name);
+	if (count <= 0 || count > 4) {
+		HWFNC_ERR("invalid %s extra dt props count:%d\n", desc->name, count);
+		return -EINVAL;
+	}
+
+	ret = of_property_read_u32_array(drv_data->dev->of_node, name, tmp, count);
+	if (ret) {
+		HWFNC_ERR("Failed to read %s extra dt properties ret=%d count=%d\n", desc->name,
+			ret, count);
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	desc->start_padding = tmp[0];
-	desc->end_padding = tmp[1];
+	if (count >= 2)
+		desc->end_padding = tmp[1];
+	if (count >= 3)
+		desc->txq_idx_start = tmp[2];
+	if (count >= 4) {
+		if (tmp[3] > 1) {
+			HWFNC_ERR("%s invalid txq_idx_by_payload prop:%lu\n", desc->name, tmp[3]);
+			ret = -EINVAL;
+			goto exit;
+		}
+		idx_by_payload = tmp[3];
+		desc->txq_idx_factor = idx_by_payload ? payload_size_u32 : 1;
+	}
 
 	if (desc->start_padding % sizeof(u32) || desc->end_padding % sizeof(u32) ||
 			(desc->start_padding + desc->end_padding) % sizeof(u64)) {
 		HWFNC_ERR("%s start_padding:%lu end_padding:%lu violates mem alignment\n",
 			desc->name, desc->start_padding, desc->end_padding);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit;
 	}
 
 	if (desc->start_padding >= U32_MAX - HW_FENCE_HFI_CLIENT_HEADERS_SIZE(desc->queues_num)) {
 		HWFNC_ERR("%s client queues_num:%lu start_padding:%lu will overflow mem_size\n",
 			desc->name, desc->queues_num, desc->start_padding);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit;
 	}
 
 	if (desc->end_padding >= U32_MAX - HW_FENCE_HFI_CLIENT_HEADERS_SIZE(desc->queues_num) -
 			desc->start_padding) {
 		HWFNC_ERR("%s client q_num:%lu start_p:%lu end_p:%lu will overflow mem_size\n",
 			desc->name, desc->queues_num, desc->start_padding, desc->end_padding);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit;
 	}
 
-	HWFNC_DBG_INIT("%s: start_padding_size=%lu end_padding_size=%lu\n", desc->name,
-		desc->start_padding, desc->end_padding);
+	max_idx_from_zero = idx_by_payload ? desc->queue_entries :
+		desc->queue_entries * payload_size_u32;
+	if (desc->txq_idx_start >= U32_MAX - max_idx_from_zero) {
+		HWFNC_ERR("%s txq_idx start:%lu by_payload:%s q_entries:%d will overflow txq_idx\n",
+			desc->name, desc->txq_idx_start, idx_by_payload ? "true" : "false",
+			desc->queue_entries);
+		ret = -EINVAL;
+		goto exit;
+	}
 
-	return 0;
+	HWFNC_DBG_INIT("%s: start_p=%lu end_p=%lu txq_idx_start:%lu txq_idx_by_payload:%s\n",
+		desc->name, desc->start_padding, desc->end_padding, desc->txq_idx_start,
+		idx_by_payload ? "true" : "false");
+
+exit:
+	return ret;
 }
 
 static int _parse_client_queue_dt_props_indv(struct hw_fence_driver_data *drv_data,
@@ -980,15 +1031,4 @@ int hw_fence_utils_get_queues_num(struct hw_fence_driver_data *drv_data, int cli
 	}
 
 	return drv_data->hw_fence_client_queue_size[client_id].type->queues_num;
-}
-
-bool hw_fence_utils_skips_txq_wr_idx(struct hw_fence_driver_data *drv_data, int client_id)
-{
-	if (!drv_data || client_id >= drv_data->clients_num ||
-			!drv_data->hw_fence_client_queue_size[client_id].type) {
-		HWFNC_ERR("invalid access to client:%d skips_txq_wr_idx\n", client_id);
-		return false;
-	}
-
-	return drv_data->hw_fence_client_queue_size[client_id].type->skip_txq_wr_idx;
 }

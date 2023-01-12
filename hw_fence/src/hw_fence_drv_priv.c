@@ -15,6 +15,8 @@
 /* Global atomic lock */
 #define GLOBAL_ATOMIC_STORE(drv_data, lock, val) global_atomic_store(drv_data, lock, val)
 
+#define IS_HW_FENCE_TX_QUEUE(queue_type) ((queue_type) == HW_FENCE_TX_QUEUE - 1)
+
 inline u64 hw_fence_get_qtime(struct hw_fence_driver_data *drv_data)
 {
 #ifdef HWFENCE_USE_SLEEP_TIMER
@@ -35,10 +37,11 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 	struct hw_fence_client_type_desc *desc;
 	void *ptr, *qptr;
 	phys_addr_t phys, qphys;
-	u32 size, start_queue_offset;
+	u32 size, start_queue_offset, txq_idx_start = 0, txq_idx_factor = 1;
 	int headers_size, queue_size, payload_size;
 	int start_padding = 0, end_padding = 0;
 	int i, ret = 0;
+	bool skip_txq_wr_idx = false;
 
 	HWFNC_DBG_INIT("mem_reserve_id:%d client_id:%d\n", mem_reserve_id, client_id);
 	switch (mem_reserve_id) {
@@ -62,6 +65,9 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 			end_padding;
 		queue_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD * desc->queue_entries;
 		payload_size = HW_FENCE_CLIENT_QUEUE_PAYLOAD;
+		txq_idx_start = desc->txq_idx_start;
+		txq_idx_factor = desc->txq_idx_factor ? desc->txq_idx_factor : 1;
+		skip_txq_wr_idx = desc->skip_txq_wr_idx;
 		break;
 	default:
 		HWFNC_ERR("Unexpected mem reserve id: %d\n", mem_reserve_id);
@@ -115,13 +121,28 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 		hfi_queue_header->start_addr = qphys;
 
 		/* Set the queue type (i.e. RX or TX queue) */
-		hfi_queue_header->type = (i == 0) ? HW_FENCE_TX_QUEUE : HW_FENCE_RX_QUEUE;
+		hfi_queue_header->type = IS_HW_FENCE_TX_QUEUE(i) ? HW_FENCE_TX_QUEUE :
+			HW_FENCE_RX_QUEUE;
 
 		/* Set the size of this header */
 		hfi_queue_header->queue_size = queue_size;
 
 		/* Set the payload size */
 		hfi_queue_header->pkt_size = payload_size;
+
+		/* Set write index for clients' tx queues that index from nonzero value */
+		if (txq_idx_start && IS_HW_FENCE_TX_QUEUE(i) && !hfi_queue_header->write_index) {
+			if (skip_txq_wr_idx)
+				hfi_queue_header->tx_wm = txq_idx_start;
+			hfi_queue_header->read_index = txq_idx_start;
+			hfi_queue_header->write_index = txq_idx_start;
+			HWFNC_DBG_INIT("init:TX_QUEUE client:%d rd_idx=%s=%lu\n", client_id,
+				skip_txq_wr_idx ? "wr_idx=tx_wm" : "wr_idx",
+				txq_idx_start);
+		}
+
+		/* Update memory for hfi_queue_header */
+		wmb();
 
 		/* Store Memory info in the Client data */
 		queues[i].va_queue = qptr;
@@ -132,6 +153,18 @@ static int init_hw_fences_queues(struct hw_fence_driver_data *drv_data,
 			hfi_queue_header->type == HW_FENCE_TX_QUEUE ? "TX_QUEUE" : "RX_QUEUE",
 			client_id, i, queues[i].va_queue, queues[i].pa_queue, queues[i].va_header,
 			queues[i].q_size_bytes, payload_size);
+
+		/* Store additional tx queue rd_wr_idx properties */
+		if (IS_HW_FENCE_TX_QUEUE(i)) {
+			queues[i].rd_wr_idx_start = txq_idx_start;
+			queues[i].rd_wr_idx_factor = txq_idx_factor;
+			queues[i].skip_wr_idx = skip_txq_wr_idx;
+		} else {
+			queues[i].rd_wr_idx_factor = 1;
+		}
+		HWFNC_DBG_INIT("rd_wr_idx_start:%lu rd_wr_idx_factor:%lu skip_wr_idx:%s\n",
+			queues[i].rd_wr_idx_start, queues[i].rd_wr_idx_factor,
+			queues[i].skip_wr_idx ? "true" : "false");
 
 		/* Next header */
 		hfi_queue_header++;
@@ -189,6 +222,14 @@ int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	read_idx = readl_relaxed(&hfi_header->read_index);
 	write_idx = readl_relaxed(&hfi_header->write_index);
 
+	/* translate read and write indexes from custom indexing to dwords with no offset */
+	if (queue->rd_wr_idx_start || queue->rd_wr_idx_factor != 1) {
+		read_idx = (read_idx - queue->rd_wr_idx_start) * queue->rd_wr_idx_factor;
+		write_idx = (write_idx - queue->rd_wr_idx_start) * queue->rd_wr_idx_factor;
+		HWFNC_DBG_Q("rd_idx_u32:%lu wr_idx_u32:%lu rd_wr_idx start:%lu factor:%lu\n",
+			read_idx, write_idx, queue->rd_wr_idx_start, queue->rd_wr_idx_factor);
+	}
+
 	HWFNC_DBG_Q("read client:%d rd_ptr:0x%pK wr_ptr:0x%pK rd_idx:%d wr_idx:%d queue:0x%pK\n",
 		hw_fence_client->client_id, &hfi_header->read_index, &hfi_header->write_index,
 		read_idx, write_idx, queue);
@@ -214,6 +255,13 @@ int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	 */
 	if (to_read_idx >= q_size_u32)
 		to_read_idx = 0;
+
+	/* translate to_read_idx to custom indexing with offset */
+	if (queue->rd_wr_idx_start || queue->rd_wr_idx_factor != 1) {
+		to_read_idx = (to_read_idx / queue->rd_wr_idx_factor) + queue->rd_wr_idx_start;
+		HWFNC_DBG_Q("translated to_read_idx:%lu rd_wr_idx start:%lu factor:%lu\n",
+			to_read_idx, queue->rd_wr_idx_start, queue->rd_wr_idx_factor);
+	}
 
 	/* Read the Client Queue */
 	payload->ctxt_id = readq_relaxed(&read_ptr_payload->ctxt_id);
@@ -275,8 +323,8 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 		return -EINVAL;
 	}
 
-	/* if skipping update txq wr_index, then use hfi_header->tx_wm instead */
-	if (queue_type == (HW_FENCE_TX_QUEUE - 1) && hw_fence_client->skip_txq_wr_idx)
+	/* if skipping update wr_index, then use hfi_header->tx_wm instead */
+	if (queue->skip_wr_idx)
 		wr_ptr = &hfi_header->tx_wm;
 	else
 		wr_ptr = &hfi_header->write_index;
@@ -310,8 +358,15 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 
 	HWFNC_DBG_Q("wr client:%d r_ptr:0x%pK w_ptr:0x%pK r_idx:%d w_idx:%d q:0x%pK type:%d s:%s\n",
 		hw_fence_client->client_id, &hfi_header->read_index, wr_ptr,
-		read_idx, write_idx, queue, queue_type,
-		hw_fence_client->skip_txq_wr_idx ? "true" : "false");
+		read_idx, write_idx, queue, queue_type, queue->skip_wr_idx ? "true" : "false");
+
+	/* translate read and write indexes from custom indexing to dwords with no offset */
+	if (queue->rd_wr_idx_start || queue->rd_wr_idx_factor != 1) {
+		read_idx = (read_idx - queue->rd_wr_idx_start) * queue->rd_wr_idx_factor;
+		write_idx = (write_idx - queue->rd_wr_idx_start) * queue->rd_wr_idx_factor;
+		HWFNC_DBG_Q("rd_idx_u32:%lu wr_idx_u32:%lu rd_wr_idx start:%lu factor:%lu\n",
+			read_idx, write_idx, queue->rd_wr_idx_start, queue->rd_wr_idx_factor);
+	}
 
 	/* Check queue to make sure message will fit */
 	q_free_u32 = read_idx <= write_idx ? (q_size_u32 - (write_idx - read_idx)) :
@@ -345,6 +400,13 @@ int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	 */
 	if (to_write_idx >= q_size_u32)
 		to_write_idx = 0;
+
+	/* translate to_write_idx to custom indexing with offset */
+	if (queue->rd_wr_idx_start || queue->rd_wr_idx_factor != 1) {
+		to_write_idx = (to_write_idx / queue->rd_wr_idx_factor) + queue->rd_wr_idx_start;
+		HWFNC_DBG_Q("translated to_write_idx:%lu rd_wr_idx start:%lu factor:%lu\n",
+			to_write_idx, queue->rd_wr_idx_start, queue->rd_wr_idx_factor);
+	}
 
 	/* Update Client Queue */
 	writeq_relaxed(payload_size, &write_ptr_payload->size);
@@ -1462,8 +1524,12 @@ void hw_fence_utils_reset_queues(struct hw_fence_driver_data *drv_data,
 	/* For the client TxQ: set the read-index same as last write that was done by the client */
 	mb(); /* make sure data is ready before read */
 	wr_idx = readl_relaxed(&hfi_header->write_index);
+	if (queue->skip_wr_idx)
+		hfi_header->tx_wm = wr_idx;
 	writel_relaxed(wr_idx, &hfi_header->read_index);
 	wmb(); /* make sure data is updated after write the index*/
+	HWFNC_DBG_Q("update tx queue %s to match write_index:%lu\n",
+		queue->skip_wr_idx ? "read_index=tx_wm" : "read_index", wr_idx);
 
 	/* For the client RxQ: set the write-index same as last read done by the client */
 	if (hw_fence_client->update_rxq) {
@@ -1489,6 +1555,7 @@ void hw_fence_utils_reset_queues(struct hw_fence_driver_data *drv_data,
 
 		/* unlock */
 		GLOBAL_ATOMIC_STORE(drv_data, &drv_data->client_lock_tbl[lock_idx], 0);
+		HWFNC_DBG_Q("update rx queue write_index to match read_index:%lu\n", rd_idx);
 	}
 }
 
