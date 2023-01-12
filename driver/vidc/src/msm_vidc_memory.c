@@ -482,6 +482,64 @@ static u32 msm_vidc_buffer_region(struct msm_vidc_inst *inst,
 	return MSM_VIDC_NON_SECURE;
 }
 
+static int msm_vidc_iommu_map(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
+{
+	int rc = 0;
+	struct context_bank_info *cb = NULL;
+
+	if (!core || !mem) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	cb = msm_vidc_get_context_bank_for_region(core, mem->region);
+	if (!cb) {
+		d_vpr_e("%s: Failed to get context bank device\n", __func__);
+		return -EIO;
+	}
+
+	rc = iommu_map(cb->domain, mem->device_addr, mem->phys_addr,
+		mem->size, IOMMU_READ | IOMMU_WRITE | IOMMU_MMIO);
+	if (rc) {
+		d_vpr_e("iommu_map failed for device_addr 0x%x, size %d, rc:%d\n",
+			mem->device_addr, mem->size, rc);
+		return rc;
+	}
+
+	d_vpr_h("%s: phys_addr %#x size %#x device_addr %#x, mem_region %d\n",
+		__func__, mem->phys_addr, mem->size, mem->device_addr, mem->region);
+
+	return rc;
+}
+
+static int msm_vidc_iommu_unmap(struct msm_vidc_core *core, struct msm_vidc_mem *mem)
+{
+	int rc = 0;
+	struct context_bank_info *cb = NULL;
+
+	if (!core || !mem) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	cb = msm_vidc_get_context_bank_for_region(core, mem->region);
+	if (!cb) {
+		d_vpr_e("%s: Failed to get context bank device\n",
+			__func__);
+		return -EIO;
+	}
+
+	d_vpr_h("%s: phys_addr %#x size %#x device_addr %#x, mem_region %d\n",
+		__func__, mem->phys_addr, mem->size, mem->device_addr, mem->region);
+
+	iommu_unmap(cb->domain, mem->device_addr, mem->size);
+	mem->device_addr = 0x0;
+	mem->phys_addr = 0x0;
+	mem->size = 0;
+
+	return rc;
+}
+
 static struct msm_vidc_memory_ops msm_mem_ops = {
 	.dma_buf_get                    = msm_vidc_dma_buf_get,
 	.dma_buf_put                    = msm_vidc_dma_buf_put,
@@ -493,6 +551,8 @@ static struct msm_vidc_memory_ops msm_mem_ops = {
 	.memory_alloc_map               = msm_vidc_memory_alloc_map,
 	.memory_unmap_free              = msm_vidc_memory_unmap_free,
 	.buffer_region                  = msm_vidc_buffer_region,
+	.iommu_map                      = msm_vidc_iommu_map,
+	.iommu_unmap                    = msm_vidc_iommu_unmap,
 };
 
 struct msm_vidc_memory_ops *get_mem_ops(void)

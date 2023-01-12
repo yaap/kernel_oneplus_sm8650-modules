@@ -143,9 +143,48 @@ static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __setup_ucregion_memory_map_iris33(struct msm_vidc_core *vidc_core)
+static int __get_device_region_info(struct msm_vidc_core *core,
+	u32 *min_dev_addr, u32 *dev_reg_size)
+{
+	struct device_region_set *dev_set;
+	u32 min_addr, max_addr, count = 0;
+	int rc = 0;
+
+	if (!core || !core->resource) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	dev_set = &core->resource->device_region_set;
+
+	if (!dev_set->count) {
+		d_vpr_h("%s: device region not available\n", __func__);
+		return 0;
+	}
+
+	min_addr = 0xFFFFFFFF;
+	max_addr = 0x0;
+	for (count = 0; count < dev_set->count; count++) {
+		if (dev_set->device_region_tbl[count].dev_addr > max_addr)
+			max_addr = dev_set->device_region_tbl[count].dev_addr +
+				dev_set->device_region_tbl[count].size;
+		if (dev_set->device_region_tbl[count].dev_addr < min_addr)
+			min_addr = dev_set->device_region_tbl[count].dev_addr;
+	}
+	if (min_addr == 0xFFFFFFFF || max_addr == 0x0) {
+		d_vpr_e("%s: invalid device region\n", __func__);
+		return -EINVAL;
+	}
+
+	*min_dev_addr = min_addr;
+	*dev_reg_size = max_addr - min_addr;
+
+	return rc;
+}
+
+static int __program_bootup_registers_iris33(struct msm_vidc_core *vidc_core)
 {
 	struct msm_vidc_core *core = vidc_core;
+	u32 min_dev_reg_addr = 0, dev_reg_size = 0;
 	u32 value;
 	int rc = 0;
 
@@ -173,16 +212,34 @@ static int __setup_ucregion_memory_map_iris33(struct msm_vidc_core *vidc_core)
 	if (rc)
 		return rc;
 
-	/* update queues vaddr for debug purpose */
-	value = (u32)((u64)core->iface_q_table.align_virtual_addr);
-	rc = __write_register(core, HFI_DEVICE_REGION_ADDR_IRIS33, value);
+	if (core->mmap_buf.align_device_addr) {
+		value = (u32)core->mmap_buf.align_device_addr;
+		rc = __write_register(core, HFI_MMAP_ADDR_IRIS33, value);
+		if (rc)
+			return rc;
+	} else {
+		d_vpr_e("%s: skip mmap buffer programming\n", __func__);
+		/* ignore the error for now for backward compatibility */
+		/* return -EINVAL; */
+	}
+
+	rc = __get_device_region_info(core, &min_dev_reg_addr, &dev_reg_size);
 	if (rc)
 		return rc;
 
-	value = (u32)((u64)core->iface_q_table.align_virtual_addr >> 32);
-	rc = __write_register(core, HFI_DEVICE_REGION_SIZE_IRIS33, value);
-	if (rc)
-		return rc;
+	if (min_dev_reg_addr && dev_reg_size) {
+		rc = __write_register(core, HFI_DEVICE_REGION_ADDR_IRIS33, min_dev_reg_addr);
+		if (rc)
+			return rc;
+
+		rc = __write_register(core, HFI_DEVICE_REGION_SIZE_IRIS33, dev_reg_size);
+		if (rc)
+			return rc;
+	} else {
+		d_vpr_e("%s: skip device region programming\n", __func__);
+		/* ignore the error for now for backward compatibility */
+		/* return -EINVAL; */
+	}
 
 	if (core->sfr.align_device_addr) {
 		value = (u32)core->sfr.align_device_addr + VIDEO_ARCH_LX;
@@ -878,7 +935,7 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 		return 0;
 	}
 
-	rc = __setup_ucregion_memory_map_iris33(core);
+	rc = __program_bootup_registers_iris33(core);
 	if (rc)
 		return rc;
 

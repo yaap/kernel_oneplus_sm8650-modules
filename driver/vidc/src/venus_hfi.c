@@ -2151,3 +2151,25 @@ exit:
 
 	return rc;
 }
+
+struct device_region_info *venus_hfi_get_device_region_info(
+	struct msm_vidc_core *core, enum msm_vidc_device_region region)
+{
+	struct device_region_info *dev_reg = NULL, *match = NULL;
+
+	if (!region || region >= MSM_VIDC_DEVICE_REGION_MAX) {
+		d_vpr_e("%s: invalid region %#x\n", __func__, region);
+		return NULL;
+	}
+
+	venus_hfi_for_each_device_region(core, dev_reg) {
+		if (dev_reg->region == region) {
+			match = dev_reg;
+			break;
+		}
+	}
+	if (!match)
+		d_vpr_e("%s: device region %d not found\n", __func__, region);
+
+	return match;
+}

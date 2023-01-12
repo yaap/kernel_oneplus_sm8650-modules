@@ -2583,6 +2583,11 @@ static const struct reg_preset_table pineapple_reg_preset_table[] = {
 	{ 0xB0088, 0x0, 0x11 },
 };
 
+/* name, phys_addr, size, device_addr, device region type */
+static const struct device_region_table pineapple_device_region_table[] = {
+	{ "aon-registers", 0x0AAE0000, 0x1000, 0xFFAE0000, MSM_VIDC_AON_REGISTERS },
+};
+
 static const struct msm_vidc_platform_data pineapple_data = {
 	/* resources dependent on other module */
 	.bw_tbl = pineapple_bw_table,
@@ -2605,6 +2610,8 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.freq_tbl_size = ARRAY_SIZE(pineapple_freq_table),
 	.reg_prst_tbl = pineapple_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(pineapple_reg_preset_table),
+	.dev_reg_tbl = pineapple_device_region_table,
+	.dev_reg_tbl_size = ARRAY_SIZE(pineapple_device_region_table),
 	.fwname = "vpu33_4v",
 	.pas_id = 9,
 	.supports_mmrm = 1,

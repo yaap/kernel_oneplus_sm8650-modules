@@ -72,5 +72,7 @@ void venus_hfi_pm_work_handler(struct work_struct *work);
 irqreturn_t venus_hfi_isr(int irq, void *data);
 irqreturn_t venus_hfi_isr_handler(int irq, void *data);
 int __prepare_pc(struct msm_vidc_core *core);
+struct device_region_info *venus_hfi_get_device_region_info(
+	struct msm_vidc_core *core, enum msm_vidc_device_region region);
 
 #endif // _VENUS_HFI_H_

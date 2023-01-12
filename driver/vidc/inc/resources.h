@@ -95,6 +95,10 @@ struct msm_vidc_core;
 #define venus_hfi_for_each_context_bank_reverse(__device, __sinfo) \
 	venus_hfi_for_each_thing_reverse(__device, __sinfo, context_bank)
 
+/* Device region set helper */
+#define venus_hfi_for_each_device_region(__device, __sinfo) \
+	venus_hfi_for_each_thing(__device, __sinfo, device_region)
+
 struct bus_info {
 	struct icc_path           *icc;
 	const char                *name;
@@ -196,6 +200,19 @@ struct freq_set {
 	u32                        count;
 };
 
+struct device_region_info {
+	const char          *name;
+	phys_addr_t          phy_addr;
+	u32                  size;
+	u32                  dev_addr;
+	u32                  region;
+};
+
+struct device_region_set {
+	struct device_region_info  *device_region_tbl;
+	u32                         count;
+};
+
 struct msm_vidc_resource {
 	void                      *core;
 	u8 __iomem                *register_base_addr;
@@ -207,6 +224,7 @@ struct msm_vidc_resource {
 	struct subcache_set        subcache_set;
 	struct context_bank_set    context_bank_set;
 	struct freq_set            freq_set;
+	struct device_region_set   device_region_set;
 	int                        fw_cookie;
 };
 

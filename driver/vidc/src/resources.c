@@ -637,6 +637,56 @@ static int __init_context_banks(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __init_device_region(struct msm_vidc_core *core)
+{
+	const struct device_region_table *dev_reg_tbl;
+	struct device_region_set *dev_set;
+	struct device_region_info *dev_reg_info;
+	u32 dev_reg_count = 0, cnt = 0;
+	int rc = 0;
+
+	if (!core || !core->resource || !core->platform) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	dev_set = &core->resource->device_region_set;
+
+	dev_reg_tbl = core->platform->data.dev_reg_tbl;
+	dev_reg_count = core->platform->data.dev_reg_tbl_size;
+
+	if (!dev_reg_tbl || !dev_reg_count) {
+		d_vpr_h("%s: device regions not available\n", __func__);
+		return 0;
+	}
+
+	/* allocate device region table */
+	dev_set->device_region_tbl = devm_kzalloc(&core->pdev->dev,
+			sizeof(*dev_set->device_region_tbl) * dev_reg_count, GFP_KERNEL);
+	if (!dev_set->device_region_tbl) {
+		d_vpr_e("%s: failed to alloc memory for device region table\n", __func__);
+		return -ENOMEM;
+	}
+	dev_set->count = dev_reg_count;
+
+	/* populate device region fields from platform data */
+	for (cnt = 0; cnt < dev_set->count; cnt++) {
+		dev_set->device_region_tbl[cnt].name = dev_reg_tbl[cnt].name;
+		dev_set->device_region_tbl[cnt].phy_addr = dev_reg_tbl[cnt].phy_addr;
+		dev_set->device_region_tbl[cnt].size = dev_reg_tbl[cnt].size;
+		dev_set->device_region_tbl[cnt].dev_addr = dev_reg_tbl[cnt].dev_addr;
+		dev_set->device_region_tbl[cnt].region = dev_reg_tbl[cnt].region;
+	}
+
+	/* print device region fields */
+	venus_hfi_for_each_device_region(core, dev_reg_info) {
+		d_vpr_h("%s: name %s phy_addr %#x size %#x dev_addr %#x dev_region %d\n",
+			__func__, dev_reg_info->name, dev_reg_info->phy_addr, dev_reg_info->size,
+			dev_reg_info->dev_addr, dev_reg_info->region);
+	}
+
+	return rc;
+}
+
 #ifdef CONFIG_MSM_MMRM
 static int __register_mmrm(struct msm_vidc_core *core)
 {
@@ -1498,6 +1548,10 @@ static int __init_resources(struct msm_vidc_core *core)
 		return rc;
 
 	rc = __init_context_banks(core);
+	if (rc)
+		return rc;
+
+	rc = __init_device_region(core);
 	if (rc)
 		return rc;
 

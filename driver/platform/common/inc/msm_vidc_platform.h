@@ -89,6 +89,14 @@ struct reg_preset_table {
 	u32              mask;
 };
 
+struct device_region_table {
+	const char      *name;
+	phys_addr_t      phy_addr;
+	u32              size;
+	u32              dev_addr;
+	u32              region;
+};
+
 struct msm_vidc_ubwc_config_data {
 	u32              max_channels;
 	u32              mal_length;
@@ -199,6 +207,8 @@ struct msm_vidc_platform_data {
 	unsigned int freq_tbl_size;
 	const struct reg_preset_table *reg_prst_tbl;
 	unsigned int reg_prst_tbl_size;
+	const struct device_region_table *dev_reg_tbl;
+	unsigned int dev_reg_tbl_size;
 	struct msm_vidc_ubwc_config_data *ubwc_config;
 	const char *fwname;
 	u32 pas_id;

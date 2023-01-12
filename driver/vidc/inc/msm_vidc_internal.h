@@ -456,6 +456,12 @@ enum msm_vidc_buffer_region {
 	MSM_VIDC_REGION_MAX,
 };
 
+enum msm_vidc_device_region {
+	MSM_VIDC_DEVICE_REGION_NONE = 0,
+	MSM_VIDC_AON_REGISTERS,
+	MSM_VIDC_DEVICE_REGION_MAX,
+};
+
 enum msm_vidc_port_type {
 	INPUT_PORT = 0,
 	OUTPUT_PORT,
@@ -870,6 +876,7 @@ struct msm_vidc_mem {
 	u32                         refcount;
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
+	phys_addr_t                 phys_addr;
 };
 
 struct msm_vidc_mem_list {
