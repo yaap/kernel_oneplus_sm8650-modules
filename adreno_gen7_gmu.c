@@ -1937,6 +1937,8 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
+	gen7_get_gpu_feature_info(adreno_dev);
+
 	ret = gen7_hfi_start(adreno_dev);
 	if (ret)
 		goto err;
@@ -2903,8 +2905,6 @@ static int gen7_first_boot(struct adreno_device *adreno_dev)
 	ret = gen7_gpu_boot(adreno_dev);
 	if (ret)
 		return ret;
-
-	gen7_get_gpu_feature_info(adreno_dev);
 
 	adreno_get_bus_counters(adreno_dev);
 
