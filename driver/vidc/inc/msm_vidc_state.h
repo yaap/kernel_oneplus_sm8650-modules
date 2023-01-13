@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_STATE_H_
@@ -45,8 +45,7 @@ struct msm_vidc_core_state_handle {
 };
 
 enum msm_vidc_allow msm_vidc_allow_core_state_change(
-	struct msm_vidc_core *core,
-	enum msm_vidc_core_state req_state);
+	struct msm_vidc_core *core, enum msm_vidc_core_state req_state);
 int msm_vidc_update_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_state request_state, const char *func);
 bool core_in_valid_state(struct msm_vidc_core *core);

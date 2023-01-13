@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/workqueue.h>
@@ -20,8 +21,8 @@
 #endif
 
 #include "msm_vidc_internal.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_debug.h"
 #include "msm_vidc_state.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_core.h"

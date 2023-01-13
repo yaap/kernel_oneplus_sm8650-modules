@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _VENUS_HFI_H_
@@ -67,11 +68,9 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq);
 int venus_hfi_scale_buses(struct msm_vidc_inst* inst, u64 bw_ddr, u64 bw_llcc);
 int venus_hfi_set_ir_period(struct msm_vidc_inst *inst, u32 ir_type,
 	enum msm_vidc_inst_capability_type cap_id);
-
 void venus_hfi_pm_work_handler(struct work_struct *work);
 irqreturn_t venus_hfi_isr(int irq, void *data);
 irqreturn_t venus_hfi_isr_handler(int irq, void *data);
-
 int __prepare_pc(struct msm_vidc_core *core);
 
 #endif // _VENUS_HFI_H_

@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "msm_vidc_vb2.h"
 #include "msm_vidc_core.h"
@@ -10,9 +10,9 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_power.h"
+#include "msm_vidc_debug.h"
 #include "msm_vdec.h"
 #include "msm_venc.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_control.h"
 #include "msm_vidc_platform.h"
 

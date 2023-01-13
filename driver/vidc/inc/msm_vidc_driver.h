@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_DRIVER_H_
@@ -603,5 +603,6 @@ struct context_bank_info *msm_vidc_get_context_bank_for_region(struct msm_vidc_c
 	enum msm_vidc_buffer_region region);
 struct context_bank_info *msm_vidc_get_context_bank_for_device(
 	struct msm_vidc_core *core, struct device *dev);
+
 #endif // _MSM_VIDC_DRIVER_H_
 

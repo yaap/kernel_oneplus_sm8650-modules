@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-pineapple.h>
@@ -17,8 +17,8 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control_ext.h"
 #include "msm_vidc_memory_ext.h"
-#include "hfi_property.h"
 #include "msm_vidc_iris33.h"
+#include "hfi_property.h"
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010

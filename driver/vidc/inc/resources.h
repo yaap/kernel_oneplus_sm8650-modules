@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_RESOURCES_H_
@@ -19,8 +20,8 @@ struct msm_vidc_core;
 
 /*
  * These are helper macros to iterate over various lists within
- * msm_vidc_core->resource. The intention is to cut down on a lot of boiler-plate
- * code
+ * msm_vidc_core->resource. The intention is to cut down on a lot
+ * of boiler-plate code
  */
 
 /* Read as "for each 'thing' in a set of 'thingies'" */

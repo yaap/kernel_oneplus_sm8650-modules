@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __H_HFI_PROPERTY_H__
@@ -357,7 +358,6 @@ enum hfi_syncframe_request_mode {
     HFI_SYNC_FRAME_REQUEST_WITHOUT_SEQ_HDR           = 0x00000001,
     HFI_SYNC_FRAME_REQUEST_WITH_PREFIX_SEQ_HDR       = 0x00000002,
 };
-
 #define HFI_PROP_REQUEST_SYNC_FRAME                             0x03000145
 
 #define HFI_PROP_MAX_GOP_FRAMES                                 0x03000146

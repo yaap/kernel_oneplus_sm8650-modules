@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/v4l2_vidc_extensions.h>
 #include "msm_vidc_control_ext.h"
-#include "msm_vidc_debug.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
@@ -13,6 +12,7 @@
 #include "msm_vidc_driver.h"
 #include "msm_venc.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_debug.h"
 
 int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
 {

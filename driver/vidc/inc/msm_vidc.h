@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_H_
@@ -51,4 +52,5 @@ int msm_vidc_dqevent(void *instance, struct v4l2_event *event);
 int msm_vidc_g_crop(void *instance, struct v4l2_crop *a);
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize);
 int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival);
+
 #endif

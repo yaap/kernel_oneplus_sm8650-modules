@@ -2,11 +2,11 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
- /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+ /* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "venus_hfi_queue.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_core.h"
+#include "msm_vidc_debug.h"
 #include "msm_vidc_memory.h"
 #include "msm_vidc_platform.h"
 

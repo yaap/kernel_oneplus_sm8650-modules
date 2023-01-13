@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "msm_media_info.h"
 #include <linux/v4l2-common.h>
@@ -19,6 +19,7 @@
 #include "msm_vidc_memory.h"
 #include "venus_hfi.h"
 #include "hfi_packet.h"
+
 /* TODO: update based on clips */
 #define MAX_DEC_BATCH_SIZE 6
 #define SKIP_BATCH_WINDOW 100

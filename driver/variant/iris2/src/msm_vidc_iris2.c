@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "msm_vidc_iris2.h"
 #include "msm_vidc_buffer_iris2.h"
 #include "msm_vidc_power_iris2.h"
-#include "venus_hfi.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
@@ -15,6 +15,7 @@
 #include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
+#include "venus_hfi.h"
 
 #define VIDEO_ARCH_LX 1
 

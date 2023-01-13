@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_POWER_H_
@@ -253,4 +254,5 @@ u64 msm_vidc_max_freq(struct msm_vidc_inst* inst);
 int msm_vidc_get_inst_load(struct msm_vidc_inst *inst);
 int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses);
 void msm_vidc_power_data_reset(struct msm_vidc_inst *inst);
+
 #endif

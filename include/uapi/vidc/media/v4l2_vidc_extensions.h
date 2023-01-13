@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __V4l2_VIDC_EXTENSIONS_H__
@@ -78,6 +79,7 @@ enum v4l2_mpeg_vidc_ir_type {
 	V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM = 0x0,
 	V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC = 0x1,
 };
+
 #define V4L2_CID_MPEG_VIDC_TIME_DELTA_BASED_RC  (V4L2_CID_MPEG_VIDC_BASE + 0xD)
 /* Encoder quality controls */
 #define V4L2_CID_MPEG_VIDC_CONTENT_ADAPTIVE_CODING                            \

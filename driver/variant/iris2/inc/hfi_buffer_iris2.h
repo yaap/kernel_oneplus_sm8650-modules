@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HFI_BUFFER_IRIS2__
@@ -9,13 +10,13 @@
 #include <linux/types.h>
 #include "hfi_property.h"
 
-typedef u8 HFI_U8;
-typedef s8 HFI_S8;
-typedef u16 HFI_U16;
-typedef s16 HFI_S16;
-typedef u32 HFI_U32;
-typedef s32 HFI_S32;
-typedef u64 HFI_U64;
+typedef u8      HFI_U8;
+typedef s8      HFI_S8;
+typedef u16     HFI_U16;
+typedef s16     HFI_S16;
+typedef u32     HFI_U32;
+typedef s32     HFI_S32;
+typedef u64     HFI_U64;
 typedef HFI_U32 HFI_BOOL;
 
 #ifndef MIN

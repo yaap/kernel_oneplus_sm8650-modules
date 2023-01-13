@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_PLATFORM_H_
@@ -12,10 +13,10 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
 
-#define DDR_TYPE_LPDDR4 0x6
-#define DDR_TYPE_LPDDR4X 0x7
-#define DDR_TYPE_LPDDR5 0x8
-#define DDR_TYPE_LPDDR5X 0x9
+#define DDR_TYPE_LPDDR4   0x6
+#define DDR_TYPE_LPDDR4X  0x7
+#define DDR_TYPE_LPDDR5   0x8
+#define DDR_TYPE_LPDDR5X  0x9
 
 #define UBWC_CONFIG(mc, ml, hbb, bs1, bs2, bs3, bsp) \
 {	                                                 \

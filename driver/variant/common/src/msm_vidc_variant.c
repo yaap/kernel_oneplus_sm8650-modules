@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/errno.h>
@@ -56,9 +56,7 @@ int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 	base_addr += hwiosymaddr;
 	writel_relaxed(value, base_addr);
 
-	/*
-	 * Memory barrier to make sure value is written into the register.
-	 */
+	/* Memory barrier to make sure value is written into the register */
 	wmb();
 
 	return rc;

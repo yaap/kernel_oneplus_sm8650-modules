@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_VB2_H_
@@ -43,4 +44,5 @@ void msm_vidc_buf_queue(struct vb2_buffer *vb2);
 void msm_vidc_buf_cleanup(struct vb2_buffer *vb);
 int msm_vidc_buf_out_validate(struct vb2_buffer *vb);
 void msm_vidc_buf_request_complete(struct vb2_buffer *vb);
+
 #endif // _MSM_VIDC_VB2_H_

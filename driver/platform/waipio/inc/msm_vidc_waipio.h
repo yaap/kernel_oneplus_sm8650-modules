@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_WAIPIO_H_
@@ -22,10 +23,12 @@ struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
 {
 	return NULL;
 }
+
 int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev)
 {
 	return -EINVAL;
 }
+
 int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core, struct device *dev)
 {
 	return -EINVAL;

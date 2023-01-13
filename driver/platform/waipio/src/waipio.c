@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -8,8 +8,8 @@
 #include <dt-bindings/clock/qcom,videocc-sm8450.h>
 
 #include "msm_vidc_control.h"
-#include "msm_vidc_waipio.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_waipio.h"
 #include "msm_vidc_debug.h"
 #include "hfi_property.h"
 #include "hfi_command.h"

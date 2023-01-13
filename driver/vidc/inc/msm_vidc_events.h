@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #if !defined(_TRACE_MSM_VIDC_H) || defined(TRACE_HEADER_MULTI_READ)
@@ -14,6 +15,7 @@
 #define TRACE_INCLUDE_FILE msm_vidc_events
 
 #include <linux/tracepoint.h>
+
 #include "msm_vidc_inst.h"
 
 DECLARE_EVENT_CLASS(msm_v4l2_vidc_inst,

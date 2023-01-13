@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -46,10 +46,10 @@ enum msm_vidc_metadata_bits {
 	MSM_VIDC_META_MAX              = 0x20,
 };
 
-#define MSM_VIDC_METADATA_SIZE           (4 * 4096) /* 16 KB */
-#define ENCODE_INPUT_METADATA_SIZE       (512 * 4096) /* 2 MB */
-#define DECODE_INPUT_METADATA_SIZE       MSM_VIDC_METADATA_SIZE
-#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE  (41 * 1024) /* 41 KB */
+#define MSM_VIDC_METADATA_SIZE             (4 * 4096) /* 16 KB */
+#define ENCODE_INPUT_METADATA_SIZE         (512 * 4096) /* 2 MB */
+#define DECODE_INPUT_METADATA_SIZE         MSM_VIDC_METADATA_SIZE
+#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE   (41 * 1024) /* 41 KB */
 
 #define MAX_NAME_LENGTH   128
 #define VENUS_VERSION_LENGTH 128

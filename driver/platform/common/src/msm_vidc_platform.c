@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -15,11 +15,11 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_control.h"
+#include "msm_vidc_driver.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
-#include "msm_vidc_control.h"
-#include "msm_vidc_driver.h"
 
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 #include "msm_vidc_waipio.h"

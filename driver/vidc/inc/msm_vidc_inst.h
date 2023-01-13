@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #ifndef _MSM_VIDC_INST_H_
 #define _MSM_VIDC_INST_H_
@@ -173,4 +173,5 @@ struct msm_vidc_inst {
 	u32                                adjust_priority;
 	bool                               iframe;
 };
+
 #endif // _MSM_VIDC_INST_H_
