@@ -2160,6 +2160,9 @@ err_core_init:
 err_load_fw:
 err_no_mem:
 	dprintk(CVP_ERR, "Core init failed\n");
+	__release_subcaches(device);
+	__disable_subcaches(device);
+	__hwfence_regs_unmap(dev);
 	mutex_unlock(&dev->lock);
 	pm_relax(dev->res->pdev->dev.parent);
 	return rc;
@@ -3320,9 +3323,8 @@ irqreturn_t cvp_hfi_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-static int __handle_reset_clk(struct msm_cvp_platform_resources *res,
-			int reset_index, enum reset_state state,
-			enum action_stage stage)
+static int __init_reset_clk(struct msm_cvp_platform_resources *res,
+			int reset_index)
 {
 	int rc = 0;
 	struct reset_control *rst;
@@ -3334,35 +3336,39 @@ static int __handle_reset_clk(struct msm_cvp_platform_resources *res,
 
 	rst_info = &rst_set->reset_tbl[reset_index];
 	rst = rst_info->rst;
-	dprintk(CVP_PWR, "reset_clk: name %s reset_state %d rst %pK stage=%d\n",
-		rst_set->reset_tbl[reset_index].name, state, rst, stage);
+	dprintk(CVP_PWR, "reset_clk: name %s rst %pK required_stage=%d\n",
+		rst_set->reset_tbl[reset_index].name, rst, rst_info->required_stage);
 
-	if (state == INIT) {
-		if (rst)
-			goto skip_reset_init;
+	if (rst)
+		goto skip_reset_init;
 
-		if (stage == CVP_ON_USE) {
-			rst = reset_control_get_exclusive_released(&res->pdev->dev,
-				rst_set->reset_tbl[reset_index].name);
-			if (IS_ERR(rst)) {
-				rc = PTR_ERR(rst);
-				rst_info->state = RESET_INIT;
-			}
-		} else if (stage == CVP_ON_INIT) {
-			rst = devm_reset_control_get(&res->pdev->dev,
-					rst_set->reset_tbl[reset_index].name);
-			if (IS_ERR(rst))
+	if (rst_info->required_stage == CVP_ON_USE) {
+		rst = reset_control_get_exclusive_released(&res->pdev->dev,
+			rst_set->reset_tbl[reset_index].name);
+		if (IS_ERR(rst)) {
 			rc = PTR_ERR(rst);
-		} else {
-			dprintk(CVP_ERR, "Invalid reset stage\n");
-			return -EINVAL;
+			dprintk(CVP_ERR, "reset get exclusive fail %d\n", rc);
+			return rc;
 		}
-
-		rst_set->reset_tbl[reset_index].rst = rst;
+		dprintk(CVP_PWR, "reset_clk: name %s get exclusive rst %llx\n",
+				rst_set->reset_tbl[reset_index].name, rst);
+	} else if (rst_info->required_stage == CVP_ON_INIT) {
+		rst = devm_reset_control_get(&res->pdev->dev,
+				rst_set->reset_tbl[reset_index].name);
+		if (IS_ERR(rst)) {
+			rc = PTR_ERR(rst);
+			dprintk(CVP_ERR, "reset get fail %d\n", rc);
+			return rc;
+		}
+		dprintk(CVP_PWR, "reset_clk: name %s get rst %llx\n",
+				rst_set->reset_tbl[reset_index].name, rst);
 	} else {
-		dprintk(CVP_ERR, "Invalid reset request\n");
-		rc = -EINVAL;
+		dprintk(CVP_ERR, "Invalid reset stage\n");
+		return -EINVAL;
 	}
+
+	rst_set->reset_tbl[reset_index].rst = rst;
+	rst_info->state = RESET_INIT;
 
 	return 0;
 
@@ -3454,8 +3460,9 @@ acquire_again:
 				if (max_retries) {
 					goto acquire_again;
 				} else {
-					dprintk(CVP_ERR, "%s failed acquire\n",
-						__func__);
+					dprintk(CVP_ERR,
+						"%s acquire %s -EBUSY\n",
+					        __func__, rcinfo->name);
 					rc = -EINVAL;
 				}
 			} else {
@@ -3684,7 +3691,7 @@ static int __init_resources(struct iris_hfi_device *device,
 	}
 
 	for (i = 0; i < device->res->reset_set.count; i++) {
-		rc = __handle_reset_clk(res, i, INIT, 0);
+		rc = __init_reset_clk(res, i);
 		if (rc) {
 			dprintk(CVP_ERR, "Failed to init reset clocks\n");
 			rc = -ENODEV;
