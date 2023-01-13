@@ -2298,7 +2298,8 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 		.compatible = "qcom,adreno-gpu-gen7-9-0",
 		.features = ADRENO_APRIV | ADRENO_IOCOHERENT | ADRENO_AQE |
 			ADRENO_CONTENT_PROTECTION | ADRENO_LPAC | ADRENO_IFPC |
-			ADRENO_L3_VOTE | ADRENO_BCL | ADRENO_ACD | ADRENO_DMS | ADRENO_HW_FENCE,
+			ADRENO_L3_VOTE | ADRENO_BCL | ADRENO_ACD | ADRENO_DMS |
+			ADRENO_HW_FENCE | ADRENO_PREEMPTION,
 		.gpudev = &adreno_gen7_9_0_hwsched_gpudev.base,
 		.perfcounters = &adreno_gen7_hwsched_perfcounters,
 		.uche_gmem_alignment = SZ_16M,
@@ -2321,6 +2322,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 	.gen7_snapshot_block_list = &gen7_9_0_snapshot_block_list,
 	.bcl_data = 1,
 	.acv_perfmode_vote = BIT(2),
+	.ctxt_record_size = (3572 * SZ_1K),
 };
 
 static const struct kgsl_regmap_list a663_hwcg_regs[] = {
