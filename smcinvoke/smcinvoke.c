@@ -389,6 +389,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct qtee_shm *in_shm, struct qtee_shm *out_shm);
 
 static void process_piggyback_data(void *buf, size_t buf_size);
+static void add_mem_obj_info_to_async_side_channel_locked(void *buf, size_t buf_size, struct list_head *l_pending_mem_obj);
+static void delete_pending_async_list_locked(struct list_head *l_pending_mem_obj);
 
 static void destroy_cb_server(struct kref *kref)
 {
@@ -1530,7 +1532,7 @@ static void process_kernel_obj(void *buf, size_t buf_len)
 
 	switch (cb_req->hdr.op) {
 	case OBJECT_OP_MAP_REGION:
-		pr_debug("Received a request to map memory region\n");
+		pr_err("Received a request to map memory region\n");
 		cb_req->result = smcinvoke_process_map_mem_region_req(buf, buf_len);
 		break;
 	case OBJECT_OP_YIELD:
@@ -2197,6 +2199,13 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 	int32_t tzhandles_to_release[OBJECT_COUNTS_MAX_OO] = {0};
 	struct smcinvoke_tzcb_req *tzcb_req = cb_txn->cb_req;
 	union smcinvoke_tz_args *tz_args = tzcb_req->args;
+	size_t tz_buf_offset = TZCB_BUF_OFFSET(tzcb_req);
+	LIST_HEAD(l_mem_objs_pending_async);    /* Holds new memory objects, to be later sent to TZ */
+	uint32_t max_offset = 0;
+	uint32_t buffer_size_max_offset = 0;
+	void* async_buf_begin;
+	size_t async_buf_size;
+	uint32_t offset = 0;
 
 	release_tzhandles(&cb_txn->cb_req->hdr.tzhandle, 1);
 	tzcb_req->result = user_req->result;
@@ -2206,6 +2215,16 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
                 ret = 0;
                 goto out;
         }
+
+	FOR_ARGS(i, tzcb_req->hdr.counts, BI) {
+
+		/* Find the max offset and the size of the buffer in that offset */
+		if (tz_args[i].b.offset > max_offset) {
+			max_offset = tz_args[i].b.offset;
+			buffer_size_max_offset = tz_args[i].b.size;
+		}
+	}
+
 	FOR_ARGS(i, tzcb_req->hdr.counts, BO) {
 		union smcinvoke_arg tmp_arg;
 
@@ -2223,6 +2242,12 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 			ret = -EFAULT;
 			goto out;
 		}
+
+		/* Find the max offset and the size of the buffer in that offset */
+		if (tz_args[i].b.offset > max_offset) {
+			max_offset = tz_args[i].b.offset;
+			buffer_size_max_offset = tz_args[i].b.size;
+		}
 	}
 
 	FOR_ARGS(i, tzcb_req->hdr.counts, OO) {
@@ -2236,7 +2261,8 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 		}
 		ret = get_tzhandle_from_uhandle(tmp_arg.o.fd,
 				tmp_arg.o.cb_server_fd, &arr_filp[i],
-				&(tz_args[i].handle), NULL);
+				&(tz_args[i].handle), &l_mem_objs_pending_async);
+
 		if (ret)
 			goto out;
 		tzhandles_to_release[i] = tz_args[i].handle;
@@ -2246,12 +2272,36 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 	}
 	ret = 0;
 out:
-        FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
-                if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
-                        release_tzhandles(&tz_args[i].handle, 1);
-        }
+	FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
+		if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
+			release_tzhandles(&tz_args[i].handle, 1);
+	}
+
+	do {
+		if (mem_obj_async_support) {
+		/* We will be able to add the async information to the buffer beyond the data in the max offset, if exists.
+		 * If doesn't exist, we can add the async information after the header and the args. */
+		offset = (max_offset ? (max_offset + buffer_size_max_offset) : tz_buf_offset);
+		offset = size_align(offset, SMCINVOKE_ARGS_ALIGN_SIZE);
+		async_buf_begin = (uint8_t *)tzcb_req + offset;
+
+		if (async_buf_begin - (void *)tzcb_req > g_max_cb_buf_size) {
+			pr_err("Unable to add memory object info to the async channel\n");
+			break;
+		} else {
+			async_buf_size = g_max_cb_buf_size - (async_buf_begin - (void *)tzcb_req);
+		}
+
+		mutex_lock(&g_smcinvoke_lock);
+		add_mem_obj_info_to_async_side_channel_locked(async_buf_begin, async_buf_size, &l_mem_objs_pending_async);
+		delete_pending_async_list_locked(&l_mem_objs_pending_async);
+		mutex_unlock(&g_smcinvoke_lock);
+		}
+	} while (0);
+
 	if (ret)
 		release_tzhandles(tzhandles_to_release, OBJECT_COUNTS_MAX_OO);
+
 	return ret;
 }
 
