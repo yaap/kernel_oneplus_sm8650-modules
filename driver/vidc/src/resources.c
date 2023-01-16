@@ -48,53 +48,57 @@ static void __fatal_error(bool fatal)
 	WARN_ON(fatal);
 }
 
-static void devm_llcc_release(struct device *dev, void *res)
+static void devm_llcc_release(void *res)
 {
 	d_vpr_h("%s()\n", __func__);
-	llcc_slice_putd(*(struct llcc_slice_desc **)res);
+	llcc_slice_putd((struct llcc_slice_desc *)res);
 }
 
 static struct llcc_slice_desc *devm_llcc_get(struct device *dev, u32 id)
 {
-	struct llcc_slice_desc **ptr, *llcc;
-
-	ptr = devres_alloc(devm_llcc_release, sizeof(*ptr), GFP_KERNEL);
-	if (!ptr)
-		return ERR_PTR(-ENOMEM);
+	struct llcc_slice_desc *llcc = NULL;
+	int rc = 0;
 
 	llcc = llcc_slice_getd(id);
-	if (!IS_ERR(llcc)) {
-		*ptr = llcc;
-		devres_add(dev, ptr);
-	} else {
-		devres_free(ptr);
-	}
+	if (!llcc)
+		return NULL;
+
+	/**
+	 * register release callback with devm, so that when device goes
+	 * out of scope(during remove sequence), devm will take care of
+	 * de-register part by invoking release callback.
+	 */
+	rc = devm_add_action_or_reset(dev, devm_llcc_release, (void *)llcc);
+	if (rc)
+		return NULL;
 
 	return llcc;
 }
 
 #ifdef CONFIG_MSM_MMRM
-static void devm_mmrm_release(struct device *dev, void *res)
+static void devm_mmrm_release(void *res)
 {
 	d_vpr_h("%s()\n", __func__);
-	mmrm_client_deregister(*(struct mmrm_client **)res);
+	mmrm_client_deregister((struct mmrm_client *)res);
 }
 
 static struct mmrm_client *devm_mmrm_get(struct device *dev, struct mmrm_client_desc *desc)
 {
-	struct mmrm_client **ptr, *mmrm;
-
-	ptr = devres_alloc(devm_mmrm_release, sizeof(*ptr), GFP_KERNEL);
-	if (!ptr)
-		return ERR_PTR(-ENOMEM);
+	struct mmrm_client *mmrm = NULL;
+	int rc = 0;
 
 	mmrm = mmrm_client_register(desc);
-	if (!IS_ERR(mmrm)) {
-		*ptr = mmrm;
-		devres_add(dev, ptr);
-	} else {
-		devres_free(ptr);
-	}
+	if (!mmrm)
+		return NULL;
+
+	/**
+	 * register release callback with devm, so that when device goes
+	 * out of scope(during remove sequence), devm will take care of
+	 * de-register part by invoking release callback.
+	 */
+	rc = devm_add_action_or_reset(dev, devm_mmrm_release, (void *)mmrm);
+	if (rc)
+		return NULL;
 
 	return mmrm;
 }
