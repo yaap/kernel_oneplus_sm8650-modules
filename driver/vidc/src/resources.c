@@ -1527,7 +1527,12 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 		}
 
 		found = true;
+		/* reset_control_acquire is exposed in kernel version 6 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 		rc = reset_control_acquire(rcinfo->rst);
+#else
+		rc = -EINVAL;
+#endif
 		if (rc)
 			d_vpr_e("%s: failed to acquire reset control (%s), rc = %d\n",
 				__func__, rcinfo->name, rc);
@@ -1563,8 +1568,18 @@ static int __reset_control_release_name(struct msm_vidc_core *core,
 		}
 
 		found = true;
+		/* reset_control_release exposed in kernel version 6 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 		reset_control_release(rcinfo->rst);
-		d_vpr_h("%s: release reset control (%s)\n", __func__, rcinfo->name);
+#else
+		rc = -EINVAL;
+#endif
+		if (rc)
+			d_vpr_e("%s: release reset control (%s) failed\n",
+				__func__, rcinfo->name);
+		else
+			d_vpr_h("%s: release reset control (%s) done\n",
+				__func__, rcinfo->name);
 		break;
 	}
 	if (!found) {
