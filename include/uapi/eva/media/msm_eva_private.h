@@ -140,7 +140,14 @@ struct cvp_buf_type {
 #define EVA_KMD_WNCC_MAX_ADDRESSES            4095
 #define EVA_KMD_WNCC_MAX_SRC_BUFS             2400
 #define EVA_KMD_WNCC_SRC_BUF_ID_OFFSET        1
-#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET (14 + sizeof(struct cvp_buf_type) / sizeof(__u32) * 5)
+
+/**
+ * Macro to get Meta Data Buffer Offset from the HFI Packet
+ * The number 15 denotes the position of the first Meta Data Buffer with respect to other fields
+ * If the WARPNCC HFI Frame Packet changes, this macro definition also has to be revised
+ */
+
+#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET (15 + sizeof(struct cvp_buf_type) / sizeof(__u32) * 5)
 
 struct eva_kmd_wncc_metadata {
 	__u64 loc_x_dec   : 12;
