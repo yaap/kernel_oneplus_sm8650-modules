@@ -285,6 +285,9 @@ static u32 msm_vidc_get_buffer_stats_flag(struct msm_vidc_inst *inst)
 	if (inst->hfi_frame_info.no_output)
 		flags |= MSM_VIDC_STATS_FLAG_NO_OUTPUT;
 
+	if (inst->hfi_frame_info.subframe_input)
+		flags |= MSM_VIDC_STATS_FLAG_SUBFRAME_INPUT;
+
 	return flags;
 }
 
@@ -326,7 +329,7 @@ static int msm_vidc_try_suspend(struct msm_vidc_inst *inst)
 }
 
 int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf)
+	struct msm_vidc_buffer *buf, u64 timestamp)
 {
 	struct msm_vidc_buffer_stats *stats = NULL;
 	struct msm_vidc_core *core;
@@ -336,6 +339,9 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 	core = inst->core;
+
+	if (!(msm_vidc_debug & VIDC_STAT))
+		return 0;
 
 	/* stats applicable only to input & output buffers */
 	if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT)
@@ -355,7 +361,8 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	list_add_tail(&stats->list, &inst->buffer_stats_list);
 
 	stats->frame_num = inst->debug_count.etb;
-	stats->timestamp = buf->timestamp;
+	stats->timestamp = timestamp;
+	stats->ts_offset = 0;
 	stats->etb_time_ms = buf->start_time_ms;
 	if (is_decode_session(inst))
 		stats->data_size =  buf->data_size;
@@ -364,16 +371,21 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 }
 
 int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf)
+	struct msm_vidc_buffer *buf, u64 timestamp)
 {
 	struct msm_vidc_buffer_stats *stats = NULL, *dummy_stats = NULL;
+	struct msm_vidc_buffer_stats *prev_stats = NULL;
 	struct msm_vidc_core *core;
+	bool remove_stat = false, is_first_stat = false;;
 
 	if (!inst || !inst->core || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	core = inst->core;
+
+	if (!(msm_vidc_debug & VIDC_STAT))
+		return 0;
 
 	/* stats applicable only to input & output buffers */
 	if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT)
@@ -383,38 +395,51 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 	buf->end_time_ms = (ktime_get_ns() / 1000 - inst->initial_time_us) / 1000;
 
 	list_for_each_entry_safe(stats, dummy_stats, &inst->buffer_stats_list, list) {
-		if (stats->timestamp == buf->timestamp) {
-			if (buf->type == MSM_VIDC_BUF_INPUT) {
-				/* skip - already updated(multiple input - single output case) */
-				if (stats->ebd_time_ms)
-					continue;
+		if (stats->timestamp - stats->ts_offset != timestamp)
+			continue;
 
-				/* ebd: update end ts and return */
-				stats->ebd_time_ms = buf->end_time_ms;
-				stats->flags |= msm_vidc_get_buffer_stats_flag(inst);
+		remove_stat = false;
+		if (buf->type == MSM_VIDC_BUF_INPUT) {
+			/* skip - ebd already updated(multiple input - single output case) */
+			if (stats->ebd_time_ms)
+				continue;
 
-				/* remove entry - no output attached */
-				if (stats->flags & MSM_VIDC_STATS_FLAG_NO_OUTPUT) {
-					list_del_init(&stats->list);
-					msm_vidc_pool_free(inst, stats);
-				}
-			} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
-				/* skip - ebd not arrived(single input - multiple output case) */
-				if (!stats->ebd_time_ms)
-					continue;
+			/* ebd: update end ts and return */
+			stats->ebd_time_ms = buf->end_time_ms;
+			stats->flags |= msm_vidc_get_buffer_stats_flag(inst);
 
-				/* fbd: update end ts and remove entry */
-				list_del_init(&stats->list);
-				stats->ftb_time_ms = buf->start_time_ms;
-				stats->fbd_time_ms = buf->end_time_ms;
-				stats->flags |= msm_vidc_get_buffer_stats_flag(inst);
-				if (is_encode_session(inst))
-					stats->data_size = buf->data_size;
+			/* multi in - single out (interlace/slice decoding case) */
+			is_first_stat = list_is_first(&stats->list, &inst->buffer_stats_list);
+			if (!is_first_stat) {
+				prev_stats = list_prev_entry(stats, list);
 
-				print_buffer_stats(VIDC_STAT, "stat", inst, stats);
-
-				msm_vidc_pool_free(inst, stats);
+				/* add offset if FW requires more etb's to process output */
+				if (prev_stats->flags & MSM_VIDC_STATS_FLAG_SUBFRAME_INPUT)
+					stats->ts_offset = stats->timestamp - prev_stats->timestamp;
 			}
+
+			/* remove entry - no output attached */
+			remove_stat = !!(stats->flags & MSM_VIDC_STATS_FLAG_NO_OUTPUT);
+			remove_stat |= stats->ebd_time_ms && stats->fbd_time_ms;
+		} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+			/* skip - ebd already updated(encoder superframe case) */
+			if (stats->fbd_time_ms)
+				continue;
+
+			/* fbd: update end ts */
+			stats->ftb_time_ms = buf->start_time_ms;
+			stats->fbd_time_ms = buf->end_time_ms;
+			stats->flags |= msm_vidc_get_buffer_stats_flag(inst);
+			if (is_encode_session(inst))
+				stats->data_size = buf->data_size;
+
+			remove_stat |= stats->ebd_time_ms && stats->fbd_time_ms;
+		}
+		/* remove stats node */
+		if (remove_stat) {
+			list_del_init(&stats->list);
+			print_buffer_stats(VIDC_STAT, "stat", inst, stats);
+			msm_vidc_pool_free(inst, stats);
 		}
 	}
 
@@ -2706,9 +2731,6 @@ struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
 			buf->dbuf_get = 1;
 		}
 	}
-
-	/* update start timestamp */
-	msm_vidc_add_buffer_stats(inst, buf);
 
 	return buf;
 }
