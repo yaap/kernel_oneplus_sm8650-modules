@@ -2574,6 +2574,10 @@ static struct freq_table pineapple_freq_table[] = {
 	{533333333}, {480000000}, {435000000}, {380000000}, {280000000}, {196000000}
 };
 
+static struct freq_table pineapple_freq_table_v2[] = {
+	{533333333}, {480000000}, {435000000}, {380000000}, {300000000}, {196000000}
+};
+
 /* register, value, mask */
 static const struct reg_preset_table pineapple_reg_preset_table[] = {
 	{ 0xB0088, 0x0, 0x11 },
@@ -2634,17 +2638,23 @@ int msm_vidc_pineapple_check_ddr_type(void)
 	return 0;
 }
 
-static int msm_vidc_init_data(struct msm_vidc_core *core)
+static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
+	if (!core || !core->platform || !dev) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	d_vpr_h("%s: initialize pineapple data\n", __func__);
 
 	core->platform->data = pineapple_data;
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
+		d_vpr_h("%s: update frequency table for pineapple v2\n", __func__);
+		core->platform->data.freq_tbl = pineapple_freq_table_v2;
+		core->platform->data.freq_tbl_size = ARRAY_SIZE(pineapple_freq_table_v2);
+	}
+
 	core->mem_ops = get_mem_ops_ext();
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
@@ -2657,7 +2667,7 @@ int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core, struct device *
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core);
+	rc = msm_vidc_init_data(core, dev);
 	if (rc)
 		return rc;
 
