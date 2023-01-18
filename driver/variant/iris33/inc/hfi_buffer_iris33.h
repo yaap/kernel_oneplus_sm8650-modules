@@ -1772,12 +1772,14 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 				num_vpp_pipes_enc, 16, HFI_CODEC_ENCODE_AVC); \
 	} while (0)
 
+#define SIZE_ONE_SLICE_BUF 256
 #define HFI_BUFFER_NON_COMV_H265E(_size, frame_width, frame_height, \
 				num_vpp_pipes_enc) \
 	do \
 	{ \
 		HFI_BUFFER_NON_COMV_ENC(_size, frame_width, frame_height, \
 			num_vpp_pipes_enc, 32, HFI_CODEC_ENCODE_HEVC); \
+		_size += SIZE_ONE_SLICE_BUF; \
 	} while (0)
 
 #define SIZE_ENC_REF_BUFFER(size, frame_width, frame_height) \
