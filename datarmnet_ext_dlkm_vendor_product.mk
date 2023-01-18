@@ -5,3 +5,4 @@ PRODUCT_PACKAGES += rmnet_perf_tether.ko
 PRODUCT_PACKAGES += rmnet_perf.ko
 PRODUCT_PACKAGES += rmnet_aps.ko
 PRODUCT_PACKAGES += rmnet_sch.ko
+PRODUCT_PACKAGES += rmnet_mem.ko

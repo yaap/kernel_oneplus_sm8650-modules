@@ -14,6 +14,7 @@ ifeq ($(TARGET_DATARMNET_EXT_ENABLE), true)
 	DATA_SHS_DLKM_BOARD_PLATFORMS_LIST := pineapple
 	DATA_APS_DLKM_BOARD_PLATFORMS_LIST := pineapple
 	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST := pineapple
+	DATA_MEM_DLKM_BOARD_PLATFORMS_LIST := pineapple
 
 	ifneq ($(TARGET_BOARD_AUTO),true)
 		ifeq ($(call is-board-platform-in-list,$(DATA_OFFLOAD_DLKM_BOARD_PLATFORMS_LIST)),true)
@@ -21,6 +22,9 @@ ifeq ($(TARGET_DATARMNET_EXT_ENABLE), true)
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_perf_tether.ko
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_perf.ko
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_wlan.ko
+		endif
+		ifeq ($(call is-board-platform-in-list,$(DATA_MEM_DLKM_BOARD_PLATFORMS_LIST)),true)
+			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_mem.ko
 		endif
 		ifeq ($(call is-board-platform-in-list,$(DATA_SHS_DLKM_BOARD_PLATFORMS_LIST)),true)
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_shs.ko
