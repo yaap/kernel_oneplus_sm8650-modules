@@ -321,6 +321,12 @@ int msm_cvp_prepare_enable_clk(struct iris_hfi_device *device,
 		* them.  Since we don't really have a load at this point,
 		* scale it to the lowest frequency possible
 		*/
+		if (!cl->clk) {
+			dprintk(CVP_PWR, "%s %s already enabled by framework",
+				__func__, cl->name);
+			return 0;
+		}
+
 		if (cl->has_scaling) {
 			if (device->mmrm_cvp != NULL) {
 				// set min freq and cur freq to 0;
@@ -375,6 +381,11 @@ int msm_cvp_disable_unprepare_clk(struct iris_hfi_device *device,
 	iris_hfi_for_each_clock_reverse(device, cl) {
 		if (strcmp(cl->name, name))
 			continue;
+		if (!cl->clk) {
+			dprintk(CVP_PWR, "%s %s always enabled by framework",
+				__func__, cl->name);
+			return 0;
+		}
 		clk_disable_unprepare(cl->clk);
 		dprintk(CVP_PWR, "Clock: %s disable and unprepare\n",
 			cl->name);
