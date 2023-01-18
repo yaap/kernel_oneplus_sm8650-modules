@@ -22,73 +22,57 @@
 #define VIDEO_ARCH_LX 1
 
 #define VCODEC_BASE_OFFS_IRIS33                 0x00000000
-#define AON_MVP_NOC_RESET                      0x0001F000
-#define CPU_BASE_OFFS_IRIS33                    0x000A0000
-#define AON_BASE_OFFS			               0x000E0000
-#define CPU_CS_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
-#define CPU_IC_BASE_OFFS_IRIS33		           (CPU_BASE_OFFS_IRIS33)
+#define VCODEC_CPU_CS_IRIS33                    0x000A0000
+#define AON_BASE_OFFS                           0x000E0000
 
-#define CPU_CS_A2HSOFTINTCLR_IRIS33             (CPU_CS_BASE_OFFS_IRIS33 + 0x1C)
-#define CPU_CS_VCICMD_IRIS33                    (CPU_CS_BASE_OFFS_IRIS33 + 0x20)
-#define CPU_CS_VCICMDARG0_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x24)
-#define CPU_CS_VCICMDARG1_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x28)
-#define CPU_CS_VCICMDARG2_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x2C)
-#define CPU_CS_VCICMDARG3_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x30)
-#define CPU_CS_VMIMSG_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x34)
-#define CPU_CS_VMIMSGAG0_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x38)
-#define CPU_CS_VMIMSGAG1_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x3C)
-#define CPU_CS_SCIACMD_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x48)
-#define CPU_CS_H2XSOFTINTEN_IRIS33	(CPU_CS_BASE_OFFS_IRIS33 + 0x148)
+#define VCODEC_VPU_CPU_CS_VCICMDARG0_IRIS33                 (VCODEC_CPU_CS_IRIS33 + 0x24)
+#define VCODEC_VPU_CPU_CS_VCICMDARG1_IRIS33                 (VCODEC_CPU_CS_IRIS33 + 0x28)
+#define VCODEC_VPU_CPU_CS_SCIACMD_IRIS33                    (VCODEC_CPU_CS_IRIS33 + 0x48)
+#define VCODEC_VPU_CPU_CS_SCIACMDARG0_IRIS33                (VCODEC_CPU_CS_IRIS33 + 0x4C)
+#define VCODEC_VPU_CPU_CS_SCIACMDARG1_IRIS33                (VCODEC_CPU_CS_IRIS33 + 0x50)
+#define VCODEC_VPU_CPU_CS_SCIACMDARG2_IRIS33                (VCODEC_CPU_CS_IRIS33 + 0x54)
+#define VCODEC_VPU_CPU_CS_SCIBCMD_IRIS33                    (VCODEC_CPU_CS_IRIS33 + 0x5C)
+#define VCODEC_VPU_CPU_CS_SCIBCMDARG0_IRIS33                (VCODEC_CPU_CS_IRIS33 + 0x60)
+#define VCODEC_VPU_CPU_CS_SCIBARG1_IRIS33                   (VCODEC_CPU_CS_IRIS33 + 0x64)
+#define VCODEC_VPU_CPU_CS_SCIBARG2_IRIS33                   (VCODEC_CPU_CS_IRIS33 + 0x68)
 
-/* HFI_CTRL_STATUS */
-#define CPU_CS_SCIACMDARG0_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x4C)
-#define CPU_CS_SCIACMDARG0_HFI_CTRL_ERROR_STATUS_BMSK_IRIS33	0xfe
-#define CPU_CS_SCIACMDARG0_HFI_CTRL_PC_READY_IRIS33           0x100
-#define CPU_CS_SCIACMDARG0_HFI_CTRL_INIT_IDLE_MSG_BMSK_IRIS33     0x40000000
+#define HFI_CTRL_INIT_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMD_IRIS33
+#define HFI_CTRL_STATUS_IRIS33                        VCODEC_VPU_CPU_CS_SCIACMDARG0_IRIS33
+typedef enum
+{
+    HFI_CTRL_NOT_INIT                   = 0x0,
+    HFI_CTRL_READY                      = 0x1,
+    HFI_CTRL_ERROR_FATAL                = 0x2,
+    HFI_CTRL_ERROR_UC_REGION_NOT_SET    = 0x4,
+    HFI_CTRL_PC_READY                   = 0x100,
+    HFI_CTRL_VCODEC_IDLE                = 0x40000000
+} hfi_ctrl_status_type;
 
-/* HFI_QTBL_INFO */
-#define CPU_CS_SCIACMDARG1_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x50)
+#define HFI_QTBL_INFO_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMDARG1_IRIS33
+typedef enum
+{
+    HFI_QTBL_DISABLED    = 0x00,
+    HFI_QTBL_ENABLED     = 0x01,
+} hfi_qtbl_status_type;
 
-/* HFI_QTBL_ADDR */
-#define CPU_CS_SCIACMDARG2_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x54)
+#define HFI_QTBL_ADDR_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMDARG2_IRIS33
+#define HFI_MMAP_ADDR_IRIS33                          VCODEC_VPU_CPU_CS_SCIBCMDARG0_IRIS33
+#define HFI_UC_REGION_ADDR_IRIS33                     VCODEC_VPU_CPU_CS_SCIBARG1_IRIS33
+#define HFI_UC_REGION_SIZE_IRIS33                     VCODEC_VPU_CPU_CS_SCIBARG2_IRIS33
+#define HFI_DEVICE_REGION_ADDR_IRIS33                 VCODEC_VPU_CPU_CS_VCICMDARG0_IRIS33
+#define HFI_DEVICE_REGION_SIZE_IRIS33                 VCODEC_VPU_CPU_CS_VCICMDARG1_IRIS33
+#define HFI_SFR_ADDR_IRIS33                           VCODEC_VPU_CPU_CS_SCIBCMD_IRIS33
 
-/* HFI_VERSION_INFO */
-#define CPU_CS_SCIACMDARG3_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x58)
+#define CPU_CS_A2HSOFTINTCLR_IRIS33             (VCODEC_CPU_CS_IRIS33 + 0x1C)
+#define CPU_CS_H2XSOFTINTEN_IRIS33	(VCODEC_CPU_CS_IRIS33 + 0x148)
 
-/* SFR_ADDR */
-#define CPU_CS_SCIBCMD_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x5C)
-
-/* MMAP_ADDR */
-#define CPU_CS_SCIBCMDARG0_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x60)
-
-/* UC_REGION_ADDR */
-#define CPU_CS_SCIBARG1_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x64)
-
-/* UC_REGION_ADDR */
-#define CPU_CS_SCIBARG2_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x68)
-
-#define CPU_CS_AHB_BRIDGE_SYNC_RESET            (CPU_CS_BASE_OFFS_IRIS33 + 0x160)
-#define CPU_CS_AHB_BRIDGE_SYNC_RESET_STATUS     (CPU_CS_BASE_OFFS_IRIS33 + 0x164)
+#define CPU_CS_AHB_BRIDGE_SYNC_RESET            (VCODEC_CPU_CS_IRIS33 + 0x160)
 
 /* FAL10 Feature Control */
-#define CPU_CS_X2RPMh_IRIS33		(CPU_CS_BASE_OFFS_IRIS33 + 0x168)
-#define CPU_CS_X2RPMh_MASK0_BMSK_IRIS33	0x1
-#define CPU_CS_X2RPMh_MASK0_SHFT_IRIS33	0x0
-#define CPU_CS_X2RPMh_MASK1_BMSK_IRIS33	0x2
-#define CPU_CS_X2RPMh_MASK1_SHFT_IRIS33	0x1
-#define CPU_CS_X2RPMh_SWOVERRIDE_BMSK_IRIS33	0x4
-#define CPU_CS_X2RPMh_SWOVERRIDE_SHFT_IRIS33	0x3
+#define CPU_CS_X2RPMh_IRIS33		(VCODEC_CPU_CS_IRIS33 + 0x168)
 
-#define CPU_IC_SOFTINT_IRIS33		(CPU_IC_BASE_OFFS_IRIS33 + 0x150)
+#define CPU_IC_SOFTINT_IRIS33		(VCODEC_CPU_CS_IRIS33 + 0x150)
 #define CPU_IC_SOFTINT_H2A_SHFT_IRIS33	0x0
-
-/*
- * --------------------------------------------------------------------------
- * MODULE: AON_MVP_NOC_RESET_REGISTERS
- * --------------------------------------------------------------------------
- */
-#define AON_WRAPPER_MVP_NOC_RESET_REQ   (AON_MVP_NOC_RESET + 0x000)
-#define AON_WRAPPER_MVP_NOC_RESET_ACK   (AON_MVP_NOC_RESET + 0x004)
 
 /*
  * --------------------------------------------------------------------------
@@ -104,10 +88,6 @@
 #define WRAPPER_INTR_MASK_A2HWD_BMSK_IRIS33	0x8
 #define WRAPPER_INTR_MASK_A2HCPU_BMSK_IRIS33	0x4
 
-#define WRAPPER_CPU_CLOCK_CONFIG_IRIS33	(WRAPPER_BASE_OFFS_IRIS33 + 0x2000)
-#define WRAPPER_CPU_CGC_DIS_IRIS33	(WRAPPER_BASE_OFFS_IRIS33 + 0x2010)
-#define WRAPPER_CPU_STATUS_IRIS33	(WRAPPER_BASE_OFFS_IRIS33 + 0x2014)
-
 #define WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS33	(WRAPPER_BASE_OFFS_IRIS33 + 0x54)
 #define WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS33	(WRAPPER_BASE_OFFS_IRIS33 + 0x58)
 #define WRAPPER_IRIS_CPU_NOC_LPI_CONTROL	(WRAPPER_BASE_OFFS_IRIS33 + 0x5C)
@@ -121,32 +101,9 @@
  * --------------------------------------------------------------------------
  */
 #define WRAPPER_TZ_BASE_OFFS	0x000C0000
-#define WRAPPER_TZ_CPU_CLOCK_CONFIG	(WRAPPER_TZ_BASE_OFFS)
 #define WRAPPER_TZ_CPU_STATUS	(WRAPPER_TZ_BASE_OFFS + 0x10)
 #define WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG	(WRAPPER_TZ_BASE_OFFS + 0x14)
 #define WRAPPER_TZ_QNS4PDXFIFO_RESET	(WRAPPER_TZ_BASE_OFFS + 0x18)
-
-#define CTRL_INIT_IRIS33		CPU_CS_SCIACMD_IRIS33
-
-#define CTRL_STATUS_IRIS33	CPU_CS_SCIACMDARG0_IRIS33
-#define CTRL_ERROR_STATUS__M_IRIS33 \
-		CPU_CS_SCIACMDARG0_HFI_CTRL_ERROR_STATUS_BMSK_IRIS33
-#define CTRL_INIT_IDLE_MSG_BMSK_IRIS33 \
-		CPU_CS_SCIACMDARG0_HFI_CTRL_INIT_IDLE_MSG_BMSK_IRIS33
-#define CTRL_STATUS_PC_READY_IRIS33 \
-		CPU_CS_SCIACMDARG0_HFI_CTRL_PC_READY_IRIS33
-
-
-#define QTBL_INFO_IRIS33		CPU_CS_SCIACMDARG1_IRIS33
-
-#define QTBL_ADDR_IRIS33		CPU_CS_SCIACMDARG2_IRIS33
-
-#define VERSION_INFO_IRIS33	    CPU_CS_SCIACMDARG3_IRIS33
-
-#define SFR_ADDR_IRIS33		    CPU_CS_SCIBCMD_IRIS33
-#define MMAP_ADDR_IRIS33		CPU_CS_SCIBCMDARG0_IRIS33
-#define UC_REGION_ADDR_IRIS33	CPU_CS_SCIBARG1_IRIS33
-#define UC_REGION_SIZE_IRIS33	CPU_CS_SCIBARG2_IRIS33
 
 #define AON_WRAPPER_MVP_NOC_LPI_CONTROL	(AON_BASE_OFFS)
 #define AON_WRAPPER_MVP_NOC_LPI_STATUS	(AON_BASE_OFFS + 0x4)
@@ -159,27 +116,6 @@
  * --------------------------------------------------------------------------
  */
 #define VCODEC_SS_IDLE_STATUSn           (VCODEC_BASE_OFFS_IRIS33 + 0x70)
-
-/*
- * --------------------------------------------------------------------------
- * MODULE: vcodec noc error log registers (iris33)
- * --------------------------------------------------------------------------
- */
-#define VCODEC_NOC_VIDEO_A_NOC_BASE_OFFS		0x00010000
-#define VCODEC_NOC_ERL_MAIN_SWID_LOW			0x00011200
-#define VCODEC_NOC_ERL_MAIN_SWID_HIGH			0x00011204
-#define VCODEC_NOC_ERL_MAIN_MAINCTL_LOW			0x00011208
-#define VCODEC_NOC_ERL_MAIN_ERRVLD_LOW			0x00011210
-#define VCODEC_NOC_ERL_MAIN_ERRCLR_LOW			0x00011218
-#define VCODEC_NOC_ERL_MAIN_ERRLOG0_LOW			0x00011220
-#define VCODEC_NOC_ERL_MAIN_ERRLOG0_HIGH		0x00011224
-#define VCODEC_NOC_ERL_MAIN_ERRLOG1_LOW			0x00011228
-#define VCODEC_NOC_ERL_MAIN_ERRLOG1_HIGH		0x0001122C
-#define VCODEC_NOC_ERL_MAIN_ERRLOG2_LOW			0x00011230
-#define VCODEC_NOC_ERL_MAIN_ERRLOG2_HIGH		0x00011234
-#define VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW			0x00011238
-#define VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH		0x0001123C
-
 
 static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
 {
@@ -219,38 +155,38 @@ static int __setup_ucregion_memory_map_iris33(struct msm_vidc_core *vidc_core)
 	}
 
 	value = (u32)core->iface_q_table.align_device_addr;
-	rc = __write_register(core, UC_REGION_ADDR_IRIS33, value);
+	rc = __write_register(core, HFI_UC_REGION_ADDR_IRIS33, value);
 	if (rc)
 		return rc;
 
 	value = SHARED_QSIZE;
-	rc = __write_register(core, UC_REGION_SIZE_IRIS33, value);
+	rc = __write_register(core, HFI_UC_REGION_SIZE_IRIS33, value);
 	if (rc)
 		return rc;
 
 	value = (u32)core->iface_q_table.align_device_addr;
-	rc = __write_register(core, QTBL_ADDR_IRIS33, value);
+	rc = __write_register(core, HFI_QTBL_ADDR_IRIS33, value);
 	if (rc)
 		return rc;
 
-	rc = __write_register(core, QTBL_INFO_IRIS33, 0x01);
+	rc = __write_register(core, HFI_QTBL_INFO_IRIS33, HFI_QTBL_ENABLED);
 	if (rc)
 		return rc;
 
 	/* update queues vaddr for debug purpose */
 	value = (u32)((u64)core->iface_q_table.align_virtual_addr);
-	rc = __write_register(core, CPU_CS_VCICMDARG0_IRIS33, value);
+	rc = __write_register(core, HFI_DEVICE_REGION_ADDR_IRIS33, value);
 	if (rc)
 		return rc;
 
 	value = (u32)((u64)core->iface_q_table.align_virtual_addr >> 32);
-	rc = __write_register(core, CPU_CS_VCICMDARG1_IRIS33, value);
+	rc = __write_register(core, HFI_DEVICE_REGION_SIZE_IRIS33, value);
 	if (rc)
 		return rc;
 
 	if (core->sfr.align_device_addr) {
 		value = (u32)core->sfr.align_device_addr + VIDEO_ARCH_LX;
-		rc = __write_register(core, SFR_ADDR_IRIS33, value);
+		rc = __write_register(core, HFI_SFR_ADDR_IRIS33, value);
 		if (rc)
 			return rc;
 	}
@@ -758,11 +694,11 @@ static int __prepare_pc_iris33(struct msm_vidc_core *vidc_core)
 		return -EINVAL;
 	}
 
-	rc = __read_register(core, CTRL_STATUS_IRIS33, &ctrl_status);
+	rc = __read_register(core, HFI_CTRL_STATUS_IRIS33, &ctrl_status);
 	if (rc)
 		return rc;
 
-	pc_ready = ctrl_status & CTRL_STATUS_PC_READY_IRIS33;
+	pc_ready = ctrl_status & HFI_CTRL_PC_READY;
 	idle_status = ctrl_status & BIT(30);
 
 	if (pc_ready) {
@@ -785,8 +721,8 @@ static int __prepare_pc_iris33(struct msm_vidc_core *vidc_core)
 		goto skip_power_off;
 	}
 
-	rc = __read_register_with_poll_timeout(core, CTRL_STATUS_IRIS33,
-			CTRL_STATUS_PC_READY_IRIS33, CTRL_STATUS_PC_READY_IRIS33, 250, 2500);
+	rc = __read_register_with_poll_timeout(core, HFI_CTRL_STATUS_IRIS33,
+			HFI_CTRL_PC_READY, HFI_CTRL_PC_READY, 250, 2500);
 	if (rc) {
 		d_vpr_e("%s: Skip PC. Ctrl status not set\n", __func__);
 		goto skip_power_off;
@@ -801,7 +737,7 @@ static int __prepare_pc_iris33(struct msm_vidc_core *vidc_core)
 	return rc;
 
 skip_power_off:
-	rc = __read_register(core, CTRL_STATUS_IRIS33, &ctrl_status);
+	rc = __read_register(core, HFI_CTRL_STATUS_IRIS33, &ctrl_status);
 	if (rc)
 		return rc;
 	rc = __read_register(core, WRAPPER_TZ_CPU_STATUS, &wfi_status);
@@ -913,7 +849,7 @@ static int __clear_interrupt_iris33(struct msm_vidc_core *vidc_core)
 
 	mask = (WRAPPER_INTR_STATUS_A2H_BMSK_IRIS33|
 		WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS33|
-		CTRL_INIT_IDLE_MSG_BMSK_IRIS33);
+		HFI_CTRL_VCODEC_IDLE);
 
 	if (intr_status & mask) {
 		core->intr_status |= intr_status;
@@ -948,17 +884,23 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 
 	ctrl_init_val = BIT(0);
 
-	rc = __write_register(core, CTRL_INIT_IRIS33, ctrl_init_val);
+	rc = __write_register(core, HFI_CTRL_INIT_IRIS33, ctrl_init_val);
 	if (rc)
 		return rc;
 
-	while (!ctrl_status && count < max_tries) {
-		rc = __read_register(core, CTRL_STATUS_IRIS33, &ctrl_status);
+	while (count < max_tries) {
+		rc = __read_register(core, HFI_CTRL_STATUS_IRIS33, &ctrl_status);
 		if (rc)
 			return rc;
 
-		if ((ctrl_status & CTRL_ERROR_STATUS__M_IRIS33) == 0x4) {
-			d_vpr_e("invalid setting for UC_REGION\n");
+		if ((ctrl_status & HFI_CTRL_ERROR_FATAL) ||
+			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET)) {
+			d_vpr_e("%s: boot firmware failed, ctrl status %#x\n",
+				__func__, ctrl_status);
+			return -EINVAL;
+		} else if (ctrl_status & HFI_CTRL_READY) {
+			d_vpr_h("%s: boot firmware is successful, ctrl status %#x\n",
+				__func__, ctrl_status);
 			break;
 		}
 
@@ -967,7 +909,7 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 	}
 
 	if (count >= max_tries) {
-		d_vpr_e("Error booting up vidc firmware\n");
+		d_vpr_e("Error booting up vidc firmware, ctrl status %#x\n", ctrl_status);
 		return -ETIME;
 	}
 
