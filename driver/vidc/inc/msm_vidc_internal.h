@@ -772,6 +772,7 @@ struct msm_vidc_subscription_params {
 	u32                    tier;
 	u32                    av1_film_grain_present;
 	u32                    av1_super_block_enabled;
+	u32                    dpb_list_enabled;
 };
 
 struct msm_vidc_hfi_frame_info {

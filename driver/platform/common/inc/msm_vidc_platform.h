@@ -240,6 +240,18 @@ struct msm_vidc_platform_data {
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
 	struct msm_vidc_format_capability *format_data;
+	const u32 *psc_avc_tbl;
+	unsigned int psc_avc_tbl_size;
+	const u32 *psc_hevc_tbl;
+	unsigned int psc_hevc_tbl_size;
+	const u32 *psc_vp9_tbl;
+	unsigned int psc_vp9_tbl_size;
+	const u32 *psc_av1_tbl;
+	unsigned int psc_av1_tbl_size;
+	const u32 *dec_input_prop;
+	unsigned int dec_input_prop_size;
+	const u32 *dec_output_prop;
+	unsigned int dec_output_prop_size;
 };
 
 struct msm_vidc_platform {

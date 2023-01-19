@@ -1635,7 +1635,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0, 1, 1, 0,
 		0,
 		HFI_PROP_DPB_LIST,
-		CAP_FLAG_OUTPUT_PORT},
+		CAP_FLAG_INPUT_PORT},
 
 	{FILM_GRAIN, DEC, AV1,
 		0, 1, 1, 0,
@@ -2607,6 +2607,65 @@ static const struct device_region_table pineapple_device_region_table[] = {
 	{ "aon-registers", 0x0AAE0000, 0x1000, 0xFFAE0000, MSM_VIDC_AON_REGISTERS },
 };
 
+/* decoder properties */
+static const u32 pineapple_vdec_psc_avc[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_CODED_FRAMES,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PIC_ORDER_CNT_TYPE,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 pineapple_vdec_psc_hevc[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_TIER,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 pineapple_vdec_psc_vp9[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+};
+
+static const u32 pineapple_vdec_psc_av1[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_AV1_FILM_GRAIN_PRESENT,
+	HFI_PROP_AV1_SUPER_BLOCK_ENABLED,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_TIER,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 pineapple_vdec_input_properties[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+	HFI_PROP_DPB_LIST,
+};
+
+static const u32 pineapple_vdec_output_properties[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_CABAC_SESSION,
+	HFI_PROP_FENCE,
+};
+
 static const struct msm_vidc_platform_data pineapple_data = {
 	/* resources dependent on other module */
 	.bw_tbl = pineapple_bw_table,
@@ -2647,6 +2706,20 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.csc_data.vpe_csc_custom_limit_coeff = vpe_csc_custom_limit_coeff,
 	.ubwc_config = ubwc_config_pineapple,
 	.format_data = &format_data_pineapple,
+
+	/* decoder properties related*/
+	.psc_avc_tbl = pineapple_vdec_psc_avc,
+	.psc_avc_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_avc),
+	.psc_hevc_tbl = pineapple_vdec_psc_hevc,
+	.psc_hevc_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_hevc),
+	.psc_vp9_tbl = pineapple_vdec_psc_vp9,
+	.psc_vp9_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_vp9),
+	.psc_av1_tbl = pineapple_vdec_psc_av1,
+	.psc_av1_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_av1),
+	.dec_input_prop = pineapple_vdec_input_properties,
+	.dec_input_prop_size = ARRAY_SIZE(pineapple_vdec_input_properties),
+	.dec_output_prop = pineapple_vdec_output_properties,
+	.dec_output_prop_size = ARRAY_SIZE(pineapple_vdec_output_properties),
 };
 
 int msm_vidc_pineapple_check_ddr_type(void)
