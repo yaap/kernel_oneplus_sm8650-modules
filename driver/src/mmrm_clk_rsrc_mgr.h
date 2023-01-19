@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MMRM_CLK_RESOURCE_MGR_H_
@@ -66,6 +67,27 @@ struct mmrm_sw_clk_client_tbl_entry {
 	bool reserve;
 	u32 ref_count;
 	u32 num_hw_blocks;
+
+	/* CRM Data */
+	bool is_crm_client;
+	u32 hw_drv_instances;
+	u32 num_pwr_states;
+	u32 max_rate_idx;
+	u32 crm_client_tbl_size;
+	/*
+	 * CRM client vote table
+	 * size = (number of HW clients * supported power states + 1)
+	 *    Example table of a client with 1 SW client, 3 HW clients where
+	 *    each HW client supports 2 power states:
+	 *    index 0: HW_0 PW_ST_0
+	 *    index 1: HW_0 PW_ST_1
+	 *    index 2: HW_1 PW_ST_0
+	 *    index 3: HW_1 PW_ST_1
+	 *    index 4: HW_2 PW_ST_0
+	 *    index 5: HW_2 PW_ST_1
+	 *    index 6: SW_CLIENT
+	 */
+	u64 *crm_client_tbl;
 };
 
 struct mmrm_sw_throttled_clients_data {
