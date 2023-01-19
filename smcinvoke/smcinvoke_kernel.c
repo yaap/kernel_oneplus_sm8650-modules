@@ -312,7 +312,7 @@ int32_t get_client_env_object(struct Object *clientEnvObj)
 			Object_NULL, clientEnvObj);
 		if (ret == OBJECT_ERROR_BUSY) {
 			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
-			msleep(5);
+			msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 		}
 	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
 

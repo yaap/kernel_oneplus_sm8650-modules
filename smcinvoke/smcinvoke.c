@@ -622,23 +622,25 @@ static void smcinvoke_start_adci_thread(void)
 	ret = get_client_env_object(&adci_clientEnv);
 	if (ret) {
 		pr_err("failed to get clientEnv for ADCI invoke thread. ret = %d\n", ret);
+		/* Marking it Object_NULL in case of failure scenario in order to avoid
+		 * undefined behavior while releasing garbage adci_clientEnv object.
+		 */
 		adci_clientEnv = Object_NULL;
 		goto out;
 	}
 	/* Invoke call to QTEE which should never return if ADCI is supported */
 	do {
-		ret = IClientEnv_accept(adci_clientEnv);
+		ret = IClientEnv_adciAccept(adci_clientEnv);
 		if (ret == OBJECT_ERROR_BUSY) {
 			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
-			msleep(5);
+			msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 		}
 	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
 
 	if (ret == OBJECT_ERROR_INVALID)
 		pr_err("ADCI feature is not supported on this chipsets, ret = %d\n", ret);
-	/* Need to take decesion here if we want to restart the ADCI thread */
 	else
-		pr_err("Received response from QTEE, ret = %d\n", ret);
+		pr_debug("Received response from QTEE, ret = %d\n", ret);
 out:
 	/* Control should reach to this point only if ADCI feature is not supported by QTEE
 	  (or) ADCI thread held in QTEE is released. */
@@ -751,7 +753,7 @@ static void smcinvoke_destroy_kthreads(void)
 			ret = IClientEnv_adciShutdown(adci_clientEnv);
 			if (ret == OBJECT_ERROR_BUSY) {
 				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
-				msleep(5);
+				msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 			}
 		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
 		if(OBJECT_isERROR(ret)) {
@@ -2660,7 +2662,7 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 			tzobj->tzhandle == SMCINVOKE_TZ_ROOT_OBJ &&
 			(req.op == IClientEnv_OP_notifyDomainChange ||
 			req.op == IClientEnv_OP_registerWithCredentials ||
-			req.op == IClientEnv_OP_accept ||
+			req.op == IClientEnv_OP_adciAccept ||
 			req.op == IClientEnv_OP_adciShutdown)) {
 		pr_err("invalid rootenv op\n");
 		return -EINVAL;
