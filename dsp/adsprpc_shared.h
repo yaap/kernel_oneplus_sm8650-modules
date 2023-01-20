@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef ADSPRPC_SHARED_H
 #define ADSPRPC_SHARED_H
@@ -676,6 +676,13 @@ enum fastrpc_msg_type {
 	USER_MSG = 0,
 	KERNEL_MSG_WITH_ZERO_PID,
 	KERNEL_MSG_WITH_NONZERO_PID,
+};
+
+/* Fastrpc remote pd type */
+enum fastrpc_remote_pd_type {
+	FASTRPC_ROOT_PD = 0,
+	FASTRPC_USER_PD,
+	FASTRPC_SENSORS_PD,
 };
 
 #define DSPSIGNAL_TIMEOUT_NONE 0xffffffff

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /* Uncomment this block to log an error on every VERIFY failure */
@@ -137,7 +137,7 @@
 #endif
 
 /*
- * ctxid of every message is OR-ed with fl->pd (0/1/2) before
+ * ctxid of every message is OR-ed with fastrpc_remote_pd_type before
  * it is sent to DSP. So mask 2 LSBs to retrieve actual context
  */
 #define CONTEXT_PD_CHECK (3)
@@ -3593,10 +3593,10 @@ static int fastrpc_init_attach_process(struct fastrpc_file *fl,
 	ioctl.job = NULL;
 
 	if (init->flags == FASTRPC_INIT_ATTACH)
-		fl->pd = 0;
+		fl->pd = FASTRPC_ROOT_PD;
 	else if (init->flags == FASTRPC_INIT_ATTACH_SENSORS)
 		/* Setting to 2 will route the message to sensorsPD */
-		fl->pd = 2;
+		fl->pd = FASTRPC_SENSORS_PD;
 
 	err = fastrpc_internal_invoke(fl, FASTRPC_MODE_PARALLEL, KERNEL_MSG_WITH_ZERO_PID, &ioctl);
 	if (err)
@@ -3662,7 +3662,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	inbuf.pgid = fl->tgid;
 	inbuf.namelen = strlen(current->comm) + 1;
 	inbuf.filelen = init->filelen;
-	fl->pd = 1;
+	fl->pd = FASTRPC_USER_PD;
 
 	if (uproc->attrs & FASTRPC_MODE_UNSIGNED_MODULE)
 		fl->is_unsigned_pd = true;
@@ -3899,7 +3899,7 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		goto bail;
 	}
 
-	fl->pd = 1;
+	fl->pd = FASTRPC_USER_PD;
 	inbuf.pgid = fl->tgid;
 	inbuf.namelen = init->filelen;
 	inbuf.pageslen = 0;
