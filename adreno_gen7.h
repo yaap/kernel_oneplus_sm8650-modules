@@ -114,6 +114,8 @@ struct adreno_gen7_core {
 	u32 bcl_data;
 	/** @preempt_level: Preemption level valid ranges [0 to 2] */
 	u32 preempt_level;
+	/** @qos_value: GPU qos value to set for each RB. */
+	const u32 *qos_value;
 };
 
 /**
@@ -260,6 +262,8 @@ void gen7_preemption_callback(struct adreno_device *adreno_dev, int bit);
 int gen7_preemption_context_init(struct kgsl_context *context);
 
 void gen7_preemption_context_destroy(struct kgsl_context *context);
+
+void gen7_preemption_prepare_postamble(struct adreno_device *adreno_dev);
 
 void gen7_snapshot(struct adreno_device *adreno_dev,
 		struct kgsl_snapshot *snapshot);
