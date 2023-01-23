@@ -7440,7 +7440,7 @@ static int fastrpc_cb_probe(struct device *dev)
 		buf->virt = NULL;
 		buf->phys = 0;
 		buf->size = frpc_gen_addr_pool[1];
-		buf->dma_attr = DMA_ATTR_DELAYED_UNMAP | DMA_ATTR_NO_KERNEL_MAPPING;
+		buf->dma_attr = DMA_ATTR_DELAYED_UNMAP;
 		/* Allocate memory for adding to genpool */
 		buf->virt = dma_alloc_attrs(sess->smmu.dev, buf->size,
 						(dma_addr_t *)&buf->phys,
@@ -7465,7 +7465,7 @@ static int fastrpc_cb_probe(struct device *dev)
 		}
 		/* Map the allocated memory with fixed IOVA and is shared to remote subsystem */
 		err = iommu_map_sg(domain, frpc_gen_addr_pool[0], sgt.sgl,
-					sgt.nents, IOMMU_READ | IOMMU_WRITE);
+					sgt.nents, IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE);
 		if (err < 0) {
 			ADSPRPC_ERR("iommu_map_sg failed with err %d", err);
 			goto iommu_map_bail;
