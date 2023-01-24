@@ -794,15 +794,25 @@ static void __set_registers(struct iris_hfi_device *device)
 
 	__write_register(device, CVP_CPU_CS_AXI4_QOS,
 				pdata->noc_qos->axi_qos);
-	__write_register(device, CVP_NOC_PRIORITYLUT_LOW,
+	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_LOW,
 				pdata->noc_qos->prioritylut_low);
-	__write_register(device, CVP_NOC_PRIORITYLUT_HIGH,
+	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_HIGH,
 				pdata->noc_qos->prioritylut_high);
-	__write_register(device, CVP_NOC_URGENCY_LOW,
+	__write_register(device, CVP_NOC_RGE_URGENCY_LOW,
 				pdata->noc_qos->urgency_low);
-	__write_register(device, CVP_NOC_DANGERLUT_LOW,
+	__write_register(device, CVP_NOC_RGE_DANGERLUT_LOW,
 				pdata->noc_qos->dangerlut_low);
-	__write_register(device, CVP_NOC_SAFELUT_LOW,
+	__write_register(device, CVP_NOC_RGE_SAFELUT_LOW,
+				pdata->noc_qos->safelut_low);
+	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_LOW,
+				pdata->noc_qos->prioritylut_low);
+	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_HIGH,
+				pdata->noc_qos->prioritylut_high);
+	__write_register(device, CVP_NOC_CDM_URGENCY_LOW,
+				pdata->noc_qos->urgency_low);
+	__write_register(device, CVP_NOC_CDM_DANGERLUT_LOW,
+				pdata->noc_qos->dangerlut_low);
+	__write_register(device, CVP_NOC_CDM_SAFELUT_LOW,
 				pdata->noc_qos->safelut_low);
 }
 
