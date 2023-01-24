@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_GEN7_HFI_H
 #define __ADRENO_GEN7_HFI_H
@@ -28,6 +28,11 @@ struct gen7_hfi {
 	struct hfi_dcvstable_cmd dcvs_table;
 	/** @cmdq_lock: Spinlock for accessing the cmdq */
 	spinlock_t cmdq_lock;
+	/**
+	 * @wb_set_record_bitmask: Bitmask to enable or disable the recording
+	 * of messages in the GMU scratch.
+	 */
+	unsigned long wb_set_record_bitmask[BITS_TO_LONGS(HFI_MAX_ID)];
 };
 
 struct gen7_gmu_device;
@@ -159,6 +164,18 @@ int gen7_hfi_send_acd_feature_ctrl(struct adreno_device *adreno_dev);
  * Return: 0 on success or negative error on failure
  */
 int gen7_hfi_send_generic_req(struct adreno_device *adreno_dev, void *cmd, u32 size_bytes);
+
+/**
+ * gen7_hfi_send_generic_req_v5 - Send a generic hfi packet with additional error handling
+ * @adreno_dev: Pointer to the adreno device
+ * @cmd: Pointer to the hfi packet header and data
+ * @ret_cmd: Ack for the command we just sent
+ * @size_bytes: Size of the packet in bytes
+ *
+ * Return: 0 on success or negative error on failure
+ */
+int gen7_hfi_send_generic_req_v5(struct adreno_device *adreno_dev, void *cmd,
+		struct pending_cmd *ret_cmd, u32 size_bytes);
 
 /**
  * gen7_hfi_send_bcl_feature_ctrl - Send the bcl feature hfi packet

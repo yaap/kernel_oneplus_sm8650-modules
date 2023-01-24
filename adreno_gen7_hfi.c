@@ -152,8 +152,17 @@ int gen7_hfi_cmdq_write(struct adreno_device *adreno_dev, u32 *msg, u32 size_byt
 
 	spin_lock(&hfi->cmdq_lock);
 
+	if (test_bit(MSG_HDR_GET_ID(msg[0]), hfi->wb_set_record_bitmask))
+		*msg = RECORD_MSG_HDR(*msg);
+
 	ret = gen7_hfi_queue_write(adreno_dev, HFI_CMD_ID, msg, size_bytes);
 
+	/*
+	 * Some messages like ACD table and perf table are saved in memory, so we need
+	 * to reset the header to make sure we do not send a record enabled bit incase
+	 * we change the warmboot setting from debugfs
+	 */
+	*msg = CLEAR_RECORD_MSG_HDR(*msg);
 	/*
 	 * Memory barrier to make sure packet and write index are written before
 	 * an interrupt is raised
@@ -388,32 +397,35 @@ static const char *feature_to_string(u32 feature)
 }
 
 /* For sending hfi message inline to handle GMU return type error */
-static int gen7_hfi_send_generic_req_v5(struct adreno_device *adreno_dev, void *cmd, u32 size_bytes)
+int gen7_hfi_send_generic_req_v5(struct adreno_device *adreno_dev, void *cmd,
+		struct pending_cmd *ret_cmd, u32 size_bytes)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
-	struct pending_cmd ret_cmd = {0};
 	int rc;
 
 	if (GMU_VER_MINOR(gmu->ver.hfi) <= 4)
 		return gen7_hfi_send_generic_req(adreno_dev, cmd, size_bytes);
 
-	rc = gen7_hfi_send_cmd_wait_inline(adreno_dev, cmd, size_bytes, &ret_cmd);
+	rc = gen7_hfi_send_cmd_wait_inline(adreno_dev, cmd, size_bytes, ret_cmd);
 	if (rc)
 		return rc;
 
-	switch (ret_cmd.results[3]) {
+	switch (ret_cmd->results[3]) {
 	case GMU_SUCCESS:
-		rc = ret_cmd.results[2];
+		rc = ret_cmd->results[2];
 		break;
 	case GMU_ERROR_NO_ENTRY:
 		/* Unique error to handle undefined HFI msgs by caller */
 		rc = -ENOENT;
 		break;
+	case GMU_ERROR_TIMEOUT:
+		rc = -EINVAL;
+		break;
 	default:
 		gmu_core_fault_snapshot(KGSL_DEVICE(adreno_dev));
 		dev_err(&gmu->pdev->dev,
 			"HFI ACK: Req=0x%8.8X, Result=0x%8.8X Error:0x%8.8X\n",
-			ret_cmd.results[1], ret_cmd.results[2], ret_cmd.results[3]);
+			ret_cmd->results[1], ret_cmd->results[2], ret_cmd->results[3]);
 		rc = -EINVAL;
 		break;
 	}
@@ -425,6 +437,7 @@ int gen7_hfi_send_feature_ctrl(struct adreno_device *adreno_dev,
 	u32 feature, u32 enable, u32 data)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct pending_cmd ret_cmd = {0};
 	struct hfi_feature_ctrl_cmd cmd = {
 		.feature = feature,
 		.enable = enable,
@@ -436,7 +449,7 @@ int gen7_hfi_send_feature_ctrl(struct adreno_device *adreno_dev,
 	if (ret)
 		return ret;
 
-	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, sizeof(cmd));
+	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, &ret_cmd, sizeof(cmd));
 	if (ret < 0)
 		dev_err(&gmu->pdev->dev,
 				"Unable to %s feature %s (%d)\n",
@@ -449,6 +462,7 @@ int gen7_hfi_send_feature_ctrl(struct adreno_device *adreno_dev,
 int gen7_hfi_send_get_value(struct adreno_device *adreno_dev, u32 type, u32 subtype)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct pending_cmd ret_cmd = {0};
 	struct hfi_get_value_cmd cmd = {
 		.type = type,
 		.subtype = subtype,
@@ -459,7 +473,7 @@ int gen7_hfi_send_get_value(struct adreno_device *adreno_dev, u32 type, u32 subt
 	if (ret)
 		return ret;
 
-	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, sizeof(cmd));
+	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, &ret_cmd, sizeof(cmd));
 	if (ret < 0)
 		dev_err(&gmu->pdev->dev,
 			"Unable to get HFI Value type: %d, subtype: %d, error = %d\n",
@@ -472,6 +486,7 @@ int gen7_hfi_send_set_value(struct adreno_device *adreno_dev,
 		u32 type, u32 subtype, u32 data)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct pending_cmd ret_cmd = {0};
 	struct hfi_set_value_cmd cmd = {
 		.type = type,
 		.subtype = subtype,
@@ -483,7 +498,7 @@ int gen7_hfi_send_set_value(struct adreno_device *adreno_dev,
 	if (ret)
 		return ret;
 
-	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, sizeof(cmd));
+	ret = gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, &ret_cmd, sizeof(cmd));
 	if (ret < 0)
 		dev_err(&gmu->pdev->dev,
 			"Unable to set HFI Value %d, %d to %d, error = %d\n",
