@@ -24,6 +24,9 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	enum hw_fence_client_id client_id;
 	int ret;
 
+	if (!hw_fence_driver_enable)
+		return ERR_PTR(-ENODEV);
+
 	HWFNC_DBG_H("++ client_id_ext:%d\n", client_id_ext);
 
 	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
