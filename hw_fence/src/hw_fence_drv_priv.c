@@ -1430,6 +1430,49 @@ static void _signal_all_wait_clients(struct hw_fence_driver_data *drv_data,
 	}
 }
 
+void hw_fence_utils_reset_queues(struct hw_fence_driver_data *drv_data,
+	struct msm_hw_fence_client *hw_fence_client)
+{
+	struct msm_hw_fence_hfi_queue_header *hfi_header;
+	struct msm_hw_fence_queue *queue;
+	u32 rd_idx, wr_idx, lock_idx;
+
+	queue = &hw_fence_client->queues[HW_FENCE_TX_QUEUE - 1];
+	hfi_header = queue->va_header;
+
+	/* For the client TxQ: set the read-index same as last write that was done by the client */
+	mb(); /* make sure data is ready before read */
+	wr_idx = readl_relaxed(&hfi_header->write_index);
+	writel_relaxed(wr_idx, &hfi_header->read_index);
+	wmb(); /* make sure data is updated after write the index*/
+
+	/* For the client RxQ: set the write-index same as last read done by the client */
+	if (hw_fence_client->update_rxq) {
+		lock_idx = hw_fence_client->client_id - 1;
+
+		if (lock_idx >= drv_data->client_lock_tbl_cnt) {
+			HWFNC_ERR("cannot reset rxq, lock for client id:%d exceed max:%d\n",
+				hw_fence_client->client_id, drv_data->client_lock_tbl_cnt);
+			return;
+		}
+		HWFNC_DBG_Q("Locking client id:%d: idx:%d\n", hw_fence_client->client_id, lock_idx);
+
+		/* lock the client rx queue to update */
+		GLOBAL_ATOMIC_STORE(drv_data, &drv_data->client_lock_tbl[lock_idx], 1);
+
+		queue = &hw_fence_client->queues[HW_FENCE_RX_QUEUE - 1];
+		hfi_header = queue->va_header;
+
+		mb(); /* make sure data is ready before read */
+		rd_idx = readl_relaxed(&hfi_header->read_index);
+		writel_relaxed(rd_idx, &hfi_header->write_index);
+		wmb(); /* make sure data is updated after write the index */
+
+		/* unlock */
+		GLOBAL_ATOMIC_STORE(drv_data, &drv_data->client_lock_tbl[lock_idx], 0);
+	}
+}
+
 int hw_fence_utils_cleanup_fence(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client, struct msm_hw_fence *hw_fence, u64 hash,
 	u32 reset_flags)

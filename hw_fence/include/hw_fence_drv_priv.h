@@ -473,6 +473,8 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 int hw_fence_init_controller_resources(struct msm_hw_fence_client *hw_fence_client);
 void hw_fence_cleanup_client(struct hw_fence_driver_data *drv_data,
 	 struct msm_hw_fence_client *hw_fence_client);
+void hw_fence_utils_reset_queues(struct hw_fence_driver_data *drv_data,
+	struct msm_hw_fence_client *hw_fence_client);
 int hw_fence_create(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client,
 	u64 context, u64 seqno, u64 *hash);
