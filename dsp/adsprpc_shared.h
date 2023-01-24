@@ -903,7 +903,7 @@ struct fastrpc_channel_ctx {
 	int in_hib;
 	void *handle;
 	uint64_t prevssrcount;
-	int issubsystemup;
+	int subsystemstate;
 	int vmid;
 	struct secure_vm rhvm;
 	void *rh_dump_dev;
