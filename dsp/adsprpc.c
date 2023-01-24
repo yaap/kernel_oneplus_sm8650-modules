@@ -40,7 +40,6 @@
 #include <linux/msm_dma_iommu_mapping.h>
 #include "adsprpc_compat.h"
 #include "adsprpc_shared.h"
-#include "fastrpc.h"
 #include <soc/qcom/qcom_ramdump.h>
 #include <soc/qcom/minidump.h>
 #include <linux/delay.h>
@@ -63,6 +62,12 @@
 
 #define CREATE_TRACE_POINTS
 #include "fastrpc_trace.h"
+
+#ifdef CONFIG_MSM_ADSPRPC_TRUSTED
+#include "../include/linux/fastrpc.h"
+#else
+#include "fastrpc.h"
+#endif
 
 #define TZ_PIL_PROTECT_MEM_SUBSYS_ID 0x0C
 #define TZ_PIL_CLEAR_PROTECT_MEM_SUBSYS_ID 0x0D
