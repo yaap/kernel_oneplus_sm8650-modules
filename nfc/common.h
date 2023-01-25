@@ -79,13 +79,14 @@
 #define MAX_DL_BUFFER_SIZE		(DL_HDR_LEN + DL_CRC_LEN + \
 					MAX_DL_PAYLOAD_LEN)
 
+
 /* Retry count for normal write */
 #define NO_RETRY			(1)
 /* Maximum retry count for standby writes */
 #define MAX_RETRY_COUNT			(3)
 #define MAX_WRITE_IRQ_COUNT		(5)
 #define MAX_IRQ_WAIT_TIME		(90)
-#define WAKEUP_SRC_TIMEOUT		(2000)
+#define WAKEUP_SRC_TIMEOUT		(100)
 
 /* command response timeout */
 #define NCI_CMD_RSP_TIMEOUT_MS		(2000)
@@ -104,6 +105,7 @@
 #define ESE_SET_PWR                   _IOW(NFC_MAGIC, 0x02, uint32_t)
 #define ESE_GET_PWR                   _IOR(NFC_MAGIC, 0x03, uint32_t)
 #define NFC_SET_RESET_READ_PENDING    _IOW(NFC_MAGIC, 0x04, uint32_t)
+#define NFC_GET_GPIO_STATUS	      _IOR(NFC_MAGIC, 0x05, uint32_t)
 #define NFC_SECURE_ZONE               _IOW(NFC_MAGIC, 0x0A, uint32_t)
 
 #define DTS_IRQ_GPIO_STR	"qcom,sn-irq"
@@ -120,6 +122,11 @@
 #define NFC_VDDIO_MIN		1650000 //in uV
 #define NFC_VDDIO_MAX		1950000 //in uV
 #define NFC_CURRENT_MAX		157000 //in uA
+
+/* Each GPIO occupies consecutive two bits */
+#define GPIO_POS_SHIFT_VAL 2
+/* Two bits to indicate GPIO status (Invalid(-2), Set(1) or Reset(0)) */
+#define GPIO_STATUS_MASK_BITS 3
 
 //NFC ID for registration with secure libraries
 #define HW_STATE_UID		0x108
@@ -178,8 +185,8 @@ enum nfcc_ioctl_request {
 };
 
 enum nfc_read_pending {
-       NFC_RESET_READ_PENDING,
-       NFC_SET_READ_PENDING,
+	NFC_RESET_READ_PENDING,
+	NFC_SET_READ_PENDING,
 };
 
 /* nfc platform interface type */
@@ -295,7 +302,7 @@ int nfc_dev_open(struct inode *inode, struct file *filp);
 int nfc_dev_flush(struct file *pfile, fl_owner_t id);
 int nfc_dev_close(struct inode *inode, struct file *filp);
 long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
-		      unsigned long arg);
+			  unsigned long arg);
 long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg);
 int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		 uint8_t interface);
