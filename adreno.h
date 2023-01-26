@@ -692,7 +692,12 @@ struct adreno_device {
 	struct dentry *preemption_debugfs_dir;
 	/* @hwsched_enabled: If true, hwsched is enabled */
 	bool hwsched_enabled;
-
+	/* @fastblend_enabled: True if fastblend feature is enabled */
+	bool fastblend_enabled;
+	/* @raytracing_enabled: True if raytracing feature is enabled */
+	bool raytracing_enabled;
+	/* @feature_fuse: feature fuse value read from HW */
+	u32 feature_fuse;
 };
 
 /**
@@ -924,6 +929,14 @@ struct adreno_gpudev {
 	 * @swfuse_irqctrl: To enable/disable sw fuse violation interrupt
 	 */
 	void (*swfuse_irqctrl)(struct adreno_device *adreno_dev, bool state);
+	/**
+	 * @lpac_store: To enable/disable lpac at runtime
+	 */
+	int (*lpac_store)(struct adreno_device *adreno_dev, bool enable);
+	/*
+	 * @get_uche_trap_base: Return the UCHE_TRAP_BASE value
+	 */
+	u64 (*get_uche_trap_base)(void);
 };
 
 /**

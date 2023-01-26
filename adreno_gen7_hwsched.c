@@ -368,6 +368,10 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 		set_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags);
 	}
 
+	ret = gen7_scm_gpu_init_cx_regs(adreno_dev);
+	if (ret)
+		goto clks_gdsc_off;
+
 	gen7_gmu_register_config(adreno_dev);
 
 	ret = gen7_gmu_version_info(adreno_dev);
@@ -784,6 +788,8 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	ret = gen7_hwsched_gpu_boot(adreno_dev);
 	if (ret)
 		return ret;
+
+	gen7_get_gpu_feature_info(adreno_dev);
 
 	adreno_get_bus_counters(adreno_dev);
 
