@@ -37,8 +37,7 @@ struct msm_vidc_mem_addr {
 	u32 align_device_addr;
 	u8 *align_virtual_addr;
 	u32 mem_size;
-	struct msm_vidc_map   map;
-	struct msm_vidc_alloc alloc;
+	struct msm_vidc_mem mem;
 };
 
 struct msm_vidc_iface_q_info {

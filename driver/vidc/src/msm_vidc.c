@@ -934,24 +934,15 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	INIT_LIST_HEAD(&inst->buffers.persist.list);
 	INIT_LIST_HEAD(&inst->buffers.vpss.list);
 	INIT_LIST_HEAD(&inst->buffers.partial_data.list);
-	INIT_LIST_HEAD(&inst->allocations.bin.list);
-	INIT_LIST_HEAD(&inst->allocations.arp.list);
-	INIT_LIST_HEAD(&inst->allocations.comv.list);
-	INIT_LIST_HEAD(&inst->allocations.non_comv.list);
-	INIT_LIST_HEAD(&inst->allocations.line.list);
-	INIT_LIST_HEAD(&inst->allocations.dpb.list);
-	INIT_LIST_HEAD(&inst->allocations.persist.list);
-	INIT_LIST_HEAD(&inst->allocations.vpss.list);
-	INIT_LIST_HEAD(&inst->allocations.partial_data.list);
-	INIT_LIST_HEAD(&inst->mappings.bin.list);
-	INIT_LIST_HEAD(&inst->mappings.arp.list);
-	INIT_LIST_HEAD(&inst->mappings.comv.list);
-	INIT_LIST_HEAD(&inst->mappings.non_comv.list);
-	INIT_LIST_HEAD(&inst->mappings.line.list);
-	INIT_LIST_HEAD(&inst->mappings.dpb.list);
-	INIT_LIST_HEAD(&inst->mappings.persist.list);
-	INIT_LIST_HEAD(&inst->mappings.vpss.list);
-	INIT_LIST_HEAD(&inst->mappings.partial_data.list);
+	INIT_LIST_HEAD(&inst->mem_info.bin.list);
+	INIT_LIST_HEAD(&inst->mem_info.arp.list);
+	INIT_LIST_HEAD(&inst->mem_info.comv.list);
+	INIT_LIST_HEAD(&inst->mem_info.non_comv.list);
+	INIT_LIST_HEAD(&inst->mem_info.line.list);
+	INIT_LIST_HEAD(&inst->mem_info.dpb.list);
+	INIT_LIST_HEAD(&inst->mem_info.persist.list);
+	INIT_LIST_HEAD(&inst->mem_info.vpss.list);
+	INIT_LIST_HEAD(&inst->mem_info.partial_data.list);
 	INIT_LIST_HEAD(&inst->children_list);
 	INIT_LIST_HEAD(&inst->firmware_list);
 	INIT_LIST_HEAD(&inst->enc_input_crs);
@@ -1001,6 +992,10 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 		i_vpr_e(inst, "%s: failed to get session id\n", __func__);
 		goto error;
 	}
+
+	/* reset clock residency stats */
+	msm_vidc_reset_residency_stats(core);
+
 	msm_vidc_scale_power(inst, true);
 
 	rc = msm_vidc_session_open(inst);
@@ -1040,6 +1035,7 @@ int msm_vidc_close(void *instance)
 	inst_lock(inst, __func__);
 	/* print final stats */
 	msm_vidc_print_stats(inst);
+	msm_vidc_print_residency_stats(core);
 	msm_vidc_session_close(inst);
 	msm_vidc_event_queue_deinit(inst);
 	msm_vidc_vb2_queue_deinit(inst);

@@ -39,28 +39,16 @@ struct msm_vidc_session_ops {
 	int (*extra_count)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
 };
 
-struct msm_vidc_allocations_info {
-	struct msm_vidc_allocations     bin;
-	struct msm_vidc_allocations     arp;
-	struct msm_vidc_allocations     comv;
-	struct msm_vidc_allocations     non_comv;
-	struct msm_vidc_allocations     line;
-	struct msm_vidc_allocations     dpb;
-	struct msm_vidc_allocations     persist;
-	struct msm_vidc_allocations     vpss;
-	struct msm_vidc_allocations     partial_data;
-};
-
-struct msm_vidc_mappings_info {
-	struct msm_vidc_mappings        bin;
-	struct msm_vidc_mappings        arp;
-	struct msm_vidc_mappings        comv;
-	struct msm_vidc_mappings        non_comv;
-	struct msm_vidc_mappings        line;
-	struct msm_vidc_mappings        dpb;
-	struct msm_vidc_mappings        persist;
-	struct msm_vidc_mappings        vpss;
-	struct msm_vidc_mappings        partial_data;
+struct msm_vidc_mem_list_info {
+	struct msm_vidc_mem_list        bin;
+	struct msm_vidc_mem_list        arp;
+	struct msm_vidc_mem_list        comv;
+	struct msm_vidc_mem_list        non_comv;
+	struct msm_vidc_mem_list        line;
+	struct msm_vidc_mem_list        dpb;
+	struct msm_vidc_mem_list        persist;
+	struct msm_vidc_mem_list        vpss;
+	struct msm_vidc_mem_list        partial_data;
 };
 
 struct msm_vidc_buffers_info {
@@ -136,8 +124,7 @@ struct msm_vidc_inst {
 	struct vidc_bus_vote_data          bus_data;
 	struct msm_memory_pool             pool[MSM_MEM_POOL_MAX];
 	struct msm_vidc_buffers_info       buffers;
-	struct msm_vidc_mappings_info      mappings;
-	struct msm_vidc_allocations_info   allocations;
+	struct msm_vidc_mem_list_info      mem_info;
 	struct msm_vidc_timestamps         timestamps;
 	struct msm_vidc_timestamps         ts_reorder; /* list of struct msm_vidc_timestamp */
 	bool                               subscribed_input_psc;

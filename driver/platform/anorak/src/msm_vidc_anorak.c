@@ -2314,9 +2314,9 @@ static const struct clk_table anorak_clk_table[] = {
 	{ "video_cc_mvs0_clk_src",  VIDEO_CC_MVS0_CLK_SRC,  1 },
 };
 
-/* name */
+/* name, exclusive_release */
 static const struct clk_rst_table anorak_clk_reset_table[] = {
-	{ "video_axi_reset" },
+	{ "video_axi_reset",        0  },
 };
 
 /* name, llcc_id */

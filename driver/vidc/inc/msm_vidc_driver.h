@@ -439,6 +439,8 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
+int msm_vidc_print_residency_stats(struct msm_vidc_core *core);
+int msm_vidc_reset_residency_stats(struct msm_vidc_core *core);
 int msm_vidc_core_deinit_locked(struct msm_vidc_core *core, bool force);
 int msm_vidc_inst_timeout(struct msm_vidc_inst *inst);
 int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst);
@@ -463,9 +465,7 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst);
 int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl);
 struct msm_vidc_buffers *msm_vidc_get_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type, const char *func);
-struct msm_vidc_mappings *msm_vidc_get_mappings(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type, const char *func);
-struct msm_vidc_allocations *msm_vidc_get_allocations(
+struct msm_vidc_mem_list *msm_vidc_get_mem_info(
 	struct msm_vidc_inst *inst, enum msm_vidc_buffer_type buffer_type,
 	const char *func);
 struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,

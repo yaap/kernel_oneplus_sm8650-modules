@@ -424,10 +424,8 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 		return;
 	}
 
-	call_mem_op(core, memory_unmap, core, &core->iface_q_table.map);
-	call_mem_op(core, memory_free, core, &core->iface_q_table.alloc);
-	call_mem_op(core, memory_unmap, core, &core->sfr.map);
-	call_mem_op(core, memory_free, core, &core->sfr.alloc);
+	call_mem_op(core, memory_unmap_free, core, &core->iface_q_table.mem);
+	call_mem_op(core, memory_unmap_free, core, &core->sfr.mem);
 
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		core->iface_queues[i].q_hdr = NULL;
@@ -487,8 +485,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	struct hfi_queue_table_header *q_tbl_hdr;
 	struct hfi_queue_header *q_hdr;
 	struct msm_vidc_iface_q_info *iface_q;
-	struct msm_vidc_alloc alloc;
-	struct msm_vidc_map map;
+	struct msm_vidc_mem mem;
 	int offset = 0;
 	u32 i;
 
@@ -500,39 +497,28 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 		return 0;
 	}
 
-	memset(&alloc, 0, sizeof(alloc));
-	alloc.type = MSM_VIDC_BUF_QUEUE;
-	alloc.region = MSM_VIDC_NON_SECURE;
-	alloc.size = TOTAL_QSIZE;
-	alloc.secure = false;
-	alloc.map_kernel = true;
-	rc = call_mem_op(core, memory_alloc, core, &alloc);
+	memset(&mem, 0, sizeof(mem));
+	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.region = MSM_VIDC_NON_SECURE;
+	mem.size = TOTAL_QSIZE;
+	mem.secure = false;
+	mem.map_kernel = true;
+	rc = call_mem_op(core, memory_alloc_map, core, &mem);
 	if (rc) {
-		d_vpr_e("%s: alloc failed\n", __func__);
+		d_vpr_e("%s: alloc and map failed\n", __func__);
 		goto fail_alloc_queue;
 	}
-	core->iface_q_table.align_virtual_addr = alloc.kvaddr;
-	core->iface_q_table.alloc = alloc;
-
-	memset(&map, 0, sizeof(map));
-	map.type = alloc.type;
-	map.region = alloc.region;
-	map.dmabuf = alloc.dmabuf;
-	rc = call_mem_op(core, memory_map, core, &map);
-	if (rc) {
-		d_vpr_e("%s: alloc failed\n", __func__);
-		goto fail_alloc_queue;
-	}
-	core->iface_q_table.align_device_addr = map.device_addr;
-	core->iface_q_table.map = map;
+	core->iface_q_table.align_virtual_addr = mem.kvaddr;
+	core->iface_q_table.align_device_addr = mem.device_addr;
+	core->iface_q_table.mem = mem;
 
 	core->iface_q_table.mem_size = VIDC_IFACEQ_TABLE_SIZE;
 	offset += core->iface_q_table.mem_size;
 
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		iface_q = &core->iface_queues[i];
-		iface_q->q_array.align_device_addr = map.device_addr + offset;
-		iface_q->q_array.align_virtual_addr = (void*)((char*)alloc.kvaddr + offset);
+		iface_q->q_array.align_device_addr = mem.device_addr + offset;
+		iface_q->q_array.align_virtual_addr = (void *)((char *)mem.kvaddr + offset);
 		iface_q->q_array.mem_size = VIDC_IFACEQ_QUEUE_SIZE;
 		offset += iface_q->q_array.mem_size;
 		iface_q->q_hdr = VIDC_IFACEQ_GET_QHDR_START_ADDR(
@@ -572,31 +558,20 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	q_hdr->qhdr_rx_req = 0;
 
 	/* sfr buffer */
-	memset(&alloc, 0, sizeof(alloc));
-	alloc.type = MSM_VIDC_BUF_QUEUE;
-	alloc.region = MSM_VIDC_NON_SECURE;
-	alloc.size = ALIGNED_SFR_SIZE;
-	alloc.secure = false;
-	alloc.map_kernel = true;
-	rc = call_mem_op(core, memory_alloc, core, &alloc);
+	memset(&mem, 0, sizeof(mem));
+	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.region = MSM_VIDC_NON_SECURE;
+	mem.size = ALIGNED_SFR_SIZE;
+	mem.secure = false;
+	mem.map_kernel = true;
+	rc = call_mem_op(core, memory_alloc_map, core, &mem);
 	if (rc) {
-		d_vpr_e("%s: sfr alloc failed\n", __func__);
+		d_vpr_e("%s: sfr alloc and map failed\n", __func__);
 		goto fail_alloc_queue;
 	}
-	core->sfr.align_virtual_addr = alloc.kvaddr;
-	core->sfr.alloc = alloc;
-
-	memset(&map, 0, sizeof(map));
-	map.type = alloc.type;
-	map.region = alloc.region;
-	map.dmabuf = alloc.dmabuf;
-	rc = call_mem_op(core, memory_map, core, &map);
-	if (rc) {
-		d_vpr_e("%s: sfr map failed\n", __func__);
-		goto fail_alloc_queue;
-	}
-	core->sfr.align_device_addr = map.device_addr;
-	core->sfr.map = map;
+	core->sfr.align_virtual_addr = mem.kvaddr;
+	core->sfr.align_device_addr = mem.device_addr;
+	core->sfr.mem = mem;
 
 	core->sfr.mem_size = ALIGNED_SFR_SIZE;
 	/* write sfr buffer size in first word */
