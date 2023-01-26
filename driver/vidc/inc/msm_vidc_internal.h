@@ -98,6 +98,9 @@ enum msm_vidc_metadata_bits {
 #define MIN_QP_8BIT                           1
 #define INVALID_FD                           -1
 #define INVALID_CLIENT_ID                    -1
+#define MAX_ENCODING_REFERNCE_FRAMES          7
+#define MAX_LTR_FRAME_COUNT_5                 5
+#define MAX_LTR_FRAME_COUNT_2                 2
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3

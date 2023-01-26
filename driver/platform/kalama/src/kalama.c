@@ -12,7 +12,6 @@
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
-#define MAX_LTR_FRAME_COUNT     2
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_OP_POINT            31
 #define MAX_BITRATE             245000000
@@ -525,14 +524,14 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{LTR_COUNT, ENC, H264|HEVC,
-		0, 2, 1, 0,
+		0, MAX_LTR_FRAME_COUNT_2, 1, 0,
 		V4L2_CID_MPEG_VIDEO_LTR_COUNT,
 		HFI_PROP_LTR_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
 	{USE_LTR, ENC, H264|HEVC,
 		0,
-		((1 << MAX_LTR_FRAME_COUNT) - 1),
+		((1 << MAX_LTR_FRAME_COUNT_2) - 1),
 		0, 0,
 		V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES,
 		HFI_PROP_LTR_USE,
@@ -540,7 +539,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{MARK_LTR, ENC, H264|HEVC,
 		INVALID_DEFAULT_MARK_OR_USE_LTR,
-		(MAX_LTR_FRAME_COUNT - 1),
+		(MAX_LTR_FRAME_COUNT_2 - 1),
 		1, INVALID_DEFAULT_MARK_OR_USE_LTR,
 		V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX,
 		HFI_PROP_LTR_MARK,
@@ -1234,7 +1233,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 
 	{PIX_FMTS, ENC, HEVC,
 		{PROFILE, MIN_FRAME_QP, MAX_FRAME_QP, I_FRAME_QP, P_FRAME_QP,
-			B_FRAME_QP, MIN_QUALITY, BLUR_TYPES}},
+			B_FRAME_QP, MIN_QUALITY, BLUR_TYPES, LTR_COUNT}},
 
 	{PIX_FMTS, DEC, HEVC,
 		{PROFILE}},
@@ -1441,10 +1440,10 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		{CONTENT_ADAPTIVE_CODING}},
 
 	{LAYER_ENABLE, ENC, H264|HEVC,
-		{CONTENT_ADAPTIVE_CODING}},
+		{CONTENT_ADAPTIVE_CODING, LTR_COUNT}},
 
 	{ENH_LAYER_COUNT, ENC, H264|HEVC,
-		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY},
+		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY, LTR_COUNT},
 		msm_vidc_adjust_layer_count,
 		msm_vidc_set_layer_count_and_type},
 
