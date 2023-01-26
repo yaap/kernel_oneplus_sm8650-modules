@@ -206,7 +206,7 @@ static struct msm_cvp_common_data sm8650_common_data[] = {
 	},
 	{
 		.key = "qcom,sw-power-collapse",
-		.value = 0,	/* Disable during initial stage for Rumi 48 bringup */
+		.value = 1,
 	},
 	{
 		.key = "qcom,domain-attr-non-fatal-faults",

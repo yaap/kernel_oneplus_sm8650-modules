@@ -33,6 +33,9 @@
 #include "vm/cvp_vm.h"
 #include "cvp_dump.h"
 
+// ysi - added for debug
+#include <linux/clk/qcom.h>
+
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
 #define QDSS_IOVA_START 0x80001000
 #define MIN_PAYLOAD_SIZE 3
@@ -92,7 +95,6 @@ static int iris_hfi_noc_error_info(void *dev);
 static void interrupt_init_iris2(struct iris_hfi_device *device);
 static void setup_dsp_uc_memmap_vpu5(struct iris_hfi_device *device);
 static void clock_config_on_enable_vpu5(struct iris_hfi_device *device);
-static int reset_ahb2axi_bridge(struct iris_hfi_device *device);
 static void power_off_iris2(struct iris_hfi_device *device);
 
 static int __set_ubwc_config(struct iris_hfi_device *device);
@@ -103,13 +105,22 @@ static int __power_off_controller(struct iris_hfi_device *device);
 static int __hwfence_regs_map(struct iris_hfi_device *device);
 static int __hwfence_regs_unmap(struct iris_hfi_device *device);
 
+static int __reset_control_assert_name(struct iris_hfi_device *device, const char *name);
+static int __reset_control_deassert_name(struct iris_hfi_device *device, const char *name);
+static int __reset_control_acquire(struct iris_hfi_device *device, const char *name);
+static int __reset_control_release(struct iris_hfi_device *device, const char *name);
+
+
 static struct iris_hfi_vpu_ops iris2_ops = {
 	.interrupt_init = interrupt_init_iris2,
 	.setup_dsp_uc_memmap = setup_dsp_uc_memmap_vpu5,
 	.clock_config_on_enable = clock_config_on_enable_vpu5,
-	.reset_ahb2axi_bridge = reset_ahb2axi_bridge,
 	.power_off = power_off_iris2,
 	.noc_error_info = __noc_error_info_iris2,
+	.reset_control_assert_name = __reset_control_assert_name,
+	.reset_control_deassert_name = __reset_control_deassert_name,
+	.reset_control_acquire_name = __reset_control_acquire,
+	.reset_control_release_name = __reset_control_release,
 };
 
 /**
@@ -1001,7 +1012,7 @@ static inline void check_tensilica_in_reset(struct iris_hfi_device *device)
 static inline int __boot_firmware(struct iris_hfi_device *device)
 {
 	int rc = 0, loop = 10;
-	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 1000;
+	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 500;
 	u32 reg_gdsc;
 
 	/*
@@ -1012,6 +1023,9 @@ static inline int __boot_firmware(struct iris_hfi_device *device)
 	 */
 	if (__enable_hw_power_collapse(device))
 		dprintk(CVP_ERR, "Failed to enabled inter-frame PC\n");
+
+	if (!msm_cvp_fw_low_power_mode)
+		goto skip_core_power_check;
 
 	while (loop) {
 		reg_gdsc = __read_register(device, CVP_CC_MVS1_GDSCR);
@@ -1026,6 +1040,7 @@ static inline int __boot_firmware(struct iris_hfi_device *device)
 	if (!loop)
 		dprintk(CVP_ERR, "fail to power off CORE during resume\n");
 
+skip_core_power_check:
 	ctrl_init_val = BIT(0);
 	__write_register(device, CVP_CTRL_INIT, ctrl_init_val);
 	while (!ctrl_status && count < max_tries) {
@@ -1037,7 +1052,7 @@ static inline int __boot_firmware(struct iris_hfi_device *device)
 		}
 
 		/* Reduce to 500, 1000 on silicon */
-		usleep_range(50000, 100000);
+		usleep_range(500, 1000);
 		count++;
 	}
 
@@ -1913,27 +1928,44 @@ static int __hwfence_regs_map(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	rc = iommu_map(cb->domain, device->res->ipclite_iova,
+	if (device->res->ipclite_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->ipclite_iova,
 			device->res->ipclite_phyaddr,
 			device->res->ipclite_size,
 			IOMMU_READ | IOMMU_WRITE);
-	if (rc) {
-		dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
-			rc, device->res->ipclite_iova,
-			device->res->ipclite_phyaddr,
-			device->res->ipclite_size);
-		return rc;
+		if (rc) {
+			dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
+				rc, device->res->ipclite_iova,
+				device->res->ipclite_phyaddr,
+				device->res->ipclite_size);
+			return rc;
+		}
 	}
-	rc = iommu_map(cb->domain, device->res->hwmutex_iova,
+	if (device->res->hwmutex_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->hwmutex_iova,
 			device->res->hwmutex_phyaddr,
 			device->res->hwmutex_size,
 			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
-	if (rc) {
-		dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
-			rc, device->res->hwmutex_iova,
-			device->res->hwmutex_phyaddr,
-			device->res->hwmutex_size);
-		return rc;
+		if (rc) {
+			dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
+				rc, device->res->hwmutex_iova,
+				device->res->hwmutex_phyaddr,
+				device->res->hwmutex_size);
+			return rc;
+		}
+	}
+	if (device->res->aon_phyaddr != 0) {
+		rc = iommu_map(cb->domain, device->res->aon_iova,
+			device->res->aon_phyaddr,
+			device->res->aon_size,
+			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
+		if (rc) {
+			dprintk(CVP_ERR, "map aon fail %d %#x %#x %#x\n",
+				rc, device->res->aon_iova,
+				device->res->aon_phyaddr,
+				device->res->aon_size);
+			return rc;
+		}
 	}
 	return rc;
 }
@@ -1949,10 +1981,18 @@ static int __hwfence_regs_unmap(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	iommu_unmap(cb->domain, device->res->ipclite_iova,
+	if (device->res->ipclite_iova != 0) {
+		iommu_unmap(cb->domain, device->res->ipclite_iova,
 			device->res->ipclite_size);
-	iommu_unmap(cb->domain, device->res->hwmutex_iova,
+	}
+	if (device->res->hwmutex_iova != 0) {
+		iommu_unmap(cb->domain, device->res->hwmutex_iova,
 			device->res->hwmutex_size);
+	}
+	if (device->res->aon_iova != 0) {
+		iommu_unmap(cb->domain, device->res->aon_iova,
+			device->res->aon_size);
+	}
 	return rc;
 }
 
@@ -2120,6 +2160,9 @@ err_core_init:
 err_load_fw:
 err_no_mem:
 	dprintk(CVP_ERR, "Core init failed\n");
+	__release_subcaches(device);
+	__disable_subcaches(device);
+	__hwfence_regs_unmap(dev);
 	mutex_unlock(&dev->lock);
 	pm_relax(dev->res->pdev->dev.parent);
 	return rc;
@@ -3280,119 +3323,199 @@ irqreturn_t cvp_hfi_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-static int __handle_reset_clk(struct msm_cvp_platform_resources *res,
-			int reset_index, enum reset_state state,
-			enum power_state pwr_state)
+static int __init_reset_clk(struct msm_cvp_platform_resources *res,
+			int reset_index)
 {
 	int rc = 0;
 	struct reset_control *rst;
-	struct reset_info rst_info;
+	struct reset_info *rst_info;
 	struct reset_set *rst_set = &res->reset_set;
 
 	if (!rst_set->reset_tbl)
 		return 0;
 
-	rst_info = rst_set->reset_tbl[reset_index];
-	rst = rst_info.rst;
-	dprintk(CVP_PWR, "reset_clk: name %s reset_state %d rst %pK ps=%d\n",
-		rst_set->reset_tbl[reset_index].name, state, rst, pwr_state);
+	rst_info = &rst_set->reset_tbl[reset_index];
+	rst = rst_info->rst;
+	dprintk(CVP_PWR, "reset_clk: name %s rst %pK required_stage=%d\n",
+		rst_set->reset_tbl[reset_index].name, rst, rst_info->required_stage);
 
-	switch (state) {
-	case INIT:
-		if (rst)
-			goto skip_reset_init;
+	if (rst)
+		goto skip_reset_init;
 
+	if (rst_info->required_stage == CVP_ON_USE) {
+		rst = reset_control_get_exclusive_released(&res->pdev->dev,
+			rst_set->reset_tbl[reset_index].name);
+		if (IS_ERR(rst)) {
+			rc = PTR_ERR(rst);
+			dprintk(CVP_ERR, "reset get exclusive fail %d\n", rc);
+			return rc;
+		}
+		dprintk(CVP_PWR, "reset_clk: name %s get exclusive rst %llx\n",
+				rst_set->reset_tbl[reset_index].name, rst);
+	} else if (rst_info->required_stage == CVP_ON_INIT) {
 		rst = devm_reset_control_get(&res->pdev->dev,
 				rst_set->reset_tbl[reset_index].name);
-		if (IS_ERR(rst))
+		if (IS_ERR(rst)) {
 			rc = PTR_ERR(rst);
-
-		rst_set->reset_tbl[reset_index].rst = rst;
-		break;
-	case ASSERT:
-		if (!rst) {
-			rc = PTR_ERR(rst);
-			goto failed_to_reset;
+			dprintk(CVP_ERR, "reset get fail %d\n", rc);
+			return rc;
 		}
-
-		if (pwr_state != CVP_POWER_IGNORED &&
-			pwr_state != rst_info.required_state)
-			break;
-
-		rc = reset_control_assert(rst);
-		break;
-	case DEASSERT:
-		if (!rst) {
-			rc = PTR_ERR(rst);
-			goto failed_to_reset;
-		}
-
-		if (pwr_state != CVP_POWER_IGNORED &&
-			pwr_state != rst_info.required_state)
-			break;
-
-		rc = reset_control_deassert(rst);
-		break;
-	default:
-		dprintk(CVP_ERR, "Invalid reset request\n");
-		if (rc)
-			goto failed_to_reset;
+		dprintk(CVP_PWR, "reset_clk: name %s get rst %llx\n",
+				rst_set->reset_tbl[reset_index].name, rst);
+	} else {
+		dprintk(CVP_ERR, "Invalid reset stage\n");
+		return -EINVAL;
 	}
+
+	rst_set->reset_tbl[reset_index].rst = rst;
+	rst_info->state = RESET_INIT;
 
 	return 0;
 
 skip_reset_init:
-failed_to_reset:
 	return rc;
 }
 
-static int reset_ahb2axi_bridge(struct iris_hfi_device *device)
+static int __reset_control_assert_name(struct iris_hfi_device *device,
+	const char *name)
 {
-	int rc, i;
-	enum power_state s;
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
 
-	if (!device) {
-		dprintk(CVP_ERR, "NULL device\n");
+	iris_hfi_for_each_reset_clock(device, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+
+		found = true;
+		rc = reset_control_assert(rcinfo->rst);
+		if (rc)
+			dprintk(CVP_ERR,
+				"%s: failed to assert reset control (%s), rc = %d\n",
+				__func__, rcinfo->name, rc);
+		else
+			dprintk(CVP_PWR, "%s: assert reset control (%s)\n",
+				__func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		dprintk(CVP_PWR, "%s: reset control (%s) not found\n",
+			__func__, name);
 		rc = -EINVAL;
-		goto failed_to_reset;
 	}
 
-	if (device->power_enabled)
-		s = CVP_POWER_ON;
-	else
-		s = CVP_POWER_OFF;
-
-#ifdef CONFIG_EVA_WAIPIO
-	s = CVP_POWER_IGNORED;
-#endif
-
-	for (i = 0; i < device->res->reset_set.count; i++) {
-		rc = __handle_reset_clk(device->res, i, ASSERT, s);
-		if (rc) {
-			dprintk(CVP_ERR,
-				"failed to assert reset clocks\n");
-			goto failed_to_reset;
-		}
-	}
-
-	/* wait for deassert */
-	usleep_range(1000, 1050);
-
-	for (i = 0; i < device->res->reset_set.count; i++) {
-		rc = __handle_reset_clk(device->res, i, DEASSERT, s);
-		if (rc) {
-			dprintk(CVP_ERR,
-				"failed to deassert reset clocks\n");
-			goto failed_to_reset;
-		}
-	}
-
-	return 0;
-
-failed_to_reset:
 	return rc;
 }
 
+static int __reset_control_deassert_name(struct iris_hfi_device *device,
+	const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	iris_hfi_for_each_reset_clock(device, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+		found = true;
+		rc = reset_control_deassert(rcinfo->rst);
+		if (rc)
+			dprintk(CVP_ERR, 
+				"%s: deassert reset control for (%s) failed, rc %d\n",
+				__func__, rcinfo->name, rc);
+		else
+			dprintk(CVP_PWR, "%s: deassert reset control (%s)\n",
+				__func__, rcinfo->name);
+		break;
+	}
+	if (!found) {
+		dprintk(CVP_PWR, "%s: reset control (%s) not found\n",
+			__func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int __reset_control_acquire(struct iris_hfi_device *device,
+	const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+	int max_retries = 10;
+
+	iris_hfi_for_each_reset_clock(device, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+		found = true;
+		if (rcinfo->state == RESET_ACQUIRED)
+			return rc;
+acquire_again:
+		rc = reset_control_acquire(rcinfo->rst);
+		if (rc) {
+			if (rc == -EBUSY) {
+				usleep_range(500, 1000);
+				max_retries--;
+				if (max_retries) {
+					goto acquire_again;
+				} else {
+					dprintk(CVP_ERR,
+						"%s acquire %s -EBUSY\n",
+					        __func__, rcinfo->name);
+					rc = -EINVAL;
+				}
+			} else {
+				dprintk(CVP_ERR,
+					"%s: acquire failed (%s) rc %d\n",
+					__func__, rcinfo->name, rc);
+				rc = -EINVAL;
+			}
+		} else {
+			dprintk(CVP_PWR, "%s: reset acquire succeed (%s)\n",
+				__func__, rcinfo->name);
+			rcinfo->state = RESET_ACQUIRED;
+		}
+		break;
+	}
+	if (!found) {
+		dprintk(CVP_PWR, "%s: reset control (%s) not found\n",
+			__func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
+
+static int __reset_control_release(struct iris_hfi_device *device,
+	const char *name)
+{
+	struct reset_info *rcinfo = NULL;
+	int rc = 0;
+	bool found = false;
+
+	iris_hfi_for_each_reset_clock(device, rcinfo) {
+		if (strcmp(rcinfo->name, name))
+			continue;
+		found = true;
+		if (rcinfo->state != RESET_ACQUIRED) {
+			dprintk(CVP_WARN, "Double releasing reset clk?\n");
+			return -EINVAL;
+		}
+		reset_control_release(rcinfo->rst);
+		dprintk(CVP_PWR, "%s: reset release succeed (%s)\n",
+			__func__, rcinfo->name);
+		rcinfo->state = RESET_RELEASED;
+		break;
+	}
+	if (!found) {
+		dprintk(CVP_PWR, "%s: reset control (%s) not found\n",
+			__func__, name);
+		rc = -EINVAL;
+	}
+
+	return rc;
+}
 static void __deinit_bus(struct iris_hfi_device *device)
 {
 	struct bus_info *bus = NULL;
@@ -3568,7 +3691,7 @@ static int __init_resources(struct iris_hfi_device *device,
 	}
 
 	for (i = 0; i < device->res->reset_set.count; i++) {
-		rc = __handle_reset_clk(res, i, INIT, 0);
+		rc = __init_reset_clk(res, i);
 		if (rc) {
 			dprintk(CVP_ERR, "Failed to init reset clocks\n");
 			rc = -ENODEV;
@@ -3947,17 +4070,36 @@ static int __power_on_controller(struct iris_hfi_device *device)
 {
 	int rc = 0;
 
+	struct clock_info *cl = NULL;
+
 	rc = __enable_regulator(device, "cvp");
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to enable ctrler: %d\n", rc);
 		return rc;
 	}
 
-	rc = call_iris_op(device, reset_ahb2axi_bridge, device);
+	rc = msm_cvp_prepare_enable_clk(device, "sleep_clk");
 	if (rc) {
-		dprintk(CVP_ERR, "Failed to reset ahb2axi: %d\n", rc);
+		dprintk(CVP_ERR, "Failed to enable sleep clk: %d\n", rc);
 		goto fail_reset_clks;
 	}
+
+	rc = call_iris_op(device, reset_control_assert_name, device, "cvp_axi_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: assert cvp_axi_reset failed\n", __func__);
+
+	rc = call_iris_op(device, reset_control_assert_name, device, "cvp_core_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: assert cvp_core_reset failed\n", __func__);
+	/* wait for deassert */
+	usleep_range(1000, 1050);
+
+	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_axi_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: de-assert cvp_axi_reset failed\n", __func__);
+	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_core_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: de-assert cvp_core_reset failed\n", __func__);
 
 	rc = msm_cvp_prepare_enable_clk(device, "gcc_video_axi1");
 	if (rc) {
@@ -3969,6 +4111,14 @@ static int __power_on_controller(struct iris_hfi_device *device)
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to enable cvp_clk: %d\n", rc);
 		goto fail_enable_clk;
+	}
+
+	iris_hfi_for_each_clock(device, cl) {
+		if (strcmp(cl->name, "cvp_clk")) {
+			qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_PERIPH);
+			qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_MEM);
+			break;
+		}
 	}
 
 	dprintk(CVP_PWR, "EVA controller powered on\n");
@@ -4006,14 +4156,14 @@ static int __power_on_core(struct iris_hfi_device *device)
 		return rc;
 	}
 
-#ifdef CONFIG_EVA_PINEAPPLE
+/*#ifdef CONFIG_EVA_PINEAPPLE
 	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_ARCG_CONTROL, 0);
 	__write_register(device, CVP_NOC_RCGCONTROLLER_HYSTERESIS_LOW, 0x2f);
 	__write_register(device, CVP_NOC_RCG_VNOC_NOC_CLK_FORCECLOCKON_LOW, 1);
 	__write_register(device, CVP_NOC_RCGCONTROLLER_MAINCTL_LOW, 1);
 	usleep_range(50, 100);
 	__write_register(device, CVP_NOC_RCG_VNOC_NOC_CLK_FORCECLOCKON_LOW, 0);
-#endif
+#endif*/
 	dprintk(CVP_PWR, "EVA core powered on\n");
 	return 0;
 }
@@ -4163,6 +4313,8 @@ static int __power_off_controller(struct iris_hfi_device *device)
 	u32 sbm_ln0_low;
 	int rc;
 
+	u32 spare_val, spare_status;
+
 	/* HPG 6.2.2 Step 1  */
 	__write_register(device, CVP_CPU_CS_X2RPMh, 0x3);
 
@@ -4247,26 +4399,91 @@ static int __power_off_controller(struct iris_hfi_device *device)
 			"DBLP Release: lpi_status %x\n", lpi_status);
 	}
 
-	/* PDXFIFO reset: addition for Kailua */
-#ifdef CONFIG_EVA_KALAMA
+	/* PDXFIFO reset: addition for Kailua / Lanai */
+
 	__write_register(device, CVP_WRAPPER_AXI_CLOCK_CONFIG, 0x3);
 	__write_register(device, CVP_WRAPPER_QNS4PDXFIFO_RESET, 0x1);
 	__write_register(device, CVP_WRAPPER_QNS4PDXFIFO_RESET, 0x0);
 	__write_register(device, CVP_WRAPPER_AXI_CLOCK_CONFIG, 0x0);
-#endif
+
 	/* HPG 6.2.2 Step 5 */
 	msm_cvp_disable_unprepare_clk(device, "cvp_clk");
 
-	/* HPG 6.2.2 Step 7 */
-	msm_cvp_disable_unprepare_clk(device, "gcc_video_axi1");
-
-	/* Added to avoid pending transaction after power off */
-	rc = call_iris_op(device, reset_ahb2axi_bridge, device);
+	rc = call_iris_op(device, reset_control_assert_name, device, "cvp_axi_reset");
 	if (rc)
-		dprintk(CVP_ERR, "Off: Failed to reset ahb2axi: %d\n", rc);
+		dprintk(CVP_ERR, "%s: assert cvp_axi_reset failed\n", __func__);
+
+	rc = call_iris_op(device, reset_control_assert_name, device, "cvp_core_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: assert cvp_core_reset failed\n", __func__);
+	/* wait for deassert */
+	usleep_range(1000, 1050);
+
+	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_axi_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: de-assert cvp_axi_reset failed\n", __func__);
+
+	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_core_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: de-assert cvp_core_reset failed\n", __func__);
+
+	/* disable EVA NoC clock */
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_CORE_CLK_CONTROL, 0x1);
+
+	/* enable EVA NoC reset */
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_CORE_SW_RESET, 0x1);
+
+	rc = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+	if (rc) {
+		dprintk(CVP_ERR, "FATAL ERROR, HPG step 17 to 20 will be bypassed\n");
+		goto skip_xo_reset;
+	}
+	spare_status = 0x1;
+	while (spare_status != 0x0) {
+		spare_val = __read_register(device, CVP_AON_WRAPPER_SPARE);
+		spare_status = spare_val & 0x2;
+		usleep_range(50, 100);
+	}
+	__write_register(device, CVP_AON_WRAPPER_SPARE, 0x1);
+	rc = call_iris_op(device, reset_control_assert_name, device, "cvp_xo_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: assert cvp_xo_reset failed\n", __func__);
+
+	/* de-assert EVA_NoC reset */
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_CORE_SW_RESET, 0x0);
+
+	/* de-assert EVA video_cc XO reset and enable video_cc XO clock after 80us */
+	usleep_range(80, 100);
+	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_xo_reset");
+	if (rc)
+		dprintk(CVP_ERR, "%s: de-assert cvp_xo_reset failed\n", __func__);
+
+	/* clear XO mask bit - this step was missing in previous sequence */
+	__write_register(device, CVP_AON_WRAPPER_SPARE, 0x0);
+
+	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
+
+skip_xo_reset:
+	/* enable EVA NoC clock */
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_CORE_CLK_CONTROL, 0x0);
+
+	/* De-assert EVA_CTL Force Sleep Retention */
+
+	usleep_range(400, 500);
 
 	/* HPG 6.2.2 Step 6 */
 	__disable_regulator(device, "cvp");
+
+	/* HPG 6.2.2 Step 7 */
+	rc = msm_cvp_disable_unprepare_clk(device, "gcc_video_axi1");
+	if (rc) {
+		dprintk(CVP_ERR, "Failed to enable axi1 clk: %d\n", rc);
+	}
+
+	rc = msm_cvp_disable_unprepare_clk(device, "sleep_clk");
+	if (rc) {
+		dprintk(CVP_ERR, "Failed to disable sleep clk: %d\n", rc);
+	}
 
 	return 0;
 }
@@ -4389,6 +4606,8 @@ static int __power_off_core(struct iris_hfi_device *device)
 
 		__print_sidebandmanager_regs(device);
 	}
+
+	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_LPI_CONTROL, 0x0);
 #endif
 
 	if (warn_flag)
