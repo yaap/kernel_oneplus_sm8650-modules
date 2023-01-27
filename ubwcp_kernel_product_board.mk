@@ -1,2 +1,2 @@
-PRODUCT_PACKAGES += ubwcpx.ko
+PRODUCT_PACKAGES += ubwcp.ko
 
