@@ -4889,7 +4889,7 @@ static void _unregister_device(struct kgsl_device *device)
 	int minor;
 
 	if (device->gpu_sysfs_kobj.state_initialized)
-		kobject_del(&device->gpu_sysfs_kobj);
+		kobject_put(&device->gpu_sysfs_kobj);
 
 	mutex_lock(&kgsl_driver.devlock);
 	for (minor = 0; minor < ARRAY_SIZE(kgsl_driver.devp); minor++) {
@@ -5216,6 +5216,7 @@ int __init kgsl_core_init(void)
 	dev_set_name(&kgsl_driver.virtdev, "kgsl");
 	result = device_register(&kgsl_driver.virtdev);
 	if (result) {
+		put_device(&kgsl_driver.virtdev);
 		pr_err("kgsl: driver_register failed\n");
 		goto err;
 	}

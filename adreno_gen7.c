@@ -1803,7 +1803,11 @@ static int gen7_lpac_store(struct adreno_device *adreno_dev, bool enable)
 
 static void gen7_remove(struct adreno_device *adreno_dev)
 {
-	if (adreno_preemption_feature_set(adreno_dev))
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+
+	/* Make sure timer is initialized, otherwise WARN_ON is generated */
+	if (adreno_preemption_feature_set(adreno_dev) &&
+	    (test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags)))
 		del_timer(&adreno_dev->preempt.timer);
 }
 
