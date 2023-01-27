@@ -30,7 +30,8 @@ void btfmcodec_initiate_hwep_shutdown(struct btfmcodec_char_device *btfmcodec_de
 		if (*status == BTM_RSP_RECV) {
 			BTFMCODEC_ERR("sucessfully closed hwep");
 			return;
-		} else if (*status == BTM_FAIL_RESP_RECV) {
+		} else if (*status == BTM_FAIL_RESP_RECV ||
+			   *status == BTM_RSP_NOT_RECV_CLIENT_KILLED) {
 			BTFMCODEC_ERR("Failed to close hwep");
 			return;
 		}
@@ -136,6 +137,9 @@ int btfmcodec_wait_for_bearer_ind(struct btfmcodec_char_device *btfmcodec_dev)
 		} else if (*status == BTM_FAIL_RESP_RECV) {
 			BTFMCODEC_ERR("Rx BTM_BEARER_SWITCH_IND with failure status");
 			ret = -1;
+		} else if (*status == BTM_RSP_NOT_RECV_CLIENT_KILLED) {
+			BTFMCODEC_ERR("client killed so moving further");
+			ret = -1;
 		}
 	}
 
@@ -162,7 +166,8 @@ int btfmcodec_initiate_hwep_configuration(struct btfmcodec_char_device *btfmcode
 	} else {
 		if (*status == BTM_RSP_RECV) {
 			ret = 0;
-		} else if (*status == BTM_FAIL_RESP_RECV) {
+		} else if (*status == BTM_FAIL_RESP_RECV ||
+			   *status == BTM_RSP_NOT_RECV_CLIENT_KILLED) {
 			BTFMCODEC_ERR("Failed to close hwep moving back to previous state");
 			ret = -1;
 		}
