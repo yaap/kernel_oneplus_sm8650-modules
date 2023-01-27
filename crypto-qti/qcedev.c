@@ -315,8 +315,9 @@ static void req_done(unsigned long data)
 	areq = podev->active_command;
 	podev->active_command = NULL;
 
-	if (areq && !areq->timed_out) {
-		complete(&areq->complete);
+	if (areq) {
+		if (!areq->timed_out)
+			complete(&areq->complete);
 		areq->state = QCEDEV_REQ_DONE;
 	}
 
@@ -812,7 +813,7 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			pr_err("%s: error during manage timeout", __func__);
 
 		spin_unlock_irqrestore(&podev->lock, flags);
-		tasklet_schedule(&podev->done_tasklet);
+		req_done((unsigned long) podev);
 		if (qcedev_areq->offload_cipher_op_req.err !=
 						QCEDEV_OFFLOAD_NO_ERROR)
 			return 0;
