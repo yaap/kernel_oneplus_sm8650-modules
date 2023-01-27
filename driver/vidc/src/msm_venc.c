@@ -709,6 +709,12 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	if (port == INPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_inp_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -716,6 +722,12 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	} else if (port == OUTPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_out_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -757,6 +769,12 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	if (port == INPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_inp_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -764,6 +782,12 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	} else if (port == OUTPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_out_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
