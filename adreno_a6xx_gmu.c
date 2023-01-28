@@ -90,6 +90,26 @@ static struct gmu_vma_entry a6xx_gmu_vma[] = {
 		},
 };
 
+static void _regwrite(void __iomem *regbase, u32 offsetwords, u32 value)
+{
+	void __iomem *reg;
+
+	reg = regbase + (offsetwords << 2);
+	__raw_writel(value, reg);
+}
+
+static void _regrmw(void __iomem *regbase, u32 offsetwords, u32 mask, u32 or)
+{
+	void __iomem *reg;
+	u32 val;
+
+	reg = regbase + (offsetwords << 2);
+	val = __raw_readl(reg);
+	/* Make sure the read posted and all pending writes are done */
+	mb();
+	__raw_writel((val & ~mask) | or, reg);
+}
+
 static ssize_t log_stream_enable_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
@@ -276,15 +296,6 @@ struct adreno_device *a6xx_gmu_to_adreno(struct a6xx_gmu_device *gmu)
 #define RSC_CMD_OFFSET 2
 #define PDC_CMD_OFFSET 4
 #define PDC_ENABLE_REG_VALUE 0x80000001
-
-static void _regwrite(void __iomem *regbase,
-		unsigned int offsetwords, unsigned int value)
-{
-	void __iomem *reg;
-
-	reg = regbase + (offsetwords << 2);
-	__raw_writel(value, reg);
-}
 
 void a6xx_load_rsc_ucode(struct adreno_device *adreno_dev)
 {
@@ -3160,17 +3171,32 @@ void a6xx_disable_gpu_irq(struct adreno_device *adreno_dev)
 
 }
 
-void a6xx_fusa_init(struct adreno_device *adreno_dev)
+static void a6xx_fusa_init(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	void __iomem *fusa_virt = NULL;
+	struct resource *res;
 
-	if (adreno_is_a663(adreno_dev)) {
-		/* disable fusa mode in bu stage */
-		kgsl_regrmw(device, A6XX_GPU_FUSA_REG_ECC_CTRL,
-				A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
-		kgsl_regrmw(device, A6XX_GPU_FUSA_REG_CSR_PRIY,
-				A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
+	if (!adreno_is_a663(adreno_dev))
+		return;
+
+	res = platform_get_resource_byname(device->pdev,
+			IORESOURCE_MEM, "fusa");
+	if (res)
+		fusa_virt = ioremap(res->start, resource_size(res));
+
+	if (!fusa_virt) {
+		dev_err(device->dev, "Failed to map fusa\n");
+		return;
 	}
+
+	/* Disable fusa mode in boot stage */
+	_regrmw(fusa_virt, A6XX_GPU_FUSA_REG_ECC_CTRL - A6XX_GPU_FUSA_REG_BASE,
+			A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
+	_regrmw(fusa_virt, A6XX_GPU_FUSA_REG_CSR_PRIY - A6XX_GPU_FUSA_REG_BASE,
+			A6XX_GPU_FUSA_DISABLE_MASK, A6XX_GPU_FUSA_DISABLE_BITS);
+
+	iounmap(fusa_virt);
 }
 
 static int a6xx_gpu_boot(struct adreno_device *adreno_dev)
