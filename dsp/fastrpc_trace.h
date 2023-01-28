@@ -10,9 +10,16 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM fastrpc
 
-/* Path must be relative to location of 'define_trace.h' header in kernel */
+/*
+ * Path must be relative to location of 'define_trace.h' header in kernel
+ * Define path if not defined in bazel file
+ */
+#ifndef DSP_TRACE_INCLUDE_PATH
+#define DSP_TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/dsp-kernel/dsp
+#endif
+
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/dsp-kernel/dsp
+#define TRACE_INCLUDE_PATH DSP_TRACE_INCLUDE_PATH
 
 /* Name of trace header file */
 #undef TRACE_INCLUDE_FILE
