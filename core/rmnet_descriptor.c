@@ -1,5 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1913,6 +1913,7 @@ void rmnet_frag_ingress_handler(struct sk_buff *skb,
 	LIST_HEAD(desc_list);
 	bool skip_perf = (skb->priority == 0xda1a);
 	u64 chain_count = 0;
+	struct sk_buff *head = skb;
 
 	/* Deaggregation and freeing of HW originating
 	 * buffers is done within here
@@ -1935,8 +1936,14 @@ void rmnet_frag_ingress_handler(struct sk_buff *skb,
 			}
 		}
 
-		skb_frag = skb_shinfo(skb)->frag_list;
-		skb_shinfo(skb)->frag_list = NULL;
+		if (skb == head) {
+			skb_frag = skb_shinfo(skb)->frag_list;
+			skb_shinfo(skb)->frag_list = NULL;
+		} else {
+			skb_frag = skb->next;
+			skb->next = NULL;
+		}
+
 		consume_skb(skb);
 		skb = skb_frag;
 	}
