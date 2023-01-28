@@ -73,6 +73,11 @@
 #define SMCINVOKE_RESULT_INBOUND_REQ_NEEDED	3
 /* TZ defined values - End */
 
+/* Asynchronous protocol values */
+/* Driver async version is set to match the minimal TZ version that supports async memory object */
+#define SMCINVOKE_ASYNC_VERSION          (0x00010002)
+#define SMCINVOKE_ASYNC_OP_MEMORY_OBJECT (0x00000003)
+
 /*
  * This is the state when server FD has been closed but
  * TZ still has refs of CBOBjs served by this server
@@ -164,6 +169,7 @@ static DEFINE_MUTEX(g_smcinvoke_lock);
 enum worker_thread_type {
 	SHMB_WORKER_THREAD      = 0,
 	OBJECT_WORKER_THREAD,
+	ADCI_WORKER_THREAD,
 	MAX_THREAD_NUMBER
 };
 
@@ -194,6 +200,13 @@ static struct cdev smcinvoke_cdev;
 static struct class *driver_class;
 static struct device *class_dev;
 static struct platform_device *smcinvoke_pdev;
+
+/* We disable async memory object support by default,
+ * until we receive the first message from TZ over the
+ * async channel and can determine TZ async version.
+ */
+static bool mem_obj_async_support = false;
+static uint32_t tz_async_version = 0x0;
 
 struct smcinvoke_buf_hdr {
 	uint32_t offset;
@@ -231,6 +244,41 @@ struct smcinvoke_piggyback_msg {
 	uint32_t op;
 	uint32_t counts;
 	int32_t objs[0];
+};
+
+/* Mapped memory object data
+ *
+ * memObjRef		Handle reference for the memory object
+ * mapObjRef		Handle reference for the map object
+ * addr				Mapped memory address
+ * size				Size of mapped memory
+ * perm				Access rights for the memory
+ */
+struct smcinvoke_mem_obj_info {
+	uint32_t memObjRef;
+	uint32_t mapObjRef;
+	uint64_t addr;
+	uint64_t size;
+	uint32_t perm;
+};
+
+/* Memory object info to be written into the async buffer
+ *
+ * version		Async protocol version
+ * op			Async protocol operation
+ * count		Number of memory objects passed
+ * mo			Mapped memory object data
+ */
+struct smcinvoke_mem_obj_msg {
+	uint32_t version;
+	uint32_t op;
+	uint32_t count;
+	struct smcinvoke_mem_obj_info mo[];
+};
+
+struct smcinvoke_mem_obj_pending_async {
+	struct smcinvoke_mem_obj *mem_obj;
+	struct list_head list;
 };
 
 /* Data structure to hold request coming from TZ */
@@ -324,7 +372,8 @@ struct smcinvoke_worker_thread {
 
 static struct smcinvoke_worker_thread smcinvoke[MAX_THREAD_NUMBER];
 static const char thread_name[MAX_THREAD_NUMBER][MAX_CHAR_NAME] = {
-	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess"};
+	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess", "smcinvoke_adci_thread"};
+static struct Object adci_clientEnv = Object_NULL;
 
 static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		size_t in_buf_len,
@@ -560,6 +609,38 @@ out:
 	return ret;
 }
 
+static void smcinvoke_start_adci_thread(void)
+{
+
+	int32_t  ret = OBJECT_ERROR;
+	int retry_count = 0;
+
+	ret = get_client_env_object(&adci_clientEnv);
+	if (ret) {
+		pr_err("failed to get clientEnv for ADCI invoke thread. ret = %d\n", ret);
+		adci_clientEnv = Object_NULL;
+		goto out;
+	}
+	/* Invoke call to QTEE which should never return if ADCI is supported */
+	do {
+		ret = IClientEnv_accept(adci_clientEnv);
+		if (ret == OBJECT_ERROR_BUSY) {
+			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+			msleep(5);
+		}
+	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
+
+	if (ret == OBJECT_ERROR_INVALID)
+		pr_err("ADCI feature is not supported on this chipsets, ret = %d\n", ret);
+	/* Need to take decesion here if we want to restart the ADCI thread */
+	else
+		pr_err("Received response from QTEE, ret = %d\n", ret);
+out:
+	/* Control should reach to this point only if ADCI feature is not supported by QTEE
+	  (or) ADCI thread held in QTEE is released. */
+	Object_ASSIGN_NULL(adci_clientEnv);
+}
+
 static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvoke)
 {
 	if (smcinvoke) {
@@ -582,29 +663,45 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 		return -EINVAL;
 	}
 
-	tag = smcinvoke_wrk_trd->type == SHMB_WORKER_THREAD ? "shmbridge":"object";
-
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(
 			smcinvoke_wrk_trd->postprocess_kthread_wq,
 			kthread_should_stop() ||
 			(atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state)
 			== POST_KT_WAKEUP));
-		pr_debug("kthread to %s postprocess is called %d\n",
-			tag,
-			atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 		switch (smcinvoke_wrk_trd->type) {
 		case SHMB_WORKER_THREAD:
+			tag = "shmbridge";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_shmbridge_post_process();
 			break;
 		case OBJECT_WORKER_THREAD:
+			tag = "object";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_object_post_process();
+			break;
+		case ADCI_WORKER_THREAD:
+			tag = "adci";
+			pr_debug("kthread to %s postprocess is called %d\n",
+			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			smcinvoke_start_adci_thread();
 			break;
 		default:
 			pr_err("Invalid thread type(%d), do nothing.\n",
 					(int)smcinvoke_wrk_trd->type);
 			break;
 		}
+		/* For ADCI thread, if control reaches here, that indicates either ADCI
+		 * thread is not supported (or) released by QTEE. Since ADCI thread is
+		 * getting signaled only during the smcinvoke driver initialization,
+		 * there is no point of putting the thread into sleep state again. All the
+		 * required post-processing will be taken care by object and shmbridge threads.
+		 */
+		if(smcinvoke_wrk_trd->type == ADCI_WORKER_THREAD) {
+			break;
+		  }
 		atomic_set(&smcinvoke_wrk_trd->postprocess_kthread_state,
 			POST_KT_SLEEP);
 	}
@@ -618,7 +715,7 @@ static int smcinvoke_create_kthreads(void)
 {
 	int i, rc = 0;
 	const enum worker_thread_type thread_type[MAX_THREAD_NUMBER] = {
-		SHMB_WORKER_THREAD, OBJECT_WORKER_THREAD};
+		SHMB_WORKER_THREAD, OBJECT_WORKER_THREAD, ADCI_WORKER_THREAD};
 
 	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
 		init_waitqueue_head(&smcinvoke[i].postprocess_kthread_wq);
@@ -642,9 +739,52 @@ static int smcinvoke_create_kthreads(void)
 static void smcinvoke_destroy_kthreads(void)
 {
 	int i;
+	int32_t  ret = OBJECT_ERROR;
+	int retry_count = 0;
 
-	for (i = 0; i < MAX_THREAD_NUMBER; i++)
+	if(!Object_isNull(adci_clientEnv)) {
+		do {
+			ret = IClientEnv_adciShutdown(adci_clientEnv);
+			if (ret == OBJECT_ERROR_BUSY) {
+				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+				msleep(5);
+			}
+		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
+		if(OBJECT_isERROR(ret)) {
+			pr_err("adciShutdown in QTEE failed with error = %d\n", ret);
+		}
+		Object_ASSIGN_NULL(adci_clientEnv);
+	}
+
+	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
 		kthread_stop(smcinvoke[i].postprocess_kthread_task);
+	}
+}
+
+/* Queue newly created memory object to l_pending_mem_obj list.
+ * Later, the mapping information for objects in this list will be sent to TZ
+ * over the async side channel.
+ *
+ * No return value as TZ is always able to explicitly ask for this information
+ * in case this function fails and the memory object is not added to this list.
+ */
+static void queue_mem_obj_pending_async_locked(struct smcinvoke_mem_obj *mem_obj, struct list_head *l_pending_mem_obj)
+{
+	struct smcinvoke_mem_obj_pending_async *t_mem_obj_pending =
+			kzalloc(sizeof(*t_mem_obj_pending), GFP_KERNEL);
+
+	/*
+	 * We are not failing execution in case of a failure here,
+	 * since TZ can always ask for this information explicitly
+	 * if it's not available in the side channel.
+	 */
+	if (!t_mem_obj_pending) {
+		pr_err("Unable to allocate memory\n");
+		return;
+	}
+
+	t_mem_obj_pending->mem_obj = mem_obj;
+	list_add(&t_mem_obj_pending->list, l_pending_mem_obj);
 }
 
 static inline void free_mem_obj_locked(struct smcinvoke_mem_obj *mem_obj)
@@ -973,8 +1113,141 @@ static bool is_remote_obj(int32_t uhandle, struct smcinvoke_file_data **tzobj,
 	return ret;
 }
 
-static int create_mem_obj(struct dma_buf *dma_buf, int32_t *mem_obj,
-				int32_t server_id, int32_t user_handle)
+static int smcinvoke_create_bridge(struct smcinvoke_mem_obj *mem_obj)
+{
+  int ret = 0;
+  int tz_perm = PERM_READ|PERM_WRITE;
+  uint32_t *vmid_list;
+  uint32_t *perms_list;
+  uint32_t nelems = 0;
+  struct dma_buf *dmabuf = mem_obj->dma_buf;
+  phys_addr_t phys = mem_obj->p_addr;
+  size_t size = mem_obj->p_addr_len;
+
+  if (!qtee_shmbridge_is_enabled())
+    return 0;
+
+  ret = mem_buf_dma_buf_copy_vmperm(dmabuf, (int **)&vmid_list,
+      (int **)&perms_list, (int *)&nelems);
+  if (ret) {
+    pr_err("mem_buf_dma_buf_copy_vmperm failure, err=%d\n", ret);
+    return ret;
+  }
+
+  if (mem_buf_dma_buf_exclusive_owner(dmabuf))
+    perms_list[0] = PERM_READ | PERM_WRITE;
+
+  ret = qtee_shmbridge_register(phys, size, vmid_list, perms_list, nelems,
+      tz_perm, &mem_obj->shmbridge_handle);
+
+  if (ret == 0) {
+    /* In case of ret=0/success handle has to be freed in memobj release */
+    mem_obj->is_smcinvoke_created_shmbridge = true;
+  } else if (ret == -EEXIST) {
+    ret = 0;
+    goto exit;
+  } else {
+    pr_err("creation of shm bridge for mem_region_id %d failed ret %d\n",
+        mem_obj->mem_region_id, ret);
+    goto exit;
+  }
+
+  trace_smcinvoke_create_bridge(mem_obj->shmbridge_handle, mem_obj->mem_region_id);
+exit:
+  kfree(perms_list);
+  kfree(vmid_list);
+  return ret;
+}
+
+/* Map memory region for a given memory object.
+ * Mapping information will be saved as part of the memory object structure.
+ */
+static int32_t smcinvoke_map_mem_region_locked(struct smcinvoke_mem_obj* mem_obj)
+{
+	int ret = OBJECT_OK;
+	struct dma_buf_attachment *buf_attach = NULL;
+	struct sg_table *sgt = NULL;
+
+	if (!mem_obj) {
+		pr_err("Invalid memory object\n");
+		return OBJECT_ERROR_BADOBJ;
+	}
+
+	if (!mem_obj->p_addr) {
+		kref_init(&mem_obj->mem_map_obj_ref_cnt);
+		buf_attach = dma_buf_attach(mem_obj->dma_buf,
+				&smcinvoke_pdev->dev);
+		if (IS_ERR(buf_attach)) {
+			ret = OBJECT_ERROR_KMEM;
+			pr_err("dma buf attach failed, ret: %d\n", ret);
+			goto out;
+		}
+		mem_obj->buf_attach = buf_attach;
+
+		sgt = dma_buf_map_attachment(buf_attach, DMA_BIDIRECTIONAL);
+		if (IS_ERR(sgt)) {
+			pr_err("mapping dma buffers failed, ret: %d\n",
+					PTR_ERR(sgt));
+			ret = OBJECT_ERROR_KMEM;
+			goto out;
+		}
+		mem_obj->sgt = sgt;
+
+		/* contiguous only => nents=1 */
+		if (sgt->nents != 1) {
+			ret = OBJECT_ERROR_INVALID;
+			pr_err("sg enries are not contigous, ret: %d\n", ret);
+			goto out;
+		}
+		mem_obj->p_addr = sg_dma_address(sgt->sgl);
+		mem_obj->p_addr_len = sgt->sgl->length;
+		if (!mem_obj->p_addr) {
+			ret = OBJECT_ERROR_INVALID;
+			pr_err("invalid physical address, ret: %d\n", ret);
+			goto out;
+		}
+
+		/* Increase reference count as we are feeding the memobj to
+		 * smcinvoke and unlock the mutex. No need to hold the mutex in
+		 * case of shmbridge creation.
+		 */
+		kref_get(&mem_obj->mem_map_obj_ref_cnt);
+		mutex_unlock(&g_smcinvoke_lock);
+
+		ret = smcinvoke_create_bridge(mem_obj);
+
+		/* Take lock again and decrease the reference count which we
+		 * increased for shmbridge but before proceeding further we
+		 * have to check again if the memobj is still valid or not
+		 * after decreasing the reference.
+		 */
+		mutex_lock(&g_smcinvoke_lock);
+		kref_put(&mem_obj->mem_map_obj_ref_cnt, del_mem_map_obj_locked);
+
+		if (ret) {
+			ret = OBJECT_ERROR_INVALID;
+			pr_err("Unable to create shm bridge, ret: %d\n", ret);
+			goto out;
+		}
+
+		if (!find_mem_obj_locked(mem_obj->mem_region_id,
+				SMCINVOKE_MEM_RGN_OBJ)) {
+			mutex_unlock(&g_smcinvoke_lock);
+			pr_err("Memory object not found\n");
+			return OBJECT_ERROR_BADOBJ;
+		}
+
+		mem_obj->mem_map_obj_id = next_mem_map_obj_id_locked();
+	}
+
+out:
+	if (ret != OBJECT_OK)
+		kref_put(&mem_obj->mem_map_obj_ref_cnt, del_mem_map_obj_locked);
+	return ret;
+}
+
+static int create_mem_obj(struct dma_buf *dma_buf, int32_t *tzhandle,
+			struct smcinvoke_mem_obj **mem_obj, int32_t server_id, int32_t user_handle)
 {
 	struct smcinvoke_mem_obj *t_mem_obj = NULL;
 	struct smcinvoke_server_info *server_i = NULL;
@@ -999,7 +1272,8 @@ static int create_mem_obj(struct dma_buf *dma_buf, int32_t *mem_obj,
 	t_mem_obj->mem_obj_user_fd = user_handle;
 	list_add_tail(&t_mem_obj->list, &g_mem_objs);
 	mutex_unlock(&g_smcinvoke_lock);
-	*mem_obj = TZHANDLE_MAKE_LOCAL(MEM_RGN_SRVR_ID,
+	*mem_obj = t_mem_obj;
+	*tzhandle = TZHANDLE_MAKE_LOCAL(MEM_RGN_SRVR_ID,
 			t_mem_obj->mem_region_id);
 	return 0;
 }
@@ -1011,10 +1285,11 @@ static int create_mem_obj(struct dma_buf *dma_buf, int32_t *mem_obj,
  * other threads from releasing that FD while IOCTL is in progress.
  */
 static int get_tzhandle_from_uhandle(int32_t uhandle, int32_t server_fd,
-		struct file **filp, uint32_t *tzhandle)
+		struct file **filp, uint32_t *tzhandle, struct list_head *l_pending_mem_obj)
 {
 	int ret = -EBADF;
 	uint16_t server_id = 0;
+	struct smcinvoke_mem_obj *mem_obj = NULL;
 
 	if (UHANDLE_IS_NULL(uhandle)) {
 		*tzhandle = SMCINVOKE_TZ_OBJ_NULL;
@@ -1039,7 +1314,23 @@ static int get_tzhandle_from_uhandle(int32_t uhandle, int32_t server_fd,
 
 		if (is_dma_fd(UHANDLE_GET_FD(uhandle), &dma_buf)) {
 			server_id = get_server_id(server_fd);
-			ret = create_mem_obj(dma_buf, tzhandle, server_id, uhandle);
+			ret = create_mem_obj(dma_buf, tzhandle, &mem_obj, server_id, uhandle);
+			if (!ret && mem_obj_async_support && l_pending_mem_obj) {
+				mutex_lock(&g_smcinvoke_lock);
+				/* Map the newly created memory object and add it
+				 * to l_pending_mem_obj list.
+				 * Before returning to TZ, add the mapping data
+				 * to the async side channel so it's available to TZ
+				 * together with the memory object.
+				 */
+				if (!smcinvoke_map_mem_region_locked(mem_obj)) {
+					queue_mem_obj_pending_async_locked(mem_obj, l_pending_mem_obj);
+				} else {
+					pr_err("Failed to map memory region\n");
+				}
+				mutex_unlock(&g_smcinvoke_lock);
+			}
+
 		} else if (is_remote_obj(UHANDLE_GET_FD(uhandle),
 				&tzobj, filp)) {
 			*tzhandle = tzobj->tzhandle;
@@ -1137,52 +1428,6 @@ out:
 	return ret;
 }
 
-static int smcinvoke_create_bridge(struct smcinvoke_mem_obj *mem_obj)
-{
-	int ret = 0;
-	int tz_perm = PERM_READ|PERM_WRITE;
-	uint32_t *vmid_list;
-	uint32_t *perms_list;
-	uint32_t nelems = 0;
-	struct dma_buf *dmabuf = mem_obj->dma_buf;
-	phys_addr_t phys = mem_obj->p_addr;
-	size_t size = mem_obj->p_addr_len;
-
-	if (!qtee_shmbridge_is_enabled())
-		return 0;
-
-	ret = mem_buf_dma_buf_copy_vmperm(dmabuf, (int **)&vmid_list,
-			(int **)&perms_list, (int *)&nelems);
-	if (ret) {
-		pr_err("mem_buf_dma_buf_copy_vmperm failure, err=%d\n", ret);
-		return ret;
-	}
-
-	if (mem_buf_dma_buf_exclusive_owner(dmabuf))
-		perms_list[0] = PERM_READ | PERM_WRITE;
-
-	ret = qtee_shmbridge_register(phys, size, vmid_list, perms_list, nelems,
-			tz_perm, &mem_obj->shmbridge_handle);
-
-	if (ret == 0) {
-		/* In case of ret=0/success handle has to be freed in memobj release */
-		mem_obj->is_smcinvoke_created_shmbridge = true;
-	} else if (ret == -EEXIST) {
-		ret = 0;
-		goto exit;
-	} else {
-		pr_err("creation of shm bridge for mem_region_id %d failed ret %d\n",
-				mem_obj->mem_region_id, ret);
-		goto exit;
-	}
-
-	trace_smcinvoke_create_bridge(mem_obj->shmbridge_handle, mem_obj->mem_region_id);
-exit:
-	kfree(perms_list);
-	kfree(vmid_list);
-	return ret;
-}
-
 static int32_t smcinvoke_release_mem_obj_locked(void *buf, size_t buf_len)
 {
 	struct smcinvoke_tzcb_req *msg = buf;
@@ -1197,7 +1442,7 @@ static int32_t smcinvoke_release_mem_obj_locked(void *buf, size_t buf_len)
 	return release_tzhandle_locked(msg->hdr.tzhandle);
 }
 
-static int32_t smcinvoke_map_mem_region(void *buf, size_t buf_len)
+static int32_t smcinvoke_process_map_mem_region_req(void *buf, size_t buf_len)
 {
 	int ret = OBJECT_OK;
 	struct smcinvoke_tzcb_req *msg = buf;
@@ -1208,8 +1453,6 @@ static int32_t smcinvoke_map_mem_region(void *buf, size_t buf_len)
 	} *ob = NULL;
 	int32_t *oo = NULL;
 	struct smcinvoke_mem_obj *mem_obj = NULL;
-	struct dma_buf_attachment *buf_attach = NULL;
-	struct sg_table *sgt = NULL;
 
 	if (msg->hdr.counts != OBJECT_COUNTS_PACK(0, 1, 1, 1) ||
 			(buf_len - msg->args[0].b.offset < msg->args[0].b.size)) {
@@ -1230,80 +1473,20 @@ static int32_t smcinvoke_map_mem_region(void *buf, size_t buf_len)
 	}
 
 	if (!mem_obj->p_addr) {
-		kref_init(&mem_obj->mem_map_obj_ref_cnt);
-		buf_attach = dma_buf_attach(mem_obj->dma_buf,
-				&smcinvoke_pdev->dev);
-		if (IS_ERR(buf_attach)) {
-			ret = OBJECT_ERROR_KMEM;
-			pr_err("dma buf attach failed, ret: %d\n", ret);
-			goto out;
-		}
-		mem_obj->buf_attach = buf_attach;
-
-		sgt = dma_buf_map_attachment(buf_attach, DMA_BIDIRECTIONAL);
-		if (IS_ERR(sgt)) {
-			pr_err("mapping dma buffers failed, ret: %d\n",
-					PTR_ERR(sgt));
-			ret = OBJECT_ERROR_KMEM;
-			goto out;
-		}
-		mem_obj->sgt = sgt;
-
-		/* contiguous only => nents=1 */
-		if (sgt->nents != 1) {
-			ret = OBJECT_ERROR_INVALID;
-			pr_err("sg enries are not contigous, ret: %d\n", ret);
-			goto out;
-		}
-		mem_obj->p_addr = sg_dma_address(sgt->sgl);
-		mem_obj->p_addr_len = sgt->sgl->length;
-		if (!mem_obj->p_addr) {
-			ret = OBJECT_ERROR_INVALID;
-			pr_err("invalid physical address, ret: %d\n", ret);
-			goto out;
-		}
-
-		/* Increase reference count as we are feeding the memobj to
-		 * smcinvoke and unlock the mutex. No need to hold the mutex in
-		 * case of shmbridge creation.
-		 */
-		kref_get(&mem_obj->mem_map_obj_ref_cnt);
-		mutex_unlock(&g_smcinvoke_lock);
-
-		ret = smcinvoke_create_bridge(mem_obj);
-
-		/* Take lock again and decrease the reference count which we
-		 * increased for shmbridge but before proceeding further we
-		 * have to check again if the memobj is still valid or not
-		 * after decreasing the reference.
-		 */
-		mutex_lock(&g_smcinvoke_lock);
-		kref_put(&mem_obj->mem_map_obj_ref_cnt, del_mem_map_obj_locked);
-
-		if (ret) {
-			ret = OBJECT_ERROR_INVALID;
-			goto out;
-		}
-
-		if (!find_mem_obj_locked(TZHANDLE_GET_OBJID(msg->args[1].handle),
-				SMCINVOKE_MEM_RGN_OBJ)) {
-			mutex_unlock(&g_smcinvoke_lock);
-			pr_err("Memory object not found\n");
-			return OBJECT_ERROR_BADOBJ;
-		}
-
-		mem_obj->mem_map_obj_id = next_mem_map_obj_id_locked();
+		ret = smcinvoke_map_mem_region_locked(mem_obj);
 	} else {
 		kref_get(&mem_obj->mem_map_obj_ref_cnt);
 	}
-	ob->p_addr = mem_obj->p_addr;
-	ob->len = mem_obj->p_addr_len;
-	ob->perms = SMCINVOKE_MEM_PERM_RW;
-	*oo = TZHANDLE_MAKE_LOCAL(MEM_MAP_SRVR_ID, mem_obj->mem_map_obj_id);
-out:
-	if (ret != OBJECT_OK)
-		kref_put(&mem_obj->mem_map_obj_ref_cnt, del_mem_map_obj_locked);
+
+	if (!ret) {
+		ob->p_addr = mem_obj->p_addr;
+		ob->len = mem_obj->p_addr_len;
+		ob->perms = SMCINVOKE_MEM_PERM_RW;
+		*oo = TZHANDLE_MAKE_LOCAL(MEM_MAP_SRVR_ID, mem_obj->mem_map_obj_id);
+	}
+
 	mutex_unlock(&g_smcinvoke_lock);
+
 	return ret;
 }
 
@@ -1330,7 +1513,8 @@ static void process_kernel_obj(void *buf, size_t buf_len)
 
 	switch (cb_req->hdr.op) {
 	case OBJECT_OP_MAP_REGION:
-		cb_req->result = smcinvoke_map_mem_region(buf, buf_len);
+		pr_debug("Received a request to map memory region\n");
+		cb_req->result = smcinvoke_process_map_mem_region_req(buf, buf_len);
 		break;
 	case OBJECT_OP_YIELD:
 		cb_req->result = OBJECT_OK;
@@ -1381,7 +1565,7 @@ static int invoke_cmd_handler(int cmd, phys_addr_t in_paddr, size_t in_buf_len,
 
 	case SMCINVOKE_CB_RSP_CMD:
 		if (legacy_smc_call)
-			qtee_shmbridge_inv_shm_buf(out_shm);
+			qtee_shmbridge_flush_shm_buf(out_shm);
 		ret = qcom_scm_invoke_callback_response(virt_to_phys(out_buf), out_buf_len,
 				result, response_type, data);
 		if (legacy_smc_call) {
@@ -1704,18 +1888,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		return -EINVAL;
 
 	cmd = invoke_cmd;
-	/*
-	 * purpose of lock here is to ensure that any CB obj that may be going
-	 * to user as OO is not released by piggyback message on another invoke
-	 * request. We should not move this lock to process_invoke_req() because
-	 * that will either cause deadlock or prevent any other invoke request
-	 * to come in. We release this lock when either
-	 *     a) TZ requires HLOS action to complete ongoing invoke operation
-	 *     b) Final response to invoke has been marshalled out
-	 */
-	while (1) {
-		mutex_lock(&g_smcinvoke_lock);
 
+	while (1) {
 		do {
 			ret = invoke_cmd_handler(cmd, in_paddr, in_buf_len, out_buf,
 					out_paddr, out_buf_len, &req->result,
@@ -1723,9 +1897,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 
 			if (ret == -EBUSY) {
 				pr_err("Secure side is busy,will retry after 30 ms, retry_count = %d",retry_count);
-				mutex_unlock(&g_smcinvoke_lock);
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
-				mutex_lock(&g_smcinvoke_lock);
 			}
 
 		} while ((ret == -EBUSY) &&
@@ -1741,7 +1913,6 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 			}
 			*tz_acked = true;
 		}
-		mutex_unlock(&g_smcinvoke_lock);
 
 		if (cmd == SMCINVOKE_CB_RSP_CMD)
 			release_filp(arr_filp, OBJECT_COUNTS_MAX_OO);
@@ -1814,7 +1985,8 @@ static size_t compute_in_msg_size(const struct smcinvoke_cmd_req *req,
 static int marshal_in_invoke_req(const struct smcinvoke_cmd_req *req,
 		const union smcinvoke_arg *args_buf, uint32_t tzhandle,
 		uint8_t *buf, size_t buf_size, struct file **arr_filp,
-		int32_t *tzhandles_to_release, uint32_t context_type)
+		int32_t *tzhandles_to_release, uint32_t context_type,
+		struct list_head *l_pending_mem_obj)
 {
 	int ret = -EINVAL, i = 0, j = 0, k = 0;
 	const struct smcinvoke_msg_hdr msg_hdr = {
@@ -1866,7 +2038,7 @@ static int marshal_in_invoke_req(const struct smcinvoke_cmd_req *req,
 	FOR_ARGS(i, req->counts, OI) {
 		ret = get_tzhandle_from_uhandle(args_buf[i].o.fd,
 				args_buf[i].o.cb_server_fd, &arr_filp[j++],
-				&(tz_args[i].handle));
+				&(tz_args[i].handle), l_pending_mem_obj);
 		if (ret)
 			goto out;
 
@@ -2000,6 +2172,12 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 
 	release_tzhandles(&cb_txn->cb_req->hdr.tzhandle, 1);
 	tzcb_req->result = user_req->result;
+        /* Return without marshaling user args if destination callback invocation was
+           unsuccessful. */
+        if (tzcb_req->result != 0) {
+                ret = 0;
+                goto out;
+        }
 	FOR_ARGS(i, tzcb_req->hdr.counts, BO) {
 		union smcinvoke_arg tmp_arg;
 
@@ -2030,7 +2208,7 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 		}
 		ret = get_tzhandle_from_uhandle(tmp_arg.o.fd,
 				tmp_arg.o.cb_server_fd, &arr_filp[i],
-				&(tz_args[i].handle));
+				&(tz_args[i].handle), NULL);
 		if (ret)
 			goto out;
 		tzhandles_to_release[i] = tz_args[i].handle;
@@ -2038,15 +2216,32 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 		trace_marshal_out_tzcb_req(i, tmp_arg.o.fd,
 				tmp_arg.o.cb_server_fd, tz_args[i].handle);
 	}
-	FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
-		if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
-			release_tzhandles(&tz_args[i].handle, 1);
-	}
 	ret = 0;
 out:
+        FOR_ARGS(i, tzcb_req->hdr.counts, OI) {
+                if (TZHANDLE_IS_CB_OBJ(tz_args[i].handle))
+                        release_tzhandles(&tz_args[i].handle, 1);
+        }
 	if (ret)
 		release_tzhandles(tzhandles_to_release, OBJECT_COUNTS_MAX_OO);
 	return ret;
+}
+
+static void set_tz_version (uint32_t tz_version)
+{
+
+	tz_async_version = tz_version;
+
+	/* We enable async memory object support when TZ async
+	 * version is equal or larger than the driver version.
+	 * It is expected that if the protocol changes in later
+	 * TZ versions, TZ will support backward compatibility
+	 * so this condition should still be valid.
+	 */
+	if (tz_version >= SMCINVOKE_ASYNC_VERSION) {
+		mem_obj_async_support = true;
+		pr_debug("Enabled asynchronous memory object support\n");
+	}
 }
 
 static void process_piggyback_data(void *buf, size_t buf_size)
@@ -2060,11 +2255,93 @@ static void process_piggyback_data(void *buf, size_t buf_size)
 		req.hdr.op = msg->op;
 		req.hdr.counts = 0; /* release op does not require any args */
 		req.hdr.tzhandle = objs[i];
+		if (tz_async_version == 0)
+			set_tz_version(msg->version);
 		process_tzcb_req(&req, sizeof(struct smcinvoke_tzcb_req), NULL);
 		/* cbobjs_in_flight will be adjusted during CB processing */
 	}
 }
 
+
+/* Add memory object mapped data to the async side channel, so it's available to TZ
+ * together with the memory object.
+ *
+ * No return value as TZ is always able to explicitly ask for this information
+ * in case this function fails.
+ */
+static void add_mem_obj_info_to_async_side_channel_locked(void *buf, size_t buf_size, struct list_head *l_pending_mem_obj)
+{
+	struct smcinvoke_mem_obj_msg *msg = buf;
+	struct smcinvoke_mem_obj_pending_async *mem_obj_pending = NULL;
+	size_t header_size = 0;
+	size_t mo_size = 0;
+	size_t used = 0;
+	size_t index = 0;
+
+	if (list_empty(l_pending_mem_obj))
+		return;
+
+	header_size = sizeof(struct smcinvoke_mem_obj_msg);
+	mo_size = sizeof(struct smcinvoke_mem_obj_info);
+
+	/* Minimal size required is the header data + one mem obj info */
+	if (buf_size < header_size + mo_size) {
+		pr_err("Unable to add memory object info to async channel\n");
+		return;
+	}
+
+	msg->version = SMCINVOKE_ASYNC_VERSION;
+	msg->op = SMCINVOKE_ASYNC_OP_MEMORY_OBJECT;
+	msg->count = 0;
+
+	used = header_size;
+	index = 0;
+
+	list_for_each_entry(mem_obj_pending, l_pending_mem_obj, list) {
+		if (NULL == mem_obj_pending->mem_obj) {
+			pr_err("Memory object is no longer valid\n");
+			continue;
+		}
+
+		if (used + mo_size > buf_size) {
+			pr_err("Not all memory object info was added to the async channel\n");
+			break;
+		}
+
+		msg->mo[index].memObjRef = TZHANDLE_MAKE_LOCAL(MEM_RGN_SRVR_ID, mem_obj_pending->mem_obj->mem_region_id);
+		msg->mo[index].mapObjRef = TZHANDLE_MAKE_LOCAL(MEM_MAP_SRVR_ID, mem_obj_pending->mem_obj->mem_map_obj_id);
+		msg->mo[index].addr = mem_obj_pending->mem_obj->p_addr;
+		msg->mo[index].size = mem_obj_pending->mem_obj->p_addr_len;
+		msg->mo[index].perm = SMCINVOKE_MEM_PERM_RW;
+
+		used += sizeof(msg->mo[index]);
+		index++;
+	}
+
+	msg->count = index;
+
+	pr_debug("Added %d memory objects to the side channel, total size = %d\n", index, used);
+
+	return;
+}
+
+/*
+ * Delete entire pending async list.
+ */
+static void delete_pending_async_list_locked(struct list_head *l_pending_mem_obj)
+{
+	struct smcinvoke_mem_obj_pending_async *mem_obj_pending = NULL;
+	struct smcinvoke_mem_obj_pending_async *temp = NULL;
+
+	if (list_empty(l_pending_mem_obj))
+		return;
+
+	list_for_each_entry_safe(mem_obj_pending, temp, l_pending_mem_obj, list) {
+		mem_obj_pending->mem_obj = NULL;
+		list_del(&mem_obj_pending->list);
+		kfree(mem_obj_pending);
+	}
+}
 
 static long process_ack_local_obj(struct file *filp, unsigned int cmd,
 						unsigned long arg)
@@ -2197,14 +2474,13 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		 * invoke thread died while server was processing cb req.
 		 * if invoke thread dies, it would remove req from Q. So
 		 * no matching cb_txn would be on Q and hence NULL cb_txn.
-		 * In this case, we want this thread to come back and start
-		 * waiting for new cb requests, hence return EAGAIN here
+		 * In this case, we want this thread to start waiting
+		 * new cb requests.
 		 */
 		if (!cb_txn) {
 			pr_err("%s txn %d either invalid or removed from Q\n",
 					__func__, user_args.txn_id);
-			ret = -EAGAIN;
-			goto out;
+			goto start_waiting_for_requests;
 		}
 		ret = marshal_out_tzcb_req(&user_args, cb_txn,
 				cb_txn->filp_to_release);
@@ -2228,6 +2504,7 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		if (ret && OBJECT_COUNTS_NUM_OO(user_args.counts))
 			goto out;
 	}
+start_waiting_for_requests:
 	/*
 	 * Once response has been delivered, thread will wait for another
 	 * callback req to process.
@@ -2301,6 +2578,7 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	union  smcinvoke_arg *args_buf = NULL;
 	struct smcinvoke_file_data *tzobj = filp->private_data;
 	struct qtee_shm in_shm = {0}, out_shm = {0};
+	LIST_HEAD(l_mem_objs_pending_async);    /* Holds new memory objects, to be later sent to TZ */
 
 	/*
 	 * Hold reference to remote object until invoke op is not
@@ -2343,7 +2621,9 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	if (context_type == SMCINVOKE_OBJ_TYPE_TZ_OBJ &&
 			tzobj->tzhandle == SMCINVOKE_TZ_ROOT_OBJ &&
 			(req.op == IClientEnv_OP_notifyDomainChange ||
-			req.op == IClientEnv_OP_registerWithCredentials)) {
+			req.op == IClientEnv_OP_registerWithCredentials ||
+			req.op == IClientEnv_OP_accept ||
+			req.op == IClientEnv_OP_adciShutdown)) {
 		pr_err("invalid rootenv op\n");
 		return -EINVAL;
 	}
@@ -2393,10 +2673,17 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 
 	ret = marshal_in_invoke_req(&req, args_buf, tzobj->tzhandle, in_msg,
 			inmsg_size, filp_to_release, tzhandles_to_release,
-			context_type);
+			context_type, &l_mem_objs_pending_async);
 	if (ret) {
 		pr_err("failed to marshal in invoke req, ret :%d\n", ret);
 		goto out;
+	}
+
+	if (mem_obj_async_support) {
+		mutex_lock(&g_smcinvoke_lock);
+		add_mem_obj_info_to_async_side_channel_locked(out_msg, outmsg_size, &l_mem_objs_pending_async);
+		delete_pending_async_list_locked(&l_mem_objs_pending_async);
+		mutex_unlock(&g_smcinvoke_lock);
 	}
 
 	ret = prepare_send_scm_msg(in_msg, in_shm.paddr, inmsg_size,
@@ -2808,6 +3095,7 @@ static int smcinvoke_probe(struct platform_device *pdev)
 		pr_err("failed to get qseecom kernel func ops %d", rc);
 	}
 #endif
+	__wakeup_postprocess_kthread(&smcinvoke[ADCI_WORKER_THREAD]);
 	return 0;
 
 exit_destroy_device:
