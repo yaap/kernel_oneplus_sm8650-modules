@@ -2509,18 +2509,6 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	}
 
 	core_data->bus = bus_interface;
-	qts_en = of_property_read_bool(node, "goodix,qts_en");
-	if (qts_en) {
-		mutex_init(&core_data->tui_transition_lock);
-		goodix_ts_fill_qts_vendor_data(&qts_vendor_data, core_data);
-
-		ret = qts_client_register(qts_vendor_data);
-		if (ret) {
-			pr_err("qts client register failed, rc %d\n", ret);
-			goto err_out;
-		}
-		core_data->qts_en = qts_en;
-	}
 
 	if (IS_ENABLED(CONFIG_OF) && bus_interface->dev->of_node) {
 		/* parse devicetree property */
@@ -2573,6 +2561,19 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	if (ret) {
 		ts_err("failed power on");
 		goto err_out;
+	}
+
+	qts_en = of_property_read_bool(node, "goodix,qts_en");
+	if (qts_en) {
+		mutex_init(&core_data->tui_transition_lock);
+		goodix_ts_fill_qts_vendor_data(&qts_vendor_data, core_data);
+
+		ret = qts_client_register(qts_vendor_data);
+		if (ret) {
+			pr_err("qts client register failed, rc %d\n", ret);
+			goto err_out;
+		}
+		core_data->qts_en = qts_en;
 	}
 
 #ifdef CONFIG_ARCH_QTI_VM

@@ -18,6 +18,7 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
 			$(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko \
 			$(KERNEL_MODULES_OUT)/pt_ts.ko \
 			$(KERNEL_MODULES_OUT)/pt_i2c.ko \
-			$(KERNEL_MODULES_OUT)/pt_device_access.ko
+			$(KERNEL_MODULES_OUT)/pt_device_access.ko \
+			$(KERNEL_MODULES_OUT)/raydium_ts.ko
 	endif # pineapple
 endif
