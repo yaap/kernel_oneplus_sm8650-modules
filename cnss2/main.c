@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -494,7 +494,8 @@ int cnss_audio_smmu_map(struct device *dev, phys_addr_t paddr,
 	paddr -= page_offset;
 
 	return iommu_map(plat_priv->audio_iommu_domain, iova, paddr,
-			 roundup(size, PAGE_SIZE), IOMMU_READ | IOMMU_WRITE);
+			 roundup(size, PAGE_SIZE), IOMMU_READ | IOMMU_WRITE |
+			 IOMMU_CACHE);
 }
 EXPORT_SYMBOL(cnss_audio_smmu_map);
 
@@ -843,6 +844,7 @@ static int cnss_fw_ready_hdlr(struct cnss_plat_data *plat_priv)
 	clear_bit(CNSS_DEV_ERR_NOTIFY, &plat_priv->driver_state);
 
 	cnss_wlfw_send_pcie_gen_speed_sync(plat_priv);
+	cnss_send_subsys_restart_level_msg(plat_priv);
 
 	if (test_bit(CNSS_FW_BOOT_RECOVERY, &plat_priv->driver_state)) {
 		clear_bit(CNSS_FW_BOOT_RECOVERY, &plat_priv->driver_state);
@@ -3584,7 +3586,6 @@ static ssize_t recovery_store(struct device *dev,
 {
 	struct cnss_plat_data *plat_priv = dev_get_drvdata(dev);
 	unsigned int recovery = 0;
-	int ret;
 
 	if (!plat_priv)
 		return -ENODEV;
@@ -3602,13 +3603,7 @@ static ssize_t recovery_store(struct device *dev,
 	cnss_pr_dbg("%s PCSS recovery, count is %zu\n",
 		    plat_priv->recovery_pcss_enabled ? "Enable" : "Disable", count);
 
-	ret = cnss_send_subsys_restart_level_msg(plat_priv);
-	if (ret < 0) {
-		cnss_pr_err("pcss recovery setting failed with ret %d\n", ret);
-		plat_priv->recovery_pcss_enabled = false;
-		return -EINVAL;
-	}
-
+	cnss_send_subsys_restart_level_msg(plat_priv);
 	return count;
 }
 

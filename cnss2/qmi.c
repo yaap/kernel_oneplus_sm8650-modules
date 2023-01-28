@@ -3563,8 +3563,8 @@ int cnss_send_subsys_restart_level_msg(struct cnss_plat_data *plat_priv)
 		return -ENODEV;
 
 	if (!test_bit(CNSS_FW_READY, &plat_priv->driver_state)) {
-		cnss_pr_err("Can't send pcss cmd before fw ready\n");
-		return -EINVAL;
+		cnss_pr_dbg("Can't send pcss cmd before fw ready\n");
+		return 0;
 	}
 
 	pcss_enabled = plat_priv->recovery_pcss_enabled;
@@ -3579,6 +3579,9 @@ int cnss_send_subsys_restart_level_msg(struct cnss_plat_data *plat_priv)
 			    QMI_WLFW_SUBSYS_RESTART_LEVEL_REQ_V01,
 			    WLFW_SUBSYS_RESTART_LEVEL_REQ_MSG_V01_MAX_MSG_LEN,
 			    QMI_WLFW_TIMEOUT_JF);
+
+	if (ret < 0)
+		cnss_pr_err("pcss recovery setting failed with ret %d\n", ret);
 	return ret;
 }
 
