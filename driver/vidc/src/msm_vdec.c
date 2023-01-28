@@ -1898,11 +1898,8 @@ static int msm_vdec_qbuf_batch(struct msm_vidc_inst *inst,
 	if (!buf)
 		return -EINVAL;
 
-	allow = msm_vidc_allow_qbuf(inst, vb2->type);
-	if (allow == MSM_VIDC_DISALLOW) {
-		i_vpr_e(inst, "%s: qbuf not allowed\n", __func__);
-		return -EINVAL;
-	} else if (allow == MSM_VIDC_DEFER) {
+	if (is_state(inst, MSM_VIDC_OPEN) ||
+		is_state(inst, MSM_VIDC_INPUT_STREAMING)) {
 		print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
 		return 0;
 	}
@@ -2092,95 +2089,96 @@ static int msm_vdec_alloc_and_queue_additional_dpb_buffers(struct msm_vidc_inst 
 	return 0;
 }
 
-int msm_vdec_process_cmd(struct msm_vidc_inst *inst, u32 cmd)
+int msm_vdec_stop_cmd(struct msm_vidc_inst *inst)
 {
-	int rc = 0;
 	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
-	struct msm_vidc_inst_capability *capability;
+	int rc = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	i_vpr_h(inst, "received cmd: drain\n");
+	allow = msm_vidc_allow_stop(inst);
+	if (allow == MSM_VIDC_DISALLOW)
+		return -EBUSY;
+	else if (allow == MSM_VIDC_IGNORE)
+		return 0;
+	else if (allow != MSM_VIDC_ALLOW)
+		return -EINVAL;
+	rc = msm_vidc_process_drain(inst);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
+{
+	struct msm_vidc_inst_capability *capability;
+	int rc = 0;
+
+	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	capability = inst->capabilities;
 
-	if (cmd == V4L2_DEC_CMD_STOP) {
-		i_vpr_h(inst, "received cmd: drain\n");
-		allow = msm_vidc_allow_stop(inst);
-		if (allow == MSM_VIDC_DISALLOW)
-			return -EBUSY;
-		else if (allow == MSM_VIDC_IGNORE)
-			return 0;
-		else if (allow != MSM_VIDC_ALLOW)
-			return -EINVAL;
-		rc = msm_vidc_process_drain(inst);
-		if (rc)
-			return rc;
-	} else if (cmd == V4L2_DEC_CMD_START) {
-		i_vpr_h(inst, "received cmd: resume\n");
-		vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
-		vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
+	i_vpr_h(inst, "received cmd: resume\n");
+	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
+	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 
-		if (capability->cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
-			!is_ubwc_colorformat(capability->cap[PIX_FMTS].value)) {
-			i_vpr_e(inst,
-				"%s: interlace with non-ubwc color format is unsupported\n",
-				__func__);
-			return -EINVAL;
-		}
-
-		if (!msm_vidc_allow_start(inst))
-			return -EBUSY;
-
-		/* tune power features */
-		inst->decode_batch.enable = msm_vidc_allow_decode_batch(inst);
-		msm_vidc_allow_dcvs(inst);
-		msm_vidc_power_data_reset(inst);
-
-		/*
-		 * client is completing partial port reconfiguration,
-		 * hence reallocate input internal buffers before input port
-		 * is resumed.
-		 */
-		if (is_sub_state(inst, MSM_VIDC_DRC) &&
-			is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER) &&
-			is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
-			rc = msm_vidc_alloc_and_queue_input_internal_buffers(inst);
-			if (rc)
-				return rc;
-
-			rc = msm_vidc_set_stage(inst, STAGE);
-			if (rc)
-				return rc;
-
-			rc = msm_vidc_set_pipe(inst, PIPE);
-			if (rc)
-				return rc;
-		}
-
-		/* allocate and queue extra dpb buffers */
-		rc = msm_vdec_alloc_and_queue_additional_dpb_buffers(inst);
-		if (rc)
-			return rc;
-
-		/* queue pending deferred buffers */
-		rc = msm_vidc_queue_deferred_buffers(inst, MSM_VIDC_BUF_OUTPUT);
-		if (rc)
-			return rc;
-
-		/* print final buffer counts & size details */
-		msm_vidc_print_buffer_info(inst);
-
-		rc = msm_vidc_process_resume(inst);
-		if (rc)
-			return rc;
-
-	} else {
-		i_vpr_e(inst, "%s: unknown cmd %d\n", __func__, cmd);
+	if (capability->cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
+		!is_ubwc_colorformat(capability->cap[PIX_FMTS].value)) {
+		i_vpr_e(inst,
+			"%s: interlace with non-ubwc color format is unsupported\n",
+			__func__);
 		return -EINVAL;
 	}
 
-	return 0;
+	if (!msm_vidc_allow_start(inst))
+		return -EBUSY;
+
+	/* tune power features */
+	inst->decode_batch.enable = msm_vidc_allow_decode_batch(inst);
+	msm_vidc_allow_dcvs(inst);
+	msm_vidc_power_data_reset(inst);
+
+	/*
+	 * client is completing partial port reconfiguration,
+	 * hence reallocate input internal buffers before input port
+	 * is resumed.
+	 */
+	if (is_sub_state(inst, MSM_VIDC_DRC) &&
+		is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER) &&
+		is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
+		rc = msm_vidc_alloc_and_queue_input_internal_buffers(inst);
+		if (rc)
+			return rc;
+
+		rc = msm_vidc_set_stage(inst, STAGE);
+		if (rc)
+			return rc;
+
+		rc = msm_vidc_set_pipe(inst, PIPE);
+		if (rc)
+			return rc;
+	}
+
+	/* allocate and queue extra dpb buffers */
+	rc = msm_vdec_alloc_and_queue_additional_dpb_buffers(inst);
+	if (rc)
+		return rc;
+
+	/* queue pending deferred buffers */
+	rc = msm_vidc_queue_deferred_buffers(inst, MSM_VIDC_BUF_OUTPUT);
+	if (rc)
+		return rc;
+
+	/* print final buffer counts & size details */
+	msm_vidc_print_buffer_info(inst);
+
+	rc = msm_vidc_process_resume(inst);
+	if (rc)
+		return rc;
+
+	return rc;
 }
 
 int msm_vdec_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)

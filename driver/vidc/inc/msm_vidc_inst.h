@@ -9,12 +9,12 @@
 
 #include "msm_vidc_internal.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_state.h"
 #include "hfi_property.h"
 
 struct msm_vidc_inst;
 
 #define FOREACH_STATE(STATE) {                    \
-	STATE(NONE)                               \
 	STATE(OPEN)                               \
 	STATE(INPUT_STREAMING)                    \
 	STATE(OUTPUT_STREAMING)                   \
@@ -97,6 +97,8 @@ struct msm_vidc_inst {
 	struct mutex                       request_lock;
 	struct mutex                       client_lock;
 	enum msm_vidc_state                state;
+	int                              (*event_handle)(struct msm_vidc_inst *inst,
+					   enum msm_vidc_event event, void *data);
 	enum msm_vidc_sub_state            sub_state;
 	char                               sub_state_name[MAX_NAME_LENGTH];
 	enum msm_vidc_domain_type          domain;

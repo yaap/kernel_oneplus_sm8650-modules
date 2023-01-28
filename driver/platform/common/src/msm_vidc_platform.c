@@ -168,13 +168,13 @@ static struct v4l2_ctrl_ops msm_v4l2_ctrl_ops = {
 };
 
 static struct vb2_ops msm_vb2_ops = {
-	.queue_setup                    = msm_vidc_queue_setup,
-	.start_streaming                = msm_vidc_start_streaming,
-	.buf_queue                      = msm_vidc_buf_queue,
-	.buf_cleanup                    = msm_vidc_buf_cleanup,
-	.stop_streaming                 = msm_vidc_stop_streaming,
-	.buf_out_validate               = msm_vidc_buf_out_validate,
-	.buf_request_complete           = msm_vidc_buf_request_complete,
+	.queue_setup                    = msm_vb2_queue_setup,
+	.start_streaming                = msm_vb2_start_streaming,
+	.buf_queue                      = msm_vb2_buf_queue,
+	.buf_cleanup                    = msm_vb2_buf_cleanup,
+	.stop_streaming                 = msm_vb2_stop_streaming,
+	.buf_out_validate               = msm_vb2_buf_out_validate,
+	.buf_request_complete           = msm_vb2_request_complete,
 };
 
 static struct vb2_mem_ops msm_vb2_mem_ops = {
