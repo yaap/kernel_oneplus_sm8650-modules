@@ -16,7 +16,7 @@
 #define IPCMEM_TOC_SIZE			(4*1024)
 #define MAX_CHANNEL_SIGNALS		5
 
-#define MAX_PARTITION_COUNT		7	/*7 partitions other than global partition*/
+#define MAX_PARTITION_COUNT		11	/*11 partitions other than global partition*/
 
 #define IPCLITE_MSG_SIGNAL		0
 #define IPCLITE_MEM_INIT_SIGNAL 1
@@ -207,7 +207,7 @@ const struct ipcmem_toc_entry ipcmem_toc_partition_entries[] = {
 	 * },
 	 */
 
-	/* Apps<->CDSP partition. */
+	/* APPS<->CDSP partition. */
 	{
 	  132 * 1024,
 	  32 * 1024,
@@ -225,9 +225,18 @@ const struct ipcmem_toc_entry ipcmem_toc_partition_entries[] = {
 	  IPCMEM_CVP,
 	  CHANNEL_INACTIVE,
 	},
-	/* APPS<->VPU partition. */
+	/* APPS<->CAM (ICP) partition. */
 	{
 	  196 * 1024,
+	  32 * 1024,
+	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
+	  IPCMEM_APPS,
+	  IPCMEM_CAM,
+	  CHANNEL_INACTIVE,
+	},
+	/* APPS<->VPU (IRIS) partition. */
+	{
+	  228 * 1024,
 	  32 * 1024,
 	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
 	  IPCMEM_APPS,
@@ -236,34 +245,61 @@ const struct ipcmem_toc_entry ipcmem_toc_partition_entries[] = {
 	},
 	/* CDSP<->CVP (EVA) partition. */
 	{
-	  228 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CDSP,
-	  IPCMEM_CVP,
-	  CHANNEL_INACTIVE,
-	},
-	/* CDSP<->VPU partition. */
-	{
 	  260 * 1024,
 	  32 * 1024,
 	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
 	  IPCMEM_CDSP,
-	  IPCMEM_VPU,
+	  IPCMEM_CVP,
 	  CHANNEL_INACTIVE,
 	},
-	/* VPU<->CVP (EVA) partition. */
+	/* CDSP<->CAM (ICP) partition. */
 	{
 	  292 * 1024,
 	  32 * 1024,
 	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
+	  IPCMEM_CDSP,
+	  IPCMEM_CAM,
+	  CHANNEL_INACTIVE,
+	},
+	/* CDSP<->VPU (IRIS) partition. */
+	{
+	  324 * 1024,
+	  32 * 1024,
+	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
+	  IPCMEM_CDSP,
 	  IPCMEM_VPU,
+	  CHANNEL_INACTIVE,
+	},
+	/* CVP<->CAM (ICP) partition. */
+	{
+	  356 * 1024,
+	  32 * 1024,
+	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
 	  IPCMEM_CVP,
+	  IPCMEM_CAM,
+	  CHANNEL_INACTIVE,
+	},
+	/* CVP<->VPU (IRIS) partition. */
+	{
+	  388 * 1024,
+	  32 * 1024,
+	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
+	  IPCMEM_CVP,
+	  IPCMEM_VPU,
+	  CHANNEL_INACTIVE,
+	},
+	/* CAM<->VPU (IRIS) partition. */
+	{
+	  420 * 1024,
+	  32 * 1024,
+	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
+	  IPCMEM_CAM,
+	  IPCMEM_VPU,
 	  CHANNEL_INACTIVE,
 	},
 	/* APPS<->APPS partition. */
 	{
-	  326 * 1024,
+	  454 * 1024,
 	  32 * 1024,
 	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
 	  IPCMEM_APPS,
