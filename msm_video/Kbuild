@@ -88,6 +88,7 @@ msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_v4l2.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_power.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_probe.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/resources.o \
+                  $(VIDEO_DRIVER_REL_PATH)/vidc/src/resources_ext.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/firmware.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_debug.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_memory.o \

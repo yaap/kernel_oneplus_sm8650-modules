@@ -2140,6 +2140,16 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 	d_vpr_h("%s: initialize waipio data\n", __func__);
 
 	core->platform->data = waipio_data;
+	core->mem_ops = get_mem_ops_ext();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ext ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_res_ops_ext();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ext ops\n", __func__);
+		return -EINVAL;
+	}
 
 	return rc;
 }

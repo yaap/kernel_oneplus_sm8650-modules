@@ -17,6 +17,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control_ext.h"
 #include "msm_vidc_memory_ext.h"
+#include "resources_ext.h"
 #include "msm_vidc_iris33.h"
 #include "hfi_property.h"
 #include "hfi_command.h"
@@ -2663,6 +2664,15 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 	}
 
 	core->mem_ops = get_mem_ops_ext();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ext ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_res_ops_ext();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ext ops\n", __func__);
+		return -EINVAL;
+	}
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;

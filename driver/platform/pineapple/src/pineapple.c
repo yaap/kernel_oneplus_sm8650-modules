@@ -1771,6 +1771,7 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 	d_vpr_h("%s: initialize pineapple data\n", __func__);
 
 	core->platform->data = pineapple_data;
+
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;
