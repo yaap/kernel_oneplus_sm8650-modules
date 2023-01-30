@@ -359,17 +359,6 @@ static inline bool is_enc_slice_delivery_mode(struct msm_vidc_inst *inst)
 			inst->capabilities->cap[DELIVERY_MODE].value);
 }
 
-static inline bool is_state(struct msm_vidc_inst *inst, enum msm_vidc_state state)
-{
-	return inst->state == state;
-}
-
-static inline bool is_sub_state(struct msm_vidc_inst *inst,
-	enum msm_vidc_sub_state sub_state)
-{
-	return (inst->sub_state & sub_state);
-}
-
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id);
 const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixelfmt);
 const char *v4l2_type_name(u32 port);
@@ -400,12 +389,6 @@ u32 v4l2_matrix_coeff_from_driver(struct msm_vidc_inst *inst,
 int v4l2_type_to_driver_port(struct msm_vidc_inst *inst, u32 type,
 	const char *func);
 const char *allow_name(enum msm_vidc_allow allow);
-const char *state_name(enum msm_vidc_state state);
-int msm_vidc_change_state(struct msm_vidc_inst *inst,
-	enum msm_vidc_state request_state, const char *func);
-int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
-	enum msm_vidc_sub_state clear_sub_state,
-	enum msm_vidc_sub_state set_sub_state, const char *func);
 int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type, u32 index);
 int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
@@ -436,8 +419,6 @@ int msm_vidc_change_core_state(struct msm_vidc_core *core,
 int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_sub_state clear_sub_states,
 	enum msm_vidc_core_sub_state set_sub_states, const char *func);
-int prepare_sub_state_name(enum msm_vidc_sub_state sub_state,
-	char *buf, u32 size);
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
