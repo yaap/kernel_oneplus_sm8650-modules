@@ -291,7 +291,7 @@ struct eva_kmd_fence_ctrl {
 	__u64 frame_id;
 	__u32 num_fences;
 	__u32 output_index;
-	struct eva_kmd_fence fences[MAX_HFI_FENCE_SIZE/2];
+	struct eva_kmd_fence fences[MAX_HFI_FENCE_SIZE];
 };
 
 #define MAX_FENCE_DATA_SIZE	(MAX_HFI_FENCE_SIZE + 6)

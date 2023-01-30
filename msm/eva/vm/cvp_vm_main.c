@@ -53,7 +53,8 @@ static int msm_cvp_vm_start(struct msm_cvp_core *core)
 {
 	if (!core || !core->platform_data) {
 		dprintk(CVP_ERR, "%s: Invalid params %pK %pK\n",
-			__func__, core, core->platform_data);
+			__func__, core,
+				(core == NULL)? NULL: core->platform_data);
 		return -EINVAL;
 	}
 
