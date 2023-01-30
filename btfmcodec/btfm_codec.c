@@ -94,6 +94,7 @@ static int btfmcodec_dev_release(struct inode *inode, struct file *file)
 {
 	struct btfmcodec_char_device *btfmcodec_dev = cdev_to_btfmchardev(inode->i_cdev);
 	unsigned long flags;
+	int idx;
 
 	BTFMCODEC_INFO("for %s by %s:%d active_clients[%u]\n",
 		       btfmcodec_dev->dev_name, current->comm,
@@ -109,6 +110,16 @@ static int btfmcodec_dev_release(struct inode *inode, struct file *file)
 		/* we need to have separte rx lock for below buff */
 		skb_queue_purge(&btfmcodec_dev->rxq);
 	}
+
+	/* Notify waiting clients that client is closed or killed */
+	for (idx = 0; idx < BTM_PKT_TYPE_MAX; idx++) {
+		btfmcodec_dev->status[idx] = BTM_RSP_NOT_RECV_CLIENT_KILLED;
+		wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
+	}
+
+	cancel_work_sync(&btfmcodec_dev->wq_hwep_shutdown);
+	cancel_work_sync(&btfmcodec_dev->wq_hwep_configure);
+	cancel_work_sync(&btfmcodec_dev->wq_prepare_bearer);
 
 	btfmcodec->states.current_state = IDLE;
 	btfmcodec->states.next_state = IDLE;
@@ -140,8 +151,16 @@ static void btfmcodec_dev_rxwork(struct work_struct *work)
 			idx = BTM_PKT_TYPE_PREPARE_REQ;
 			BTFMCODEC_DBG("BTM_BTFMCODEC_PREPARE_AUDIO_BEARER_SWITCH_REQ");
 			if (len == BTM_PREPARE_AUDIO_BEARER_SWITCH_REQ_LEN) {
+				/* there are chances where bearer indication is not recevied,
+				 * So inform waiting thread to unblock itself and move to
+				 * previous state.
+				 */
+				if (btfmcodec_dev->status[BTM_PKT_TYPE_BEARER_SWITCH_IND] == BTM_WAITING_RSP) {
+				  BTFMCODEC_DBG("Notifying waiting beare indications");
+				  btfmcodec_dev->status[BTM_PKT_TYPE_BEARER_SWITCH_IND] = BTM_FAIL_RESP_RECV;
+				  wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[BTM_PKT_TYPE_BEARER_SWITCH_IND]);
+				}
 				btfmcodec_dev->status[idx] = skb->data[0];
-				BTFMCODEC_INFO("prepare wq_prepare_bearer:%p", btfmcodec_dev->wq_prepare_bearer);
 				queue_work(btfmcodec_dev->workqueue, &btfmcodec_dev->wq_prepare_bearer);
 			} else {
 				BTFMCODEC_ERR("wrong packet format with len:%d", len);

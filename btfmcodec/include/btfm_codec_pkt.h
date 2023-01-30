@@ -57,7 +57,10 @@ enum rx_status {
 	BTM_RSP_RECV,
 	/* Response recevied with failure status*/
 	BTM_FAIL_RESP_RECV,
+	/* Response not recevied, but client killed */
+        BTM_RSP_NOT_RECV_CLIENT_KILLED,
 };
+
 enum btfm_kp_status {
 	/* KP processed message succesfully */
 	MSG_SUCCESS = 0,

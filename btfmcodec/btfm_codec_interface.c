@@ -255,7 +255,8 @@ int btfmcodec_hwep_shutdown(struct btfmcodec_data *btfmcodec, int id)
 		} else {
 			if (*status == BTM_RSP_RECV)
 				ret = 0;
-			else if (*status == BTM_FAIL_RESP_RECV)
+			else if (*status == BTM_FAIL_RESP_RECV ||
+				 *status == BTM_RSP_NOT_RECV_CLIENT_KILLED)
 				ret = -1;
 		}
 	} else {
@@ -489,7 +490,8 @@ static int btfmcodec_configure_master(struct btfmcodec_data *btfmcodec, uint8_t 
 	} else {
 		if (*status == BTM_RSP_RECV)
 			return 0;
-		else if (*status == BTM_FAIL_RESP_RECV)
+		else if (*status == BTM_FAIL_RESP_RECV ||
+			 *status == BTM_RSP_NOT_RECV_CLIENT_KILLED)
 			return -1;
 	}
 
