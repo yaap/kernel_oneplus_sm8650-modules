@@ -5,7 +5,11 @@
 #ifndef __QTI_SMMU_PROXY_H_
 #define __QTI_SMMU_PROXY_H_
 
-#include "../uapi/linux/qti-smmu-proxy.h"
+#include <linux/dma-buf.h>
+#include <linux/scatterlist.h>
+#include <linux/align.h>
+
+#include <smmu-proxy/uapi/linux/qti-smmu-proxy.h>
 
 #define SMMU_PROXY_MEM_ALIGNMENT (1 << 21)
 

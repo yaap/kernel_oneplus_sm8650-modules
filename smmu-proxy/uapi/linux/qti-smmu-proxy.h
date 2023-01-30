@@ -34,7 +34,8 @@ struct smmu_proxy_acl_ctl {
 					     struct smmu_proxy_acl_ctl)
 
 struct smmu_proxy_wipe_buf_ctl {
-	__u32 smmu_context_bank_id;
+	__u64 context_bank_id_array;
+	__u32 num_cb_ids;
 	__u32 padding;
 };
 
