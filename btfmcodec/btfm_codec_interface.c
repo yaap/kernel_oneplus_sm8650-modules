@@ -221,7 +221,8 @@ static int btfmcodec_dai_startup(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-int btfmcodec_hwep_shutdown(struct btfmcodec_data *btfmcodec, int id)
+int btfmcodec_hwep_shutdown(struct btfmcodec_data *btfmcodec, int id,
+			    bool disable_master)
 {
 	struct hwep_data *hwep_info = btfmcodec->hwep_info;
 	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
@@ -237,7 +238,7 @@ int btfmcodec_hwep_shutdown(struct btfmcodec_data *btfmcodec, int id)
 	/* for master configurations failure cases, we don't need to send
 	 * shutdown request
 	 */
-	if (btfmcodec_get_current_transport(state) == BT_Connected) {
+	if (btfmcodec_get_current_transport(state) == BT_Connected && disable_master) {
 		BTFMCODEC_DBG("sending master shutdown request..");
 		shutdown_req.opcode = BTM_BTFMCODEC_MASTER_SHUTDOWN_REQ;
 		shutdown_req.len = BTM_MASTER_SHUTDOWN_REQ_LEN;
@@ -260,6 +261,9 @@ int btfmcodec_hwep_shutdown(struct btfmcodec_data *btfmcodec, int id)
 				ret = -1;
 		}
 	} else {
+		if (!disable_master)
+		BTFMCODEC_WARN("Not sending master shutdown request as graph might have closed");
+		else	
 		BTFMCODEC_WARN("Not sending master shutdown request as state is:%s",
 			coverttostring(btfmcodec_get_current_transport(state)));
 	}
@@ -288,7 +292,7 @@ void btfmcodec_wq_hwep_shutdown(struct work_struct *work)
 	 */
 	list_for_each_entry(hwep_configs, head, dai_list) {
 		BTFMCODEC_INFO("shuting down dai id:%d", hwep_configs->stream_id);
-		ret = btfmcodec_hwep_shutdown(btfmcodec, hwep_configs->stream_id);
+		ret = btfmcodec_hwep_shutdown(btfmcodec, hwep_configs->stream_id, true);
 		if (ret < 0) {
 			BTFMCODEC_ERR("failed to shutdown master with id", hwep_configs->stream_id);
 			break;
@@ -338,7 +342,7 @@ static void btfmcodec_dai_shutdown(struct snd_pcm_substream *substream,
 		btfmcodec_delete_configs(btfmcodec, dai->id);
 	} else {
 		/* first master shutdown has to done */
-		btfmcodec_hwep_shutdown(btfmcodec, dai->id);
+		btfmcodec_hwep_shutdown(btfmcodec, dai->id, false);
 		btfmcodec_delete_configs(btfmcodec, dai->id);
 		if (!btfmcodec_is_valid_cache_avb(btfmcodec))
 			btfmcodec_set_current_state(state, IDLE);
