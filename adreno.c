@@ -117,7 +117,7 @@ int adreno_zap_shader_load(struct adreno_device *adreno_dev,
 	return ret;
 }
 
-#if IS_ENABLED(CONFIG_QCOM_KGSL_HIBERNATION)
+#if (IS_ENABLED(CONFIG_QCOM_KGSL_HIBERNATION) || IS_ENABLED(CONFIG_DEEPSLEEP))
 static void adreno_zap_shader_unload(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -1491,7 +1491,8 @@ static int adreno_pm_resume(struct device *dev)
 
 #if IS_ENABLED(CONFIG_DEEPSLEEP)
 	if (pm_suspend_via_firmware()) {
-		int status = kgsl_set_smmu_aperture(device);
+		struct kgsl_iommu *iommu = &device->mmu.iommu;
+		int status = kgsl_set_smmu_aperture(device, &iommu->user_context);
 
 		if (status)
 			return status;
