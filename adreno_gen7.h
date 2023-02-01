@@ -118,6 +118,8 @@ struct adreno_gen7_core {
 	u32 preempt_level;
 	/** @qos_value: GPU qos value to set for each RB. */
 	const u32 *qos_value;
+	/** @acv_perfmode_vote: ACV vote for GPU perfmode */
+	u32 acv_perfmode_vote;
 };
 
 /**

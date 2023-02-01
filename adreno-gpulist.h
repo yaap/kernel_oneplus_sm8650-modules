@@ -2320,6 +2320,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 	.gmu_hub_clk_freq = 200000000,
 	.gen7_snapshot_block_list = &gen7_9_0_snapshot_block_list,
 	.bcl_data = 1,
+	.acv_perfmode_vote = BIT(2),
 };
 
 static const struct kgsl_regmap_list a663_hwcg_regs[] = {
