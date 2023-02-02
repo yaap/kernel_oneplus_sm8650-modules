@@ -593,9 +593,8 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("%s: failed to unvote buses\n", __func__);
 
-	if (!(core->intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS33))
+	if (!call_venus_op(core, watchdog, core, core->intr_status))
 		disable_irq_nosync(core->resource->irq);
-	core->intr_status = 0;
 
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 
