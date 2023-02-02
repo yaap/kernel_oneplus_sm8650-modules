@@ -350,7 +350,7 @@ static int __init_power_domains(struct msm_vidc_core *core)
 	struct power_domain_info *pdinfo = NULL;
 	const struct pd_table *pd_tbl;
 	struct power_domain_set *pds;
-	struct device **opp_vdevs;
+	struct device **opp_vdevs = NULL;
 	const char **opp_tbl;
 	u32 pd_count = 0, opp_count = 0, cnt = 0;
 	int rc = 0;
@@ -428,7 +428,8 @@ static int __init_power_domains(struct msm_vidc_core *core)
 		d_vpr_h("%s: opp name %s\n", __func__, opp_tbl[cnt]);
 
 	/* populate opp power domains(for rails) */
-	rc = devm_pm_opp_attach_genpd(&core->pdev->dev, opp_tbl, &opp_vdevs);
+	//rc = devm_pm_opp_attach_genpd(&core->pdev->dev, opp_tbl, &opp_vdevs);
+	rc = -EINVAL;
 	if (rc)
 		return rc;
 
