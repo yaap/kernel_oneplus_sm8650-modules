@@ -92,6 +92,14 @@ void kgsl_snapshot_push_object(struct kgsl_device *device,
 		return;
 	}
 
+	/*
+	 * In some gpu fault scenarios incorrect dword size resulting to return
+	 * without putting IB addrs into the list. Hence update IB dword size
+	 * within memdesc size to have IB dump in snapshot.
+	 */
+	if ((gpuaddr + (dwords << 2)) > (entry->memdesc.gpuaddr + entry->memdesc.size))
+		dwords = (entry->memdesc.size - (gpuaddr - entry->memdesc.gpuaddr)) >> 2;
+
 	if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, dwords << 2)) {
 		dev_err(device->dev,
 			"snapshot: Mem entry 0x%016llX is too small\n",
