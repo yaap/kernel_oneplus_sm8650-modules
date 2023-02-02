@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -427,6 +427,8 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
+	gen7_get_gpu_feature_info(adreno_dev);
+
 	ret = gen7_hwsched_hfi_start(adreno_dev);
 	if (ret)
 		goto err;
@@ -844,8 +846,6 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	ret = gen7_hwsched_gpu_boot(adreno_dev);
 	if (ret)
 		return ret;
-
-	gen7_get_gpu_feature_info(adreno_dev);
 
 	adreno_get_bus_counters(adreno_dev);
 
