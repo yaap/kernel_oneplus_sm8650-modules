@@ -5067,11 +5067,6 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 
 	sched_set_fifo(device->events_worker->task);
 
-	/* This can return -EPROBE_DEFER */
-	status = kgsl_mmu_probe(device);
-	if (status != 0)
-		goto error_pwrctrl_close;
-
 	status = kgsl_reclaim_init();
 	if (status)
 		goto error_pwrctrl_close;
@@ -5124,12 +5119,6 @@ void kgsl_device_platform_remove(struct kgsl_device *device)
 
 	kgsl_device_events_remove(device);
 
-	kgsl_mmu_close(device);
-
-	/*
-	 * This needs to come after the MMU close so we can be sure all the
-	 * pagetables have been freed
-	 */
 	kgsl_free_globals(device);
 
 	kgsl_pwrctrl_close(device);
