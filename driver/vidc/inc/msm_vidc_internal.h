@@ -367,6 +367,7 @@ enum msm_vidc_metadata_bits {
 	CAP(LOWLATENCY_MAX_BITRATE)               \
 	CAP(LAST_FLAG_EVENT_ENABLE)               \
 	CAP(NUM_COMV)                             \
+	CAP(SIGNAL_COLOR_INFO)                    \
 	CAP(INST_CAP_MAX)                         \
 }
 

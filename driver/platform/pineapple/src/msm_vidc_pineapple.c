@@ -1943,6 +1943,12 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE,
 		HFI_PROP_ENABLE_SLICE_DELIVERY,
 		CAP_FLAG_OUTPUT_PORT},
+
+	{SIGNAL_COLOR_INFO, ENC, CODECS_ALL,
+		0, INT_MAX, 1, 0,
+		V4L2_CID_MPEG_VIDC_SIGNAL_COLOR_INFO,
+		HFI_PROP_SIGNAL_COLOR_INFO,
+		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 };
 
 static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pineapple[] = {
@@ -2507,6 +2513,11 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		{0},
 		NULL,
 		msm_vidc_set_vui_timing_info},
+
+	{SIGNAL_COLOR_INFO, ENC, CODECS_ALL,
+		{0},
+		NULL,
+		msm_vidc_set_signal_color_info},
 };
 
 /* Default UBWC config for LPDDR5 */

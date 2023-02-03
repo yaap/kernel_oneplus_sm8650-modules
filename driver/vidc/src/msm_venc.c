@@ -323,6 +323,11 @@ static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
 		return -EINVAL;
 	}
 
+	if (inst->capabilities->cap[SIGNAL_COLOR_INFO].flags & CAP_FLAG_CLIENT_SET) {
+		i_vpr_h(inst, "%s: client configured colorspace via control\n", __func__);
+		return 0;
+	}
+
 	input_fmt = &inst->fmts[INPUT_PORT];
 	pix_fmt = v4l2_colorformat_to_driver(inst,
 		input_fmt->fmt.pix_mp.pixelformat, __func__);

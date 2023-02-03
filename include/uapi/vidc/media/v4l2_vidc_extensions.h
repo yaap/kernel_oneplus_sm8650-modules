@@ -30,10 +30,20 @@
 /* AV1 */
 #define V4L2_PIX_FMT_AV1                        v4l2_fourcc('A', 'V', '1', '0')
 /* start of vidc specific colorspace definitions */
+/*
+ * V4L2_COLORSPACE_VIDC_START, V4L2_XFER_FUNC_VIDC_START
+ * and V4L2_YCBCR_VIDC_START are introduced because
+ * V4L2_COLORSPACE_LAST, V4L2_XFER_FUNC_LAST, and
+ * V4L2_YCBCR_ENC_LAST respectively are not accessible
+ * in userspace. These values are needed in userspace
+ * to check if the colorspace info is private.
+ */
+#define V4L2_COLORSPACE_VIDC_START           100
 #define V4L2_COLORSPACE_VIDC_GENERIC_FILM    101
 #define V4L2_COLORSPACE_VIDC_EG431           102
 #define V4L2_COLORSPACE_VIDC_EBU_TECH        103
 
+#define V4L2_XFER_FUNC_VIDC_START            200
 #define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M   201
 #define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG  202
 #define V4L2_XFER_FUNC_VIDC_BT601_525_OR_625 203
@@ -45,6 +55,7 @@
 #define V4L2_XFER_FUNC_VIDC_HLG              209
 
 /* should be 255 or below due to u8 limitation */
+#define V4L2_YCBCR_VIDC_START                240
 #define V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428  241
 #define V4L2_YCBCR_VIDC_FCC47_73_682         242
 
@@ -267,6 +278,25 @@ enum v4l2_mpeg_video_av1_tier {
 
 #define V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_LINE_COUNT                            \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x45)
+
+/*
+ * This control is introduced to overcome v4l2 limitation
+ * of allowing only standard colorspace info via s_fmt.
+ * v4l_sanitize_colorspace() is introduced in s_fmt ioctl
+ * to reject private colorspace. Through this control, client
+ * can set private colorspace info and/or use this control
+ * to set colorspace dynamically.
+ * The control value is 32 bits packed as:
+ *      [ 0 -  7] : matrix coefficients
+ *      [ 8 - 15] : transfer characteristics
+ *      [16 - 23] : colour primaries
+ *      [24 - 31] : range
+ * This control is only for encoder.
+ * Currently g_fmt in v4l2 does not santize colorspace,
+ * hence this control is not introduced for decoder.
+ */
+#define V4L2_CID_MPEG_VIDC_SIGNAL_COLOR_INFO                                  \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x46)
 
 /* add new controls above this line */
 /* Deprecate below controls once availble in gki and gsi bionic header */
