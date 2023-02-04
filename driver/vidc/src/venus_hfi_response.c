@@ -1001,11 +1001,11 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	if (inst->hfi_frame_info.fence_id) {
 		if (buf->data_size) {
 			/* signal fence */
-			msm_vidc_fence_signal(inst,
+			call_fence_op(core, fence_signal, inst,
 				inst->hfi_frame_info.fence_id);
 		} else {
 			/* destroy fence */
-			msm_vidc_fence_destroy(inst,
+			call_fence_op(core, fence_destroy, inst,
 				inst->hfi_frame_info.fence_id);
 		}
 	}

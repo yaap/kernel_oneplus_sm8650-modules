@@ -9,18 +9,26 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_buffer.h"
 
-struct msm_vidc_fence *msm_vidc_fence_create(
-		struct msm_vidc_inst *inst);
-int msm_vidc_create_fence_fd(struct msm_vidc_inst *inst,
-		struct msm_vidc_fence *fence);
-struct msm_vidc_fence *msm_vidc_get_fence_from_id(
-	struct msm_vidc_inst *inst, u32 fence_id);
-int msm_vidc_fence_signal(struct msm_vidc_inst *inst,
-		u32 fence_id);
-void msm_vidc_fence_destroy(struct msm_vidc_inst *inst,
-		u32 fence_id);
 int msm_vidc_fence_init(struct msm_vidc_inst *inst);
 void msm_vidc_fence_deinit(struct msm_vidc_inst *inst);
 
+#define call_fence_op(c, op, ...)                  \
+	(((c) && (c)->fence_ops && (c)->fence_ops->op) ? \
+	((c)->fence_ops->op(__VA_ARGS__)) : 0)
+
+struct msm_vidc_fence_ops {
+	int (*fence_register)(struct msm_vidc_core *core);
+	int (*fence_deregister)(struct msm_vidc_core *core);
+	struct msm_vidc_fence *(*fence_create)(struct msm_vidc_inst *inst);
+	int (*fence_create_fd)(struct msm_vidc_inst *inst,
+		struct msm_vidc_fence *fence);
+	void (*fence_destroy)(struct msm_vidc_inst *inst,
+		u64 fence_id);
+	int (*fence_signal)(struct msm_vidc_inst *inst,
+		u64 fence_id);
+	void (*fence_recover)(struct msm_vidc_core *core);
+};
+
+const struct msm_vidc_fence_ops *get_dma_fence_ops(void);
 
 #endif // __H_MSM_VIDC_FENCE_H__

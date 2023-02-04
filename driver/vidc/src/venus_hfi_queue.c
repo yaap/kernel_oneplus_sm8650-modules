@@ -429,6 +429,8 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 	call_mem_op(core, memory_unmap_free, core, &core->sfr.mem);
 	call_mem_op(core, iommu_unmap, core, &core->aon.mem);
 	call_mem_op(core, memory_unmap_free, core, &core->mmap_buf.mem);
+	call_mem_op(core, mem_dma_unmap_page, core,
+		&core->synx_fence_data.queue);
 
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		core->iface_queues[i].q_hdr = NULL;
@@ -588,6 +590,20 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	/* write sfr buffer size in first word */
 	*((u32 *)core->sfr.align_virtual_addr) = core->sfr.mem_size;
 
+	/* map synx fence tx/rx queue buffer */
+	if (core->capabilities[SUPPORTS_SYNX_FENCE].value) {
+		/*
+		 * queue memory is already allocated by synx fence
+		 * driver during msm_vidc_synx_fence_register(..) call
+		 */
+		rc = call_mem_op(core, mem_dma_map_page, core,
+			&core->synx_fence_data.queue);
+		if (rc) {
+			d_vpr_e("%s: synx fence queue buffer map failed\n", __func__);
+			goto fail_alloc_queue;
+		}
+	}
+
 	/* map aon registers */
 	memset(&mem, 0, sizeof(mem));
 	dev_reg = venus_hfi_get_device_region_info(core, MSM_VIDC_AON_REGISTERS);
@@ -634,12 +650,15 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	 *     payload[7-8]   : address and size of HW mutex registers
 	 *     payload[9-10]  : address and size of IPCC registers
 	 *     payload[11-12] : address and size of AON registers
+	 *     payload[13-14] : address and size of synx fence queue memory
 	 */
 	memset(core->mmap_buf.align_virtual_addr, 0, ALIGNED_MMAP_BUF_SIZE);
 	payload = ((u32 *)core->mmap_buf.align_virtual_addr);
 	payload[0] = 1;
 	payload[11] = core->aon.mem.device_addr;
 	payload[12] = core->aon.mem.size;
+	payload[13] = core->synx_fence_data.queue.device_addr;
+	payload[14] = core->synx_fence_data.queue.size;
 
 skip_mmap_buffer:
 	return 0;

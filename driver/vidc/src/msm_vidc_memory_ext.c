@@ -452,9 +452,9 @@ static int msm_vidc_memory_unmap_free_ext(struct msm_vidc_core *core, struct msm
 	return rc;
 }
 
-struct msm_vidc_memory_ops *get_mem_ops_ext(void)
+const struct msm_vidc_memory_ops *get_mem_ops_ext(void)
 {
-	struct msm_vidc_memory_ops *mem_ops = get_mem_ops();
+	const struct msm_vidc_memory_ops *mem_ops = get_mem_ops();
 	static struct msm_vidc_memory_ops mem_ops_ext;
 
 	memcpy(&mem_ops_ext, mem_ops, sizeof(struct msm_vidc_memory_ops));

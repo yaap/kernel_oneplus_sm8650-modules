@@ -33,6 +33,13 @@ struct msm_vidc_venus_ops {
 	int (*noc_error_info)(struct msm_vidc_core *core);
 };
 
+struct msm_vidc_synx_fence_data {
+	u32                             client_id;
+	void                           *session;
+	u32                             client_flags; /* not used */
+	struct msm_vidc_mem             queue;
+};
+
 struct msm_vidc_mem_addr {
 	u32 align_device_addr;
 	u8 *align_virtual_addr;
@@ -109,11 +116,13 @@ struct msm_vidc_core {
 	struct msm_vidc_venus_ops             *venus_ops;
 	const struct msm_vidc_resources_ops   *res_ops;
 	struct msm_vidc_session_ops           *session_ops;
-	struct msm_vidc_memory_ops            *mem_ops;
+	const struct msm_vidc_memory_ops      *mem_ops;
 	struct media_device_ops               *media_device_ops;
+	const struct msm_vidc_fence_ops       *fence_ops;
 	u32                                    header_id;
 	u32                                    packet_id;
 	u32                                    sys_init_id;
+	struct msm_vidc_synx_fence_data        synx_fence_data;
 };
 
 #endif // _MSM_VIDC_CORE_H_
