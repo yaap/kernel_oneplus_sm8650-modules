@@ -3868,12 +3868,6 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 		return 0;
 	}
 
-	vb2_queue_release(inst->bufq[OUTPUT_META_PORT].vb2q);
-	msm_vidc_vmem_free((void **)&inst->bufq[OUTPUT_META_PORT].vb2q);
-	inst->bufq[OUTPUT_META_PORT].vb2q = NULL;
-	vb2_queue_release(inst->bufq[INPUT_META_PORT].vb2q);
-	msm_vidc_vmem_free((void **)&inst->bufq[INPUT_META_PORT].vb2q);
-	inst->bufq[INPUT_META_PORT].vb2q = NULL;
 	/*
 	 * vb2_queue_release() for input and output queues
 	 * is called from v4l2_m2m_ctx_release()
@@ -3882,6 +3876,13 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 	inst->bufq[OUTPUT_PORT].vb2q = NULL;
 	inst->bufq[INPUT_PORT].vb2q = NULL;
 	v4l2_m2m_release(inst->m2m_dev);
+
+	vb2_queue_release(inst->bufq[OUTPUT_META_PORT].vb2q);
+	msm_vidc_vmem_free((void **)&inst->bufq[OUTPUT_META_PORT].vb2q);
+	inst->bufq[OUTPUT_META_PORT].vb2q = NULL;
+	vb2_queue_release(inst->bufq[INPUT_META_PORT].vb2q);
+	msm_vidc_vmem_free((void **)&inst->bufq[INPUT_META_PORT].vb2q);
+	inst->bufq[INPUT_META_PORT].vb2q = NULL;
 	inst->vb2q_init = false;
 
 	return rc;
@@ -4158,38 +4159,44 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
+	bool wait_for_response;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
+	wait_for_response = true;
 	rc = venus_hfi_session_close(inst);
-	if (rc)
-		return rc;
+	if (rc) {
+		i_vpr_e(inst, "%s: session close cmd failed\n", __func__);
+		wait_for_response = false;
+	}
 
 	/* we are not supposed to send any more commands after close */
 	i_vpr_h(inst, "%s: free session packet data\n", __func__);
 	msm_vidc_vmem_free((void **)&inst->packet);
 	inst->packet = NULL;
 
-	core = inst->core;
-	i_vpr_h(inst, "%s: wait on close for time: %d ms\n",
+	if (wait_for_response) {
+		i_vpr_h(inst, "%s: wait on close for time: %d ms\n",
 		__func__, core->capabilities[HW_RESPONSE_TIMEOUT].value);
-	inst_unlock(inst, __func__);
-	rc = wait_for_completion_timeout(
-			&inst->completions[SIGNAL_CMD_CLOSE],
-			msecs_to_jiffies(
-			core->capabilities[HW_RESPONSE_TIMEOUT].value));
-	if (!rc) {
-		i_vpr_e(inst, "%s: session close timed out\n", __func__);
-		rc = -ETIMEDOUT;
-		msm_vidc_inst_timeout(inst);
-	} else {
-		rc = 0;
-		i_vpr_h(inst, "%s: close successful\n", __func__);
+		inst_unlock(inst, __func__);
+		rc = wait_for_completion_timeout(
+				&inst->completions[SIGNAL_CMD_CLOSE],
+				msecs_to_jiffies(
+				core->capabilities[HW_RESPONSE_TIMEOUT].value));
+		if (!rc) {
+			i_vpr_e(inst, "%s: session close timed out\n", __func__);
+			rc = -ETIMEDOUT;
+			msm_vidc_inst_timeout(inst);
+		} else {
+			rc = 0;
+			i_vpr_h(inst, "%s: close successful\n", __func__);
+		}
+		inst_lock(inst, __func__);
 	}
-	inst_lock(inst, __func__);
 
 	return rc;
 }

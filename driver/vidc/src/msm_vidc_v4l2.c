@@ -514,11 +514,14 @@ int msm_v4l2_streamoff(struct file *filp, void *fh,
 		return -EINVAL;
 	}
 
+	client_lock(inst, __func__);
+	inst_lock(inst, __func__);
 	rc = msm_vidc_streamoff((void *)inst, i);
 	if (rc)
-		goto exit;
+		i_vpr_e(inst, "%s: msm_vidc_stramoff failed\n", __func__);
 
-exit:
+	inst_unlock(inst, __func__);
+	client_unlock(inst, __func__);
 	put_inst(inst);
 
 	return rc;

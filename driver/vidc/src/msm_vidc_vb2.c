@@ -577,25 +577,16 @@ void msm_vb2_stop_streaming(struct vb2_queue *q)
 		return;
 	}
 	inst = q->drv_priv;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
 
-	client_lock(inst, __func__);
-	inst_lock(inst, __func__);
 	rc = inst->event_handle(inst, MSM_VIDC_STREAMOFF, q);
 	if (rc) {
 		i_vpr_e(inst, "Streamoff: %s failed\n", v4l2_type_name(q->type));
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-		goto unlock;
 	}
-
-unlock:
-	inst_unlock(inst, __func__);
-	client_unlock(inst, __func__);
-	put_inst(inst);
 
 	return;
 }
