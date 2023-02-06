@@ -1832,6 +1832,9 @@ static void gen7_add_profile_events(struct adreno_device *adreno_dev,
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 
+	if (!time)
+		return;
+
 	/*
 	 * Here we are attempting to create a mapping between the
 	 * GPU time domain (alwayson counter) and the CPU time domain
