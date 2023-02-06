@@ -2575,9 +2575,6 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	}
 	DBG("ubwcp: ula_range: size = 0x%lx", ubwcp->ula_pool_size);
 
-	/*TBD: remove later. reducing size for quick testing...*/
-	ubwcp->ula_pool_size = 0x20000000; //500MB instead of 8GB
-
 	INIT_LIST_HEAD(&ubwcp->err_handler_list);
 
 	mutex_init(&ubwcp->desc_lock);
