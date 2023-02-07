@@ -2020,7 +2020,7 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 				ro_buf->attach, ro_buf->sg_table);
 			call_mem_op(core, dma_buf_detach, core,
 				ro_buf->dmabuf, ro_buf->attach);
-			ro_buf->dmabuf = NULL;
+			ro_buf->sg_table = NULL;
 			ro_buf->attach = NULL;
 		}
 		if (ro_buf->dbuf_get) {
