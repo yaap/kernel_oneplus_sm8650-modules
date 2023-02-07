@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HW_FENCE_DRV_UTILS_H
@@ -8,21 +8,21 @@
 
 /**
  * HW_FENCE_MAX_CLIENT_TYPE_STATIC:
- * Total number of client types without configurable number of sub-clients (GFX, DPU, VAL, IPE, VPU)
+ * Total number of client types without configurable number of sub-clients (GFX, DPU, VAL)
  */
-#define HW_FENCE_MAX_CLIENT_TYPE_STATIC 5
+#define HW_FENCE_MAX_CLIENT_TYPE_STATIC 3
 
 /**
  * HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE:
- * Maximum number of client types with configurable number of sub-clients (e.g. IFE)
+ * Maximum number of client types with configurable number of sub-clients (e.g. IPE, VPU, IFE)
  */
-#define HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE 8
+#define HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE 10
 
 /**
  * HW_FENCE_MAX_STATIC_CLIENTS_INDEX:
  * Maximum number of static clients, i.e. clients without configurable numbers of sub-clients
  */
-#define HW_FENCE_MAX_STATIC_CLIENTS_INDEX HW_FENCE_CLIENT_ID_IFE0
+#define HW_FENCE_MAX_STATIC_CLIENTS_INDEX HW_FENCE_CLIENT_ID_IPE
 
 /**
  * enum hw_fence_mem_reserve - Types of reservations for the carved-out memory.
