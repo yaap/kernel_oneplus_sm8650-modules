@@ -29,7 +29,11 @@
 #define PGD	1
 #define IFD	0
 
-
+#if IS_ENABLED(CONFIG_BTFM_SLIM)
+#define BTFMSLIM_DEV_NAME "btfmslim_slave"
+#else
+#define BTFMSLIM_DEV_NAME "btfmslim"
+#endif
 
 /* Codec driver defines */
 enum {

@@ -329,6 +329,7 @@ static int btfm_slim_dai_get_channel_map(void *dai,
 	switch (id) {
 	case BTFM_FM_SLIM_TX:
 		num = 2;
+		fallthrough;
 	case BTFM_BT_SCO_SLIM_TX:
 		if (!tx_slot || !tx_num) {
 			BTFMSLIM_ERR("Invalid tx_slot %p or tx_num %p",

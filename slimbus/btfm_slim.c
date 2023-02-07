@@ -22,7 +22,9 @@
 #include "btpower.h"
 #include "btfm_slim.h"
 #include "btfm_slim_slave.h"
+#if IS_ENABLED(CONFIG_SLIM_BTFM_CODEC)
 #include "btfm_slim_hw_interface.h"
+#endif
 
 #define DELAY_FOR_PORT_OPEN_MS (200)
 #define SLIM_MANF_ID_QCOM	0x217
