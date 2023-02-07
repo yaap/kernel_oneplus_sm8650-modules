@@ -1974,42 +1974,59 @@ static int __hwfence_regs_map(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	if (device->res->ipclite_phyaddr != 0) {
-		rc = iommu_map(cb->domain, device->res->ipclite_iova,
-			device->res->ipclite_phyaddr,
-			device->res->ipclite_size,
+	if (device->res->reg_mappings.ipclite_phyaddr != 0) {
+		rc = iommu_map(cb->domain,
+			device->res->reg_mappings.ipclite_iova,
+			device->res->reg_mappings.ipclite_phyaddr,
+			device->res->reg_mappings.ipclite_size,
 			IOMMU_READ | IOMMU_WRITE);
 		if (rc) {
 			dprintk(CVP_ERR, "map ipclite fail %d %#x %#x %#x\n",
-				rc, device->res->ipclite_iova,
-				device->res->ipclite_phyaddr,
-				device->res->ipclite_size);
+				rc, device->res->reg_mappings.ipclite_iova,
+				device->res->reg_mappings.ipclite_phyaddr,
+				device->res->reg_mappings.ipclite_size);
 			return rc;
 		}
 	}
-	if (device->res->hwmutex_phyaddr != 0) {
-		rc = iommu_map(cb->domain, device->res->hwmutex_iova,
-			device->res->hwmutex_phyaddr,
-			device->res->hwmutex_size,
+	if (device->res->reg_mappings.hwmutex_phyaddr != 0) {
+		rc = iommu_map(cb->domain,
+			device->res->reg_mappings.hwmutex_iova,
+			device->res->reg_mappings.hwmutex_phyaddr,
+			device->res->reg_mappings.hwmutex_size,
 			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
 		if (rc) {
 			dprintk(CVP_ERR, "map hwmutex fail %d %#x %#x %#x\n",
-				rc, device->res->hwmutex_iova,
-				device->res->hwmutex_phyaddr,
-				device->res->hwmutex_size);
+				rc, device->res->reg_mappings.hwmutex_iova,
+				device->res->reg_mappings.hwmutex_phyaddr,
+				device->res->reg_mappings.hwmutex_size);
 			return rc;
 		}
 	}
-	if (device->res->aon_phyaddr != 0) {
-		rc = iommu_map(cb->domain, device->res->aon_iova,
-			device->res->aon_phyaddr,
-			device->res->aon_size,
+	if (device->res->reg_mappings.aon_phyaddr != 0) {
+		rc = iommu_map(cb->domain,
+			device->res->reg_mappings.aon_iova,
+			device->res->reg_mappings.aon_phyaddr,
+			device->res->reg_mappings.aon_size,
 			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
 		if (rc) {
 			dprintk(CVP_ERR, "map aon fail %d %#x %#x %#x\n",
-				rc, device->res->aon_iova,
-				device->res->aon_phyaddr,
-				device->res->aon_size);
+				rc, device->res->reg_mappings.aon_iova,
+				device->res->reg_mappings.aon_phyaddr,
+				device->res->reg_mappings.aon_size);
+			return rc;
+		}
+	}
+	if (device->res->reg_mappings.timer_phyaddr != 0) {
+		rc = iommu_map(cb->domain,
+			device->res->reg_mappings.timer_iova,
+			device->res->reg_mappings.timer_phyaddr,
+			device->res->reg_mappings.timer_size,
+			IOMMU_MMIO | IOMMU_READ | IOMMU_WRITE);
+		if (rc) {
+			dprintk(CVP_ERR, "map timer fail %d %#x %#x %#x\n",
+				rc, device->res->reg_mappings.timer_iova,
+				device->res->reg_mappings.timer_phyaddr,
+				device->res->reg_mappings.timer_size);
 			return rc;
 		}
 	}
@@ -2027,17 +2044,25 @@ static int __hwfence_regs_unmap(struct iris_hfi_device *device)
 		return -EINVAL;
 	}
 
-	if (device->res->ipclite_iova != 0) {
-		iommu_unmap(cb->domain, device->res->ipclite_iova,
-			device->res->ipclite_size);
+	if (device->res->reg_mappings.ipclite_iova != 0) {
+		iommu_unmap(cb->domain,
+			device->res->reg_mappings.ipclite_iova,
+			device->res->reg_mappings.ipclite_size);
 	}
-	if (device->res->hwmutex_iova != 0) {
-		iommu_unmap(cb->domain, device->res->hwmutex_iova,
-			device->res->hwmutex_size);
+	if (device->res->reg_mappings.hwmutex_iova != 0) {
+		iommu_unmap(cb->domain,
+			device->res->reg_mappings.hwmutex_iova,
+			device->res->reg_mappings.hwmutex_size);
 	}
-	if (device->res->aon_iova != 0) {
-		iommu_unmap(cb->domain, device->res->aon_iova,
-			device->res->aon_size);
+	if (device->res->reg_mappings.aon_iova != 0) {
+		iommu_unmap(cb->domain,
+			device->res->reg_mappings.aon_iova,
+			device->res->reg_mappings.aon_size);
+	}
+	if (device->res->reg_mappings.timer_iova != 0) {
+		iommu_unmap(cb->domain,
+			device->res->reg_mappings.timer_iova,
+			device->res->reg_mappings.timer_size);
 	}
 	return rc;
 }
@@ -4880,18 +4905,18 @@ static int iris_hfi_get_core_capabilities(void *dev)
 static const char * const mid_names[16] = {
 	"CVP_FW",
 	"ARP_DATA",
-	"CVP_OD_NON_PIXEL",
-	"CVP_OD_ORIG_PIXEL",
-	"CVP_OD_WR_PIXEL",
-	"CVP_MPU_ORIG_PIXEL",
-	"CVP_MPU_REF_PIXEL",
+	"CVP_MPU_PIXEL",
 	"CVP_MPU_NON_PIXEL",
-	"CVP_MPU_DFS",
-	"CVP_FDU_NON_PIXEL",
 	"CVP_FDU_PIXEL",
-	"CVP_ICA_PIXEL",
-	"Invalid",
-	"Invalid",
+	"CVP_FDU_NON_PIXEL",
+	"CVP_GCE_PIXEL",
+	"CVP_GCE_NON_PIXEL",
+	"CVP_TOF_PIXEL",
+	"CVP_TOF_NON_PIXEL",
+	"CVP_VADL_PIXEL",
+	"CVP_VADL_NON_PIXEL",
+	"CVP_RGE_NON_PIXEL",
+	"CVP_CDM",
 	"Invalid",
 	"Invalid"
 };

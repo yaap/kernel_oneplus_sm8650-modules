@@ -153,14 +153,7 @@ struct cvp_pm_qos {
 	struct dev_pm_qos_request *pm_qos_hdls;
 };
 
-struct msm_cvp_platform_resources {
-	phys_addr_t firmware_base;
-	phys_addr_t register_base;
-	phys_addr_t ipcc_reg_base;
-	phys_addr_t gcc_reg_base;
-	uint32_t register_size;
-	uint32_t ipcc_reg_size;
-	uint32_t gcc_reg_size;
+struct cvp_fw_reg_mappings {
 	phys_addr_t ipclite_iova;
 	phys_addr_t ipclite_phyaddr;
 	uint32_t ipclite_size;
@@ -170,6 +163,20 @@ struct msm_cvp_platform_resources {
 	phys_addr_t aon_iova;
 	phys_addr_t aon_phyaddr;
 	uint32_t aon_size;
+	phys_addr_t timer_iova;
+	phys_addr_t timer_phyaddr;
+	uint32_t timer_size;
+};
+
+struct msm_cvp_platform_resources {
+	phys_addr_t firmware_base;
+	phys_addr_t register_base;
+	phys_addr_t ipcc_reg_base;
+	phys_addr_t gcc_reg_base;
+	uint32_t register_size;
+	uint32_t ipcc_reg_size;
+	uint32_t gcc_reg_size;
+	struct cvp_fw_reg_mappings reg_mappings;
 	uint32_t irq;
 	uint32_t sku_version;
 	struct allowed_clock_rates_table *allowed_clks_tbl;

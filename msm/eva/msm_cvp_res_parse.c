@@ -144,9 +144,10 @@ static int msm_cvp_load_ipcc_regs(struct msm_cvp_platform_resources *res)
 static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 {
 	int ret = 0;
-	unsigned int ipclite_mapping_config[3];
-	unsigned int hwmutex_mapping_config[3];
-	unsigned int aon_mapping_config[3];
+	unsigned int ipclite_mapping_config[3] = {0};
+	unsigned int hwmutex_mapping_config[3] = {0};
+	unsigned int aon_mapping_config[3] = {0};
+	unsigned int timer_config[3] = {0};
 	struct platform_device *pdev = res->pdev;
 
 	ret = of_property_read_u32_array(pdev->dev.of_node, "ipclite_mappings",
@@ -155,9 +156,9 @@ static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 		dprintk(CVP_ERR, "Failed to read ipclite reg: %d\n", ret);
 		return ret;
 	}
-	res->ipclite_iova = ipclite_mapping_config[0];
-	res->ipclite_size = ipclite_mapping_config[1];
-	res->ipclite_phyaddr = ipclite_mapping_config[2];
+	res->reg_mappings.ipclite_iova = ipclite_mapping_config[0];
+	res->reg_mappings.ipclite_size = ipclite_mapping_config[1];
+	res->reg_mappings.ipclite_phyaddr = ipclite_mapping_config[2];
 
 	ret = of_property_read_u32_array(pdev->dev.of_node, "hwmutex_mappings",
 		hwmutex_mapping_config, 3);
@@ -165,13 +166,9 @@ static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 		dprintk(CVP_ERR, "Failed to read hwmutex reg: %d\n", ret);
 		return ret;
 	}
-	res->hwmutex_iova = hwmutex_mapping_config[0];
-	res->hwmutex_size = hwmutex_mapping_config[1];
-	res->hwmutex_phyaddr = hwmutex_mapping_config[2];
-	dprintk(CVP_CORE, "ipclite %#x %#x %#x hwmutex %#x %#x %#x\n",
-		res->ipclite_iova, res->ipclite_phyaddr, res->ipclite_size,
-		res->hwmutex_iova, res->hwmutex_phyaddr, res->hwmutex_size);
-
+	res->reg_mappings.hwmutex_iova = hwmutex_mapping_config[0];
+	res->reg_mappings.hwmutex_size = hwmutex_mapping_config[1];
+	res->reg_mappings.hwmutex_phyaddr = hwmutex_mapping_config[2];
 
 	ret = of_property_read_u32_array(pdev->dev.of_node, "aon_mappings",
 		aon_mapping_config, 3);
@@ -179,11 +176,28 @@ static int msm_cvp_load_regspace_mapping(struct msm_cvp_platform_resources *res)
 		dprintk(CVP_ERR, "Failed to read aon reg: %d\n", ret);
 		return ret;
 	}
-	res->aon_iova = aon_mapping_config[0];
-	res->aon_size = aon_mapping_config[1];
-	res->aon_phyaddr = aon_mapping_config[2];
-	dprintk(CVP_CORE, "aon %#x %#x %#x \n",
-		res->hwmutex_iova, res->hwmutex_phyaddr, res->hwmutex_size);
+	res->reg_mappings.aon_iova = aon_mapping_config[0];
+	res->reg_mappings.aon_size = aon_mapping_config[1];
+	res->reg_mappings.aon_phyaddr = aon_mapping_config[2];
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+		"aon_timer_mappings", timer_config, 3);
+	if (ret) {
+		dprintk(CVP_ERR, "Failed to read timer reg: %d\n", ret);
+		return ret;
+	}
+	res->reg_mappings.timer_iova = timer_config[0];
+	res->reg_mappings.timer_size = timer_config[1];
+	res->reg_mappings.timer_phyaddr = timer_config[2];
+
+	dprintk(CVP_CORE,
+	"reg mappings %#x %#x %#x %#x %#x %#X %#x %#x %#x %#x %#x %#x\n",
+	res->reg_mappings.ipclite_iova, res->reg_mappings.ipclite_size,
+	res->reg_mappings.ipclite_phyaddr, res->reg_mappings.hwmutex_iova,
+	res->reg_mappings.hwmutex_size, res->reg_mappings.hwmutex_phyaddr,
+	res->reg_mappings.aon_iova, res->reg_mappings.aon_size,
+	res->reg_mappings.aon_phyaddr,  res->reg_mappings.timer_iova,
+	res->reg_mappings.timer_size, res->reg_mappings.timer_phyaddr);
 
 	return ret;
 }
