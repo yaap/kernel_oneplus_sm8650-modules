@@ -211,19 +211,19 @@ static void image_format_init(struct ubwcp_driver *ubwcp)
 					{1, {{4, 1,  {16, 4}, {64, 16}}}};
 	ubwcp->format_info[NV12]   = (struct ubwcp_image_format_info)
 					{2, {{1,  1, {32, 8}, {128, 32}},
-					{2,  1, {16, 8}, { 64, 32}}}};
+					     {2,  1, {16, 8}, { 64, 32}}}};
 	ubwcp->format_info[NV124R] = (struct ubwcp_image_format_info)
 					{2, {{1,  1, {64, 4}, {256, 16}},
-					{2,  1, {32, 4}, {128, 16}}}};
+					     {2,  1, {32, 4}, {128, 16}}}};
 	ubwcp->format_info[P010]   = (struct ubwcp_image_format_info)
 					{2, {{2,  1, {32, 4}, {128, 16}},
-					{4,  1, {16, 4}, { 64, 16}}}};
+					     {4,  1, {16, 4}, { 64, 16}}}};
 	ubwcp->format_info[TP10]   = (struct ubwcp_image_format_info)
 					{2, {{4,  3, {48, 4}, {192, 16}},
-					{8,  3, {24, 4}, { 96, 16}}}};
+					     {8,  3, {24, 4}, { 96, 16}}}};
 	ubwcp->format_info[P016]   = (struct ubwcp_image_format_info)
 					{2, {{2,  1, {32, 4}, {128, 16}},
-					{4,  1, {16, 4}, { 64, 16}}}};
+					     {4,  1, {16, 4}, { 64, 16}}}};
 }
 
 static void ubwcp_buf_desc_list_init(struct ubwcp_driver *ubwcp)
@@ -686,12 +686,111 @@ static void dump_attributes(struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("");
 }
 
-/* validate buffer attributes */
-static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
+static enum ubwcp_std_image_format to_std_format(u16 ioctl_image_format)
 {
-	bool valid_format;
+	switch (ioctl_image_format) {
+	case UBWCP_RGBA8888:
+		return RGBA;
+	case UBWCP_NV12:
+	case UBWCP_NV12_Y:
+	case UBWCP_NV12_UV:
+		return NV12;
+	case UBWCP_NV124R:
+	case UBWCP_NV124R_Y:
+	case UBWCP_NV124R_UV:
+		return NV124R;
+	case UBWCP_TP10:
+	case UBWCP_TP10_Y:
+	case UBWCP_TP10_UV:
+		return TP10;
+	case UBWCP_P010:
+	case UBWCP_P010_Y:
+	case UBWCP_P010_UV:
+		return P010;
+	case UBWCP_P016:
+	case UBWCP_P016_Y:
+	case UBWCP_P016_UV:
+		return P016;
+	default:
+		WARN(1, "Fix this!!!");
+		return STD_IMAGE_FORMAT_INVALID;
+	}
+}
 
-	switch (attr->image_format) {
+static int get_stride_alignment(enum ubwcp_std_image_format format, u16 *align)
+{
+	switch (format) {
+	case TP10:
+		*align = 64;
+		return 0;
+	case NV12:
+		*align = 128;
+		return 0;
+	case RGBA:
+	case NV124R:
+	case P010:
+	case P016:
+		*align = 256;
+		return 0;
+	default:
+		return -1;
+	}
+}
+
+/* returns stride of compressed image */
+static u32 get_compressed_stride(struct ubwcp_driver *ubwcp,
+					enum ubwcp_std_image_format format, u32 width)
+{
+	struct ubwcp_plane_info p_info;
+	u16 macro_tile_width_p;
+	u16 pixel_bytes;
+	u16 per_pixel;
+
+	p_info = ubwcp->format_info[format].p_info[0];
+	macro_tile_width_p = p_info.macrotilesize_p.width;
+	pixel_bytes = p_info.pixel_bytes;
+	per_pixel = p_info.per_pixel;
+
+	return UBWCP_ALIGN(width, macro_tile_width_p)*pixel_bytes/per_pixel;
+}
+
+/* check if linear stride conforms to hw limitations
+ * always returns false for linear image
+ */
+static bool stride_is_valid(struct ubwcp_driver *ubwcp,
+				u16 ioctl_img_fmt, u32 width, u32 lin_stride)
+{
+	u32 compressed_stride;
+	enum ubwcp_std_image_format format = to_std_format(ioctl_img_fmt);
+
+	if (format == STD_IMAGE_FORMAT_INVALID)
+		return false;
+
+	if ((lin_stride < width) || (lin_stride > 64*1024)) {
+		ERR("stride is not valid (width <= stride <= 64K): %d", lin_stride);
+		return false;
+	}
+
+	if (format == TP10) {
+		if(!IS_ALIGNED(lin_stride, 64)) {
+			ERR("stride must be aligned to 64: %d", lin_stride);
+			return false;
+		}
+	} else {
+		compressed_stride = get_compressed_stride(ubwcp, format, width);
+		if (lin_stride != compressed_stride) {
+			ERR("linear stride: %d must be same as compressed stride: %d",
+				lin_stride, compressed_stride);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool ioctl_format_is_valid(u16 ioctl_image_format)
+{
+	switch (ioctl_image_format) {
 	case UBWCP_LINEAR:
 	case UBWCP_RGBA8888:
 	case UBWCP_NV12:
@@ -709,13 +808,16 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
 	case UBWCP_P016:
 	case UBWCP_P016_Y:
 	case UBWCP_P016_UV:
-		valid_format = true;
-		break;
+		return true;
 	default:
-		valid_format = false;
+		return false;
 	}
+}
 
-	if (!valid_format) {
+/* validate buffer attributes */
+static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffer_attrs *attr)
+{
+	if (!ioctl_format_is_valid(attr->image_format)) {
 		ERR("invalid image format: %d", attr->image_format);
 		goto err;
 	}
@@ -749,19 +851,14 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
 		goto err;
 	}
 
+	if (attr->image_format != UBWCP_LINEAR)
+		if(!stride_is_valid(ubwcp, attr->image_format, attr->width, attr->stride)) {
+			ERR("stride is invalid: %d", attr->stride);
+			goto err;
+		}
 
-	/* TBD: what's the upper limit for stride? 8K is likely too high. */
-	if (!IS_ALIGNED(attr->stride, 64) ||
-	    (attr->stride < attr->width) ||
-	    (attr->stride > 4*8192)) {
-		ERR("stride is not valid (aligned to 64 and <= 8192): %d",
-			attr->stride);
-		goto err;
-	}
-
-	/* TBD: currently assume height + 10. Replace 10 with right num from camera. */
 	if ((attr->scanlines < attr->height) ||
-	    (attr->scanlines > attr->height + 10)) {
+	    (attr->scanlines > attr->height + 32*1024)) {
 		ERR("scanlines is not valid - height: %d scanlines: %d",
 			attr->height, attr->scanlines);
 		goto err;
@@ -1052,37 +1149,6 @@ int planes_in_format(enum ubwcp_std_image_format format)
 		return 1;
 	else
 		return 2;
-}
-
-enum ubwcp_std_image_format to_std_format(u16 ioctl_image_format)
-{
-	switch (ioctl_image_format) {
-	case UBWCP_RGBA8888:
-		return RGBA;
-	case UBWCP_NV12:
-	case UBWCP_NV12_Y:
-	case UBWCP_NV12_UV:
-		return NV12;
-	case UBWCP_NV124R:
-	case UBWCP_NV124R_Y:
-	case UBWCP_NV124R_UV:
-		return NV124R;
-	case UBWCP_TP10:
-	case UBWCP_TP10_Y:
-	case UBWCP_TP10_UV:
-		return TP10;
-	case UBWCP_P010:
-	case UBWCP_P010_Y:
-	case UBWCP_P010_UV:
-		return P010;
-	case UBWCP_P016:
-	case UBWCP_P016_Y:
-	case UBWCP_P016_UV:
-		return P016;
-	default:
-		WARN(1, "Fix this!!!");
-		return STD_IMAGE_FORMAT_INVALID;
-	}
 }
 
 unsigned int ubwcp_get_hw_image_format_value(u16 ioctl_image_format)
@@ -1559,12 +1625,10 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		goto unlock;
 	}
 
-	if (!ubwcp_buf_attrs_valid(attr)) {
+	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
 		ERR("Invalid buf attrs");
 		goto err;
 	}
-
-	DBG_BUF_ATTR("valid buf attrs");
 
 	if (attr->image_format == UBWCP_LINEAR) {
 		DBG_BUF_ATTR("Linear format requested");
@@ -2234,12 +2298,15 @@ static int ubwcp_close(struct inode *i, struct file *f)
 	return 0;
 }
 
-
 /* handle IOCTLs */
 static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
 {
 	struct ubwcp_ioctl_buffer_attrs buf_attr_ioctl;
 	struct ubwcp_ioctl_hw_version hw_ver;
+	struct ubwcp_ioctl_validate_stride validate_stride_ioctl;
+	struct ubwcp_ioctl_stride_align stride_align_ioctl;
+	enum ubwcp_std_image_format format;
+	struct ubwcp_driver *ubwcp;
 
 	switch (ioctl_num) {
 	case UBWCP_IOCTL_SET_BUF_ATTR:
@@ -2255,6 +2322,68 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 		DBG("IOCTL : GET_HW_VER");
 		ubwcp_get_hw_version(&hw_ver);
 		if (copy_to_user((void __user *)ioctl_param, &hw_ver, sizeof(hw_ver))) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+		break;
+
+	case UBWCP_IOCTL_GET_STRIDE_ALIGN:
+		DBG("IOCTL : GET_STRIDE_ALIGN");
+		if (copy_from_user(&stride_align_ioctl, (const void __user *) ioctl_param,
+				   sizeof(stride_align_ioctl))) {
+			ERR("ERROR: copy_from_user() failed");
+			return -EFAULT;
+		}
+
+		format = to_std_format(stride_align_ioctl.image_format);
+		if (format == STD_IMAGE_FORMAT_INVALID)
+			return -EINVAL;
+
+		if (stride_align_ioctl.unused != 0)
+			return -EINVAL;
+
+		if (get_stride_alignment(format, &stride_align_ioctl.stride_align)) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+
+		if (copy_to_user((void __user *)ioctl_param, &stride_align_ioctl,
+				sizeof(stride_align_ioctl))) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+		break;
+
+	case UBWCP_IOCTL_VALIDATE_STRIDE:
+		DBG("IOCTL : VALIDATE_STRIDE");
+		ubwcp = ubwcp_get_driver();
+		if (!ubwcp)
+			return -EINVAL;
+
+		if (copy_from_user(&validate_stride_ioctl, (const void __user *) ioctl_param,
+				   sizeof(validate_stride_ioctl))) {
+			ERR("ERROR: copy_from_user() failed");
+			return -EFAULT;
+		}
+
+		format = to_std_format(validate_stride_ioctl.image_format);
+		if (format == STD_IMAGE_FORMAT_INVALID) {
+			ERR("ERROR: invalid format: %d", validate_stride_ioctl.image_format);
+			return -EINVAL;
+		}
+
+		if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
+			ERR("ERROR: unused values must be set to 0");
+			return -EINVAL;
+		}
+
+		validate_stride_ioctl.valid = stride_is_valid(ubwcp,
+						validate_stride_ioctl.image_format,
+						validate_stride_ioctl.width,
+						validate_stride_ioctl.stride);
+
+		if (copy_to_user((void __user *)ioctl_param, &validate_stride_ioctl,
+			sizeof(validate_stride_ioctl))) {
 			ERR("ERROR: copy_to_user() failed");
 			return -EFAULT;
 		}
@@ -2394,7 +2523,7 @@ int ubwcp_register_error_handler(u32 client_id, ubwcp_error_handler_t handler,
 }
 EXPORT_SYMBOL(ubwcp_register_error_handler);
 
-static void ubwcp_notify_error_handlers(struct unwcp_err_info *err)
+static void ubwcp_notify_error_handlers(struct ubwcp_err_info *err)
 {
 	struct handler_node *node;
 	unsigned long flags;
@@ -2498,7 +2627,7 @@ int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
 		unsigned long iova, int flags, void *data)
 {
 	int ret = 0;
-	struct unwcp_err_info err;
+	struct ubwcp_err_info err;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	struct device *cb_dev = (struct device *)data;
 
@@ -2537,7 +2666,7 @@ irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 	void __iomem *base;
 	u64 src;
 	phys_addr_t addr;
-	struct unwcp_err_info err;
+	struct ubwcp_err_info err;
 
 	error_print_count++;
 
