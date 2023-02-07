@@ -10,8 +10,6 @@
 #include "msm_vidc_internal.h"
 
 struct msm_vidc_core;
-enum msm_vidc_state;
-enum msm_vidc_sub_state;
 
 #define FOREACH_CORE_STATE(CORE_STATE) {               \
 	CORE_STATE(CORE_DEINIT)                        \
@@ -50,6 +48,34 @@ enum msm_vidc_core_event_type {
 	CORE_EVENT_UPDATE_SUB_STATE          = BIT(1),
 };
 
+#define FOREACH_STATE(STATE) {                    \
+	STATE(OPEN)                               \
+	STATE(INPUT_STREAMING)                    \
+	STATE(OUTPUT_STREAMING)                   \
+	STATE(STREAMING)                          \
+	STATE(CLOSE)                              \
+	STATE(ERROR)                              \
+}
+
+enum msm_vidc_state FOREACH_STATE(GENERATE_MSM_VIDC_ENUM);
+
+#define MSM_VIDC_SUB_STATE_NONE          0
+#define MSM_VIDC_MAX_SUB_STATES          6
+/*
+ * max value of inst->sub_state if all
+ * the 6 valid bits are set i.e 111111==>63
+ */
+#define MSM_VIDC_MAX_SUB_STATE_VALUE     ((1 << MSM_VIDC_MAX_SUB_STATES) - 1)
+
+enum msm_vidc_sub_state {
+	MSM_VIDC_DRAIN                     = BIT(0),
+	MSM_VIDC_DRC                       = BIT(1),
+	MSM_VIDC_DRAIN_LAST_BUFFER         = BIT(2),
+	MSM_VIDC_DRC_LAST_BUFFER           = BIT(3),
+	MSM_VIDC_INPUT_PAUSE               = BIT(4),
+	MSM_VIDC_OUTPUT_PAUSE              = BIT(5),
+};
+
 enum msm_vidc_event FOREACH_EVENT(GENERATE_MSM_VIDC_ENUM);
 
 /* core statemachine functions */
@@ -67,8 +93,15 @@ const char *core_sub_state_name(enum msm_vidc_core_sub_state sub_state);
 /* inst statemachine functions */
 int msm_vidc_update_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_state request_state, const char *func);
-enum msm_vidc_allow msm_vidc_allow_state_change(
-	struct msm_vidc_inst *inst,
-	enum msm_vidc_state req_state);
+int msm_vidc_change_state(struct msm_vidc_inst *inst,
+	enum msm_vidc_state request_state, const char *func);
+int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
+	enum msm_vidc_sub_state clear_sub_state,
+	enum msm_vidc_sub_state set_sub_state, const char *func);
+const char *state_name(enum msm_vidc_state state);
+const char *sub_state_name(enum msm_vidc_sub_state sub_state);
+bool is_state(struct msm_vidc_inst *inst, enum msm_vidc_state state);
+bool is_sub_state(struct msm_vidc_inst *inst,
+	enum msm_vidc_sub_state sub_state);
 
 #endif // _MSM_VIDC_STATE_H_
