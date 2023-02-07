@@ -298,6 +298,10 @@ enum v4l2_mpeg_video_av1_tier {
 #define V4L2_CID_MPEG_VIDC_SIGNAL_COLOR_INFO                                  \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x46)
 
+/* control to enable csc */
+#define V4L2_CID_MPEG_VIDC_CSC                                                \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x47)
+
 /* add new controls above this line */
 /* Deprecate below controls once availble in gki and gsi bionic header */
 #ifndef V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID
