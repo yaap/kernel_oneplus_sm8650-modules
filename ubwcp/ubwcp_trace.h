@@ -72,24 +72,21 @@ DECLARE_EVENT_CLASS(ubwcp_dmabuf_event,
 		__entry->dbuf_addr)
 );
 
-DECLARE_EVENT_CLASS(ubwcp_dmabuf_size_event,
+DECLARE_EVENT_CLASS(ubwcp_size_event,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size),
+	TP_ARGS(size),
 
 	TP_STRUCT__entry(
-		__field(struct dma_buf *, dbuf_addr)
 		__field(size_t, size)
 	),
 
 	TP_fast_assign(
-		__entry->dbuf_addr = dbuf_addr;
 		__entry->size = size;
 	),
 
-	TP_printk("dma-buf:0x%lx size:%zu",
-		__entry->dbuf_addr, __entry->size)
+	TP_printk("size:%zu", __entry->size)
 );
 
 DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_init_buffer_start,
@@ -106,18 +103,18 @@ DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_init_buffer_end,
 	TP_ARGS(dbuf_addr)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_add_memory_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_add_memory_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_add_memory_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_add_memory_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
 DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_set_buf_attrs_start,
@@ -162,74 +159,88 @@ DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_unlock_end,
 	TP_ARGS(dbuf_addr)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_dma_sync_single_for_device_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_sync_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_dma_sync_single_for_device_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_sync_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_dma_sync_single_for_cpu_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_device_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_dma_sync_single_for_cpu_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_device_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_hw_flush_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_cpu_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_hw_flush_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_cpu_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_offline_and_remove_memory_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_hw_flush_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_offline_and_remove_memory_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_hw_flush_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_set_direct_map_range_uncached_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_and_remove_memory_start,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_dmabuf_size_event, ubwcp_set_direct_map_range_uncached_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_and_remove_memory_end,
 
-	TP_PROTO(struct dma_buf *dbuf_addr, size_t size),
+	TP_PROTO(size_t size),
 
-	TP_ARGS(dbuf_addr, size)
+	TP_ARGS(size)
+);
+
+DEFINE_EVENT(ubwcp_size_event, ubwcp_set_direct_map_range_uncached_start,
+
+	TP_PROTO(size_t size),
+
+	TP_ARGS(size)
+);
+
+DEFINE_EVENT(ubwcp_size_event, ubwcp_set_direct_map_range_uncached_end,
+
+	TP_PROTO(size_t size),
+
+	TP_ARGS(size)
 );
 
 DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_free_buffer_start,

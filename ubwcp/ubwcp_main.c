@@ -66,6 +66,8 @@ MODULE_IMPORT_NS(DMA_BUF);
 #define META_DATA_SIZE_ALIGN  4096
 #define PIXEL_DATA_SIZE_ALIGN 4096
 
+#define UBWCP_SYNC_GRANULE 0x4000000L /* 64 MB */
+
 struct ubwcp_desc {
 	int idx;
 	void *ptr;
@@ -138,10 +140,11 @@ struct ubwcp_driver {
 	u32 hw_ver_major;
 	u32 hw_ver_minor;
 
-	/* keep track of all buffers. hash table index'ed using dma_buf ptr.
-	 * 2**8 = 256 hash values
+	/* keep track of all potential buffers.
+	 * hash table index'ed using dma_buf ptr.
+	 * 2**13 = 8192 hash values
 	 */
-	DECLARE_HASHTABLE(buf_table, 8);
+	DECLARE_HASHTABLE(buf_table, 13);
 
 	/* buffer descriptor */
 	void       *buffer_desc_base;      /* CPU address */
@@ -150,6 +153,9 @@ struct ubwcp_driver {
 	struct ubwcp_desc desc_list[UBWCP_BUFFER_DESC_COUNT];
 
 	struct ubwcp_image_format_info format_info[INFO_FORMAT_LIST_SIZE];
+
+	atomic_t num_non_lin_buffers;
+	bool mem_online;
 
 	struct mutex desc_lock;        /* allocate/free descriptors */
 	spinlock_t buf_table_lock;     /* add/remove dma_buf into list of managed bufffers */
@@ -424,6 +430,186 @@ int ubwcp_get_hw_version(struct ubwcp_ioctl_hw_version *ver)
 }
 EXPORT_SYMBOL(ubwcp_get_hw_version);
 
+static int add_ula_pa_memory(struct ubwcp_driver *ubwcp)
+{
+	int ret;
+	int nid;
+
+	nid = memory_add_physaddr_to_nid(ubwcp->ula_pool_base);
+	DBG("calling add_memory()...");
+	trace_ubwcp_add_memory_start(ubwcp->ula_pool_size);
+	ret = add_memory(nid, ubwcp->ula_pool_base, ubwcp->ula_pool_size, MHP_NONE);
+	trace_ubwcp_add_memory_end(ubwcp->ula_pool_size);
+
+	if (ret) {
+		ERR("add_memory() failed st:0x%lx sz:0x%lx err: %d",
+			ubwcp->ula_pool_base,
+			ubwcp->ula_pool_size,
+			ret);
+		/* Fix to put driver in invalid state */
+	} else {
+		DBG("add_memory() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
+			ubwcp->ula_pool_base,
+			ubwcp->ula_pool_size,
+			page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
+	}
+
+	return ret;
+}
+
+static int inc_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
+{
+	int ret = 0;
+
+	atomic_inc(&ubwcp->num_non_lin_buffers);
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+	if (!ubwcp->mem_online) {
+		if (atomic_read(&ubwcp->num_non_lin_buffers) == 0) {
+			ret = -EINVAL;
+			ERR("Bad state: num_non_lin_buffers should not be 0");
+			/* Fix to put driver in invalid state */
+			goto err_power_on;
+		}
+
+		ret = ubwcp_power(ubwcp, true);
+		if (ret)
+			goto err_power_on;
+
+		ret = add_ula_pa_memory(ubwcp);
+		if (ret)
+			goto err_add_memory;
+
+		ubwcp->mem_online = true;
+	}
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+	return 0;
+
+err_add_memory:
+	ubwcp_power(ubwcp, false);
+err_power_on:
+	atomic_dec(&ubwcp->num_non_lin_buffers);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+
+	return ret;
+}
+
+static int dec_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
+{
+	int ret = 0;
+
+	atomic_dec(&ubwcp->num_non_lin_buffers);
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+
+	/* If this is the last buffer being freed, power off ubwcp */
+	if (atomic_read(&ubwcp->num_non_lin_buffers) == 0) {
+		unsigned long sync_remain = 0;
+		unsigned long sync_offset = 0;
+		unsigned long sync_size = 0;
+		unsigned long sync_granule = UBWCP_SYNC_GRANULE;
+
+		DBG("last buffer: ~~~~~~~~~~~");
+		if (!ubwcp->mem_online) {
+			ret = -EINVAL;
+			ERR("Bad state: mem_online should not be false");
+			/* Fix to put driver in invalid state */
+			goto err_remove_mem;
+		}
+
+		DBG("set_direct_map_range_uncached() for ULA PA pool st:0x%lx num pages:%lu",
+				ubwcp->ula_pool_base, ubwcp->ula_pool_size >> PAGE_SHIFT);
+		trace_ubwcp_set_direct_map_range_uncached_start(ubwcp->ula_pool_size);
+		ret = set_direct_map_range_uncached((unsigned long)phys_to_virt(
+				ubwcp->ula_pool_base), ubwcp->ula_pool_size >> PAGE_SHIFT);
+		trace_ubwcp_set_direct_map_range_uncached_end(ubwcp->ula_pool_size);
+		if (ret) {
+			ERR("set_direct_map_range_uncached failed st:0x%lx num pages:%lu err: %d",
+				ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size >> PAGE_SHIFT, ret);
+			goto err_remove_mem;
+		} else {
+			DBG("DONE: calling set_direct_map_range_uncached() for ULA PA pool");
+		}
+
+		DBG("Calling dma_sync_single_for_cpu() for ULA PA pool");
+		trace_ubwcp_offline_sync_start(ubwcp->ula_pool_size);
+
+		sync_remain = ubwcp->ula_pool_size;
+		sync_offset = 0;
+		while (sync_remain > 0) {
+			if (atomic_read(&ubwcp->num_non_lin_buffers) > 0) {
+
+				trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
+				DBG("Cancel memory offlining");
+
+				DBG("Calling offline_and_remove_memory() for ULA PA pool");
+				trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
+				ret = offline_and_remove_memory(ubwcp->ula_pool_base,
+						ubwcp->ula_pool_size);
+				trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
+				if (ret) {
+					ERR("remove memory failed st:0x%lx sz:0x%lx err: %d",
+						ubwcp->ula_pool_base,
+						ubwcp->ula_pool_size, ret);
+					goto err_remove_mem;
+				} else {
+					DBG("DONE: calling remove memory for ULA PA pool");
+				}
+
+				ret = add_ula_pa_memory(ubwcp);
+				if (ret) {
+					ERR("Bad state: failed to add back memory");
+					/* Fix to put driver in invalid state */
+					ubwcp->mem_online = false;
+				}
+				mutex_unlock(&ubwcp->mem_hotplug_lock);
+				return ret;
+			}
+
+			if (sync_granule > sync_remain) {
+				sync_size = sync_remain;
+				sync_remain = 0;
+			} else {
+				sync_size = sync_granule;
+				sync_remain -= sync_granule;
+			}
+
+			DBG("Partial sync offset:0x%lx size:0x%lx", sync_offset, sync_size);
+			trace_ubwcp_dma_sync_single_for_cpu_start(sync_size);
+			dma_sync_single_for_cpu(ubwcp->dev, ubwcp->ula_pool_base + sync_offset,
+					sync_size, DMA_BIDIRECTIONAL);
+			trace_ubwcp_dma_sync_single_for_cpu_end(sync_size);
+			sync_offset += sync_size;
+		}
+		trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
+
+		DBG("Calling offline_and_remove_memory() for ULA PA pool");
+		trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
+		ret = offline_and_remove_memory(ubwcp->ula_pool_base, ubwcp->ula_pool_size);
+		trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
+		if (ret) {
+			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
+				ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size, ret);
+			/* Fix to put driver in invalid state */
+			goto err_remove_mem;
+		} else {
+			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
+		}
+		DBG("Calling power OFF ...");
+		ubwcp_power(ubwcp, false);
+		ubwcp->mem_online = false;
+	}
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+	return 0;
+
+err_remove_mem:
+	atomic_inc(&ubwcp->num_non_lin_buffers);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+
+	DBG("returning error: %d", ret);
+	return ret;
+}
+
 /**
  *
  * Initialize ubwcp buffer for the given dma_buf. This
@@ -436,12 +622,9 @@ EXPORT_SYMBOL(ubwcp_get_hw_version);
  */
 static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 {
-	int ret = 0;
-	int nid;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	unsigned long flags;
-	bool table_empty;
 
 	FENTRY();
 	trace_ubwcp_init_buffer_start(dmabuf);
@@ -473,50 +656,14 @@ static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 	mutex_init(&buf->lock);
 	buf->dma_buf = dmabuf;
 	buf->ubwcp   = ubwcp;
+	buf->buf_attr.image_format = UBWCP_LINEAR;
 
-	mutex_lock(&ubwcp->mem_hotplug_lock);
-	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
-	table_empty = hash_empty(ubwcp->buf_table);
-	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
-	if (table_empty) {
-		ret = ubwcp_power(ubwcp, true);
-		if (ret)
-			goto err_power_on;
-
-		nid = memory_add_physaddr_to_nid(ubwcp->ula_pool_base);
-		DBG("calling add_memory()...");
-		trace_ubwcp_add_memory_start(dmabuf, ubwcp->ula_pool_size);
-		ret = add_memory(nid, ubwcp->ula_pool_base, ubwcp->ula_pool_size, MHP_NONE);
-		trace_ubwcp_add_memory_end(dmabuf, ubwcp->ula_pool_size);
-		if (ret) {
-			ERR("add_memory() failed st:0x%lx sz:0x%lx err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size,
-				ret);
-			goto err_add_memory;
-		} else {
-			DBG("add_memory() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size,
-				page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
-		}
-	}
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_add(ubwcp->buf_table, &buf->hnode, (u64)buf->dma_buf);
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	trace_ubwcp_init_buffer_end(dmabuf);
-	return ret;
 
-err_add_memory:
-	ubwcp_power(ubwcp, false);
-err_power_on:
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	kfree(buf);
-	if (!ret)
-		ret = -1;
 	trace_ubwcp_init_buffer_end(dmabuf);
-	return ret;
+	return 0;
 }
 
 static void dump_attributes(struct ubwcp_buffer_attrs *attr)
@@ -1305,6 +1452,7 @@ static void reset_buf_attrs(struct ubwcp_buf *buf)
 	/* reset ubwcp params */
 	memset(mmdata, 0, sizeof(*mmdata));
 	buf->buf_attr_set = false;
+	buf->buf_attr.image_format = UBWCP_LINEAR;
 }
 
 static void print_mmdata_desc(struct ubwcp_hw_meta_metadata *mmdata)
@@ -1364,6 +1512,7 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	u32 width_b;
 	u32 height_b;
 	enum ubwcp_std_image_format std_image_format;
+	bool is_non_lin_buf;
 
 	FENTRY();
 	trace_ubwcp_set_buf_attrs_start(dmabuf);
@@ -1392,11 +1541,12 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	if (buf->locked) {
 		ERR("Cannot set attr when buffer is locked");
 		ret = -EBUSY;
-		goto err;
+		goto unlock;
 	}
 
 	ubwcp  = buf->ubwcp;
 	mmdata = &buf->mmdata;
+	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
 	//TBD: now that we have single exit point for all errors,
 	//we can limit this call to error only?
@@ -1406,7 +1556,7 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	ret = ubwcp->mmap_config_fptr(buf->dma_buf, true, 0, 0);
 	if (ret) {
 		ERR("dma_buf_mmap_config() failed: %d", ret);
-		goto err;
+		goto unlock;
 	}
 
 	if (!ubwcp_buf_attrs_valid(attr)) {
@@ -1418,6 +1568,8 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 
 	if (attr->image_format == UBWCP_LINEAR) {
 		DBG_BUF_ATTR("Linear format requested");
+
+
 		/* linear format request with permanent range xlation doesn't
 		 * make sense. need to define behavior if this happens.
 		 * note: with perm set, desc is allocated to this buffer.
@@ -1427,9 +1579,17 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		if (buf->buf_attr_set)
 			reset_buf_attrs(buf);
 
+		if (is_non_lin_buf) {
+			/*
+			 * Changing buffer from ubwc to linear so decrement
+			 * number of ubwc buffers
+			 */
+			ret = dec_num_non_lin_buffers(ubwcp);
+		}
+
 		mutex_unlock(&buf->lock);
 		trace_ubwcp_set_buf_attrs_end(dmabuf);
-		return 0;
+		return ret;
 	}
 
 	std_image_format = to_std_format(attr->image_format);
@@ -1572,6 +1732,17 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		mmdata->width_height = width_b << 16 | attr->height;
 
 	print_mmdata_desc(mmdata);
+	if (!is_non_lin_buf) {
+		/*
+		 * Changing buffer from linear to ubwc so increment
+		 * number of ubwc buffers
+		 */
+		ret = inc_num_non_lin_buffers(ubwcp);
+	}
+	if (ret) {
+		ERR("inc_num_non_lin_buffers failed: %d", ret);
+		goto err;
+	}
 
 	buf->buf_attr = *attr;
 	buf->buf_attr_set = true;
@@ -1582,6 +1753,14 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 
 err:
 	reset_buf_attrs(buf);
+	if (is_non_lin_buf) {
+		/*
+		 * Changing buffer from ubwc to linear so decrement
+		 * number of ubwc buffers
+		 */
+		dec_num_non_lin_buffers(ubwcp);
+	}
+unlock:
 	mutex_unlock(&buf->lock);
 	if (!ret)
 		ret = -1;
@@ -1747,17 +1926,17 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		 * we force completion of that and then we also cpu invalidate which
 		 * will get rid of that line.
 		 */
-		trace_ubwcp_hw_flush_start(dmabuf, buf->ula_size);
+		trace_ubwcp_hw_flush_start(buf->ula_size);
 		ubwcp_flush(ubwcp);
-		trace_ubwcp_hw_flush_end(dmabuf, buf->ula_size);
+		trace_ubwcp_hw_flush_end(buf->ula_size);
 
 		/* Flush/invalidate ULA PA from CPU caches
 		 * TBD: if (dir == READ or BIDIRECTION) //NOT for write
 		 * -- Confirm with Chris if this can be skipped for write
 		 */
-		trace_ubwcp_dma_sync_single_for_cpu_start(dmabuf, buf->ula_size);
+		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size);
 		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-		trace_ubwcp_dma_sync_single_for_cpu_end(dmabuf, buf->ula_size);
+		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size);
 		buf->lock_dir = dir;
 		buf->locked = true;
 	} else {
@@ -1805,18 +1984,18 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 
 	/* Flush/invalidate ULA PA from CPU caches */
 	//TBD: if (dir == WRITE or BIDIRECTION)
-	trace_ubwcp_dma_sync_single_for_device_start(buf->dma_buf, buf->ula_size);
+	trace_ubwcp_dma_sync_single_for_device_start(buf->ula_size);
 	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-	trace_ubwcp_dma_sync_single_for_device_end(buf->dma_buf, buf->ula_size);
+	trace_ubwcp_dma_sync_single_for_device_end(buf->ula_size);
 
 	/* disable range check with ubwcp flush */
 	DBG("disabling range check");
 	//TBD: could combine these 2 locks into a single lock to make it simpler
 	mutex_lock(&ubwcp->ubwcp_flush_lock);
 	mutex_lock(&ubwcp->hw_range_ck_lock);
-	trace_ubwcp_hw_flush_start(buf->dma_buf, buf->ula_size);
+	trace_ubwcp_hw_flush_start(buf->ula_size);
 	ret = ubwcp_hw_disable_range_check_with_flush(ubwcp->base, buf->desc->idx);
-	trace_ubwcp_hw_flush_end(buf->dma_buf, buf->ula_size);
+	trace_ubwcp_hw_flush_end(buf->ula_size);
 	if (ret)
 		ERR("disable_range_check_with_flush() failed: %d", ret);
 	mutex_unlock(&ubwcp->hw_range_ck_lock);
@@ -1988,8 +2167,8 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	int ret = 0;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp;
-	bool table_empty;
 	unsigned long flags;
+	bool is_non_lin_buf;
 
 	FENTRY();
 	trace_ubwcp_free_buffer_start(dmabuf);
@@ -2009,6 +2188,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 
 	mutex_lock(&buf->lock);
 	ubwcp = buf->ubwcp;
+	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
 	if (buf->locked) {
 		DBG("free() called without unlock. unlock()'ing first...");
@@ -2027,71 +2207,17 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	if (buf->buf_attr_set)
 		reset_buf_attrs(buf);
 
-	mutex_lock(&ubwcp->mem_hotplug_lock);
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_del(&buf->hnode);
-	table_empty = hash_empty(ubwcp->buf_table);
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
 
 	kfree(buf);
 
-	/* If this is the last buffer being freed, power off ubwcp */
-	if (table_empty) {
-		DBG("last buffer: ~~~~~~~~~~~");
-		/* TBD: If everything is working fine, ubwcp_flush() should not
-		 * be needed here. Each buffer free logic should be taking
-		 * care of flush. Just a note for now. Might need to add the
-		 * flush here for debug purpose.
-		 */
+	if (is_non_lin_buf)
+		dec_num_non_lin_buffers(ubwcp);
 
-		DBG("set_direct_map_range_uncached() for ULA PA pool st:0x%lx num pages:%lu",
-				ubwcp->ula_pool_base, ubwcp->ula_pool_size >> PAGE_SHIFT);
-		trace_ubwcp_set_direct_map_range_uncached_start(dmabuf, ubwcp->ula_pool_size);
-		ret = set_direct_map_range_uncached((unsigned long)phys_to_virt(
-				ubwcp->ula_pool_base), ubwcp->ula_pool_size >> PAGE_SHIFT);
-		trace_ubwcp_set_direct_map_range_uncached_end(dmabuf, ubwcp->ula_pool_size);
-		if (ret) {
-			ERR("set_direct_map_range_uncached failed st:0x%lx num pages:%lu err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size >> PAGE_SHIFT, ret);
-			goto err_remove_mem;
-		} else {
-			DBG("DONE: calling set_direct_map_range_uncached() for ULA PA pool");
-		}
-
-		DBG("Calling dma_sync_single_for_cpu() for ULA PA pool");
-		trace_ubwcp_dma_sync_single_for_cpu_start(dmabuf, ubwcp->ula_pool_size);
-		dma_sync_single_for_cpu(ubwcp->dev, ubwcp->ula_pool_base, ubwcp->ula_pool_size,
-				DMA_BIDIRECTIONAL);
-		trace_ubwcp_dma_sync_single_for_cpu_end(dmabuf, ubwcp->ula_pool_size);
-
-		DBG("Calling offline_and_remove_memory() for ULA PA pool");
-		trace_ubwcp_offline_and_remove_memory_start(dmabuf, ubwcp->ula_pool_size);
-		ret = offline_and_remove_memory(ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size);
-		trace_ubwcp_offline_and_remove_memory_end(dmabuf, ubwcp->ula_pool_size);
-		if (ret) {
-			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size, ret);
-			goto err_remove_mem;
-		} else {
-			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
-		}
-		DBG("Calling power OFF ...");
-		ubwcp_power(ubwcp, false);
-	}
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	trace_ubwcp_free_buffer_end(dmabuf);
-	return ret;
-
-err_remove_mem:
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	if (!ret)
-		ret = -1;
-	DBG("returning error: %d", ret);
-	trace_ubwcp_free_buffer_end(dmabuf);
-	return ret;
+	return 0;
 }
 
 
@@ -2346,8 +2472,14 @@ static struct dma_buf *get_dma_buf_from_iova(unsigned long addr)
 
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_for_each(ubwcp->buf_table, i, buf, hnode) {
-		unsigned long iova_base = sg_dma_address(buf->sgt->sgl);
-		unsigned int iova_size = sg_dma_len(buf->sgt->sgl);
+		unsigned long iova_base;
+		unsigned int iova_size;
+
+		if (!buf->sgt)
+			continue;
+
+		iova_base = sg_dma_address(buf->sgt->sgl);
+		iova_size = sg_dma_len(buf->sgt->sgl);
 
 		if (iova_base <= addr && addr < iova_base + iova_size) {
 			ret_buf = buf->dma_buf;
@@ -2576,6 +2708,9 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	DBG("ubwcp: ula_range: size = 0x%lx", ubwcp->ula_pool_size);
 
 	INIT_LIST_HEAD(&ubwcp->err_handler_list);
+
+	atomic_set(&ubwcp->num_non_lin_buffers, 0);
+	ubwcp->mem_online = false;
 
 	mutex_init(&ubwcp->desc_lock);
 	spin_lock_init(&ubwcp->buf_table_lock);
