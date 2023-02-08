@@ -302,14 +302,14 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 	/* (4096 * 2304) / 256 */
 	{BATCH_FPS, DEC, H264|HEVC|VP9, 1, 120, 1, 120},
 
-	{FRAME_RATE, ENC, CODECS_ALL,
+	{FRAME_RATE, ENC|DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), (MAXIMUM_FPS << 16),
 		1, (DEFAULT_FPS << 16),
 		0,
 		HFI_PROP_FRAME_RATE,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{OPERATING_RATE, ENC, CODECS_ALL,
+	{OPERATING_RATE, ENC|DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), (MAXIMUM_FPS << 16),
 		1, (DEFAULT_FPS << 16)},
 
