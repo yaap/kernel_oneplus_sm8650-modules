@@ -900,6 +900,11 @@ int cvp_read_platform_resources_from_dt(
 	dprintk(CVP_CORE, "%s: res->irq:%d \n",
 		__func__, res->irq);
 
+	//Parsing for WD interrupt
+	res->irq_wd = platform_get_irq(pdev, 1);
+
+	dprintk(CVP_CORE, "%s: res->irq_wd:%d \n",
+		__func__, res->irq_wd);
 	rc = msm_cvp_load_subcache_info(res);
 	if (rc)
 		dprintk(CVP_WARN, "Failed to load subcache info: %d\n", rc);

@@ -130,6 +130,7 @@ static int msm_cvp_vm_init_reg_and_irq(struct iris_hfi_device *device,
 	}
 
 	hal->irq = res->irq;
+	hal->irq_wd = res->irq_wd;
 	hal->firmware_base = res->firmware_base;
 	hal->register_base = devm_ioremap(&res->pdev->dev,
 			res->register_base, res->register_size);
@@ -156,6 +157,13 @@ static int msm_cvp_vm_init_reg_and_irq(struct iris_hfi_device *device,
 			"msm_cvp", device);
 	if (unlikely(rc)) {
 		dprintk(CVP_ERR, "%s: request_irq failed rc: %d\n", __func__, rc);
+		goto error_irq_fail;
+	}
+
+	rc = request_irq(res->irq_wd, iris_hfi_isr_wd, IRQF_TRIGGER_HIGH,
+			"msm_cvp", device);
+	if (unlikely(rc)) {
+		dprintk(CVP_ERR, "() :request_irq for WD failed\n");
 		goto error_irq_fail;
 	}
 

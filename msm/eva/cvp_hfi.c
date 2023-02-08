@@ -35,6 +35,7 @@
 
 // ysi - added for debug
 #include <linux/clk/qcom.h>
+#include "msm_cvp_common.h"
 
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
 #define QDSS_IOVA_START 0x80001000
@@ -3455,6 +3456,43 @@ irqreturn_t cvp_hfi_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static void iris_hfi_wd_work_handler(struct work_struct *work)
+{
+	struct msm_cvp_core *core;
+	struct iris_hfi_device *device;
+	struct msm_cvp_cb_cmd_done response  = {0};
+	enum hal_command_response cmd = HAL_SYS_WATCHDOG_TIMEOUT;
+	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	if (core)
+		device = core->device->hfi_device_data;
+	else
+		return;
+	if (msm_cvp_hw_wd_recovery) {
+		dprintk(CVP_ERR, "Cleaning up as HW WD recovery is enable %d\n",
+				msm_cvp_hw_wd_recovery);
+		response.device_id = device->device_id;
+		handle_sys_error(cmd, (void *) &response);
+		enable_irq(device->cvp_hal_data->irq_wd);
+	}
+	else {
+		dprintk(CVP_ERR, "Crashing the device as HW WD recovery is disable %d\n",
+				msm_cvp_hw_wd_recovery);
+		BUG_ON(1);
+	}
+}
+
+static DECLARE_WORK(iris_hfi_wd_work, iris_hfi_wd_work_handler);
+
+irqreturn_t iris_hfi_isr_wd(int irq, void *dev)
+{
+	struct iris_hfi_device *device = dev;
+	dprintk(CVP_ERR, "Got HW WDOG IRQ! \n");
+	disable_irq_nosync(irq);
+	queue_work(device->cvp_workq, &iris_hfi_wd_work);
+	return IRQ_HANDLED;
+
+}
+
 static int __init_reset_clk(struct msm_cvp_platform_resources *res,
 			int reset_index)
 {
@@ -4168,6 +4206,13 @@ static void interrupt_init_iris2(struct iris_hfi_device *device)
 	__write_register(device, CVP_WRAPPER_INTR_MASK, mask_val);
 	dprintk(CVP_REG, "Init irq: reg: %x, mask value %x\n",
 		CVP_WRAPPER_INTR_MASK, mask_val);
+
+	mask_val = 0;
+	mask_val = __read_register(device, CVP_SS_IRQ_MASK);
+	mask_val &= ~(CVP_SS_INTR_BMASK);
+	__write_register(device, CVP_SS_IRQ_MASK, mask_val);
+	dprintk(CVP_REG, "Init irq_wd: reg: %x, mask value %x\n",
+			CVP_SS_IRQ_MASK, mask_val);
 }
 
 static void setup_dsp_uc_memmap_vpu5(struct iris_hfi_device *device)
