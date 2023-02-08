@@ -33,11 +33,6 @@
 #include "i2c_drv.h"
 #include "ese_cold_reset.h"
 
-/*secure library headers*/
-#include "smcinvoke.h"
-#include "smcinvoke_object.h"
-#include "IClientEnv.h"
-
 /* Max device count for this driver */
 #define DEV_COUNT			1
 /* i2c device class */
@@ -324,5 +319,5 @@ int is_nfc_data_available_for_read(struct nfc_dev *nfc_dev);
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev);
 int nfc_post_init(struct nfc_dev *nfc_dev);
 int nfc_dynamic_protection_ioctl(struct nfc_dev *nfc_dev, unsigned long sec_zone_trans);
-bool nfc_hw_secure_check(void);
+bool nfc_hw_secure_check_smem(void);
 #endif /* _COMMON_H_ */
