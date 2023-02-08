@@ -49,8 +49,10 @@ enum qcedev_oper_enum {
  */
 enum qcedev_offload_oper_enum {
 	QCEDEV_OFFLOAD_HLOS_HLOS = 1,
-	QCEDEV_OFFLOAD_HLOS_CPB = 2,
-	QCEDEV_OFFLOAD_CPB_HLOS = 3,
+	QCEDEV_OFFLOAD_HLOS_HLOS_1 = 2,
+	QCEDEV_OFFLOAD_HLOS_CPB = 3,
+	QCEDEV_OFFLOAD_HLOS_CPB_1 = 4,
+	QCEDEV_OFFLOAD_CPB_HLOS = 5,
 	QCEDEV_OFFLOAD_OPER_LAST
 };
 
@@ -309,6 +311,7 @@ struct qcedev_offload_cipher_op_req {
 	__u8 block_offset;
 	__u8 is_pattern_valid;
 	__u8 is_copy_op;
+	__u8 encrypt;
 	struct pattern_info pattern_info;
 	enum qcedev_cipher_alg_enum alg;
 	enum qcedev_cipher_mode_enum mode;

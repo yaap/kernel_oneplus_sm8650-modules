@@ -569,12 +569,15 @@ static int start_offload_cipher_req(struct qcedev_control *podev,
 		return -EINVAL;
 	}
 
-	if (qcedev_areq->offload_cipher_op_req.is_copy_op) {
+	if (qcedev_areq->offload_cipher_op_req.is_copy_op ||
+	    qcedev_areq->offload_cipher_op_req.encrypt) {
 		creq.dir = QCE_ENCRYPT;
 	} else {
 		switch(qcedev_areq->offload_cipher_op_req.op) {
 		case QCEDEV_OFFLOAD_HLOS_HLOS:
+		case QCEDEV_OFFLOAD_HLOS_HLOS_1:
 		case QCEDEV_OFFLOAD_HLOS_CPB:
+		case QCEDEV_OFFLOAD_HLOS_CPB_1:
 			creq.dir = QCE_DECRYPT;
 			break;
 		case QCEDEV_OFFLOAD_CPB_HLOS:
