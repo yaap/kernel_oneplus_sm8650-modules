@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/file.h>
@@ -542,8 +542,8 @@ static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long ar
 	if (signal_id < 0)
 		return -EINVAL;
 
-	tx_client = hw_fence_client->ipc_client_vid;
-	rx_client = hw_fence_client->ipc_client_pid;
+	tx_client = hw_fence_client->ipc_client_pid;
+	rx_client = hw_fence_client->ipc_client_vid;
 	ret = msm_hw_fence_trigger_signal(obj->client_handle, tx_client, rx_client, signal_id);
 	if (ret) {
 		HWFNC_ERR("hw fence trigger signal has failed\n");
