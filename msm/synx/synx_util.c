@@ -1205,6 +1205,48 @@ free:
 	kfree(synx_cb);
 }
 
+int synx_get_child_coredata(struct synx_coredata *synx_obj, struct synx_coredata ***child_synx_obj, int *num_fences)
+{
+	int rc = SYNX_SUCCESS;
+	int i = 0, handle_count = 0;
+	u32 h_child = 0;
+	struct dma_fence_array *array = NULL;
+	struct synx_coredata **synx_datas = NULL;
+	struct synx_map_entry *fence_entry = NULL;
+
+	if (IS_ERR_OR_NULL(synx_obj) || IS_ERR_OR_NULL(num_fences))
+		return -SYNX_INVALID;
+	if (dma_fence_is_array(synx_obj->fence)) {
+		array = to_dma_fence_array(synx_obj->fence);
+		if (IS_ERR_OR_NULL(array))
+			return -SYNX_INVALID;
+		synx_datas = kcalloc(array->num_fences, sizeof(*synx_datas), GFP_KERNEL);
+		if (IS_ERR_OR_NULL(synx_datas))
+			return -SYNX_NOMEM;
+
+		for (i = 0; i < array->num_fences; i++) {
+			h_child = synx_util_get_fence_entry((u64)array->fences[i], 1);
+			fence_entry = synx_util_get_map_entry(h_child);
+			if (IS_ERR_OR_NULL(fence_entry) || IS_ERR_OR_NULL(fence_entry->synx_obj))
+			{
+				dprintk(SYNX_ERR, "Invalid handle access %u", h_child);
+				rc = -SYNX_NOENT;
+				goto fail;
+			}
+
+			synx_datas[handle_count++] = fence_entry->synx_obj;
+			synx_util_release_map_entry(fence_entry);
+		}
+	}
+
+	*child_synx_obj = synx_datas;
+	*num_fences = handle_count;
+	return rc;
+fail:
+	kfree(synx_datas);
+	return rc;
+}
+
 u32 synx_util_get_fence_entry(u64 key, u32 global)
 {
 	u32 h_synx = 0;

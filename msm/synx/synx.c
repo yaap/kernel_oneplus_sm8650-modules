@@ -497,6 +497,42 @@ int synx_native_signal_fence(struct synx_coredata *synx_obj,
 	return rc;
 }
 
+int synx_native_signal_merged_fence(struct synx_coredata *synx_obj, u32 status)
+{
+	int rc = SYNX_SUCCESS;
+	unsigned long flags;
+	int i = 0, num_fences = 0;
+	struct synx_coredata **synx_child_obj = NULL;
+
+	rc = synx_get_child_coredata(synx_obj, &synx_child_obj, &num_fences);
+	if (rc != SYNX_SUCCESS)
+		return rc;
+	for(i = 0; i < num_fences; i++)
+	{
+		if (IS_ERR_OR_NULL(synx_child_obj[i]) || IS_ERR_OR_NULL(synx_child_obj[i]->fence)) {
+			dprintk(SYNX_ERR, "Invalid child coredata %d\n", i);
+			rc = -SYNX_NOENT;
+			goto fail;
+		}
+		mutex_lock(&synx_child_obj[i]->obj_lock);
+		spin_lock_irqsave(synx_child_obj[i]->fence->lock, flags);
+		if (synx_util_get_object_status_locked(synx_child_obj[i]) != SYNX_STATE_ACTIVE ||
+			!synx_util_is_global_object(synx_child_obj[i]))
+		{
+			spin_unlock_irqrestore(synx_child_obj[i]->fence->lock, flags);
+			mutex_unlock(&synx_child_obj[i]->obj_lock);
+			continue;
+		}
+		spin_unlock_irqrestore(synx_child_obj[i]->fence->lock, flags);
+
+		rc = synx_native_signal_fence(synx_child_obj[i], status);
+		mutex_unlock(&synx_child_obj[i]->obj_lock);
+	}
+fail:
+	kfree(synx_child_obj);
+	return rc;
+}
+
 void synx_signal_handler(struct work_struct *cb_dispatch)
 {
 	int rc = SYNX_SUCCESS;
@@ -552,13 +588,25 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 
 	mutex_lock(&synx_obj->obj_lock);
 
-	if (signal_cb->flag & SYNX_SIGNAL_FROM_IPC)
-		rc = synx_native_signal_fence(synx_obj, status);
-
-	if (rc == SYNX_SUCCESS)
-		rc = synx_native_signal_core(synx_obj, status,
-				(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
-				true : false, signal_cb->ext_sync_id);
+	if (signal_cb->flag & SYNX_SIGNAL_FROM_IPC) {
+		if (synx_util_is_merged_object(synx_obj)) {
+			rc = synx_native_signal_merged_fence(synx_obj, status);
+			if (rc != SYNX_SUCCESS) {
+				mutex_unlock(&synx_obj->obj_lock);
+				dprintk(SYNX_ERR,
+					"failed to signal merged fence for %u failed=%d\n",
+					h_synx, rc);
+				goto fail;
+			}
+		}
+		else {
+			rc = synx_native_signal_fence(synx_obj, status);
+			if (rc == SYNX_SUCCESS)
+				rc = synx_native_signal_core(synx_obj, status,
+						(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
+						true : false, signal_cb->ext_sync_id);
+		}
+	}
 
 	mutex_unlock(&synx_obj->obj_lock);
 
@@ -766,14 +814,6 @@ int synx_async_wait(struct synx_session *session,
 	}
 
 	mutex_lock(&synx_obj->obj_lock);
-	if (synx_util_is_merged_object(synx_obj)) {
-		dprintk(SYNX_ERR,
-			"[sess :%llu] cannot async wait on merged handle %u\n",
-			client->id, params->h_synx);
-		rc = -SYNX_INVALID;
-		goto release;
-	}
-
 	synx_cb = kzalloc(sizeof(*synx_cb), GFP_ATOMIC);
 	if (IS_ERR_OR_NULL(synx_cb)) {
 		rc = -SYNX_NOMEM;
@@ -795,10 +835,17 @@ int synx_async_wait(struct synx_session *session,
 	}
 
 	if (synx_util_is_global_handle(params->h_synx) ||
-			synx_util_is_global_object(synx_obj))
+			synx_util_is_global_object(synx_obj)) {
 		status = synx_global_test_status_set_wait(
 					synx_util_global_idx(params->h_synx),
 					SYNX_CORE_APSS);
+		if (status != SYNX_STATE_ACTIVE) {
+			if (synx_util_is_merged_object(synx_obj))
+				synx_native_signal_merged_fence(synx_obj, status);
+			else
+				synx_native_signal_fence(synx_obj, status);
+		}
+	}
 	else
 		status = synx_util_get_object_status(synx_obj);
 
@@ -862,10 +909,9 @@ int synx_cancel_async_wait(
 	}
 
 	mutex_lock(&synx_obj->obj_lock);
-	if (synx_util_is_merged_object(synx_obj) ||
-		synx_util_is_external_object(synx_obj)) {
+	if (synx_util_is_external_object(synx_obj)) {
 		dprintk(SYNX_ERR,
-			"cannot cancel wait on composite handle\n");
+			"cannot cancel wait on external fence\n");
 		goto release;
 	}
 
@@ -944,14 +990,14 @@ EXPORT_SYMBOL(synx_cancel_async_wait);
 int synx_merge(struct synx_session *session,
 	struct synx_merge_params *params)
 {
-	int rc, i, j = 0;
-	u32 h_child;
-	u32 count = 0;
-	u32 *h_child_list;
+	int rc, i, num_signaled = 0;
+	u32 count = 0, h_child, status = SYNX_STATE_ACTIVE;
+	u32 *h_child_list = NULL, *h_child_idx_list = NULL;
 	struct synx_client *client;
 	struct dma_fence **fences = NULL;
-	struct synx_coredata *synx_obj;
 	struct synx_map_entry *map_entry;
+	struct synx_coredata *synx_obj, *synx_obj_child;
+	struct synx_handle_coredata *synx_data_child;
 
 	if (IS_ERR_OR_NULL(session) || IS_ERR_OR_NULL(params))
 		return -SYNX_INVALID;
@@ -1008,26 +1054,56 @@ int synx_merge(struct synx_session *session,
 		goto clear;
 	}
 
+	h_child_list = kzalloc(count*4, GFP_KERNEL);
+	if (IS_ERR_OR_NULL(h_child_list)) {
+		rc = -SYNX_NOMEM;
+		goto clear;
+	}
+
+	h_child_idx_list = kzalloc(count*4, GFP_KERNEL);
+	if (IS_ERR_OR_NULL(h_child_idx_list)) {
+		rc = -SYNX_NOMEM;
+		goto clear;
+	}
+
+	for (i = 0; i < count; i++) {
+		h_child = synx_util_get_fence_entry((u64)fences[i], 1);
+		if (!synx_util_is_global_handle(h_child))
+			continue;
+
+		h_child_list[num_signaled] = h_child;
+		h_child_idx_list[num_signaled++] = synx_util_global_idx(h_child);
+	}
+
 	if (params->flags & SYNX_MERGE_GLOBAL_FENCE) {
-		h_child_list = kzalloc(count*4, GFP_KERNEL);
-		if (IS_ERR_OR_NULL(synx_obj)) {
-			rc = -SYNX_NOMEM;
-			goto clear;
-		}
-
-		for (i = 0; i < count; i++) {
-			h_child = synx_util_get_fence_entry((u64)fences[i], 1);
-			if (!synx_util_is_global_handle(h_child))
-				continue;
-
-			h_child_list[j++] = synx_util_global_idx(h_child);
-		}
-
-		rc = synx_global_merge(h_child_list, j,
+		rc = synx_global_merge(h_child_idx_list, num_signaled,
 			synx_util_global_idx(*params->h_merged_obj));
 		if (rc != SYNX_SUCCESS) {
 			dprintk(SYNX_ERR, "global merge failed\n");
+			kfree(h_child_list);
+			kfree(h_child_idx_list);
 			goto clear;
+		}
+	}
+	else {
+		for(i = 0; i < num_signaled; i++) {
+			status = synx_global_test_status_set_wait(synx_util_global_idx(h_child_list[i]), SYNX_CORE_APSS);
+
+			if (status != SYNX_STATE_ACTIVE) {
+				synx_data_child = synx_util_acquire_handle(client, h_child_list[i]);
+				synx_obj_child = synx_util_obtain_object(synx_data_child);
+
+				if (IS_ERR_OR_NULL(synx_obj_child)) {
+					dprintk(SYNX_ERR,
+						"[sess :%llu] invalid child handle %u\n",
+						client->id, h_child_list[i]);
+					continue;
+				}
+
+				rc = synx_native_signal_fence(synx_obj_child, status);
+				if (rc != SYNX_SUCCESS)
+					dprintk(SYNX_ERR, "h_synx %u failed with status %d\n", h_child_list[i], rc);
+			}
 		}
 	}
 
@@ -1035,9 +1111,10 @@ int synx_merge(struct synx_session *session,
 		"[sess :%llu] merge allocated %u, core %pK, fence %pK\n",
 		client->id, *params->h_merged_obj, synx_obj,
 		synx_obj->fence);
+	kfree(h_child_list);
+	kfree(h_child_idx_list);
 	synx_put_client(client);
 	return SYNX_SUCCESS;
-
 clear:
 	synx_util_release_map_entry(map_entry);
 clean_up:
@@ -1118,8 +1195,15 @@ int synx_wait(struct synx_session *session,
 	if (synx_util_is_global_handle(h_synx)) {
 		rc = synx_global_test_status_set_wait(
 			synx_util_global_idx(h_synx), SYNX_CORE_APSS);
-		if (rc != SYNX_STATE_ACTIVE)
+		if (rc != SYNX_STATE_ACTIVE) {
+			mutex_lock(&synx_obj->obj_lock);
+			if (synx_util_is_merged_object(synx_obj))
+				synx_native_signal_merged_fence(synx_obj, rc);
+			else
+				synx_native_signal_fence(synx_obj, rc);
+			mutex_unlock(&synx_obj->obj_lock);
 			goto fail;
+		}
 	}
 
 	timeleft = dma_fence_wait_timeout(synx_obj->fence, (bool) 0,
