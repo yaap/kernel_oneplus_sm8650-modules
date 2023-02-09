@@ -9,7 +9,7 @@
 
 #include "msm_vidc_core.h"
 
-#if defined(CONFIG_MSM_VIDC_IRIS33)
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
 int msm_vidc_init_iris33(struct msm_vidc_core *core);
 int msm_vidc_deinit_iris33(struct msm_vidc_core *core);
 int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl);

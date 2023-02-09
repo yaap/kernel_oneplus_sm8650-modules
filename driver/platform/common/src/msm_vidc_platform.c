@@ -21,26 +21,17 @@
 #include "hfi_property.h"
 #include "venus_hfi.h"
 
-#if defined(CONFIG_MSM_VIDC_WAIPIO)
-#include "msm_vidc_waipio.h"
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+#include "msm_vidc_pineapple.h"
+#include "msm_vidc_iris33.h"
 #endif
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 #include "msm_vidc_kalama.h"
-#endif
-#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-#include "msm_vidc_pineapple.h"
-#endif
-#if defined(CONFIG_MSM_VIDC_ANORAK)
-#include "msm_vidc_anorak.h"
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS2)
-#include "msm_vidc_iris2.h"
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS3)
 #include "msm_vidc_iris3.h"
 #endif
-#if defined(CONFIG_MSM_VIDC_IRIS33)
-#include "msm_vidc_iris33.h"
+#if defined(CONFIG_MSM_VIDC_WAIPIO)
+#include "msm_vidc_waipio.h"
+#include "msm_vidc_iris2.h"
 #endif
 
 #define CAP_TO_8BIT_QP(a) {          \
@@ -214,6 +205,50 @@ static struct v4l2_m2m_ops msm_v4l2_m2m_ops = {
 	.job_abort                      = msm_v4l2_m2m_job_abort,
 };
 
+static const struct msm_vidc_compat_handle compat_handle[] = {
+#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+	{
+		.compat                     = "qcom,sm8650-vidc",
+		.init_platform              = msm_vidc_init_platform_pineapple,
+		.deinit_platform            = msm_vidc_deinit_platform_pineapple,
+		.init_iris                  = msm_vidc_init_iris33,
+		.deinit_iris                = msm_vidc_deinit_iris33,
+	},
+	{
+		.compat                     = "qcom,sm8650-vidc-v2",
+		.init_platform              = msm_vidc_init_platform_pineapple,
+		.deinit_platform            = msm_vidc_deinit_platform_pineapple,
+		.init_iris                  = msm_vidc_init_iris33,
+		.deinit_iris                = msm_vidc_deinit_iris33,
+	},
+#endif
+#if defined(CONFIG_MSM_VIDC_KALAMA)
+	{
+		.compat                     = "qcom,sm8550-vidc",
+		.init_platform              = msm_vidc_init_platform_kalama,
+		.deinit_platform            = msm_vidc_deinit_platform_kalama,
+		.init_iris                  = msm_vidc_init_iris3,
+		.deinit_iris                = msm_vidc_deinit_iris3,
+	},
+	{
+		.compat                     = "qcom,sm8550-vidc-v2",
+		.init_platform              = msm_vidc_init_platform_kalama,
+		.deinit_platform            = msm_vidc_deinit_platform_kalama,
+		.init_iris                  = msm_vidc_init_iris3,
+		.deinit_iris                = msm_vidc_deinit_iris3,
+	},
+#endif
+#if defined(CONFIG_MSM_VIDC_WAIPIO)
+	{
+		.compat                     = "qcom,sm8450-vidc",
+		.init_platform              = msm_vidc_init_platform_waipio,
+		.deinit_platform            = msm_vidc_deinit_platform_waipio,
+		.init_iris                  = msm_vidc_init_iris2,
+		.deinit_iris                = msm_vidc_deinit_iris2,
+	},
+#endif
+};
+
 static int msm_vidc_init_ops(struct msm_vidc_core *core)
 {
 	if (!core) {
@@ -244,179 +279,138 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	return 0;
 }
 
-static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core)
 {
-	int rc = -EINVAL;
+	struct device *dev = NULL;
+	int i, rc = 0;
 
-	if (!core || !dev) {
+	if (!core || !core->pdev) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
 
 	d_vpr_h("%s()\n", __func__);
 
-#if defined(CONFIG_MSM_VIDC_WAIPIO)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8450-vidc")) {
-		rc = msm_vidc_deinit_platform_waipio(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
+	/* select platform based on compatible match */
+	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
+		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
+			rc = compat_handle[i].deinit_platform(core);
+			if (rc) {
+				d_vpr_e("%s: (%s) init failed with %d\n",
+					__func__, compat_handle[i].compat, rc);
+				return rc;
+			}
+			break;
+		}
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_KALAMA)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
-		rc = msm_vidc_deinit_platform_kalama(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
+
+	/* handle unknown compat type */
+	if (i == ARRAY_SIZE(compat_handle)) {
+		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
+		return -EINVAL;
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
-		rc = msm_vidc_deinit_platform_pineapple(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
-	}
-#endif
-#if defined(CONFIG_MSM_VIDC_ANORAK)
-	if (of_device_is_compatible(dev->of_node, "qcom,sxr2230p-vidc")) {
-		rc = msm_vidc_deinit_platform_anorak(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
-	}
-#endif
 
 	return rc;
 }
 
-static int msm_vidc_init_platform_variant(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_init_platform_variant(struct msm_vidc_core *core)
 {
-	int rc = -EINVAL;
+	struct device *dev = NULL;
+	int i, rc = 0;
 
-	if (!core || !dev) {
+	if (!core || !core->pdev) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
 
 	d_vpr_h("%s()\n", __func__);
 
-#if defined(CONFIG_MSM_VIDC_WAIPIO)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8450-vidc")) {
-		rc = msm_vidc_init_platform_waipio(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
+	/* select platform based on compatible match */
+	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
+		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
+			rc = compat_handle[i].init_platform(core);
+			if (rc) {
+				d_vpr_e("%s: (%s) init failed with %d\n",
+					__func__, compat_handle[i].compat, rc);
+				return rc;
+			}
+			break;
+		}
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_KALAMA)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
-		rc = msm_vidc_init_platform_kalama(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
+
+	/* handle unknown compat type */
+	if (i == ARRAY_SIZE(compat_handle)) {
+		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
+		return -EINVAL;
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
-		rc = msm_vidc_init_platform_pineapple(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
-	}
-#endif
-#if defined(CONFIG_MSM_VIDC_ANORAK)
-	if (of_device_is_compatible(dev->of_node, "qcom,sxr2230p-vidc")) {
-		rc = msm_vidc_init_platform_anorak(core, dev);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-		return rc;
-	}
-#endif
 
 	return rc;
 }
 
-static int msm_vidc_deinit_vpu(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_deinit_vpu(struct msm_vidc_core *core)
 {
-	int rc = -EINVAL;
+	struct device *dev = NULL;
+	int i, rc = 0;
 
-	if (!core || !dev) {
+	if (!core || !core->pdev) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
 
-	d_vpr_h("%s()\n", __func__);
+	/* select platform based on compatible match */
+	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
+		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
+			rc = compat_handle[i].deinit_iris(core);
+			if (rc) {
+				d_vpr_e("%s: (%s) init failed with %d\n",
+					__func__, compat_handle[i].compat, rc);
+				return rc;
+			}
+			break;
+		}
+	}
 
-#if defined(CONFIG_MSM_VIDC_IRIS2)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8450-vidc")) {
-		rc = msm_vidc_deinit_iris2(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-        return rc;
+	/* handle unknown compat type */
+	if (i == ARRAY_SIZE(compat_handle)) {
+		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
+		return -EINVAL;
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS3)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
-		rc = msm_vidc_deinit_iris3(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-        return rc;
-	}
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS33)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
-		rc = msm_vidc_deinit_iris33(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-        return rc;
-	}
-#endif
+
 	return rc;
 }
 
-static int msm_vidc_init_vpu(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_init_vpu(struct msm_vidc_core *core)
 {
-	int rc = -EINVAL;
+	struct device *dev = NULL;
+	int i, rc = 0;
 
-	if (!core || !dev) {
+	if (!core || !core->pdev) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
 
-#if defined(CONFIG_MSM_VIDC_IRIS2)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8450-vidc")) {
-		rc = msm_vidc_init_iris2(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-	    return rc;
+	/* select platform based on compatible match */
+	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
+		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
+			rc = compat_handle[i].init_iris(core);
+			if (rc) {
+				d_vpr_e("%s: (%s) init failed with %d\n",
+					__func__, compat_handle[i].compat, rc);
+				return rc;
+			}
+			break;
+		}
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS3)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
-		rc = msm_vidc_init_iris3(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-	    return rc;
+
+	/* handle unknown compat type */
+	if (i == ARRAY_SIZE(compat_handle)) {
+		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
+		return -EINVAL;
 	}
-#endif
-#if defined(CONFIG_MSM_VIDC_IRIS33)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
-		rc = msm_vidc_init_iris33(core);
-		if (rc)
-			d_vpr_e("%s: failed with %d\n", __func__, rc);
-	    return rc;
-	}
-#endif
 
 	return rc;
 }
@@ -439,8 +433,8 @@ int msm_vidc_deinit_platform(struct platform_device *pdev)
 
 	d_vpr_h("%s()\n", __func__);
 
-	msm_vidc_deinit_vpu(core, &pdev->dev);
-	msm_vidc_deinit_platform_variant(core, &pdev->dev);
+	msm_vidc_deinit_vpu(core);
+	msm_vidc_deinit_platform_variant(core);
 
 	msm_vidc_vmem_free((void **)&core->platform);
 	return 0;
@@ -479,11 +473,11 @@ int msm_vidc_init_platform(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
-	rc = msm_vidc_init_platform_variant(core, &pdev->dev);
+	rc = msm_vidc_init_platform_variant(core);
 	if (rc)
 		return rc;
 
-	rc = msm_vidc_init_vpu(core, &pdev->dev);
+	rc = msm_vidc_init_vpu(core);
 	if (rc)
 		return rc;
 

@@ -8,15 +8,13 @@
 #define _MSM_VIDC_WAIPIO_H_
 
 #include "msm_vidc_core.h"
-#if defined(CONFIG_MSM_VIDC_IRIS2)
 #include "msm_vidc_iris2.h"
-#endif
 
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
 	enum msm_vidc_buffer_region region);
-int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev);
-int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core, struct device *dev);
+int msm_vidc_init_platform_waipio(struct msm_vidc_core *core);
+int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core);
 #else
 struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
 	enum msm_vidc_buffer_region region)
@@ -24,12 +22,12 @@ struct context_bank_info *msm_vidc_context_bank(struct msm_vidc_core *core,
 	return NULL;
 }
 
-int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_init_platform_waipio(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
 
-int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
