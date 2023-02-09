@@ -61,8 +61,10 @@
 #include <linux/sched.h>
 #include <linux/kthread.h>
 #include <linux/dma-mapping.h>
+#if defined(CONFIG_FTS_TRUSTED_TOUCH)
 #include <linux/gunyah/gh_irq_lend.h>
 #include <linux/gunyah/gh_mem_notifier.h>
+#endif
 #include "focaltech_common.h"
 
 /*****************************************************************************
