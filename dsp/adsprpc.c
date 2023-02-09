@@ -481,38 +481,76 @@ static inline int poll_for_remote_response(struct smq_invoke_ctx *ctx, uint32_t 
 	return err;
 }
 
+enum interrupted_state {
+	DEFAULT_STATE = 0,
+	INTERRUPTED_STATE = 1,
+	RESTORED_STATE = 2,
+};
+
 /**
  * fastrpc_update_txmsg_buf - Update history of sent glink messages
- * @chan               : Channel context
  * @msg                : Pointer to RPC message to remote subsystem
  * @transport_send_err : Error from transport
  * @ns                 : Timestamp (in ns) of sent message
  * @xo_time_in_us      : XO Timestamp (in us) of sent message
+ * @ctx                : invoke ctx
+ * @interrupted        : 0/1/2 (default/interrupted/restored)
  *
  * Returns none
  */
-static inline void fastrpc_update_txmsg_buf(struct fastrpc_channel_ctx *chan,
-	struct smq_msg *msg, int transport_send_err, int64_t ns, uint64_t xo_time_in_us)
+static inline void fastrpc_update_txmsg_buf(struct smq_msg *msg,
+	int transport_send_err, int64_t ns, uint64_t xo_time_in_us,
+	struct smq_invoke_ctx *ctx, enum interrupted_state interrupted)
 {
 	unsigned long flags = 0;
 	unsigned int tx_index = 0;
 	struct fastrpc_tx_msg *tx_msg = NULL;
+	struct fastrpc_channel_ctx *chan = NULL;
+	struct fastrpc_file *fl = ctx->fl;
+	int err = 0, cid = -1;
 
+	if (!fl) {
+		err = -EBADF;
+		goto bail;
+	}
+	cid = fl->cid;
+	VERIFY(err, VALID_FASTRPC_CID(cid));
+	if (err) {
+		err = -ECHRNG;
+		goto bail;
+	}
+	chan = &fl->apps->channel[cid];
 	spin_lock_irqsave(&chan->gmsg_log.lock, flags);
 
-	tx_index = chan->gmsg_log.tx_index;
-	tx_msg = &chan->gmsg_log.tx_msgs[tx_index];
+	if (interrupted){
+		if (ctx->tx_index >= 0 && ctx->tx_index < GLINK_MSG_HISTORY_LEN) {
+			tx_msg = &chan->gmsg_log.tx_msgs[ctx->tx_index];
 
-	memcpy(&tx_msg->msg, msg, sizeof(struct smq_msg));
-	tx_msg->transport_send_err = transport_send_err;
-	tx_msg->ns = ns;
-	tx_msg->xo_time_in_us = xo_time_in_us;
+			if (tx_msg->msg.invoke.header.ctx == ctx->msg.invoke.header.ctx) {
+				tx_msg->xo_time_in_us_interrupted = ctx->xo_time_in_us_interrupted;
+				tx_msg->xo_time_in_us_restored = ctx->xo_time_in_us_restored;
+			}
+		}
+	} else {
+		tx_index = chan->gmsg_log.tx_index;
+		ctx->tx_index = tx_index;
+		tx_msg = &chan->gmsg_log.tx_msgs[tx_index];
 
-	tx_index++;
-	chan->gmsg_log.tx_index =
-		(tx_index > (GLINK_MSG_HISTORY_LEN - 1)) ? 0 : tx_index;
+		memcpy(&tx_msg->msg, msg, sizeof(struct smq_msg));
+		tx_msg->transport_send_err = transport_send_err;
+		tx_msg->ns = ns;
+		tx_msg->xo_time_in_us = xo_time_in_us;
+
+		tx_index++;
+		chan->gmsg_log.tx_index =
+			(tx_index > (GLINK_MSG_HISTORY_LEN - 1)) ? 0 : tx_index;
+	}
 
 	spin_unlock_irqrestore(&chan->gmsg_log.lock, flags);
+bail:
+	if (err)
+		ADSPRPC_ERR("adsprpc: %s: unable to update txmsg buf (err %d) for ctx: 0x%x\n",
+			__func__, err, ctx->msg.invoke.header.ctx);
 }
 
 /**
@@ -1534,6 +1572,11 @@ static int context_restore_interrupted(struct fastrpc_file *fl,
 					"interrupted sc (0x%x) or fl (%pK) does not match with invoke sc (0x%x) or fl (%pK)\n",
 					ictx->sc, ictx->fl, invoke->sc, fl);
 			} else {
+				ictx->xo_time_in_us_restored = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
+				fastrpc_update_txmsg_buf(NULL, 0, 0, 0, ictx, RESTORED_STATE);
+				ADSPRPC_DEBUG(
+					"restored sc (0x%x) of fl (%pK), interrupt ts 0x%llx, restore ts 0x%llx \n",
+					ictx->sc, ictx->fl, ictx->xo_time_in_us_interrupted, ictx->xo_time_in_us_restored);
 				ctx = ictx;
 				hlist_del_init(&ctx->hn);
 				hlist_add_head(&ctx->hn, &fl->clst.pending);
@@ -1832,6 +1875,8 @@ static void context_save_interrupted(struct smq_invoke_ctx *ctx)
 {
 	struct fastrpc_ctx_lst *clst = &ctx->fl->clst;
 
+	ctx->xo_time_in_us_interrupted = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
+	fastrpc_update_txmsg_buf(NULL, 0, 0, 0, ctx, INTERRUPTED_STATE);
 	spin_lock(&ctx->fl->hlock);
 	hlist_del_init(&ctx->hn);
 	hlist_add_head(&ctx->hn, &clst->interrupted);
@@ -2806,7 +2851,7 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 	trace_fastrpc_transport_send(cid, (uint64_t)ctx, msg->invoke.header.ctx,
 		handle, sc, msg->invoke.page.addr, msg->invoke.page.size);
 	ns = get_timestamp_in_ns();
-	fastrpc_update_txmsg_buf(channel_ctx, msg, err, ns, xo_time_in_us);
+	fastrpc_update_txmsg_buf(msg, err, ns, xo_time_in_us, ctx, DEFAULT_STATE);
  bail:
 	return err;
 }
