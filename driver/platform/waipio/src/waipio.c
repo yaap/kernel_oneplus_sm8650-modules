@@ -1680,7 +1680,7 @@ static const char * const waipio_opp_table[] = { "mx", "mmcx", NULL };
 /* name, clock id, scaling */
 static const struct clk_table waipio_clk_table[] = {
 	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
-	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     1 },
+	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
 	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      1 },
 };
 
@@ -1698,7 +1698,7 @@ const struct context_bank_table waipio_context_bank_table[] = {
 
 /* freq */
 static struct freq_table waipio_freq_table[] = {
-	{444000000}, {366000000}, {338000000}, {239999999}
+	{444000000}, {366000000}, {338000000}, {240000000}
 };
 
 /* register, value, mask */
