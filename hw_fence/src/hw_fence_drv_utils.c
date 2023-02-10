@@ -9,6 +9,7 @@
 #include <linux/gunyah/gh_rm_drv.h>
 #include <linux/gunyah/gh_dbl.h>
 #include <linux/qcom_scm.h>
+#include <linux/version.h>
 #include <soc/qcom/secure_buffer.h>
 
 #include "hw_fence_drv_priv.h"
@@ -343,12 +344,17 @@ static int hw_fence_gunyah_share_mem(struct hw_fence_driver_data *drv_data,
 	struct qcom_scm_vmperm src_vmlist[] = {{self, PERM_READ | PERM_WRITE | PERM_EXEC}};
 	struct qcom_scm_vmperm dst_vmlist[] = {{self, PERM_READ | PERM_WRITE},
 					       {peer, PERM_READ | PERM_WRITE}};
-	int srcvmids = BIT(src_vmlist[0].vmid);
-	int dstvmids = BIT(dst_vmlist[0].vmid) | BIT(dst_vmlist[1].vmid);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	u64 srcvmids, dstvmids;
+#else
+	unsigned int srcvmids, dstvmids;
+#endif
 	struct gh_acl_desc *acl;
 	struct gh_sgl_desc *sgl;
 	int ret;
 
+	srcvmids = BIT(src_vmlist[0].vmid);
+	dstvmids = BIT(dst_vmlist[0].vmid) | BIT(dst_vmlist[1].vmid);
 	ret = qcom_scm_assign_mem(drv_data->res.start, resource_size(&drv_data->res), &srcvmids,
 			dst_vmlist, ARRAY_SIZE(dst_vmlist));
 	if (ret) {
