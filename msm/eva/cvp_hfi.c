@@ -2081,6 +2081,14 @@ static int iris_hfi_core_init(void *device)
 		goto err_load_fw;
 	}
 
+#ifdef CVP_CONFIG_SYNX_V2
+	rc = cvp_synx_recover();
+	if (rc) {
+		dprintk(CVP_ERR, "Failed to recover synx\n");
+		goto err_core_init;
+	}
+#endif
+
 	/* mmrm registration */
 	if (msm_cvp_mmrm_enabled) {
 		rc = msm_cvp_mmrm_register(device);
@@ -2149,14 +2157,6 @@ static int iris_hfi_core_init(void *device)
 
 	__set_ubwc_config(device);
 	__sys_set_idle_indicator(device, true);
-
-#ifdef CVP_CONFIG_SYNX_V2
-	rc = cvp_synx_recover();
-	if (rc) {
-		dprintk(CVP_ERR, "Failed to recover synx\n");
-		goto err_core_init;
-	}
-#endif
 
 	if (dev->res->pm_qos.latency_us) {
 		int err = 0;
