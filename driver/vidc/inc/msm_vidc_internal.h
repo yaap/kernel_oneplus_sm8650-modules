@@ -464,7 +464,9 @@ enum msm_vidc_buffer_region {
 
 enum msm_vidc_device_region {
 	MSM_VIDC_DEVICE_REGION_NONE = 0,
-	MSM_VIDC_AON_REGISTERS,
+	MSM_VIDC_AON,
+	MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU,
+	MSM_VIDC_QTIMER,
 	MSM_VIDC_DEVICE_REGION_MAX,
 };
 

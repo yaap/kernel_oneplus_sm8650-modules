@@ -92,7 +92,9 @@ struct msm_vidc_core {
 	struct msm_vidc_mem_addr               sfr;
 	struct msm_vidc_mem_addr               iface_q_table;
 	struct msm_vidc_mem_addr               mmap_buf;
-	struct msm_vidc_mem_addr               aon;
+	struct msm_vidc_mem_addr               aon_reg;
+	struct msm_vidc_mem_addr               fence_reg;
+	struct msm_vidc_mem_addr               qtimer_reg;
 	struct msm_vidc_iface_q_info           iface_queues[VIDC_IFACEQ_NUMQ];
 	struct delayed_work                    pm_work;
 	struct workqueue_struct               *pm_workq;
