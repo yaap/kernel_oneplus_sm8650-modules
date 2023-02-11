@@ -72,6 +72,12 @@
  */
 #define HW_FENCE_PAYLOAD_REV(major, minor) (major << 8 | (minor & 0xFF))
 
+/**
+ * HW_FENCE_EVENT_MAX_DATA:
+ * Maximum data that can be added to the debug event
+ */
+#define HW_FENCE_EVENT_MAX_DATA 12
+
 enum hw_fence_lookup_ops {
 	HW_FENCE_LOOKUP_OP_CREATE = 0x1,
 	HW_FENCE_LOOKUP_OP_DESTROY,
@@ -265,6 +271,8 @@ struct hw_fence_client_queue_desc {
  * @clients_num: number of supported hw fence clients (configured based on device-tree)
  * @hw_fences_tbl: pointer to the hw-fences table
  * @hw_fences_tbl_cnt: number of elements in the hw-fence table
+ * @events: start address of hw fence debug events
+ * @total_events: total number of hw fence debug events supported
  * @client_lock_tbl: pointer to the per-client locks table
  * @client_lock_tbl_cnt: number of elements in the locks table
  * @hw_fences_mem_desc: memory descriptor for the hw-fence table
@@ -319,6 +327,10 @@ struct hw_fence_driver_data {
 	/* HW Fences Table VA */
 	struct msm_hw_fence *hw_fences_tbl;
 	u32 hw_fences_tbl_cnt;
+
+	/* events */
+	struct msm_hw_fence_event *events;
+	u32 total_events;
 
 	/* Table with a Per-Client Lock */
 	u64 *client_lock_tbl;
@@ -406,6 +418,20 @@ struct msm_hw_fence_queue_payload {
 	u32 timestamp_lo;
 	u32 timestamp_hi;
 	u32 reserve;
+};
+
+/**
+ * struct msm_hw_fence_event - hardware fence ctl debug event
+ * time: qtime when the event is logged
+ * cpu: cpu id where the event is logged
+ * data_cnt: count of valid data available in the data field
+ * data: debug data logged by the event
+ */
+struct msm_hw_fence_event {
+	u64 time;
+	u32 cpu;
+	u32 data_cnt;
+	u32 data[HW_FENCE_EVENT_MAX_DATA];
 };
 
 /**

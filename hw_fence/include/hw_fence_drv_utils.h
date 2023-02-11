@@ -30,12 +30,14 @@
  * HW_FENCE_MEM_RESERVE_LOCKS_REGION: Reserve memory for the per-client locks memory region.
  * HW_FENCE_MEM_RESERVE_TABLE: Reserve memory for the hw-fences global table.
  * HW_FENCE_MEM_RESERVE_CLIENT_QUEUE: Reserve memory per-client for the rx/tx queues.
+ * HW_FENCE_MEM_RESERVE_EVENTS_BUFF: Reserve memory for the debug events
  */
 enum hw_fence_mem_reserve {
 	HW_FENCE_MEM_RESERVE_CTRL_QUEUE,
 	HW_FENCE_MEM_RESERVE_LOCKS_REGION,
 	HW_FENCE_MEM_RESERVE_TABLE,
-	HW_FENCE_MEM_RESERVE_CLIENT_QUEUE
+	HW_FENCE_MEM_RESERVE_CLIENT_QUEUE,
+	HW_FENCE_MEM_RESERVE_EVENTS_BUFF
 };
 
 /**

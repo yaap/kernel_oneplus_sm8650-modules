@@ -57,6 +57,12 @@
 #define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7fff
 
 /**
+ * HW_FENCE_MAX_EVENTS:
+ * Maximum number of HW Fence debug events
+ */
+#define HW_FENCE_MAX_EVENTS 1000
+
+/**
  * struct hw_fence_client_types - Table describing all supported client types, used to parse
  *                                device-tree properties related to client queue size.
  *
@@ -472,6 +478,8 @@ char *_get_mem_reserve_type(enum hw_fence_mem_reserve type)
 		return "HW_FENCE_MEM_RESERVE_TABLE";
 	case HW_FENCE_MEM_RESERVE_CLIENT_QUEUE:
 		return "HW_FENCE_MEM_RESERVE_CLIENT_QUEUE";
+	case HW_FENCE_MEM_RESERVE_EVENTS_BUFF:
+		return "HW_FENCE_MEM_RESERVE_EVENTS_BUFF";
 	}
 
 	return "Unknown";
@@ -483,6 +491,8 @@ int hw_fence_utils_reserve_mem(struct hw_fence_driver_data *drv_data,
 {
 	int ret = 0;
 	u32 start_offset = 0;
+	u32 remaining_size_bytes;
+	u32 total_events;
 
 	switch (type) {
 	case HW_FENCE_MEM_RESERVE_CTRL_QUEUE:
@@ -511,6 +521,22 @@ int hw_fence_utils_reserve_mem(struct hw_fence_driver_data *drv_data,
 
 		start_offset = drv_data->hw_fence_client_queue_size[client_id].start_offset;
 		*size = drv_data->hw_fence_client_queue_size[client_id].type->mem_size;
+		break;
+	case HW_FENCE_MEM_RESERVE_EVENTS_BUFF:
+		start_offset = drv_data->used_mem_size;
+		remaining_size_bytes = drv_data->size - start_offset;
+		if (start_offset >= drv_data->size ||
+				remaining_size_bytes < sizeof(struct msm_hw_fence_event)) {
+			HWFNC_DBG_INFO("no space for events total_sz:%lu offset:%lu evt_sz:%lu\n",
+				drv_data->size, start_offset, sizeof(struct msm_hw_fence_event));
+			ret = -ENOMEM;
+			goto exit;
+		}
+
+		total_events = remaining_size_bytes / sizeof(struct msm_hw_fence_event);
+		if (total_events > HW_FENCE_MAX_EVENTS)
+			total_events = HW_FENCE_MAX_EVENTS;
+		*size = total_events * sizeof(struct msm_hw_fence_event);
 		break;
 	default:
 		HWFNC_ERR("Invalid mem reserve type:%d\n", type);

@@ -14,6 +14,11 @@
 
 #define HW_FENCE_DEBUG_MAX_LOOPS 200
 
+/* event dump data includes one "32-bit" element + "|" separator */
+#define HW_FENCE_MAX_DATA_PER_EVENT_DUMP (HW_FENCE_EVENT_MAX_DATA * 9)
+
+#define HFENCE_EVT_MSG "[%d][cpu:%d][%lu] data[%d]:%s\n"
+
 u32 msm_hw_fence_debug_level = HW_FENCE_PRINTK;
 
 /**
@@ -540,6 +545,129 @@ static int dump_full_table(struct hw_fence_driver_data *drv_data, char *buf, u32
 	return len;
 }
 
+static inline int _dump_event(struct msm_hw_fence_event *event, char *buf, int len, int max_size,
+	u32 index)
+{
+	char data[HW_FENCE_MAX_DATA_PER_EVENT_DUMP];
+	u32 data_cnt;
+	int i, tmp_len = 0, ret = 0;
+
+	if (!event->time)
+		return 0;
+
+	memset(&data, 0, sizeof(data));
+	if (event->data_cnt > HW_FENCE_EVENT_MAX_DATA) {
+		HWFNC_ERR("event[%d] has invalid data_cnt:%lu greater than max_data_cnt:%lu\n",
+			index, event->data_cnt, HW_FENCE_EVENT_MAX_DATA);
+		data_cnt = HW_FENCE_EVENT_MAX_DATA;
+	} else {
+		data_cnt = event->data_cnt;
+	}
+
+	for (i = 0; i < data_cnt; i++)
+		tmp_len += scnprintf(data + tmp_len, HW_FENCE_MAX_DATA_PER_EVENT_DUMP - tmp_len,
+			"%lx|", event->data[i]);
+
+	ret = scnprintf(buf + len, max_size - len, HFENCE_EVT_MSG, index, event->cpu, event->time,
+		event->data_cnt, data);
+
+	HWFNC_DBG_INFO(HFENCE_EVT_MSG, index, event->cpu, event->time, event->data_cnt, data);
+
+	return ret;
+}
+
+/**
+ * hw_fence_dbg_dump_events_rd() - debugfs read to dump the fctl events.
+ * @file: file handler.
+ * @user_buf: user buffer content for debugfs.
+ * @user_buf_size: size of the user buffer.
+ * @ppos: position offset of the user buffer.
+ */
+static ssize_t hw_fence_dbg_dump_events_rd(struct file *file, char __user *user_buf,
+	size_t user_buf_size, loff_t *ppos)
+{
+	struct hw_fence_driver_data *drv_data;
+	u32 entry_size = sizeof(struct msm_hw_fence_event), max_size = SZ_4K;
+	char *buf = NULL;
+	int len = 0;
+	static u64 start_time;
+	static int index, start_index;
+	static bool wraparound;
+
+	if (!file || !file->private_data) {
+		HWFNC_ERR("unexpected data %d\n", file);
+		return -EINVAL;
+	}
+	drv_data = file->private_data;
+
+	if (!drv_data->events) {
+		HWFNC_ERR("events not supported\n");
+		return -EINVAL;
+	}
+
+	if (wraparound && index >= start_index) {
+		HWFNC_DBG_H("no more data index:%d total_events:%d\n", index,
+			drv_data->total_events);
+		start_time = 0;
+		index = 0;
+		wraparound = false;
+		return 0;
+	}
+
+	if (user_buf_size < entry_size) {
+		HWFNC_ERR("Not enough buff size:%d to dump entries:%d\n", user_buf_size,
+			entry_size);
+		return -EINVAL;
+	}
+
+	buf = kzalloc(max_size, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	/* find index of earliest event */
+	if (!start_time) {
+		mb(); /* make sure data is ready before read */
+		for (index = 0; index < drv_data->total_events; index++) {
+			u64 time = drv_data->events[index].time;
+
+			if (time && (!start_time || time < start_time)) {
+				start_time = time;
+				start_index = index;
+			}
+		}
+		index = start_index;
+		HWFNC_DBG_H("events:0x%pK start_index:%d start_time:%llu total_events:%d\n",
+			drv_data->events, start_index, start_time, drv_data->total_events);
+	}
+
+	HWFNC_DBG_H("++ dump_events index:%d qtime:%llu\n", index, hw_fence_get_qtime(drv_data));
+	while ((!wraparound || index < start_index) && len < (max_size - entry_size)) {
+		len += _dump_event(&drv_data->events[index], buf, len, max_size, index);
+		index++;
+		if (index >= drv_data->total_events) {
+			index = 0;
+			wraparound = true;
+		}
+	}
+	HWFNC_DBG_H("-- dump_events: index:%d qtime:%llu\n", index, hw_fence_get_qtime(drv_data));
+
+	if (len <= 0 || len > user_buf_size) {
+		HWFNC_ERR("len:%d invalid buff size:%d\n", len, user_buf_size);
+		len = 0;
+		goto exit;
+	}
+
+	if (copy_to_user(user_buf, buf, len)) {
+		HWFNC_ERR("failed to copy to user!\n");
+		len = -EFAULT;
+		goto exit;
+	}
+	*ppos += len;
+exit:
+	kfree(buf);
+	return len;
+}
+
 /**
  * hw_fence_dbg_dump_queues_wr() - debugfs wr to dump the hw-fences queues.
  * @file: file handler.
@@ -955,6 +1083,11 @@ static const struct file_operations hw_fence_dump_queues_fops = {
 	.write = hw_fence_dbg_dump_queues_wr,
 };
 
+static const struct file_operations hw_fence_dump_events_fops = {
+	.open = simple_open,
+	.read = hw_fence_dbg_dump_events_rd,
+};
+
 static const struct file_operations hw_fence_create_join_fence_fops = {
 	.open = simple_open,
 	.write = hw_fence_dbg_create_join_fence,
@@ -1004,6 +1137,8 @@ int hw_fence_debug_debugfs_register(struct hw_fence_driver_data *drv_data)
 	debugfs_create_file("hw_sync", 0600, debugfs_root, NULL, &hw_sync_debugfs_fops);
 	debugfs_create_u64("hw_fence_lock_wake_cnt", 0600, debugfs_root,
 		&drv_data->debugfs_data.lock_wake_cnt);
+	debugfs_create_file("hw_fence_dump_events", 0600, debugfs_root, drv_data,
+		&hw_fence_dump_events_fops);
 
 	return 0;
 }

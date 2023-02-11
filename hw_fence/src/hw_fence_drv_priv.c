@@ -502,6 +502,27 @@ static int init_hw_fences_table(struct hw_fence_driver_data *drv_data)
 	return 0;
 }
 
+static int init_hw_fences_events(struct hw_fence_driver_data *drv_data)
+{
+	phys_addr_t phys;
+	void *ptr;
+	u32 size;
+	int ret;
+
+	ret = hw_fence_utils_reserve_mem(drv_data, HW_FENCE_MEM_RESERVE_EVENTS_BUFF, &phys, &ptr,
+		&size, 0);
+	if (ret) {
+		HWFNC_DBG_INFO("Failed to reserve events buffer %d\n", ret);
+		return -ENOMEM;
+	}
+	drv_data->events = (struct msm_hw_fence_event *)ptr;
+	drv_data->total_events = size / sizeof(struct msm_hw_fence_event);
+	HWFNC_DBG_INIT("events:0x%pK total_events:%u event_sz:%u total_size:%u\n", drv_data->events,
+		drv_data->total_events, sizeof(struct msm_hw_fence_event), size);
+
+	return 0;
+}
+
 static int init_ctrl_queue(struct hw_fence_driver_data *drv_data)
 {
 	struct msm_hw_fence_mem_addr *mem_descriptor;
@@ -552,6 +573,11 @@ int hw_fence_init(struct hw_fence_driver_data *drv_data)
 	ret = init_hw_fences_table(drv_data);
 	if (ret)
 		goto exit;
+
+	/* Initialize event log */
+	ret = init_hw_fences_events(drv_data);
+	if (ret)
+		HWFNC_DBG_INFO("Unable to init events\n");
 
 	/* Map ipcc registers */
 	ret = hw_fence_utils_map_ipcc(drv_data);
