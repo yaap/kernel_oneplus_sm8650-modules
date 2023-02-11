@@ -25,7 +25,7 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/cache.h>
-#include "linux/platform_data/qcom_crypto_device.h"
+#include "linux/qcom_crypto_device.h"
 #include <linux/interconnect.h>
 #include <linux/hardirq.h>
 #include "linux/qcrypto.h"

@@ -37,6 +37,16 @@ ddk_headers(
     ]),
     includes = [".","linux","config"]
 )
+
+ddk_headers(
+    name = "qcedev_local_headers",
+    hdrs = glob([
+        "linux/*.h",
+        "crypto-qti/*.h"
+    ]),
+    includes = [".", "crypto-qti"]
+)
+
 load("pineapple.bzl", "define_pineapple")
 
 define_pineapple()

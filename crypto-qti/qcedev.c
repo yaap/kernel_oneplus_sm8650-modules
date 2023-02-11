@@ -22,7 +22,7 @@
 #include <linux/debugfs.h>
 #include <linux/scatterlist.h>
 #include <linux/crypto.h>
-#include "linux/platform_data/qcom_crypto_device.h"
+#include "linux/qcom_crypto_device.h"
 #include "linux/qcedev.h"
 #include <linux/interconnect.h>
 #include <linux/delay.h>

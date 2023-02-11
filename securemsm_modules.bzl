@@ -2,6 +2,8 @@ SMCINVOKE_PATH = "smcinvoke"
 QSEECOM_PATH = "qseecom"
 TZLOG_PATH = "tz_log"
 HDCP_PATH = "hdcp"
+QCEDEV_PATH = "crypto-qti"
+QRNG_PATH = "qrng"
 
 # This dictionary holds all the securemsm-kernel  modules included by calling register_securemsm_module
 securemsm_modules = {}
@@ -85,4 +87,37 @@ register_securemsm_module(
     deps = [":hdcp_qseecom_dlkm","%b_smcinvoke_dlkm"],
     srcs = ["config/sec-kernel_defconfig.h"],
     copts = ["-include", "config/sec-kernel_defconfig.h"],
+)
+
+register_securemsm_module(
+    name = "qce50_dlkm",
+    path = QCEDEV_PATH,
+    default_srcs = ["qce50.c"],
+    deps = [":qcedev_local_headers"],
+)
+
+register_securemsm_module(
+    name = "qcedev-mod_dlkm",
+    path = QCEDEV_PATH,
+    default_srcs = [
+                "qcedev.c",
+                "qcedev_smmu.c",
+                "compat_qcedev.c"],
+    deps = [":qcedev_local_headers",
+            "%b_qce50_dlkm"],
+)
+
+register_securemsm_module(
+    name = "qrng_dlkm",
+    path = QRNG_PATH,
+    default_srcs = ["msm_rng.c"],
+    deps = [":qcedev_local_headers"],
+)
+
+register_securemsm_module(
+    name = "qcrypto-msm_dlkm",
+    path = QCEDEV_PATH,
+    default_srcs = ["qcrypto.c"],
+    deps = [":qcedev_local_headers",
+            "%b_qce50_dlkm"],
 )
