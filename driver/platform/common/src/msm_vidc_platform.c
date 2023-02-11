@@ -49,6 +49,23 @@
 }
 
 /*
+ * Below calculation for number of reference frames
+ * is picked up from hfi macro HFI_IRIS3_ENC_RECON_BUF_COUNT
+ */
+#define SLIDING_WINDOW_REF_FRAMES(codec, total_hp_layers, ltr_count, num_ref) {   \
+	if (codec == MSM_VIDC_HEVC) {                                          \
+		num_ref = (total_hp_layers + 1) >> 1;                          \
+	} else if (codec == MSM_VIDC_H264) {                                   \
+		if (total_hp_layers < 4)                                       \
+			num_ref = (total_hp_layers - 1);                       \
+		else                                                           \
+			num_ref = total_hp_layers;                             \
+	}                                                                      \
+	if (ltr_count)                                                         \
+		num_ref = num_ref + ltr_count;                                 \
+}
+
+/*
  * Custom conversion coefficients for resolution: 176x144 negative
  * coeffs are converted to s4.9 format
  * (e.g. -22 converted to ((1 << 13) - 22)
@@ -920,7 +937,9 @@ int msm_vidc_adjust_ltr_count(void *instance, struct v4l2_ctrl *ctrl)
 	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	s32 rc_type = -1, all_intra = 0;
+	s32 rc_type = -1, all_intra = 0, pix_fmts = MSM_VIDC_FMT_NONE;
+	s32 layer_type = -1, enh_layer_count = -1;
+	u32 num_ref_frames = 0, max_exceeding_ref_frames = 0;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -944,10 +963,45 @@ int msm_vidc_adjust_ltr_count(void *instance, struct v4l2_ctrl *ctrl)
 		i_vpr_h(inst,
 			"%s: ltr count unsupported, rc_type: %#x, all_intra %d\n",
 			__func__, rc_type, all_intra);
+		goto exit;
 	}
 
-	msm_vidc_update_cap_value(inst, LTR_COUNT,
-		adjusted_value, __func__);
+	if (!msm_vidc_get_parent_value(inst, LTR_COUNT, PIX_FMTS,
+		&pix_fmts, __func__)) {
+		if (is_10bit_colorformat(pix_fmts))
+			adjusted_value = 0;
+	}
+
+	if (!msm_vidc_get_parent_value(inst, LTR_COUNT, ENH_LAYER_COUNT,
+	    &enh_layer_count, __func__) &&
+	    !msm_vidc_get_parent_value(inst, LTR_COUNT, LAYER_TYPE,
+	    &layer_type, __func__)) {
+		if (layer_type == HFI_HIER_P_SLIDING_WINDOW) {
+			SLIDING_WINDOW_REF_FRAMES(inst->codec,
+				inst->capabilities->cap[ENH_LAYER_COUNT].value + 1,
+				adjusted_value, num_ref_frames);
+			if (num_ref_frames > MAX_ENCODING_REFERNCE_FRAMES) {
+				/*
+				 * reduce ltr count to avoid num ref
+				 * frames going beyond limit
+				 */
+				max_exceeding_ref_frames = num_ref_frames -
+					MAX_ENCODING_REFERNCE_FRAMES;
+				if (adjusted_value >= max_exceeding_ref_frames)
+					adjusted_value -= max_exceeding_ref_frames;
+				else
+					adjusted_value = 0;
+			}
+		}
+		i_vpr_h(inst,
+			"%s: ltr count %d enh_layers %d layer_type %d\n",
+			__func__, adjusted_value,
+			inst->capabilities->cap[ENH_LAYER_COUNT].value,
+			layer_type);
+	}
+
+exit:
+	msm_vidc_update_cap_value(inst, LTR_COUNT,  adjusted_value, __func__);
 
 	return 0;
 }
