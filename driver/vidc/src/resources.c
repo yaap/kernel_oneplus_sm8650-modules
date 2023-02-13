@@ -1222,9 +1222,9 @@ static int print_residency_stats(struct msm_vidc_core *core, struct clock_info *
 
 	/* print residency percent for each clock */
 	list_for_each_entry(residency, &cl->residency_list, list) {
-		d_vpr_h("%s: %s clock rate [%d] total %lluus residency %u%%\n",
+		d_vpr_hs("%s: %s clock rate [%d] total %lluus residency %u%%\n",
 			__func__, cl->name, residency->rate, residency->total_time_us,
-			residency->total_time_us * 100 / total_time_us);
+			(residency->total_time_us * 100 + total_time_us - 1) / total_time_us);
 	}
 
 	return rc;

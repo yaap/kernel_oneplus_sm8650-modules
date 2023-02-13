@@ -309,7 +309,7 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	}
 	core = inst->core;
 
-	if (!(msm_vidc_debug & VIDC_STAT))
+	if (!(msm_vidc_debug & VIDC_LOW))
 		return 0;
 
 	/* stats applicable only to input & output buffers */
@@ -353,7 +353,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 	}
 	core = inst->core;
 
-	if (!(msm_vidc_debug & VIDC_STAT))
+	if (!(msm_vidc_debug & VIDC_LOW))
 		return 0;
 
 	/* stats applicable only to input & output buffers */
@@ -407,7 +407,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 		/* remove stats node */
 		if (remove_stat) {
 			list_del_init(&stats->list);
-			print_buffer_stats(VIDC_STAT, "stat", inst, stats);
+			print_buffer_stats(VIDC_LOW, "low ", inst, stats);
 			msm_vidc_pool_free(inst, stats);
 		}
 	}
