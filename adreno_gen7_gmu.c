@@ -1074,8 +1074,6 @@ static u32 find_unmapped_va(struct gmu_vma_entry *vma, u32 size, u32 va_align)
 	u32 cur = vma->start;
 	bool found = false;
 
-	va_align = hfi_get_gmu_va_alignment(va_align);
-
 	cur = ALIGN(cur, va_align);
 
 	while (node) {
@@ -1098,16 +1096,20 @@ static u32 find_unmapped_va(struct gmu_vma_entry *vma, u32 size, u32 va_align)
 
 static int _map_gmu_dynamic(struct gen7_gmu_device *gmu,
 	struct kgsl_memdesc *md,
-	u32 addr, u32 vma_id, int attrs, u32 va_align)
+	u32 addr, u32 vma_id, int attrs, u32 align)
 {
 	int ret;
 	struct gmu_vma_entry *vma = &gmu->vma[vma_id];
 	struct gmu_vma_node *vma_node = NULL;
-	u32 size = md->size;
+	u32 size = ALIGN(md->size, hfi_get_gmu_sz_alignment(align));
 
 	spin_lock(&vma->lock);
 	if (!addr) {
-		addr = find_unmapped_va(vma, size, va_align);
+		/*
+		 * We will end up with a hole (GMU VA range not backed by physical mapping) if
+		 * the aligned size is greater than the size of the physical mapping
+		 */
+		addr = find_unmapped_va(vma, size, hfi_get_gmu_va_alignment(align));
 		if (addr == 0) {
 			spin_unlock(&vma->lock);
 			dev_err(&gmu->pdev->dev,
@@ -1136,7 +1138,7 @@ static int _map_gmu_dynamic(struct gen7_gmu_device *gmu,
 		addr, md->size, ret);
 
 	spin_lock(&vma->lock);
-	vma_node = find_va(vma, md->gmuaddr, md->size);
+	vma_node = find_va(vma, md->gmuaddr, size);
 	rb_erase(&vma_node->node, &vma->vma_root);
 	spin_unlock(&vma->lock);
 	kfree(vma_node);
@@ -1146,13 +1148,14 @@ static int _map_gmu_dynamic(struct gen7_gmu_device *gmu,
 
 static int _map_gmu_static(struct gen7_gmu_device *gmu,
 	struct kgsl_memdesc *md,
-	u32 addr, u32 vma_id, int attrs, u32 va_align)
+	u32 addr, u32 vma_id, int attrs, u32 align)
 {
 	int ret;
 	struct gmu_vma_entry *vma = &gmu->vma[vma_id];
+	u32 size = ALIGN(md->size, hfi_get_gmu_sz_alignment(align));
 
 	if (!addr)
-		addr = ALIGN(vma->next_va, hfi_get_gmu_va_alignment(va_align));
+		addr = ALIGN(vma->next_va, hfi_get_gmu_va_alignment(align));
 
 	ret = gmu_core_map_memdesc(gmu->domain, md, addr, attrs);
 	if (ret) {
@@ -1162,27 +1165,31 @@ static int _map_gmu_static(struct gen7_gmu_device *gmu,
 		return ret;
 	}
 	md->gmuaddr = addr;
-	vma->next_va = md->gmuaddr + md->size;
+	/*
+	 * We will end up with a hole (GMU VA range not backed by physical mapping) if the aligned
+	 * size is greater than the size of the physical mapping
+	 */
+	vma->next_va = md->gmuaddr + size;
 	return 0;
 }
 
 static int _map_gmu(struct gen7_gmu_device *gmu,
 	struct kgsl_memdesc *md,
-	u32 addr, u32 vma_id, int attrs, u32 va_align)
+	u32 addr, u32 vma_id, int attrs, u32 align)
 {
 	return vma_is_dynamic(vma_id) ?
-			_map_gmu_dynamic(gmu, md, addr, vma_id, attrs, va_align) :
-			_map_gmu_static(gmu, md, addr, vma_id, attrs, va_align);
+			_map_gmu_dynamic(gmu, md, addr, vma_id, attrs, align) :
+			_map_gmu_static(gmu, md, addr, vma_id, attrs, align);
 }
 
 int gen7_gmu_import_buffer(struct gen7_gmu_device *gmu, u32 vma_id,
-				struct kgsl_memdesc *md, u32 size, u32 attrs)
+				struct kgsl_memdesc *md, u32 attrs, u32 align)
 {
-	return _map_gmu(gmu, md, 0, vma_id, attrs, 0);
+	return _map_gmu(gmu, md, 0, vma_id, attrs, align);
 }
 
 struct kgsl_memdesc *gen7_reserve_gmu_kernel_block(struct gen7_gmu_device *gmu,
-	u32 addr, u32 size, u32 vma_id, u32 va_align)
+	u32 addr, u32 size, u32 vma_id, u32 align)
 {
 	int ret;
 	struct kgsl_memdesc *md;
@@ -1200,7 +1207,7 @@ struct kgsl_memdesc *gen7_reserve_gmu_kernel_block(struct gen7_gmu_device *gmu,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	ret = _map_gmu(gmu, md, addr, vma_id, attrs, va_align);
+	ret = _map_gmu(gmu, md, addr, vma_id, attrs, align);
 	if (ret) {
 		kgsl_sharedmem_free(md);
 		memset(md, 0x0, sizeof(*md));
@@ -1213,7 +1220,7 @@ struct kgsl_memdesc *gen7_reserve_gmu_kernel_block(struct gen7_gmu_device *gmu,
 }
 
 struct kgsl_memdesc *gen7_reserve_gmu_kernel_block_fixed(struct gen7_gmu_device *gmu,
-	u32 addr, u32 size, u32 vma_id, const char *resource, int attrs, u32 va_align)
+	u32 addr, u32 size, u32 vma_id, const char *resource, int attrs, u32 align)
 {
 	int ret;
 	struct kgsl_memdesc *md;
@@ -1228,7 +1235,7 @@ struct kgsl_memdesc *gen7_reserve_gmu_kernel_block_fixed(struct gen7_gmu_device 
 	if (ret)
 		return ERR_PTR(ret);
 
-	ret = _map_gmu(gmu, md, addr, vma_id, attrs, va_align);
+	ret = _map_gmu(gmu, md, addr, vma_id, attrs, align);
 
 	sg_free_table(md->sgt);
 	kfree(md->sgt);

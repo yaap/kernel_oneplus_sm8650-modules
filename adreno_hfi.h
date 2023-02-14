@@ -610,10 +610,11 @@ struct hfi_mem_alloc_desc {
 	u32 gmu_addr;
 	u32 size; /* Bytes */
 	/**
-	 * @va_align: Alignment requirement of the GMU VA specified as a power of two. For example,
-	 * a decimal value of 20 = (1 << 20) = 1 MB alignemnt
+	 * @align: bits[0:7] specify alignment requirement of the GMU VA specified as a power of
+	 * two. bits[8:15] specify alignment requirement for the size of the GMU mapping. For
+	 * example, a decimal value of 20 = (1 << 20) = 1 MB alignment
 	 */
-	u32 va_align;
+	u32 align;
 } __packed;
 
 struct hfi_mem_alloc_entry {
@@ -1094,17 +1095,35 @@ static inline void hfi_get_mem_alloc_desc(void *rcvd, struct hfi_mem_alloc_desc 
 }
 
 /**
- * hfi_get_gmu_va_alignment - Get the alignment(in bytes) for a GMU VA
- * va_align: Alignment specified as a power of two(2^n)
+ * hfi_get_gmu_va_alignment - Get the alignment (in bytes) for a GMU VA
+ * align: Alignment specified as a power of two (2^n) in bits[0:7]
  *
- * This function derives the GMU VA alignment in bytes from the passed in value, which is specified
- * in terms of power of two(2^n). For example, va_align = 20 means (1 << 20) = 1MB alignment. The
- * minimum alignment(in bytes) is SZ_4K i.e. anything less than(or equal to) a va_align value of
- * ilog2(SZ_4K) will default to SZ_4K alignment.
+ * This function derives the GMU VA alignment in bytes from bits[0:7] in the passed in value, which
+ * is specified in terms of power of two (2^n). For example, va_align = 20 means (1 << 20) = 1MB
+ * alignment. The minimum alignment (in bytes) is SZ_4K i.e. anything less than (or equal to) a
+ * va_align value of ilog2(SZ_4K) will default to SZ_4K alignment.
  */
-static inline u32 hfi_get_gmu_va_alignment(u32 va_align)
+static inline u32 hfi_get_gmu_va_alignment(u32 align)
 {
+	u32 va_align = FIELD_GET(GENMASK(7, 0), align);
+
 	return (va_align > ilog2(SZ_4K)) ? (1 << va_align) : SZ_4K;
+}
+
+/**
+ * hfi_get_gmu_sz_alignment - Get the alignment (in bytes) for GMU mapping size
+ * align: Alignment specified as a power of two (2^n) in bits[8:15]
+ *
+ * This function derives the GMU VA size alignment in bytes from bits[8:15] in the passed in value,
+ * which is specified in terms of power of two (2^n). For example, sz_align = 20 means
+ * (1 << 20) = 1MB alignment. The minimum alignment (in bytes) is SZ_4K i.e. anything less
+ * than (or equal to) a sz_align value of ilog2(SZ_4K) will default to SZ_4K alignment.
+ */
+static inline u32 hfi_get_gmu_sz_alignment(u32 align)
+{
+	u32 sz_align = FIELD_GET(GENMASK(15, 8), align);
+
+	return (sz_align > ilog2(SZ_4K)) ? (1 << sz_align) : SZ_4K;
 }
 
 /**
