@@ -1,5 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -260,7 +260,7 @@ __rmnet_map_ingress_handler(struct sk_buff *skb,
 	}
 
 	if (port->data_format & RMNET_INGRESS_FORMAT_PS)
-		qmi_rmnet_work_maybe_restart(port);
+		qmi_rmnet_work_maybe_restart(port, NULL, skb_peek(&list));
 
 	rmnet_deliver_skb_list(&list, port);
 	return;
@@ -368,7 +368,7 @@ static int rmnet_map_egress_handler(struct sk_buff *skb,
 	}
 
 	if (port->data_format & RMNET_INGRESS_FORMAT_PS)
-		qmi_rmnet_work_maybe_restart(port);
+		qmi_rmnet_work_maybe_restart(port, NULL, NULL);
 
 	state = &port->agg_state[(low_latency) ? RMNET_LL_AGG_STATE :
 				 RMNET_DEFAULT_AGG_STATE];

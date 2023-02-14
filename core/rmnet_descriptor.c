@@ -1839,7 +1839,11 @@ __rmnet_frag_ingress_handler(struct rmnet_frag_descriptor *frag_desc,
 	}
 
 	if (port->data_format & RMNET_INGRESS_FORMAT_PS)
-		qmi_rmnet_work_maybe_restart(port);
+		qmi_rmnet_work_maybe_restart(port,
+			list_first_entry_or_null(&segs,
+						 struct rmnet_frag_descriptor,
+						 list),
+			NULL);
 
 	if (skip_perf)
 		goto no_perf;

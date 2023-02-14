@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -119,7 +120,7 @@ int qmi_rmnet_set_powersave_mode(void *port, uint8_t enable, u8 num_bearers,
 				 u8 *bearer_id);
 void qmi_rmnet_work_init(void *port);
 void qmi_rmnet_work_exit(void *port);
-void qmi_rmnet_work_maybe_restart(void *port);
+void qmi_rmnet_work_maybe_restart(void *port, void *desc, struct sk_buff *skb);
 void qmi_rmnet_set_dl_msg_active(void *port);
 bool qmi_rmnet_ignore_grant(void *port);
 
@@ -142,7 +143,8 @@ static inline void qmi_rmnet_work_init(void *port)
 static inline void qmi_rmnet_work_exit(void *port)
 {
 }
-static inline void qmi_rmnet_work_maybe_restart(void *port)
+static inline void qmi_rmnet_work_maybe_restart(void *port, void *desc,
+						struct sk_buff *skb)
 {
 
 }

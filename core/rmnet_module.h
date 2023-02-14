@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,6 +29,8 @@ enum {
 	RMNET_MODULE_HOOK_APS_PRE_QUEUE,
 	RMNET_MODULE_HOOK_APS_POST_QUEUE,
 	RMNET_MODULE_HOOK_WLAN_FLOW_MATCH,
+	RMNET_MODULE_HOOK_APS_DATA_INACTIVE,
+	RMNET_MODULE_HOOK_APS_DATA_ACTIVE,
 	__RMNET_MODULE_NUM_HOOKS,
 };
 
