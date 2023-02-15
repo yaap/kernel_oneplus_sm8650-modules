@@ -1328,7 +1328,6 @@ static int update_residency_stats(
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
 {
-	u64 srate;
 	int rc = 0;
 
 	/* not registered */
@@ -1340,25 +1339,17 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	/* update clock residency stats */
 	update_residency_stats(core, cl, rate);
 
-	/*
-	 * This conversion is necessary since we are scaling clock values based on
-	 * the branch clock. However, mmrm driver expects source clock to be registered
-	 * and used for scaling.
-	 * TODO: Remove this scaling if using source clock instead of branch clock.
-	 */
-	srate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
-
 	/* bail early if requested clk rate is not changed */
 	if (rate == cl->prev)
 		return 0;
 
 	d_vpr_p("Scaling clock %s to %llu, prev %llu\n",
-		cl->name, srate, cl->prev * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO);
+		cl->name, rate, cl->prev);
 
-	rc = clk_set_rate(cl->clk, srate);
+	rc = clk_set_rate(cl->clk, rate);
 	if (rc) {
 		d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-			__func__, srate, cl->name, rc);
+			__func__, rate, cl->name, rc);
 		return rc;
 	}
 
