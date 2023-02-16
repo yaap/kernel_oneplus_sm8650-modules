@@ -130,6 +130,8 @@ enum vidc_msg_prio {
 #define d_vpr_t(__fmt, ...) dprintk_core(VIDC_PKT,  "pkt ", __fmt, ##__VA_ARGS__)
 #define d_vpr_b(__fmt, ...) dprintk_core(VIDC_BUS,  "bus ", __fmt, ##__VA_ARGS__)
 #define d_vpr_s(__fmt, ...) dprintk_core(VIDC_STAT, "stat", __fmt, ##__VA_ARGS__)
+#define d_vpr_hs(__fmt, ...) \
+	dprintk_core(VIDC_HIGH | VIDC_STAT, "high", __fmt, ##__VA_ARGS__)
 
 #define dprintk_ratelimit(__level, __level_str, __fmt, ...) \
 	do { \
