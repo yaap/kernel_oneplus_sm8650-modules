@@ -16,6 +16,7 @@ PRODUCT_PACKAGES += qcrypto-msm_dlkm.ko
 PRODUCT_PACKAGES += hdcp_qseecom_dlkm.ko
 PRODUCT_PACKAGES += qrng_dlkm.ko
 PRODUCT_PACKAGES += smcinvoke_dlkm.ko
+PRODUCT_PACKAGES += smmu_proxy_dlkm.ko
 
 #Enable Qseecom if TARGET_ENABLE_QSEECOM or TARGET_BOARD_AUTO is set to true
 ifneq (, $(filter true, $(TARGET_ENABLE_QSEECOM) $(TARGET_BOARD_AUTO)))
