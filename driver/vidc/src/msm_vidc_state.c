@@ -668,6 +668,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* allow reqbufs request in open state */
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -812,6 +813,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_REQBUFS:
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
+
+		/* disallow */
+		if (b->type == INPUT_MPLANE || b->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
@@ -969,6 +977,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_REQBUFS:
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
+
+		/* disallow */
+		if (b->type == OUTPUT_MPLANE || b->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)

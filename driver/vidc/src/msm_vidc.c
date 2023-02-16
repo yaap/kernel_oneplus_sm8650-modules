@@ -397,11 +397,6 @@ int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_reqbufs(inst, b->type)) {
-		rc = -EBUSY;
-		goto exit;
-	}
-
 	port = v4l2_type_to_driver_port(inst, b->type, __func__);
 	if (port < 0) {
 		rc = -EINVAL;
