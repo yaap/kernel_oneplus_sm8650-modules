@@ -715,9 +715,9 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
+		/* ignore stop cmd request in open state */
+		i_vpr_h(inst, "%s: (%s) ignored, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
 		break;
 	}
 	case MSM_VIDC_BUF_QUEUE:
@@ -902,6 +902,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
 		if (rc)
 			return rc;
@@ -1081,10 +1088,10 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
-		break;
+		/* drain not allowed as input is not streaming */
+		i_vpr_e(inst, "%s: drain (%s) not allowed, sub state %s\n",
+			__func__, event_name(event), inst->sub_state_name);
+		return -EBUSY;
 	}
 	default: {
 		i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
@@ -1195,6 +1202,13 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
 		if (rc)
 			return rc;

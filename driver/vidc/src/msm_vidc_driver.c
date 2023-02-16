@@ -1115,33 +1115,6 @@ int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
 	return rc;
 }
 
-enum msm_vidc_allow msm_vidc_allow_stop(struct msm_vidc_inst *inst)
-{
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return allow;
-	}
-
-	/* allow stop (drain) if input port is streaming */
-	if (is_state(inst, MSM_VIDC_INPUT_STREAMING) ||
-		is_state(inst, MSM_VIDC_STREAMING)) {
-		/* do not allow back to back drain */
-		if (!(is_sub_state(inst, MSM_VIDC_DRAIN)))
-			allow = MSM_VIDC_ALLOW;
-	} else if (is_state(inst, MSM_VIDC_OPEN)) {
-		allow = MSM_VIDC_IGNORE;
-		i_vpr_e(inst, "%s: ignored in state %s, sub state %s\n",
-			__func__, state_name(inst->state), inst->sub_state_name);
-	} else {
-		i_vpr_e(inst, "%s: not allowed in state %s, sub state %s\n",
-			__func__, state_name(inst->state), inst->sub_state_name);
-	}
-
-	return allow;
-}
-
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 {
 	enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
