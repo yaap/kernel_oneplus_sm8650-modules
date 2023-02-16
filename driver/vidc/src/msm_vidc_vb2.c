@@ -415,9 +415,6 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_streamon(inst, q->type))
-		return -EBUSY;
-
 	if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
 		i_vpr_h(inst, "%s: nothing to start on %s\n",
 			__func__, v4l2_type_name(q->type));

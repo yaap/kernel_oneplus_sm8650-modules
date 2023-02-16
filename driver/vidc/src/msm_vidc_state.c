@@ -678,6 +678,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
+		/* allow streamon request in open state */
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
 			return rc;
@@ -829,6 +830,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMON:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
+
+		/* disallow */
+		if (q->type == INPUT_MPLANE || q->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
@@ -993,6 +1001,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMON:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
+
+		/* disallow */
+		if (q->type == OUTPUT_MPLANE || q->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)

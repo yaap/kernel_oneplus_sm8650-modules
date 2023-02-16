@@ -1167,27 +1167,6 @@ bool msm_vidc_allow_start(struct msm_vidc_inst *inst)
 	return allow;
 }
 
-bool msm_vidc_allow_streamon(struct msm_vidc_inst *inst, u32 type)
-{
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-	if (type == INPUT_MPLANE || type == INPUT_META_PLANE) {
-		if (is_state(inst, MSM_VIDC_OPEN) ||
-			is_state(inst, MSM_VIDC_OUTPUT_STREAMING))
-			return true;
-	} else if (type == OUTPUT_MPLANE || type == OUTPUT_META_PLANE) {
-		if (is_state(inst, MSM_VIDC_OPEN) ||
-			is_state(inst, MSM_VIDC_INPUT_STREAMING))
-			return true;
-	}
-
-	i_vpr_e(inst, "%s: type %d not allowed in state %s\n",
-			__func__, type, state_name(inst->state));
-	return false;
-}
-
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 {
 	enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
