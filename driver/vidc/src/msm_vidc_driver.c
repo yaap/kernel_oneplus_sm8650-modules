@@ -1285,27 +1285,27 @@ bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst)
 	return false;
 }
 
-bool msm_vidc_allow_pm_suspend(struct msm_vidc_core *core)
+enum msm_vidc_allow msm_vidc_allow_pm_suspend(struct msm_vidc_core *core)
 {
 	if (!core) {
 		d_vpr_e("%s: invalid param\n", __func__);
-		return false;
+		return MSM_VIDC_DISALLOW;
 	}
 
 	/* core must be in valid state to do pm_suspend */
 	if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: invalid core state %s\n",
 			__func__, core_state_name(core->state));
-		return false;
+		return MSM_VIDC_DISALLOW;
 	}
 
 	/* check if power is enabled */
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("%s: Power already disabled\n", __func__);
-		return false;
+		return MSM_VIDC_IGNORE;
 	}
 
-	return true;
+	return MSM_VIDC_ALLOW;
 }
 
 bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
