@@ -15,6 +15,12 @@
 #define SYNX_NO_TIMEOUT        ((u64)-1)
 
 /**
+ * SYNX_INVALID_HANDLE      : client can assign the synx handle variable with this value
+ *                            when it doesn't hold a valid synx handle
+ */
+#define SYNX_INVALID_HANDLE 0
+
+/**
  * enum synx_create_flags - Flags passed during synx_create call
  *
  * SYNX_CREATE_LOCAL_FENCE  : Instructs the framework to create local synx object
