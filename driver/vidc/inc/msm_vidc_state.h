@@ -91,6 +91,8 @@ const char *core_state_name(enum msm_vidc_core_state state);
 const char *core_sub_state_name(enum msm_vidc_core_sub_state sub_state);
 
 /* inst statemachine functions */
+bool is_drc_pending(struct msm_vidc_inst *inst);
+bool is_drain_pending(struct msm_vidc_inst *inst);
 int msm_vidc_update_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_state request_state, const char *func);
 int msm_vidc_change_state(struct msm_vidc_inst *inst,

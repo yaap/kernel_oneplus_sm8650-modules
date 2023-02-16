@@ -2132,9 +2132,6 @@ int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
-
 	/* tune power features */
 	inst->decode_batch.enable = msm_vidc_allow_decode_batch(inst);
 	msm_vidc_allow_dcvs(inst);

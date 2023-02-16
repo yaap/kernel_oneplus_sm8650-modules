@@ -24,6 +24,18 @@ bool is_core_state(struct msm_vidc_core *core, enum msm_vidc_core_state state)
 	return core->state == state;
 }
 
+bool is_drc_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRC) &&
+		is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER);
+}
+
+bool is_drain_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRAIN) &&
+		is_sub_state(inst, MSM_VIDC_DRAIN_LAST_BUFFER);
+}
+
 static const char * const core_state_name_arr[] =
 	FOREACH_CORE_STATE(GENERATE_STRING);
 
@@ -695,10 +707,11 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
-		rc = msm_vidc_start_cmd(inst);
-		if (rc)
-			return rc;
-		break;
+		/* disallow start cmd request in open state */
+		i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
+
+		return -EBUSY;
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
@@ -874,6 +887,14 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -1045,6 +1066,14 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -1151,6 +1180,14 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;

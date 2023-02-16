@@ -935,8 +935,7 @@ int msm_venc_start_cmd(struct msm_vidc_inst *inst)
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: resume\n");
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
+
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 

@@ -1142,31 +1142,6 @@ enum msm_vidc_allow msm_vidc_allow_stop(struct msm_vidc_inst *inst)
 	return allow;
 }
 
-bool msm_vidc_allow_start(struct msm_vidc_inst *inst)
-{
-	bool allow = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return allow;
-	}
-
-	/* client would call start (resume) to complete DRC/drain sequence */
-	if (inst->state == MSM_VIDC_INPUT_STREAMING ||
-		inst->state == MSM_VIDC_OUTPUT_STREAMING ||
-		inst->state == MSM_VIDC_STREAMING) {
-		if ((is_sub_state(inst, MSM_VIDC_DRC) &&
-			is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER)) ||
-			(is_sub_state(inst, MSM_VIDC_DRAIN) &&
-			is_sub_state(inst, MSM_VIDC_DRAIN_LAST_BUFFER)))
-			allow = true;
-	}
-	if (!allow)
-		i_vpr_e(inst, "%s: not allowed in state %s, sub state %s\n",
-			__func__, state_name(inst->state), inst->sub_state_name);
-	return allow;
-}
-
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 {
 	enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
