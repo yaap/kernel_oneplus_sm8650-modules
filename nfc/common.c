@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (C) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2019-2021 NXP
+ * Copyright (C) 2019-2022 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "common.h"
+bool secure_peripheral_not_found = true;
 
 
 int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
@@ -50,22 +51,22 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	if (interface == PLATFORM_IF_I2C) {
 		nfc_gpio->irq = of_get_named_gpio(np, DTS_IRQ_GPIO_STR, 0);
 		if ((!gpio_is_valid(nfc_gpio->irq))) {
-			pr_err("%s: nfc irq gpio invalid %d\n", __func__,
+			pr_err("%s: irq gpio invalid %d\n", __func__,
 			       nfc_gpio->irq);
-			return -EINVAL;
+			return nfc_gpio->irq;
 		}
 		pr_info("%s: irq %d\n", __func__, nfc_gpio->irq);
 	}
 	nfc_gpio->ven = of_get_named_gpio(np, DTS_VEN_GPIO_STR, 0);
 	if ((!gpio_is_valid(nfc_gpio->ven))) {
-		pr_err("%s: nfc ven gpio invalid %d\n", __func__, nfc_gpio->ven);
-		return -EINVAL;
+		pr_err("%s: ven gpio invalid %d\n", __func__, nfc_gpio->ven);
+		return nfc_gpio->ven;
 	}
 	/* some products like sn220 does not required fw dwl pin */
 	nfc_gpio->dwl_req = of_get_named_gpio(np, DTS_FWDN_GPIO_STR, 0);
-	/* not returning failure for dwl gpio as it is optional for sn220 */
-	if ((!gpio_is_valid(nfc_gpio->dwl_req))){
-		pr_warn("%s: nfc dwl_req gpio invalid %d\n", __func__,
+        /* not returning failure for dwl gpio as it is optional for sn220 */
+	if ((!gpio_is_valid(nfc_gpio->dwl_req))) {
+		pr_warn("%s: dwl_req gpio invalid %d\n", __func__,
 			nfc_gpio->dwl_req);
         }
         /* Read clkreq GPIO pin number from DTSI */
@@ -131,15 +132,22 @@ int get_valid_gpio(int gpio)
 void gpio_set_ven(struct nfc_dev *nfc_dev, int value)
 {
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
-	if(!nfc_dev->secure_zone) {
-		if (gpio_get_value(nfc_gpio->ven) != value) {
-			pr_debug("%s: value %d\n", __func__, value);
-
+	if (gpio_get_value(nfc_gpio->ven) != value) {
+		pr_debug("%s: value %d\n", __func__, value);
+		if(secure_peripheral_not_found)
+		{
+			/*secure peripheral feature is not enabled*/
 			gpio_set_value(nfc_gpio->ven, value);
-			/* hardware dependent delay */
-			usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
-					NFC_GPIO_SET_WAIT_TIME_US + 100);
 		}
+		else
+		{
+			/*secure peripheral feature is enabled*/
+			if(!nfc_hw_secure_check())
+				gpio_set_value(nfc_gpio->ven, value);
+		}
+		/* hardware dependent delay */
+		usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
+				NFC_GPIO_SET_WAIT_TIME_US + 100);
 	}
 }
 
@@ -166,8 +174,7 @@ int configure_gpio(unsigned int gpio, int flag)
 		}
 
 		if (ret) {
-			pr_err("%s: unable to set direction for nfc gpio [%d]\n",
-			       __func__, gpio);
+			pr_err("%s: unable to set direction for nfc gpio [%d]\n", __func__, gpio);
 			gpio_free(gpio);
 			return ret;
 		}
@@ -280,6 +287,46 @@ int nfc_misc_register(struct nfc_dev *nfc_dev,
 }
 
 /**
+ * nfc_gpio_info() - gets the status of nfc gpio pins and encodes into a byte.
+ * @nfc_dev:	nfc device data structure
+ * @arg:		userspace buffer
+ *
+ * Encoding can be done in following manner
+ * 1) map the gpio value into INVALID(-2), SET(1), RESET(0).
+ * 2) mask the first 2 bits of gpio.
+ * 3) left shift the 2 bits as multiple of 2.
+ * 4) multiply factor can be defined as position of gpio pin in struct platform_gpio
+ *
+ * Return: -EFAULT, if unable to copy the data from kernel space to userspace, 0
+ * if Success(or no issue)
+ */
+
+static int nfc_gpio_info(struct nfc_dev *nfc_dev, unsigned long arg)
+{
+	unsigned int gpios_status = 0;
+	int value = 0;
+	int gpio_no = 0;
+	int i;
+	int ret = 0;
+	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
+
+	for (i = 0; i < sizeof(struct platform_gpio) / sizeof(unsigned int);
+	     i++) {
+		gpio_no = *((unsigned int *)nfc_gpio + i);
+		value = get_valid_gpio(gpio_no);
+		if (value < 0)
+			value = -2;
+		gpios_status |= (value & GPIO_STATUS_MASK_BITS)<<(GPIO_POS_SHIFT_VAL*i);
+	}
+	ret = copy_to_user((uint32_t *) arg, &gpios_status, sizeof(value));
+	if (ret < 0) {
+		pr_err("%s : Unable to copy data from kernel space to user space", __func__);
+		return -EFAULT;
+	}
+	return 0;
+}
+
+/**
  * nfc_ioctl_power_states() - power control
  * @nfc_dev:    nfc device data structure
  * @arg:    mode that we want to move to
@@ -305,12 +352,14 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
 		set_valid_gpio(nfc_gpio->dwl_req, 0);
 		gpio_set_ven(nfc_dev, 0);
 		nfc_dev->nfc_ven_enabled = false;
+		nfc_dev->nfc_state = NFC_STATE_NCI;
 	} else if (arg == NFC_POWER_ON) {
 		nfc_dev->nfc_enable_intr(nfc_dev);
 		set_valid_gpio(nfc_gpio->dwl_req, 0);
 
 		gpio_set_ven(nfc_dev, 1);
 		nfc_dev->nfc_ven_enabled = true;
+		nfc_dev->nfc_state = NFC_STATE_NCI;
 	} else if (arg == NFC_FW_DWL_VEN_TOGGLE) {
 		/*
 		 * We are switching to download Mode, toggle the enable pin
@@ -353,8 +402,8 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
 	} else if (arg == NFC_DISABLE) {
 		/* Setting flag true when NFC is disabled */
 		nfc_dev->cold_reset.is_nfc_enabled = false;
-	}  else {
-		pr_err("%s bad arg %lu\n", __func__, arg);
+	} else {
+		pr_err("%s: bad arg %lu\n", __func__, arg);
 		ret = -ENOIOCTLCMD;
 	}
 	return ret;
@@ -375,10 +424,11 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
  * and error ret code otherwise
  */
 long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
-		      unsigned long arg)
+			  unsigned long arg)
 {
 	int ret = 0;
-	arg = (compat_u64)arg;
+
+	arg = (compat_u64) arg;
 	pr_debug("%s: cmd = %x arg = %zx\n", __func__, cmd, arg);
 	ret = nfc_dev_ioctl(pfile, cmd, arg);
 	return ret;
@@ -462,24 +512,24 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
  *
  * Queries the TZ secure libraries if NFC is in secure zone statue or not.
  *
- * Return: 0 if FEATURE_NOT_SUPPORTED/PERIPHERAL_NOT_FOUND/state is 2 and 
- * return 1(non-secure) otherwise
+ * Return: 0 if FEATURE_NOT_SUPPORTED or PERIPHERAL_NOT_FOUND or nfc_sec_state = 2(non-secure zone) and
+ *  return 1 if nfc_sec_state = 1(secure zone) or error otherwise
  */
 
- bool nfc_hw_secure_check(void)
- {
+bool nfc_hw_secure_check(void)
+{
 	struct Object client_env;
 	struct Object app_object;
-	u32 wifi_uid = HW_NFC_UID;
+	u32 nfc_uid = HW_NFC_UID;
 	union ObjectArg obj_arg[2] = {{{0, 0}}};
 	int ret;
 	bool retstat = 1;
-	u8 state = 0;
+	u8 nfc_sec_state = 0;
 	/* get rootObj */
 	ret = get_client_env_object(&client_env);
 	if (ret) {
 		pr_err("Failed to get client_env_object, ret: %d\n", ret);
-		return 1;
+		return retstat;
 	}
 
 	ret = IClientEnv_open(client_env, HW_STATE_UID, &app_object);
@@ -492,12 +542,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		goto exit_release_clientenv;
 	}
 
-	obj_arg[0].b = (struct ObjectBuf) {&wifi_uid, sizeof(u32)};
-	obj_arg[1].b = (struct ObjectBuf) {&state, sizeof(u8)};
+	obj_arg[0].b = (struct ObjectBuf) {&nfc_uid, sizeof(u32)};
+	obj_arg[1].b = (struct ObjectBuf) {&nfc_sec_state, sizeof(u8)};
 	ret = Object_invoke(app_object, HW_OP_GET_STATE, obj_arg,
 			ObjectCounts_pack(1, 1, 0, 0));
 
-	pr_info("SMC invoke ret: %d state: %d\n", ret, state);
+	pr_info("TZ ret: %d nfc_sec_state: %d\n", ret, nfc_sec_state);
 	if (ret) {
 		if (ret == PERIPHERAL_NOT_FOUND) {
 			retstat = 0; /* Do not Assert */
@@ -506,7 +556,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		goto exit_release_app_obj;
 	}
 
-	if (state == 1) {
+	secure_peripheral_not_found = false;
+
+	/* Refer peripheral state utilities for different states of NFC peripherals;
+	 * path: vendor/qcom/proprietary/securemsm/peripheralStateUtils/inc/peripheralStateUtils.h
+	 */
+	if (nfc_sec_state == 1) {
 		/*Secure Zone*/
 		retstat = 1;
 	} else {
@@ -514,13 +569,13 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		retstat = 0;
 	}
 
-exit_release_app_obj:
-	Object_release(app_object);
-exit_release_clientenv:
-	Object_release(client_env);
+	exit_release_app_obj:
+		Object_release(app_object);
+	exit_release_clientenv:
+		Object_release(client_env);
 
 	return  retstat;
- }
+}
 
 /**
  * nfc_dynamic_protection_ioctl() - dynamic protection control
@@ -622,24 +677,25 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 	case NFC_SET_PWR:
 		ret = nfc_ioctl_power_states(nfc_dev, arg);
 		break;
-        case NFC_SET_RESET_READ_PENDING:
-               if (arg == NFC_SET_READ_PENDING) {
-                       nfc_dev->cold_reset.is_nfc_read_pending = true;
-                        /* Set default NFC state as NCI for Nfc read pending request */
-                       nfc_dev->nfc_state = NFC_STATE_NCI;
-               }
-               else if (arg == NFC_RESET_READ_PENDING){
-                       nfc_dev->cold_reset.is_nfc_read_pending = false;
-               }
-               else {
-                       ret = -EINVAL;
-               }
-               break;
+	case NFC_SET_RESET_READ_PENDING:
+		if (arg == NFC_SET_READ_PENDING) {
+			nfc_dev->cold_reset.is_nfc_read_pending = true;
+			/* Set default NFC state as NCI for Nfc read pending request */
+			nfc_dev->nfc_state = NFC_STATE_NCI;
+		} else if (arg == NFC_RESET_READ_PENDING) {
+			nfc_dev->cold_reset.is_nfc_read_pending = false;
+		} else {
+			ret = -EINVAL;
+		}
+		break;
 	case ESE_SET_PWR:
 		ret = nfc_ese_pwr(nfc_dev, arg);
 		break;
 	case ESE_GET_PWR:
 		ret = nfc_ese_pwr(nfc_dev, ESE_POWER_STATE);
+		break;
+	case NFC_GET_GPIO_STATUS:
+		ret = nfc_gpio_info(nfc_dev, arg);
 		break;
 	case NFCC_GET_INFO:
 		ret = nfc_ioctl_nfcc_info(pfile, arg);
@@ -663,6 +719,7 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 int nfc_dev_open(struct inode *inode, struct file *filp)
 {
 	struct nfc_dev *nfc_dev = NULL;
+
 	nfc_dev = container_of(inode->i_cdev, struct nfc_dev, c_dev);
 
 	if (!nfc_dev)
@@ -719,6 +776,7 @@ int nfc_dev_flush(struct file *pfile, fl_owner_t id)
 int nfc_dev_close(struct inode *inode, struct file *filp)
 {
 	struct nfc_dev *nfc_dev = NULL;
+
 	nfc_dev = container_of(inode->i_cdev, struct nfc_dev, c_dev);
 
 	if (!nfc_dev)

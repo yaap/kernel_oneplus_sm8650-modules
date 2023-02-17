@@ -427,7 +427,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	    else {
 		   nfc_dev->secure_zone = true;
             }
-	    pr_info("%s:nfc_dev->secure_zone = %s", __func__, nfc_dev->secure_zone ? "true" : "false");
+	    pr_info("%s:nfc secure_zone = %s", __func__, nfc_dev->secure_zone ? "true" : "false");
 	}else {
 		nfc_post_init(nfc_dev);
 	}
