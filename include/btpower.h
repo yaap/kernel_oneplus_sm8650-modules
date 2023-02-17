@@ -78,6 +78,8 @@ struct btpower_platform_data {
 	int pdc_init_table_len;
 	const char **pdc_init_table;
 	int bt_device_type;
+	bool sec_peri_feature_disable;
+	int bt_sec_hw_disable;
 #ifdef CONFIG_MSM_BT_OOBS
 	struct file *reffilp_obs;
 	struct task_struct *reftask_obs;
