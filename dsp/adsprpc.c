@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /* Uncomment this block to log an error on every VERIFY failure */
@@ -40,7 +40,6 @@
 #include <linux/msm_dma_iommu_mapping.h>
 #include "adsprpc_compat.h"
 #include "adsprpc_shared.h"
-#include "fastrpc.h"
 #include <soc/qcom/qcom_ramdump.h>
 #include <soc/qcom/minidump.h>
 #include <linux/delay.h>
@@ -63,6 +62,12 @@
 
 #define CREATE_TRACE_POINTS
 #include "fastrpc_trace.h"
+
+#ifdef CONFIG_MSM_ADSPRPC_TRUSTED
+#include "../include/linux/fastrpc.h"
+#else
+#include "fastrpc.h"
+#endif
 
 #define TZ_PIL_PROTECT_MEM_SUBSYS_ID 0x0C
 #define TZ_PIL_CLEAR_PROTECT_MEM_SUBSYS_ID 0x0D
@@ -137,7 +142,7 @@
 #endif
 
 /*
- * ctxid of every message is OR-ed with fl->pd (0/1/2) before
+ * ctxid of every message is OR-ed with fastrpc_remote_pd_type before
  * it is sent to DSP. So mask 2 LSBs to retrieve actual context
  */
 #define CONTEXT_PD_CHECK (3)
@@ -1044,6 +1049,12 @@ static inline bool fastrpc_get_persistent_map(size_t len, struct fastrpc_mmap **
 			map->is_persistent && !map->in_use) {
 			*pers_map = map;
 			map->in_use = true;
+			/*
+			 * Incrementing map reference count when getting
+			 * the map to avoid negative reference count when
+			 * freeing the map.
+			 */
+			map->refs++;
 			found = true;
 			break;
 		}
@@ -3593,10 +3604,10 @@ static int fastrpc_init_attach_process(struct fastrpc_file *fl,
 	ioctl.job = NULL;
 
 	if (init->flags == FASTRPC_INIT_ATTACH)
-		fl->pd = 0;
+		fl->pd = FASTRPC_ROOT_PD;
 	else if (init->flags == FASTRPC_INIT_ATTACH_SENSORS)
 		/* Setting to 2 will route the message to sensorsPD */
-		fl->pd = 2;
+		fl->pd = FASTRPC_SENSORS_PD;
 
 	err = fastrpc_internal_invoke(fl, FASTRPC_MODE_PARALLEL, KERNEL_MSG_WITH_ZERO_PID, &ioctl);
 	if (err)
@@ -3650,6 +3661,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 			    "init memory for process %d should be between %d and %d\n",
 			     init->memlen, INIT_MEMLEN_MIN_DYNAMIC, INIT_MEMLEN_MAX_DYNAMIC);
 		    err = -EINVAL;
+		    spin_unlock(&fl->hlock);
 		    goto bail;
 		}
 		dsp_userpd_memlen = init->memlen;
@@ -3662,7 +3674,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	inbuf.pgid = fl->tgid;
 	inbuf.namelen = strlen(current->comm) + 1;
 	inbuf.filelen = init->filelen;
-	fl->pd = 1;
+	fl->pd = FASTRPC_USER_PD;
 
 	if (uproc->attrs & FASTRPC_MODE_UNSIGNED_MODULE)
 		fl->is_unsigned_pd = true;
@@ -3899,7 +3911,7 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		goto bail;
 	}
 
-	fl->pd = 1;
+	fl->pd = FASTRPC_USER_PD;
 	inbuf.pgid = fl->tgid;
 	inbuf.namelen = init->filelen;
 	inbuf.pageslen = 0;
@@ -4708,7 +4720,7 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 		match = NULL;
 		spin_lock_irqsave(&me->hlock, irq_flags);
 		hlist_for_each_entry_safe(map, n, &me->maps, hn) {
-			if (map->servloc_name &&
+			if (map->servloc_name && fl &&
 				fl->servloc_name && !strcmp(map->servloc_name, fl->servloc_name)) {
 				match = map;
 				if (map->is_persistent && map->in_use) {
@@ -4736,6 +4748,11 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 					}
 					spin_lock_irqsave(&me->hlock, irq_flags);
 					map->in_use = false;
+					/*
+					 * decrementing refcount for persistent mappings
+					 * as incrementing it in fastrpc_get_persistent_map
+					 */
+					map->refs--;
 				}
 				if (map->is_persistent) {
 					match = NULL;
@@ -7440,7 +7457,7 @@ static int fastrpc_cb_probe(struct device *dev)
 		buf->virt = NULL;
 		buf->phys = 0;
 		buf->size = frpc_gen_addr_pool[1];
-		buf->dma_attr = DMA_ATTR_DELAYED_UNMAP | DMA_ATTR_NO_KERNEL_MAPPING;
+		buf->dma_attr = DMA_ATTR_DELAYED_UNMAP;
 		/* Allocate memory for adding to genpool */
 		buf->virt = dma_alloc_attrs(sess->smmu.dev, buf->size,
 						(dma_addr_t *)&buf->phys,
@@ -7465,7 +7482,7 @@ static int fastrpc_cb_probe(struct device *dev)
 		}
 		/* Map the allocated memory with fixed IOVA and is shared to remote subsystem */
 		err = iommu_map_sg(domain, frpc_gen_addr_pool[0], sgt.sgl,
-					sgt.nents, IOMMU_READ | IOMMU_WRITE);
+					sgt.nents, IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE);
 		if (err < 0) {
 			ADSPRPC_ERR("iommu_map_sg failed with err %d", err);
 			goto iommu_map_bail;
@@ -8282,8 +8299,9 @@ static int __init fastrpc_device_init(void)
 			VERIFY(err, NULL != (buf = kzalloc(sizeof(*buf), GFP_KERNEL)));
 			if (err) {
 				err = -ENOMEM;
-				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
+				ADSPRPC_ERR("%s: CMA alloc failed  err 0x%x\n",
 							__func__, err);
+				goto device_create_bail;
 			}
 			INIT_HLIST_NODE(&buf->hn);
 			buf->virt = region_vaddr;

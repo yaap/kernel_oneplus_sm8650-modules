@@ -772,11 +772,16 @@ static int compat_fastrpc_get_dsp_info(struct fastrpc_file *fl,
 	struct fastrpc_ioctl_capability *info = NULL;
 	compat_uint_t u;
 	int err = 0;
+	size_t info_size = 0;
 
 	info32 = compat_ptr(arg);
 	VERIFY(err, NULL != (info = kmalloc(
 				sizeof(*info), GFP_KERNEL)));
-
+	info_size = sizeof(*info);
+	if (err) {
+		ADSPRPC_ERR("allocation failed for size 0x%zx\n", info_size);
+		return err;
+	}
 	err = get_user(u, &info32->domain);
 	if (err)
 		return err;
