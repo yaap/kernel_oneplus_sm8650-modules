@@ -208,6 +208,24 @@ int synx_global_init_coredata(u32 h_synx)
 	if (rc)
 		return rc;
 	synx_g_obj = &synx_gmem.table[idx];
+	if (synx_g_obj->status != 0 || synx_g_obj->refcount != 0 ||
+		synx_g_obj->subscribers != 0 || synx_g_obj->handle != 0 ||
+		synx_g_obj->parents[0] != 0) {
+		dprintk(SYNX_ERR,
+				"entry not cleared for idx %u,\n"
+				"synx_g_obj->status %d,\n"
+				"synx_g_obj->refcount %d,\n"
+				"synx_g_obj->subscribers %d,\n"
+				"synx_g_obj->handle %u,\n"
+				"synx_g_obj->parents[0] %d\n",
+				idx, synx_g_obj->status,
+				synx_g_obj->refcount,
+				synx_g_obj->subscribers,
+				synx_g_obj->handle,
+				synx_g_obj->parents[0]);
+		synx_gmem_unlock(idx, &flags);
+		return -SYNX_INVALID;
+	}
 	memset(synx_g_obj, 0, sizeof(*synx_g_obj));
 	/* set status to active */
 	synx_g_obj->status = SYNX_STATE_ACTIVE;
@@ -327,6 +345,28 @@ int synx_global_set_subscribed_core(u32 idx, enum synx_core_id id)
 		return rc;
 	synx_g_obj = &synx_gmem.table[idx];
 	synx_g_obj->subscribers |= (1UL << id);
+	synx_gmem_unlock(idx, &flags);
+
+	return SYNX_SUCCESS;
+}
+
+int synx_global_clear_subscribed_core(u32 idx, enum synx_core_id id)
+{
+	int rc;
+	unsigned long flags;
+	struct synx_global_coredata *synx_g_obj;
+
+	if (!synx_gmem.table)
+		return -SYNX_NOMEM;
+
+	if (id >= SYNX_CORE_MAX || !synx_is_valid_idx(idx))
+		return -SYNX_INVALID;
+
+	rc = synx_gmem_lock(idx, &flags);
+	if (rc)
+		return rc;
+	synx_g_obj = &synx_gmem.table[idx];
+	synx_g_obj->subscribers &= ~(1UL << id);
 	synx_gmem_unlock(idx, &flags);
 
 	return SYNX_SUCCESS;
@@ -528,7 +568,18 @@ static int synx_global_update_status_core(u32 idx,
 	/* notify waiting clients on signal */
 	if (data) {
 		/* notify wait client */
-		for (i = 1; i < SYNX_CORE_MAX; i++) {
+
+	/* In case of SSR, someone might be waiting on same core
+	 * However, in other cases, synx_signal API will take care
+	 * of signaling handles on same core and thus we don't need
+	 * to send interrupt
+	 */
+		if (status == SYNX_STATE_SIGNALED_SSR)
+			i = 0;
+		else
+			i = 1;
+
+		for (; i < SYNX_CORE_MAX ; i++) {
 			if (!wait_cores[i])
 				continue;
 			dprintk(SYNX_DBG,
@@ -735,7 +786,7 @@ int synx_global_recover(enum synx_core_id core_id)
 	const u32 size = SYNX_GLOBAL_MAX_OBJS;
 	unsigned long flags;
 	struct synx_global_coredata *synx_g_obj;
-	
+
 	bool update;
 	int *clear_idx = NULL;
 	if (!synx_gmem.table)
