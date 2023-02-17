@@ -180,16 +180,31 @@ static void qcedev_ce_high_bw_req(struct qcedev_control *podev,
 {
 	int ret = 0;
 
+	if(podev == NULL) return;
+
 	mutex_lock(&qcedev_sent_bw_req);
 	if (high_bw_req) {
 		if (podev->high_bw_req_count == 0) {
 			ret = qcedev_control_clocks(podev, true);
 			if (ret)
 				goto exit_unlock_mutex;
+			ret = qce_set_irqs(podev->qce, true);
+			if (ret) {
+				pr_err("%s: could not enable bam irqs, ret = %d",
+						__func__, ret);
+				qcedev_control_clocks(podev, false);
+				goto exit_unlock_mutex;
+			}
 		}
 		podev->high_bw_req_count++;
 	} else {
 		if (podev->high_bw_req_count == 1) {
+			ret = qce_set_irqs(podev->qce, false);
+			if (ret) {
+				pr_err("%s: could not disable bam irqs, ret = %d",
+						__func__, ret);
+				goto exit_unlock_mutex;
+			}
 			ret = qcedev_control_clocks(podev, false);
 			if (ret)
 				goto exit_unlock_mutex;
@@ -295,7 +310,9 @@ static int qcedev_release(struct inode *inode, struct file *file)
 					__func__, podev);
 	}
 
-	qcedev_ce_high_bw_req(podev, false);
+	if (podev)
+		qcedev_ce_high_bw_req(podev, false);
+
 	if (qcedev_unmap_all_buffers(handle))
 		pr_err("%s: failed to unmap all ion buffers\n", __func__);
 
@@ -315,8 +332,9 @@ static void req_done(unsigned long data)
 	areq = podev->active_command;
 	podev->active_command = NULL;
 
-	if (areq && !areq->timed_out) {
-		complete(&areq->complete);
+	if (areq) {
+		if (!areq->timed_out)
+			complete(&areq->complete);
 		areq->state = QCEDEV_REQ_DONE;
 	}
 
@@ -713,6 +731,7 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	int wait = MAX_CRYPTO_WAIT_TIME;
 	struct qcedev_async_req *new_req = NULL;
 	int retries = 0;
+	int req_wait = MAX_REQUEST_TIME;
 
 	qcedev_areq->err = 0;
 	podev = handle->cntl;
@@ -749,12 +768,16 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			list_add_tail(&qcedev_areq->list,
 					&podev->ready_commands);
 			qcedev_areq->state = QCEDEV_REQ_WAITING;
-			if (wait_event_interruptible_lock_irq_timeout(
+			req_wait = wait_event_interruptible_lock_irq_timeout(
 				qcedev_areq->wait_q,
 				(qcedev_areq->state == QCEDEV_REQ_CURRENT),
 				podev->lock,
-				msecs_to_jiffies(MAX_REQUEST_TIME)) == 0) {
-				pr_err("%s: request timed out\n", __func__);
+				msecs_to_jiffies(MAX_REQUEST_TIME));
+			if ((req_wait == 0) || (req_wait == -ERESTARTSYS)) {
+				pr_err("%s: request timed out, req_wait = %d\n",
+						__func__, req_wait);
+				list_del(&qcedev_areq->list);
+				podev->active_command = NULL;
 				spin_unlock_irqrestore(&podev->lock, flags);
 				return qcedev_areq->err;
 			}
@@ -812,7 +835,7 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			pr_err("%s: error during manage timeout", __func__);
 
 		spin_unlock_irqrestore(&podev->lock, flags);
-		tasklet_schedule(&podev->done_tasklet);
+		req_done((unsigned long) podev);
 		if (qcedev_areq->offload_cipher_op_req.err !=
 						QCEDEV_OFFLOAD_NO_ERROR)
 			return 0;
@@ -1733,6 +1756,8 @@ static int qcedev_smmu_ablk_offload_cipher(struct qcedev_async_req *areq,
 		}
 	}
 exit:
+	areq->cipher_req.creq.src = NULL;
+	areq->cipher_req.creq.dst = NULL;
 	return err;
 }
 
@@ -2560,13 +2585,21 @@ static int qcedev_probe_device(struct platform_device *pdev)
 		rc = -ENODEV;
 		goto exit_scale_busbandwidth;
 	}
+	podev->qce = handle;
+
+	rc = qce_set_irqs(podev->qce, false);
+	if (rc) {
+		pr_err("%s: could not disable bam irqs, ret = %d",
+				__func__, rc);
+		goto exit_scale_busbandwidth;
+	}
+
 	rc = icc_set_bw(podev->icc_path, 0, 0);
 	if (rc) {
 		pr_err("%s Unable to set to low bandwidth\n", __func__);
 		goto exit_qce_close;
 	}
 
-	podev->qce = handle;
 	podev->pdev = pdev;
 	platform_set_drvdata(pdev, podev);
 
@@ -2681,6 +2714,12 @@ static int qcedev_suspend(struct platform_device *pdev, pm_message_t state)
 
 	mutex_lock(&qcedev_sent_bw_req);
 	if (podev->high_bw_req_count) {
+		ret = qce_set_irqs(podev->qce, false);
+		if (ret) {
+			pr_err("%s: could not disable bam irqs, ret = %d",
+					__func__, ret);
+			goto suspend_exit;
+		}
 		ret = qcedev_control_clocks(podev, false);
 		if (ret)
 			goto suspend_exit;
@@ -2706,6 +2745,12 @@ static int qcedev_resume(struct platform_device *pdev)
 		ret = qcedev_control_clocks(podev, true);
 		if (ret)
 			goto resume_exit;
+		ret = qce_set_irqs(podev->qce, true);
+		if (ret) {
+			pr_err("%s: could not enable bam irqs, ret = %d",
+					__func__, ret);
+			qcedev_control_clocks(podev, false);
+		}
 	}
 
 resume_exit:
