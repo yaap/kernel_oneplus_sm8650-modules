@@ -568,11 +568,9 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
-		if (!s)
-			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
-			if (!s)
+			if (!s || !next_s)
 				return;
 			inst = list_entry(s, struct msm_cvp_inst,
 					dsp_list);
@@ -1372,8 +1370,8 @@ void cvp_dsp_send_hfi_queue(void)
 	}
 
 	if (rsp.ret == CPU2DSP_EFATAL || rsp.ret == CPU2DSP_EUNAVAILABLE) {
-		dprintk(CVP_ERR, "%s fatal error returned %d\n",
-				__func__, rsp.dsp_state);
+		dprintk(CVP_ERR, "%s fatal error returned %d %d\n",
+				__func__, rsp.dsp_state, rsp.ret);
 		me->state = DSP_INVALID;
 		cvp_hyp_assign_from_dsp();
 		goto exit;
