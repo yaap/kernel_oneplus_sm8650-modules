@@ -499,6 +499,28 @@ static int __set_clocks_ext(struct msm_vidc_core *core, u64 freq)
 	return 0;
 }
 
+static int __clock_set_flag_ext(struct msm_vidc_core *core,
+	const char *name, enum branch_mem_flags flag)
+{
+        struct clock_info *cinfo = NULL;
+	bool found = false;
+
+        /* get clock handle */
+        venus_hfi_for_each_clock(core, cinfo) {
+		if (strcmp(cinfo->name, name))
+			continue;
+		found = true;
+		qcom_clk_set_flags(cinfo->clk, flag);
+		d_vpr_h("%s: set flag %d on clock %s\n", __func__, flag, name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: failed to find clock: %s\n", __func__, name);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 const struct msm_vidc_resources_ops *get_res_ops_ext(void)
 {
 	const struct msm_vidc_resources_ops *res_ops = get_resources_ops();
@@ -511,6 +533,7 @@ const struct msm_vidc_resources_ops *get_res_ops_ext(void)
 	res_ops_ext.gdsc_hw_ctrl     = __hand_off_regulators;
 	res_ops_ext.gdsc_sw_ctrl     = __acquire_regulators;
 	res_ops_ext.set_clks         = __set_clocks_ext;
+	res_ops_ext.clk_set_flag     = __clock_set_flag_ext;
 
 	return &res_ops_ext;
 }
