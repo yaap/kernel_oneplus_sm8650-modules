@@ -69,6 +69,7 @@ enum chipset_generation {
 	MSM_MAKENA,
 	MSM_KALAMA,
 	MSM_QOGNITION,
+	MSM_PINEAPPLE,
 	MSM_MAX,
 };
 

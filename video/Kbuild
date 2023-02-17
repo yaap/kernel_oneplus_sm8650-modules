@@ -27,6 +27,8 @@ ifeq ($(CONFIG_MSM_VIDC_PINEAPPLE), y)
 video-objs +=     $(VIDEO_DRIVER_REL_PATH)/platform/pineapple/src/pineapple.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_buffer_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_power_iris33.o \
+                  $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_bus_iris33.o \
+                  $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_clock_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_iris33.o
 endif
 video-objs +=     $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform.o \
