@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VDEC_H_
 #define _MSM_VDEC_H_
 
-#include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
+#include "msm_vidc_core.h"
 
 int msm_vdec_streamoff_input(struct msm_vidc_inst *inst);
 int msm_vdec_streamon_input(struct msm_vidc_inst *inst);
@@ -27,7 +28,8 @@ int msm_vdec_inst_deinit(struct msm_vidc_inst *inst);
 int msm_vdec_init_input_subcr_params(struct msm_vidc_inst *inst);
 int msm_vdec_input_port_settings_change(struct msm_vidc_inst *inst);
 int msm_vdec_output_port_settings_change(struct msm_vidc_inst *inst);
-int msm_vdec_process_cmd(struct msm_vidc_inst *inst, u32 cmd);
+int msm_vdec_stop_cmd(struct msm_vidc_inst *inst);
+int msm_vdec_start_cmd(struct msm_vidc_inst *inst);
 int msm_vdec_handle_release_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf);
 int msm_vdec_set_num_comv(struct msm_vidc_inst *inst);

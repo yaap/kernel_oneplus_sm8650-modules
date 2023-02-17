@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_RESOURCES_H_
@@ -19,8 +20,8 @@ struct msm_vidc_core;
 
 /*
  * These are helper macros to iterate over various lists within
- * msm_vidc_core->resource. The intention is to cut down on a lot of boiler-plate
- * code
+ * msm_vidc_core->resource. The intention is to cut down on a lot
+ * of boiler-plate code
  */
 
 /* Read as "for each 'thing' in a set of 'thingies'" */
@@ -66,6 +67,10 @@ struct msm_vidc_core;
 	venus_hfi_for_each_thing_reverse_continue(__device, __rinfo, \
 			regulator, __from)
 
+/* Power domain set helpers */
+#define venus_hfi_for_each_power_domain(__device, __pdinfo) \
+	venus_hfi_for_each_thing(__device, __pdinfo, power_domain)
+
 /* Clock set helpers */
 #define venus_hfi_for_each_clock(__device, __cinfo) \
 	venus_hfi_for_each_thing(__device, __cinfo, clock)
@@ -94,6 +99,10 @@ struct msm_vidc_core;
 #define venus_hfi_for_each_context_bank_reverse(__device, __sinfo) \
 	venus_hfi_for_each_thing_reverse(__device, __sinfo, context_bank)
 
+/* Device region set helper */
+#define venus_hfi_for_each_device_region(__device, __sinfo) \
+	venus_hfi_for_each_thing(__device, __sinfo, device_region)
+
 struct bus_info {
 	struct icc_path           *icc;
 	const char                *name;
@@ -114,6 +123,16 @@ struct regulator_info {
 
 struct regulator_set {
 	struct regulator_info     *regulator_tbl;
+	u32                        count;
+};
+
+struct power_domain_info {
+	struct device             *genpd_dev;
+	const char                *name;
+};
+
+struct power_domain_set {
+	struct power_domain_info  *power_domain_tbl;
 	u32                        count;
 };
 
@@ -195,17 +214,32 @@ struct freq_set {
 	u32                        count;
 };
 
+struct device_region_info {
+	const char          *name;
+	phys_addr_t          phy_addr;
+	u32                  size;
+	u32                  dev_addr;
+	u32                  region;
+};
+
+struct device_region_set {
+	struct device_region_info  *device_region_tbl;
+	u32                         count;
+};
+
 struct msm_vidc_resource {
 	void                      *core;
 	u8 __iomem                *register_base_addr;
 	u32                        irq;
 	struct bus_set             bus_set;
 	struct regulator_set       regulator_set;
+	struct power_domain_set    power_domain_set;
 	struct clock_set           clock_set;
 	struct reset_set           reset_set;
 	struct subcache_set        subcache_set;
 	struct context_bank_set    context_bank_set;
 	struct freq_set            freq_set;
+	struct device_region_set   device_region_set;
 	int                        fw_cookie;
 };
 
@@ -226,6 +260,7 @@ struct msm_vidc_resources_ops {
 	int (*reset_control_deassert)(struct msm_vidc_core *core,
 			const char *name);
 
+	int (*gdsc_init)(struct msm_vidc_core *core);
 	int (*gdsc_on)(struct msm_vidc_core *core, const char *name);
 	int (*gdsc_off)(struct msm_vidc_core *core, const char *name);
 	int (*gdsc_hw_ctrl)(struct msm_vidc_core *core);

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifdef _FIXP_ARITH_H
@@ -58,7 +59,6 @@ static inline fp_t fp_mult(fp_t a, fp_t b)
 {
 	return (a * b) >> FP_FRACTIONAL_BITS;
 }
-
 
 static inline fp_t fp_div(fp_t a, fp_t b)
 {

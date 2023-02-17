@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_CORE_H_
@@ -16,7 +16,7 @@
 
 struct msm_vidc_core;
 
-#define MAX_EVENTS 30
+#define MAX_EVENTS   30
 
 #define call_venus_op(d, op, ...)			\
 	(((d) && (d)->venus_ops && (d)->venus_ops->op) ? \
@@ -84,6 +84,8 @@ struct msm_vidc_core {
 	struct msm_vidc_inst_capability       *inst_caps;
 	struct msm_vidc_mem_addr               sfr;
 	struct msm_vidc_mem_addr               iface_q_table;
+	struct msm_vidc_mem_addr               mmap_buf;
+	struct msm_vidc_mem_addr               aon;
 	struct msm_vidc_iface_q_info           iface_queues[VIDC_IFACEQ_NUMQ];
 	struct delayed_work                    pm_work;
 	struct workqueue_struct               *pm_workq;

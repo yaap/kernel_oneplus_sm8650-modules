@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_PINEAPPLE_H_
@@ -17,6 +17,7 @@ int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core, struct device *
 {
 	return -EINVAL;
 }
+
 int msm_vidc_deinit_platform_pineapple(struct msm_vidc_core *core, struct device *dev)
 {
 	return -EINVAL;

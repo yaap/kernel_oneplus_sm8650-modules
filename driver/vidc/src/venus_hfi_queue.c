@@ -2,13 +2,14 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
- /* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+ /* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "venus_hfi_queue.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_core.h"
+#include "msm_vidc_debug.h"
 #include "msm_vidc_memory.h"
 #include "msm_vidc_platform.h"
+#include "venus_hfi.h"
 
 static int __strict_check(struct msm_vidc_core *core, const char *function)
 {
@@ -426,6 +427,8 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 
 	call_mem_op(core, memory_unmap_free, core, &core->iface_q_table.mem);
 	call_mem_op(core, memory_unmap_free, core, &core->sfr.mem);
+	call_mem_op(core, iommu_unmap, core, &core->aon.mem);
+	call_mem_op(core, memory_unmap_free, core, &core->mmap_buf.mem);
 
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		core->iface_queues[i].q_hdr = NULL;
@@ -438,6 +441,12 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 
 	core->sfr.align_virtual_addr = NULL;
 	core->sfr.align_device_addr = 0;
+
+	core->aon.align_virtual_addr = NULL;
+	core->aon.align_device_addr = 0;
+
+	core->mmap_buf.align_virtual_addr = NULL;
+	core->mmap_buf.align_device_addr = 0;
 }
 
 int venus_hfi_reset_queue_header(struct msm_vidc_core *core)
@@ -485,8 +494,10 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	struct hfi_queue_table_header *q_tbl_hdr;
 	struct hfi_queue_header *q_hdr;
 	struct msm_vidc_iface_q_info *iface_q;
+	struct device_region_info *dev_reg;
 	struct msm_vidc_mem mem;
 	int offset = 0;
+	u32 *payload;
 	u32 i;
 
 	d_vpr_h("%s()\n", __func__);
@@ -498,7 +509,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	}
 
 	memset(&mem, 0, sizeof(mem));
-	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
 	mem.region = MSM_VIDC_NON_SECURE;
 	mem.size = TOTAL_QSIZE;
 	mem.secure = false;
@@ -559,7 +570,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 
 	/* sfr buffer */
 	memset(&mem, 0, sizeof(mem));
-	mem.type = MSM_VIDC_BUF_QUEUE;
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
 	mem.region = MSM_VIDC_NON_SECURE;
 	mem.size = ALIGNED_SFR_SIZE;
 	mem.secure = false;
@@ -577,6 +588,60 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	/* write sfr buffer size in first word */
 	*((u32 *)core->sfr.align_virtual_addr) = core->sfr.mem_size;
 
+	/* map aon registers */
+	memset(&mem, 0, sizeof(mem));
+	dev_reg = venus_hfi_get_device_region_info(core, MSM_VIDC_AON_REGISTERS);
+	if (!dev_reg) {
+		d_vpr_h("%s: aon device region not available\n", __func__);
+		goto skip_mmap_buffer;
+	}
+	mem.region = MSM_VIDC_NON_SECURE;
+	mem.phys_addr = dev_reg->phy_addr;
+	mem.size = dev_reg->size;
+	mem.device_addr = dev_reg->dev_addr;
+	rc = call_mem_op(core, iommu_map, core, &mem);
+	if (rc) {
+		d_vpr_e("%s: aon map failed\n", __func__);
+		goto fail_alloc_queue;
+	}
+	core->aon.align_virtual_addr = mem.kvaddr;
+	core->aon.align_device_addr = mem.device_addr;
+	core->aon.mem = mem;
+
+	/* allocate 4k buffer for HFI_MMAP_ADDR */
+	memset(&mem, 0, sizeof(mem));
+	mem.type = MSM_VIDC_BUF_INTERFACE_QUEUE;
+	mem.region = MSM_VIDC_NON_SECURE;
+	mem.size = ALIGNED_MMAP_BUF_SIZE;
+	mem.secure = false;
+	mem.map_kernel = true;
+	rc = call_mem_op(core, memory_alloc_map, core, &mem);
+	if (rc) {
+		d_vpr_e("%s: mmap buffer alloc and map failed\n", __func__);
+		goto fail_alloc_queue;
+	}
+	core->mmap_buf.align_virtual_addr = mem.kvaddr;
+	core->mmap_buf.align_device_addr = mem.device_addr;
+	core->mmap_buf.mem_size = ALIGNED_MMAP_BUF_SIZE;
+	core->mmap_buf.mem = mem;
+	/* initialize mmap buffer */
+	/* payload of HFI_MMAP_ADDR:
+	 *     payload[0]     : version
+	 *     ___________________ payloads in version 1 ________________
+	 *     payload[1-2]   : address and size of SFR
+	 *     payload[3-4]   : address and size of IPCC lite memory
+	 *     payload[5-6]   : address and size of AOSS global timers
+	 *     payload[7-8]   : address and size of HW mutex registers
+	 *     payload[9-10]  : address and size of IPCC registers
+	 *     payload[11-12] : address and size of AON registers
+	 */
+	memset(core->mmap_buf.align_virtual_addr, 0, ALIGNED_MMAP_BUF_SIZE);
+	payload = ((u32 *)core->mmap_buf.align_virtual_addr);
+	payload[0] = 1;
+	payload[11] = core->aon.mem.device_addr;
+	payload[12] = core->aon.mem.size;
+
+skip_mmap_buffer:
 	return 0;
 fail_alloc_queue:
 	return -ENOMEM;

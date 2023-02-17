@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __VENUS_HFI_RESPONSE_H__
@@ -21,5 +22,6 @@ int handle_system_error(struct msm_vidc_core *core,
 void fw_coredump(struct msm_vidc_core *core);
 int handle_release_output_buffer(struct msm_vidc_inst *inst,
 	struct hfi_buffer *buffer);
+
 
 #endif // __VENUS_HFI_RESPONSE_H__

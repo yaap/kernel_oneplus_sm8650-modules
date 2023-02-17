@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -8,8 +8,8 @@
 #include <dt-bindings/clock/qcom,videocc-sm8450.h>
 
 #include "msm_vidc_control.h"
-#include "msm_vidc_waipio.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_waipio.h"
 #include "msm_vidc_debug.h"
 #include "hfi_property.h"
 #include "hfi_command.h"
@@ -1668,6 +1668,15 @@ static const struct bw_table waipio_bw_table[] = {
 	{ "venus-ddr",   1000, 15000000 },
 };
 
+/* name */
+static const struct pd_table waipio_pd_table[] = {
+	{ "iris-ctl" },
+	{ "vcodec"   },
+};
+
+/* name */
+static const char * const waipio_opp_table[] = { "mx", "mmcx", NULL };
+
 /* name, clock id, scaling */
 static const struct clk_table waipio_clk_table[] = {
 	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
@@ -1701,8 +1710,6 @@ static const struct msm_vidc_platform_data waipio_data = {
 	/* resources dependent on other module */
 	.bw_tbl = waipio_bw_table,
 	.bw_tbl_size = ARRAY_SIZE(waipio_bw_table),
-	.regulator_tbl = NULL,
-	.regulator_tbl_size = 0,
 	.clk_tbl = waipio_clk_table,
 	.clk_tbl_size = ARRAY_SIZE(waipio_clk_table),
 	.clk_rst_tbl = waipio_clk_reset_table,
@@ -1713,6 +1720,12 @@ static const struct msm_vidc_platform_data waipio_data = {
 	/* populate context bank */
 	.context_bank_tbl = waipio_context_bank_table,
 	.context_bank_tbl_size = ARRAY_SIZE(waipio_context_bank_table),
+
+	/* populate power domain and opp table */
+	.pd_tbl = waipio_pd_table,
+	.pd_tbl_size = ARRAY_SIZE(waipio_pd_table),
+	.opp_tbl = waipio_opp_table,
+	.opp_tbl_size = ARRAY_SIZE(waipio_opp_table),
 
 	/* platform specific resources */
 	.freq_tbl = waipio_freq_table,

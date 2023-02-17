@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_IRIS3_3_H_
@@ -18,10 +18,12 @@ static inline int msm_vidc_init_iris33(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
+
 static inline int msm_vidc_deinit_iris33(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
+
 static inline int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl)
 {
 	return -EINVAL;

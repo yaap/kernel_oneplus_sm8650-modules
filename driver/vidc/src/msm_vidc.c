@@ -2,10 +2,11 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include <linux/types.h>
 #include <linux/hash.h>
+
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
 #include "msm_vdec.h"
@@ -657,26 +658,53 @@ int msm_vidc_try_cmd(void *instance, union msm_v4l2_cmd *cmd)
 }
 EXPORT_SYMBOL(msm_vidc_try_cmd);
 
-int msm_vidc_cmd(void *instance, union msm_v4l2_cmd *cmd)
+int msm_vidc_start_cmd(void *instance)
 {
-	int rc = 0;
 	struct msm_vidc_inst *inst = instance;
-	struct v4l2_decoder_cmd *dec = NULL;
-	struct v4l2_encoder_cmd *enc = NULL;
+	int rc = 0;
+
+	if (!is_decode_session(inst) && !is_encode_session(inst)) {
+		i_vpr_e(inst, "%s: invalid session %d\n", __func__, inst->domain);
+		return -EINVAL;
+	}
 
 	if (is_decode_session(inst)) {
-		dec = (struct v4l2_decoder_cmd *)cmd;
-		rc = msm_vdec_process_cmd(inst, dec->cmd);
+		rc = msm_vdec_start_cmd(inst);
+		if (rc)
+			return rc;
 	} else if (is_encode_session(inst)) {
-		enc = (struct v4l2_encoder_cmd *)cmd;
-		rc = msm_venc_process_cmd(inst, enc->cmd);
+		rc = msm_venc_start_cmd(inst);
+		if (rc)
+			return rc;
 	}
-	if (rc)
-		return rc;
 
-	return 0;
+	return rc;
 }
-EXPORT_SYMBOL(msm_vidc_cmd);
+EXPORT_SYMBOL(msm_vidc_start_cmd);
+
+int msm_vidc_stop_cmd(void *instance)
+{
+	struct msm_vidc_inst *inst = instance;
+	int rc = 0;
+
+	if (!is_decode_session(inst) && !is_encode_session(inst)) {
+		i_vpr_e(inst, "%s: invalid session %d\n", __func__, inst->domain);
+		return -EINVAL;
+	}
+
+	if (is_decode_session(inst)) {
+		rc = msm_vdec_stop_cmd(inst);
+		if (rc)
+			return rc;
+	} else if (is_encode_session(inst)) {
+		rc = msm_venc_stop_cmd(inst);
+		if (rc)
+			return rc;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(msm_vidc_stop_cmd);
 
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 {
@@ -893,7 +921,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	inst->core = core;
 	inst->domain = session_type;
 	inst->session_id = hash32_ptr(inst);
-	msm_vidc_change_state(inst, MSM_VIDC_OPEN, __func__);
+	msm_vidc_update_state(inst, MSM_VIDC_OPEN, __func__);
 	inst->sub_state = MSM_VIDC_SUB_STATE_NONE;
 	strlcpy(inst->sub_state_name, "SUB_STATE_NONE", sizeof(inst->sub_state_name));
 	inst->active = true;
@@ -1040,6 +1068,9 @@ int msm_vidc_close(void *instance)
 	msm_vidc_event_queue_deinit(inst);
 	msm_vidc_vb2_queue_deinit(inst);
 	msm_vidc_remove_session(inst);
+	msm_vidc_change_state(inst, MSM_VIDC_CLOSE, __func__);
+	inst->sub_state = MSM_VIDC_SUB_STATE_NONE;
+	strscpy(inst->sub_state_name, "SUB_STATE_NONE", sizeof(inst->sub_state_name));
 	inst_unlock(inst, __func__);
 	client_unlock(inst, __func__);
 	cancel_stability_work_sync(inst);

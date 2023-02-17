@@ -2,13 +2,13 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
-#include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_driver.h"
 #include "msm_venc.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_debug.h"
 
 extern struct msm_vidc_core *g_core;
 
@@ -841,29 +841,17 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
+int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 {
-	int rc = 0;
-	struct msm_vidc_inst *inst;
 	enum msm_vidc_inst_capability_type cap_id;
 	struct msm_vidc_inst_capability *capability;
+	int rc = 0;
 	u32 port;
 
-	if (!ctrl) {
-		d_vpr_e("%s: invalid ctrl parameter\n", __func__);
+	if (!inst || !inst->capabilities || !ctrl) {
+		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	inst = container_of(ctrl->handler,
-		struct msm_vidc_inst, ctrl_handler);
-	inst = get_inst_ref(g_core, inst);
-	if (!inst || !inst->capabilities) {
-		d_vpr_e("%s: invalid parameters for inst\n", __func__);
-		return -EINVAL;
-	}
-
-	client_lock(inst, __func__);
-	inst_lock(inst, __func__);
 	capability = inst->capabilities;
 
 	i_vpr_h(inst, FMT_STRING_SET_CTRL,
@@ -871,15 +859,8 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	cap_id = msm_vidc_get_cap_id(inst, ctrl->id);
 	if (!is_valid_cap_id(cap_id)) {
-		i_vpr_e(inst, "%s: could not find cap_id for ctrl %s\n",
-			__func__, ctrl->name);
-		rc = -EINVAL;
-		goto unlock;
-	}
-
-	if (!msm_vidc_allow_s_ctrl(inst, cap_id)) {
-		rc = -EINVAL;
-		goto unlock;
+		i_vpr_e(inst, "%s: invalid cap_id for ctrl %s\n", __func__, ctrl->name);
+		return -EINVAL;
 	}
 
 	/* mark client set flag */
@@ -890,17 +871,43 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 		/* static case */
 		rc = msm_vidc_update_static_property(inst, cap_id, ctrl);
 		if (rc)
-			goto unlock;
+			return rc;
 	} else {
 		/* dynamic case */
 		rc = msm_vidc_adjust_dynamic_property(inst, cap_id, ctrl);
 		if (rc)
-			goto unlock;
+			return rc;
 
 		rc = msm_vidc_set_dynamic_property(inst);
 		if (rc)
-			goto unlock;
+			return rc;
 	}
+
+	return rc;
+}
+
+int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst *inst;
+	int rc = 0;
+
+	if (!ctrl) {
+		d_vpr_e("%s: invalid ctrl parameter\n", __func__);
+		return -EINVAL;
+	}
+
+	inst = container_of(ctrl->handler, struct msm_vidc_inst, ctrl_handler);
+	inst = get_inst_ref(g_core, inst);
+	if (!inst) {
+		d_vpr_e("%s: invalid instance\n", __func__);
+		return -EINVAL;
+	}
+
+	client_lock(inst, __func__);
+	inst_lock(inst, __func__);
+	rc = inst->event_handle(inst, MSM_VIDC_S_CTRL, ctrl);
+	if (rc)
+		goto unlock;
 
 unlock:
 	inst_unlock(inst, __func__);

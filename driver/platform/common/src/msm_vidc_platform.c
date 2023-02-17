@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -15,11 +15,11 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_memory.h"
+#include "msm_vidc_control.h"
+#include "msm_vidc_driver.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
-#include "msm_vidc_control.h"
-#include "msm_vidc_driver.h"
 
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 #include "msm_vidc_waipio.h"
@@ -168,13 +168,13 @@ static struct v4l2_ctrl_ops msm_v4l2_ctrl_ops = {
 };
 
 static struct vb2_ops msm_vb2_ops = {
-	.queue_setup                    = msm_vidc_queue_setup,
-	.start_streaming                = msm_vidc_start_streaming,
-	.buf_queue                      = msm_vidc_buf_queue,
-	.buf_cleanup                    = msm_vidc_buf_cleanup,
-	.stop_streaming                 = msm_vidc_stop_streaming,
-	.buf_out_validate               = msm_vidc_buf_out_validate,
-	.buf_request_complete           = msm_vidc_buf_request_complete,
+	.queue_setup                    = msm_vb2_queue_setup,
+	.start_streaming                = msm_vb2_start_streaming,
+	.buf_queue                      = msm_vb2_buf_queue,
+	.buf_cleanup                    = msm_vb2_buf_cleanup,
+	.stop_streaming                 = msm_vb2_stop_streaming,
+	.buf_out_validate               = msm_vb2_buf_out_validate,
+	.buf_request_complete           = msm_vb2_request_complete,
 };
 
 static struct vb2_mem_ops msm_vb2_mem_ops = {
@@ -214,6 +214,15 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	core->media_device_ops = &msm_v4l2_media_ops;
 	core->v4l2_m2m_ops = &msm_v4l2_m2m_ops;
 	core->mem_ops = get_mem_ops();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_resources_ops();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ops\n", __func__);
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -247,7 +256,8 @@ static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core, struct d
 	}
 #endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc")) {
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
+		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
 		rc = msm_vidc_deinit_platform_pineapple(core, dev);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
@@ -295,7 +305,8 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core, struct dev
 	}
 #endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc")) {
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
+		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
 		rc = msm_vidc_init_platform_pineapple(core, dev);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
@@ -343,7 +354,8 @@ static int msm_vidc_deinit_vpu(struct msm_vidc_core *core, struct device *dev)
 	}
 #endif
 #if defined(CONFIG_MSM_VIDC_IRIS33)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc")) {
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
+		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
 		rc = msm_vidc_deinit_iris33(core);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
@@ -380,7 +392,8 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core, struct device *dev)
 	}
 #endif
 #if defined(CONFIG_MSM_VIDC_IRIS33)
-	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc")) {
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc") ||
+		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
 		rc = msm_vidc_init_iris33(core);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
@@ -1478,6 +1491,14 @@ int msm_vidc_adjust_layer_count(void *instance, struct v4l2_ctrl *ctrl)
 		if (rc)
 			goto exit;
 	} else {
+		if (inst->hfi_rc_type == HFI_RC_CBR_CFR ||
+				inst->hfi_rc_type == HFI_RC_CBR_VFR) {
+			i_vpr_h(inst,
+				"%s: ignoring dynamic layer count change for CBR mode\n",
+				__func__);
+			goto exit;
+		}
+
 		if (inst->hfi_layer_type == HFI_HIER_P_HYBRID_LTR ||
 			inst->hfi_layer_type == HFI_HIER_P_SLIDING_WINDOW) {
 			/* dynamic layer count change is only supported for HP */
@@ -1662,7 +1683,7 @@ int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
+int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
@@ -1685,6 +1706,10 @@ int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl
 	if (capability->cap[BIT_RATE].flags & CAP_FLAG_CLIENT_SET)
 		return 0;
 
+	/*
+	 * This is no-op function because layer bitrates were already adjusted
+	 * in msm_vidc_adjust_bitrate function
+	 */
 	if (!inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
 
@@ -3130,11 +3155,9 @@ int msm_vidc_set_gop_size(void *instance,
 int msm_vidc_set_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
-	int rc = 0, i;
+	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 hfi_value = 0;
-	s32 rc_type = -1, enh_layer_count = -1;
-	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -3154,60 +3177,22 @@ int msm_vidc_set_bitrate(void *instance,
 	if (inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
 
-	if (msm_vidc_get_parent_value(inst, BIT_RATE,
-		BITRATE_MODE, &rc_type, __func__))
-		return -EINVAL;
-
-	if (rc_type != HFI_RC_CBR_CFR && rc_type != HFI_RC_CBR_VFR) {
-		i_vpr_h(inst, "%s: set total bitrate for non CBR rc type\n",
-			__func__);
-		goto set_total_bitrate;
-	}
-
-	if (msm_vidc_get_parent_value(inst, BIT_RATE,
-		ENH_LAYER_COUNT, &enh_layer_count, __func__))
-		return -EINVAL;
-
-	/*
-	 * ENH_LAYER_COUNT cap max is positive only if
-	 *    layer encoding is enabled during streamon.
-	 */
-	if (inst->capabilities->cap[ENH_LAYER_COUNT].max) {
-		if (!msm_vidc_check_all_layer_bitrate_set(inst))
-			goto set_total_bitrate;
-
-		/* set Layer Bitrate */
-		for (i = 0; i <= enh_layer_count; i++) {
-			if (i >= ARRAY_SIZE(layer_br_caps))
-				break;
-			cap_id = layer_br_caps[i];
-			hfi_value = inst->capabilities->cap[cap_id].value;
-			rc = msm_vidc_packetize_control(inst, cap_id,
-				HFI_PAYLOAD_U32, &hfi_value,
-				sizeof(u32), __func__);
-			if (rc)
-				return rc;
-		}
-		goto exit;
-	}
-
 set_total_bitrate:
 	hfi_value = inst->capabilities->cap[BIT_RATE].value;
 	rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
 			&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;
-exit:
+
 	return rc;
 }
 
-int msm_vidc_set_dynamic_layer_bitrate(void *instance,
+int msm_vidc_set_layer_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 hfi_value = 0;
-	s32 rc_type = -1;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -3237,27 +3222,15 @@ int msm_vidc_set_dynamic_layer_bitrate(void *instance,
 		return 0;
 	}
 
-	if (inst->hfi_rc_type == HFI_RC_CBR_CFR ||
-		rc_type == HFI_RC_CBR_VFR) {
-		/* set layer bitrate for the client set layer */
-		hfi_value = inst->capabilities->cap[cap_id].value;
-		rc = msm_vidc_packetize_control(inst, cap_id,
-			HFI_PAYLOAD_U32, &hfi_value,
-			sizeof(u32), __func__);
-		if (rc)
-			return rc;
-	} else {
-		/*
-		 * All layer bitartes set for unsupported rc type.
-		 * Hence accept layer bitrates, but set total bitrate prop
-		 * with cumulative bitrate.
-		 */
-		hfi_value = inst->capabilities->cap[BIT_RATE].value;
-		rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
-				&hfi_value, sizeof(u32), __func__);
-		if (rc)
-			return rc;
-	}
+	/*
+	 * Accept layerwise bitrate but set total bitrate which was already
+	 * adjusted based on layer bitrate
+	 */
+	hfi_value = inst->capabilities->cap[BIT_RATE].value;
+	rc = msm_vidc_packetize_control(inst, BIT_RATE, HFI_PAYLOAD_U32,
+			&hfi_value, sizeof(u32), __func__);
+	if (rc)
+		return rc;
 
 	return rc;
 }

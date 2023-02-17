@@ -2,10 +2,13 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
-/* Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include <linux/sort.h>
 #include <linux/clk.h>
+#include <linux/pm_runtime.h>
+#include <linux/pm_domain.h>
+#include <linux/pm_opp.h>
 #include <linux/reset.h>
 #include <linux/interconnect.h>
 #include <linux/soc/qcom/llcc-qcom.h>
@@ -14,8 +17,8 @@
 #endif
 
 #include "msm_vidc_core.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
+#include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc_platform.h"
 #include "venus_hfi.h"
@@ -31,6 +34,14 @@ enum reset_state {
 	ASSERT,
 	DEASSERT,
 };
+
+/* A comparator to compare loads (needed later on) */
+static inline int cmp(const void *a, const void *b)
+{
+	/* want to sort in reverse so flip the comparison */
+	return ((struct freq_table *)b)->freq -
+		((struct freq_table *)a)->freq;
+}
 
 static void __fatal_error(bool fatal)
 {
@@ -89,12 +100,125 @@ static struct mmrm_client *devm_mmrm_get(struct device *dev, struct mmrm_client_
 }
 #endif
 
-/* A comparator to compare loads (needed later on) */
-static inline int cmp(const void *a, const void *b)
+static void devm_pd_release(void *res)
 {
-	/* want to sort in reverse so flip the comparison */
-	return ((struct freq_table *)b)->freq -
-		((struct freq_table *)a)->freq;
+	struct device *pd = (struct device *)res;
+
+	d_vpr_h("%s(): %s\n", __func__, dev_name(pd));
+	dev_pm_domain_detach(pd, true);
+}
+
+static struct device *devm_pd_get(struct device *dev, const char *name)
+{
+	struct device *pd = NULL;
+	int rc = 0;
+
+	pd = dev_pm_domain_attach_by_name(dev, name);
+	if (!pd) {
+		d_vpr_e("%s: pm domain attach failed %s\n", __func__, name);
+		return NULL;
+	}
+
+	rc = devm_add_action_or_reset(dev, devm_pd_release, (void *)pd);
+	if (rc) {
+		d_vpr_e("%s: add action or reset failed %s\n", __func__, name);
+		return NULL;
+	}
+
+	return pd;
+}
+
+static void devm_opp_dl_release(void *res)
+{
+	struct device_link *link = (struct device_link *)res;
+
+	d_vpr_h("%s(): %s\n", __func__, dev_name(&link->link_dev));
+	device_link_del(link);
+}
+
+static int devm_opp_dl_get(struct device *dev, struct device *supplier)
+{
+	u32 flag = DL_FLAG_RPM_ACTIVE | DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS;
+	struct device_link *link = NULL;
+	int rc = 0;
+
+	link = device_link_add(dev, supplier, flag);
+	if (!link) {
+		d_vpr_e("%s: device link add failed\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = devm_add_action_or_reset(dev, devm_opp_dl_release, (void *)link);
+	if (rc) {
+		d_vpr_e("%s: add action or reset failed\n", __func__);
+		return rc;
+	}
+
+	return rc;
+}
+
+static void devm_pm_runtime_put_sync(void *res)
+{
+	struct device *dev = (struct device *)res;
+
+	d_vpr_h("%s(): %s\n", __func__, dev_name(dev));
+	pm_runtime_put_sync(dev);
+}
+
+static int devm_pm_runtime_get_sync(struct device *dev)
+{
+	int rc = 0;
+
+	rc = pm_runtime_get_sync(dev);
+	if (rc) {
+		d_vpr_e("%s: pm domain get sync failed\n", __func__);
+		return rc;
+	}
+
+	rc = devm_add_action_or_reset(dev, devm_pm_runtime_put_sync, (void *)dev);
+	if (rc) {
+		d_vpr_e("%s: add action or reset failed\n", __func__);
+		return rc;
+	}
+
+	return rc;
+}
+
+static int __opp_set_rate(struct msm_vidc_core *core, u64 freq)
+{
+	unsigned long opp_freq = 0;
+	struct dev_pm_opp *opp;
+	int rc = 0;
+
+	if (!core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	opp_freq = freq;
+
+	/* find max(ceil) freq from opp table */
+	opp = dev_pm_opp_find_freq_ceil(&core->pdev->dev, &opp_freq);
+	if (IS_ERR(opp)) {
+		opp = dev_pm_opp_find_freq_floor(&core->pdev->dev, &opp_freq);
+		if (IS_ERR(opp)) {
+			d_vpr_e("%s: unable to find freq %lld in opp table\n", __func__, freq);
+			return -EINVAL;
+		}
+	}
+	dev_pm_opp_put(opp);
+
+	/* print freq value */
+	d_vpr_h("%s: set rate %lld (requested %lld)\n",
+		__func__, opp_freq, freq);
+
+	/* scale freq to power up mxc & mmcx */
+	rc = dev_pm_opp_set_rate(&core->pdev->dev, opp_freq);
+	if (rc) {
+		d_vpr_e("%s: failed to set rate\n", __func__);
+		return rc;
+	}
+
+	return rc;
 }
 
 static int __init_register_base(struct msm_vidc_core *core)
@@ -221,66 +345,132 @@ static int __init_bus(struct msm_vidc_core *core)
 	return rc;
 }
 
-static int __init_regulators(struct msm_vidc_core *core)
+static int __init_power_domains(struct msm_vidc_core *core)
 {
-	const struct regulator_table *regulator_tbl;
-	struct regulator_set *regulators;
-	struct regulator_info *rinfo = NULL;
-	u32 regulator_count = 0, cnt = 0;
+	struct power_domain_info *pdinfo = NULL;
+	const struct pd_table *pd_tbl;
+	struct power_domain_set *pds;
+	struct device **opp_vdevs = NULL;
+	const char **opp_tbl;
+	u32 pd_count = 0, opp_count = 0, cnt = 0;
 	int rc = 0;
 
 	if (!core || !core->resource || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	regulators = &core->resource->regulator_set;
+	pds = &core->resource->power_domain_set;
 
-	/* skip init if regulators not supported */
-	if (!is_regulator_supported(core)) {
-		d_vpr_h("%s: regulators are not available in database\n", __func__);
+	pd_tbl = core->platform->data.pd_tbl;
+	pd_count = core->platform->data.pd_tbl_size;
+
+	/* skip init if power domain not supported */
+	if (!pd_count) {
+		d_vpr_h("%s: power domain entries not available in db\n", __func__);
 		return 0;
 	}
 
-	regulator_tbl = core->platform->data.regulator_tbl;
-	regulator_count = core->platform->data.regulator_tbl_size;
-
-	if (!regulator_tbl || !regulator_count) {
-		d_vpr_e("%s: invalid regulator tbl %#x or count %d\n",
-			__func__, regulator_tbl, regulator_count);
+	/* sanitize power domain table */
+	if (!pd_tbl) {
+		d_vpr_e("%s: invalid power domain tbl\n", __func__);
 		return -EINVAL;
 	}
 
-	/* allocate regulator_set */
-	regulators->regulator_tbl = devm_kzalloc(&core->pdev->dev,
-			sizeof(*regulators->regulator_tbl) * regulator_count, GFP_KERNEL);
-	if (!regulators->regulator_tbl) {
-		d_vpr_e("%s: failed to alloc memory for regulator table\n", __func__);
+	/* allocate power_domain_set */
+	pds->power_domain_tbl = devm_kzalloc(&core->pdev->dev,
+			sizeof(*pds->power_domain_tbl) * pd_count, GFP_KERNEL);
+	if (!pds->power_domain_tbl) {
+		d_vpr_e("%s: failed to alloc memory for pd table\n", __func__);
 		return -ENOMEM;
 	}
-	regulators->count = regulator_count;
+	pds->count = pd_count;
 
-	/* populate regulator fields */
-	for (cnt = 0; cnt < regulators->count; cnt++) {
-		regulators->regulator_tbl[cnt].name = regulator_tbl[cnt].name;
-		regulators->regulator_tbl[cnt].hw_power_collapse = regulator_tbl[cnt].hw_trigger;
-	}
+	/* populate power domain fields */
+	for (cnt = 0; cnt < pds->count; cnt++)
+		pds->power_domain_tbl[cnt].name = pd_tbl[cnt].name;
 
-	/* print regulator fields */
-	venus_hfi_for_each_regulator(core, rinfo) {
-		d_vpr_h("%s: name %s hw_power_collapse %d\n",
-			__func__, rinfo->name, rinfo->hw_power_collapse);
-	}
+	/* print power domain fields */
+	venus_hfi_for_each_power_domain(core, pdinfo)
+		d_vpr_h("%s: pd name %s\n", __func__, pdinfo->name);
 
-	/* get regulator handle */
-	venus_hfi_for_each_regulator(core, rinfo) {
-		rinfo->regulator = devm_regulator_get(&core->pdev->dev, rinfo->name);
-		if (IS_ERR_OR_NULL(rinfo->regulator)) {
-			rc = PTR_ERR(rinfo->regulator) ?
-				PTR_ERR(rinfo->regulator) : -EBADHANDLE;
-			d_vpr_e("%s: failed to get regulator: %s\n", __func__, rinfo->name);
-			rinfo->regulator = NULL;
+	/* get power domain handle */
+	venus_hfi_for_each_power_domain(core, pdinfo) {
+		pdinfo->genpd_dev = devm_pd_get(&core->pdev->dev, pdinfo->name);
+		if (IS_ERR_OR_NULL(pdinfo->genpd_dev)) {
+			rc = PTR_ERR(pdinfo->genpd_dev) ?
+				PTR_ERR(pdinfo->genpd_dev) : -EBADHANDLE;
+			d_vpr_e("%s: failed to get pd: %s\n", __func__, pdinfo->name);
+			pdinfo->genpd_dev = NULL;
 			return rc;
 		}
+	}
+
+	opp_tbl = core->platform->data.opp_tbl;
+	opp_count = core->platform->data.opp_tbl_size;
+
+	/* skip init if opp not supported */
+	if (opp_count < 2) {
+		d_vpr_h("%s: opp entries not available\n", __func__);
+		return 0;
+	}
+
+	/* sanitize opp table */
+	if (!opp_tbl) {
+		d_vpr_e("%s: invalid opp table\n", __func__);
+		return -EINVAL;
+	}
+
+	/* ignore NULL entry at the end of table */
+	opp_count -= 1;
+
+	/* print opp table entries */
+	for (cnt = 0; cnt < opp_count; cnt++)
+		d_vpr_h("%s: opp name %s\n", __func__, opp_tbl[cnt]);
+
+	/* populate opp power domains(for rails) */
+	//rc = devm_pm_opp_attach_genpd(&core->pdev->dev, opp_tbl, &opp_vdevs);
+	rc = -EINVAL;
+	if (rc)
+		return rc;
+
+	/* create device_links b/w consumer(dev) and multiple suppliers(mx, mmcx) */
+	for (cnt = 0; cnt < opp_count; cnt++) {
+		rc = devm_opp_dl_get(&core->pdev->dev, opp_vdevs[cnt]);
+		if (rc) {
+			d_vpr_e("%s: failed to create dl: %s\n",
+				__func__, dev_name(opp_vdevs[cnt]));
+			return rc;
+		}
+	}
+
+	/* initialize opp table from device tree */
+	rc = devm_pm_opp_of_add_table(&core->pdev->dev);
+	if (rc) {
+		d_vpr_e("%s: failed to add opp table\n", __func__);
+		return rc;
+	}
+
+	/**
+	 * 1. power up mx & mmcx supply for RCG(mvs0_clk_src)
+	 * 2. power up gdsc0c for mvs0c branch clk
+	 * 3. power up gdsc0 for mvs0 branch clk
+	 */
+
+	/**
+	 * power up mxc, mmcx rails to enable supply for
+	 * RCG(video_cc_mvs0_clk_src)
+	 */
+	/* enable runtime pm */
+	rc = devm_pm_runtime_enable(&core->pdev->dev);
+	if (rc) {
+		d_vpr_e("%s: failed to enable runtime pm\n", __func__);
+		return rc;
+	}
+	/* power up rails(mxc & mmcx) */
+	rc = devm_pm_runtime_get_sync(&core->pdev->dev);
+	if (rc) {
+		d_vpr_e("%s: failed to get sync runtime pm\n", __func__);
+		return rc;
 	}
 
 	return rc;
@@ -637,6 +827,56 @@ static int __init_context_banks(struct msm_vidc_core *core)
 	return rc;
 }
 
+static int __init_device_region(struct msm_vidc_core *core)
+{
+	const struct device_region_table *dev_reg_tbl;
+	struct device_region_set *dev_set;
+	struct device_region_info *dev_reg_info;
+	u32 dev_reg_count = 0, cnt = 0;
+	int rc = 0;
+
+	if (!core || !core->resource || !core->platform) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	dev_set = &core->resource->device_region_set;
+
+	dev_reg_tbl = core->platform->data.dev_reg_tbl;
+	dev_reg_count = core->platform->data.dev_reg_tbl_size;
+
+	if (!dev_reg_tbl || !dev_reg_count) {
+		d_vpr_h("%s: device regions not available\n", __func__);
+		return 0;
+	}
+
+	/* allocate device region table */
+	dev_set->device_region_tbl = devm_kzalloc(&core->pdev->dev,
+			sizeof(*dev_set->device_region_tbl) * dev_reg_count, GFP_KERNEL);
+	if (!dev_set->device_region_tbl) {
+		d_vpr_e("%s: failed to alloc memory for device region table\n", __func__);
+		return -ENOMEM;
+	}
+	dev_set->count = dev_reg_count;
+
+	/* populate device region fields from platform data */
+	for (cnt = 0; cnt < dev_set->count; cnt++) {
+		dev_set->device_region_tbl[cnt].name = dev_reg_tbl[cnt].name;
+		dev_set->device_region_tbl[cnt].phy_addr = dev_reg_tbl[cnt].phy_addr;
+		dev_set->device_region_tbl[cnt].size = dev_reg_tbl[cnt].size;
+		dev_set->device_region_tbl[cnt].dev_addr = dev_reg_tbl[cnt].dev_addr;
+		dev_set->device_region_tbl[cnt].region = dev_reg_tbl[cnt].region;
+	}
+
+	/* print device region fields */
+	venus_hfi_for_each_device_region(core, dev_reg_info) {
+		d_vpr_h("%s: name %s phy_addr %#x size %#x dev_addr %#x dev_region %d\n",
+			__func__, dev_reg_info->name, dev_reg_info->phy_addr, dev_reg_info->size,
+			dev_reg_info->dev_addr, dev_reg_info->region);
+	}
+
+	return rc;
+}
+
 #ifdef CONFIG_MSM_MMRM
 static int __register_mmrm(struct msm_vidc_core *core)
 {
@@ -715,228 +955,75 @@ static int __register_mmrm(struct msm_vidc_core *core)
 }
 #endif
 
-
-
-static int __acquire_regulator(struct msm_vidc_core *core,
-			       struct regulator_info *rinfo)
+static int __enable_power_domains(struct msm_vidc_core *core, const char *name)
 {
+	struct power_domain_info *pdinfo = NULL;
 	int rc = 0;
 
-	if (!core || !rinfo) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
+	/* power up rails(mxc & mmcx) to enable RCG(video_cc_mvs0_clk_src) */
+	rc = __opp_set_rate(core, ULONG_MAX);
+	if (rc) {
+		d_vpr_e("%s: opp setrate failed\n", __func__);
+		return rc;
 	}
 
-	if (rinfo->hw_power_collapse) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator\n", __func__);
-			rc = -EINVAL;
-			goto exit;
-		}
-
-		if (regulator_get_mode(rinfo->regulator) ==
-				REGULATOR_MODE_NORMAL) {
-			/* clear handoff from core sub_state */
-			msm_vidc_change_core_sub_state(core,
-				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
-			d_vpr_h("Skip acquire regulator %s\n", rinfo->name);
-			goto exit;
-		}
-
-		rc = regulator_set_mode(rinfo->regulator,
-				REGULATOR_MODE_NORMAL);
-		if (rc) {
-			/*
-			 * This is somewhat fatal, but nothing we can do
-			 * about it. We can't disable the regulator w/o
-			 * getting it back under s/w control
-			 */
-			d_vpr_e("Failed to acquire regulator control: %s\n",
-				rinfo->name);
-			goto exit;
-		} else {
-			/* reset handoff from core sub_state */
-			msm_vidc_change_core_sub_state(core,
-				CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
-			d_vpr_h("Acquired regulator control from HW: %s\n",
-					rinfo->name);
-
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: Regulator is not enabled %s\n",
-				__func__, rinfo->name);
-			__fatal_error(true);
-		}
-	}
-
-exit:
-	return rc;
-}
-
-static int __acquire_regulators(struct msm_vidc_core *core)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-
-	venus_hfi_for_each_regulator(core, rinfo)
-		__acquire_regulator(core, rinfo);
-
-	return rc;
-}
-
-static int __hand_off_regulator(struct msm_vidc_core *core,
-	struct regulator_info *rinfo)
-{
-	int rc = 0;
-
-	if (rinfo->hw_power_collapse) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator\n", __func__);
-			return -EINVAL;
-		}
-
-		rc = regulator_set_mode(rinfo->regulator,
-				REGULATOR_MODE_FAST);
-		if (rc) {
-			d_vpr_e("Failed to hand off regulator control: %s\n",
-				rinfo->name);
-			return rc;
-		} else {
-			/* set handoff done in core sub_state */
-			msm_vidc_change_core_sub_state(core,
-				0, CORE_SUBSTATE_GDSC_HANDOFF, __func__);
-			d_vpr_h("Hand off regulator control to HW: %s\n",
-					rinfo->name);
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: Regulator is not enabled %s\n",
-				__func__, rinfo->name);
-			__fatal_error(true);
-		}
-	}
-
-	return rc;
-}
-
-static int __hand_off_regulators(struct msm_vidc_core *core)
-{
-	struct regulator_info *rinfo;
-	int rc = 0, c = 0;
-
-	venus_hfi_for_each_regulator(core, rinfo) {
-		rc = __hand_off_regulator(core, rinfo);
-		/*
-		 * If one regulator hand off failed, driver should take
-		 * the control for other regulators back.
-		 */
-		if (rc)
-			goto err_reg_handoff_failed;
-		c++;
-	}
-
-	return rc;
-err_reg_handoff_failed:
-	venus_hfi_for_each_regulator_reverse_continue(core, rinfo, c)
-		__acquire_regulator(core, rinfo);
-
-	return rc;
-}
-
-static int __disable_regulator(struct msm_vidc_core *core, const char *reg_name)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-	bool found;
-
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(core, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
+	/* power up (gdsc0/gdsc0c) to enable (mvs0/mvs0c) branch clock */
+	venus_hfi_for_each_power_domain(core, pdinfo) {
+		if (strcmp(pdinfo->name, name))
 			continue;
-		found = true;
 
-		rc = __acquire_regulator(core, rinfo);
+		rc = pm_runtime_get_sync(pdinfo->genpd_dev);
 		if (rc) {
-			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			/* Bring attention to this issue */
-			WARN_ON(true);
+			d_vpr_e("%s: failed to get sync: %s\n", __func__, pdinfo->name);
 			return rc;
 		}
-		/* reset handoff done from core sub_state */
-		msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
-
-		rc = regulator_disable(rinfo->regulator);
-		if (rc) {
-			d_vpr_e("%s: failed to disable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			return rc;
-		}
-		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
+		d_vpr_h("%s: enabled power doamin %s\n", __func__, pdinfo->name);
 	}
 
 	return rc;
 }
 
-static int __enable_regulator(struct msm_vidc_core *core, const char *reg_name)
+static int __disable_power_domains(struct msm_vidc_core *core, const char *name)
 {
+	struct power_domain_info *pdinfo = NULL;
 	int rc = 0;
-	struct regulator_info *rinfo;
-	bool found;
 
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(core, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
+	/* power down (gdsc0/gdsc0c) to disable (mvs0/mvs0c) branch clock */
+	venus_hfi_for_each_power_domain(core, pdinfo) {
+		if (strcmp(pdinfo->name, name))
 			continue;
-		found = true;
 
-		rc = regulator_enable(rinfo->regulator);
+		rc = pm_runtime_put_sync(pdinfo->genpd_dev);
 		if (rc) {
-			d_vpr_e("%s: failed to enable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
+			d_vpr_e("%s: failed to put sync: %s\n", __func__, pdinfo->name);
 			return rc;
 		}
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: regulator %s not enabled\n",
-				__func__, rinfo->name);
-			regulator_disable(rinfo->regulator);
-			return -EINVAL;
-		}
-		d_vpr_h("%s: enabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
+		d_vpr_h("%s: disabled power doamin %s\n", __func__, pdinfo->name);
 	}
 
+	/* power down rails(mxc & mmcx) to disable RCG(video_cc_mvs0_clk_src) */
+	rc = __opp_set_rate(core, 0);
+	if (rc) {
+		d_vpr_e("%s: opp setrate failed\n", __func__);
+		return rc;
+	}
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
+
 	return rc;
+}
+
+static int __hand_off_power_domains(struct msm_vidc_core *core)
+{
+	msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_GDSC_HANDOFF, __func__);
+
+	return 0;
+}
+
+static int __acquire_power_domains(struct msm_vidc_core *core)
+{
+	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_GDSC_HANDOFF, 0, __func__);
+
+	return 0;
 }
 
 static int __disable_subcaches(struct msm_vidc_core *core)
@@ -1238,68 +1325,6 @@ static int update_residency_stats(
 	return rc;
 }
 
-#ifdef CONFIG_MSM_MMRM
-static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
-			  u64 rate)
-{
-	int rc = 0;
-	struct mmrm_client_data client_data;
-	struct mmrm_client *client;
-	u64 srate;
-
-	/* not registered */
-	if (!core || !cl || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	if (is_mmrm_supported(core) && !cl->mmrm_client) {
-		d_vpr_e("%s: invalid mmrm client\n", __func__);
-		return -EINVAL;
-	}
-
-	/* update clock residency stats */
-	update_residency_stats(core, cl, rate);
-
-	/*
-	 * This conversion is necessary since we are scaling clock values based on
-	 * the branch clock. However, mmrm driver expects source clock to be registered
-	 * and used for scaling.
-	 * TODO: Remove this scaling if using source clock instead of branch clock.
-	 */
-	srate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
-
-	/* bail early if requested clk rate is not changed */
-	if (rate == cl->prev)
-		return 0;
-
-	d_vpr_p("Scaling clock %s to %llu, prev %llu\n",
-		cl->name, srate, cl->prev * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO);
-
-	if (is_mmrm_supported(core)) {
-		/* set clock rate to mmrm driver */
-		client = cl->mmrm_client;
-		memset(&client_data, 0, sizeof(client_data));
-		client_data.num_hw_blocks = 1;
-		rc = mmrm_client_set_value(client, &client_data, srate);
-		if (rc) {
-			d_vpr_e("%s: Failed to set mmrm clock rate %llu %s: %d\n",
-				__func__, srate, cl->name, rc);
-			return rc;
-		}
-	} else {
-		/* set clock rate to clock driver */
-		rc = clk_set_rate(cl->clk, srate);
-		if (rc) {
-			d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-				__func__, srate, cl->name, rc);
-			return rc;
-		}
-	}
-	cl->prev = rate;
-	return rc;
-}
-#else
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
 {
@@ -1341,12 +1366,18 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 
 	return rc;
 }
-#endif
 
 static int __set_clocks(struct msm_vidc_core *core, u64 freq)
 {
-	int rc = 0;
 	struct clock_info *cl;
+	int rc = 0;
+
+	/* scale mxc & mmcx rails */
+	rc = __opp_set_rate(core, freq);
+	if (rc) {
+		d_vpr_e("%s: opp setrate failed %lld\n", __func__, freq);
+		return rc;
+	}
 
 	venus_hfi_for_each_clock(core, cl) {
 		if (cl->has_scaling) {
@@ -1477,7 +1508,7 @@ static int __init_resources(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
-	rc = __init_regulators(core);
+	rc = call_res_op(core, gdsc_init, core);
 	if (rc)
 		return rc;
 
@@ -1498,6 +1529,10 @@ static int __init_resources(struct msm_vidc_core *core)
 		return rc;
 
 	rc = __init_context_banks(core);
+	if (rc)
+		return rc;
+
+	rc = __init_device_region(core);
 	if (rc)
 		return rc;
 
@@ -1527,7 +1562,12 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 		}
 
 		found = true;
+		/* reset_control_acquire is exposed in kernel version 6 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 		rc = reset_control_acquire(rcinfo->rst);
+#else
+		rc = -EINVAL;
+#endif
 		if (rc)
 			d_vpr_e("%s: failed to acquire reset control (%s), rc = %d\n",
 				__func__, rcinfo->name, rc);
@@ -1563,8 +1603,18 @@ static int __reset_control_release_name(struct msm_vidc_core *core,
 		}
 
 		found = true;
+		/* reset_control_release exposed in kernel version 6 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 		reset_control_release(rcinfo->rst);
-		d_vpr_h("%s: release reset control (%s)\n", __func__, rcinfo->name);
+#else
+		rc = -EINVAL;
+#endif
+		if (rc)
+			d_vpr_e("%s: release reset control (%s) failed\n",
+				__func__, rcinfo->name);
+		else
+			d_vpr_h("%s: release reset control (%s) done\n",
+				__func__, rcinfo->name);
 		break;
 	}
 	if (!found) {
@@ -1748,10 +1798,11 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.reset_control_release = __reset_control_release_name,
 	.reset_control_assert = __reset_control_assert_name,
 	.reset_control_deassert = __reset_control_deassert_name,
-	.gdsc_on = __enable_regulator,
-	.gdsc_off = __disable_regulator,
-	.gdsc_hw_ctrl = __hand_off_regulators,
-	.gdsc_sw_ctrl = __acquire_regulators,
+	.gdsc_init = __init_power_domains,
+	.gdsc_on = __enable_power_domains,
+	.gdsc_off = __disable_power_domains,
+	.gdsc_hw_ctrl = __hand_off_power_domains,
+	.gdsc_sw_ctrl = __acquire_power_domains,
 	.llcc = llcc_enable,
 	.set_bw = set_bw,
 	.set_clks = __set_clocks,

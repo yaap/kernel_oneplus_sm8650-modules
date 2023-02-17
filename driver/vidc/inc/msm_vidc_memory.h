@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_MEMORY_H_
@@ -47,7 +48,7 @@ struct msm_memory_pool {
 int msm_vidc_vmem_alloc(unsigned long size, void **mem, const char *msg);
 void msm_vidc_vmem_free(void **addr);
 void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst,
-	enum msm_memory_pool_type type);
+		enum msm_memory_pool_type type);
 void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf);
 int msm_vidc_pools_init(struct msm_vidc_inst *inst);
 void msm_vidc_pools_deinit(struct msm_vidc_inst *inst);
@@ -77,6 +78,10 @@ struct msm_vidc_memory_ops {
 		struct msm_vidc_mem *mem);
 	u32 (*buffer_region)(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type buffer_type);
+	int (*iommu_map)(struct msm_vidc_core *core,
+		struct msm_vidc_mem *mem);
+	int (*iommu_unmap)(struct msm_vidc_core *core,
+		struct msm_vidc_mem *mem);
 };
 
 struct msm_vidc_memory_ops *get_mem_ops(void);

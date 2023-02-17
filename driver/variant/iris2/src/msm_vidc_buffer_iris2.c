@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "hfi_property.h"
@@ -10,9 +11,9 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
-#include "msm_vidc_debug.h"
 #include "msm_media_info.h"
 #include "msm_vidc_platform.h"
+#include "msm_vidc_debug.h"
 
 static u32 msm_vidc_decoder_bin_size_iris2(struct msm_vidc_inst *inst)
 {

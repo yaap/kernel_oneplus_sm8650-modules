@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_PLATFORM_H_
@@ -12,10 +13,10 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
 
-#define DDR_TYPE_LPDDR4 0x6
-#define DDR_TYPE_LPDDR4X 0x7
-#define DDR_TYPE_LPDDR5 0x8
-#define DDR_TYPE_LPDDR5X 0x9
+#define DDR_TYPE_LPDDR4   0x6
+#define DDR_TYPE_LPDDR4X  0x7
+#define DDR_TYPE_LPDDR5   0x8
+#define DDR_TYPE_LPDDR5X  0x9
 
 #define UBWC_CONFIG(mc, ml, hbb, bs1, bs2, bs3, bsp) \
 {	                                                 \
@@ -45,6 +46,10 @@ struct bw_table {
 	const char      *name;
 	u32              min_kbps;
 	u32              max_kbps;
+};
+
+struct pd_table {
+	const char      *name;
 };
 
 struct regulator_table {
@@ -86,6 +91,14 @@ struct reg_preset_table {
 	u32              reg;
 	u32              value;
 	u32              mask;
+};
+
+struct device_region_table {
+	const char      *name;
+	phys_addr_t      phy_addr;
+	u32              size;
+	u32              dev_addr;
+	u32              region;
 };
 
 struct msm_vidc_ubwc_config_data {
@@ -186,6 +199,10 @@ struct msm_vidc_platform_data {
 	unsigned int bw_tbl_size;
 	const struct regulator_table *regulator_tbl;
 	unsigned int regulator_tbl_size;
+	const struct pd_table *pd_tbl;
+	unsigned int pd_tbl_size;
+	const char **opp_tbl;
+	unsigned int opp_tbl_size;
 	const struct clk_table *clk_tbl;
 	unsigned int clk_tbl_size;
 	const struct clk_rst_table *clk_rst_tbl;
@@ -198,6 +215,8 @@ struct msm_vidc_platform_data {
 	unsigned int freq_tbl_size;
 	const struct reg_preset_table *reg_prst_tbl;
 	unsigned int reg_prst_tbl_size;
+	const struct device_region_table *dev_reg_tbl;
+	unsigned int dev_reg_tbl_size;
 	struct msm_vidc_ubwc_config_data *ubwc_config;
 	const char *fwname;
 	u32 pas_id;
@@ -230,11 +249,6 @@ static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 	return !!core->platform->data.supports_mmrm;
 }
 
-static inline bool is_regulator_supported(struct msm_vidc_core *core)
-{
-	return !!core->platform->data.regulator_tbl_size;
-}
-
 int msm_vidc_init_platform(struct platform_device *pdev);
 int msm_vidc_deinit_platform(struct platform_device *pdev);
 
@@ -259,7 +273,7 @@ int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
 	void *hfi_val, u32 payload_size, const char *func);
 
 int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl);
-int msm_vidc_adjust_dynamic_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_bitrate_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_entropy_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_profile(void *instance, struct v4l2_ctrl *ctrl);
@@ -319,7 +333,7 @@ int msm_vidc_set_gop_size(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
-int msm_vidc_set_dynamic_layer_bitrate(void *instance,
+int msm_vidc_set_layer_bitrate(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_u32(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);

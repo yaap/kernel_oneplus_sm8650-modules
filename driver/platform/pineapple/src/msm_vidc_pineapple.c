@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-pineapple.h>
@@ -17,8 +17,9 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control_ext.h"
 #include "msm_vidc_memory_ext.h"
-#include "hfi_property.h"
+#include "resources_ext.h"
 #include "msm_vidc_iris33.h"
+#include "hfi_property.h"
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
@@ -2038,12 +2039,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_set_req_sync_frame},
 
 	{BIT_RATE, ENC, H264,
-		{PEAK_BITRATE, BITRATE_BOOST},
+		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
 	{BIT_RATE, ENC, HEVC,
-		{PEAK_BITRATE, BITRATE_BOOST},
+		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
@@ -2262,34 +2263,34 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_set_u32},
 
 	{L0_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L1_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L1_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L2_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L2_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L3_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L3_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L4_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L4_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L5_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L5_BR, ENC, H264|HEVC,
 		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{ENTROPY_MODE, ENC, H264,
 		{BIT_RATE},
@@ -2574,9 +2575,18 @@ static struct freq_table pineapple_freq_table[] = {
 	{533333333}, {480000000}, {435000000}, {380000000}, {280000000}, {196000000}
 };
 
+static struct freq_table pineapple_freq_table_v2[] = {
+	{533333333}, {480000000}, {435000000}, {380000000}, {300000000}, {196000000}
+};
+
 /* register, value, mask */
 static const struct reg_preset_table pineapple_reg_preset_table[] = {
 	{ 0xB0088, 0x0, 0x11 },
+};
+
+/* name, phys_addr, size, device_addr, device region type */
+static const struct device_region_table pineapple_device_region_table[] = {
+	{ "aon-registers", 0x0AAE0000, 0x1000, 0xFFAE0000, MSM_VIDC_AON_REGISTERS },
 };
 
 static const struct msm_vidc_platform_data pineapple_data = {
@@ -2601,6 +2611,8 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.freq_tbl_size = ARRAY_SIZE(pineapple_freq_table),
 	.reg_prst_tbl = pineapple_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(pineapple_reg_preset_table),
+	.dev_reg_tbl = pineapple_device_region_table,
+	.dev_reg_tbl_size = ARRAY_SIZE(pineapple_device_region_table),
 	.fwname = "vpu33_4v",
 	.pas_id = 9,
 	.supports_mmrm = 1,
@@ -2634,18 +2646,33 @@ int msm_vidc_pineapple_check_ddr_type(void)
 	return 0;
 }
 
-static int msm_vidc_init_data(struct msm_vidc_core *core)
+static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
+	if (!core || !core->platform || !dev) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	d_vpr_h("%s: initialize pineapple data\n", __func__);
 
 	core->platform->data = pineapple_data;
+	if (of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2")) {
+		d_vpr_h("%s: update frequency table for pineapple v2\n", __func__);
+		core->platform->data.freq_tbl = pineapple_freq_table_v2;
+		core->platform->data.freq_tbl_size = ARRAY_SIZE(pineapple_freq_table_v2);
+	}
+
 	core->mem_ops = get_mem_ops_ext();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ext ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_res_ops_ext();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ext ops\n", __func__);
+		return -EINVAL;
+	}
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;
@@ -2657,7 +2684,7 @@ int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core, struct device *
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core);
+	rc = msm_vidc_init_data(core, dev);
 	if (rc)
 		return rc;
 

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _VENUS_HFI_QUEUE_H_
@@ -19,13 +20,13 @@
 #define HFI_Q_ID_CTRL_TO_HOST_DEBUG_Q		2
 #define HFI_MASK_QHDR_STATUS			0x000000ff
 
-#define VIDC_IFACEQ_NUMQ			3
-#define VIDC_IFACEQ_CMDQ_IDX			0
-#define VIDC_IFACEQ_MSGQ_IDX			1
-#define VIDC_IFACEQ_DBGQ_IDX			2
-#define VIDC_IFACEQ_MAX_BUF_COUNT		50
-#define VIDC_IFACE_MAX_PARALLEL_CLNTS		16
-#define VIDC_IFACEQ_DFLT_QHDR			0x01010000
+#define VIDC_IFACEQ_NUMQ                3
+#define VIDC_IFACEQ_CMDQ_IDX            0
+#define VIDC_IFACEQ_MSGQ_IDX            1
+#define VIDC_IFACEQ_DBGQ_IDX            2
+#define VIDC_IFACEQ_MAX_BUF_COUNT       50
+#define VIDC_IFACE_MAX_PARALLEL_CLNTS   16
+#define VIDC_IFACEQ_DFLT_QHDR           0x01010000
 
 struct hfi_queue_table_header {
 	u32 qtbl_version;
@@ -67,16 +68,19 @@ struct hfi_queue_header {
 
 #define QDSS_SIZE	4096
 #define SFR_SIZE	4096
+#define MMAP_BUF_SIZE	4096
 
 #define QUEUE_SIZE	(VIDC_IFACEQ_TABLE_SIZE + \
 			(VIDC_IFACEQ_QUEUE_SIZE * VIDC_IFACEQ_NUMQ))
 
 #define ALIGNED_QDSS_SIZE	ALIGN(QDSS_SIZE, SZ_4K)
 #define ALIGNED_SFR_SIZE	ALIGN(SFR_SIZE, SZ_4K)
+#define ALIGNED_MMAP_BUF_SIZE	ALIGN(MMAP_BUF_SIZE, SZ_4K)
 #define ALIGNED_QUEUE_SIZE	ALIGN(QUEUE_SIZE, SZ_4K)
 #define SHARED_QSIZE		ALIGN(ALIGNED_SFR_SIZE + ALIGNED_QUEUE_SIZE + \
-				      ALIGNED_QDSS_SIZE, SZ_1M)
-#define TOTAL_QSIZE	(SHARED_QSIZE - ALIGNED_SFR_SIZE - ALIGNED_QDSS_SIZE)
+				      ALIGNED_QDSS_SIZE + ALIGNED_MMAP_BUF_SIZE, SZ_1M)
+#define TOTAL_QSIZE	(SHARED_QSIZE - ALIGNED_SFR_SIZE - ALIGNED_QDSS_SIZE - \
+					ALIGNED_MMAP_BUF_SIZE)
 
 struct msm_vidc_core;
 

@@ -1,15 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_VIDC_DEBUG__
 #define __MSM_VIDC_DEBUG__
 
+#include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
-#include <linux/types.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 

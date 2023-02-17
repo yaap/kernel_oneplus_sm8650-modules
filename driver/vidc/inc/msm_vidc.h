@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_H_
@@ -40,7 +41,8 @@ int msm_vidc_query_ctrl(void *instance, struct v4l2_queryctrl *ctrl);
 int msm_vidc_query_menu(void *instance, struct v4l2_querymenu *qmenu);
 int msm_vidc_streamoff(void *instance, enum v4l2_buf_type i);
 int msm_vidc_try_cmd(void *instance, union msm_v4l2_cmd *cmd);
-int msm_vidc_cmd(void *instance, union msm_v4l2_cmd *cmd);
+int msm_vidc_start_cmd(void *instance);
+int msm_vidc_stop_cmd(void *instance);
 int msm_vidc_poll(void *instance, struct file *filp,
 		struct poll_table_struct *pt);
 int msm_vidc_subscribe_event(void *instance,
@@ -51,4 +53,5 @@ int msm_vidc_dqevent(void *instance, struct v4l2_event *event);
 int msm_vidc_g_crop(void *instance, struct v4l2_crop *a);
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize);
 int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival);
+
 #endif

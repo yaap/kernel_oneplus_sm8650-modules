@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_MEDIA_INFO_H__
@@ -91,6 +92,7 @@ static inline unsigned int video_y_stride_pix(unsigned int colorformat,
 	default:
 		break;
 	}
+
 invalid_input:
 	return stride;
 }

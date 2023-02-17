@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <soc/qcom/of_common.h>
@@ -9,8 +9,8 @@
 #include "msm_vidc_pineapple.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
-#include "hfi_property.h"
 #include "msm_vidc_iris33.h"
+#include "hfi_property.h"
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
@@ -1296,13 +1296,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 	{BIT_RATE, ENC, H264,
 		{ENH_LAYER_COUNT, BITRATE_MODE, ENTROPY_MODE,
 			ALL_INTRA, LOWLATENCY_MODE},
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
 	{BIT_RATE, ENC, HEVC,
 		{ENH_LAYER_COUNT, BITRATE_MODE, ALL_INTRA, LOWLATENCY_MODE},
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
@@ -1497,40 +1497,40 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_set_layer_count_and_type},
 
 	{L0_BR, ENC, H264|HEVC,
-		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{BIT_RATE},
+		{L1_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L1_BR, ENC, H264|HEVC,
-		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L0_BR},
+		{L2_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L2_BR, ENC, H264|HEVC,
-		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L1_BR},
+		{L3_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L3_BR, ENC, H264|HEVC,
-		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L2_BR},
+		{L4_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L4_BR, ENC, H264|HEVC,
-		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L3_BR},
+		{L5_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L5_BR, ENC, H264|HEVC,
+		{L4_BR},
 		{0},
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{ENTROPY_MODE, ENC, H264,
 		{PROFILE},
@@ -1771,6 +1771,7 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 	d_vpr_h("%s: initialize pineapple data\n", __func__);
 
 	core->platform->data = pineapple_data;
+
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;

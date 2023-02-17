@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/devcoredump.h>
 #include <linux/of_address.h>
+
 #include "hfi_packet.h"
 #include "venus_hfi.h"
 #include "venus_hfi_response.h"
@@ -821,6 +822,8 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 		if (buffer->addr_offset / frame_size < batch_size - 1) {
 			i_vpr_l(inst, "%s: superframe last buffer not reached: %u, %u, %u\n",
 				__func__, buffer->addr_offset, frame_size, batch_size);
+			/* remove buffer stats for all the subframes in a superframe */
+			msm_vidc_remove_buffer_stats(inst, buf, buffer->timestamp);
 			return 0;
 		}
 	}
@@ -847,8 +850,8 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	print_vidc_buffer(VIDC_HIGH, "high", "dqbuf", inst, buf);
 	msm_vidc_update_stats(inst, buf, MSM_VIDC_DEBUGFS_EVENT_EBD);
 
-	/* etd: update end timestamp and flags in stats entry */
-	msm_vidc_remove_buffer_stats(inst, buf);
+	/* ebd: update end timestamp and flags in stats entry */
+	msm_vidc_remove_buffer_stats(inst, buf, buffer->timestamp);
 
 	return rc;
 }
@@ -1025,7 +1028,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	msm_vidc_update_stats(inst, buf, MSM_VIDC_DEBUGFS_EVENT_FBD);
 
 	/* fbd: print stats and remove entry */
-	msm_vidc_remove_buffer_stats(inst, buf);
+	msm_vidc_remove_buffer_stats(inst, buf, buffer->timestamp);
 
 	return rc;
 }

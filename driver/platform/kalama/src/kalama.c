@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_control.h"
@@ -1280,12 +1280,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_req_sync_frame},
 
 	{BIT_RATE, ENC, H264,
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
 	{BIT_RATE, ENC, HEVC,
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
@@ -1449,34 +1449,34 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_layer_count_and_type},
 
 	{L0_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L1_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L1_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L2_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L2_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L3_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L3_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L4_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L4_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L5_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L5_BR, ENC, H264|HEVC,
 		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{ENTROPY_MODE, ENC, H264,
 		{BIT_RATE},

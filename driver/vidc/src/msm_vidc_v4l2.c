@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_v4l2.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_debug.h"
 #include "msm_vidc.h"
 #include "msm_vidc_events.h"
 
@@ -165,7 +166,7 @@ int msm_v4l2_s_fmt(struct file *filp, void *fh,
 		rc = -EBUSY;
 		goto unlock;
 	}
-	rc = msm_vidc_s_fmt((void *)inst, f);
+	rc = inst->event_handle(inst, MSM_VIDC_S_FMT, f);
 	if (rc)
 		goto unlock;
 
@@ -331,7 +332,7 @@ int msm_v4l2_reqbufs(struct file *filp, void *fh,
 
 	client_lock(inst, __func__);
 	inst_lock(inst, __func__);
-	rc = msm_vidc_reqbufs((void *)inst, b);
+	rc = inst->event_handle(inst, MSM_VIDC_REQBUFS, b);
 	if (rc)
 		goto unlock;
 
@@ -436,11 +437,11 @@ int msm_v4l2_qbuf(struct file *filp, void *fh,
 	}
 
 	/*
-	 * do not acquire inst lock here. acquire it in msm_vidc_buf_queue.
-	 * for requests, msm_vidc_buf_queue() is not called from here.
+	 * do not acquire inst lock here. acquire it in msm_vb2_buf_queue.
+	 * for requests, msm_vb2_buf_queue() is not called from here.
 	 * instead it's called as part of msm_v4l2_request_queue().
 	 * hence acquire the inst lock in common function i.e
-	 * msm_vidc_buf_queue, to handle both requests and non-request
+	 * msm_vb2_buf_queue, to handle both requests and non-request
 	 * scenarios.
 	 */
 	rc = msm_vidc_qbuf(inst, vdev->v4l2_dev->mdev, b);
@@ -617,6 +618,7 @@ int msm_v4l2_decoder_cmd(struct file *filp, void *fh,
 				struct v4l2_decoder_cmd *dec)
 {
 	struct msm_vidc_inst *inst = get_vidc_inst(filp, fh);
+	enum msm_vidc_event event;
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
@@ -632,7 +634,19 @@ int msm_v4l2_decoder_cmd(struct file *filp, void *fh,
 		rc = -EBUSY;
 		goto unlock;
 	}
-	rc = msm_vidc_cmd((void *)inst, (union msm_v4l2_cmd *)dec);
+	if (!dec) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		rc = -EINVAL;
+		goto unlock;
+	}
+	if (dec->cmd != V4L2_DEC_CMD_START &&
+		dec->cmd != V4L2_DEC_CMD_STOP) {
+		i_vpr_e(inst, "%s: invalid cmd %#x\n", __func__, dec->cmd);
+		rc = -EINVAL;
+		goto unlock;
+	}
+	event = (dec->cmd == V4L2_DEC_CMD_START ? MSM_VIDC_CMD_START : MSM_VIDC_CMD_STOP);
+	rc = inst->event_handle(inst, event, NULL);
 	if (rc)
 		goto unlock;
 
@@ -679,6 +693,7 @@ int msm_v4l2_encoder_cmd(struct file *filp, void *fh,
 				struct v4l2_encoder_cmd *enc)
 {
 	struct msm_vidc_inst *inst = get_vidc_inst(filp, fh);
+	enum msm_vidc_event event;
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
@@ -694,7 +709,19 @@ int msm_v4l2_encoder_cmd(struct file *filp, void *fh,
 		rc = -EBUSY;
 		goto unlock;
 	}
-	rc = msm_vidc_cmd((void *)inst, (union msm_v4l2_cmd *)enc);
+	if (!enc) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		rc = -EINVAL;
+		goto unlock;
+	}
+	if (enc->cmd != V4L2_ENC_CMD_START &&
+		enc->cmd != V4L2_ENC_CMD_STOP) {
+		i_vpr_e(inst, "%s: invalid cmd %#x\n", __func__, enc->cmd);
+		rc = -EINVAL;
+		goto unlock;
+	}
+	event = (enc->cmd == V4L2_ENC_CMD_START ? MSM_VIDC_CMD_START : MSM_VIDC_CMD_STOP);
+	rc = inst->event_handle(inst, event, NULL);
 	if (rc)
 		goto unlock;
 

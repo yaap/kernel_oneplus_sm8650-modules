@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -46,10 +46,10 @@ enum msm_vidc_metadata_bits {
 	MSM_VIDC_META_MAX              = 0x20,
 };
 
-#define MSM_VIDC_METADATA_SIZE           (4 * 4096) /* 16 KB */
-#define ENCODE_INPUT_METADATA_SIZE       (512 * 4096) /* 2 MB */
-#define DECODE_INPUT_METADATA_SIZE       MSM_VIDC_METADATA_SIZE
-#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE  (41 * 1024) /* 41 KB */
+#define MSM_VIDC_METADATA_SIZE             (4 * 4096) /* 16 KB */
+#define ENCODE_INPUT_METADATA_SIZE         (512 * 4096) /* 2 MB */
+#define DECODE_INPUT_METADATA_SIZE         MSM_VIDC_METADATA_SIZE
+#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE   (41 * 1024) /* 41 KB */
 
 #define MAX_NAME_LENGTH   128
 #define VENUS_VERSION_LENGTH 128
@@ -377,7 +377,7 @@ enum msm_vidc_metadata_bits {
 	BUF_TYPE(INPUT_META)                      \
 	BUF_TYPE(OUTPUT_META)                     \
 	BUF_TYPE(READ_ONLY)                       \
-	BUF_TYPE(QUEUE)                           \
+	BUF_TYPE(INTERFACE_QUEUE)                 \
 	BUF_TYPE(BIN)                             \
 	BUF_TYPE(ARP)                             \
 	BUF_TYPE(COMV)                            \
@@ -454,6 +454,12 @@ enum msm_vidc_buffer_region {
 	MSM_VIDC_SECURE_NONPIXEL,
 	MSM_VIDC_SECURE_BITSTREAM,
 	MSM_VIDC_REGION_MAX,
+};
+
+enum msm_vidc_device_region {
+	MSM_VIDC_DEVICE_REGION_NONE = 0,
+	MSM_VIDC_AON_REGISTERS,
+	MSM_VIDC_DEVICE_REGION_MAX,
 };
 
 enum msm_vidc_port_type {
@@ -870,6 +876,7 @@ struct msm_vidc_mem {
 	u32                         refcount;
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
+	phys_addr_t                 phys_addr;
 };
 
 struct msm_vidc_mem_list {
@@ -917,12 +924,14 @@ struct msm_vidc_buffer_stats {
 	u32                                fbd_time_ms;
 	u32                                data_size;
 	u32                                flags;
+	u32                                ts_offset;
 };
 
 enum msm_vidc_buffer_stats_flag {
-	MSM_VIDC_STATS_FLAG_CORRUPT     = BIT(0),
-	MSM_VIDC_STATS_FLAG_OVERFLOW    = BIT(1),
-	MSM_VIDC_STATS_FLAG_NO_OUTPUT   = BIT(2),
+	MSM_VIDC_STATS_FLAG_CORRUPT        = BIT(0),
+	MSM_VIDC_STATS_FLAG_OVERFLOW       = BIT(1),
+	MSM_VIDC_STATS_FLAG_NO_OUTPUT      = BIT(2),
+	MSM_VIDC_STATS_FLAG_SUBFRAME_INPUT = BIT(3),
 };
 
 struct msm_vidc_sort {

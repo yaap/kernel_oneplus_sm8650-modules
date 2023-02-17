@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_media_info.h"
@@ -11,8 +12,8 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control.h"
-#include "msm_vidc_debug.h"
 #include "msm_vidc_power.h"
+#include "msm_vidc_debug.h"
 #include "venus_hfi.h"
 #include "hfi_packet.h"
 #include "msm_vidc_platform.h"
@@ -708,6 +709,12 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	if (port == INPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_inp_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -715,6 +722,12 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	} else if (port == OUTPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_tx_out_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -756,6 +769,12 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	if (port == INPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_inp_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -763,6 +782,12 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	} else if (port == OUTPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
 			if (is_meta_rx_out_enabled(inst, i)) {
+				if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+					i_vpr_e(inst,
+						"%s: input metadatas (%d) exceeded limit (%d)\n",
+						__func__, count, sizeof(payload) / sizeof(u32));
+					return -EINVAL;
+				}
 				payload[count + 1] = capability->cap[i].hfi_id;
 				count++;
 			}
@@ -880,50 +905,48 @@ int msm_venc_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 	return rc;
 }
 
-int msm_venc_process_cmd(struct msm_vidc_inst *inst, u32 cmd)
+int msm_venc_stop_cmd(struct msm_vidc_inst *inst)
+{
+	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
+	int rc = 0;
+
+	i_vpr_h(inst, "received cmd: drain\n");
+	allow = msm_vidc_allow_stop(inst);
+	if (allow == MSM_VIDC_DISALLOW)
+		return -EBUSY;
+	else if (allow == MSM_VIDC_IGNORE)
+		return 0;
+	else if (allow != MSM_VIDC_ALLOW)
+		return -EINVAL;
+	rc = msm_vidc_process_drain(inst);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_venc_start_cmd(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
+	i_vpr_h(inst, "received cmd: resume\n");
+	if (!msm_vidc_allow_start(inst))
+		return -EBUSY;
+	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
+	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 
-	if (cmd == V4L2_ENC_CMD_STOP) {
-		i_vpr_h(inst, "received cmd: drain\n");
-		allow = msm_vidc_allow_stop(inst);
-		if (allow == MSM_VIDC_DISALLOW)
-			return -EBUSY;
-		else if (allow == MSM_VIDC_IGNORE)
-			return 0;
-		else if (allow != MSM_VIDC_ALLOW)
-			return -EINVAL;
-		rc = msm_vidc_process_drain(inst);
-		if (rc)
-			return rc;
-	} else if (cmd == V4L2_ENC_CMD_START) {
-		i_vpr_h(inst, "received cmd: resume\n");
-		if (!msm_vidc_allow_start(inst))
-			return -EBUSY;
-		vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
-		vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
+	/* tune power features */
+	msm_vidc_allow_dcvs(inst);
+	msm_vidc_power_data_reset(inst);
 
-		/* tune power features */
-		msm_vidc_allow_dcvs(inst);
-		msm_vidc_power_data_reset(inst);
+	/* print final buffer counts & size details */
+	msm_vidc_print_buffer_info(inst);
 
-		/* print final buffer counts & size details */
-		msm_vidc_print_buffer_info(inst);
+	rc = msm_vidc_process_resume(inst);
+	if (rc)
+		return rc;
 
-		rc = msm_vidc_process_resume(inst);
-		if (rc)
-			return rc;
-	} else {
-		i_vpr_e(inst, "%s: unknown cmd %d\n", __func__, cmd);
-		return -EINVAL;
-	}
-	return 0;
+	return rc;
 }
 
 int msm_venc_streamoff_output(struct msm_vidc_inst *inst)

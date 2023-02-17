@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_iris3.h"
 #include "msm_vidc_buffer_iris3.h"
 #include "msm_vidc_power_iris3.h"
-#include "venus_hfi.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_driver.h"
@@ -17,6 +16,7 @@
 #include "msm_vidc_state.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
+#include "venus_hfi.h"
 
 #define VIDEO_ARCH_LX 1
 
@@ -1119,7 +1119,6 @@ int msm_vidc_init_iris3(struct msm_vidc_core *core)
 	d_vpr_h("%s()\n", __func__);
 	core->venus_ops = &iris3_ops;
 	core->session_ops = &msm_session_ops;
-	core->res_ops = get_resources_ops();
 
 	return 0;
 }

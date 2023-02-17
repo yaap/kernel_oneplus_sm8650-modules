@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-kalama.h>
@@ -17,8 +17,9 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_control_ext.h"
 #include "msm_vidc_memory_ext.h"
-#include "hfi_property.h"
+#include "resources_ext.h"
 #include "msm_vidc_iris3.h"
+#include "hfi_property.h"
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
@@ -2020,12 +2021,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_req_sync_frame},
 
 	{BIT_RATE, ENC, H264,
-		{PEAK_BITRATE, BITRATE_BOOST},
+		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
 	{BIT_RATE, ENC, HEVC,
-		{PEAK_BITRATE, BITRATE_BOOST},
+		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
@@ -2234,34 +2235,34 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_u32},
 
 	{L0_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L1_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L1_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L2_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L2_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L3_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L3_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L4_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L4_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L5_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L5_BR, ENC, H264|HEVC,
 		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{ENTROPY_MODE, ENC, H264,
 		{BIT_RATE},
@@ -2659,6 +2660,15 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 		core->platform->data = kalama_data;
 
 	core->mem_ops = get_mem_ops_ext();
+	if (!core->mem_ops) {
+		d_vpr_e("%s: invalid memory ext ops\n", __func__);
+		return -EINVAL;
+	}
+	core->res_ops = get_res_ops_ext();
+	if (!core->res_ops) {
+		d_vpr_e("%s: invalid resource ext ops\n", __func__);
+		return -EINVAL;
+	}
 	rc = msm_vidc_kalama_check_ddr_type();
 	if (rc)
 		return rc;
