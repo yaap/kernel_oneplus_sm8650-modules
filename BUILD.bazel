@@ -1,0 +1,31 @@
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+ddk_headers(
+    name = "smcinvoke_kernel_headers",
+    hdrs = [
+        "include/linux/smcinvoke*.h",
+        "include/linux/IClientE*.h",
+        "linux/misc/qseecom_kernel.h",
+        "linux/misc/qseecom_priv.h"
+    ],
+    includes = ["include/linux", "linux"]
+)
+
+ddk_headers(
+    name = "securemsm_kernel_headers",
+    hdrs = [
+        "linux/misc/qseecom_kernel.h",
+        "linux/misc/qseecom_priv.h"
+    ],
+    includes = ["linux"]
+)
+
+load("pineapple.bzl", "define_pineapple")
+
+define_pineapple()
