@@ -48,8 +48,6 @@ MODULE_IMPORT_NS(DMA_BUF);
 #define UBWCP_ALIGN(_x, _y)  ((((_x) + (_y) - 1)/(_y))*(_y))
 
 
-//#define DBG(fmt, args...)
-//#define DBG_BUF_ATTR(fmt, args...)
 #define DBG_BUF_ATTR(fmt, args...) do { if (ubwcp_debug_trace_enable) \
 					pr_err("ubwcp: %s(): " fmt "\n", __func__, ##args); \
 					} while (0)
@@ -57,6 +55,8 @@ MODULE_IMPORT_NS(DMA_BUF);
 				pr_err("ubwcp: %s(): " fmt "\n", __func__, ##args); \
 				} while (0)
 #define ERR(fmt, args...) pr_err("ubwcp: %s(): ~~~ERROR~~~: " fmt "\n", __func__, ##args)
+#define ERR_RATE_LIMIT(fmt, args...) pr_err_ratelimited("ubwcp: %s(): ~~~ERROR~~~: " fmt "\n",\
+							__func__, ##args)
 
 #define FENTRY() DBG("")
 
@@ -111,6 +111,10 @@ struct ubwcp_driver {
 
 	/* debugfs */
 	struct dentry *debugfs_root;
+	bool read_err_irq_en;
+	bool write_err_irq_en;
+	bool decode_err_irq_en;
+	bool encode_err_irq_en;
 
 	/* ubwcp devices */
 	struct device *dev; //ubwcp device
@@ -194,8 +198,7 @@ struct ubwcp_buf {
 
 
 static struct ubwcp_driver *me;
-static int error_print_count;
-u32 ubwcp_debug_trace_enable;
+static u32 ubwcp_debug_trace_enable;
 
 static struct ubwcp_driver *ubwcp_get_driver(void)
 {
@@ -2119,7 +2122,6 @@ static int ubwcp_unlock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		return -1;
 	}
 
-	error_print_count = 0;
 	mutex_lock(&buf->lock);
 	ret = unlock_internal(buf, dir, false);
 	mutex_unlock(&buf->lock);
@@ -2404,21 +2406,169 @@ static const struct file_operations ubwcp_fops = {
 	.unlocked_ioctl = ubwcp_ioctl,
 };
 
+static int read_err_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+	*value = ubwcp->read_err_irq_en;
+	return 0;
+}
 
-static int ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
+static int read_err_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp_power(ubwcp, true))
+		return -1;
+
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR, value);
+	ubwcp->read_err_irq_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		return -1;
+
+	return 0;
+}
+
+static int write_err_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+	*value = ubwcp->write_err_irq_en;
+	return 0;
+}
+
+static int write_err_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp_power(ubwcp, true))
+		return -1;
+
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR, value);
+	ubwcp->write_err_irq_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		return -1;
+
+	return 0;
+}
+
+static int decode_err_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+	*value = ubwcp->decode_err_irq_en;
+	return 0;
+}
+
+static int decode_err_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp_power(ubwcp, true))
+		return -1;
+
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, value);
+	ubwcp->decode_err_irq_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		return -1;
+
+	return 0;
+}
+
+static int encode_err_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+	*value = ubwcp->encode_err_irq_en;
+	return 0;
+}
+
+static int encode_err_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp_power(ubwcp, true))
+		return -1;
+
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, value);
+	ubwcp->encode_err_irq_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		return -1;
+
+	return 0;
+}
+
+static int reg_rw_trace_w_op(void *data, u64 value)
+{
+	ubwcp_hw_trace_set(value);
+	return 0;
+}
+
+static int reg_rw_trace_r_op(void *data, u64 *value)
+{
+	bool trace_status;
+	ubwcp_hw_trace_get(&trace_status);
+	*value = trace_status;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(read_err_fops, read_err_r_op, read_err_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(decode_err_fops, decode_err_r_op, decode_err_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(write_err_fops, write_err_r_op, write_err_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(encode_err_fops, encode_err_r_op, encode_err_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(reg_rw_trace_fops, reg_rw_trace_r_op, reg_rw_trace_w_op, "%d\n");
+
+static void ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
 {
 	struct dentry *debugfs_root;
+	struct dentry *dfile;
 
 	debugfs_root = debugfs_create_dir("ubwcp", NULL);
-	if (!debugfs_root) {
-		pr_warn("Failed to create debugfs for ubwcp\n");
-		return -1;
+	if (IS_ERR_OR_NULL(debugfs_root)) {
+		ERR("Failed to create debugfs for ubwcp\n");
+		return;
 	}
 
 	debugfs_create_u32("debug_trace_enable", 0644, debugfs_root, &ubwcp_debug_trace_enable);
 
+	dfile = debugfs_create_file("reg_rw_trace_en", 0644, debugfs_root, ubwcp, &reg_rw_trace_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create reg_rw_trace_en debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("read_err_irq_en", 0644, debugfs_root, ubwcp, &read_err_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create read_err_irq debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("write_err_irq_en", 0644, debugfs_root, ubwcp, &write_err_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create write_err_irq debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("decode_err_irq_en", 0644, debugfs_root, ubwcp,
+					&decode_err_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create decode_err_irq debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("encode_err_irq_en", 0644, debugfs_root, ubwcp,
+					&encode_err_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create encode_err_irq debugfs file");
+		goto err;
+	}
+
 	ubwcp->debugfs_root = debugfs_root;
-	return 0;
+	return;
+
+err:
+	debugfs_remove_recursive(ubwcp->debugfs_root);
+	ubwcp->debugfs_root = NULL;
 }
 
 static void ubwcp_debugfs_deinit(struct ubwcp_driver *ubwcp)
@@ -2620,9 +2770,6 @@ static struct dma_buf *get_dma_buf_from_iova(unsigned long addr)
 	return ret_buf;
 }
 
-#define ERR_PRINT_COUNT_MAX 21
-/* TBD: use proper rate limit for debug prints */
-
 int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
 		unsigned long iova, int flags, void *data)
 {
@@ -2636,89 +2783,75 @@ int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
 		goto err;
 	}
 
-	error_print_count++;
-	if (error_print_count < ERR_PRINT_COUNT_MAX) {
-		err.err_code = UBWCP_SMMU_FAULT;
+	err.err_code = UBWCP_SMMU_FAULT;
 
-		if (cb_dev == ubwcp->dev_desc_cb)
-			err.smmu_err.iommu_dev_id = UBWCP_DESC_CB_ID;
-		else if (cb_dev == ubwcp->dev_buf_cb)
-			err.smmu_err.iommu_dev_id = UBWCP_BUF_CB_ID;
-		else
-			err.smmu_err.iommu_dev_id = UBWCP_UNKNOWN_CB_ID;
-
-		ERR("smmu fault error: iommu_dev_id:%d iova 0x%llx flags:0x%x",
-				err.smmu_err.iommu_dev_id, iova, flags);
-		err.smmu_err.dmabuf = get_dma_buf_from_iova(iova);
-		err.smmu_err.iova = iova;
-		err.smmu_err.iommu_fault_flags = flags;
-		ubwcp_notify_error_handlers(&err);
-	}
+	if (cb_dev == ubwcp->dev_desc_cb)
+		err.smmu_err.iommu_dev_id = UBWCP_DESC_CB_ID;
+	else if (cb_dev == ubwcp->dev_buf_cb)
+		err.smmu_err.iommu_dev_id = UBWCP_BUF_CB_ID;
+	else
+		err.smmu_err.iommu_dev_id = UBWCP_UNKNOWN_CB_ID;
+	err.smmu_err.dmabuf = get_dma_buf_from_iova(iova);
+	err.smmu_err.iova = iova;
+	err.smmu_err.iommu_fault_flags = flags;
+	ERR_RATE_LIMIT("ubwcp_err: err code: %d (smmu), iommu_dev_id: %d, iova: 0x%llx, flags: 0x%x",
+		err.err_code, err.smmu_err.iommu_dev_id, err.smmu_err.iova,
+		err.smmu_err.iommu_fault_flags);
+	ubwcp_notify_error_handlers(&err);
 
 err:
 	return ret;
 }
 
-
 irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 {
 	struct ubwcp_driver *ubwcp;
 	void __iomem *base;
-	u64 src;
 	phys_addr_t addr;
 	struct ubwcp_err_info err;
-
-	error_print_count++;
 
 	ubwcp = (struct ubwcp_driver *) ptr;
 	base = ubwcp->base;
 
 	if (irq == ubwcp->irq_range_ck_rd) {
-		if (error_print_count < ERR_PRINT_COUNT_MAX) {
-			src = ubwcp_hw_interrupt_src_address(base, 0);
-			addr = src << 6;
-			ERR("check range read error: src: 0x%llx", addr);
-			err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
-			err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
-			err.translation_err.ula_pa = addr;
-			err.translation_err.read = true;
-			ubwcp_notify_error_handlers(&err);
-		}
+		addr = ubwcp_hw_interrupt_src_address(base, 0) << 6;
+		err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
+		err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
+		err.translation_err.ula_pa = addr;
+		err.translation_err.read = true;
+		ERR_RATE_LIMIT("ubwcp_err: err code: %d (range), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
+			err.err_code, err.translation_err.dmabuf, err.translation_err.read, addr);
+		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 0);
+
 	} else if (irq == ubwcp->irq_range_ck_wr) {
-		if (error_print_count < ERR_PRINT_COUNT_MAX) {
-			src = ubwcp_hw_interrupt_src_address(base, 1);
-			addr = src << 6;
-			ERR("check range write error: src: 0x%llx", addr);
-			err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
-			err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
-			err.translation_err.ula_pa = addr;
-			err.translation_err.read = false;
-			ubwcp_notify_error_handlers(&err);
-		}
+		addr = ubwcp_hw_interrupt_src_address(base, 1) << 6;
+		err.err_code = UBWCP_RANGE_TRANSLATION_ERROR;
+		err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
+		err.translation_err.ula_pa = addr;
+		err.translation_err.read = false;
+		ERR_RATE_LIMIT("ubwcp_err: err code: %d (range), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
+			err.err_code, err.translation_err.dmabuf, err.translation_err.read, addr);
+		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 1);
 	} else if (irq == ubwcp->irq_encode) {
-		if (error_print_count < ERR_PRINT_COUNT_MAX) {
-			src = ubwcp_hw_interrupt_src_address(base, 3);
-			addr = src << 6;
-			ERR("encode error: src: 0x%llx", addr);
-			err.err_code = UBWCP_ENCODE_ERROR;
-			err.enc_err.dmabuf = get_dma_buf_from_ulapa(addr);
-			err.enc_err.ula_pa = addr;
-			ubwcp_notify_error_handlers(&err);
-		}
-		ubwcp_hw_interrupt_clear(ubwcp->base, 3); //TBD: encode is bit-3 instead of bit-2
+		addr = ubwcp_hw_interrupt_src_address(base, 3) << 6;
+		err.err_code = UBWCP_ENCODE_ERROR;
+		err.enc_err.dmabuf = get_dma_buf_from_ulapa(addr);
+		err.enc_err.ula_pa = addr;
+		ERR_RATE_LIMIT("ubwcp_err: err code: %d (encode), dmabuf: 0x%llx, addr: 0x%llx",
+				err.err_code, err.enc_err.dmabuf, addr);
+		ubwcp_notify_error_handlers(&err);
+		ubwcp_hw_interrupt_clear(ubwcp->base, 3);
 	} else if (irq == ubwcp->irq_decode) {
-		if (error_print_count < ERR_PRINT_COUNT_MAX) {
-			src = ubwcp_hw_interrupt_src_address(base, 2);
-			addr = src << 6;
-			ERR("decode error: src: 0x%llx", addr);
-			err.err_code = UBWCP_DECODE_ERROR;
-			err.dec_err.dmabuf = get_dma_buf_from_ulapa(addr);
-			err.dec_err.ula_pa = addr;
-			ubwcp_notify_error_handlers(&err);
-		}
-		ubwcp_hw_interrupt_clear(ubwcp->base, 2); //TBD: decode is bit-2 instead of bit-3
+		addr = ubwcp_hw_interrupt_src_address(base, 2) << 6;
+		err.err_code = UBWCP_DECODE_ERROR;
+		err.dec_err.dmabuf = get_dma_buf_from_ulapa(addr);
+		err.dec_err.ula_pa = addr;
+		ERR_RATE_LIMIT("ubwcp_err: err code: %d (decode), dmabuf: 0x%llx, addr: 0x%llx",
+				err.err_code, err.enc_err.dmabuf, addr);
+		ubwcp_notify_error_handlers(&err);
+		ubwcp_hw_interrupt_clear(ubwcp->base, 2);
 	} else {
 		ERR("unknown irq: %d", irq);
 		return IRQ_NONE;
@@ -2849,9 +2982,6 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	mutex_init(&ubwcp->hw_range_ck_lock);
 	spin_lock_init(&ubwcp->err_handler_list_lock);
 
-	if (ubwcp_interrupt_register(pdev, ubwcp))
-		return -1;
-
 	/* Regulator */
 	ubwcp->vdd = devm_regulator_get(ubwcp_dev, "vdd");
 	if (IS_ERR_OR_NULL(ubwcp->vdd)) {
@@ -2872,8 +3002,16 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	if (ubwcp_cdev_init(ubwcp))
 		return -1;
 
-	if (ubwcp_debugfs_init(ubwcp))
+	/* disable all interrupts (reset value has some interrupts enabled by default) */
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR, false);
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR, false);
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, false);
+	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, false);
+
+	if (ubwcp_interrupt_register(pdev, ubwcp))
 		return -1;
+
+	ubwcp_debugfs_init(ubwcp);
 
 	/* create ULA pool */
 	ubwcp->ula_pool = gen_pool_create(12, -1);
@@ -2910,11 +3048,16 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	/* set pdev->dev->driver_data = ubwcp */
 	platform_set_drvdata(pdev, ubwcp);
 
-	/* enable all 4 interrupts */
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   true);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  true);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, true);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, true);
+
+	/* enable interrupts */
+	if (ubwcp->read_err_irq_en)
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,  true);
+	if (ubwcp->write_err_irq_en)
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  true);
+	if (ubwcp->decode_err_irq_en)
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, true);
+	if (ubwcp->encode_err_irq_en)
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, true);
 
 	/* Turn OFF until buffers are allocated */
 	if (ubwcp_power(ubwcp, false)) {
