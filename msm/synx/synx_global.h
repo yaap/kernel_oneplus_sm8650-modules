@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __SYNX_SHARED_MEM_H__
@@ -18,12 +18,14 @@
  * SYNX_CORE_NSP  : NSP core
  * SYNX_CORE_EVA  : EVA core
  * SYNX_CORE_IRIS : IRIS core
+ * SYNX_CORE_ICP  : ICP core
  */
 enum synx_core_id {
 	SYNX_CORE_APSS = 0,
 	SYNX_CORE_NSP,
 	SYNX_CORE_EVA,
 	SYNX_CORE_IRIS,
+	SYNX_CORE_ICP,
 	SYNX_CORE_MAX,
 };
 

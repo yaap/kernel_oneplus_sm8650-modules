@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/atomic.h>
@@ -2455,6 +2455,7 @@ int synx_recover(enum synx_client_id id)
 	switch (core_id) {
 	case SYNX_CORE_EVA:
 	case SYNX_CORE_IRIS:
+	case SYNX_CORE_ICP:
 		break;
 	default:
 		dprintk(SYNX_ERR, "recovery not supported on %u\n", id);
