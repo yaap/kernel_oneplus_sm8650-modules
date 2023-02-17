@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -23,6 +23,9 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	struct msm_hw_fence_client *hw_fence_client;
 	enum hw_fence_client_id client_id;
 	int ret;
+
+	if (!hw_fence_driver_enable)
+		return ERR_PTR(-ENODEV);
 
 	HWFNC_DBG_H("++ client_id_ext:%d\n", client_id_ext);
 
@@ -389,10 +392,12 @@ int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags)
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
 	hw_fences_tbl = hw_fence_drv_data->hw_fences_tbl;
 
-	HWFNC_DBG_L("reset fences for client:%d\n", hw_fence_client->client_id);
+	HWFNC_DBG_L("reset fences and queues for client:%d\n", hw_fence_client->client_id);
 	for (i = 0; i < hw_fence_drv_data->hw_fences_tbl_cnt; i++)
 		hw_fence_utils_cleanup_fence(hw_fence_drv_data, hw_fence_client,
 			&hw_fences_tbl[i], i, reset_flags);
+
+	hw_fence_utils_reset_queues(hw_fence_drv_data, hw_fence_client);
 
 	return 0;
 }
@@ -500,15 +505,26 @@ static int msm_hw_fence_probe_init(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, hw_fence_drv_data);
 	hw_fence_drv_data->dev = &pdev->dev;
 
-	/* Initialize HW Fence Driver resources */
-	rc = hw_fence_init(hw_fence_drv_data);
-	if (rc)
-		goto error;
+	if (hw_fence_driver_enable) {
+		/* Initialize HW Fence Driver resources */
+		rc = hw_fence_init(hw_fence_drv_data);
+		if (rc)
+			goto error;
 
-	mutex_init(&hw_fence_drv_data->clients_register_lock);
+		mutex_init(&hw_fence_drv_data->clients_register_lock);
 
-	/* set ready ealue so clients can register */
-	hw_fence_drv_data->resources_ready = true;
+		/* set ready value so clients can register */
+		hw_fence_drv_data->resources_ready = true;
+	} else {
+		/* Allocate hw fence driver mem pool and share it with HYP */
+		rc = hw_fence_utils_alloc_mem(hw_fence_drv_data);
+		if (rc) {
+			HWFNC_ERR("failed to alloc base memory\n");
+			goto error;
+		}
+
+		HWFNC_DBG_INFO("hw fence driver not enabled\n");
+	}
 
 	HWFNC_DBG_H("-\n");
 
@@ -532,11 +548,6 @@ static int msm_hw_fence_probe(struct platform_device *pdev)
 	if (!pdev) {
 		HWFNC_ERR("null platform dev\n");
 		return -EINVAL;
-	}
-
-	if (!hw_fence_driver_enable) {
-		HWFNC_DBG_INFO("hw fence driver not enabled\n");
-		return -EOPNOTSUPP;
 	}
 
 	if (of_device_is_compatible(pdev->dev.of_node, "qcom,msm-hw-fence"))
