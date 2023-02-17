@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -23,7 +23,7 @@ int synx_columns = NAME_COLUMN | ID_COLUMN |
 EXPORT_SYMBOL(synx_columns);
 
 int synx_debug = SYNX_ERR | SYNX_WARN |
-	SYNX_INFO | SYNX_DBG;
+	SYNX_INFO;
 EXPORT_SYMBOL(synx_debug);
 
 void populate_bound_rows(
