@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CNSS_PCI_H
@@ -58,6 +58,7 @@ enum cnss_pci_reg_dev_mask {
 	REG_MASK_QCA6490,
 	REG_MASK_KIWI,
 	REG_MASK_MANGO,
+	REG_MASK_PEACH,
 };
 
 struct cnss_msi_user {
@@ -236,6 +237,14 @@ void cnss_pci_free_blob_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_handle_dev_sol_irq(struct cnss_pci_data *pci_priv);
 int cnss_pci_start_mhi(struct cnss_pci_data *pci_priv);
 void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic);
+#ifdef CONFIG_CNSS2_SSR_DRIVER_DUMP
+void cnss_pci_collect_host_dump_info(struct cnss_pci_data *pci_priv);
+#else
+static inline
+void cnss_pci_collect_host_dump_info(struct cnss_pci_data *pci_priv)
+{
+}
+#endif
 void cnss_pci_device_crashed(struct cnss_pci_data *pci_priv);
 void cnss_pci_clear_dump_info(struct cnss_pci_data *pci_priv);
 u32 cnss_pci_get_wake_msi(struct cnss_pci_data *pci_priv);

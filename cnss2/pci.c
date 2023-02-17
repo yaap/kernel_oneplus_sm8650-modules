@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/completion.h>
@@ -44,6 +44,7 @@
 #define QCA6490_PATH_PREFIX		"qca6490/"
 #define KIWI_PATH_PREFIX		"kiwi/"
 #define MANGO_PATH_PREFIX		"mango/"
+#define PEACH_PATH_PREFIX		"peach/"
 #define DEFAULT_PHY_M3_FILE_NAME	"m3.bin"
 #define DEFAULT_PHY_UCODE_FILE_NAME	"phy_ucode.elf"
 #define PHY_UCODE_V2_FILE_NAME		"phy_ucode20.elf"
@@ -817,8 +818,13 @@ static void cnss_pci_select_window(struct cnss_pci_data *pci_priv, u32 offset)
 	u32 window_enable = WINDOW_ENABLE_BIT | window;
 	u32 val;
 
-	writel_relaxed(window_enable, pci_priv->bar +
-		       QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
+	if (plat_priv->device_id == PEACH_DEVICE_ID) {
+		writel_relaxed(window_enable, pci_priv->bar +
+			       PEACH_PCIE_REMAP_BAR_CTRL_OFFSET);
+	} else {
+		writel_relaxed(window_enable, pci_priv->bar +
+			       QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
+	}
 
 	if (window != pci_priv->remap_window) {
 		pci_priv->remap_window = window;
@@ -827,7 +833,13 @@ static void cnss_pci_select_window(struct cnss_pci_data *pci_priv, u32 offset)
 	}
 
 	/* Read it back to make sure the write has taken effect */
-	val = readl_relaxed(pci_priv->bar + QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
+	if (plat_priv->device_id == PEACH_DEVICE_ID) {
+		val = readl_relaxed(pci_priv->bar +
+			PEACH_PCIE_REMAP_BAR_CTRL_OFFSET);
+	} else {
+		val = readl_relaxed(pci_priv->bar +
+			QCA6390_PCIE_REMAP_BAR_CTRL_OFFSET);
+	}
 	if (val != window_enable) {
 		cnss_pr_err("Failed to config window register to 0x%x, current value: 0x%x\n",
 			    window_enable, val);
@@ -1159,6 +1171,7 @@ static void cnss_pci_soc_scratch_reg_dump(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return;
@@ -1277,6 +1290,7 @@ int cnss_pci_recover_link_down(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -1516,6 +1530,12 @@ static void cnss_pci_dump_bl_sram_mem(struct cnss_pci_data *pci_priv)
 		pbl_log_sram_start = MANGO_DEBUG_PBL_LOG_SRAM_START;
 		pbl_log_max_size = MANGO_DEBUG_PBL_LOG_SRAM_MAX_SIZE;
 		sbl_log_max_size = MANGO_DEBUG_SBL_LOG_SRAM_MAX_SIZE;
+		break;
+	case PEACH_DEVICE_ID:
+		pbl_bootstrap_status_reg = PEACH_PBL_BOOTSTRAP_STATUS;
+		pbl_log_sram_start = PEACH_DEBUG_PBL_LOG_SRAM_START;
+		pbl_log_max_size = PEACH_DEBUG_PBL_LOG_SRAM_MAX_SIZE;
+		sbl_log_max_size = PEACH_DEBUG_SBL_LOG_SRAM_MAX_SIZE;
 		break;
 	default:
 		return;
@@ -2085,6 +2105,7 @@ static int cnss_pci_get_device_timestamp(struct cnss_pci_data *pci_priv,
 	switch (pci_priv->device_id) {
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		cnss_pci_reg_read(pci_priv, PCIE_MHI_TIME_LOW, &low);
 		cnss_pci_reg_read(pci_priv, PCIE_MHI_TIME_HIGH, &high);
 		break;
@@ -2106,6 +2127,7 @@ static void cnss_pci_enable_time_sync_counter(struct cnss_pci_data *pci_priv)
 	switch (pci_priv->device_id) {
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		return;
 	default:
 		break;
@@ -2120,6 +2142,7 @@ static void cnss_pci_clear_time_sync_counter(struct cnss_pci_data *pci_priv)
 	switch (pci_priv->device_id) {
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		return;
 	default:
 		break;
@@ -2139,6 +2162,7 @@ static void cnss_pci_time_sync_reg_update(struct cnss_pci_data *pci_priv,
 	switch (pci_priv->device_id) {
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		/* Use the next two shadow registers after host's usage */
 		time_reg_low = PCIE_SHADOW_REG_VALUE_0 +
 				(pci_priv->plat_priv->num_shadow_regs_v3 *
@@ -2256,6 +2280,7 @@ static int cnss_pci_start_time_sync_update(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -2278,6 +2303,7 @@ static void cnss_pci_stop_time_sync_update(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return;
@@ -2914,6 +2940,7 @@ int cnss_pci_dev_powerup(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		ret = cnss_qca6290_powerup(pci_priv);
 		break;
 	default:
@@ -2943,6 +2970,7 @@ int cnss_pci_dev_shutdown(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		ret = cnss_qca6290_shutdown(pci_priv);
 		break;
 	default:
@@ -2972,6 +3000,7 @@ int cnss_pci_dev_crash_shutdown(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		cnss_qca6290_crash_shutdown(pci_priv);
 		break;
 	default:
@@ -3001,6 +3030,7 @@ int cnss_pci_dev_ramdump(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		ret = cnss_qca6290_ramdump(pci_priv);
 		break;
 	default:
@@ -3897,6 +3927,7 @@ int cnss_pci_force_wake_request_sync(struct device *dev, int timeout_us)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return 0;
@@ -3939,6 +3970,7 @@ int cnss_pci_force_wake_request(struct device *dev)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return 0;
@@ -3975,6 +4007,7 @@ int cnss_pci_is_device_awake(struct device *dev)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return 0;
@@ -4003,6 +4036,7 @@ int cnss_pci_force_wake_release(struct device *dev)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		break;
 	default:
 		return 0;
@@ -4295,6 +4329,7 @@ int cnss_pci_load_m3(struct cnss_pci_data *pci_priv)
 		break;
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		switch (plat_priv->device_version.major_version) {
 		case FW_V2_NUMBER:
 			phy_filename = PHY_UCODE_V2_FILE_NAME;
@@ -4814,6 +4849,7 @@ static int cnss_pci_enable_bus(struct cnss_pci_data *pci_priv)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		pci_priv->dma_bit_mask = PCI_DMA_MASK_36_BIT;
 		break;
 	default:
@@ -5148,6 +5184,7 @@ static void cnss_pci_send_hang_event(struct cnss_pci_data *pci_priv)
 		break;
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		offset = plat_priv->hang_data_addr_offset;
 		length = plat_priv->hang_event_data_len;
 		break;
@@ -5187,6 +5224,37 @@ exit:
 		    plat_priv->hang_data_addr_offset,
 		    plat_priv->hang_event_data_len);
 }
+
+#ifdef CONFIG_CNSS2_SSR_DRIVER_DUMP
+void cnss_pci_collect_host_dump_info(struct cnss_pci_data *pci_priv)
+{
+	struct cnss_ssr_driver_dump_entry ssr_entry[CNSS_HOST_DUMP_TYPE_MAX] = {0};
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+	size_t num_entries_loaded = 0;
+	int x;
+	int ret = -1;
+
+	if (pci_priv->driver_ops &&
+	    pci_priv->driver_ops->collect_driver_dump) {
+		ret = pci_priv->driver_ops->collect_driver_dump(pci_priv->pci_dev,
+								ssr_entry,
+								&num_entries_loaded);
+	}
+
+	if (!ret) {
+		for (x = 0; x < num_entries_loaded; x++) {
+			cnss_pr_info("Idx:%d, ptr: %p, name: %s, size: %d\n",
+				     x, ssr_entry[x].buffer_pointer,
+				     ssr_entry[x].region_name,
+				     ssr_entry[x].buffer_size);
+		}
+
+		cnss_do_host_ramdump(plat_priv, ssr_entry, num_entries_loaded);
+	} else {
+		cnss_pr_info("Host SSR elf dump collection feature disabled\n");
+	}
+}
+#endif
 
 void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic)
 {
@@ -5367,9 +5435,21 @@ void cnss_pci_clear_dump_info(struct cnss_pci_data *pci_priv)
 
 void cnss_pci_device_crashed(struct cnss_pci_data *pci_priv)
 {
-	if (!pci_priv)
-		return;
+	struct cnss_plat_data *plat_priv;
 
+	if (!pci_priv) {
+		cnss_pr_err("pci_priv is NULL\n");
+		return;
+	}
+
+	plat_priv = pci_priv->plat_priv;
+	if (!plat_priv) {
+		cnss_pr_err("plat_priv is NULL\n");
+		return;
+	}
+
+	if (plat_priv->recovery_enabled)
+		cnss_pci_collect_host_dump_info(pci_priv);
 	cnss_device_crashed(&pci_priv->pci_dev->dev);
 }
 
@@ -5419,6 +5499,10 @@ void cnss_pci_add_fw_prefix_name(struct cnss_pci_data *pci_priv,
 		scnprintf(prefix_name, MAX_FIRMWARE_NAME_LEN,
 			  MANGO_PATH_PREFIX "%s", name);
 		break;
+	case PEACH_DEVICE_ID:
+		scnprintf(prefix_name, MAX_FIRMWARE_NAME_LEN,
+			  PEACH_PATH_PREFIX "%s", name);
+		break;
 	default:
 		scnprintf(prefix_name, MAX_FIRMWARE_NAME_LEN, "%s", name);
 		break;
@@ -5466,6 +5550,7 @@ static int cnss_pci_update_fw_name(struct cnss_pci_data *pci_priv)
 		break;
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		switch (plat_priv->device_version.major_version) {
 		case FW_V2_NUMBER:
 			/*
@@ -6250,6 +6335,7 @@ static int cnss_pci_probe(struct pci_dev *pci_dev,
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		cnss_pci_set_wlaon_pwr_ctrl(pci_priv, false, false, false);
 		timer_setup(&pci_priv->dev_rddm_timer,
 			    cnss_dev_rddm_timeout_hdlr, 0);
@@ -6314,6 +6400,7 @@ static void cnss_pci_remove(struct pci_dev *pci_dev)
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		cnss_pci_wake_gpio_deinit(pci_priv);
 		del_timer(&pci_priv->boot_debug_timer);
 		del_timer(&pci_priv->dev_rddm_timer);
@@ -6343,6 +6430,7 @@ static const struct pci_device_id cnss_pci_id_table[] = {
 	{ QCA6490_VENDOR_ID, QCA6490_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
 	{ KIWI_VENDOR_ID, KIWI_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
 	{ MANGO_VENDOR_ID, MANGO_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+	{ PEACH_VENDOR_ID, PEACH_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
 	{ 0 }
 };
 MODULE_DEVICE_TABLE(pci, cnss_pci_id_table);

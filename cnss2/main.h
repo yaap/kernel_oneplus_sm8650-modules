@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CNSS_MAIN_H
@@ -274,6 +274,14 @@ struct cnss_dump_meta_info {
 	u32 chipset;
 	u32 total_entries;
 	struct cnss_dump_entry entry[CNSS_FW_DUMP_TYPE_MAX];
+};
+
+struct cnss_host_dump_meta_info {
+	u32 magic;
+	u32 version;
+	u32 chipset;
+	u32 total_entries;
+	struct cnss_dump_entry entry[CNSS_HOST_DUMP_TYPE_MAX];
 };
 
 enum cnss_driver_event_type {
@@ -630,6 +638,9 @@ int cnss_register_ramdump(struct cnss_plat_data *plat_priv);
 void cnss_unregister_ramdump(struct cnss_plat_data *plat_priv);
 int cnss_do_ramdump(struct cnss_plat_data *plat_priv);
 int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv);
+int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
+			 struct cnss_ssr_driver_dump_entry *ssr_entry,
+			 size_t num_entries_loaded);
 void cnss_set_pin_connect_status(struct cnss_plat_data *plat_priv);
 int cnss_get_cpr_info(struct cnss_plat_data *plat_priv);
 int cnss_update_cpr_info(struct cnss_plat_data *plat_priv);
