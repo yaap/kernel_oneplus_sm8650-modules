@@ -1,4 +1,4 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-ubwcpx-objs := ubwcp.o ubwcp_hw.o
-obj-m += ubwcpx.o
+ubwcp-objs := ubwcp_main.o ubwcp_hw.o
+obj-m += ubwcp.o

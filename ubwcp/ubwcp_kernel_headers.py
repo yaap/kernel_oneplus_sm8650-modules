@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-def run_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
+def run_uapi_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
     if not h.startswith(prefix):
         print('error: expected prefix [%s] on header [%s]' % (prefix, h))
         return False
@@ -32,22 +32,49 @@ def run_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
     cmd = ["sh", headers_install, h, out_h]
 
     if verbose:
-        print('run_headers_install: cmd is %s' % cmd)
+        print('run_uapi_headers_install: cmd is %s' % cmd)
 
     result = subprocess.call(cmd, env=env)
 
     if result != 0:
-        print('error: run_headers_install: cmd %s failed %d' % (cmd, result))
+        print('error: run_uapi_headers_install: cmd %s failed %d' % (cmd, result))
         return False
     return True
 
-def gen_ubwcp_headers(verbose, gen_dir, headers_install, unifdef, ubwcp_include_uapi):
+def run_kernel_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
+    if not h.startswith(prefix):
+        print('error: expected prefix [%s] on header [%s]' % (prefix, h))
+        return False
+
+    out_h = os.path.join(gen_dir, h[len(prefix):])
+    (out_h_dirname, out_h_basename) = os.path.split(out_h)
+    env = os.environ.copy()
+    cmd = ["cp", h, out_h]
+
+    if verbose:
+        print('run_kernel_headers_install: cmd is %s' % cmd)
+
+    result = subprocess.call(cmd, env=env)
+
+    if result != 0:
+        print('error: run_kernel_headers_install: cmd %s failed %d' % (cmd, result))
+        return False
+    return True
+
+def gen_ubwcp_headers(verbose, gen_dir, headers_install, unifdef, ubwcp_include):
     error_count = 0
-    for h in ubwcp_include_uapi:
-        ubwcp_uapi_include_prefix = os.path.join(h.split('/include/uapi')[0], 'include', 'uapi') + os.sep
-        if not run_headers_install(
+    for h in ubwcp_include:
+        if 'include/uapi' in h:
+            ubwcp_include_prefix = os.path.join(h.split('/include/uapi')[0], 'include', 'uapi') + os.sep
+            if not run_uapi_headers_install(
                 verbose, gen_dir, headers_install, unifdef,
-                ubwcp_uapi_include_prefix, h): error_count += 1
+                ubwcp_include_prefix, h): error_count += 1
+        elif 'include/kernel' in h:
+            ubwcp_include_prefix = os.path.join(h.split('/include/kernel')[0], 'include', 'kernel') + os.sep
+            if not run_kernel_headers_install(
+                verbose, gen_dir, headers_install, unifdef,
+                ubwcp_include_prefix, h): error_count += 1
+
     return error_count
 
 def main():
@@ -67,8 +94,8 @@ def main():
             '--gen_dir', required=True,
             help='Where to place the generated files.')
     parser.add_argument(
-            '--ubwcp_include_uapi', required=True, nargs='*',
-            help='The list of techpack/*/include/uapi header files.')
+            '--ubwcp_include', required=True, nargs='*',
+            help='The list of header files.')
     parser.add_argument(
             '--headers_install', required=True,
             help='The headers_install tool to process input headers.')
@@ -82,12 +109,12 @@ def main():
     if args.verbose:
         print('header_arch [%s]' % args.header_arch)
         print('gen_dir [%s]' % args.gen_dir)
-        print('ubwcp_include_uapi [%s]' % args.ubwcp_include_uapi)
+        print('ubwcp_include [%s]' % args.ubwcp_include)
         print('headers_install [%s]' % args.headers_install)
         print('unifdef [%s]' % args.unifdef)
 
     return gen_ubwcp_headers(args.verbose, args.gen_dir,
-            args.headers_install, args.unifdef, args.ubwcp_include_uapi)
+            args.headers_install, args.unifdef, args.ubwcp_include)
 
 if __name__ == '__main__':
     sys.exit(main())
