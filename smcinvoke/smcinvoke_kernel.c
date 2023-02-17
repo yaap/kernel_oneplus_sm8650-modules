@@ -272,7 +272,7 @@ exit:
 	return ret | req.result;
 }
 
-static int get_root_obj(struct Object *rootObj)
+int get_root_obj(struct Object *rootObj)
 {
 	int ret = 0;
 	int root_fd = -1;
