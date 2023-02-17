@@ -2194,12 +2194,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_bitrate_boost_iris33,
 		msm_vidc_set_vbr_related_properties},
 
-	{MIN_QUALITY, ENC, H264,
-		{BLUR_TYPES},
-		msm_vidc_adjust_min_quality,
-		msm_vidc_set_u32},
-
-	{MIN_QUALITY, ENC, HEVC,
+	{MIN_QUALITY, ENC, H264 | HEVC,
 		{BLUR_TYPES},
 		msm_vidc_adjust_min_quality,
 		msm_vidc_set_u32},
