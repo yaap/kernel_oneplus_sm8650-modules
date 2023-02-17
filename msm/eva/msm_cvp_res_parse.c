@@ -1092,8 +1092,17 @@ static int msm_cvp_populate_context_bank(struct device *dev,
 	}
 
 	dprintk(CVP_CORE, "%s: context bank has name %s\n", __func__, cb->name);
-	if (!strcmp(cb->name, "cvp_dummy"))
-		goto success_setup_cb;
+	if (!strcmp(cb->name, "cvp_camera")) {
+		cb->is_secure = true;
+		rc = msm_cvp_setup_context_bank(&core->resources, cb, dev);
+		if (rc) {
+			dprintk(CVP_ERR, "Cannot setup context bank %s %d\n",
+					cb->name, rc);
+			goto err_setup_cb;
+		}
+
+		return 0;
+	}
 
 	rc = of_property_read_u32_array(np, "qcom,iommu-dma-addr-pool",
 			(u32 *)&cb->addr_range, 2);
@@ -1120,7 +1129,6 @@ static int msm_cvp_populate_context_bank(struct device *dev,
 		cb->name, cb->addr_range.start,
 		cb->addr_range.size, cb->buffer_type);
 
-success_setup_cb:
 	cb->domain = iommu_get_domain_for_dev(dev);
 	if (IS_ERR_OR_NULL(cb->domain)) {
 		dprintk(CVP_ERR, "Create domain failed\n");
