@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _GEN7_REG_H
@@ -157,6 +157,12 @@
 #define GEN7_CP_LPAC_ROQ_DBG_DATA        0xb35
 #define GEN7_CP_LPAC_FIFO_DBG_DATA       0xb36
 #define GEN7_CP_LPAC_FIFO_DBG_ADDR       0xb40
+#define GEN7_CP_AQE_INSTR_BASE_LO_0      0xb70
+#define GEN7_CP_AQE_INSTR_BASE_HI_0      0xb71
+#define GEN7_CP_AQE_INSTR_BASE_LO_1      0xb72
+#define GEN7_CP_AQE_INSTR_BASE_HI_1      0xb73
+#define GEN7_CP_AQE_APRIV_CNTL           0xb78
+
 #define GEN7_CP_AQE_ROQ_DBG_ADDR_0       0xba8
 #define GEN7_CP_AQE_ROQ_DBG_ADDR_1       0xba9
 #define GEN7_CP_AQE_ROQ_DBG_DATA_0       0xbac
@@ -624,6 +630,7 @@
 #define GEN7_RBBM_SP_HYST_CNT            0x00042
 #define GEN7_RBBM_SW_RESET_CMD           0x00043
 #define GEN7_RBBM_RAC_THRESHOLD_CNT      0x00044
+#define GEN7_RBBM_CLOCK_CNTL_GLOBAL      0x000ad
 #define GEN7_RBBM_CLOCK_CNTL             0x000ae
 #define GEN7_RBBM_CLOCK_CNTL_SP0         0x000b0
 #define GEN7_RBBM_CLOCK_CNTL2_SP0        0x000b4
@@ -670,6 +677,8 @@
 #define GEN7_RBBM_CLOCK_DELAY_HLSQ       0x0011c
 #define GEN7_RBBM_CLOCK_HYST_HLSQ        0x0011d
 #define GEN7_RBBM_CGC_GLOBAL_LOAD_CMD    0x0011e
+#define GEN7_RBBM_CGC_P2S_TRIG_CMD       0x0011f
+#define GEN7_RBBM_CGC_P2S_STATUS         0x00122
 #define GEN7_RBBM_CLOCK_HYST2_VFD        0x0012f
 #define GEN7_RBBM_CLOCK_MODE_CP          0x00260
 #define GEN7_RBBM_CLOCK_MODE_BV_LRZ      0x00284
@@ -1208,6 +1217,9 @@
 
 /* FENCE control registers */
 #define GEN7_GMU_AHB_FENCE_RANGE_0		0x23b11
+
+/* GMU countables */
+#define GEN7_GMU_CM3_BUSY_CYCLES		0
 
 /* GPUCC registers */
 #define GEN7_GPU_CC_GX_DOMAIN_MISC3		0x26541

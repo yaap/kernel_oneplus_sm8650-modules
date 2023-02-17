@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/component.h>
 #include <linux/delay.h>
@@ -2199,6 +2199,8 @@ static int adreno_prop_u32(struct kgsl_device *device,
 		val =  adreno_dev->raytracing_enabled ? 1 : 0;
 	else if (param->type == KGSL_PROP_IS_FASTBLEND_ENABLED)
 		val = adreno_dev->fastblend_enabled ? 1 : 0;
+	else if (param->type == KGSL_PROP_IS_AQE_ENABLED)
+		val = ADRENO_FEATURE(adreno_dev, ADRENO_AQE) ? 1 : 0;
 
 	return copy_prop(param, &val, sizeof(val));
 }
@@ -2243,6 +2245,7 @@ static const struct {
 	{ KGSL_PROP_IS_RAYTRACING_ENABLED, adreno_prop_u32},
 	{ KGSL_PROP_IS_FASTBLEND_ENABLED, adreno_prop_u32},
 	{ KGSL_PROP_UCHE_TRAP_BASE, adreno_prop_uche_trap_base },
+	{ KGSL_PROP_IS_AQE_ENABLED, adreno_prop_u32 },
 };
 
 static int adreno_getproperty(struct kgsl_device *device,
@@ -3659,8 +3662,8 @@ static void __exit kgsl_3d_exit(void)
 	kgsl_core_exit();
 }
 
-module_param_named(enable, adreno_preemption_enable, bool, 0600);
-MODULE_PARM_DESC(enable, "Enable GPU HW Preemption");
+module_param_named(preempt_enable, adreno_preemption_enable, bool, 0600);
+MODULE_PARM_DESC(preempt_enable, "Enable GPU HW Preemption");
 
 module_init(kgsl_3d_init);
 module_exit(kgsl_3d_exit);
