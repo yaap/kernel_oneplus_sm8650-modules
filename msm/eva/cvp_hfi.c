@@ -767,7 +767,39 @@ static int __read_register(struct iris_hfi_device *device, u32 reg)
 	return rc;
 }
 
-static void __set_registers(struct iris_hfi_device *device)
+static bool __noc_access_ok(struct iris_hfi_device *device)
+{
+	int ret;
+
+	ret = __read_register(device, CVP_CC_MVS1C_CBCR);
+	if (ret & 0x80000000) {
+		dprintk(CVP_ERR, "%s MVS1C off\n", __func__);
+		return false;
+	}
+	ret = __read_register(device, CVP_CC_MVS1_CBCR);
+	if (ret & 0x80000000) {
+		dprintk(CVP_ERR, "%s MVS1 off\n", __func__);
+		return false;
+	}
+	ret = __read_register(device, CVP_CC_AHB_CBCR);
+	if (ret & 0x80000000) {
+		dprintk(CVP_ERR, "%s AHB off\n", __func__);
+		return false;
+	}
+	ret = __read_register(device, CVP_CC_XO_CBCR);
+	if (ret & 0x80000000) {
+		dprintk(CVP_ERR, "%s XO off\n", __func__);
+		return false;
+	}
+	ret = __read_register(device, CVP_CC_SLEEP_CBCR);
+	if (ret & 0x80000000) {
+		dprintk(CVP_ERR, "%s SLEEP off\n", __func__);
+		return false;
+	}
+	return true;
+}
+
+static int __set_registers(struct iris_hfi_device *device)
 {
 	struct msm_cvp_core *core;
 	struct msm_cvp_platform_data *pdata;
@@ -777,7 +809,7 @@ static void __set_registers(struct iris_hfi_device *device)
 	if (!device->res) {
 		dprintk(CVP_ERR,
 			"device resources null, cannot set registers\n");
-		return;
+		return -EINVAL ;
 	}
 
 	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
@@ -792,18 +824,32 @@ static void __set_registers(struct iris_hfi_device *device)
 					reg_set->reg_tbl[i].value);
 	}
 
+	if (!__noc_access_ok(device))
+		return -EINVAL;
+
 	__write_register(device, CVP_CPU_CS_AXI4_QOS,
 				pdata->noc_qos->axi_qos);
-	__write_register(device, CVP_NOC_PRIORITYLUT_LOW,
+	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_LOW,
 				pdata->noc_qos->prioritylut_low);
-	__write_register(device, CVP_NOC_PRIORITYLUT_HIGH,
+	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_HIGH,
 				pdata->noc_qos->prioritylut_high);
-	__write_register(device, CVP_NOC_URGENCY_LOW,
+	__write_register(device, CVP_NOC_RGE_URGENCY_LOW,
 				pdata->noc_qos->urgency_low);
-	__write_register(device, CVP_NOC_DANGERLUT_LOW,
+	__write_register(device, CVP_NOC_RGE_DANGERLUT_LOW,
 				pdata->noc_qos->dangerlut_low);
-	__write_register(device, CVP_NOC_SAFELUT_LOW,
+	__write_register(device, CVP_NOC_RGE_SAFELUT_LOW,
 				pdata->noc_qos->safelut_low);
+	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_LOW,
+				pdata->noc_qos->prioritylut_low);
+	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_HIGH,
+				pdata->noc_qos->prioritylut_high);
+	__write_register(device, CVP_NOC_CDM_URGENCY_LOW,
+				pdata->noc_qos->urgency_low);
+	__write_register(device, CVP_NOC_CDM_DANGERLUT_LOW,
+				pdata->noc_qos->dangerlut_low);
+	__write_register(device, CVP_NOC_CDM_SAFELUT_LOW,
+				pdata->noc_qos->safelut_low);
+	return 0;
 }
 
 /*
@@ -4208,7 +4254,9 @@ static int __iris_power_on(struct iris_hfi_device *device)
 	 * Re-program all of the registers that get reset as a result of
 	 * regulator_disable() and _enable()
 	 */
-	__set_registers(device);
+	rc = __set_registers(device);
+	if (rc)
+		goto fail_enable_core;
 
 	dprintk(CVP_CORE, "Done with register set\n");
 	call_iris_op(device, interrupt_init, device);

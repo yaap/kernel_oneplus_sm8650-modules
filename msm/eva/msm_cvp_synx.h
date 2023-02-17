@@ -40,7 +40,7 @@ struct cvp_fence_command {
 	u32 num_fences;
 	u32 output_index;
 	u32 type;
-	u32 synx[MAX_HFI_FENCE_SIZE/2];
+	u32 synx[MAX_HFI_FENCE_SIZE];
 	struct cvp_hfi_cmd_session_hdr *pkt;
 };
 
