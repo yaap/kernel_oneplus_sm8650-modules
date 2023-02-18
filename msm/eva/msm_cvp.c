@@ -171,6 +171,7 @@ static int msm_cvp_session_process_hfi(
 	unsigned int offset = 0, buf_num = 0, signal;
 	struct cvp_session_queue *sq;
 	struct msm_cvp_inst *s;
+	struct cvp_hfi_cmd_session_hdr *pkt_hdr;
 	bool is_config_pkt;
 
 
@@ -226,7 +227,8 @@ static int msm_cvp_session_process_hfi(
 	}
 	if (!is_buf_param_valid(buf_num, offset)) {
 		dprintk(CVP_ERR, "Incorrect buffer num and offset in cmd\n");
-		return -EINVAL;
+		rc = -EINVAL;
+		goto exit;
 	}
 
 	rc = msm_cvp_proc_oob(inst, in_pkt);
@@ -235,7 +237,15 @@ static int msm_cvp_session_process_hfi(
 		goto exit;
 	}
 
-	cvp_enqueue_pkt(inst, in_pkt, offset, buf_num);
+	rc = cvp_enqueue_pkt(inst, in_pkt, offset, buf_num);
+	if (rc) {
+		pkt_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
+		dprintk(CVP_ERR, "Failed to enqueue pkt, inst %pK "
+			"pkt_type %08x ktid %llu transaction_id %u\n",
+			inst, pkt_hdr->packet_type,
+			pkt_hdr->client_data.kdata,
+			pkt_hdr->client_data.transaction_id);
+	}
 
 exit:
 	cvp_put_inst(inst);
@@ -599,8 +609,10 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	rc = cvp_alloc_fence_data((&f), cmd_hdr->size);
-	if (rc)
+	if (rc) {
+		dprintk(CVP_ERR,"%s: Failed to alloc fence data", __func__);
 		goto exit;
+	}
 
 	f->type = cmd_hdr->packet_type;
 	f->mode = OP_NORMAL;
@@ -668,11 +680,11 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	if (f->num_fences == 0)
 		goto free_exit;
 
-	rc = inst->core->synx_ftbl->cvp_import_synx(inst, f,
-		(u32*)fences);
-
-	if (rc)
+	rc = inst->core->synx_ftbl->cvp_import_synx(inst, f, (u32*)fences);
+	if (rc) {
+		dprintk(CVP_ERR,"%s: Failed to import fences", __func__);
 		goto free_exit;
+	}
 
 fence_cmd_queue:
 	memcpy(f->pkt, cmd_hdr, cmd_hdr->size);
@@ -735,16 +747,16 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 				msm_cvp_unmap_frame(inst,
 					cmd_hdr->client_data.kdata);
 		}
-		goto exit;
+	} else if (rc > 0) {
+		dprintk(CVP_SYNX, "Going fenced path\n");
+		rc = 0;
 	} else {
-		if (rc > 0)
-			dprintk(CVP_SYNX, "Going fenced path\n");
-		else if (map_type == MAP_FRAME)
+		dprintk(CVP_ERR,"%s: Failed to populate fences\n",
+			__func__);
+		if (map_type == MAP_FRAME)
 			msm_cvp_unmap_frame(inst, cmd_hdr->client_data.kdata);
-		goto exit;
 	}
 
-exit:
 	return rc;
 }
 
