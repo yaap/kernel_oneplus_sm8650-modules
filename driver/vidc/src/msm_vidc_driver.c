@@ -2524,6 +2524,7 @@ int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
 		list_add_tail(&buf->list, &buffers->list);
 		buf->type = buf_type;
 		buf->index = idx;
+		buf->region = call_mem_op(core, buffer_region, inst, buf_type);
 	}
 	i_vpr_h(inst, "%s: allocated %d buffers for type %s\n",
 		__func__, num_buffers, buf_name(buf_type));
@@ -3295,6 +3296,7 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 
 	buffer->dmabuf = mem->dmabuf;
 	buffer->device_addr = mem->device_addr;
+	buffer->region = mem->region;
 	i_vpr_h(inst, "%s: create: type: %8s, size: %9u, device_addr %#llx\n", __func__,
 		buf_name(buffer_type), buffers->size, buffer->device_addr);
 
