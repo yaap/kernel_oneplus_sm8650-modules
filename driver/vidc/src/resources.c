@@ -574,28 +574,6 @@ static int __init_clocks(struct msm_vidc_core *core)
 	return rc;
 }
 
-static int __clock_set_flag(struct msm_vidc_core *core,
-	const char *name, enum branch_mem_flags flag)
-{
-        struct clock_info *cinfo = NULL;
-	bool found = false;
-
-        /* get clock handle */
-        venus_hfi_for_each_clock(core, cinfo) {
-		if (strcmp(cinfo->name, name))
-			continue;
-		found = true;
-		qcom_clk_set_flags(cinfo->clk, flag);
-		d_vpr_h("%s: set flag %d on clock %s\n", __func__, flag, name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: failed to find clock: %s\n", __func__, name);
-		return -EINVAL;
-	}
-	return 0;
-}
-
 static int __init_reset_clocks(struct msm_vidc_core *core)
 {
 	const struct clk_rst_table *rst_tbl;
@@ -1799,7 +1777,6 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.set_clks = __set_clocks,
 	.clk_enable = __prepare_enable_clock,
 	.clk_disable = __disable_unprepare_clock,
-	.clk_set_flag = __clock_set_flag,
 	.clk_print_residency_stats = __print_clock_residency_stats,
 	.clk_reset_residency_stats = __reset_clock_residency_stats,
 };
