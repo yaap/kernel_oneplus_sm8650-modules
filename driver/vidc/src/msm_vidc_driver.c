@@ -276,20 +276,18 @@ int msm_vidc_suspend_locked(struct msm_vidc_core *core)
 	return rc;
 }
 
-static int msm_vidc_try_suspend(struct msm_vidc_inst *inst)
+static int msm_vidc_try_suspend(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core;
 	int rc = 0;
 
-	if (!inst || !inst->core) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	core_lock(core, __func__);
 	if (list_empty(&core->instances) && list_empty(&core->dangling_instances)) {
-		i_vpr_h(inst, "%s: closed last open session. suspend video core\n", __func__);
+		d_vpr_h("%s: closed last open session. suspend video core\n", __func__);
 		msm_vidc_suspend_locked(core);
 	}
 	core_unlock(core, __func__);
@@ -2743,17 +2741,6 @@ static void msm_vidc_update_input_cr(struct msm_vidc_inst *inst, u32 idx, u32 cr
 	}
 }
 
-static void msm_vidc_free_input_cr_list(struct msm_vidc_inst *inst)
-{
-	struct msm_vidc_input_cr_data *temp, *next;
-
-	list_for_each_entry_safe(temp, next, &inst->enc_input_crs, list) {
-		list_del(&temp->list);
-		msm_vidc_vmem_free((void **)&temp);
-	}
-	INIT_LIST_HEAD(&inst->enc_input_crs);
-}
-
 void msm_vidc_update_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, enum msm_vidc_debugfs_event etype)
 {
@@ -3436,6 +3423,12 @@ int msm_vidc_event_queue_init(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
+	/* do not init, if already inited */
+	if (inst->event_handler.vdev) {
+		i_vpr_e(inst, "%s: already inited\n", __func__);
+		return -EINVAL;
+	}
+
 	if (is_decode_session(inst))
 		index = 0;
 	else if (is_encode_session(inst))
@@ -3461,11 +3454,12 @@ int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst)
 
 	/* do not deinit, if not already inited */
 	if (!inst->event_handler.vdev) {
-		i_vpr_e(inst, "%s: already not inited\n", __func__);
+		i_vpr_h(inst, "%s: already not inited\n", __func__);
 		return 0;
 	}
 
 	v4l2_fh_del(&inst->event_handler);
+	inst->event_handler.ctrl_handler = NULL;
 	v4l2_fh_exit(&inst->event_handler);
 
 	return rc;
@@ -3548,9 +3542,9 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	if (inst->vb2q_init) {
-		i_vpr_h(inst, "%s: vb2q already inited\n", __func__);
-		return 0;
+	if (inst->m2m_dev) {
+		i_vpr_e(inst, "%s: vb2q already inited\n", __func__);
+		return -EINVAL;
 	}
 
 	inst->m2m_dev = v4l2_m2m_init(core->v4l2_m2m_ops);
@@ -3563,6 +3557,7 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 	/* v4l2_m2m_ctx_init will do input & output queues initialization */
 	inst->m2m_ctx = v4l2_m2m_ctx_init(inst->m2m_dev, inst, m2m_queue_init);
 	if (!inst->m2m_ctx) {
+		rc = -EINVAL;
 		i_vpr_e(inst, "%s: v4l2_m2m_ctx_init failed\n", __func__);
 		goto fail_m2m_ctx_init;
 	}
@@ -3587,7 +3582,6 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 	rc = vb2q_init(inst, inst->bufq[OUTPUT_META_PORT].vb2q, OUTPUT_META_PLANE);
 	if (rc)
 		goto fail_out_meta_vb2q_init;
-	inst->vb2q_init = true;
 
 	return 0;
 
@@ -3601,10 +3595,13 @@ fail_in_meta_vb2q_init:
 	inst->bufq[INPUT_META_PORT].vb2q = NULL;
 fail_in_meta_alloc:
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
+	inst->m2m_ctx = NULL;
+	inst->event_handler.m2m_ctx = NULL;
 	inst->bufq[OUTPUT_PORT].vb2q = NULL;
 	inst->bufq[INPUT_PORT].vb2q = NULL;
 fail_m2m_ctx_init:
 	v4l2_m2m_release(inst->m2m_dev);
+	inst->m2m_dev = NULL;
 fail_m2m_init:
 	return rc;
 }
@@ -3617,7 +3614,7 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	if (!inst->vb2q_init) {
+	if (!inst->m2m_dev) {
 		i_vpr_h(inst, "%s: vb2q already deinited\n", __func__);
 		return 0;
 	}
@@ -3627,9 +3624,11 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 	 * is called from v4l2_m2m_ctx_release()
 	 */
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
+	inst->m2m_ctx = NULL;
 	inst->bufq[OUTPUT_PORT].vb2q = NULL;
 	inst->bufq[INPUT_PORT].vb2q = NULL;
 	v4l2_m2m_release(inst->m2m_dev);
+	inst->m2m_dev = NULL;
 
 	vb2_queue_release(inst->bufq[OUTPUT_META_PORT].vb2q);
 	msm_vidc_vmem_free((void **)&inst->bufq[OUTPUT_META_PORT].vb2q);
@@ -3637,7 +3636,6 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 	vb2_queue_release(inst->bufq[INPUT_META_PORT].vb2q);
 	msm_vidc_vmem_free((void **)&inst->bufq[INPUT_META_PORT].vb2q);
 	inst->bufq[INPUT_META_PORT].vb2q = NULL;
-	inst->vb2q_init = false;
 
 	return rc;
 }
@@ -3711,7 +3709,7 @@ int msm_vidc_remove_session(struct msm_vidc_inst *inst)
 	return 0;
 }
 
-static int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
+int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
@@ -4931,6 +4929,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 	struct msm_vidc_input_timer *timer, *dummy_timer;
 	struct msm_vidc_buffer_stats *stats, *dummy_stats;
 	struct msm_vidc_inst_cap_entry *entry, *dummy_entry;
+	struct msm_vidc_input_cr_data *cr, *dummy_cr;
 	struct msm_vidc_fence *fence, *dummy_fence;
 	struct msm_vidc_core *core;
 
@@ -5070,6 +5069,11 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		msm_vidc_vmem_free((void **)&entry);
 	}
 
+	list_for_each_entry_safe(cr, dummy_cr, &inst->enc_input_crs, list) {
+		list_del(&cr->list);
+		msm_vidc_vmem_free((void **)&cr);
+	}
+
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
 		i_vpr_e(inst, "%s: destroying fence %s\n", __func__, fence->name);
 		msm_vidc_fence_destroy(inst, (u32)fence->dma_fence.seqno);
@@ -5083,25 +5087,38 @@ static void msm_vidc_close_helper(struct kref *kref)
 {
 	struct msm_vidc_inst *inst = container_of(kref,
 		struct msm_vidc_inst, kref);
+	struct msm_vidc_core *core;
+
+	core = inst->core;
 
 	i_vpr_h(inst, "%s()\n", __func__);
-	msm_vidc_fence_deinit(inst);
 	msm_vidc_debugfs_deinit_inst(inst);
+	msm_vidc_fence_deinit(inst);
 	if (is_decode_session(inst))
 		msm_vdec_inst_deinit(inst);
 	else if (is_encode_session(inst))
 		msm_venc_inst_deinit(inst);
-	msm_vidc_free_input_cr_list(inst);
-	if (inst->workq)
-		destroy_workqueue(inst->workq);
+	/**
+	 * Lock is not necessay here, but in force close case,
+	 * vb2q_deinit() will attempt to call stop_streaming()
+	 * vb2 callback and i.e expecting inst lock to be taken.
+	 * So acquire lock before calling vb2q_deinit.
+	 */
+	inst_lock(inst, __func__);
+	msm_vidc_vb2_queue_deinit(inst);
+	msm_vidc_event_queue_deinit(inst);
+	inst_unlock(inst, __func__);
+	destroy_workqueue(inst->workq);
 	msm_vidc_destroy_buffers(inst);
+	msm_vidc_remove_session(inst);
 	msm_vidc_remove_dangling_session(inst);
-	msm_vidc_try_suspend(inst);
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->request_lock);
 	mutex_destroy(&inst->lock);
 	msm_vidc_vmem_free((void **)&inst->capabilities);
 	msm_vidc_vmem_free((void **)&inst);
+	/* try suspending video hardware */
+	msm_vidc_try_suspend(core);
 }
 
 struct msm_vidc_inst *get_inst_ref(struct msm_vidc_core *core,
