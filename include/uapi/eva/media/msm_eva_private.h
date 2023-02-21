@@ -129,6 +129,8 @@ struct cvp_buf_type {
 	__u32 fence_type;
 	__u32 input_handle;
 	__u32 output_handle;
+	__u32 debug_flags;
+	__u32 crc;
 };
 
 /**

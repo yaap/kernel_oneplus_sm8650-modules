@@ -1794,10 +1794,10 @@ struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
 	if (!buffer_size)
 		return NULL;
 
-	/* PERSIST buffer requires secure mapping
-	 * Disable and wait for hyp_assign available
+	/* If PERSIST buffer requires secure mapping, uncomment
+	 * below flags setting
+	 * smem_flags |= SMEM_SECURE | SMEM_NON_PIXEL;
 	 */
-	smem_flags |= SMEM_SECURE | SMEM_NON_PIXEL;
 
 	buf = cvp_kmem_cache_zalloc(&cvp_driver->buf_cache, GFP_KERNEL);
 	if (!buf) {
@@ -1812,7 +1812,7 @@ struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
 	}
 
 	buf->smem->flags = smem_flags;
-	rc = msm_cvp_smem_alloc(buffer_size, 1, 0,
+	rc = msm_cvp_smem_alloc(buffer_size, 1, 0, /* 0: no mapping in kernel space */
 		&(inst->core->resources), buf->smem);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to allocate ARP memory\n");
@@ -1954,7 +1954,7 @@ int cvp_allocate_dsp_bufs(struct msm_cvp_inst *inst,
 	rc = msm_cvp_smem_alloc(buffer_size, 1, 0,
 			&(inst->core->resources), buf->smem);
 	if (rc) {
-		dprintk(CVP_ERR, "Failed to allocate ARP memory\n");
+		dprintk(CVP_ERR, "Failed to allocate DSP buf\n");
 		goto err_no_mem;
 	}
 	buf->smem->pkt_type = buf->smem->buf_idx = 0;
