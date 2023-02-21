@@ -2029,8 +2029,6 @@ int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 
 	if (msm_vidc_get_parent_value(inst, BLUR_TYPES, BITRATE_MODE,
 		&rc_type, __func__) ||
-		msm_vidc_get_parent_value(inst, BLUR_TYPES, PIX_FMTS,
-		&pix_fmts, __func__) ||
 		msm_vidc_get_parent_value(inst, BLUR_TYPES, MIN_QUALITY,
 		&min_quality, __func__) ||
 		msm_vidc_get_parent_value(inst, BLUR_TYPES, META_ROI_INFO,
@@ -2045,11 +2043,21 @@ int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 			(rc_type != HFI_RC_VBR_CFR &&
 			rc_type != HFI_RC_CBR_CFR &&
 			rc_type != HFI_RC_CBR_VFR) ||
-			is_10bit_colorformat(pix_fmts) || roi_enable) {
+			roi_enable) {
 			adjusted_value = MSM_VIDC_BLUR_NONE;
+			goto exit;
+		}
+
+		if (inst->codec == MSM_VIDC_HEVC) {
+			if (msm_vidc_get_parent_value(inst, BLUR_TYPES, PIX_FMTS,
+				&pix_fmts, __func__))
+				return -EINVAL;
+			if (is_10bit_colorformat(pix_fmts))
+				adjusted_value = MSM_VIDC_BLUR_NONE;
 		}
 	}
 
+exit:
 	msm_vidc_update_cap_value(inst, BLUR_TYPES,
 		adjusted_value, __func__);
 
