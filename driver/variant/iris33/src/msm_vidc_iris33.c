@@ -471,13 +471,16 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	count = 0;
 	do {
 		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
-		if (rc) {
-			d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
+		if (!rc) {
+			break;
 		} else {
+			d_vpr_e(
+				"%s: failed to acquire video_xo_reset control, count %d\n",
+				__func__, count);
 			count++;
 			usleep_range(1000, 1000);
 		}
-	} while (rc && count < 100);
+	} while (count < 100);
 
 	if (count >= 100) {
 		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
