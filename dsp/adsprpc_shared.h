@@ -832,6 +832,7 @@ struct smq_invoke_ctx {
 	uint32_t sc_interrupted;
 	struct fastrpc_file *fl_interrupted;
 	uint32_t handle_interrupted;
+	uint64_t xo_time_in_us_created; /* XO Timestamp (in us) of ctx creation */
 	uint64_t xo_time_in_us_interrupted; /* XO Timestamp (in us) of interrupted ctx */
 	uint64_t xo_time_in_us_restored; /* XO Timestamp (in us) of restored ctx */
 	int tx_index; /* index of current ctx in channel gmsg_log array */

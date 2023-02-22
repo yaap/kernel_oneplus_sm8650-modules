@@ -1870,6 +1870,7 @@ static int context_alloc(struct fastrpc_file *fl, uint32_t kernel,
 		err = -ENOKEY;
 		goto bail;
 	}
+	ctx->xo_time_in_us_created = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
 	spin_lock(&fl->hlock);
 	hlist_add_head(&ctx->hn, &clst->pending);
 	clst->num_active_ctxs++;
@@ -3114,6 +3115,8 @@ static void fastrpc_update_invoke_count(uint32_t handle, uint64_t *perf_counter,
 	}
 }
 
+static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name);
+
 int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 				   uint32_t kernel,
 				   struct fastrpc_ioctl_invoke_async *inv)
@@ -3174,6 +3177,18 @@ int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	trace_fastrpc_msg("context_alloc: end");
 	if (err)
 		goto bail;
+
+	if (fl->servloc_name) {
+		err = fastrpc_check_pd_status(fl,
+			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME);
+		err |= fastrpc_check_pd_status(fl,
+			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME);
+		err |= fastrpc_check_pd_status(fl,
+			SENSORS_PDR_SLPI_SERVICE_LOCATION_CLIENT_NAME);
+		if (err)
+			goto bail;
+	}
+
 	isasyncinvoke = (ctx->asyncjob.isasyncjob ? true : false);
 	if (fl->profile)
 		perf_counter = (uint64_t *)ctx->perf + PERF_COUNT;
@@ -6891,17 +6906,6 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 	p.inv.perf_kernel = NULL;
 	p.inv.perf_dsp = NULL;
 	p.inv.job = NULL;
-
-	if (fl->servloc_name) {
-		err = fastrpc_check_pd_status(fl,
-			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME);
-		err |= fastrpc_check_pd_status(fl,
-			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME);
-		err |= fastrpc_check_pd_status(fl,
-			SENSORS_PDR_SLPI_SERVICE_LOCATION_CLIENT_NAME);
-		if (err)
-			goto bail;
-	}
 
 	spin_lock(&fl->hlock);
 	if (fl->file_close >= FASTRPC_PROCESS_EXIT_START) {
