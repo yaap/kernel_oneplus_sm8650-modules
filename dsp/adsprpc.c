@@ -2363,7 +2363,7 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		VERIFY(err, !IS_ERR_OR_NULL(ctx->buf->virt));
 		if (err)
 			goto bail;
-		memset(ctx->buf->virt, 0, metalen);
+		memset(ctx->buf->virt, 0, ctx->buf->size);
 	}
 	ctx->used = metalen;
 
