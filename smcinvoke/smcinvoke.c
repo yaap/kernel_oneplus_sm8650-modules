@@ -377,7 +377,8 @@ struct smcinvoke_worker_thread {
 static struct smcinvoke_worker_thread smcinvoke[MAX_THREAD_NUMBER];
 static const char thread_name[MAX_THREAD_NUMBER][MAX_CHAR_NAME] = {
 	"smcinvoke_shmbridge_postprocess", "smcinvoke_object_postprocess", "smcinvoke_adci_thread"};
-static struct Object adci_clientEnv = Object_NULL;
+static struct Object adci_rootEnv = Object_NULL;
+extern int get_root_obj(struct Object *rootObj);
 
 static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		size_t in_buf_len,
@@ -619,18 +620,18 @@ static void smcinvoke_start_adci_thread(void)
 	int32_t  ret = OBJECT_ERROR;
 	int retry_count = 0;
 
-	ret = get_client_env_object(&adci_clientEnv);
+	ret = get_root_obj(&adci_rootEnv);
 	if (ret) {
-		pr_err("failed to get clientEnv for ADCI invoke thread. ret = %d\n", ret);
+		pr_err("failed to get rootEnv for ADCI invoke thread. ret = %d\n", ret);
 		/* Marking it Object_NULL in case of failure scenario in order to avoid
-		 * undefined behavior while releasing garbage adci_clientEnv object.
-		 */
-		adci_clientEnv = Object_NULL;
+		 * undefined behavior while relasing garbage adci_rootEnv object. */
+		adci_rootEnv = Object_NULL;
 		goto out;
 	}
 	/* Invoke call to QTEE which should never return if ADCI is supported */
+	pr_debug("Invoking adciAccept method in QTEE\n");
 	do {
-		ret = IClientEnv_adciAccept(adci_clientEnv);
+		ret = IClientEnv_adciAccept(adci_rootEnv);
 		if (ret == OBJECT_ERROR_BUSY) {
 			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
 			msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
@@ -644,7 +645,7 @@ static void smcinvoke_start_adci_thread(void)
 out:
 	/* Control should reach to this point only if ADCI feature is not supported by QTEE
 	  (or) ADCI thread held in QTEE is released. */
-	Object_ASSIGN_NULL(adci_clientEnv);
+	Object_ASSIGN_NULL(adci_rootEnv);
 }
 
 static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvoke)
@@ -748,18 +749,19 @@ static void smcinvoke_destroy_kthreads(void)
 	int32_t  ret = OBJECT_ERROR;
 	int retry_count = 0;
 
-	if(!Object_isNull(adci_clientEnv)) {
+	if (!Object_isNull(adci_rootEnv)) {
+		pr_debug("Invoking adciShutdown method in QTEE\n");
 		do {
-			ret = IClientEnv_adciShutdown(adci_clientEnv);
+			ret = IClientEnv_adciShutdown(adci_rootEnv);
 			if (ret == OBJECT_ERROR_BUSY) {
 				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
 				msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 			}
 		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
-		if(OBJECT_isERROR(ret)) {
+		if (OBJECT_isERROR(ret)) {
 			pr_err("adciShutdown in QTEE failed with error = %d\n", ret);
 		}
-		Object_ASSIGN_NULL(adci_clientEnv);
+		Object_ASSIGN_NULL(adci_rootEnv);
 	}
 
 	for (i = 0; i < MAX_THREAD_NUMBER; i++) {
