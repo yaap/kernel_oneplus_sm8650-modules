@@ -880,11 +880,18 @@ static int cvp_fence_thread_stop(struct msm_cvp_inst *inst)
 	return 0;
 }
 
-static int msm_cvp_session_start(struct msm_cvp_inst *inst,
+int msm_cvp_session_start(struct msm_cvp_inst *inst,
 		struct eva_kmd_arg *arg)
 {
 	struct cvp_session_queue *sq;
 	struct cvp_hfi_device *hdev;
+	int rc;
+	enum queue_state old_state;
+
+	if (!inst || !inst->core) {
+		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
 
 	sq = &inst->session_queue;
 	spin_lock(&sq->lock);
@@ -892,27 +899,80 @@ static int msm_cvp_session_start(struct msm_cvp_inst *inst,
 		dprintk(CVP_ERR, "session start failed queue not empty%d\n",
 			sq->msg_count);
 		spin_unlock(&sq->lock);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto exit;
 	}
+	old_state = sq->state;
 	sq->state = QUEUE_START;
 	spin_unlock(&sq->lock);
 
+	hdev = inst->core->device;
 	if (inst->prop.type == HFI_SESSION_FD
 		|| inst->prop.type == HFI_SESSION_DMM) {
 		spin_lock(&inst->core->resources.pm_qos.lock);
 		inst->core->resources.pm_qos.off_vote_cnt++;
 		spin_unlock(&inst->core->resources.pm_qos.lock);
-		hdev = inst->core->device;
 		call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
 	}
-	return cvp_fence_thread_start(inst);
+	/*
+	 * cvp_fence_thread_start will increment reference to instance.
+	 * It guarantees the EVA session won't be deleted. Use of session
+	 * functions, such as session_start requires the session to be valid.
+	 */
+	rc = cvp_fence_thread_start(inst);
+	if (rc)
+		goto restore_state;
+
+	/* Send SESSION_START command */
+	rc = call_hfi_op(hdev, session_start, (void *)inst->session);
+	if (rc) {
+		dprintk(CVP_WARN, "%s: session start failed rc %d\n",
+				__func__, rc);
+		goto stop_thread;
+	}
+
+	/* Wait for FW response */
+	rc = wait_for_sess_signal_receipt(inst, HAL_SESSION_START_DONE);
+	if (rc) {
+		dprintk(CVP_WARN, "%s: wait for signal failed, rc %d\n",
+				__func__, rc);
+		goto stop_thread;
+	}
+
+	dprintk(CVP_SESS, "session %llx (%#x) started\n", inst, hash32_ptr(inst->session));
+
+	return 0;
+
+stop_thread:
+	cvp_fence_thread_stop(inst);
+restore_state:
+	spin_lock(&sq->lock);
+	sq->state = old_state;
+	spin_unlock(&sq->lock);
+exit:
+	return rc;
 }
 
-static int msm_cvp_session_stop(struct msm_cvp_inst *inst,
+int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 		struct eva_kmd_arg *arg)
 {
 	struct cvp_session_queue *sq;
-	struct eva_kmd_session_control *sc = &arg->data.session_ctrl;
+	struct eva_kmd_session_control *sc = NULL;
+	struct msm_cvp_inst *s;
+	struct cvp_hfi_device *hdev;
+	int rc;
+
+	if (!inst || !inst->core) {
+		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (arg)
+		sc = &arg->data.session_ctrl;
+
+	s = cvp_get_inst_validate(inst->core, inst);
+	if (!s)
+		return -ECONNRESET;
 
 	sq = &inst->session_queue;
 
@@ -920,9 +980,11 @@ static int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	if (sq->msg_count) {
 		dprintk(CVP_ERR, "session stop incorrect: queue not empty%d\n",
 			sq->msg_count);
-		sc->ctrl_data[0] = sq->msg_count;
+		if (sc)
+			sc->ctrl_data[0] = sq->msg_count;
 		spin_unlock(&sq->lock);
-		return -EUCLEAN;
+		rc =  -EUCLEAN;
+		goto exit;
 	}
 	sq->state = QUEUE_STOP;
 
@@ -930,9 +992,30 @@ static int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 			inst, hash32_ptr(inst->session));
 	spin_unlock(&sq->lock);
 
+	hdev = inst->core->device;
+	/* Send SESSION_STOP command */
+	rc = call_hfi_op(hdev, session_stop, (void *)inst->session);
+	if (rc) {
+		dprintk(CVP_WARN, "%s: session stop failed rc %d\n",
+				__func__, rc);
+		goto stop_thread;
+	}
+
+	/* Wait for FW response */
+	rc = wait_for_sess_signal_receipt(inst, HAL_SESSION_STOP_DONE);
+	if (rc) {
+		dprintk(CVP_WARN, "%s: wait for signal failed, rc %d\n",
+				__func__, rc);
+		goto stop_thread;
+	}
+
+stop_thread:
 	wake_up_all(&inst->session_queue.wq);
 
-	return cvp_fence_thread_stop(inst);
+	cvp_fence_thread_stop(inst);
+exit:
+	cvp_put_inst(s);
+	return rc;
 }
 
 int msm_cvp_session_queue_stop(struct msm_cvp_inst *inst)

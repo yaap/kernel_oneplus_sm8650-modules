@@ -503,7 +503,7 @@ static void handle_release_res_done(enum hal_command_response cmd, void *data)
 	cvp_put_inst(inst);
 }
 
-static void handle_session_flush(enum hal_command_response cmd, void *data)
+static void handle_session_ctrl(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
 	struct msm_cvp_inst *inst;
@@ -523,8 +523,8 @@ static void handle_session_flush(enum hal_command_response cmd, void *data)
 	}
 
 	if (response->status)
-		dprintk(CVP_ERR, "HFI sess flush err 0x%x\n",
-			response->status);
+		dprintk(CVP_ERR, "HFI sess ctrl err 0x%x HAL cmd %d\n",
+			response->status, cmd);
 
 	inst->error_code = response->status;
 	signal_session_msg_receipt(cmd, inst);
@@ -748,7 +748,9 @@ void cvp_handle_cmd_response(enum hal_command_response cmd, void *data)
 		handle_event_change(cmd, data);
 		break;
 	case HAL_SESSION_FLUSH_DONE:
-		handle_session_flush(cmd, data);
+	case HAL_SESSION_START_DONE:
+	case HAL_SESSION_STOP_DONE:
+		handle_session_ctrl(cmd, data);
 		break;
 	case HAL_SYS_WATCHDOG_TIMEOUT:
 	case HAL_SYS_ERROR:

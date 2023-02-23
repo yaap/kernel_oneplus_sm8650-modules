@@ -131,6 +131,7 @@ enum hal_command_response {
 	HAL_SESSION_END_DONE,
 	HAL_SESSION_SET_BUFFER_DONE,
 	HAL_SESSION_ABORT_DONE,
+	HAL_SESSION_START_DONE,
 	HAL_SESSION_STOP_DONE,
 	HAL_SESSION_CVP_OPERATION_CONFIG,
 	HAL_SESSION_FLUSH_DONE,
@@ -254,6 +255,8 @@ struct cvp_hfi_device {
 	int (*core_trigger_ssr)(void *device, enum hal_ssr_trigger_type);
 	int (*session_init)(void *device, void *session_id, void **new_session);
 	int (*session_end)(void *session);
+	int (*session_start)(void *session);
+	int (*session_stop)(void *session);
 	int (*session_abort)(void *session);
 	int (*session_set_buffers)(void *sess, u32 iova, u32 size);
 	int (*session_release_buffers)(void *sess);

@@ -2776,6 +2776,50 @@ static int iris_hfi_session_flush(void *sess)
 	return rc;
 }
 
+static int iris_hfi_session_start(void *sess)
+{
+	struct cvp_hal_session *session = sess;
+	struct iris_hfi_device *device;
+	int rc = 0;
+
+	if (!session || !session->device) {
+		dprintk(CVP_ERR, "Invalid Params %s\n", __func__);
+		return -EINVAL;
+	}
+
+	device = session->device;
+
+	mutex_lock(&device->lock);
+
+	rc = __send_session_cmd(session, HFI_CMD_SESSION_EVA_START);
+
+	mutex_unlock(&device->lock);
+
+	return rc;
+}
+
+static int iris_hfi_session_stop(void *sess)
+{
+	struct cvp_hal_session *session = sess;
+	struct iris_hfi_device *device;
+	int rc = 0;
+
+	if (!session || !session->device) {
+		dprintk(CVP_ERR, "Invalid Params %s\n", __func__);
+		return -EINVAL;
+	}
+
+	device = session->device;
+
+	mutex_lock(&device->lock);
+
+	rc = __send_session_cmd(session, HFI_CMD_SESSION_EVA_STOP);
+
+	mutex_unlock(&device->lock);
+
+	return rc;
+}
+
 static void __process_fatal_error(
 		struct iris_hfi_device *device)
 {
@@ -3137,6 +3181,7 @@ static void **get_session_id(struct msm_cvp_cb_info *info)
 	case HAL_SESSION_INIT_DONE:
 	case HAL_SESSION_END_DONE:
 	case HAL_SESSION_ABORT_DONE:
+	case HAL_SESSION_START_DONE:
 	case HAL_SESSION_STOP_DONE:
 	case HAL_SESSION_FLUSH_DONE:
 	case HAL_SESSION_SET_BUFFER_DONE:
@@ -5252,6 +5297,8 @@ static void iris_init_hfi_callbacks(struct cvp_hfi_device *hdev)
 	hdev->core_trigger_ssr = iris_hfi_core_trigger_ssr;
 	hdev->session_init = iris_hfi_session_init;
 	hdev->session_end = iris_hfi_session_end;
+	hdev->session_start = iris_hfi_session_start;
+	hdev->session_stop = iris_hfi_session_stop;
 	hdev->session_abort = iris_hfi_session_abort;
 	hdev->session_clean = iris_hfi_session_clean;
 	hdev->session_set_buffers = iris_hfi_session_set_buffers;

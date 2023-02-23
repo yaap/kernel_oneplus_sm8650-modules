@@ -96,7 +96,9 @@ enum CVP_DSP_COMMAND {
 	DSP2CPU_DEREGISTER_BUFFER = 18,
 	DSP2CPU_MEM_ALLOC = 19,
 	DSP2CPU_MEM_FREE = 20,
-	CVP_DSP_MAX_CMD = 21,
+	DSP2CPU_START_SESSION = 21,
+	DSP2CPU_STOP_SESSION = 22,
+	CVP_DSP_MAX_CMD = 23,
 };
 
 struct eva_power_req {
@@ -127,6 +129,17 @@ struct eva_mem_remote {
 	uint64_t v_dsp_addr;
 };
 
+/*
+ * command: defined as a packet initiated from one party.
+ * message: defined as a packet sent as response to a command
+ */
+
+/*
+ * cvp_dsp_cmd_msg contains
+ * the message sent from CPU to DSP
+ * or
+ * the command sent from CPU to DSP
+ */
 struct cvp_dsp_cmd_msg {
 	uint32_t type;
 	int32_t ret;
@@ -153,6 +166,7 @@ struct cvp_dsp_cmd_msg {
 	uint32_t reserved2;
 };
 
+/* cvp_dsp_rsp_msg contains the message sent from DSP to CPU */
 struct cvp_dsp_rsp_msg {
 	uint32_t type;
 	int32_t ret;
@@ -160,7 +174,8 @@ struct cvp_dsp_rsp_msg {
 	uint32_t reserved[CVP_DSP_MAX_RESERVED - 1];
 };
 
-struct cvp_dsp2cpu_cmd_msg {
+/* cvp_dsp2cpu_cmd contains the command sent from DSP to cpu*/
+struct cvp_dsp2cpu_cmd {
 	uint32_t type;
 	uint32_t ver;
 	uint32_t len;
@@ -222,7 +237,7 @@ struct cvp_dsp_apps {
 	uint64_t addr;
 	uint32_t size;
 	struct completion completions[CPU2DSP_MAX_CMD + 1];
-	struct cvp_dsp2cpu_cmd_msg pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd pending_dsp2cpu_cmd;
 	struct cvp_dsp_rsp_msg pending_dsp2cpu_rsp;
 	struct task_struct *dsp_thread;
 	/* dsp buffer mapping, set of dma function pointer */

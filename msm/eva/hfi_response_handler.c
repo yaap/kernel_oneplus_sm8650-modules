@@ -170,8 +170,8 @@ static int hfi_process_sys_init_done(u32 device_id,
 
 	status = hfi_map_err_status(pkt->error_type);
 	if (status) {
-		dprintk(CVP_ERR, "%s: status %#x\n",
-			__func__, status);
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, status, pkt->packet_type, pkt->error_type);
 		goto err_no_prop;
 	}
 
@@ -212,7 +212,8 @@ enum cvp_status cvp_hfi_process_sys_init_done_prop_read(
 
 	status = hfi_map_err_status(pkt->error_type);
 	if (status) {
-		dprintk(CVP_ERR, "%s: status %#x\n", __func__, status);
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, status, pkt->packet_type, pkt->error_type);
 		return status;
 	}
 
@@ -246,6 +247,9 @@ static int hfi_process_session_init_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.data.session_init_done = session_init_done;
 	cmd_done.size = sizeof(struct cvp_hal_session_init_done);
 
@@ -272,6 +276,9 @@ static int hfi_process_session_end_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_END_DONE;
@@ -299,6 +306,9 @@ static int hfi_process_session_abort_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_ABORT_DONE;
@@ -326,6 +336,9 @@ static int hfi_process_session_set_buf_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)get_msg_session_id(pkt);
 	cmd_done.status = hfi_map_err_status(get_msg_errorcode(pkt));
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_SET_BUFFER_DONE;
@@ -337,15 +350,15 @@ static int hfi_process_session_set_buf_done(u32 device_id,
 static int hfi_process_session_flush_done(u32 device_id,
 		void *hdr, struct msm_cvp_cb_info *info)
 {
-	struct cvp_hfi_msg_sys_session_flush_done_packet *pkt =
-		(struct cvp_hfi_msg_sys_session_flush_done_packet *)hdr;
+	struct cvp_hfi_msg_sys_session_ctrl_done_packet *pkt =
+		(struct cvp_hfi_msg_sys_session_ctrl_done_packet *)hdr;
 	struct msm_cvp_cb_cmd_done cmd_done = {0};
 
 	dprintk(CVP_SESS, "RECEIVED: SESSION_FLUSH_DONE[%#x]\n",
 			pkt->session_id);
 
 	if (!pkt || pkt->size <
-		sizeof(struct cvp_hfi_msg_sys_session_flush_done_packet)) {
+		sizeof(struct cvp_hfi_msg_sys_session_ctrl_done_packet)) {
 		dprintk(CVP_ERR, "%s: bad packet/packet size: %d\n",
 				__func__, pkt ? pkt->size : 0);
 		return -E2BIG;
@@ -353,6 +366,9 @@ static int hfi_process_session_flush_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_FLUSH_DONE;
@@ -360,6 +376,67 @@ static int hfi_process_session_flush_done(u32 device_id,
 
 	return 0;
 }
+
+static int hfi_process_session_start_done(u32 device_id,
+		void *hdr, struct msm_cvp_cb_info *info)
+{
+	struct cvp_hfi_msg_sys_session_ctrl_done_packet *pkt =
+		(struct cvp_hfi_msg_sys_session_ctrl_done_packet *)hdr;
+	struct msm_cvp_cb_cmd_done cmd_done = {0};
+
+	dprintk(CVP_SESS, "RECEIVED: SESSION_START_DONE[%#x]\n",
+			pkt->session_id);
+
+	if (!pkt || pkt->size <
+		sizeof(struct cvp_hfi_msg_sys_session_ctrl_done_packet)) {
+		dprintk(CVP_ERR, "%s: bad packet/packet size: %d\n",
+				__func__, pkt ? pkt->size : 0);
+		return -E2BIG;
+	}
+	cmd_done.device_id = device_id;
+	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
+	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
+	cmd_done.size = 0;
+
+	info->response_type = HAL_SESSION_START_DONE;
+	info->response.cmd = cmd_done;
+
+	return 0;
+}
+
+static int hfi_process_session_stop_done(u32 device_id,
+		void *hdr, struct msm_cvp_cb_info *info)
+{
+	struct cvp_hfi_msg_sys_session_ctrl_done_packet *pkt =
+		(struct cvp_hfi_msg_sys_session_ctrl_done_packet *)hdr;
+	struct msm_cvp_cb_cmd_done cmd_done = {0};
+
+	dprintk(CVP_SESS, "RECEIVED: SESSION_STOP_DONE[%#x]\n",
+			pkt->session_id);
+
+	if (!pkt || pkt->size <
+		sizeof(struct cvp_hfi_msg_sys_session_ctrl_done_packet)) {
+		dprintk(CVP_ERR, "%s: bad packet/packet size: %d\n",
+				__func__, pkt ? pkt->size : 0);
+		return -E2BIG;
+	}
+	cmd_done.device_id = device_id;
+	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
+	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
+	cmd_done.size = 0;
+
+	info->response_type = HAL_SESSION_STOP_DONE;
+	info->response.cmd = cmd_done;
+
+	return 0;
+}
+
 
 static int hfi_process_session_rel_buf_done(u32 device_id,
 		void *hdr, struct msm_cvp_cb_info *info)
@@ -380,6 +457,9 @@ static int hfi_process_session_rel_buf_done(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)get_msg_session_id(pkt);
 	cmd_done.status = hfi_map_err_status(get_msg_errorcode(pkt));
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_RELEASE_BUFFER_DONE;
@@ -458,6 +538,9 @@ static int hfi_process_session_dump_notify(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->error_type);
+	if (cmd_done.status)
+		dprintk(CVP_ERR, "%s: status %#x hfi type %#x err %#x\n",
+			__func__, cmd_done.status, pkt->packet_type, pkt->error_type);
 	cmd_done.size = 0;
 
 	info->response_type = HAL_SESSION_DUMP_NOTIFY;
@@ -639,6 +722,12 @@ int cvp_hfi_process_msg_packet(u32 device_id, void *hdr,
 		break;
 	case HFI_MSG_SESSION_CVP_FLUSH:
 		pkt_func = (pkt_func_def)hfi_process_session_flush_done;
+		break;
+	case HFI_MSG_SESSION_EVA_START:
+		pkt_func = (pkt_func_def)hfi_process_session_start_done;
+		break;
+	case HFI_MSG_SESSION_EVA_STOP:
+		pkt_func = (pkt_func_def)hfi_process_session_stop_done;
 		break;
 	case HFI_MSG_EVENT_NOTIFY_SNAPSHOT_READY:
 		pkt_func = (pkt_func_def)hfi_process_session_dump_notify;

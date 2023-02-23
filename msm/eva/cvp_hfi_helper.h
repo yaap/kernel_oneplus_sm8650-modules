@@ -511,7 +511,7 @@ struct cvp_hfi_cmd_sys_test_ssr_packet {
 	u32 trigger_type;
 };
 
-struct cvp_hfi_msg_sys_session_flush_done_packet {
+struct cvp_hfi_msg_sys_session_ctrl_done_packet {
 	u32 size;
 	u32 packet_type;
 	u32 session_id;
