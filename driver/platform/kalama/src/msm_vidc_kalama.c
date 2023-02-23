@@ -2656,14 +2656,17 @@ int msm_vidc_kalama_check_ddr_type(void)
 	return 0;
 }
 
-static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_init_data(struct msm_vidc_core *core)
 {
+	struct device *dev = NULL;
 	int rc = 0;
 
-	if (!core || !core->platform || !dev) {
+	if (!core || !core->pdev || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
+
 	d_vpr_h("%s: initialize kalama data\n", __func__);
 
 	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2"))
@@ -2688,18 +2691,18 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 	return rc;
 }
 
-int msm_vidc_init_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_init_platform_kalama(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core, dev);
+	rc = msm_vidc_init_data(core);
 	if (rc)
 		return rc;
 
 	return 0;
 }
 
-int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core)
 {
 	/* do nothing */
 	return 0;

@@ -10,15 +10,15 @@
 #include "msm_vidc_core.h"
 
 #if defined(CONFIG_MSM_VIDC_KALAMA)
-int msm_vidc_init_platform_kalama(struct msm_vidc_core *core, struct device *dev);
-int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core, struct device *dev);
+int msm_vidc_init_platform_kalama(struct msm_vidc_core *core);
+int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core);
 #else
-int msm_vidc_init_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_init_platform_kalama(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
 
-int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }

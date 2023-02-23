@@ -4,5 +4,4 @@
  * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#define CONFIG_MSM_VIDC_IRIS3    1
 #define CONFIG_MSM_VIDC_KALAMA   1

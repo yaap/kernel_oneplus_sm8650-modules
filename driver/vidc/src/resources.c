@@ -351,7 +351,7 @@ static int __init_power_domains(struct msm_vidc_core *core)
 	const struct pd_table *pd_tbl;
 	struct power_domain_set *pds;
 	struct device **opp_vdevs = NULL;
-	const char **opp_tbl;
+	const char * const *opp_tbl;
 	u32 pd_count = 0, opp_count = 0, cnt = 0;
 	int rc = 0;
 
