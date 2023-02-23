@@ -280,6 +280,9 @@ enum v4l2_mpeg_video_av1_tier {
 #define V4L2_CID_MPEG_VIDC_CSC                                                \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x47)
 
+#define V4L2_CID_MPEG_VIDC_DRIVER_VERSION                                     \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x48)
+
 enum v4l2_mpeg_vidc_metapayload_header_flags {
 	METADATA_FLAGS_NONE             = 0,
 	METADATA_FLAGS_TOP_FIELD        = (1 << 0),
