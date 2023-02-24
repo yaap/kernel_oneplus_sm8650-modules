@@ -198,7 +198,6 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 	u8 bitrate_entry = get_bitrate_entry(pixle_count); /* TODO EXTRACT */
 
 	input_bitrate_fp = ((u32)(codec_input.bitrate_mbps * 100 + 99)) / 100;
-	vsp_hw_min_frequency = frequency_table_pineapple[0][1] * input_bitrate_fp * 1000;
 
 	/* 8KUHD60fps with B frame */
 	if ((pixle_count >= fp_pixel_count_bar0) &&
@@ -215,54 +214,60 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		 *
 		 *  TODO : Reduce these conditions by removing the zero entries from Bitrate table.
 		 */
-		vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
+
+		vsp_hw_min_frequency = frequency_table_pineapple[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1)
-			vsp_hw_min_frequency = frequency_table_pineapple[0][0] *
+			vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
 				input_bitrate_fp * 1000;
 
 		if ((codec_input.codec == CODEC_H264) ||
-			(codec_input.codec == CODEC_H264_CAVLC) ||
-			((codec_input.codec == CODEC_HEVC) &&
-			(codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_1S))) {
+			(codec_input.codec == CODEC_H264_CAVLC)) {
+			vsp_hw_min_frequency = (frequency_table_pineapple[0][2] * 1000 +
+				(fw_sw_vsp_offset - 1));
 			vsp_hw_min_frequency =
-				DIV_ROUND_UP(frequency_table_pineapple[0][1], fw_sw_vsp_offset);
-		} else if (((codec_input.codec == CODEC_HEVC) &&
-			(codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S))
-			|| (codec_input.codec == CODEC_VP9)
-			|| (codec_input.codec == CODEC_AV1)) {
+				DIV_ROUND_UP(vsp_hw_min_frequency, fw_sw_vsp_offset);
+		} else {
 			if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
+				vsp_hw_min_frequency = vsp_hw_min_frequency +
+					(bitrate_table_pineapple_2stage_fp[codec][0] *
+					fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_pineapple_2stage_fp[codec][0] * fw_sw_vsp_offset));
+					(bitrate_table_pineapple_2stage_fp[codec][0]) *
+						fw_sw_vsp_offset);
 			} else {
+				vsp_hw_min_frequency = vsp_hw_min_frequency +
+					(bitrate_table_pineapple_1stage_fp[codec][0] *
+					fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_pineapple_1stage_fp[codec][0] * fw_sw_vsp_offset));
+					(bitrate_table_pineapple_1stage_fp[codec][0]) *
+						fw_sw_vsp_offset);
 			}
 		}
 	} else {
-		vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
+		vsp_hw_min_frequency = frequency_table_pineapple[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1 && bitrate_entry == 1)
-			vsp_hw_min_frequency = frequency_table_pineapple[0][0] *
+			vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
 				input_bitrate_fp * 1000;
 
-		if ((codec_input.codec == CODEC_H264_CAVLC) &&
-			(codec_input.entropy_coding_mode == CODEC_ENTROPY_CODING_CAVLC))
-			codec = CODEC_H264_CAVLC;
-		else if ((codec_input.codec == CODEC_H264) &&
-			(codec_input.entropy_coding_mode == CODEC_ENTROPY_CODING_CABAC))
-			codec = CODEC_H264;
-
-		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S)
+		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
+			vsp_hw_min_frequency = vsp_hw_min_frequency +
+				(bitrate_table_pineapple_2stage_fp[codec][bitrate_entry] *
+				fw_sw_vsp_offset - 1);
 			vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
 				(bitrate_table_pineapple_2stage_fp[codec][bitrate_entry]) *
 					fw_sw_vsp_offset);
-		else
+		} else {
+			vsp_hw_min_frequency = vsp_hw_min_frequency +
+				(bitrate_table_pineapple_1stage_fp[codec][bitrate_entry] *
+				fw_sw_vsp_offset - 1);
 			vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
 				(bitrate_table_pineapple_1stage_fp[codec][bitrate_entry]) *
 					fw_sw_vsp_offset);
+		}
 	}
 
 	codec_output->vsp_min_freq = vsp_hw_min_frequency;
@@ -322,6 +327,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 	u32 lpmode_uhd_cycle_permb = 0;
 	u32 hqmode1080p_cycle_permb = 0;
 	u32 encoder_vpp_target_clk_per_mb = 0;
+	u32 decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE;
 
 	codec_mbspersession_pineaple =
 		calculate_number_mbs_pineapple(codec_input.frame_width,
@@ -342,11 +348,16 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 				pipe_penalty_codec + 999) / 1000;
 		}
 
+		if (codec_input.codec == CODEC_AV1)
+			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE_AV1D;
+		else
+			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE_NONAV1D;
+
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			/* FW overhead, convert FW cycles to impact to one pipe */
 			u64 decoder_vpp_fw_overhead = 0;
 			decoder_vpp_fw_overhead =
-				DIV_ROUND_UP((DECODER_VPP_FW_OVERHEAD_PINEAPPLE * 10 *
+				DIV_ROUND_UP((decoder_vpp_fw_overhead * 10 *
 				codec_input.frame_rate), 15);
 
 			decoder_vpp_fw_overhead =
@@ -407,6 +418,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 	} else { /* encoder */
 		/* Decide LP/HQ */
 		u8 hq_mode = 0;
+
 		if (codec_input.pipe_num > 1)
 			if (codec_input.frame_width * codec_input.frame_height <=
 				1920 * 1080)

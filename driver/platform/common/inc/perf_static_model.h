@@ -161,7 +161,7 @@ struct api_calculation_freq_output {
 	u32 vsp_min_freq;
 	u32 tensilica_min_freq;
 	u32 hw_min_freq;
-	u32  enc_hqmode;
+	u32 enc_hqmode;
 	struct corner_voting usecase_corner;
 };
 

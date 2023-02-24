@@ -25,8 +25,8 @@ static u32 frequency_table_pineapple[2][6] =
   */
 
 /* Tensilica cycles profiled by FW team in lanai device Feb 2022 */
-#define DECODER_VPP_FW_OVERHEAD_PINEAPPLE_AV1D                                            ((80000*3)/2));
-#define DECODER_VPP_FW_OVERHEAD_PINEAPPLE_NONAV1D                                         ((60000*3)/2);
+#define DECODER_VPP_FW_OVERHEAD_PINEAPPLE_AV1D                                            ((80000*3)/2)
+#define DECODER_VPP_FW_OVERHEAD_PINEAPPLE_NONAV1D                                         ((60000*3)/2)
 
  /* Tensilica cycles */
 #define DECODER_VPP_FW_OVERHEAD_PINEAPPLE                                                  (0)

@@ -125,7 +125,7 @@ u32 get_compression_factors(struct compression_factors *compression_factor,
 	return 0;
 }
 
-static int calculate_bandwidth_decoder_iris3(
+static int calculate_bandwidth_decoder_iris33(
 		struct api_calculation_input codec_input,
 		struct api_calculation_bw_output *codec_output)
 {
@@ -298,7 +298,7 @@ static int calculate_bandwidth_decoder_iris3(
 		else
 			av1tile_index_entry = 6;
 
-		/* NOT PWC //or average and power case */
+		/* NOT PWC or average and power case */
 		if (codec_input.complexity_setting != 0)
 			av1tile_complexity = 1;
 		else
@@ -551,7 +551,7 @@ static int calculate_bandwidth_decoder_iris3(
 	return 0;
 }
 
-static int calculate_bandwidth_encoder_iris3(
+static int calculate_bandwidth_encoder_iris33(
 		struct api_calculation_input codec_input,
 		struct api_calculation_bw_output *codec_output)
 {
@@ -703,6 +703,16 @@ static int calculate_bandwidth_encoder_iris3(
 	codec_output->collocated_rd_wr_total_ddr =
 		codec_output->collocated_rd_wr_total_noc;
 
+	/* I frame only */
+	if (codec_input.hierachical_layer == 7) {
+		codec_output->collocated_rd_noc = 0;
+		codec_output->collocated_wr_noc = 0;
+		codec_output->collocated_rd_ddr = 0;
+		codec_output->collocated_wr_ddr = 0;
+		codec_output->collocated_rd_wr_total_noc = 0;
+		codec_output->collocated_rd_wr_total_ddr = 0;
+	}
+
 	/* accumulation */
 	codec_output->noc_bw_rd += codec_output->collocated_rd_noc;
 	codec_output->noc_bw_wr += codec_output->collocated_wr_noc;
@@ -805,6 +815,18 @@ static int calculate_bandwidth_encoder_iris3(
 
 	codec_output->dpb_wr_ddr = (en_llc_enable_rec_wr_uncompleted) ?
 		0 : codec_output->dpb_wr_noc;
+
+	/* I frame only */
+	if (codec_input.hierachical_layer == 7) {
+		codec_output->dpb_rd_y_noc = 0;
+		codec_output->dpb_rd_crcb_noc =0;
+		codec_output->dpb_rdwr_duetooverlap_noc =0;
+		codec_output->dpb_wr_noc =0;
+		codec_output->dpb_rd_y_ddr=0;
+		codec_output->dpb_rd_crcb_ddr =0;
+		codec_output->dpb_rdwr_duetooverlap_ddr=0;
+		codec_output->dpb_wr_ddr =0;
+	}
 
 	/* accumulation */
 	codec_output->noc_bw_rd += codec_output->dpb_rd_y_noc;
@@ -909,9 +931,9 @@ int msm_vidc_calculate_bandwidth(struct api_calculation_input codec_input,
 	int rc = 0;
 
 	if (codec_input.decoder_or_encoder == CODEC_DECODER) {
-		rc = calculate_bandwidth_decoder_iris3(codec_input, codec_output);
+		rc = calculate_bandwidth_decoder_iris33(codec_input, codec_output);
 	} else if (codec_input.decoder_or_encoder == CODEC_ENCODER) {
-		rc = calculate_bandwidth_encoder_iris3(codec_input, codec_output);
+		rc = calculate_bandwidth_encoder_iris33(codec_input, codec_output);
 	} else {
 		d_vpr_e("%s: invalid codec\n", codec_input.decoder_or_encoder);
 		return -EINVAL;

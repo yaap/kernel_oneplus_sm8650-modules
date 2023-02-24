@@ -40,10 +40,13 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		codec_input->codec    = CODEC_H264;
 		codec_input->lcu_size = 16;
 		if (inst->capabilities->cap[ENTROPY_MODE].value ==
-				V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC)
+				V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CABAC;
-		else
+			codec_input->codec = CODEC_H264;
+		} else {
 			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CAVLC;
+			codec_input->codec = CODEC_H264_CAVLC;
+		}
 	} else if (inst->codec == MSM_VIDC_HEVC) {
 		codec_input->codec    = CODEC_HEVC;
 		codec_input->lcu_size = 32;
@@ -98,8 +101,13 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 
 	codec_input->linear_opb = is_linear_colorformat(color_fmt);
-	codec_input->bitrate_mbps =
-		(codec_input->frame_rate * data_size * 8) / 1000000;
+
+	if (inst->domain == MSM_VIDC_DECODER)
+		codec_input->bitrate_mbps =
+			(codec_input->frame_rate * data_size * 8) / 1000000;
+	else
+		codec_input->bitrate_mbps =
+			inst->capabilities->cap[BIT_RATE].value / 1000000;
 
 	/* disable av1d commercial tile */
 	codec_input->av1d_commer_tile_enable = 0;
@@ -130,7 +138,19 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 	codec_input->chipset_gen = MSM_PINEAPPLE;
 
 	if (d->codec == MSM_VIDC_H264) {
-		codec_input->codec = CODEC_H264;
+		if (inst->capabilities->cap[ENTROPY_MODE].value ==
+			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
+			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CABAC;
+			codec_input->codec = CODEC_H264;
+		} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC) {
+			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CAVLC;
+			codec_input->codec = CODEC_H264_CAVLC;
+		} else {
+			d_vpr_e("%s: invalid entropy %d\n", __func__,
+				inst->capabilities->cap[ENTROPY_MODE].value);
+			return -EINVAL;
+		}
 	} else if (d->codec == MSM_VIDC_HEVC) {
 		codec_input->codec = CODEC_HEVC;
 	} else if (d->codec == MSM_VIDC_VP9) {
@@ -154,18 +174,6 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		codec_input->vsp_vpp_mode = CODEC_VSPVPP_MODE_2S;
 	} else {
 		d_vpr_e("%s: invalid stage %d\n", __func__, d->work_mode);
-		return -EINVAL;
-	}
-
-	if (inst->capabilities->cap[ENTROPY_MODE].value ==
-			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
-		codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CABAC;
-	} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
-			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC) {
-		codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CAVLC;
-	} else {
-		d_vpr_e("%s: invalid entropy %d\n", __func__,
-				inst->capabilities->cap[ENTROPY_MODE].value);
 		return -EINVAL;
 	}
 
@@ -224,19 +232,24 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 
 	/* TODO Confirm if no multiref */
 	codec_input->encoder_multiref = 0;  /* set as no multiref */
-	codec_input->bitrate_mbps = (d->bitrate / 1000000); /* bps 10; set as 10mbps */
+	codec_input->bitrate_mbps = (d->bitrate / 1000000);
 
 	opb_compression_enabled = d->num_formats >= 2 && __ubwc(d->color_formats[1]);
 
-	/* ANDROID CR is in Q16 format, StaticModel CR in x100 format */
-	codec_input->cr_dpb = ((Q16_INT(d->compression_ratio)*100) +
-		Q16_FRAC(d->compression_ratio));
-
-	codec_input->cr_opb = opb_compression_enabled ?
-		codec_input->cr_dpb : FP_ONE;
-
-	codec_input->cr_ipb = ((Q16_INT(d->input_cr)*100) + Q16_FRAC(d->input_cr));
-	codec_input->cr_rpb = codec_input->cr_dpb;  /* cr_rpb ony for encoder */
+	/* video driver CR is in Q16 format, StaticModel CR in x100 format */
+	if (d->domain == MSM_VIDC_DECODER) {
+		codec_input->cr_dpb = ((Q16_INT(d->compression_ratio)*100) +
+			Q16_FRAC(d->compression_ratio));
+		codec_input->cr_opb = codec_input->cr_dpb;
+		if (codec_input->split_opb == 1) {
+			/* need to check the value if linear opb, currently set min cr */
+			codec_input->cr_opb = 100;
+		}
+	} else {
+		codec_input->cr_ipb = ((Q16_INT(d->input_cr)*100) + Q16_FRAC(d->input_cr));
+		codec_input->cr_rpb = ((Q16_INT(d->compression_ratio)*100) +
+			Q16_FRAC(d->compression_ratio));
+	}
 
 	/* disable by default, only enable for aurora depth map session */
 	codec_input->lumaonly_decode = 0;
@@ -375,10 +388,12 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 		}
 	}
 
-	freq = codec_output.hw_min_freq * 1000000; /* Convert to Hz */
+	freq = (u64)codec_output.hw_min_freq * 1000000; /* Convert to Hz */
 
-	i_vpr_p(inst, "%s: filled len %d, required freq %llu, fps %u, mbpf %u\n",
-		__func__, data_size, freq, fps, mbpf);
+	i_vpr_p(inst, "%s: filled len %d, required freq %llu, vpp %u, vsp %u, tensilica %u, hw_freq %u, fps %u, mbpf %u\n",
+		__func__, data_size, freq, codec_output.vpp_min_freq,
+		codec_output.vsp_min_freq, codec_output.tensilica_min_freq,
+		codec_output.hw_min_freq, fps, mbpf);
 
 	if (inst->codec == MSM_VIDC_AV1 ||
 		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
@@ -662,6 +677,10 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	freq = max(vpp_cycles, vsp_cycles);
 	freq = max(freq, fw_cycles);
 
+	i_vpr_p(inst, "%s: filled len %d, required freq %llu, vpp %llu, vsp %llu, fw_cycles %llu, fps %u, mbpf %u\n",
+		__func__, data_size, freq,
+		vpp_cycles, vsp_cycles, fw_cycles, fps, mbpf);
+
 	if (inst->codec == MSM_VIDC_AV1 ||
 		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
 		/*
@@ -674,9 +693,6 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 		    freq > core->resource->freq_set.freq_tbl[1].freq)
 			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
-
-	i_vpr_p(inst, "%s: filled len %d, required freq %llu, fps %u, mbpf %u\n",
-		__func__, data_size, freq, fps, mbpf);
 
 	return freq;
 }
