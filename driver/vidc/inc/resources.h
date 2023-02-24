@@ -7,8 +7,6 @@
 #ifndef _MSM_VIDC_RESOURCES_H_
 #define _MSM_VIDC_RESOURCES_H_
 
-#include <linux/clk/qcom.h>
-
 struct icc_path;
 struct regulator;
 struct clk;
@@ -102,6 +100,15 @@ struct msm_vidc_core;
 /* Device region set helper */
 #define venus_hfi_for_each_device_region(__device, __sinfo) \
 	venus_hfi_for_each_thing(__device, __sinfo, device_region)
+
+enum msm_vidc_branch_mem_flags {
+	MSM_VIDC_CLKFLAG_RETAIN_PERIPH,
+	MSM_VIDC_CLKFLAG_NORETAIN_PERIPH,
+	MSM_VIDC_CLKFLAG_RETAIN_MEM,
+	MSM_VIDC_CLKFLAG_NORETAIN_MEM,
+	MSM_VIDC_CLKFLAG_PERIPH_OFF_SET,
+	MSM_VIDC_CLKFLAG_PERIPH_OFF_CLEAR,
+};
 
 struct bus_info {
 	struct icc_path           *icc;
@@ -274,7 +281,7 @@ struct msm_vidc_resources_ops {
 	int (*clk_disable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_enable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_set_flag)(struct msm_vidc_core *core,
-		const char *name, enum branch_mem_flags flag);
+		const char *name, enum msm_vidc_branch_mem_flags flag);
 	int (*clk_print_residency_stats)(struct msm_vidc_core *core);
 	int (*clk_reset_residency_stats)(struct msm_vidc_core *core);
 };
