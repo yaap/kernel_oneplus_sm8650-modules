@@ -921,17 +921,9 @@ int msm_venc_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 
 int msm_venc_stop_cmd(struct msm_vidc_inst *inst)
 {
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: drain\n");
-	allow = msm_vidc_allow_stop(inst);
-	if (allow == MSM_VIDC_DISALLOW)
-		return -EBUSY;
-	else if (allow == MSM_VIDC_IGNORE)
-		return 0;
-	else if (allow != MSM_VIDC_ALLOW)
-		return -EINVAL;
 	rc = msm_vidc_process_drain(inst);
 	if (rc)
 		return rc;
@@ -944,8 +936,7 @@ int msm_venc_start_cmd(struct msm_vidc_inst *inst)
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: resume\n");
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
+
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 

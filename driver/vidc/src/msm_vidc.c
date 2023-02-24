@@ -253,9 +253,6 @@ int msm_vidc_s_fmt(void *instance, struct v4l2_format *f)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_s_fmt(inst, f->type))
-		return -EBUSY;
-
 	if (inst->domain == MSM_VIDC_DECODER)
 		rc = msm_vdec_s_fmt(inst, f);
 	if (inst->domain == MSM_VIDC_ENCODER)
@@ -398,11 +395,6 @@ int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b)
 	if (!inst || !b) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	}
-
-	if (!msm_vidc_allow_reqbufs(inst, b->type)) {
-		rc = -EBUSY;
-		goto exit;
 	}
 
 	port = v4l2_type_to_driver_port(inst, b->type, __func__);

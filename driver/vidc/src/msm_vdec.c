@@ -2091,17 +2091,9 @@ static int msm_vdec_alloc_and_queue_additional_dpb_buffers(struct msm_vidc_inst 
 
 int msm_vdec_stop_cmd(struct msm_vidc_inst *inst)
 {
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: drain\n");
-	allow = msm_vidc_allow_stop(inst);
-	if (allow == MSM_VIDC_DISALLOW)
-		return -EBUSY;
-	else if (allow == MSM_VIDC_IGNORE)
-		return 0;
-	else if (allow != MSM_VIDC_ALLOW)
-		return -EINVAL;
 	rc = msm_vidc_process_drain(inst);
 	if (rc)
 		return rc;
@@ -2131,9 +2123,6 @@ int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 			__func__);
 		return -EINVAL;
 	}
-
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
 
 	/* tune power features */
 	inst->decode_batch.enable = msm_vidc_allow_decode_batch(inst);

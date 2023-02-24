@@ -24,6 +24,18 @@ bool is_core_state(struct msm_vidc_core *core, enum msm_vidc_core_state state)
 	return core->state == state;
 }
 
+bool is_drc_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRC) &&
+		is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER);
+}
+
+bool is_drain_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRAIN) &&
+		is_sub_state(inst, MSM_VIDC_DRAIN_LAST_BUFFER);
+}
+
 static const char * const core_state_name_arr[] =
 	FOREACH_CORE_STATE(GENERATE_STRING);
 
@@ -648,6 +660,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
 
+		/* allow s_fmt request in open state */
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
 			return rc;
@@ -667,6 +680,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* allow reqbufs request in open state */
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -676,6 +690,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
+		/* allow streamon request in open state */
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
 			return rc;
@@ -692,16 +707,17 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
-		rc = msm_vidc_start_cmd(inst);
-		if (rc)
-			return rc;
-		break;
+		/* disallow start cmd request in open state */
+		i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
+
+		return -EBUSY;
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
+		/* ignore stop cmd request in open state */
+		i_vpr_h(inst, "%s: (%s) ignored, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
 		break;
 	}
 	case MSM_VIDC_BUF_QUEUE:
@@ -771,6 +787,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
 
+		/* disallow */
+		if (f->type == INPUT_MPLANE || f->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
 			return rc;
@@ -805,6 +828,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* disallow */
+		if (b->type == INPUT_MPLANE || b->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -813,6 +843,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMON:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
+
+		/* disallow */
+		if (q->type == INPUT_MPLANE || q->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
@@ -850,6 +887,14 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -857,6 +902,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
 		if (rc)
 			return rc;
@@ -921,6 +973,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
 
+		/* disallow */
+		if (f->type == OUTPUT_MPLANE || f->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
 			return rc;
@@ -955,6 +1014,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* disallow */
+		if (b->type == OUTPUT_MPLANE || b->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -963,6 +1029,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMON:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
+
+		/* disallow */
+		if (q->type == OUTPUT_MPLANE || q->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
@@ -1000,6 +1073,14 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -1007,10 +1088,10 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
-		break;
+		/* drain not allowed as input is not streaming */
+		i_vpr_e(inst, "%s: drain (%s) not allowed, sub state %s\n",
+			__func__, event_name(event), inst->sub_state_name);
+		return -EBUSY;
 	}
 	default: {
 		i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
@@ -1106,6 +1187,14 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -1113,6 +1202,13 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
 		if (rc)
 			return rc;
