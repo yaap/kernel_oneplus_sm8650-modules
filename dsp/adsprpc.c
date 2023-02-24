@@ -24,7 +24,7 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 #include <linux/msm_ion.h>
-#include <soc/qcom/secure_buffer.h>
+#include <linux/qcom_scm.h>
 #include <linux/ipc_logging.h>
 #include <linux/remoteproc/qcom_rproc.h>
 #include <linux/scatterlist.h>
@@ -384,8 +384,6 @@ static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	},
 };
 
-static int hlosvm[1] = {VMID_HLOS};
-static int hlosvmperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 
 static uint32_t kernel_capabilities[FASTRPC_MAX_ATTRIBUTES -
 					FASTRPC_MAX_DSP_ATTRIBUTES] = {
@@ -728,9 +726,6 @@ skip_buf_cache:
 		buf->raddr = 0;
 	}
 	if (!IS_ERR_OR_NULL(buf->virt)) {
-		int destVM[1] = {VMID_HLOS};
-		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
-
 		VERIFY(err, fl->sctx != NULL);
 		if (err)
 			goto bail;
@@ -747,12 +742,16 @@ skip_buf_cache:
 		}
 		vmid = fl->apps->channel[cid].vmid;
 		if ((vmid) && (fl->apps->channel[cid].in_hib == 0)) {
-			int srcVM[2] = {VMID_HLOS, vmid};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS)| BIT(vmid);
+			struct qcom_scm_vmperm dest_perms = {0};
 			int hyp_err = 0;
 
-			hyp_err = hyp_assign_phys(buf->phys,
+			dest_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dest_perms.perm = QCOM_SCM_PERM_RWX;
+
+			hyp_err = qcom_scm_assign_mem(buf->phys,
 				buf_page_size(buf->size),
-				srcVM, 2, destVM, destVMperm, 1);
+				&src_perms, &dest_perms, 1);
 			if (hyp_err) {
 				ADSPRPC_ERR(
 					"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -1039,8 +1038,6 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		if (!IS_ERR_OR_NULL(map->buf))
 			dma_buf_put(map->buf);
 	} else {
-		int destVM[1] = {VMID_HLOS};
-		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 		if (!fl)
 			goto bail;
 
@@ -1052,11 +1049,14 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		vmid = fl->apps->channel[cid].vmid;
 		if (vmid && map->phys && (me->channel[cid].in_hib == 0)) {
 			int hyp_err = 0;
-			int srcVM[2] = {VMID_HLOS, vmid};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS) | BIT(vmid);
+			struct qcom_scm_vmperm dst_perms = {0};
 
-			hyp_err = hyp_assign_phys(map->phys,
+			dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms.perm = QCOM_SCM_PERM_RWX;
+			hyp_err = qcom_scm_assign_mem(map->phys,
 				buf_page_size(map->size),
-				srcVM, 2, destVM, destVMperm, 1);
+				&src_perms, &dst_perms, 1);
 			if (hyp_err) {
 				ADSPRPC_ERR(
 					"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -1351,14 +1351,17 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 
 		vmid = fl->apps->channel[cid].vmid;
 		if (vmid) {
-			int srcVM[1] = {VMID_HLOS};
-			int destVM[2] = {VMID_HLOS, vmid};
-			int destVMperm[2] = {PERM_READ | PERM_WRITE,
-					PERM_READ | PERM_WRITE | PERM_EXEC};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+			struct qcom_scm_vmperm dst_perms[2] = {0};
 
-			err = hyp_assign_phys(map->phys,
+			dst_perms[0].vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms[0].perm = QCOM_SCM_PERM_RW;
+			dst_perms[1].vmid = vmid;
+			dst_perms[1].perm = QCOM_SCM_PERM_RWX;
+
+			err = qcom_scm_assign_mem(map->phys,
 					buf_page_size(map->size),
-					srcVM, 1, destVM, destVMperm, 2);
+					&src_perms, dst_perms, 2);
 			if (err) {
 				ADSPRPC_ERR(
 					"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -1526,13 +1529,16 @@ static int fastrpc_buf_alloc(struct fastrpc_file *fl, size_t size,
 
 	vmid = fl->apps->channel[cid].vmid;
 	if (vmid) {
-		int srcVM[1] = {VMID_HLOS};
-		int destVM[2] = {VMID_HLOS, vmid};
-		int destVMperm[2] = {PERM_READ | PERM_WRITE,
-					PERM_READ | PERM_WRITE | PERM_EXEC};
+		u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+		struct qcom_scm_vmperm dst_perms[2] = {0};
 
-		err = hyp_assign_phys(buf->phys, buf_page_size(size),
-			srcVM, 1, destVM, destVMperm, 2);
+		dst_perms[0].vmid = QCOM_SCM_VMID_HLOS;
+		dst_perms[0].perm = QCOM_SCM_PERM_RW;
+		dst_perms[1].vmid = vmid;
+		dst_perms[1].perm = QCOM_SCM_PERM_RWX;
+
+		err = qcom_scm_assign_mem(buf->phys, buf_page_size(size),
+			&src_perms, dst_perms, 2);
 		if (err) {
 			ADSPRPC_DEBUG(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -4013,9 +4019,20 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		 * hyp_assign from HLOS to those VMs (LPASS, ADSP).
 		 */
 		if (rhvm->vmid && mem && mem->refs == 1 && size) {
-			err = hyp_assign_phys(phys, (uint64_t)size,
-				hlosvm, 1,
-				rhvm->vmid, rhvm->vmperm, rhvm->vmcount);
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+			struct qcom_scm_vmperm *dst_perms;
+			uint32_t i = 0;
+
+			VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
+						sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
+			for (i = 0; i < rhvm->vmcount; i++) {
+				dst_perms[i].vmid = rhvm->vmid[i];
+				dst_perms[i].perm = rhvm->vmperm[i];
+			}
+
+			err = qcom_scm_assign_mem(phys, (uint64_t)size,
+				&src_perms, dst_perms, rhvm->vmcount);
+			kfree(dst_perms);
 			if (err) {
 				ADSPRPC_ERR(
 					"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -4066,11 +4083,19 @@ bail:
 		me->staticpd_flags = 0;
 		if (rh_hyp_done) {
 			int hyp_err = 0;
+			u64 src_perms = 0;
+			struct qcom_scm_vmperm dst_perms;
+			uint32_t i = 0;
 
+			for (i = 0; i < rhvm->vmcount; i++) {
+				src_perms |= BIT(rhvm->vmid[i]);
+			}
+
+			dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms.perm = QCOM_SCM_PERM_RWX;
 			/* Assign memory back to HLOS in case of errors */
-			hyp_err = hyp_assign_phys(phys, (uint64_t)size,
-					rhvm->vmid, rhvm->vmcount,
-					hlosvm, hlosvmperm, 1);
+			hyp_err = qcom_scm_assign_mem(phys, (uint64_t)size,
+					&src_perms, &dst_perms, 1);
 			if (hyp_err)
 				ADSPRPC_WARN(
 					"rh hyp unassign failed with %d for phys 0x%llx of size %zu\n",
@@ -4627,10 +4652,21 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 	}
 	if (flags == ADSP_MMAP_REMOTE_HEAP_ADDR
 				&& me->channel[cid].rhvm.vmid && refs == 1) {
-		err = hyp_assign_phys(phys, (uint64_t)size,
-				hlosvm, 1, me->channel[cid].rhvm.vmid,
-				me->channel[cid].rhvm.vmperm,
-				me->channel[cid].rhvm.vmcount);
+		struct secure_vm *rhvm = &me->channel[cid].rhvm;
+		u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+		struct qcom_scm_vmperm *dst_perms;
+		uint32_t i = 0;
+
+		VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
+					sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
+
+		for (i = 0; i < rhvm->vmcount; i++) {
+			dst_perms[i].vmid = rhvm->vmid[i];
+			dst_perms[i].perm = rhvm->vmperm[i];
+		}
+		err = qcom_scm_assign_mem(phys, (uint64_t)size,
+				&src_perms, dst_perms, rhvm->vmcount);
+		kfree(dst_perms);
 		if (err) {
 			ADSPRPC_ERR(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -4713,16 +4749,22 @@ static int fastrpc_munmap_rh(uint64_t phys, size_t size,
 {
 	int err = 0;
 	struct fastrpc_apps *me = &gfa;
-	int destVM[1] = {VMID_HLOS};
-	int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
+	struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
 
-	if ((me->channel[RH_CID].rhvm.vmid)
+	if ((rhvm->vmid)
 			&& (me->channel[RH_CID].in_hib == 0)) {
-		err = hyp_assign_phys(phys,
-				(uint64_t)size,
-				me->channel[RH_CID].rhvm.vmid,
-				me->channel[RH_CID].rhvm.vmcount,
-				destVM, destVMperm, 1);
+		u64 src_perms = 0;
+		struct qcom_scm_vmperm dst_perms = {0};
+		uint32_t i = 0;
+
+		for (i = 0; i < rhvm->vmcount; i++) {
+			src_perms |= BIT(rhvm->vmid[i]);
+		}
+		dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+		dst_perms.perm = QCOM_SCM_PERM_RWX;
+
+		err = qcom_scm_assign_mem(phys,
+				(uint64_t)size, &src_perms, &dst_perms, 1);
 		if (err) {
 			ADSPRPC_ERR(
 				"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -4785,20 +4827,25 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 				&& !strcmp(map->servloc_name, fl->servloc_name))) {
 				match = map;
 				if (map->is_persistent && map->in_use) {
-					int destVM[1] = {VMID_HLOS};
-					int destVMperm[1] = {PERM_READ | PERM_WRITE
-					| PERM_EXEC};
+					struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
 					uint64_t phys = map->phys;
 					size_t size = map->size;
 
 					spin_unlock_irqrestore(&me->hlock, irq_flags);
-					//hyp assign it back to HLOS
-					if (me->channel[RH_CID].rhvm.vmid) {
-						err = hyp_assign_phys(phys,
-							(uint64_t)size,
-							me->channel[RH_CID].rhvm.vmid,
-							me->channel[RH_CID].rhvm.vmcount,
-							destVM, destVMperm, 1);
+					//scm assign it back to HLOS
+					if (rhvm->vmid) {
+						u64 src_perms = 0;
+						struct qcom_scm_vmperm dst_perms = {0};
+						uint32_t i = 0;
+
+						for (i = 0; i < rhvm->vmcount; i++) {
+							src_perms |= BIT(rhvm->vmid[i]);
+						}
+
+						dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+						dst_perms.perm = QCOM_SCM_PERM_RWX;
+						err = qcom_scm_assign_mem(phys, (uint64_t)size,
+									&src_perms, &dst_perms, 1);
 					}
 					if (err) {
 						ADSPRPC_ERR(
@@ -7640,7 +7687,7 @@ static void init_secure_vmid_list(struct device *dev, char *prop_name,
 		}
 		ADSPRPC_INFO("secure VMID = %d\n",
 			rhvmlist[i]);
-		rhvmpermlist[i] = PERM_READ | PERM_WRITE | PERM_EXEC;
+		rhvmpermlist[i] = QCOM_SCM_PERM_RWX;
 	}
 	destvm->vmid = rhvmlist;
 	destvm->vmperm = rhvmpermlist;
