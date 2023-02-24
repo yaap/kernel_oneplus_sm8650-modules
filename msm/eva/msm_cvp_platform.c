@@ -456,6 +456,14 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.resp = HAL_NO_RESP,
 			.name = "REL_PERSIST",
 		},
+	[HFI_CMD_SESSION_CVP_DS_CONFIG - HFI_CMD_SESSION_CVP_START] =
+		{
+			.size = HFI_DS_CONFIG_CMD_SIZE,
+			.type = HFI_CMD_SESSION_CVP_DS_CONFIG,
+			.is_config_pkt = true,
+			.resp = HAL_NO_RESP,
+			.name = "DS_CONFIG",
+		},
 	[HFI_CMD_SESSION_CVP_DS - HFI_CMD_SESSION_CVP_START] =
 		{
 			.size = HFI_DS_CMD_SIZE,
