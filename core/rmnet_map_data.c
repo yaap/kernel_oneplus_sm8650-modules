@@ -1,5 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,7 @@
 #define RMNET_MAP_PKT_COPY_THRESHOLD 64
 #define RMNET_MAP_DEAGGR_SPACING  64
 #define RMNET_MAP_DEAGGR_HEADROOM (RMNET_MAP_DEAGGR_SPACING / 2)
+#define RMNET_PAGE_COUNT 384
 
 struct rmnet_map_coal_metadata {
 	void *ip_header;
@@ -1402,7 +1403,7 @@ static void rmnet_alloc_agg_pages(struct rmnet_aggregation_state *state)
 	struct rmnet_agg_page *agg_page = NULL;
 	int i = 0;
 
-	for (i = 0; i < 512; i++) {
+	for (i = 0; i < RMNET_PAGE_COUNT; i++) {
 		agg_page = __rmnet_alloc_agg_pages(state);
 
 		if (agg_page)
