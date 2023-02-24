@@ -4,7 +4,7 @@
  */
 
 #include <media/v4l2_vidc_extensions.h>
-#include "msm_vidc_control_ext.h"
+#include "msm_vidc_platform_ext.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
