@@ -891,6 +891,7 @@ struct msm_vidc_buffer {
 	struct list_head                   list;
 	struct msm_vidc_inst              *inst;
 	enum msm_vidc_buffer_type          type;
+	enum msm_vidc_buffer_region        region;
 	u32                                index;
 	int                                fd;
 	u32                                buffer_size;

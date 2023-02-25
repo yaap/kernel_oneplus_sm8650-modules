@@ -288,6 +288,27 @@ u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
 	return hfi_colorformat;
 }
 
+static u32 get_hfi_region_flag(enum msm_vidc_buffer_region region)
+{
+
+	switch (region) {
+	case MSM_VIDC_NON_SECURE:
+		return HFI_BUF_HOST_FLAGS_CB_NON_SECURE;
+	case MSM_VIDC_NON_SECURE_PIXEL:
+		return HFI_BUF_HOST_FLAGS_CB_NON_SECURE_PIXEL;
+	case MSM_VIDC_SECURE_PIXEL:
+		return HFI_BUF_HOST_FLAGS_CB_SECURE_PIXEL;
+	case MSM_VIDC_SECURE_NONPIXEL:
+		return HFI_BUF_HOST_FLAGS_CB_SECURE_NON_PIXEL;
+	case MSM_VIDC_SECURE_BITSTREAM:
+		return HFI_BUF_HOST_FLAGS_CB_SECURE_BITSTREAM;
+	case MSM_VIDC_REGION_MAX:
+	case MSM_VIDC_REGION_NONE:
+	default:
+		return HFI_BUF_HOST_FLAG_NONE;
+	}
+}
+
 int get_hfi_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer, struct hfi_buffer *buf)
 {
@@ -310,6 +331,7 @@ int get_hfi_buffer(struct msm_vidc_inst *inst,
 		buf->flags |= HFI_BUF_HOST_FLAG_RELEASE;
 	if (buffer->flags & MSM_VIDC_BUF_FLAG_CODECCONFIG)
 		buf->flags |= HFI_BUF_HOST_FLAG_CODEC_CONFIG;
+	buf->flags |= get_hfi_region_flag(buffer->region);
 	buf->timestamp = buffer->timestamp;
 
 	return 0;
