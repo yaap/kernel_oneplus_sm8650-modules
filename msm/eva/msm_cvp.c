@@ -41,10 +41,11 @@ int msm_cvp_get_session_info(struct msm_cvp_inst *inst, u32 *session)
 static bool cvp_msg_pending(struct cvp_session_queue *sq,
 				struct cvp_session_msg **msg, u64 *ktid)
 {
-	struct cvp_session_msg *mptr, *dummy;
+	struct cvp_session_msg *mptr = NULL, *dummy;
 	bool result = false;
 
-	mptr = NULL;
+	if (!sq)
+		return false;
 	spin_lock(&sq->lock);
 	if (sq->state == QUEUE_INIT || sq->state == QUEUE_INVALID) {
 		/* The session is being deleted */
@@ -54,12 +55,14 @@ static bool cvp_msg_pending(struct cvp_session_queue *sq,
 	}
 	result = list_empty(&sq->msgs);
 	if (!result) {
+		mptr = list_first_entry(&sq->msgs,
+				struct cvp_session_msg,
+				node);
 		if (!ktid) {
-			mptr =
-			list_first_entry(&sq->msgs, struct cvp_session_msg,
-					node);
-			list_del_init(&mptr->node);
-			sq->msg_count--;
+			if (mptr) {
+				list_del_init(&mptr->node);
+				sq->msg_count--;
+			}
 		} else {
 			result = true;
 			list_for_each_entry_safe(mptr, dummy, &sq->msgs, node) {
@@ -244,6 +247,9 @@ static bool cvp_fence_wait(struct cvp_fence_queue *q,
 			enum queue_state *state)
 {
 	struct cvp_fence_command *f;
+
+	if (!q)
+		return false;
 
 	*fence = NULL;
 	mutex_lock(&q->lock);
@@ -645,28 +651,28 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	 */
 	buf_offset = offset;
 	for (i = 0; i < num; i++) {
-			buf = (struct cvp_buf_type*)&in_pkt->pkt_data[buf_offset];
-			buf_offset += sizeof(*buf) >> 2;
+		buf = (struct cvp_buf_type*)&in_pkt->pkt_data[buf_offset];
+		buf_offset += sizeof(*buf) >> 2;
 
-			if (buf->output_handle) {
-				/* Check fence_type? */
-				fences[f->num_fences].h_synx = buf->output_handle;
-				f->num_fences++;
-				buf->fence_type &= ~OUTPUT_FENCE_BITMASK;
-				buf->output_handle = 0;
-			}
+		if (buf->output_handle) {
+			/* Check fence_type? */
+			fences[f->num_fences].h_synx = buf->output_handle;
+			f->num_fences++;
+			buf->fence_type &= ~OUTPUT_FENCE_BITMASK;
+			buf->output_handle = 0;
+		}
 	}
 	dprintk(CVP_SYNX, "%s:Output Fence passed - Number of Fences is %d\n",
 			__func__, f->num_fences);
 
 	if (f->num_fences == 0)
-			goto free_exit;
+		goto free_exit;
 
 	rc = inst->core->synx_ftbl->cvp_import_synx(inst, f,
-			(u32*)fences);
+		(u32*)fences);
 
 	if (rc)
-			goto free_exit;
+		goto free_exit;
 
 fence_cmd_queue:
 	memcpy(f->pkt, cmd_hdr, cmd_hdr->size);
@@ -733,6 +739,8 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	} else {
 		if (rc > 0)
 			dprintk(CVP_SYNX, "Going fenced path\n");
+		else if (map_type == MAP_FRAME)
+			msm_cvp_unmap_frame(inst, cmd_hdr->client_data.kdata);
 		goto exit;
 	}
 
@@ -1354,6 +1362,15 @@ static int cvp_drain_fence_sched_list(struct msm_cvp_inst *inst)
 
 	q = &inst->fence_cmd_queue;
 
+	if (!q)
+		return -EINVAL;
+
+	f  = list_first_entry(&q->sched_list,
+			struct cvp_fence_command,
+			list);
+	if (!f)
+		return rc;
+
 	mutex_lock(&q->lock);
 	list_for_each_entry(f, &q->sched_list, list) {
 		ktid = f->pkt->client_data.kdata & (FENCE_BIT - 1);
@@ -1398,8 +1415,17 @@ static void cvp_clean_fence_queue(struct msm_cvp_inst *inst, int synx_state)
 
 	q = &inst->fence_cmd_queue;
 
+	if (!q)
+		return;
+
 	mutex_lock(&q->lock);
 	q->mode = OP_DRAINING;
+
+	f = list_first_entry(&q->wait_list,
+			struct cvp_fence_command,
+			list);
+	if (!f)
+		goto check_sched;
 
 	list_for_each_entry_safe(f, d, &q->wait_list, list) {
 		ktid = f->pkt->client_data.kdata & (FENCE_BIT - 1);
@@ -1413,6 +1439,15 @@ static void cvp_clean_fence_queue(struct msm_cvp_inst *inst, int synx_state)
 			f, synx_state);
 		inst->core->synx_ftbl->cvp_release_synx(inst, f);
 		cvp_free_fence_data(f);
+	}
+
+check_sched:
+	f = list_first_entry(&q->sched_list,
+			struct cvp_fence_command,
+			list);
+	if (!f) {
+		mutex_unlock(&q->lock);
+		return;
 	}
 
 	list_for_each_entry(f, &q->sched_list, list) {
