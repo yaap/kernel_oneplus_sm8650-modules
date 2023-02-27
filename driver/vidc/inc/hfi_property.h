@@ -573,6 +573,8 @@ enum hfi_saliency_type {
 
 #define HFI_PROP_SLICE_DECODE                                   0x03000196
 
+#define HFI_PROP_ENC_RING_BIN_BUF                               0x0300019C
+
 /* u32 */
 enum hfi_fence_type {
     HFI_SW_FENCE                      = 0x00000001,
