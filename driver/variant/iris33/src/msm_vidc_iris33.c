@@ -44,6 +44,7 @@ typedef enum
     HFI_CTRL_READY                      = 0x1,
     HFI_CTRL_ERROR_FATAL                = 0x2,
     HFI_CTRL_ERROR_UC_REGION_NOT_SET    = 0x4,
+    HFI_CTRL_ERROR_HW_FENCE_QUEUE       = 0x8,
     HFI_CTRL_PC_READY                   = 0x100,
     HFI_CTRL_VCODEC_IDLE                = 0x40000000
 } hfi_ctrl_status_type;
