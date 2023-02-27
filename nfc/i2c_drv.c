@@ -420,7 +420,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	if( nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 	    /*Check NFC Secure Zone status*/
-	    if(!nfc_hw_secure_check_smem()) {
+	    if(!nfc_hw_secure_check()) {
 		   nfc_post_init(nfc_dev);
 		   nfc_dev->secure_zone = false;
 	    }

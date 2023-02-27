@@ -18,7 +18,7 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *****************************************************************************/
 #include <linux/gpio.h>
@@ -26,9 +26,6 @@
 #include <linux/delay.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "common.h"
-
-#include <linux/soc/qcom/smem.h>
-#define PERISEC_SMEM_ID 651
 bool secure_peripheral_not_found = true;
 
 
@@ -144,10 +141,9 @@ void gpio_set_ven(struct nfc_dev *nfc_dev, int value)
 		}
 		else
 		{
-			if(!nfc_hw_secure_check_smem()) {
-				/*gpio val is set only if nfc is in non-secure zone*/
+			/*secure peripheral feature is enabled*/
+			if(!nfc_hw_secure_check())
 				gpio_set_value(nfc_gpio->ven, value);
-			}
 		}
 		/* hardware dependent delay */
 		usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
@@ -512,25 +508,71 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 }
 
 /**
- * nfc_hw_secure_check_smem() - Checks SMEM to get NFC secure zone status
+ * nfc_hw_secure_check() - Checks the NFC secure zone status
  *
- * Reads Variable shared between QTEE & HLOS, if NFC is in secure zone statue or not.
+ * Queries the TZ secure libraries if NFC is in secure zone statue or not.
  *
- * Return: false - FEATURE_NOT_SUPPORTED/PERIPHERAL_NOT_FOUND/NON-SECURE
- *         true - SECURE
+ * Return: 0 if FEATURE_NOT_SUPPORTED or PERIPHERAL_NOT_FOUND or nfc_sec_state = 2(non-secure zone) and
+ *  return 1 if nfc_sec_state = 1(secure zone) or error otherwise
  */
 
-bool nfc_hw_secure_check_smem(void)
+bool nfc_hw_secure_check(void)
 {
-	uint32_t * peripheralStateInfo = NULL;
-	size_t size = 0;
-
-	peripheralStateInfo = qcom_smem_get(QCOM_SMEM_HOST_ANY, PERISEC_SMEM_ID, &size);
-	if (peripheralStateInfo) {
-		secure_peripheral_not_found = false;
-		return ((*peripheralStateInfo >> (HW_NFC_UID - 0x500)) & 0x1);
+	struct Object client_env;
+	struct Object app_object;
+	u32 nfc_uid = HW_NFC_UID;
+	union ObjectArg obj_arg[2] = {{{0, 0}}};
+	int ret;
+	bool retstat = 1;
+	u8 nfc_sec_state = 0;
+	/* get rootObj */
+	ret = get_client_env_object(&client_env);
+	if (ret) {
+		pr_err("Failed to get client_env_object, ret: %d\n", ret);
+		return retstat;
 	}
-	return false;
+
+	ret = IClientEnv_open(client_env, HW_STATE_UID, &app_object);
+	if (ret) {
+		pr_debug("Failed to get app_object, ret: %d\n",  ret);
+		if (ret == FEATURE_NOT_SUPPORTED) {
+			retstat = 0; /* Do not Assert */
+			pr_debug("Secure HW feature not supported\n");
+		}
+		goto exit_release_clientenv;
+	}
+
+	obj_arg[0].b = (struct ObjectBuf) {&nfc_uid, sizeof(u32)};
+	obj_arg[1].b = (struct ObjectBuf) {&nfc_sec_state, sizeof(u8)};
+	ret = Object_invoke(app_object, HW_OP_GET_STATE, obj_arg,
+			ObjectCounts_pack(1, 1, 0, 0));
+
+	pr_info("TZ ret: %d nfc_sec_state: %d\n", ret, nfc_sec_state);
+	if (ret) {
+		if (ret == PERIPHERAL_NOT_FOUND) {
+			retstat = 0; /* Do not Assert */
+			pr_debug("Secure HW mode is not updated. Peripheral not found\n");
+		}
+		goto exit_release_app_obj;
+	}
+
+	secure_peripheral_not_found = false;
+
+	/* Refer peripheral state utilities for different states of NFC peripherals */
+	if (nfc_sec_state == 1) {
+		/*Secure Zone*/
+		retstat = 1;
+	} else {
+		/*Non-Secure Zone*/
+		retstat = 0;
+	}
+
+	exit_release_app_obj:
+		Object_release(app_object);
+	exit_release_clientenv:
+		Object_release(client_env);
+
+	return  retstat;
 }
 
 /**
@@ -620,7 +662,7 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 		return -ENODEV;
 	if( nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 	    /*Avoiding ioctl call in secure zone*/
-	    if(nfc_hw_secure_check_smem()) {
+	    if(nfc_dev->secure_zone) {
 		    if(cmd!=NFC_SECURE_ZONE) {
 			   pr_debug("nfc_dev_ioctl failed\n");
 			   return -1;
@@ -763,7 +805,7 @@ int nfc_dev_close(struct inode *inode, struct file *filp)
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev)
 {
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
-	if(!nfc_hw_secure_check_smem()) {
+	if(!nfc_dev->secure_zone) {
 		if (!gpio_get_value(nfc_gpio->ven)) {
 			pr_err("%s: ven low - nfcc powered off\n", __func__);
 			return -ENODEV;
