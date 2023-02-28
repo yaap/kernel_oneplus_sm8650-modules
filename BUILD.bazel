@@ -8,13 +8,13 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 
 ddk_headers(
     name = "smcinvoke_kernel_headers",
-    hdrs = [
+    hdrs = glob([
         "include/linux/smcinvoke*.h",
         "include/linux/IClientE*.h",
         "linux/misc/qseecom_kernel.h",
         "linux/misc/qseecom_priv.h"
-    ],
-    includes = ["include/linux", "linux"]
+    ]),
+    includes = ["include/linux", "linux", "include"]
 )
 
 ddk_headers(

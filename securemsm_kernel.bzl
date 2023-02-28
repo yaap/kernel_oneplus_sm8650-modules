@@ -77,6 +77,7 @@ def define_target_variant_modules(target, variant, modules, extra_options = [], 
             srcs = module_srcs,
             out = "{}.ko".format(module["name"]),
             deps = ["//msm-kernel:all_headers"] + [_replace_formatting_codes(target, variant, dep) for dep in module["deps"]],
+            hdrs = module["hdrs"],
             local_defines = target_local_defines,
             copts = module["copts"]
 

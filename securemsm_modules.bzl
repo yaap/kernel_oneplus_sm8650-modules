@@ -16,7 +16,7 @@ securemsm_modules_by_config = {}
 # default_srcs: A list of sources to be added to the module regardless of configuration options.
 # deps: A list of kernel_module or ddk_module rules that this module depends on.
 
-def register_securemsm_module(name, path = None, config_option = None, default_srcs = [], config_srcs = {}, deps = [], srcs = [], copts = []):
+def register_securemsm_module(name, path = None, config_option = None, default_srcs = [], config_srcs = {}, deps = [], srcs = [], copts = [], hdrs = []):
     processed_config_srcs = {}
 
     for config_src_name in config_srcs:
@@ -36,6 +36,7 @@ def register_securemsm_module(name, path = None, config_option = None, default_s
         "deps": deps,
         "copts": copts,
         "srcs": srcs,
+        "hdrs": hdrs,
     }
 
     securemsm_modules[name] = module
@@ -57,6 +58,7 @@ register_securemsm_module(
 
     ],
     deps = [":smcinvoke_kernel_headers"],
+    hdrs = [":smcinvoke_kernel_headers"],
 )
 
 register_securemsm_module(
