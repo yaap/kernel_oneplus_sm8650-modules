@@ -2447,6 +2447,8 @@ static int iris_debug_hook(void *device)
 	dprintk(CVP_ERR, "ARP_THREAD_3_SECURE_ENABLE %#x\n", val);
 
 
+	if (true)
+		return 0;
 	/***** GCE *******
 	 * Bit 0 of below register is CDM secure enable for GCE
 	 * CDM buffer will be in CB4 if set
