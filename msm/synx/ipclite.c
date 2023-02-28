@@ -17,16 +17,13 @@
 #include <linux/sizes.h>
 
 #include <linux/hwspinlock.h>
-#include <soc/qcom/secure_buffer.h>
+#include <linux/qcom_scm.h>
 
 #include <linux/sysfs.h>
 
 #include "ipclite_client.h"
 #include "ipclite.h"
 
-#define VMID_HLOS       3
-#define VMID_SSC_Q6     5
-#define VMID_ADSP_Q6    6
 #define VMID_CDSP       30
 #define GLOBAL_ATOMICS_ENABLED	1
 #define GLOBAL_ATOMICS_DISABLED	0
@@ -1005,14 +1002,18 @@ static void ipcmem_init(struct ipclite_mem *ipcmem)
 static int set_ipcmem_access_control(struct ipclite_info *ipclite)
 {
 	int ret = 0;
-	int srcVM[1] = {VMID_HLOS};
-	int destVM[2] = {VMID_HLOS, VMID_CDSP};
-	int destVMperm[2] = {PERM_READ | PERM_WRITE,
-				PERM_READ | PERM_WRITE};
+	u64 srcVM = BIT(QCOM_SCM_VMID_HLOS);
+	struct qcom_scm_vmperm destVM[2];
 
-	ret = hyp_assign_phys(ipclite->ipcmem.mem.aux_base,
-				ipclite->ipcmem.mem.size, srcVM, 1,
-				destVM, destVMperm, 2);
+	destVM[0].vmid = QCOM_SCM_VMID_HLOS;
+	destVM[0].perm = QCOM_SCM_PERM_RW;
+
+	destVM[1].vmid = VMID_CDSP;
+	destVM[1].perm = QCOM_SCM_PERM_RW;
+
+	ret = qcom_scm_assign_mem(ipclite->ipcmem.mem.aux_base,
+				ipclite->ipcmem.mem.size, &srcVM,
+				destVM, ARRAY_SIZE(destVM));
 	return ret;
 }
 
