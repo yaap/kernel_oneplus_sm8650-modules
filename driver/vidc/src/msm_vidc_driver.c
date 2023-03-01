@@ -4652,6 +4652,8 @@ int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 	 * reserved: 8-31 bits
 	 * test_addr: 32-63 bits
 	 */
+	d_vpr_e("%s: trigger ssr is called. trigger ssr val: %#llx\n",
+		__func__, trigger_ssr_val);
 	ssr->ssr_type = (trigger_ssr_val &
 			(unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
 	ssr->sub_client_id = (trigger_ssr_val &
@@ -4675,6 +4677,8 @@ void msm_vidc_ssr_handler(struct work_struct *work)
 	}
 	ssr = &core->ssr;
 
+	d_vpr_e("%s: ssr handler is called, core state: %s\n",
+		__func__, core_state_name(core->state));
 	core_lock(core, __func__);
 	if (is_core_state(core, MSM_VIDC_CORE_INIT)) {
 		/*
