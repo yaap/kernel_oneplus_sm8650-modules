@@ -6,6 +6,7 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/ioctl.h>
+#include <linux/ktime.h>
 #include <linux/types.h>
 #include <linux/sync_file.h>
 
@@ -38,6 +39,8 @@
 		.func = _func,			\
 		.name = #ioctl			\
 	}
+
+#define ktime_compare_safe(A, B) ktime_compare(ktime_sub((A), (B)), ktime_set(0, 0))
 
 /**
  * struct hw_sync_obj - per client hw sync object.
@@ -371,7 +374,7 @@ static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned l
 		return -EFAULT;
 
 	num_fences = data.num_fences;
-	if (num_fences >= HW_FENCE_ARRAY_SIZE) {
+	if (num_fences > HW_FENCE_ARRAY_SIZE) {
 		HWFNC_ERR("Number of fences: %d is greater than allowed size: %d\n",
 					num_fences, HW_FENCE_ARRAY_SIZE);
 		return -EINVAL;
@@ -559,6 +562,7 @@ static long hw_sync_ioctl_fence_wait(struct hw_sync_obj *obj, unsigned long arg)
 	struct msm_hw_fence_queue_payload payload;
 	struct hw_fence_sync_wait_data data;
 	struct dma_fence *fence;
+	ktime_t cur_ktime, exp_ktime;
 	int fd, ret, read = 1, queue_type = HW_FENCE_RX_QUEUE - 1;  /* rx queue index */
 
 	if (!_is_valid_client(obj))
@@ -582,9 +586,15 @@ static long hw_sync_ioctl_fence_wait(struct hw_sync_obj *obj, unsigned long arg)
 		return -EINVAL;
 	}
 
-	ret = wait_event_timeout(hw_fence_client->wait_queue,
-			atomic_read(&hw_fence_client->val_signal) > 0,
-			msecs_to_jiffies(data.timeout_ms));
+	exp_ktime = ktime_add_ms(ktime_get(), data.timeout_ms);
+	do {
+		ret = wait_event_timeout(hw_fence_client->wait_queue,
+				atomic_read(&hw_fence_client->val_signal) > 0,
+				msecs_to_jiffies(data.timeout_ms));
+		cur_ktime = ktime_get();
+	} while ((atomic_read(&hw_fence_client->val_signal) <= 0) && (ret == 0) &&
+		ktime_compare_safe(exp_ktime, cur_ktime) > 0);
+
 	if (!ret) {
 		HWFNC_ERR("timed out waiting for the client signal %d\n", data.timeout_ms);
 		/* Decrement the refcount that hw_sync_get_fence increments */
