@@ -525,7 +525,7 @@ static void smcinvoke_shmbridge_post_process(void)
 			do {
 				ret = qtee_shmbridge_deregister(handle);
 				if (unlikely(ret)) {
-					pr_err("SHM failed: ret:%d ptr:0x%x h:%#llx\n",
+					pr_err_ratelimited("SHM failed: ret:%d ptr:0x%x h:%#llx\n",
 							ret,
 							dmabuf_to_free,
 							handle);
@@ -562,7 +562,7 @@ static int smcinvoke_release_tz_object(struct qtee_shm *in_shm, struct qtee_shm 
 			&release_handles, context_type, in_shm, out_shm);
 	process_piggyback_data(out_buf, SMCINVOKE_TZ_MIN_BUF_SIZE);
 	if (ret) {
-		pr_err("Failed to release object(0x%x), ret:%d\n",
+		pr_err_ratelimited("Failed to release object(0x%x), ret:%d\n",
 				hdr.tzhandle, ret);
 	} else {
 		pr_debug("Released object(0x%x) successfully.\n",
@@ -643,7 +643,7 @@ static void smcinvoke_start_adci_thread(void)
 	do {
 		ret = IClientEnv_adciAccept(adci_rootEnv);
 		if (ret == OBJECT_ERROR_BUSY) {
-			pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+			pr_err_ratelimited("Secure side is busy,will retry after 5 ms, retry_count = %d\n",retry_count);
 			msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 		}
 	} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
@@ -764,7 +764,7 @@ static void smcinvoke_destroy_kthreads(void)
 		do {
 			ret = IClientEnv_adciShutdown(adci_rootEnv);
 			if (ret == OBJECT_ERROR_BUSY) {
-				pr_err("Secure side is busy,will retry after 5 ms, retry_count = %d",retry_count);
+				pr_err_ratelimited("Secure side is busy,will retry after 5 ms, retry_count = %d\n",retry_count);
 				msleep(SMCINVOKE_INTERFACE_BUSY_WAIT_MS);
 			}
 		} while ((ret == OBJECT_ERROR_BUSY) && (retry_count++ < SMCINVOKE_INTERFACE_MAX_RETRY));
@@ -1925,7 +1925,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 					&response_type, &data, in_shm, out_shm);
 
 			if (ret == -EBUSY) {
-				pr_err("Secure side is busy,will retry after 30 ms, retry_count = %d",retry_count);
+				pr_err_ratelimited("Secure side is busy,will retry after 30 ms, retry_count = %d\n",retry_count);
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
 			}
 
@@ -2557,7 +2557,7 @@ start_waiting_for_requests:
 			mutex_lock(&g_smcinvoke_lock);
 
 			if(freezing(current)) {
-				pr_err("Server id :%d interrupted probaby due to suspend, pid:%d",
+				pr_err_ratelimited("Server id :%d interrupted probaby due to suspend, pid:%d\n",
 					server_info->server_id, current->pid);
 				/*
 				 * Each accept thread is identified by bits ranging from
@@ -2571,7 +2571,7 @@ start_waiting_for_requests:
 						SET_BIT(server_info->is_server_suspended,
 							(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
 			} else {
-				pr_err("Setting pid:%d, server id : %d state to defunct",
+				pr_err_ratelimited("Setting pid:%d, server id : %d state to defunct\n",
 						current->pid, server_info->server_id);
 						server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
 			}
