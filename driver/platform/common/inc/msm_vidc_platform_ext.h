@@ -3,8 +3,8 @@
  * Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#ifndef _MSM_VIDC_CONTROL_EXT_H_
-#define _MSM_VIDC_CONTROL_EXT_H_
+#ifndef _MSM_VIDC_PLATFORM_EXT_H_
+#define _MSM_VIDC_PLATFORM_EXT_H_
 
 #include "msm_vidc_control.h"
 

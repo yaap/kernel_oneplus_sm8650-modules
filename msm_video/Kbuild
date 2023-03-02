@@ -49,6 +49,7 @@ msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/platform/kalama/src/msm_vidc_kalama.o
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris3/src/msm_vidc_iris3.o
 endif
 msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform.o \
+                  $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform_ext.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/common/src/msm_vidc_variant.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_v4l2.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_vb2.o \
@@ -58,7 +59,6 @@ msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_driver.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_state.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_control.o \
-                  $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_control_ext.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_buffer.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_power.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_probe.o \

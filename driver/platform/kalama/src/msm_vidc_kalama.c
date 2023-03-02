@@ -15,7 +15,7 @@
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
-#include "msm_vidc_control_ext.h"
+#include "msm_vidc_platform_ext.h"
 #include "msm_vidc_memory_ext.h"
 #include "resources_ext.h"
 #include "msm_vidc_iris3.h"
