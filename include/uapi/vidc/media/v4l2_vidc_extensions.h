@@ -393,6 +393,8 @@ enum v4l2_mpeg_vidc_metapayload_header_flags {
 	METADATA_FLAGS_NONE             = 0,
 	METADATA_FLAGS_TOP_FIELD        = (1 << 0),
 	METADATA_FLAGS_BOTTOM_FIELD     = (1 << 1),
+	METADATA_FLAGS_BITSTREAM        = (1 << 2),
+	METADATA_FLAGS_RAW              = (1 << 3),
 };
 
 enum saliency_roi_info {
