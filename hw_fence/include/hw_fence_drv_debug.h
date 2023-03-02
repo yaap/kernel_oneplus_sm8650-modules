@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HW_FENCE_DRV_DEBUG
@@ -60,6 +60,9 @@ extern u32 msm_hw_fence_debug_level;
 #define HWFNC_DBG_LOCK(fmt, ...) \
 	dprintk(HW_FENCE_LOCK, "[hwfence:%s:%d][dbglock]"fmt, __func__, __LINE__, ##__VA_ARGS__)
 
+#define HWFNC_DBG_DUMP(prio, fmt, ...) \
+	dprintk(prio, "[hwfence:%s:%d][dbgd]"fmt, __func__, __LINE__, ##__VA_ARGS__)
+
 #define HWFNC_WARN(fmt, ...) \
 	pr_warn("[hwfence:%s:%d][warn][%pS] "fmt, __func__, __LINE__, \
 	__builtin_return_address(0), ##__VA_ARGS__)
@@ -69,6 +72,13 @@ int hw_fence_debug_debugfs_register(struct hw_fence_driver_data *drv_data);
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 
 int process_validation_client_loopback(struct hw_fence_driver_data *drv_data, int client_id);
+
+void hw_fence_debug_dump_queues(enum hw_fence_drv_prio prio,
+	struct msm_hw_fence_client *hw_fence_client);
+void hw_fence_debug_dump_fence(enum hw_fence_drv_prio prio, struct msm_hw_fence *hw_fence, u64 hash,
+	u32 count);
+void hw_fence_debug_dump_table(enum hw_fence_drv_prio prio, struct hw_fence_driver_data *drv_data);
+void hw_fence_debug_dump_events(enum hw_fence_drv_prio prio, struct hw_fence_driver_data *drv_data);
 
 extern const struct file_operations hw_sync_debugfs_fops;
 

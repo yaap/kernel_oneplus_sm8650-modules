@@ -476,6 +476,75 @@ int msm_hw_fence_trigger_signal(void *client_handle,
 }
 EXPORT_SYMBOL(msm_hw_fence_trigger_signal);
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+int msm_hw_fence_dump_debug_data(void *client_handle, u32 dump_flags, u32 dump_clients_mask)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+	int client_id;
+
+	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
+		HWFNC_ERR("hw fence driver not ready\n");
+		return -EAGAIN;
+	} else if (IS_ERR_OR_NULL(client_handle)) {
+		HWFNC_ERR("Invalid client handle:%d\n", IS_ERR_OR_NULL(client_handle));
+		return -EINVAL;
+	}
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+
+	if (dump_flags & MSM_HW_FENCE_DBG_DUMP_QUEUES) {
+		hw_fence_debug_dump_queues(HW_FENCE_PRINTK, hw_fence_client);
+
+		if (dump_clients_mask)
+			for (client_id = 0; client_id < HW_FENCE_CLIENT_MAX; client_id++)
+				if ((dump_clients_mask & (1 << client_id)) &&
+						hw_fence_drv_data->clients[client_id])
+					hw_fence_debug_dump_queues(HW_FENCE_PRINTK,
+						hw_fence_drv_data->clients[client_id]);
+	}
+
+	if (dump_flags & MSM_HW_FENCE_DBG_DUMP_TABLE)
+		hw_fence_debug_dump_table(HW_FENCE_PRINTK, hw_fence_drv_data);
+
+	if (dump_flags & MSM_HW_FENCE_DBG_DUMP_EVENTS)
+		hw_fence_debug_dump_events(HW_FENCE_PRINTK, hw_fence_drv_data);
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_dump_debug_data);
+
+int msm_hw_fence_dump_fence(void *client_handle, struct dma_fence *fence)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+	struct msm_hw_fence *hw_fence;
+	u64 hash;
+
+	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
+		HWFNC_ERR("hw fence driver not ready\n");
+		return -EAGAIN;
+	} else if (IS_ERR_OR_NULL(client_handle)) {
+		HWFNC_ERR("Invalid client handle:%d\n", IS_ERR_OR_NULL(client_handle));
+		return -EINVAL;
+	} else if (!test_bit(MSM_HW_FENCE_FLAG_ENABLED_BIT, &fence->flags)) {
+		HWFNC_ERR("DMA Fence is not a HW Fence ctx:%llu seqno:%llu flags:0x%llx\n",
+			fence->context, fence->seqno, fence->flags);
+		return -EINVAL;
+	}
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+
+	hw_fence = msm_hw_fence_find(hw_fence_drv_data, hw_fence_client, fence->context,
+		fence->seqno, &hash);
+	if (!hw_fence) {
+		HWFNC_ERR("failed to find hw-fence client_id:%d fence:0x%pK ctx:%llu seqno:%llu\n",
+			hw_fence_client->client_id, fence, fence->context, fence->seqno);
+		return -EINVAL;
+	}
+	hw_fence_debug_dump_fence(HW_FENCE_PRINTK, hw_fence, hash, 0);
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_dump_fence);
+#endif /* CONFIG_DEBUG_FS */
+
 /* Function used for simulation purposes only. */
 int msm_hw_fence_driver_doorbell_sim(u64 db_mask)
 {

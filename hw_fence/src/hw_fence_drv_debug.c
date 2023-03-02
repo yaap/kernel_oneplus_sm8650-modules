@@ -14,6 +14,14 @@
 
 #define HW_FENCE_DEBUG_MAX_LOOPS 200
 
+#define HFENCE_TBL_MSG \
+	"[%d]hfence[%d] v:%d err:%lu ctx:%llu seq:%llu wait:0x%llx alloc:%d f:0x%llx child_cnt:%d" \
+	"%s ct:%llu tt:%llu wt:%llu\n"
+
+/* each hwfence parent includes one "32-bit" element + "," separator */
+#define HW_FENCE_MAX_PARENTS_SUBLIST_DUMP (MSM_HW_FENCE_MAX_JOIN_PARENTS * 9)
+#define HW_FENCE_MAX_PARENTS_DUMP (sizeof("parent_list[] ") + HW_FENCE_MAX_PARENTS_SUBLIST_DUMP)
+
 /* event dump data includes one "32-bit" element + "|" separator */
 #define HW_FENCE_MAX_DATA_PER_EVENT_DUMP (HW_FENCE_EVENT_MAX_DATA * 9)
 
@@ -473,27 +481,80 @@ static ssize_t hw_fence_dbg_create_wr(struct file *file,
 	return count;
 }
 
-#define HFENCE_TBL_MSG \
-	"[%d]hfence[%d] v:%d err:%d ctx:%d seqno:%d wait:0x%llx alloc:%d f:0x%lx tt:%llu wt:%llu\n"
+static void _dump_fence_helper(enum hw_fence_drv_prio prio, struct msm_hw_fence *hw_fence,
+	char *parents_dump, u64 hash, u32 count)
+{
+	char sublist[HW_FENCE_MAX_PARENTS_SUBLIST_DUMP];
+	u32 parents_cnt;
+	int i, len = 0;
+
+	if (!hw_fence || !parents_dump) {
+		HWFNC_ERR("invalid params hw_fence:0x%pK parents_dump:0x%pK\n", hw_fence,
+			parents_dump);
+		return;
+	}
+
+	memset(parents_dump, 0, sizeof(char) * HW_FENCE_MAX_PARENTS_DUMP);
+	if (hw_fence->parents_cnt) {
+		if (hw_fence->parents_cnt > MSM_HW_FENCE_MAX_JOIN_PARENTS) {
+			HWFNC_ERR("hfence[%d] has invalid parents_cnt:%d greater than max:%d\n",
+				hash, hw_fence->parents_cnt, MSM_HW_FENCE_MAX_JOIN_PARENTS);
+			parents_cnt = MSM_HW_FENCE_MAX_JOIN_PARENTS;
+		} else {
+			parents_cnt = hw_fence->parents_cnt;
+		}
+
+		memset(sublist, 0, sizeof(sublist));
+		for (i = 0; i < parents_cnt; i++)
+			len += scnprintf(sublist + len, HW_FENCE_MAX_PARENTS_SUBLIST_DUMP - len,
+				"%lu,", hw_fence->parent_list[i]);
+		scnprintf(parents_dump, HW_FENCE_MAX_PARENTS_DUMP, " p:[%s]", sublist);
+	}
+
+	HWFNC_DBG_DUMP(prio, HFENCE_TBL_MSG,
+		count, hash, hw_fence->valid, hw_fence->error, hw_fence->ctx_id, hw_fence->seq_id,
+		hw_fence->wait_client_mask, hw_fence->fence_allocator, hw_fence->flags,
+		hw_fence->pending_child_cnt, parents_dump, hw_fence->fence_create_time,
+		hw_fence->fence_trigger_time, hw_fence->fence_wait_time);
+}
+
+void hw_fence_debug_dump_fence(enum hw_fence_drv_prio prio, struct msm_hw_fence *hw_fence, u64 hash,
+	u32 count)
+{
+	char parents_dump[HW_FENCE_MAX_PARENTS_DUMP];
+
+	return _dump_fence_helper(prio, hw_fence, parents_dump, hash, count);
+}
 
 static inline int _dump_fence(struct msm_hw_fence *hw_fence, char *buf, int len, int max_size,
 		u32 index, u32 cnt)
 {
 	int ret;
+	char parents_dump[HW_FENCE_MAX_PARENTS_DUMP];
+
+	_dump_fence_helper(HW_FENCE_INFO, hw_fence, parents_dump, index, cnt);
 
 	ret = scnprintf(buf + len, max_size - len, HFENCE_TBL_MSG,
-		cnt, index, hw_fence->valid, hw_fence->error,
-		hw_fence->ctx_id, hw_fence->seq_id,
-		hw_fence->wait_client_mask, hw_fence->fence_allocator,
-		hw_fence->flags, hw_fence->fence_trigger_time, hw_fence->fence_wait_time);
-
-	HWFNC_DBG_L(HFENCE_TBL_MSG,
-		cnt, index, hw_fence->valid, hw_fence->error,
-		hw_fence->ctx_id, hw_fence->seq_id,
-		hw_fence->wait_client_mask, hw_fence->fence_allocator,
-		hw_fence->flags, hw_fence->fence_trigger_time, hw_fence->fence_wait_time);
+		cnt, index, hw_fence->valid, hw_fence->error, hw_fence->ctx_id, hw_fence->seq_id,
+		hw_fence->wait_client_mask, hw_fence->fence_allocator, hw_fence->flags,
+		hw_fence->pending_child_cnt, parents_dump, hw_fence->fence_create_time,
+		hw_fence->fence_trigger_time, hw_fence->fence_wait_time);
 
 	return ret;
+}
+
+void hw_fence_debug_dump_table(enum hw_fence_drv_prio prio, struct hw_fence_driver_data *drv_data)
+{
+	u32 i, cnt = 0;
+	struct msm_hw_fence *hw_fence;
+
+	for (i = 0; i < drv_data->hw_fences_tbl_cnt; i++) {
+		hw_fence = &drv_data->hw_fences_tbl[i];
+		if (!hw_fence->valid)
+			continue;
+		hw_fence_debug_dump_fence(prio, hw_fence, i, cnt);
+		cnt++;
+	}
 }
 
 static int dump_single_entry(struct hw_fence_driver_data *drv_data, char *buf, u32 *index,
@@ -545,17 +606,40 @@ static int dump_full_table(struct hw_fence_driver_data *drv_data, char *buf, u32
 	return len;
 }
 
-static inline int _dump_event(struct msm_hw_fence_event *event, char *buf, int len, int max_size,
-	u32 index)
+static void _find_earliest_event(struct hw_fence_driver_data *drv_data, u32 *start_index,
+	u64 *start_time)
 {
-	char data[HW_FENCE_MAX_DATA_PER_EVENT_DUMP];
+	u32 i;
+
+	if (!start_index || !start_time) {
+		HWFNC_ERR("invalid params start_index:0x%pK start_time:0x%pK\n", start_index,
+			start_time);
+		return;
+	}
+
+	mb(); /* make sure data is ready before read */
+	for (i = 0; i < drv_data->total_events; i++) {
+		u64 time = drv_data->events[i].time;
+
+		if (time && (!*start_time || time < *start_time)) {
+			*start_time = time;
+			*start_index = i;
+		}
+	}
+}
+
+static void _dump_event(enum hw_fence_drv_prio prio, struct msm_hw_fence_event *event,
+	char *data, u32 index)
+{
 	u32 data_cnt;
-	int i, tmp_len = 0, ret = 0;
+	int i, len = 0;
 
-	if (!event->time)
-		return 0;
+	if (!event || !data) {
+		HWFNC_ERR("invalid params event:0x%pK data:0x%pK\n", event, data);
+		return;
+	}
 
-	memset(&data, 0, sizeof(data));
+	memset(data, 0, sizeof(char) * HW_FENCE_MAX_DATA_PER_EVENT_DUMP);
 	if (event->data_cnt > HW_FENCE_EVENT_MAX_DATA) {
 		HWFNC_ERR("event[%d] has invalid data_cnt:%lu greater than max_data_cnt:%lu\n",
 			index, event->data_cnt, HW_FENCE_EVENT_MAX_DATA);
@@ -565,15 +649,29 @@ static inline int _dump_event(struct msm_hw_fence_event *event, char *buf, int l
 	}
 
 	for (i = 0; i < data_cnt; i++)
-		tmp_len += scnprintf(data + tmp_len, HW_FENCE_MAX_DATA_PER_EVENT_DUMP - tmp_len,
+		len += scnprintf(data + len, HW_FENCE_MAX_DATA_PER_EVENT_DUMP - len,
 			"%lx|", event->data[i]);
 
-	ret = scnprintf(buf + len, max_size - len, HFENCE_EVT_MSG, index, event->cpu, event->time,
-		event->data_cnt, data);
+	HWFNC_DBG_DUMP(prio, HFENCE_EVT_MSG, index, event->cpu, event->time, event->data_cnt, data);
+}
 
-	HWFNC_DBG_INFO(HFENCE_EVT_MSG, index, event->cpu, event->time, event->data_cnt, data);
+void hw_fence_debug_dump_events(enum hw_fence_drv_prio prio, struct hw_fence_driver_data *drv_data)
+{
+	char data[HW_FENCE_MAX_DATA_PER_EVENT_DUMP];
+	u32 start_index;
+	u64 start_time;
+	int i;
 
-	return ret;
+	if (!drv_data->events) {
+		HWFNC_ERR("events not supported\n");
+		return;
+	}
+
+	_find_earliest_event(drv_data, &start_index, &start_time);
+	for (i = start_index; i < drv_data->total_events && drv_data->events[i].time; i++)
+		_dump_event(prio, &drv_data->events[i], data, i);
+	for (i = 0; i < start_index; i++)
+		_dump_event(prio, &drv_data->events[i], data, i);
 }
 
 /**
@@ -626,15 +724,7 @@ static ssize_t hw_fence_dbg_dump_events_rd(struct file *file, char __user *user_
 
 	/* find index of earliest event */
 	if (!start_time) {
-		mb(); /* make sure data is ready before read */
-		for (index = 0; index < drv_data->total_events; index++) {
-			u64 time = drv_data->events[index].time;
-
-			if (time && (!start_time || time < start_time)) {
-				start_time = time;
-				start_index = index;
-			}
-		}
+		_find_earliest_event(drv_data, &start_index, &start_time);
 		index = start_index;
 		HWFNC_DBG_H("events:0x%pK start_index:%d start_time:%llu total_events:%d\n",
 			drv_data->events, start_index, start_time, drv_data->total_events);
@@ -642,7 +732,15 @@ static ssize_t hw_fence_dbg_dump_events_rd(struct file *file, char __user *user_
 
 	HWFNC_DBG_H("++ dump_events index:%d qtime:%llu\n", index, hw_fence_get_qtime(drv_data));
 	while ((!wraparound || index < start_index) && len < (max_size - entry_size)) {
-		len += _dump_event(&drv_data->events[index], buf, len, max_size, index);
+		char data[HW_FENCE_MAX_DATA_PER_EVENT_DUMP];
+
+		if (drv_data->events[index].time) {
+			_dump_event(HW_FENCE_INFO, &drv_data->events[index], data, index);
+			len += scnprintf(buf + len, max_size - len, HFENCE_EVT_MSG, index,
+				drv_data->events[index].cpu, drv_data->events[index].time,
+				drv_data->events[index].data_cnt, data);
+		}
+
 		index++;
 		if (index >= drv_data->total_events) {
 			index = 0;
@@ -668,6 +766,63 @@ exit:
 	return len;
 }
 
+static void _dump_queue(enum hw_fence_drv_prio prio, struct msm_hw_fence_client *hw_fence_client,
+	int queue_type)
+{
+	struct msm_hw_fence_queue *queue;
+	struct msm_hw_fence_hfi_queue_header *hfi_header;
+	struct msm_hw_fence_queue_payload *payload;
+	u64 timestamp;
+	u32 *read_ptr, queue_entries;
+	int i;
+
+	queue = &hw_fence_client->queues[queue_type - 1];
+
+	if ((queue_type > hw_fence_client->queues_num) || !queue || !queue->va_header
+			|| !queue->va_queue) {
+		HWFNC_ERR("Cannot dump client:%d q_type:%s q_ptr:0x%pK q_header:0x%pK q_va:0x%pK\n",
+			hw_fence_client->client_id,
+			(queue_type == HW_FENCE_TX_QUEUE) ? "TX QUEUE" : "RX QUEUE",
+			queue, queue ? queue->va_header : NULL, queue ? queue->va_queue : NULL);
+		return;
+	}
+	hfi_header = (struct msm_hw_fence_hfi_queue_header *)queue->va_header;
+
+	mb(); /* make sure data is ready before read */
+	HWFNC_DBG_DUMP(prio, "%s va:0x%pK rd_idx:%lu wr_idx:%lu tx_wm:%lu q_size_bytes:%lu\n",
+		(queue_type == HW_FENCE_TX_QUEUE) ? "TX QUEUE" : "RX QUEUE", queue->va_queue,
+		hfi_header->read_index, hfi_header->write_index, hfi_header->tx_wm,
+		queue->q_size_bytes);
+	queue_entries = queue->q_size_bytes / HW_FENCE_CLIENT_QUEUE_PAYLOAD;
+
+	for (i = 0; i < queue_entries; i++) {
+		read_ptr = ((u32 *)queue->va_queue +
+			(i * (sizeof(struct msm_hw_fence_queue_payload) / sizeof(u32))));
+		payload = (struct msm_hw_fence_queue_payload *)read_ptr;
+		timestamp = (u64)payload->timestamp_lo | ((u64)payload->timestamp_hi << 32);
+
+		HWFNC_DBG_DUMP(prio,
+			"%s[%d]: hash:%d ctx:%llu seqno:%llu f:%llu d:%llu err:%u time:%llu\n",
+			(queue_type == HW_FENCE_TX_QUEUE) ? "tx" : "rx", i, payload->hash,
+			payload->ctxt_id, payload->seqno, payload->flags, payload->client_data,
+			payload->error, timestamp);
+	}
+}
+
+void hw_fence_debug_dump_queues(enum hw_fence_drv_prio prio,
+	struct msm_hw_fence_client *hw_fence_client)
+{
+	if (!hw_fence_client) {
+		HWFNC_ERR("Invalid params client:0x%pK\n", hw_fence_client);
+		return;
+	}
+
+	HWFNC_DBG_DUMP(prio, "Queues for client %d\n", hw_fence_client->client_id);
+	if (hw_fence_client->queues_num == HW_FENCE_CLIENT_QUEUES)
+		_dump_queue(prio, hw_fence_client, HW_FENCE_RX_QUEUE);
+	_dump_queue(prio, hw_fence_client, HW_FENCE_TX_QUEUE);
+}
+
 /**
  * hw_fence_dbg_dump_queues_wr() - debugfs wr to dump the hw-fences queues.
  * @file: file handler.
@@ -682,12 +837,7 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 	size_t count, loff_t *ppos)
 {
 	struct hw_fence_driver_data *drv_data;
-	struct msm_hw_fence_queue *rx_queue;
-	struct msm_hw_fence_queue *tx_queue;
-	u64 hash, ctx_id, seqno, timestamp, flags, client_data;
-	u32 *read_ptr, error;
-	int client_id, i;
-	struct msm_hw_fence_queue_payload *read_ptr_payload;
+	int client_id;
 
 	if (!file || !file->private_data) {
 		HWFNC_ERR("unexpected data %d\n", file);
@@ -699,53 +849,11 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 	if (client_id < 0)
 		return -EINVAL;
 
-	if (!drv_data->clients[client_id] ||
-		IS_ERR_OR_NULL(&drv_data->clients[client_id]->queues[HW_FENCE_RX_QUEUE - 1]) ||
-		IS_ERR_OR_NULL(&drv_data->clients[client_id]->queues[HW_FENCE_TX_QUEUE - 1])) {
+	if (!drv_data->clients[client_id]) {
 		HWFNC_ERR("client %d not initialized\n", client_id);
 		return -EINVAL;
 	}
-
-	HWFNC_DBG_L("Queues for client %d\n", client_id);
-
-	rx_queue = &drv_data->clients[client_id]->queues[HW_FENCE_RX_QUEUE - 1];
-	tx_queue = &drv_data->clients[client_id]->queues[HW_FENCE_TX_QUEUE - 1];
-
-	HWFNC_DBG_L("-------RX QUEUE------\n");
-	for (i = 0; i < drv_data->hw_fence_queue_entries; i++) {
-		read_ptr = ((u32 *)rx_queue->va_queue +
-			(i * (sizeof(struct msm_hw_fence_queue_payload) / sizeof(u32))));
-		read_ptr_payload = (struct msm_hw_fence_queue_payload *)read_ptr;
-
-		ctx_id = readq_relaxed(&read_ptr_payload->ctxt_id);
-		seqno = readq_relaxed(&read_ptr_payload->seqno);
-		hash = readq_relaxed(&read_ptr_payload->hash);
-		flags = readq_relaxed(&read_ptr_payload->flags);
-		client_data = readq_relaxed(&read_ptr_payload->client_data);
-		error = readl_relaxed(&read_ptr_payload->error);
-		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
-			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
-
-		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu d:%llu err:%u time:%llu\n",
-			i, hash, ctx_id, seqno, flags, client_data, error, timestamp);
-	}
-
-	HWFNC_DBG_L("-------TX QUEUE------\n");
-	for (i = 0; i < drv_data->hw_fence_queue_entries; i++) {
-		read_ptr = ((u32 *)tx_queue->va_queue +
-			(i * (sizeof(struct msm_hw_fence_queue_payload) / sizeof(u32))));
-		read_ptr_payload = (struct msm_hw_fence_queue_payload *)read_ptr;
-
-		ctx_id = readq_relaxed(&read_ptr_payload->ctxt_id);
-		seqno = readq_relaxed(&read_ptr_payload->seqno);
-		hash = readq_relaxed(&read_ptr_payload->hash);
-		flags = readq_relaxed(&read_ptr_payload->flags);
-		error = readl_relaxed(&read_ptr_payload->error);
-		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
-			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
-		HWFNC_DBG_L("tx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%llu\n",
-			i, hash, ctx_id, seqno, flags, error, timestamp);
-	}
+	hw_fence_debug_dump_queues(HW_FENCE_PRINTK, drv_data->clients[client_id]);
 
 	return count;
 }
