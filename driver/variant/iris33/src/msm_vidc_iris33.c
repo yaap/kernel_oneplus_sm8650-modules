@@ -1231,6 +1231,7 @@ static struct msm_vidc_session_ops msm_session_ops = {
 	.buffer_size = msm_buffer_size_iris33,
 	.min_count = msm_buffer_min_count_iris33,
 	.extra_count = msm_buffer_extra_count_iris33,
+	.ring_buf_count = msm_vidc_ring_buf_count_iris33,
 	.calc_freq = msm_vidc_calc_freq_iris33,
 	.calc_bw = msm_vidc_calc_bw_iris33,
 	.decide_work_route = msm_vidc_decide_work_route_iris33,

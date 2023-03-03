@@ -28,6 +28,7 @@ struct msm_vidc_session_ops {
 	int (*buffer_size)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
 	int (*min_count)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
 	int (*extra_count)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
+	int (*ring_buf_count)(struct msm_vidc_inst *inst, u32 data_size);
 };
 
 struct msm_vidc_mem_list_info {

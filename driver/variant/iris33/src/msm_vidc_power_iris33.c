@@ -12,6 +12,8 @@
 #include "perf_static_model.h"
 #include "msm_vidc_power.h"
 
+#define VPP_MIN_FREQ_MARGIN_PERCENT                   5 /* to be tuned */
+
 static u64 __calculate_decoder(struct vidc_bus_vote_data *d);
 static u64 __calculate_encoder(struct vidc_bus_vote_data *d);
 static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d);
@@ -284,6 +286,49 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 	return 0;
 }
 
+static bool is_vpp_cycles_close_to_freq_corner(struct msm_vidc_core *core,
+	u64 vpp_min_freq)
+{
+	u64 margin_freq = 0;
+	u64 closest_freq_upper_corner = 0;
+	u32 margin_percent = 0;
+	int i = 0;
+
+	if (!core || !core->resource || !core->resource->freq_set.freq_tbl ||
+		!core->resource->freq_set.count) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return false;
+	}
+
+	vpp_min_freq = vpp_min_freq * 1000000; /* convert to hz */
+
+	closest_freq_upper_corner =
+		core->resource->freq_set.freq_tbl[0].freq;
+
+	if (vpp_min_freq > closest_freq_upper_corner)
+		return false;
+
+	/* get the closest freq corner for vpp_min_freq */
+	for (i = 0; i < core->resource->freq_set.count; i++) {
+		if (vpp_min_freq <=
+			core->resource->freq_set.freq_tbl[i].freq) {
+			closest_freq_upper_corner =
+				core->resource->freq_set.freq_tbl[i].freq;
+		} else {
+			break;
+		}
+	}
+
+	margin_freq = closest_freq_upper_corner - vpp_min_freq;
+	margin_percent = div_u64((margin_freq * 100), closest_freq_upper_corner);
+
+	/* check if margin is less than cutoff */
+	if (margin_percent < VPP_MIN_FREQ_MARGIN_PERCENT)
+		return true;
+
+	return false;
+}
+
 static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
@@ -311,6 +356,25 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 	ret = msm_vidc_calculate_frequency(codec_input, &codec_output);
 	if (ret)
 		return freq;
+
+	if (inst->domain == MSM_VIDC_ENCODER) {
+		if (!inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value &&
+			is_vpp_cycles_close_to_freq_corner(core,
+				codec_output.vpp_min_freq)) {
+			/*
+			 * if ring buffer not enabled and required vpp cycles
+			 * is too close to the frequency corner then increase
+			 * the vpp cycles by VPP_MIN_FREQ_MARGIN_PERCENT
+			 */
+			codec_output.vpp_min_freq += div_u64(
+				codec_output.vpp_min_freq *
+				VPP_MIN_FREQ_MARGIN_PERCENT, 100);
+			codec_output.hw_min_freq = max(
+				codec_output.hw_min_freq,
+				codec_output.vpp_min_freq);
+		}
+	}
+
 	freq = codec_output.hw_min_freq * 1000000; /* Convert to Hz */
 
 	i_vpr_p(inst, "%s: filled len %d, required freq %llu, fps %u, mbpf %u\n",
@@ -1173,4 +1237,47 @@ int msm_vidc_calc_bw_iris33(struct msm_vidc_inst *inst,
 		value = msm_vidc_calc_bw_iris33_new(inst, vidc_data);
 
 	return value;
+}
+
+int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
+{
+	int rc = 0;
+	struct msm_vidc_core *core;
+	struct api_calculation_input codec_input;
+	struct api_calculation_freq_output codec_output;
+
+	if (!inst || !inst->core || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	core = inst->core;
+
+	if (!core->resource || !core->resource->freq_set.freq_tbl ||
+		!core->resource->freq_set.count) {
+		i_vpr_e(inst, "%s: invalid frequency table\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ENABLE_LEGACY_POWER_CALCULATIONS)
+		return 0;
+
+	memset(&codec_input, 0, sizeof(struct api_calculation_input));
+	memset(&codec_output, 0, sizeof(struct api_calculation_freq_output));
+	rc = msm_vidc_init_codec_input_freq(inst, data_size, &codec_input);
+	if (rc)
+		return rc;
+	rc = msm_vidc_calculate_frequency(codec_input, &codec_output);
+	if (rc)
+		return rc;
+
+	/* check if vpp_min_freq is exceeding closest freq corner margin */
+	if (is_vpp_cycles_close_to_freq_corner(core,
+		codec_output.vpp_min_freq))
+		/* enables ring buffer */
+		inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value =
+			MAX_ENC_RING_BUF_COUNT;
+	else
+		inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value = 0;
+
+	return 0;
 }

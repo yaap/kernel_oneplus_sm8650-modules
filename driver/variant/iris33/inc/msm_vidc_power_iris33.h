@@ -12,6 +12,7 @@
 
 #define ENABLE_LEGACY_POWER_CALCULATIONS  1
 
+int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size);
 u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst* inst, u32 data_size);
 int msm_vidc_calc_bw_iris33(struct msm_vidc_inst* inst,
 		struct vidc_bus_vote_data* vote_data);

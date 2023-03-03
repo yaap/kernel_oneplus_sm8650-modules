@@ -338,7 +338,7 @@ static u32 msm_vidc_encoder_bin_size_iris33(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	u32 size = 0;
-	u32 width, height, num_vpp_pipes, stage, profile;
+	u32 width, height, num_vpp_pipes, stage, profile, ring_buf_count;
 	struct v4l2_format *f;
 
 	if (!inst || !inst->core || !inst->capabilities) {
@@ -356,13 +356,14 @@ static u32 msm_vidc_encoder_bin_size_iris33(struct msm_vidc_inst *inst)
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 	profile = inst->capabilities->cap[PROFILE].value;
+	ring_buf_count = inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value;
 
 	if (inst->codec == MSM_VIDC_H264)
 		HFI_BUFFER_BIN_H264E(size, inst->hfi_rc_type, width,
-			height, stage, num_vpp_pipes, profile);
+			height, stage, num_vpp_pipes, profile, ring_buf_count);
 	else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC)
 		HFI_BUFFER_BIN_H265E(size, inst->hfi_rc_type, width,
-			height, stage, num_vpp_pipes, profile);
+			height, stage, num_vpp_pipes, profile, ring_buf_count);
 
 	i_vpr_l(inst, "%s: size %d\n", __func__, size);
 	return size;

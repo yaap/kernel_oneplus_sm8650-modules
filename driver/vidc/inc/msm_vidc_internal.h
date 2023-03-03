@@ -101,6 +101,7 @@ enum msm_vidc_metadata_bits {
 #define MAX_ENCODING_REFERNCE_FRAMES          7
 #define MAX_LTR_FRAME_COUNT_5                 5
 #define MAX_LTR_FRAME_COUNT_2                 2
+#define MAX_ENC_RING_BUF_COUNT                5 /* to be tuned */
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -288,6 +289,7 @@ enum msm_vidc_metadata_bits {
 	CAP(MB_CYCLES_LP)                         \
 	CAP(MB_CYCLES_FW)                         \
 	CAP(MB_CYCLES_FW_VPP)                     \
+	CAP(ENC_RING_BUFFER_COUNT)                \
 	CAP(CLIENT_ID)                            \
 	CAP(SECURE_MODE)                          \
 	CAP(FENCE_ID)                             \

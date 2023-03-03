@@ -456,6 +456,29 @@ static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 	return 0;
 }
 
+static int msm_venc_set_ring_buffer_count(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct msm_vidc_inst_cap *cap;
+
+	if (!inst->capabilities) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	cap = &inst->capabilities->cap[ENC_RING_BUFFER_COUNT];
+
+	if (!cap->set)
+		return 0;
+
+	rc = cap->set(inst, ENC_RING_BUFFER_COUNT);
+	if (rc) {
+		i_vpr_e(inst, "%s: set cap failed\n", __func__);
+		return rc;
+	}
+
+	return 0;
+}
+
 static int msm_venc_set_input_properties(struct msm_vidc_inst *inst)
 {
 	int i, j, rc = 0;
@@ -541,6 +564,10 @@ static int msm_venc_set_internal_properties(struct msm_vidc_inst *inst)
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	rc = msm_venc_set_quality_mode(inst);
+	if (rc)
+		return rc;
+
+	rc = msm_venc_set_ring_buffer_count(inst);
 	if (rc)
 		return rc;
 
@@ -1006,6 +1033,10 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_venc_set_internal_properties(inst);
+	if (rc)
+		goto error;
+
 	rc = msm_venc_get_output_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1015,10 +1046,6 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 		goto error;
 
 	rc = msm_venc_queue_output_internal_buffers(inst);
-	if (rc)
-		goto error;
-
-	rc = msm_venc_set_internal_properties(inst);
 	if (rc)
 		goto error;
 

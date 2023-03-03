@@ -12,6 +12,7 @@
 #include "msm_vidc_iris33.h"
 #include "hfi_property.h"
 #include "hfi_command.h"
+#include "venus_hfi.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
 #define MAX_BASE_LAYER_PRIORITY_ID 63
@@ -222,6 +223,64 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{SUPPORTS_REQUESTS, 0},
 };
 
+static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct v4l2_format *output_fmt, *input_fmt;
+	struct msm_vidc_core* core;
+	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	core = inst->core;
+	output_fmt = &inst->fmts[OUTPUT_PORT];
+	input_fmt = &inst->fmts[INPUT_PORT];
+
+	fps = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	pixel_count = output_fmt->fmt.pix_mp.width *
+		output_fmt->fmt.pix_mp.height;
+
+	/* check if current session supports ring buffer enablement */
+	if (!(pixel_count >= 7680 * 4320 && fps >= 30) &&
+		!(pixel_count >= 3840 * 2160 && fps >= 120) &&
+		!(pixel_count >= 1920 * 1080 && fps >= 480) &&
+		!(pixel_count >= 1280 * 720 && fps >= 960)) {
+		i_vpr_h(inst,
+			"%s: session %ux%u@%u fps does not support ring buffer\n",
+			__func__, output_fmt->fmt.pix_mp.width,
+			output_fmt->fmt.pix_mp.height, fps);
+		inst->capabilities->cap[cap_id].value = 0;
+	} else {
+		data_size = input_fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
+		rc = call_session_op(core, ring_buf_count, inst, data_size);
+		if (rc) {
+			i_vpr_e(inst, "%s: failed to calculate ring buf count\n",
+				__func__);
+			/* ignore error */
+			rc = 0;
+			inst->capabilities->cap[cap_id].value = 0;
+		}
+	}
+
+	count = inst->capabilities->cap[cap_id].value;
+	i_vpr_h(inst, "%s: ring buffer count: %u\n", __func__, count);
+	rc = venus_hfi_session_property(inst,
+			HFI_PROP_ENC_RING_BIN_BUF,
+			HFI_HOST_FLAGS_NONE,
+			HFI_PORT_BITSTREAM,
+			HFI_PAYLOAD_U32,
+			&count,
+			sizeof(u32));
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
 static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	/* {cap, domain, codec,
 	 *      min, max, step_or_mask, value,
@@ -339,6 +398,9 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	{MB_CYCLES_FW_VPP, ENC, CODECS_ALL, 48405, 48405, 1, 48405},
 
 	{MB_CYCLES_FW_VPP, DEC, CODECS_ALL, 66234, 66234, 1, 66234},
+
+	{ENC_RING_BUFFER_COUNT, ENC, CODECS_ALL,
+		0, MAX_ENC_RING_BUF_COUNT, 1, 0},
 
 	{CLIENT_ID, ENC|DEC, CODECS_ALL,
 		INVALID_CLIENT_ID, INT_MAX, 1, INVALID_CLIENT_ID,
@@ -1254,6 +1316,11 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		{0},
 		NULL,
 		msm_vidc_set_q16},
+
+	{ENC_RING_BUFFER_COUNT, ENC, CODECS_ALL,
+		{0},
+		NULL,
+		msm_vidc_set_ring_buffer_count_pineapple},
 
 	{HFLIP, ENC, CODECS_ALL,
 		{0},
