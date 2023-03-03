@@ -128,7 +128,6 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 		return;
 	}
 	inst = vbuf->inst;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
@@ -156,7 +155,6 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 	vbuf->inst = NULL;
 
 exit:
-	put_inst(inst);
 	return;
 }
 
@@ -207,7 +205,6 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 		return;
 	}
 	inst = vbuf->inst;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
@@ -235,7 +232,6 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 	}
 
 exit:
-	put_inst(inst);
 	return;
 }
 
