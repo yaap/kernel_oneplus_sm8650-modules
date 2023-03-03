@@ -403,6 +403,7 @@ int msm_vidc_release_internal_buffers(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *buf);
+int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst);
 int msm_vidc_remove_session(struct msm_vidc_inst *inst);
 int msm_vidc_add_session(struct msm_vidc_inst *inst);
 int msm_vidc_session_open(struct msm_vidc_inst *inst);
