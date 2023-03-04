@@ -624,14 +624,17 @@ enum fastrpc_process_exit_states {
 	FASTRPC_PROCESS_DSP_EXIT_ERROR				= 4,
 };
 
-inline int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, bool trusted_vm);
+struct fastrpc_file;
+
+int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, int tvm_remote_domain);
 inline int fastrpc_handle_rpc_response(void *data, int len, int cid);
-inline int verify_transport_device(int cid, bool trusted_vm);
+inline int verify_transport_device(int cid, int tvm_remote_domain);
 int fastrpc_transport_init(void);
 void fastrpc_transport_deinit(void);
 void fastrpc_transport_session_init(int cid, char *subsys);
 void fastrpc_transport_session_deinit(int cid);
 int fastrpc_wait_for_transport_interrupt(int cid, unsigned int flags);
+int fastrpc_set_tvm_remote_domain(struct fastrpc_file *fl, struct fastrpc_ioctl_init *init);
 
 static inline struct smq_invoke_buf *smq_invoke_buf_start(remote_arg64_t *pra,
 							uint32_t sc)
@@ -710,8 +713,6 @@ struct qos_cores {
 	int *coreno;
 	int corecount;
 };
-
-struct fastrpc_file;
 
 struct fastrpc_buf {
 	struct hlist_node hn;
@@ -1053,7 +1054,7 @@ struct fastrpc_file {
 	int tgid_open;	/* Process ID during device open */
 	int tgid;		/* Process ID that uses device for RPC calls */
 	int cid;
-	bool trusted_vm;
+	int tvm_remote_domain;
 	uint64_t ssrcount;
 	int pd;
 	char *servloc_name;

@@ -2860,7 +2860,7 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 		memcpy(&msg_temp, msg, sizeof(struct smq_msg));
 		msg = &msg_temp;
 	}
-	err = fastrpc_transport_send(cid, (void *)msg, sizeof(*msg), fl->trusted_vm);
+	err = fastrpc_transport_send(cid, (void *)msg, sizeof(*msg), fl->tvm_remote_domain);
 	trace_fastrpc_transport_send(cid, (uint64_t)ctx, msg->invoke.header.ctx,
 		handle, sc, msg->invoke.page.addr, msg->invoke.page.size);
 	ns = get_timestamp_in_ns();
@@ -3990,8 +3990,6 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		err = fastrpc_mmap_remove_pdr(fl);
 		if (err)
 			goto bail;
-	} else if (!strcmp(proc_name, "securepd")) {
-		fl->trusted_vm = true;
 	} else {
 		ADSPRPC_ERR(
 			"Create static process is failed for proc_name %s",
@@ -3999,7 +3997,7 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		goto bail;
 	}
 
-	if (!fl->trusted_vm && (!me->staticpd_flags && !me->legacy_remote_heap)) {
+	if ((!me->staticpd_flags && !me->legacy_remote_heap)) {
 		inbuf.pageslen = 1;
 		if (!fastrpc_get_persistent_map(init->memlen, &mem)) {
 			mutex_lock(&fl->map_mutex);
@@ -4193,6 +4191,10 @@ int fastrpc_init_process(struct fastrpc_file *fl,
 	}
 
 	fastrpc_set_servloc(fl, init);
+	err = fastrpc_set_tvm_remote_domain(fl, init);
+	if (err)
+		goto bail;
+
 	err = fastrpc_channel_open(fl, init->flags);
 	if (err)
 		goto bail;
@@ -4401,7 +4403,7 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 		err = -EBADR;
 		goto bail;
 	}
-	err = verify_transport_device(cid, fl->trusted_vm);
+	err = verify_transport_device(cid, fl->tvm_remote_domain);
 	if (err)
 		goto bail;
 
@@ -5906,7 +5908,7 @@ static int fastrpc_channel_open(struct fastrpc_file *fl, uint32_t flags)
 	if (err)
 		goto bail;
 
-	err = verify_transport_device(cid, fl->trusted_vm);
+	err = verify_transport_device(cid, fl->tvm_remote_domain);
 	if (err)
 		goto bail;
 
@@ -6000,6 +6002,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->apps = me;
 	fl->mode = FASTRPC_MODE_SERIAL;
 	fl->cid = -1;
+	fl->tvm_remote_domain = -1;
 	fl->dev_minor = dev_minor;
 	fl->init_mem = NULL;
 	fl->qos_request = 0;
@@ -6490,7 +6493,7 @@ int fastrpc_dspsignal_signal(struct fastrpc_file *fl,
 	}
 
 	msg = (((uint64_t)fl->tgid) << 32) | ((uint64_t)sig->signal_id);
-	err = fastrpc_transport_send(cid, (void *)&msg, sizeof(msg), fl->trusted_vm);
+	err = fastrpc_transport_send(cid, (void *)&msg, sizeof(msg), fl->tvm_remote_domain);
 	mutex_unlock(&channel_ctx->smd_mutex);
 
 bail:

@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ */
+
+/* For debug only. Uncomment these blocks to log on every VERIFY statement */
+
+/*
+ * #ifndef VERIFY_PRINT_ERROR
+ * #define VERIFY_PRINT_ERROR
+ * #endif
+ */
+
+/*
+ * #ifndef VERIFY_PRINT_INFO
+ * #define VERIFY_PRINT_INFO
+ * #endif
+ * #define VERIFY_IPRINTF(format, ...) pr_info(format, ##__VA_ARGS__)
  */
 
 #include <linux/uaccess.h>
@@ -8,13 +23,11 @@
 #include <linux/mutex.h>
 #include <net/sock.h>
 #include "fastrpc_trace.h"
+#include <linux/workqueue.h>
 #include "adsprpc_shared.h"
 
 // Registered QRTR service ID
 #define FASTRPC_REMOTE_SERVER_SERVICE_ID 5012
-
-// Number of remote domains
-#define REMOTE_DOMAINS (2)
 
 /*
  * Fastrpc remote server instance ID bit-map:
@@ -42,6 +55,7 @@ union rsp {
 enum fastrpc_remote_domains_id {
 	SECURE_PD = 0,
 	GUEST_OS = 1,
+	MAX_REMOTE_ID = SECURE_PD + 1,
 };
 
 struct fastrpc_socket {
@@ -55,44 +69,84 @@ struct fastrpc_socket {
 struct frpc_transport_session_control {
 	struct fastrpc_socket frpc_socket;     // Fastrpc socket data structure
 	uint32_t remote_server_instance;       // Unique remote server instance ID
-	bool remote_domain_available;          // Flag to indicate if remote domain is enabled
 	bool remote_server_online;             // Flag to indicate remote server status
+	struct work_struct work;               // work for handling incoming messages
+	struct workqueue_struct *wq;           // workqueue to post @work on
+};
+
+struct remote_domain_configuration {
+	int channel_id;
+	int remote_domain;
 };
 
 /**
  * glist_session_ctrl
  * Static list containing socket session information for all remote domains.
- * Update session flag remote_domain_available whenever a remote domain will be using
- * kernel sockets.
  */
-static struct frpc_transport_session_control glist_session_ctrl[NUM_CHANNELS][REMOTE_DOMAINS] = {
-	[CDSP_DOMAIN_ID][SECURE_PD].remote_domain_available = true
+static struct frpc_transport_session_control *glist_session_ctrl[MAX_DOMAIN_ID][MAX_REMOTE_ID];
+
+
+static const struct remote_domain_configuration configurations[] = {
+	{
+		.channel_id = CDSP_DOMAIN_ID,
+		.remote_domain = SECURE_PD,
+	},
 };
+
+int fastrpc_set_tvm_remote_domain(struct fastrpc_file *fl, struct fastrpc_ioctl_init *init)
+{
+	int err = 0;
+	char *proc_name = NULL;
+
+	fl->tvm_remote_domain = GUEST_OS;
+	if (init->file) {
+		if (!init->filelen)
+			goto bail;
+
+		proc_name = kzalloc(init->filelen + 1, GFP_KERNEL);
+		VERIFY(err, !IS_ERR_OR_NULL(proc_name));
+		if (err) {
+			err = -ENOMEM;
+			goto bail;
+		}
+		err = copy_from_user((void *)proc_name,
+			(void __user *)init->file, init->filelen);
+		if (err) {
+			err = -EFAULT;
+			goto bail;
+		}
+		if (!strcmp(proc_name, "securepd"))
+			fl->tvm_remote_domain = SECURE_PD;
+	}
+bail:
+	kfree(proc_name);
+	return err;
+}
 
 /**
  * verify_transport_device()
  * @cid: Channel ID.
- * @trusted_vm: Flag to indicate whether session is for secure PD or guest OS.
+ * @tvm_remote_domain: Remote domain on TVM.
  *
- * Obtain remote session information given channel ID and trusted_vm
+ * Obtain remote session information given channel ID and tvm_remote_domain
  * and verify that socket has been created and remote server is up.
  *
  * Return: 0 on success or negative errno value on failure.
  */
-inline int verify_transport_device(int cid, bool trusted_vm)
+inline int verify_transport_device(int cid, int tvm_remote_domain)
 {
 	int remote_domain, err = 0;
 	struct frpc_transport_session_control *session_control = NULL;
 
-	remote_domain = (trusted_vm) ? SECURE_PD : GUEST_OS;
-	VERIFY(err, remote_domain < REMOTE_DOMAINS);
+	remote_domain = tvm_remote_domain;
+	VERIFY(err, remote_domain < MAX_REMOTE_ID);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
 	}
 
-	session_control = &glist_session_ctrl[cid][remote_domain];
-	VERIFY(err, session_control->remote_domain_available);
+	session_control = glist_session_ctrl[cid][remote_domain];
+	VERIFY(err, session_control);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
@@ -117,14 +171,19 @@ static void fastrpc_recv_new_server(struct frpc_transport_session_control *sessi
 				unsigned int node, unsigned int port)
 {
 	uint32_t remote_server_instance = session_control->remote_server_instance;
+	int32_t err = 0;
 
 	/* Ignore EOF marker */
-	if (!node && !port)
-		return;
+	if (!node && !port) {
+		err = -EINVAL;
+		goto bail;
+	}
 
 	if (service != FASTRPC_REMOTE_SERVER_SERVICE_ID ||
-		instance != remote_server_instance)
-		return;
+		instance != remote_server_instance) {
+		err = -ENOMSG;
+		goto bail;
+	}
 
 	mutex_lock(&session_control->frpc_socket.socket_mutex);
 	session_control->frpc_socket.remote_sock_addr.sq_family = AF_QIPCRTR;
@@ -132,28 +191,42 @@ static void fastrpc_recv_new_server(struct frpc_transport_session_control *sessi
 	session_control->frpc_socket.remote_sock_addr.sq_port = port;
 	session_control->remote_server_online = true;
 	mutex_unlock(&session_control->frpc_socket.socket_mutex);
-	ADSPRPC_INFO("Remote server is up: remote ID (0x%x)", remote_server_instance);
+	ADSPRPC_INFO("Remote server is up: remote ID (0x%x), node %u, port %u",
+				remote_server_instance, node, port);
+bail:
+	if (err != -EINVAL && err) {
+		ADSPRPC_WARN("Ignoring ctrl packet: service id %u, instance id %u, err %d",
+					service, instance, err);
+	}
 }
 
 static void fastrpc_recv_del_server(struct frpc_transport_session_control *session_control,
 				unsigned int node, unsigned int port)
 {
 	uint32_t remote_server_instance = session_control->remote_server_instance;
+	int32_t err = 0;
 
 	/* Ignore EOF marker */
-	if (!node && !port)
-		return;
+	if (!node && !port) {
+		err = -EINVAL;
+		goto bail;
+	}
 
 	if (node != session_control->frpc_socket.remote_sock_addr.sq_node ||
-		port != session_control->frpc_socket.remote_sock_addr.sq_port)
-		return;
+		port != session_control->frpc_socket.remote_sock_addr.sq_port) {
+		err = -ENOMSG;
+		goto bail;
+	}
 
 	mutex_lock(&session_control->frpc_socket.socket_mutex);
 	session_control->frpc_socket.remote_sock_addr.sq_node = 0;
 	session_control->frpc_socket.remote_sock_addr.sq_port = 0;
 	session_control->remote_server_online = false;
 	mutex_unlock(&session_control->frpc_socket.socket_mutex);
-	ADSPRPC_WARN("Remote server is down: remote ID (0x%x)", remote_server_instance);
+	ADSPRPC_INFO("Remote server is down: remote ID (0x%x)", remote_server_instance);
+bail:
+	if (err != -EINVAL && err)
+		ADSPRPC_WARN("Ignoring ctrl packet: node %u, port %u, err %d", node, port, err);
 }
 
 /**
@@ -188,6 +261,79 @@ static void fastrpc_recv_ctrl_pkt(struct frpc_transport_session_control *session
 				    le32_to_cpu(pkt->server.node),
 				    le32_to_cpu(pkt->server.port));
 		break;
+	default:
+		ADSPRPC_WARN("Ignoring unknown ctrl packet with size %zu", len);
+	}
+}
+
+/**
+ * fastrpc_socket_callback_wq()
+ * @work: workqueue structure for incoming socket packets
+ *
+ * Callback function to receive responses that were posted on workqueue.
+ * We expect to receive control packets with remote domain status notifications or
+ * RPC data packets from remote domain.
+ */
+static void fastrpc_socket_callback_wq(struct work_struct *work)
+{
+	int32_t err = 0, cid = -1, bytes_rx = 0;
+	uint32_t remote_server_instance = (uint32_t)-1;
+	bool ignore_err = false;
+	struct kvec msg = {0};
+	struct sockaddr_qrtr remote_sock_addr = {0};
+	struct msghdr remote_server = {0};
+	struct frpc_transport_session_control *session_control = NULL;
+	__u32 sq_node = 0, sq_port = 0;
+
+	session_control = container_of(work, struct frpc_transport_session_control, work);
+	VERIFY(err, session_control);
+	if (err) {
+		err = -EFAULT;
+		goto bail;
+	}
+
+	remote_server.msg_name = &remote_sock_addr;
+	remote_server.msg_namelen = sizeof(remote_sock_addr);
+	msg.iov_base = session_control->frpc_socket.recv_buf;
+	msg.iov_len = FASTRPC_SOCKET_RECV_SIZE;
+	remote_server_instance = session_control->remote_server_instance;
+	for (;;) {
+		trace_fastrpc_msg("socket_callback_ready: begin");
+		err = kernel_recvmsg(session_control->frpc_socket.sock, &remote_server, &msg, 1,
+					msg.iov_len, MSG_DONTWAIT);
+		if (err == -EAGAIN) {
+			ignore_err = true;
+			goto bail;
+		}
+		if (err < 0)
+			goto bail;
+
+		bytes_rx = err;
+		err = 0;
+
+		sq_node = remote_sock_addr.sq_node;
+		sq_port = remote_sock_addr.sq_port;
+		if (sq_node == session_control->frpc_socket.local_sock_addr.sq_node &&
+			sq_port == QRTR_PORT_CTRL) {
+			fastrpc_recv_ctrl_pkt(session_control,
+							session_control->frpc_socket.recv_buf,
+							bytes_rx);
+		} else {
+			cid = GET_CID_FROM_SERVER_INSTANCE(remote_server_instance);
+			VERIFY(err, VALID_FASTRPC_CID(cid));
+			if (err) {
+				err = -ECHRNG;
+				goto bail;
+			}
+			fastrpc_handle_rpc_response(msg.iov_base, msg.iov_len, cid);
+		}
+		trace_fastrpc_msg("socket_callback_ready: end");
+	}
+bail:
+	if (!ignore_err && err < 0) {
+		ADSPRPC_ERR(
+			"invalid response data %pK (rx %d bytes), buffer len %d from remote ID (0x%x) err %d\n",
+			msg.iov_base, bytes_rx, msg.iov_len, remote_server_instance, err);
 	}
 }
 
@@ -196,19 +342,13 @@ static void fastrpc_recv_ctrl_pkt(struct frpc_transport_session_control *session
  * @sk: Sock data structure with information related to the callback response.
  *
  * Callback function to receive responses from socket layer.
- * We expect to receive control packets with remote domain status notifications or
- * RPC data packets from remote domain.
+ * Responses are posted on workqueue to be process.
  */
 static void fastrpc_socket_callback(struct sock *sk)
 {
-	int err = 0, cid = 0;
-	struct kvec msg = {0};
-	struct sockaddr_qrtr remote_sock_addr = {0};
-	struct msghdr remote_server = {0};
+	int32_t err = 0;
 	struct frpc_transport_session_control *session_control = NULL;
 
-	remote_server.msg_name = &remote_sock_addr;
-	remote_server.msg_namelen = sizeof(remote_sock_addr);
 	trace_fastrpc_msg("socket_callback: begin");
 	VERIFY(err, sk);
 	if (err) {
@@ -218,40 +358,12 @@ static void fastrpc_socket_callback(struct sock *sk)
 
 	rcu_read_lock();
 	session_control = rcu_dereference_sk_user_data(sk);
+	if (session_control)
+		queue_work(session_control->wq, &session_control->work);
 	rcu_read_unlock();
-	VERIFY(err, session_control);
-	if (err) {
-		err = -EFAULT;
-		goto bail;
-	}
-
-	msg.iov_base = session_control->frpc_socket.recv_buf;
-	msg.iov_len = FASTRPC_SOCKET_RECV_SIZE;
-	err = kernel_recvmsg(session_control->frpc_socket.sock, &remote_server, &msg, 1,
-				msg.iov_len, MSG_DONTWAIT);
-	if (err < 0)
-		goto bail;
-
-	if (remote_sock_addr.sq_node == session_control->frpc_socket.local_sock_addr.sq_node &&
-		remote_sock_addr.sq_port == QRTR_PORT_CTRL) {
-		fastrpc_recv_ctrl_pkt(session_control, session_control->frpc_socket.recv_buf,
-					FASTRPC_SOCKET_RECV_SIZE);
-	} else {
-		cid = GET_CID_FROM_SERVER_INSTANCE(session_control->remote_server_instance);
-		VERIFY(err, VALID_FASTRPC_CID(cid));
-		if (err) {
-			err = -ECHRNG;
-			goto bail;
-		}
-		fastrpc_handle_rpc_response(msg.iov_base, msg.iov_len, cid);
-	}
 bail:
-	if (err < 0) {
-		ADSPRPC_ERR(
-			"invalid response data %pK, len %d from remote ID (0x%x) err %d\n",
-			msg.iov_base, msg.iov_len, session_control->remote_server_instance, err);
-	}
-
+	if (err < 0)
+		ADSPRPC_ERR("invalid sock received, err %d", err);
 	trace_fastrpc_msg("socket_callback: end");
 }
 
@@ -260,16 +372,16 @@ bail:
  * @cid: Channel ID.
  * @rpc_msg: RPC message to send to remote domain.
  * @rpc_msg_size: RPC message size.
- * @trusted_vm: Flag to indicate whether to send message to secure PD or guest OS.
+ * @tvm_remote_domain: Remote domain on TVM.
  *
- * Send RPC message to remote domain. Depending on trusted_vm flag message will be
- * sent to secure PD or guest OS on remote subsystem.
+ * Send RPC message to remote domain. Depending on tvm_remote_domain flag message will be
+ * sent to one of the remote domains on remote subsystem.
  * Depending on the channel ID and remote domain, a corresponding socket is retrieved
  * from glist_session_ctrl and is use to send RPC message.
  *
  * Return: 0 on success or negative errno value on failure.
  */
-int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, bool trusted_vm)
+int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, int tvm_remote_domain)
 {
 	int err = 0, remote_domain;
 	struct fastrpc_socket *frpc_socket = NULL;
@@ -277,14 +389,14 @@ int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, bool t
 	struct msghdr remote_server = {0};
 	struct kvec msg = {0};
 
-	remote_domain = (trusted_vm) ? SECURE_PD : GUEST_OS;
-	VERIFY(err, remote_domain < REMOTE_DOMAINS);
+	remote_domain = tvm_remote_domain;
+	VERIFY(err, remote_domain < MAX_REMOTE_ID);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
 	}
-	session_control = &glist_session_ctrl[cid][remote_domain];
-	VERIFY(err, session_control->remote_domain_available);
+	session_control = glist_session_ctrl[cid][remote_domain];
+	VERIFY(err, session_control);
 	if (err) {
 		err = -ECHRNG;
 		goto bail;
@@ -304,7 +416,11 @@ int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, bool t
 		mutex_unlock(&frpc_socket->socket_mutex);
 		goto bail;
 	}
+
 	err = kernel_sendmsg(frpc_socket->sock, &remote_server, &msg, 1, msg.iov_len);
+	if (err > 0)
+		err = 0;
+
 	mutex_unlock(&frpc_socket->socket_mutex);
 bail:
 	return err;
@@ -338,6 +454,7 @@ static struct socket *create_socket(struct frpc_transport_session_control *sessi
 		ADSPRPC_ERR("kernel_getsockname failed with err %d\n", err);
 		goto bail;
 	}
+
 	rcu_assign_sk_user_data(sock->sk, session_control);
 	sock->sk->sk_data_ready = fastrpc_socket_callback;
 	sock->sk->sk_error_report = fastrpc_socket_callback;
@@ -413,47 +530,66 @@ void fastrpc_rproc_trace_events(const char *name, const char *event,
  *
  * Initialize and create all sockets that are enabled from all channels
  * and remote domains.
- * Traverse array glist_session_ctrl and initialize session if remote
+ * Traverse array configurations and initialize session on glist_session_ctrl if remote
  * domain is enabled.
  *
  * Return: 0 on success or negative errno value on failure.
  */
 int fastrpc_transport_init(void)
 {
-	int err = 0, cid = 0, ii = 0;
+	int err = 0, cid = -1, ii = 0, remote_domain = -1;
 	struct socket *sock = NULL;
 	struct fastrpc_socket *frpc_socket = NULL;
 	struct frpc_transport_session_control *session_control = NULL;
+	struct workqueue_struct *wq = NULL;
 
-	for (cid = 0; cid < NUM_CHANNELS; cid++) {
-		for (ii = 0; ii < REMOTE_DOMAINS; ii++) {
-			session_control = &glist_session_ctrl[cid][ii];
-			if (!session_control->remote_domain_available)
-				continue;
-
-			session_control->remote_server_online = false;
-			frpc_socket = &session_control->frpc_socket;
-			mutex_init(&frpc_socket->socket_mutex);
-
-			sock = create_socket(session_control);
-			if (IS_ERR_OR_NULL(sock)) {
-				err = PTR_ERR(sock);
-				goto bail;
-			}
-
-			frpc_socket->sock = sock;
-			frpc_socket->recv_buf = kzalloc(FASTRPC_SOCKET_RECV_SIZE, GFP_KERNEL);
-			if (!frpc_socket->recv_buf) {
-				err = -ENOMEM;
-				goto bail;
-			}
-			session_control->remote_server_instance = GET_SERVER_INSTANCE(ii, cid);
-			err = register_remote_server_notifications(frpc_socket,
-							session_control->remote_server_instance);
-			if (err < 0)
-				goto bail;
+	for (ii = 0; ii < ARRAY_SIZE(configurations); ii++) {
+		session_control = kzalloc(sizeof(*session_control), GFP_KERNEL);
+		VERIFY(err, NULL != session_control);
+		if (err) {
+			err = -ENOMEM;
+			goto bail;
 		}
+		cid = configurations[ii].channel_id;
+		remote_domain = configurations[ii].remote_domain;
+
+		session_control->remote_server_online = false;
+		frpc_socket = &session_control->frpc_socket;
+		mutex_init(&frpc_socket->socket_mutex);
+
+		sock = create_socket(session_control);
+		if (IS_ERR_OR_NULL(sock)) {
+			err = PTR_ERR(sock);
+			goto bail;
+		}
+
+		frpc_socket->sock = sock;
+		frpc_socket->recv_buf = kzalloc(FASTRPC_SOCKET_RECV_SIZE, GFP_KERNEL);
+		if (!frpc_socket->recv_buf) {
+			err = -ENOMEM;
+			goto bail;
+		}
+
+		INIT_WORK(&session_control->work, fastrpc_socket_callback_wq);
+		wq = alloc_workqueue("fastrpc_msg_handler", WQ_UNBOUND|WQ_HIGHPRI, 0);
+		if (!wq) {
+			err = -ENOMEM;
+			goto bail;
+		}
+		session_control->wq = wq;
+
+		session_control->remote_server_instance = GET_SERVER_INSTANCE(remote_domain, cid);
+		err = register_remote_server_notifications(frpc_socket,
+						session_control->remote_server_instance);
+		if (err < 0)
+			goto bail;
+
+		glist_session_ctrl[cid][remote_domain] = session_control;
+		ADSPRPC_INFO("Created and registered socket for remote server (service ID %u, instance ID 0x%x)\n",
+			FASTRPC_REMOTE_SERVER_SERVICE_ID, session_control->remote_server_instance);
+
 	}
+
 	err = 0;
 bail:
 	if (err)
@@ -466,30 +602,36 @@ bail:
  *
  * Deinitialize and release all sockets that are enabled from all channels
  * and remote domains.
- * Traverse array glist_session_ctrl and deinitialize session if remote
- * domain is enabled.
+ * Traverse array configurations and deinitialize corresponding session from
+ * glist_session_ctrl.
  */
 void fastrpc_transport_deinit(void)
 {
-	int ii = 0;
+	int ii = 0, cid = -1, remote_domain = -1;
 	struct fastrpc_socket *frpc_socket = NULL;
 	struct frpc_transport_session_control *session_control = NULL;
-	int cid = -1;
 
-	for (cid = 0; cid < NUM_CHANNELS; cid++) {
-		for (ii = 0; ii < REMOTE_DOMAINS; ii++) {
-			session_control = &glist_session_ctrl[cid][ii];
-			frpc_socket = &session_control->frpc_socket;
-			if (!session_control->remote_domain_available)
-				continue;
+	for (ii = 0; ii < ARRAY_SIZE(configurations); ii++) {
+		cid = configurations[ii].channel_id;
+		remote_domain = configurations[ii].remote_domain;
 
-			if (frpc_socket->sock)
-				sock_release(frpc_socket->sock);
+		session_control = glist_session_ctrl[cid][remote_domain];
+		if (!session_control)
+			continue;
 
-			kfree(frpc_socket->recv_buf);
-			frpc_socket->recv_buf = NULL;
-			frpc_socket->sock = NULL;
-			mutex_destroy(&frpc_socket->socket_mutex);
-		}
+		frpc_socket = &session_control->frpc_socket;
+
+		if (frpc_socket->sock)
+			sock_release(frpc_socket->sock);
+
+		if (session_control->wq)
+			destroy_workqueue(session_control->wq);
+
+		kfree(frpc_socket->recv_buf);
+		frpc_socket->recv_buf = NULL;
+		frpc_socket->sock = NULL;
+		mutex_destroy(&frpc_socket->socket_mutex);
+		kfree(session_control);
+		glist_session_ctrl[cid][remote_domain] = NULL;
 	}
 }
