@@ -793,8 +793,6 @@ static int a6xx_hwsched_first_boot(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags);
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
-	adreno_dev->hwsched_enabled = true;
-
 	/*
 	 * There is a possible deadlock scenario during kgsl firmware reading
 	 * (request_firmware) and devfreq update calls. During first boot, kgsl
@@ -826,9 +824,6 @@ static int a6xx_hwsched_power_off(struct adreno_device *adreno_dev)
 		return 0;
 
 	trace_kgsl_pwr_request_state(device, KGSL_STATE_SLUMBER);
-
-	/* process any profiling results that are available */
-	adreno_profile_process_results(ADRENO_DEVICE(device));
 
 	if (!a6xx_hw_isidle(adreno_dev))
 		dev_err(&gmu->pdev->dev, "GPU isn't idle before SLUMBER\n");
@@ -1252,6 +1247,8 @@ int a6xx_hwsched_probe(struct platform_device *pdev,
 		return -ENOMEM;
 
 	adreno_dev = &a6xx_hwsched_dev->a6xx_dev.adreno_dev;
+
+	adreno_dev->hwsched_enabled = true;
 
 	ret = a6xx_probe_common(pdev, adreno_dev, chipid, gpucore);
 	if (ret)

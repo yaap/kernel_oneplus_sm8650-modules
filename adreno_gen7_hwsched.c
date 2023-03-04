@@ -897,8 +897,6 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags);
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
-	adreno_dev->hwsched_enabled = true;
-
 	/*
 	 * BCL needs respective Central Broadcast register to
 	 * be programed from TZ. This programing happens only
@@ -985,9 +983,6 @@ static int gen7_hwsched_power_off(struct adreno_device *adreno_dev)
 		return 0;
 
 	trace_kgsl_pwr_request_state(device, KGSL_STATE_SLUMBER);
-
-	/* process any profiling results that are available */
-	adreno_profile_process_results(ADRENO_DEVICE(device));
 
 	if (!gen7_hw_isidle(adreno_dev)) {
 		dev_err(&gmu->pdev->dev, "GPU isn't idle before SLUMBER\n");
@@ -1538,6 +1533,8 @@ int gen7_hwsched_probe(struct platform_device *pdev,
 		return -ENOMEM;
 
 	adreno_dev = &gen7_hwsched_dev->gen7_dev.adreno_dev;
+
+	adreno_dev->hwsched_enabled = true;
 
 	ret = gen7_probe_common(pdev, adreno_dev, chipid, gpucore);
 	if (ret)

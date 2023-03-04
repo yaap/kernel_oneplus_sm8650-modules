@@ -2174,7 +2174,6 @@ static const struct adreno_dispatch_ops hwsched_ops = {
 	.queue_cmds = adreno_hwsched_queue_cmds,
 	.queue_context = adreno_hwsched_queue_context,
 	.fault = adreno_hwsched_fault,
-	.idle = adreno_hwsched_idle,
 	.create_hw_fence = adreno_hwsched_create_hw_fence,
 };
 
