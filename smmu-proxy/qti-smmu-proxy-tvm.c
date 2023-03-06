@@ -139,15 +139,15 @@ struct sg_table *retrieve_and_iommu_map(struct mem_buf_retrieve_kernel_arg *retr
 	mutex_lock(&buffer_state_lock);
 	buf_state = xa_load(&buffer_state_arr, retrieve_arg->memparcel_hdl);
 	if (buf_state) {
+		if (buf_state->cb_info[cb_id].mapped) {
+			table = buf_state->cb_info[cb_id].sg_table;
+			goto unlock;
+		}
 		if (buf_state->locked) {
 			pr_err("%s: handle 0x%llx is locked!\n", __func__,
 			       retrieve_arg->memparcel_hdl);
 			ret = -EINVAL;
 			goto unlock_err;
-		}
-		if (buf_state->cb_info[cb_id].mapped) {
-			table = buf_state->cb_info[cb_id].sg_table;
-			goto unlock;
 		}
 
 		dmabuf = buf_state->dmabuf;
