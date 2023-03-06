@@ -4042,9 +4042,10 @@ gpumem_alloc_vbo_entry(struct kgsl_device_private *dev_priv,
 
 	/* Quietly ignore the other flags that aren't this list */
 	flags &= KGSL_MEMFLAGS_SECURE |
-		KGSL_MEMFLAGS_VBO    |
-		KGSL_MEMTYPE_MASK   |
-		KGSL_MEMALIGN_MASK  |
+		KGSL_MEMFLAGS_VBO |
+		KGSL_MEMFLAGS_VBO_NO_MAP_ZERO |
+		KGSL_MEMTYPE_MASK |
+		KGSL_MEMALIGN_MASK |
 		KGSL_MEMFLAGS_FORCE_32BIT;
 
 	if ((flags & KGSL_MEMFLAGS_SECURE) && !check_and_warn_secured(device))
@@ -4071,8 +4072,11 @@ gpumem_alloc_vbo_entry(struct kgsl_device_private *dev_priv,
 	if (ret)
 		goto out;
 
-	ret = kgsl_mmu_map_zero_page_to_range(memdesc->pagetable,
-		memdesc, 0, memdesc->size);
+	/* Map the zero page unless explicitly asked not to */
+	if (!(flags & KGSL_MEMFLAGS_VBO_NO_MAP_ZERO))
+		ret = kgsl_mmu_map_zero_page_to_range(memdesc->pagetable,
+			memdesc, 0, memdesc->size);
+
 	if (!ret) {
 		trace_kgsl_mem_alloc(entry);
 		kgsl_mem_entry_commit_process(entry);
