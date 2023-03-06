@@ -1,5 +1,5 @@
-load("//external_modules/synx-kernel:synx_modules.bzl", "synx_modules")
-load("//external_modules/synx-kernel:synx_module_build.bzl", "define_consolidate_gki_modules")
+load(":synx_modules.bzl", "synx_modules")
+load(":synx_module_build.bzl", "define_consolidate_gki_modules")
 
 def define_pineapple():
     define_consolidate_gki_modules(

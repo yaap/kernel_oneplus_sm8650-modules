@@ -5,6 +5,7 @@ load(
     "kernel_module",
     "kernel_modules_install",
 )
+load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 
 def _register_module_to_map(module_map, name, path, config_option, srcs, config_srcs, deps, config_deps):
     processed_config_srcs = {}
@@ -110,6 +111,16 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
         name = "{}_modules".format(kernel_build),
         kernel_build = kernel_build_label,
         deps = all_module_rules,
+    )
+
+    copy_to_dist_dir(
+        name = "{}_modules_dist".format(kernel_build),
+        data = [":{}_modules".format(kernel_build)],
+        dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(kernel_build),
+        flat = True,
+        wipe_dist_dir = False,
+        allow_duplicate_filenames = False,
+        mode_overrides = {"**/*": "644"},
     )
 
 def define_consolidate_gki_modules(target, registry, modules, config_options = []):
