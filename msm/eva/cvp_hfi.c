@@ -405,6 +405,7 @@ static int __write_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		bool *rx_req_is_set)
 {
 	struct cvp_hfi_queue_header *queue;
+	struct cvp_hfi_cmd_session_hdr *cmd_pkt;
 	u32 packet_size_in_words, new_write_idx;
 	u32 empty_space, read_idx, write_idx;
 	u32 *write_ptr;
@@ -422,6 +423,14 @@ static int __write_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		dprintk(CVP_ERR, "queue not present\n");
 		return -ENOENT;
 	}
+
+	cmd_pkt = (struct cvp_hfi_cmd_session_hdr *)packet;
+	dprintk(CVP_CMD, "%s: "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, cmd_pkt->packet_type,
+		cmd_pkt->session_id,
+		cmd_pkt->client_data.transaction_id,
+		cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
 
 	if (msm_cvp_debug & CVP_PKT) {
 		dprintk(CVP_PKT, "%s: %pK\n", __func__, qinfo);
@@ -495,6 +504,7 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 		u32 *pb_tx_req_is_set)
 {
 	struct cvp_hfi_queue_header *queue;
+	struct cvp_hfi_msg_session_hdr *msg_pkt;
 	u32 packet_size_in_words, new_read_idx;
 	u32 *read_ptr;
 	u32 receive_request = 0;
@@ -612,6 +622,16 @@ static int __read_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 	*pb_tx_req_is_set = (queue->qhdr_tx_req == 1) ? 1 : 0;
 
 	spin_unlock(&qinfo->hfi_lock);
+
+	if (!(queue->qhdr_type & HFI_Q_ID_CTRL_TO_HOST_DEBUG_Q)) {
+		msg_pkt = (struct cvp_hfi_msg_session_hdr *)packet;
+		dprintk(CVP_CMD, "%s:  "
+			"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+			__func__, msg_pkt->packet_type,
+			msg_pkt->session_id,
+			msg_pkt->client_data.transaction_id,
+			msg_pkt->client_data.kdata & (FENCE_BIT - 1));
+	}
 
 	if ((msm_cvp_debug & CVP_PKT) &&
 		!(queue->qhdr_type & HFI_Q_ID_CTRL_TO_HOST_DEBUG_Q)) {

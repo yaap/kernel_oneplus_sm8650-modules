@@ -26,6 +26,7 @@ enum cvp_msg_prio {
 	CVP_ERR  = 0x000001,
 	CVP_WARN = 0x000002,
 	CVP_INFO = 0x000004,
+	CVP_CMD  = 0x000008,
 	CVP_PROF = 0x000010,
 	CVP_PKT  = 0x000020,
 	CVP_MEM  = 0x000040,
@@ -38,7 +39,7 @@ enum cvp_msg_prio {
 	CVP_SESS = 0x002000,
 	CVP_HFI  = 0x004000,
 	CVP_VM   = 0x008000,
-	CVP_DBG  = CVP_MEM | CVP_SYNX | CVP_CORE | CVP_REG |
+	CVP_DBG  = CVP_MEM | CVP_SYNX | CVP_CORE | CVP_REG | CVP_CMD |
 		CVP_PWR | CVP_DSP | CVP_SESS | CVP_HFI | CVP_PKT | CVP_VM,
 };
 
@@ -104,6 +105,8 @@ static inline char *get_debug_level_str(int level)
 		return "warn";
 	case CVP_INFO:
 		return "info";
+	case CVP_CMD:
+		return "cmd";
 	case CVP_DBG:
 		return "dbg";
 	case CVP_PROF:

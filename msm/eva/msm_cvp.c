@@ -187,6 +187,13 @@ static int msm_cvp_session_process_hfi(
 	if (!s)
 		return -ECONNRESET;
 
+	pkt_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
+	dprintk(CVP_CMD, "%s: "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, pkt_hdr->packet_type,
+		pkt_hdr->session_id,
+		pkt_hdr->client_data.transaction_id,
+		pkt_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	pkt_idx = get_pkt_index((struct cvp_hal_session_cmd_pkt *)in_pkt);
 	if (pkt_idx < 0) {
@@ -242,7 +249,6 @@ static int msm_cvp_session_process_hfi(
 
 	rc = cvp_enqueue_pkt(inst, in_pkt, offset, buf_num);
 	if (rc) {
-		pkt_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 		dprintk(CVP_ERR, "Failed to enqueue pkt, inst %pK "
 			"pkt_type %08x ktid %llu transaction_id %u\n",
 			inst, pkt_hdr->packet_type,
@@ -728,6 +734,12 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	/* The kdata will be overriden by transaction ID if the cmd has buf */
 	cmd_hdr->client_data.kdata = 0;
+	dprintk(CVP_CMD, "%s: "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, cmd_hdr->packet_type,
+		cmd_hdr->session_id,
+		cmd_hdr->client_data.transaction_id,
+		cmd_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	if (map_type == MAP_PERSIST)
 		rc = msm_cvp_map_user_persist(inst, in_pkt, in_offset, in_buf_num);

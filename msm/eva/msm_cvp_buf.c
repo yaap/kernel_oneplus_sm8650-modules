@@ -1474,8 +1474,14 @@ void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 	}
 	mutex_unlock(&inst->frames.lock);
 
-	if (found)
+	if (found) {
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x sess_id %08x trans_id <> ktid %llu\n",
+			__func__, frame->pkt_type,
+			hash32_ptr(inst->session),
+			frame->ktid);
 		msm_cvp_unmap_frame_buf(inst, frame);
+	}
 	else
 		dprintk(CVP_WARN, "%s frame %llu not found!\n", __func__, ktid);
 }
@@ -1542,11 +1548,17 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 	if (!offset || !buf_num)
 		return 0;
 
-
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	ktid = atomic64_inc_return(&inst->core->kernel_trans_id);
 	ktid &= (FENCE_BIT - 1);
 	cmd_hdr->client_data.kdata = ktid;
+
+	dprintk(CVP_CMD, "%s:   "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, cmd_hdr->packet_type,
+		cmd_hdr->session_id,
+		cmd_hdr->client_data.transaction_id,
+		cmd_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	frame = cvp_kmem_cache_zalloc(&cvp_driver->frame_cache, GFP_KERNEL);
 	if (!frame)
