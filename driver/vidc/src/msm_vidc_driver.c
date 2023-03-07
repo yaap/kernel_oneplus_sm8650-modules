@@ -1021,12 +1021,6 @@ bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst, u32 cap_id
 				is_allowed = false;
 			}
 			break;
-		default:
-			is_allowed = true;
-			break;
-		}
-	} else if (port == OUTPUT_PORT) {
-		switch (cap_id) {
 		case META_DPB_TAG_LIST:
 			if (!is_ubwc_colorformat(inst->capabilities->cap[PIX_FMTS].value)) {
 				i_vpr_h(inst,
@@ -1039,6 +1033,8 @@ bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst, u32 cap_id
 			is_allowed = true;
 			break;
 		}
+	} else if (port == OUTPUT_PORT) {
+		is_allowed = true;
 	} else {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		is_allowed = false;
