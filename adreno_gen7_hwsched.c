@@ -984,12 +984,6 @@ static int gen7_hwsched_power_off(struct adreno_device *adreno_dev)
 
 	trace_kgsl_pwr_request_state(device, KGSL_STATE_SLUMBER);
 
-	if (!gen7_hw_isidle(adreno_dev)) {
-		dev_err(&gmu->pdev->dev, "GPU isn't idle before SLUMBER\n");
-		gmu_core_fault_snapshot(device);
-		goto no_gx_power;
-	}
-
 	ret = gen7_gmu_oob_set(device, oob_gpu);
 	if (ret) {
 		gen7_gmu_oob_clear(device, oob_gpu);
@@ -1068,6 +1062,11 @@ static void hwsched_idle_check(struct work_struct *work)
 
 	device->skip_inline_submit = true;
 	spin_unlock(&device->submit_lock);
+
+	if (!gen7_hw_isidle(adreno_dev)) {
+		dev_err(device->dev, "GPU isn't idle before SLUMBER\n");
+		gmu_core_fault_snapshot(device);
+	}
 
 	gen7_hwsched_power_off(adreno_dev);
 
