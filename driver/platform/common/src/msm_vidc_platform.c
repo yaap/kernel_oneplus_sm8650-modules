@@ -524,11 +524,19 @@ int msm_vidc_update_cap_value(struct msm_vidc_inst *inst, u32 cap_id,
 	prev_value = inst->capabilities->cap[cap_id].value;
 
 	if (is_meta_cap(inst, cap_id)) {
+		if (adjusted_val & MSM_VIDC_META_ENABLE &&
+			adjusted_val & MSM_VIDC_META_DYN_ENABLE) {
+			i_vpr_e(inst,
+				"%s: %s cannot be enabled both statically and dynamically",
+				__func__, cap_name(cap_id));
+			return -EINVAL;
+		}
 		/*
 		 * cumulative control value if client set same metadata
 		 * control multiple times.
 		 */
-		if (adjusted_val & MSM_VIDC_META_ENABLE) {
+		if (adjusted_val & MSM_VIDC_META_ENABLE ||
+			adjusted_val & MSM_VIDC_META_DYN_ENABLE) {
 			/* enable metadata */
 			inst->capabilities->cap[cap_id].value |= adjusted_val;
 		} else {
@@ -1497,17 +1505,6 @@ static int msm_vidc_adjust_static_layer_count_and_type(struct msm_vidc_inst *ins
 		goto exit;
 	}
 
-	if (hb_requested && layer_count > 1) {
-		if (!is_valid_cap(inst, META_EVA_STATS) ||
-			!is_meta_tx_inp_enabled(inst, META_EVA_STATS)) {
-			i_vpr_h(inst,
-				"%s: only one layer of heirB supported as eva statistics not available\n",
-				__func__);
-			layer_count = 1;
-			goto exit;
-		}
-	}
-
 	/* decide hfi layer type */
 	if (hb_requested) {
 		inst->hfi_layer_type = HFI_HIER_B;
@@ -2414,7 +2411,7 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	s32 brs = 0, eva_status = -1;
+	s32 brs = 0;
 	u32 width, height, frame_rate, operating_rate, max_fps;
 	struct v4l2_format *f;
 
@@ -2435,22 +2432,8 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 
 	/*
 	 * enable preprocess if
-	 * client did not enable EVA metadata statistics and
 	 * BRS enabled and upto 4k @ 60 fps
 	 */
-	if (is_valid_cap(inst, META_EVA_STATS)) {
-		if (msm_vidc_get_parent_value(inst,
-			REQUEST_PREPROCESS,
-			META_EVA_STATS,
-			&eva_status, __func__))
-			return -EINVAL;
-		/* preprocess not required if client provides eva statistics */
-		if (is_meta_tx_inp_enabled(inst, META_EVA_STATS)) {
-			adjusted_value = 0;
-			goto update_preprocess;
-		}
-	}
-
 	if (is_valid_cap(inst, CONTENT_ADAPTIVE_CODING)) {
 		if (msm_vidc_get_parent_value(inst,
 			REQUEST_PREPROCESS,
@@ -2468,10 +2451,6 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 		goto update_preprocess;
 	}
 
-	/*
-	 * eva statistics not available and BRS enabled, so
-	 * preprocess can be enabled upto 4k @ 60 fps
-	 */
 	if (res_is_less_than_or_equal_to(width, height, 3840, 2160) &&
 		max_fps <= 60)
 		adjusted_value = 1;
@@ -2683,6 +2662,209 @@ int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 		adjusted_value = 0;
 
 	msm_vidc_update_cap_value(inst, SLICE_DECODE,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_eva_stats(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	s32 rc_type = -1;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[META_EVA_STATS].value;
+
+	if (msm_vidc_get_parent_value(inst, META_EVA_STATS, BITRATE_MODE,
+		&rc_type, __func__))
+		return -EINVAL;
+
+	/* disable Eva stats metadata for CQ rate control */
+	if (rc_type == HFI_RC_CQ) {
+		i_vpr_h(inst, "%s: unsupported for CQ rate control\n", __func__);
+		adjusted_value = 0;
+	}
+
+	msm_vidc_update_cap_value(inst, META_EVA_STATS,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_sei_mastering_disp(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	s32 profile = -1;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[META_SEI_MASTERING_DISP].value;
+
+	if (msm_vidc_get_parent_value(inst, META_SEI_MASTERING_DISP, PROFILE,
+		&profile, __func__))
+		return -EINVAL;
+
+	if (inst->codec != MSM_VIDC_HEVC && inst->codec != MSM_VIDC_HEIC) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+	if ((inst->codec == MSM_VIDC_HEVC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10) ||
+		(inst->codec == MSM_VIDC_HEIC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE)) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+adjust:
+	msm_vidc_update_cap_value(inst, META_SEI_MASTERING_DISP,
+		adjusted_value, __func__);
+	return 0;
+}
+
+int msm_vidc_adjust_sei_cll(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	s32 profile = -1;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[META_SEI_CLL].value;
+
+	if (msm_vidc_get_parent_value(inst, META_SEI_CLL, PROFILE,
+		&profile, __func__))
+		return -EINVAL;
+
+	if (inst->codec != MSM_VIDC_HEVC && inst->codec != MSM_VIDC_HEIC) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+	if ((inst->codec == MSM_VIDC_HEVC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10) ||
+		(inst->codec == MSM_VIDC_HEIC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE)) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+adjust:
+	msm_vidc_update_cap_value(inst, META_SEI_CLL, adjusted_value, __func__);
+	return 0;
+}
+
+int msm_vidc_adjust_hdr10plus(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	s32 profile = -1;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[META_HDR10PLUS].value;
+
+	if (msm_vidc_get_parent_value(inst, META_HDR10PLUS, PROFILE,
+		&profile, __func__))
+		return -EINVAL;
+
+	if (inst->codec != MSM_VIDC_HEVC && inst->codec != MSM_VIDC_HEIC) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+	if ((inst->codec == MSM_VIDC_HEVC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10) ||
+		(inst->codec == MSM_VIDC_HEIC &&
+		profile != V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE)) {
+		adjusted_value = 0;
+		goto adjust;
+	}
+
+adjust:
+	msm_vidc_update_cap_value(inst, META_HDR10PLUS, adjusted_value, __func__);
+	return 0;
+}
+
+int msm_vidc_adjust_transcoding_stats(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	s32 rc_type = -1;
+	u32 width, height, fps;
+	struct v4l2_format *f;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val :
+		capability->cap[META_TRANSCODING_STAT_INFO].value;
+
+	if (msm_vidc_get_parent_value(inst, META_TRANSCODING_STAT_INFO,
+		BITRATE_MODE, &rc_type, __func__))
+		return -EINVAL;
+
+	/*
+	 * transcoding stats metadata is supported for:
+	 * - VBR bitrate mode
+	 * - fps <= 60
+	 * - Resolution <= 4K
+	 */
+	if (rc_type != HFI_RC_VBR_CFR) {
+		i_vpr_h(inst, "%s: unsupported rc_type: %#x\n",
+			__func__, rc_type);
+		adjusted_value = 0;
+		goto exit;
+	}
+
+	fps = capability->cap[FRAME_RATE].value >> 16;
+	if (fps > MAX_TRANSCODING_STATS_FRAME_RATE) {
+		i_vpr_h(inst, "%s: unsupported fps %u\n", __func__, fps);
+		adjusted_value = 0;
+		goto exit;
+	}
+
+	f = &inst->fmts[OUTPUT_PORT];
+	width = f->fmt.pix_mp.width;
+	height = f->fmt.pix_mp.height;
+	if (res_is_greater_than(width, height,
+		MAX_TRANSCODING_STATS_WIDTH, MAX_TRANSCODING_STATS_HEIGHT)) {
+		i_vpr_h(inst, "%s: unsupported res, wxh %ux%u\n",
+			__func__, width, height);
+		adjusted_value = 0;
+		goto exit;
+	}
+
+exit:
+	msm_vidc_update_cap_value(inst, META_TRANSCODING_STAT_INFO,
 		adjusted_value, __func__);
 
 	return 0;

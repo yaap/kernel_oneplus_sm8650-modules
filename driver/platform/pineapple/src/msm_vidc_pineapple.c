@@ -1824,7 +1824,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_SEI_MASTERING_DISPLAY_COLOUR,
 		HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR,
@@ -1841,7 +1842,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_SEI_CLL, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_SEI_CONTENT_LIGHT_LEVEL,
 		HFI_PROP_SEI_CONTENT_LIGHT_LEVEL,
@@ -1858,7 +1860,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_HDR10PLUS, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_HDR10PLUS,
 		HFI_PROP_SEI_HDR10PLUS_USERDATA,
@@ -1889,9 +1892,10 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_DOLBY_RPU_METADATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_EVA_STATS, ENC, CODECS_ALL,
+	{META_EVA_STATS, ENC, H264|HEVC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS,
 		HFI_PROP_EVA_STAT_INFO,
@@ -2120,7 +2124,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 			P_FRAME_QP, B_FRAME_QP, ENH_LAYER_COUNT, BIT_RATE,
 			META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE},
+			BLUR_TYPES, LOWLATENCY_MODE, META_TRANSCODING_STAT_INFO},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -2129,7 +2133,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 			P_FRAME_QP, B_FRAME_QP, CONSTANT_QUALITY, ENH_LAYER_COUNT,
 			BIT_RATE, META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE},
+			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS, META_TRANSCODING_STAT_INFO},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -2374,7 +2378,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_u32_enum},
 
-	{PROFILE, ENC|DEC, HEVC|HEIC,
+	{PROFILE, ENC, HEVC|HEIC,
+		{META_SEI_MASTERING_DISP, META_SEI_CLL, META_HDR10PLUS},
+		msm_vidc_adjust_profile,
+		msm_vidc_set_u32_enum},
+
+	{PROFILE, DEC, HEVC|HEIC,
 		{0},
 		msm_vidc_adjust_profile,
 		msm_vidc_set_u32_enum},
@@ -2549,11 +2558,10 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_all_intra,
 		NULL},
 
-	{META_EVA_STATS, ENC, H264|HEVC,
-		{ENH_LAYER_COUNT, REQUEST_PREPROCESS}},
-
-	{META_EVA_STATS, ENC, HEIC,
-		{0}},
+	{META_EVA_STATS, ENC, HEVC,
+		{0},
+		msm_vidc_adjust_eva_stats,
+		NULL},
 
 	{META_ROI_INFO, ENC, H264|HEVC,
 		{MIN_QUALITY, IR_PERIOD, BLUR_TYPES},
@@ -2579,6 +2587,26 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		{0},
 		NULL,
 		msm_vidc_set_signal_color_info},
+
+	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_sei_mastering_disp,
+		NULL},
+
+	{META_SEI_CLL, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_sei_cll,
+		NULL},
+
+	{META_HDR10PLUS, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_hdr10plus,
+		NULL},
+
+	{META_TRANSCODING_STAT_INFO, ENC, HEVC|H264,
+		{0},
+		msm_vidc_adjust_transcoding_stats,
+		NULL},
 };
 
 /* Default UBWC config for LPDDR5 */

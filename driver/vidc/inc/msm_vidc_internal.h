@@ -43,7 +43,8 @@ enum msm_vidc_metadata_bits {
 	MSM_VIDC_META_TX_OUTPUT        = 0x4,
 	MSM_VIDC_META_RX_INPUT         = 0x8,
 	MSM_VIDC_META_RX_OUTPUT        = 0x10,
-	MSM_VIDC_META_MAX              = 0x20,
+	MSM_VIDC_META_DYN_ENABLE       = 0x20,
+	MSM_VIDC_META_MAX              = 0x40,
 };
 
 #define MSM_VIDC_METADATA_SIZE             (4 * 4096) /* 16 KB */
@@ -102,6 +103,9 @@ enum msm_vidc_metadata_bits {
 #define MAX_LTR_FRAME_COUNT_5                 5
 #define MAX_LTR_FRAME_COUNT_2                 2
 #define MAX_ENC_RING_BUF_COUNT                5 /* to be tuned */
+#define MAX_TRANSCODING_STATS_FRAME_RATE     60
+#define MAX_TRANSCODING_STATS_WIDTH        4096
+#define MAX_TRANSCODING_STATS_HEIGHT       2304
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3

@@ -97,7 +97,8 @@ enum v4l2_mpeg_vidc_metadata_bits {
 	V4L2_MPEG_VIDC_META_TX_OUTPUT        = 0x4,
 	V4L2_MPEG_VIDC_META_RX_INPUT         = 0x8,
 	V4L2_MPEG_VIDC_META_RX_OUTPUT        = 0x10,
-	V4L2_MPEG_VIDC_META_MAX              = 0x20,
+	V4L2_MPEG_VIDC_META_DYN_ENABLE       = 0x20,
+	V4L2_MPEG_VIDC_META_MAX              = 0x40,
 };
 
 #define V4L2_CID_MPEG_VIDC_METADATA_LTR_MARK_USE_DETAILS                      \

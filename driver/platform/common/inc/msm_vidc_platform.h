@@ -330,6 +330,11 @@ int msm_vidc_adjust_all_intra(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_eva_stats(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_sei_mastering_disp(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_sei_cll(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_hdr10plus(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_transcoding_stats(void *instance, struct v4l2_ctrl *ctrl);
 
 int msm_vidc_set_header_mode(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);

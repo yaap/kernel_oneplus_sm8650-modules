@@ -774,6 +774,53 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	return rc;
 }
 
+static int msm_venc_dynamic_metadata_delivery(struct msm_vidc_inst *inst,
+	enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	u32 payload[32] = {0};
+	u32 i, count = 0;
+	struct msm_vidc_inst_capability *capability;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	i_vpr_h(inst, "%s()\n", __func__);
+
+	capability = inst->capabilities;
+	payload[0] = HFI_MODE_DYNAMIC_METADATA;
+
+	if (port != INPUT_PORT) {
+		i_vpr_e(inst, "%s: invalid port: %d\n", __func__, port);
+		return -EINVAL;
+	}
+
+	for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
+		if (is_dyn_meta_tx_inp_enabled(inst, i)) {
+			if (count + 1 >= sizeof(payload) / sizeof(u32)) {
+				i_vpr_e(inst,
+					"%s: dynamic input metadatas (%d) exceeded limit (%d)\n",
+					__func__, count, sizeof(payload) / sizeof(u32));
+				return -EINVAL;
+			}
+			payload[count + 1] = capability->cap[i].hfi_id;
+			count++;
+		}
+	}
+
+	rc = venus_hfi_session_command(inst,
+			HFI_CMD_DELIVERY_MODE,
+			port,
+			HFI_PAYLOAD_U32_ARRAY,
+			&payload[0],
+			(count + 1) * sizeof(u32));
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
 static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
@@ -899,6 +946,10 @@ int msm_venc_streamon_input(struct msm_vidc_inst *inst)
 		goto error;
 
 	rc = msm_venc_metadata_delivery(inst, INPUT_PORT);
+	if (rc)
+		goto error;
+
+	rc = msm_venc_dynamic_metadata_delivery(inst, INPUT_PORT);
 	if (rc)
 		goto error;
 
