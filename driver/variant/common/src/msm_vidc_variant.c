@@ -13,23 +13,7 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_variant.h"
 #include "msm_vidc_platform.h"
-
-static void __fatal_error(bool fatal)
-{
-	WARN_ON(fatal);
-}
-
-static int __strict_check(struct msm_vidc_core *core, const char *function)
-{
-	bool fatal = !mutex_is_locked(&core->lock);
-
-	__fatal_error(fatal);
-
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
-	return fatal ? -EINVAL : 0;
-}
+#include "venus_hfi.h"
 
 int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 {
