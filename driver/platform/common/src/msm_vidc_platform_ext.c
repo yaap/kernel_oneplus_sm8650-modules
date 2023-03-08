@@ -277,3 +277,33 @@ int msm_vidc_set_signal_color_info(void *instance,
 	return rc;
 }
 
+int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	s32 pix_fmt = -1;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	if (is_decode_session(inst))
+		return 0;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[CSC].value;
+
+	if (msm_vidc_get_parent_value(inst, CSC, PIX_FMTS,
+		&pix_fmt, __func__))
+		return -EINVAL;
+
+	/* disable csc for 10-bit encoding */
+	if (is_10bit_colorformat(pix_fmt))
+		adjusted_value = 0;
+
+	msm_vidc_update_cap_value(inst, CSC, adjusted_value, __func__);
+
+	return 0;
+}

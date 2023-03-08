@@ -782,7 +782,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{CSC, ENC, CODECS_ALL,
 		0, 1, 1, 0,
-		0,
+		V4L2_CID_MPEG_VIDC_CSC,
 		HFI_PROP_CSC},
 
 	{CSC_CUSTOM_MATRIX, ENC, CODECS_ALL,

@@ -16,5 +16,6 @@ int msm_vidc_set_ir_period(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_signal_color_info(void *instance,
 	enum msm_vidc_inst_capability_type cap_id);
+int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl);
 
 #endif
