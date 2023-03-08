@@ -10,7 +10,7 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_power.h"
 
-#define ENABLE_LEGACY_POWER_CALCULATIONS  1
+#define ENABLE_LEGACY_POWER_CALCULATIONS  0
 
 int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size);
 u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst* inst, u32 data_size);
