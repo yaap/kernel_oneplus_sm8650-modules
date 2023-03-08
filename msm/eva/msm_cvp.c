@@ -603,8 +603,14 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	struct cvp_fence_queue *q;
 	enum op_mode mode;
 	struct cvp_buf_type *buf;
+	bool override;
 
 	int rc = 0;
+
+	override = get_pkt_fenceoverride((struct cvp_hal_session_cmd_pkt*)in_pkt);
+
+	dprintk(CVP_SYNX, "%s:Fence Override is %d\n",__func__, override);
+	dprintk(CVP_SYNX, "%s:Kernel Fence is %d\n", __func__, cvp_kernel_fence_enabled);
 
 	q = &inst->fence_cmd_queue;
 
@@ -632,24 +638,53 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	f->output_index = 0;
 	buf_offset = offset;
 
-	if (!cvp_kernel_fence_enabled) {
-		for (i = 0; i < num; i++) {
-			buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];
-			buf_offset += sizeof(*buf) >> 2;
-
-			if (buf->input_handle || buf->output_handle) {
-				f->num_fences++;
-				if (buf->input_handle)
-					f->output_index++;
-			}
+	if (cvp_kernel_fence_enabled == 0)
+	{
+		goto soc_fence;
+	}
+	else if (cvp_kernel_fence_enabled == 1)
+	{
+		goto kernel_fence;
+	}
+	else if (cvp_kernel_fence_enabled == 2)
+	{
+		if (override == true)
+			goto kernel_fence;
+		else if (override == false)
+			goto soc_fence;
+		else
+		{
+			dprintk(CVP_ERR, "%s: invalid params", __func__);
+			rc = -EINVAL;
+			goto exit;
 		}
-		f->signature = 0xB0BABABE;
-		if (f->num_fences)
-			goto fence_cmd_queue;
-
-		goto free_exit;
+	}
+	else
+	{
+		dprintk(CVP_ERR, "%s: invalid params", __func__);
+		rc = -EINVAL;
+		goto exit;
 	}
 
+soc_fence:
+	for (i = 0; i < num; i++) {
+		buf = (struct cvp_buf_type*)&in_pkt->pkt_data[buf_offset];
+		buf_offset += sizeof(*buf) >> 2;
+
+		if (buf->input_handle || buf->output_handle) {
+			f->num_fences++;
+			if (buf->input_handle)
+				f->output_index++;
+		}
+	}
+	f->signature = 0xB0BABABE;
+	if (f->num_fences)
+		goto fence_cmd_queue;
+
+	goto free_exit;
+
+
+kernel_fence:
 	/* First pass to find INPUT synx handles */
 	for (i = 0; i < num; i++) {
 		buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];

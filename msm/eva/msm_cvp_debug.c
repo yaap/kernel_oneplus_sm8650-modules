@@ -36,7 +36,7 @@ bool msm_cvp_mmrm_enabled = !true;
 #endif
 bool msm_cvp_dcvs_disable = !true;
 int msm_cvp_minidump_enable = !1;
-bool cvp_kernel_fence_enabled = true;
+int cvp_kernel_fence_enabled = 2;
 
 #define MAX_DBG_BUF_SIZE 4096
 
@@ -258,7 +258,7 @@ struct dentry *msm_cvp_debugfs_init_drv(void)
 			&msm_cvp_minidump_enable);
 	debugfs_create_bool("fw_coverage", 0644, dir, &msm_cvp_fw_coverage);
 	debugfs_create_bool("auto_pil", 0644, dir, &msm_cvp_auto_pil);
-	debugfs_create_bool("kernel_fence", 0644, dir, &cvp_kernel_fence_enabled);
+	debugfs_create_u32("kernel_fence", 0644, dir, &cvp_kernel_fence_enabled);
 	debugfs_create_bool("disable_thermal_mitigation", 0644, dir,
 			&msm_cvp_thermal_mitigation_disabled);
 	debugfs_create_bool("enable_cacheop", 0644, dir,

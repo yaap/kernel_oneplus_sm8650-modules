@@ -69,7 +69,7 @@ extern bool msm_cvp_dsp_disable;
 extern bool msm_cvp_mmrm_enabled;
 extern bool msm_cvp_dcvs_disable;
 extern int msm_cvp_minidump_enable;
-extern bool cvp_kernel_fence_enabled;
+extern int cvp_kernel_fence_enabled;
 
 #define dprintk(__level, __fmt, arg...)	\
 	do { \
