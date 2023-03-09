@@ -112,7 +112,7 @@
 #define MAX_DOMAIN_ID	CDSP_DOMAIN_ID
 
 #define NUM_CHANNELS	4	/* adsp, mdsp, slpi, cdsp*/
-#define NUM_SESSIONS	13	/* max 12 compute, 1 cpz */
+#define NUM_SESSIONS	14	/* max 11 compute, 3 cpz */
 
 #define VALID_FASTRPC_CID(cid) \
 	(cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS)
