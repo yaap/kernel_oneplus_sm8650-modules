@@ -12,6 +12,6 @@ LOCAL_MODULE := stm_st54se_gpio.ko
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
-
+ENABLE_DDK_BUILD := true
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif #end of check for TARGET_USES_ST_ESE flag
