@@ -653,7 +653,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	{SUPER_FRAME, ENC, H264|HEVC,
 		0, 32, 1, 0,
 		V4L2_CID_MPEG_VIDC_SUPERFRAME, 0,
-		CAP_FLAG_NONE},
+		CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{SLICE_DECODE, DEC, H264|HEVC|AV1,
 		V4L2_MPEG_MSM_VIDC_DISABLE,
