@@ -175,7 +175,7 @@ int msm_vidc_set_ir_period(void *instance,
 	core = inst->core;
 
 	if (inst->capabilities->cap[IR_TYPE].value ==
-	    V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM) {
+	    V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM) {
 		if (inst->bufq[OUTPUT_PORT].vb2q->streaming) {
 			i_vpr_h(inst, "%s: dynamic random intra refresh not allowed\n",
 				__func__);
@@ -183,7 +183,7 @@ int msm_vidc_set_ir_period(void *instance,
 		}
 		ir_type = HFI_PROP_IR_RANDOM_PERIOD;
 	} else if (inst->capabilities->cap[IR_TYPE].value ==
-		   V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC) {
+		   V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC) {
 		ir_type = HFI_PROP_IR_CYCLIC_PERIOD;
 	} else {
 		i_vpr_e(inst, "%s: invalid ir_type %d\n",
