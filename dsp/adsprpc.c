@@ -4031,19 +4031,22 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 			err = fastrpc_mmap_create(fl, -1, NULL, 0, init->mem,
 				 init->memlen, ADSP_MMAP_REMOTE_HEAP_ADDR, &mem);
 			mutex_unlock(&fl->map_mutex);
-			if (err)
+			if (err || (!mem))
 				goto bail;
 			spin_lock_irqsave(&me->hlock, irq_flags);
 			mem->in_use = true;
 			spin_unlock_irqrestore(&me->hlock, irq_flags);
 		}
+		VERIFY(err, mem);
+		if (err)
+			goto bail;
 		phys = mem->phys;
 		size = mem->size;
 		/*
 		 * If remote-heap VMIDs are defined in DTSI, then do
 		 * hyp_assign from HLOS to those VMs (LPASS, ADSP).
 		 */
-		if (rhvm->vmid && mem && mem->refs == 1 && size) {
+		if (rhvm->vmid && mem->refs == 1 && size) {
 			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
 			struct qcom_scm_vmperm *dst_perms;
 			uint32_t i = 0;
