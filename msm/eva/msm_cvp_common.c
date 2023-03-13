@@ -58,15 +58,25 @@ static void dump_hfi_queue(struct iris_hfi_device *device)
 			read_ptr = (u32 *)((qinfo->q_array.align_virtual_addr) +
 				(read_idx << 2));
 			dprintk(CVP_ERR,
-				"queue payload: %x %x %x %x %x %x %x %x\n",
+				"queue payload: %x %x %x %x %x %x %x %x %x\n",
 				read_ptr[0], read_ptr[1], read_ptr[2],
 				read_ptr[3], read_ptr[4], read_ptr[5],
-				read_ptr[6], read_ptr[7]);
+				read_ptr[6], read_ptr[7], read_ptr[8]);
 		}
 
 	}
 	mutex_unlock(&device->lock);
 }
+
+void print_hfi_queue_info(struct cvp_hfi_device *hdev)
+{
+       if(hdev && hdev->hfi_device_data){
+		call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
+		dump_hfi_queue(hdev->hfi_device_data);
+       }
+}
+
+
 
 struct msm_cvp_core *get_cvp_core(int core_id)
 {
@@ -378,8 +388,7 @@ int wait_for_sess_signal_receipt(struct msm_cvp_inst *inst,
 	if (!rc) {
 		dprintk(CVP_WARN, "Wait interrupted or timed out: %d\n",
 				SESSION_MSG_INDEX(cmd));
-		call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
-		dump_hfi_queue(hdev->hfi_device_data);
+		print_hfi_queue_info(hdev);
 		rc = -ETIMEDOUT;
 	} else if (inst->state == MSM_CVP_CORE_INVALID) {
 		rc = -ECONNRESET;
@@ -862,8 +871,7 @@ static int msm_comm_session_abort(struct msm_cvp_inst *inst)
 	if (!rc) {
 		dprintk(CVP_ERR, "%s: inst %pK session %x abort timed out\n",
 				__func__, inst, hash32_ptr(inst->session));
-		call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
-		dump_hfi_queue(hdev->hfi_device_data);
+		print_hfi_queue_info(hdev);
 		msm_cvp_comm_generate_sys_error(inst);
 		rc = -EBUSY;
 	} else {
@@ -947,8 +955,7 @@ int msm_cvp_comm_check_core_init(struct msm_cvp_core *core)
 		dprintk(CVP_ERR, "%s: Wait interrupted or timed out: %d\n",
 				__func__, SYS_MSG_INDEX(HAL_SYS_INIT_DONE));
 		hdev = core->device;
-		call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
-		dump_hfi_queue(hdev->hfi_device_data);
+		print_hfi_queue_info(hdev);
 		rc = -EIO;
 		goto exit;
 	} else {
@@ -1336,10 +1343,7 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 			s = cvp_get_inst_validate(inst->core, inst);
 			if (!s)
 				return;
-
-			call_hfi_op(hdev, flush_debug_queue,
-				hdev->hfi_device_data);
-			dump_hfi_queue(hdev->hfi_device_data);
+			print_hfi_queue_info(hdev);
 			msm_cvp_comm_kill_session(inst);
 			cvp_put_inst(s);
 		} else {

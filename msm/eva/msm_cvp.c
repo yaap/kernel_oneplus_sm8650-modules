@@ -9,7 +9,7 @@
 #include "msm_cvp_buf.h"
 #include "cvp_comm_def.h"
 #include "cvp_power.h"
-
+#include "cvp_hfi_api.h"
 static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int in_offset,
@@ -94,6 +94,9 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 	if (wait_event_timeout(sq->wq,
 		cvp_msg_pending(sq, &msg, ktid), timeout) == 0) {
 		dprintk(CVP_WARN, "session queue wait timeout\n");
+		if(inst && inst->core && inst->core->device){
+			print_hfi_queue_info(inst->core->device);
+		}
 		rc = -ETIMEDOUT;
 		goto exit;
 	}

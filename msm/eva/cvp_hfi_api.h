@@ -311,5 +311,5 @@ unsigned int get_msg_errorcode(void *msg);
 int get_msg_opconfigs(void *msg, unsigned int *session_id,
 		unsigned int *error_type, unsigned int *config_id);
 extern const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX];
-
+void print_hfi_queue_info(struct cvp_hfi_device *hdev);
 #endif /*__CVP_HFI_API_H__ */
