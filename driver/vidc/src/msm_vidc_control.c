@@ -152,9 +152,15 @@ bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
 	return cap_id > INST_CAP_NONE && cap_id < INST_CAP_MAX;
 }
 
-static inline bool is_valid_cap(struct msm_vidc_inst_cap *cap)
+bool is_valid_cap(struct msm_vidc_inst *inst,
+		enum msm_vidc_inst_capability_type cap_id)
 {
-	return is_valid_cap_id(cap->cap_id);
+	if (!inst || !inst->capabilities)
+		return false;
+	if (cap_id <= INST_CAP_NONE || cap_id >= INST_CAP_MAX)
+		return false;
+
+	return !!inst->capabilities->cap[cap_id].cap_id;
 }
 
 static inline bool is_all_childrens_visited(
@@ -268,7 +274,7 @@ static int msm_vidc_adjust_cap(struct msm_vidc_inst *inst,
 
 	/* validate cap */
 	cap = &inst->capabilities->cap[cap_id];
-	if (!is_valid_cap(cap))
+	if (!is_valid_cap(inst, cap->cap_id))
 		return 0;
 
 	/* check if adjust supported */
@@ -301,7 +307,7 @@ static int msm_vidc_set_cap(struct msm_vidc_inst *inst,
 
 	/* validate cap */
 	cap = &inst->capabilities->cap[cap_id];
-	if (!is_valid_cap(cap))
+	if (!is_valid_cap(inst, cap->cap_id))
 		return 0;
 
 	/* check if set supported */
@@ -947,7 +953,7 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 	/* populate leaf nodes first */
 	for (i = 1; i < INST_CAP_MAX; i++) {
 		lcap = &capability->cap[i];
-		if (!is_valid_cap(lcap))
+		if (!is_valid_cap(inst, lcap->cap_id))
 			continue;
 
 		/* sanitize cap value */

@@ -944,19 +944,25 @@ int msm_vidc_adjust_ltr_count(void *instance, struct v4l2_ctrl *ctrl)
 	adjusted_value = ctrl ? ctrl->val : capability->cap[LTR_COUNT].value;
 
 	if (msm_vidc_get_parent_value(inst, LTR_COUNT, BITRATE_MODE,
-		&rc_type, __func__) ||
-		msm_vidc_get_parent_value(inst, LTR_COUNT, ALL_INTRA,
-		&all_intra, __func__))
+		&rc_type, __func__))
 		return -EINVAL;
 
 	if ((rc_type != HFI_RC_OFF &&
 		rc_type != HFI_RC_CBR_CFR &&
-		rc_type != HFI_RC_CBR_VFR) ||
-		all_intra) {
+		rc_type != HFI_RC_CBR_VFR)) {
 		adjusted_value = 0;
 		i_vpr_h(inst,
-			"%s: ltr count unsupported, rc_type: %#x, all_intra %d\n",
-			__func__, rc_type, all_intra);
+			"%s: ltr count unsupported, rc_type: %#x\n",
+			__func__, rc_type);
+		goto exit;
+	}
+
+	if (is_valid_cap(inst, ALL_INTRA)) {
+		if (msm_vidc_get_parent_value(inst, LTR_COUNT,
+			ALL_INTRA, &all_intra, __func__))
+			return -EINVAL;
+		if (all_intra)
+			adjusted_value = 0;
 		goto exit;
 	}
 
@@ -1126,16 +1132,23 @@ int msm_vidc_adjust_output_order(void *instance, struct v4l2_ctrl *ctrl)
 	adjusted_value = ctrl ? ctrl->val :
 		capability->cap[OUTPUT_ORDER].value;
 
-	if (msm_vidc_get_parent_value(inst, OUTPUT_ORDER, THUMBNAIL_MODE,
-			&tn_mode, __func__) ||
-		msm_vidc_get_parent_value(inst, OUTPUT_ORDER, DISPLAY_DELAY,
+	if (msm_vidc_get_parent_value(inst, OUTPUT_ORDER, DISPLAY_DELAY,
 			&display_delay, __func__) ||
 		msm_vidc_get_parent_value(inst, OUTPUT_ORDER, DISPLAY_DELAY_ENABLE,
 			&display_delay_enable, __func__))
 		return -EINVAL;
 
-	if (tn_mode || (display_delay_enable && !display_delay))
+	if (display_delay_enable && !display_delay)
 		adjusted_value = 1;
+
+	if (is_valid_cap(inst, THUMBNAIL_MODE)) {
+		if (msm_vidc_get_parent_value(inst, OUTPUT_ORDER, THUMBNAIL_MODE,
+			&tn_mode, __func__))
+			return -EINVAL;
+
+		if (tn_mode == 1)
+			adjusted_value = 1;
+	}
 
 	msm_vidc_update_cap_value(inst, OUTPUT_ORDER,
 		adjusted_value, __func__);
@@ -1300,7 +1313,8 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	struct msm_vidc_inst_capability *capability;
 	struct v4l2_format *output_fmt;
-	s32 adjusted_value, rc_type = -1, slice_mode, all_intra, enh_layer_count = 0;
+	s32 adjusted_value, rc_type = -1, slice_mode, all_intra = 0,
+		enh_layer_count = 0;
 	u32 slice_val, mbpf = 0, mbps = 0, max_mbpf = 0, max_mbps = 0, bitrate = 0;
 	u32 update_cap, max_avg_slicesize, output_width, output_height;
 	u32 min_width, min_height, max_width, max_height, fps;
@@ -1320,14 +1334,14 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 	if (msm_vidc_get_parent_value(inst, SLICE_MODE,
 		BITRATE_MODE, &rc_type, __func__) ||
 		msm_vidc_get_parent_value(inst, SLICE_MODE,
-		ALL_INTRA, &all_intra, __func__) ||
-		msm_vidc_get_parent_value(inst, SLICE_MODE,
 		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
 
 	if (capability->cap[BIT_RATE].flags & CAP_FLAG_CLIENT_SET) {
 		bitrate = capability->cap[BIT_RATE].value;
-	} else if (msm_vidc_check_all_layer_bitrate_set(inst)) {
+	} else if (!msm_vidc_get_parent_value(inst, SLICE_MODE,
+		ENH_LAYER_COUNT, &enh_layer_count, __func__) &&
+		msm_vidc_check_all_layer_bitrate_set(inst)) {
 		bitrate = msm_vidc_get_cumulative_bitrate(inst);
 	} else {
 		adjusted_value = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
@@ -1343,14 +1357,27 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 		(rc_type != HFI_RC_OFF &&
 		rc_type != HFI_RC_CBR_CFR &&
 		rc_type != HFI_RC_CBR_VFR &&
-		rc_type != HFI_RC_VBR_CFR) ||
-		all_intra) {
+		rc_type != HFI_RC_VBR_CFR)) {
 		adjusted_value = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
 		update_cap = SLICE_MODE;
 		i_vpr_h(inst,
-			"%s: slice unsupported, fps: %u, rc_type: %#x, all_intra %d\n",
-			__func__, fps, rc_type, all_intra);
+			"%s: slice unsupported, fps: %u, rc_type: %#x\n",
+			__func__, fps, rc_type);
 		goto exit;
+	}
+
+	if (is_valid_cap(inst, ALL_INTRA)) {
+		if (msm_vidc_get_parent_value(inst, SLICE_MODE,
+			ALL_INTRA, &all_intra, __func__))
+			return -EINVAL;
+
+		if (all_intra == 1) {
+			adjusted_value = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
+			update_cap = SLICE_MODE;
+			i_vpr_h(inst,
+			"%s: slice unsupported, all_intra %d\n", __func__, all_intra);
+			goto exit;
+		}
 	}
 
 	output_fmt = &inst->fmts[OUTPUT_PORT];
@@ -1463,12 +1490,15 @@ static int msm_vidc_adjust_static_layer_count_and_type(struct msm_vidc_inst *ins
 		goto exit;
 	}
 
-	if (!is_meta_tx_inp_enabled(inst, META_EVA_STATS) &&
-		hb_requested && (layer_count > 1)) {
-		layer_count = 1;
-		i_vpr_h(inst,
-			"%s: cvp disable supports only one enh layer HB\n",
-			__func__);
+	if (hb_requested && layer_count > 1) {
+		if (!is_valid_cap(inst, META_EVA_STATS) ||
+			!is_meta_tx_inp_enabled(inst, META_EVA_STATS)) {
+			i_vpr_h(inst,
+				"%s: only one layer of heirB supported as eva statistics not available\n",
+				__func__);
+			layer_count = 1;
+			goto exit;
+		}
 	}
 
 	/* decide hfi layer type */
@@ -1528,9 +1558,7 @@ int msm_vidc_adjust_layer_count(void *instance, struct v4l2_ctrl *ctrl)
 		capability->cap[ENH_LAYER_COUNT].value;
 
 	if (!is_parent_available(inst, ENH_LAYER_COUNT,
-		BITRATE_MODE, __func__) ||
-		!is_parent_available(inst, ENH_LAYER_COUNT,
-		META_EVA_STATS, __func__))
+		BITRATE_MODE, __func__))
 		return -EINVAL;
 
 	if (!inst->bufq[OUTPUT_PORT].vb2q->streaming) {
@@ -2024,20 +2052,27 @@ int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 	if (msm_vidc_get_parent_value(inst, BLUR_TYPES, BITRATE_MODE,
 		&rc_type, __func__) ||
 		msm_vidc_get_parent_value(inst, BLUR_TYPES, MIN_QUALITY,
-		&min_quality, __func__) ||
-		msm_vidc_get_parent_value(inst, BLUR_TYPES, META_ROI_INFO,
-		&roi_enable, __func__))
+		&min_quality, __func__))
 		return -EINVAL;
 
 	if (adjusted_value == MSM_VIDC_BLUR_EXTERNAL) {
 		if (is_scaling_enabled(inst) || min_quality)
 			adjusted_value = MSM_VIDC_BLUR_NONE;
 	} else if (adjusted_value == MSM_VIDC_BLUR_ADAPTIVE) {
+		if (is_valid_cap(inst, META_ROI_INFO)) {
+			if (msm_vidc_get_parent_value(inst, BLUR_TYPES,
+				META_ROI_INFO, &roi_enable, __func__))
+				return -EINVAL;
+			if (is_meta_tx_inp_enabled(inst, META_ROI_INFO)) {
+				adjusted_value = MSM_VIDC_BLUR_NONE;
+				goto exit;
+			}
+		}
+
 		if (is_scaling_enabled(inst) || min_quality ||
 			(rc_type != HFI_RC_VBR_CFR &&
 			rc_type != HFI_RC_CBR_CFR &&
-			rc_type != HFI_RC_CBR_VFR) ||
-			roi_enable) {
+			rc_type != HFI_RC_CBR_VFR)) {
 			adjusted_value = MSM_VIDC_BLUR_NONE;
 			goto exit;
 		}
@@ -2283,8 +2318,6 @@ int msm_vidc_adjust_min_quality(void *instance, struct v4l2_ctrl *ctrl)
 	if (msm_vidc_get_parent_value(inst, MIN_QUALITY,
 		BITRATE_MODE, &rc_type, __func__) ||
 		msm_vidc_get_parent_value(inst, MIN_QUALITY,
-		META_ROI_INFO, &roi_enable, __func__) ||
-		msm_vidc_get_parent_value(inst, MIN_QUALITY,
 		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
 
@@ -2339,12 +2372,17 @@ int msm_vidc_adjust_min_quality(void *instance, struct v4l2_ctrl *ctrl)
 		goto update_and_exit;
 	}
 
-	if (is_meta_tx_inp_enabled(inst, META_ROI_INFO)) {
-		i_vpr_h(inst,
-			"%s: min quality not supported with roi metadata\n",
-			__func__);
-		adjusted_value = 0;
-		goto update_and_exit;
+	if (is_valid_cap(inst, META_ROI_INFO)) {
+		if (msm_vidc_get_parent_value(inst, MIN_QUALITY,
+			META_ROI_INFO, &roi_enable, __func__))
+			return -EINVAL;
+		if (is_meta_tx_inp_enabled(inst, META_ROI_INFO)) {
+			i_vpr_h(inst,
+				"%s: min quality not supported with roi metadata\n",
+				__func__);
+			adjusted_value = 0;
+			goto update_and_exit;
+		}
 	}
 
 	if (enh_layer_count > 0 && inst->hfi_layer_type != HFI_HIER_B) {
@@ -2369,7 +2407,7 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	s32 brs = -1, eva_status = -1;
+	s32 brs = 0, eva_status = -1;
 	u32 width, height, frame_rate, operating_rate, max_fps;
 	struct v4l2_format *f;
 
@@ -2379,12 +2417,6 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 	}
 
 	adjusted_value = inst->capabilities->cap[REQUEST_PREPROCESS].value;
-
-	if (msm_vidc_get_parent_value(inst, REQUEST_PREPROCESS, CONTENT_ADAPTIVE_CODING,
-		&brs, __func__) ||
-		msm_vidc_get_parent_value(inst, REQUEST_PREPROCESS, META_EVA_STATS,
-			&eva_status, __func__))
-		return -EINVAL;
 
 	width = inst->crop.width;
 	height = inst->crop.height;
@@ -2399,14 +2431,47 @@ int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 	 * client did not enable EVA metadata statistics and
 	 * BRS enabled and upto 4k @ 60 fps
 	 */
-	if (!is_meta_tx_inp_enabled(inst, META_EVA_STATS) &&
-		brs == 1 &&
-		res_is_less_than_or_equal_to(width, height, 3840, 2160) &&
+	if (is_valid_cap(inst, META_EVA_STATS)) {
+		if (msm_vidc_get_parent_value(inst,
+			REQUEST_PREPROCESS,
+			META_EVA_STATS,
+			&eva_status, __func__))
+			return -EINVAL;
+		/* preprocess not required if client provides eva statistics */
+		if (is_meta_tx_inp_enabled(inst, META_EVA_STATS)) {
+			adjusted_value = 0;
+			goto update_preprocess;
+		}
+	}
+
+	if (is_valid_cap(inst, CONTENT_ADAPTIVE_CODING)) {
+		if (msm_vidc_get_parent_value(inst,
+			REQUEST_PREPROCESS,
+			CONTENT_ADAPTIVE_CODING,
+			&brs, __func__))
+			return -EINVAL;
+		if (brs == 0) {
+			/* preprocess not required as BRS not enabled */
+			adjusted_value = 0;
+			goto update_preprocess;
+		}
+	} else {
+		/* preprocess not required as BRS not available */
+		adjusted_value = 0;
+		goto update_preprocess;
+	}
+
+	/*
+	 * eva statistics not available and BRS enabled, so
+	 * preprocess can be enabled upto 4k @ 60 fps
+	 */
+	if (res_is_less_than_or_equal_to(width, height, 3840, 2160) &&
 		max_fps <= 60)
 		adjusted_value = 1;
 	else
 		adjusted_value = 0;
 
+update_preprocess:
 	msm_vidc_update_cap_value(inst, REQUEST_PREPROCESS,
 		adjusted_value, __func__);
 
@@ -2460,14 +2525,15 @@ int msm_vidc_adjust_dec_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 	adjusted_value = ctrl ? ctrl->val :
 		capability->cap[LOWLATENCY_MODE].value;
 
-	if (msm_vidc_get_parent_value(inst, LOWLATENCY_MODE, META_OUTBUF_FENCE,
-		&outbuf_fence, __func__))
-		return -EINVAL;
-
-	/* enable lowlatency if outbuf fence is enabled */
-	if (outbuf_fence & MSM_VIDC_META_ENABLE &&
-		outbuf_fence & MSM_VIDC_META_RX_INPUT)
-		adjusted_value = 1;
+	if (is_valid_cap(inst, META_OUTBUF_FENCE)) {
+		if (msm_vidc_get_parent_value(inst, LOWLATENCY_MODE, META_OUTBUF_FENCE,
+			&outbuf_fence, __func__))
+			return -EINVAL;
+		/* enable lowlatency if outbuf fence is enabled */
+		if (outbuf_fence & MSM_VIDC_META_ENABLE &&
+			outbuf_fence & MSM_VIDC_META_RX_INPUT)
+			adjusted_value = 1;
+	}
 
 	msm_vidc_update_cap_value(inst, LOWLATENCY_MODE,
 		adjusted_value, __func__);
