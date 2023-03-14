@@ -6,6 +6,7 @@ def define_pineapple():
         modules = [
             "smcinvoke_dlkm",
             "tz_log_dlkm",
+            "hdcp_qseecom_dlkm"
         ],
         extra_options = [
             "CONFIG_QCOM_SMCINVOKE"]

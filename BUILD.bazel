@@ -25,7 +25,16 @@ ddk_headers(
     ],
     includes = ["linux"]
 )
-
+ddk_headers(
+    name = "hdcp_qseecom_dlkm",
+    hdrs = glob([
+        "linux/*.h",
+        "linux/misc/qseecom_kernel.h",
+        "hdcp_qseecom/*.h",
+        "config/*.h"
+    ]),
+    includes = [".","linux","config"]
+)
 load("pineapple.bzl", "define_pineapple")
 
 define_pineapple()
