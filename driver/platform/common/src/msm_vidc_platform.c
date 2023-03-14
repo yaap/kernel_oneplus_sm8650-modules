@@ -961,9 +961,10 @@ int msm_vidc_adjust_ltr_count(void *instance, struct v4l2_ctrl *ctrl)
 		if (msm_vidc_get_parent_value(inst, LTR_COUNT,
 			ALL_INTRA, &all_intra, __func__))
 			return -EINVAL;
-		if (all_intra)
+		if (all_intra) {
 			adjusted_value = 0;
-		goto exit;
+			goto exit;
+		}
 	}
 
 	if (!msm_vidc_get_parent_value(inst, LTR_COUNT, PIX_FMTS,
