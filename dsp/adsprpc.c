@@ -8415,10 +8415,12 @@ static int __init fastrpc_device_init(void)
 							&me->channel[i].nb);
 		if (i == CDSP_DOMAIN_ID) {
 			me->channel[i].dev = me->non_secure_dev;
+#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
 			err = fastrpc_alloc_cma_memory(&region_phys,
 								&region_vaddr,
 								MINI_DUMP_DBG_SIZE,
 								(unsigned long)attr);
+#endif
 			if (err)
 				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
 						__func__, err);
