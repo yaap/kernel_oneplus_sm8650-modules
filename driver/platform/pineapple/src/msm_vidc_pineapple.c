@@ -874,22 +874,14 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{LTR_COUNT, ENC, H264|HEVC,
-		/*
-		 * update with MAX_LTR_FRAME_COUNT_5 when
-		 * 5 LTR support is added in firmware
-		 */
-		0, MAX_LTR_FRAME_COUNT_2, 1, 0,
+		0, MAX_LTR_FRAME_COUNT_5, 1, 0,
 		V4L2_CID_MPEG_VIDEO_LTR_COUNT,
 		HFI_PROP_LTR_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
 	{USE_LTR, ENC, H264|HEVC,
 		0,
-		/*
-		 * update with MAX_LTR_FRAME_COUNT_5 when
-		 * 5 LTR support is added in firmware
-		 */
-		((1 << MAX_LTR_FRAME_COUNT_2) - 1),
+		((1 << MAX_LTR_FRAME_COUNT_5) - 1),
 		0, 0,
 		V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES,
 		HFI_PROP_LTR_USE,
@@ -897,11 +889,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{MARK_LTR, ENC, H264|HEVC,
 		INVALID_DEFAULT_MARK_OR_USE_LTR,
-		/*
-		 * update with MAX_LTR_FRAME_COUNT_5 when
-		 * 5 LTR support is added in firmware
-		 */
-		(MAX_LTR_FRAME_COUNT_2 - 1),
+		(MAX_LTR_FRAME_COUNT_5 - 1),
 		1, INVALID_DEFAULT_MARK_OR_USE_LTR,
 		V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX,
 		HFI_PROP_LTR_MARK,
