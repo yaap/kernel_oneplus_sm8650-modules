@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -907,6 +907,7 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 
 	if (!drv_data->clients[client_id]) {
 		mutex_unlock(&drv_data->clients_register_lock);
+		HWFNC_ERR("Processing workaround for unregistered val client:%d\n", client_id);
 		return -EINVAL;
 	}
 

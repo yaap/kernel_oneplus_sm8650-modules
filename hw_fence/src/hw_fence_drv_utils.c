@@ -50,6 +50,12 @@
 #define HW_FENCE_CLIENT_TYPE_MAX_VPU 32
 #define HW_FENCE_CLIENT_TYPE_MAX_IFE 32
 
+/*
+ * Each bit in this mask represents each of the loopback clients supported in
+ * the enum hw_fence_loopback_id
+ */
+#define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7fff
+
 /**
  * struct hw_fence_client_types - Table describing all supported client types, used to parse
  *                                device-tree properties related to client queue size.
@@ -155,12 +161,6 @@ void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, 
 		preempt_enable();
 	}
 }
-
-/*
- * Each bit in this mask represents each of the loopback clients supported in
- * the enum hw_fence_loopback_id
- */
-#define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7f
 
 static inline int _process_dpu_client_loopback(struct hw_fence_driver_data *drv_data,
 	int client_id)
