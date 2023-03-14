@@ -22,11 +22,7 @@
 #define HW_SYNC_IOC_UNREG_CLIENT	_IOWR(HW_SYNC_IOC_MAGIC, 11, unsigned long)
 #define HW_SYNC_IOC_CREATE_FENCE	_IOWR(HW_SYNC_IOC_MAGIC, 12,\
 						struct hw_fence_sync_create_data)
-#define HW_SYNC_IOC_DESTROY_FENCE	_IOWR(HW_SYNC_IOC_MAGIC, 13,\
-						struct hw_fence_sync_create_data)
 #define HW_SYNC_IOC_CREATE_FENCE_ARRAY	_IOWR(HW_SYNC_IOC_MAGIC, 14,\
-						struct hw_fence_array_sync_create_data)
-#define HW_SYNC_IOC_DESTROY_FENCE_ARRAY	_IOWR(HW_SYNC_IOC_MAGIC, 15,\
 						struct hw_fence_array_sync_create_data)
 #define HW_SYNC_IOC_REG_FOR_WAIT	_IOWR(HW_SYNC_IOC_MAGIC, 16, int)
 #define HW_SYNC_IOC_FENCE_SIGNAL	_IOWR(HW_SYNC_IOC_MAGIC, 17, unsigned long)
@@ -317,35 +313,6 @@ exit:
 	return ret;
 }
 
-static long hw_sync_ioctl_destroy_fence(struct hw_sync_obj *obj, unsigned long arg)
-{
-	int fd;
-	struct hw_dma_fence *fence;
-	struct hw_fence_sync_create_data data;
-
-	if (!_is_valid_client(obj))
-		return -EINVAL;
-
-	if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
-		return -EFAULT;
-
-	fd = data.fence;
-	fence = (struct hw_dma_fence *)_hw_sync_get_fence(fd);
-
-	if (!fence) {
-		HWFNC_ERR("fence for fd:%d not found\n", fd);
-		return -EINVAL;
-	}
-
-	/* Decrement the refcount that hw_sync_get_fence increments */
-	dma_fence_put(&fence->base);
-
-	/* To destroy fence */
-	dma_fence_put(&fence->base);
-
-	return 0;
-}
-
 static void _put_child_fences(int i, struct dma_fence **fences)
 {
 	int fence_idx;
@@ -446,41 +413,6 @@ static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned l
 exit:
 	put_unused_fd(fd);
 	return ret;
-}
-
-static long hw_sync_ioctl_destroy_fence_array(struct hw_sync_obj *obj, unsigned long arg)
-{
-	struct dma_fence_array *fence_array;
-	struct dma_fence *fence;
-	struct hw_fence_array_sync_create_data data;
-	int fd;
-
-	if (!_is_valid_client(obj))
-		return -EINVAL;
-
-	if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
-		return -EFAULT;
-
-	fd = data.fence_array_fd;
-	fence = (struct dma_fence *)_hw_sync_get_fence(fd);
-	if (!fence) {
-		HWFNC_ERR("Invalid fence fd: %d\n", fd);
-		return -EINVAL;
-	}
-
-	/* Decrement the refcount that hw_sync_get_fence increments */
-	dma_fence_put(fence);
-
-	fence_array = to_dma_fence_array(fence);
-	if (!fence_array) {
-		HWFNC_ERR("Invalid fence array fd: %d\n", fd);
-		return -EINVAL;
-	}
-
-	/* Destroy fence array */
-	dma_fence_put(&fence_array->base);
-
-	return 0;
 }
 
 /*
@@ -658,9 +590,7 @@ static const struct hw_sync_ioctl_def hw_sync_debugfs_ioctls[] = {
 	HW_IOCTL_DEF(HW_SYNC_IOC_REG_CLIENT, hw_sync_ioctl_reg_client),
 	HW_IOCTL_DEF(HW_SYNC_IOC_UNREG_CLIENT, hw_sync_ioctl_unreg_client),
 	HW_IOCTL_DEF(HW_SYNC_IOC_CREATE_FENCE, hw_sync_ioctl_create_fence),
-	HW_IOCTL_DEF(HW_SYNC_IOC_DESTROY_FENCE, hw_sync_ioctl_destroy_fence),
 	HW_IOCTL_DEF(HW_SYNC_IOC_CREATE_FENCE_ARRAY, hw_sync_ioctl_create_fence_array),
-	HW_IOCTL_DEF(HW_SYNC_IOC_DESTROY_FENCE_ARRAY, hw_sync_ioctl_destroy_fence_array),
 	HW_IOCTL_DEF(HW_SYNC_IOC_REG_FOR_WAIT, hw_sync_ioctl_reg_for_wait),
 	HW_IOCTL_DEF(HW_SYNC_IOC_FENCE_SIGNAL, hw_sync_ioctl_fence_signal),
 	HW_IOCTL_DEF(HW_SYNC_IOC_FENCE_WAIT, hw_sync_ioctl_fence_wait),
