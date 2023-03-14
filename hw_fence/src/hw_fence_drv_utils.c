@@ -31,12 +31,6 @@
 	HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE)
 
 /**
- * HW_FENCE_MAX_STATIC_CLIENTS_INDEX:
- * Maximum number of static clients, i.e. clients without configurable numbers of sub-clients
- */
-#define HW_FENCE_MAX_STATIC_CLIENTS_INDEX HW_FENCE_CLIENT_ID_IFE0
-
-/**
  * HW_FENCE_MIN_RXQ_CLIENTS:
  * Minimum number of static hw fence clients with rxq
  */
@@ -52,8 +46,8 @@
 #define HW_FENCE_CLIENT_TYPE_MAX_GPU 1
 #define HW_FENCE_CLIENT_TYPE_MAX_DPU 6
 #define HW_FENCE_CLIENT_TYPE_MAX_VAL 7
-#define HW_FENCE_CLIENT_TYPE_MAX_IPE 1
-#define HW_FENCE_CLIENT_TYPE_MAX_VPU 1
+#define HW_FENCE_CLIENT_TYPE_MAX_IPE 32
+#define HW_FENCE_CLIENT_TYPE_MAX_VPU 32
 #define HW_FENCE_CLIENT_TYPE_MAX_IFE 32
 
 /**
