@@ -6,6 +6,7 @@
 #include <linux/rpmsg.h>
 #include <linux/of_platform.h>
 #include <linux/of_fdt.h>
+#include <linux/qcom_scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include "msm_cvp_core.h"
 #include "msm_cvp.h"
@@ -14,11 +15,6 @@
 
 static atomic_t nr_maps;
 struct cvp_dsp_apps gfa_cv;
-static int hlosVM[HLOS_VM_NUM] = {VMID_HLOS};
-static int dspVM[DSP_VM_NUM] = {VMID_HLOS, VMID_CDSP_Q6};
-static int dspVMperm[DSP_VM_NUM] = { PERM_READ | PERM_WRITE | PERM_EXEC,
-				PERM_READ | PERM_WRITE | PERM_EXEC };
-static int hlosVMperm[HLOS_VM_NUM] = { PERM_READ | PERM_WRITE | PERM_EXEC };
 
 static int cvp_reinit_dsp(void);
 
@@ -141,9 +137,14 @@ static int cvp_hyp_assign_to_dsp(uint64_t addr, uint32_t size)
 	int rc = 0;
 	struct cvp_dsp_apps *me = &gfa_cv;
 
+	uint64_t hlosVMid = BIT(VMID_HLOS);
+	struct qcom_scm_vmperm dspVM[DSP_VM_NUM] = {
+		{VMID_HLOS, PERM_READ | PERM_WRITE | PERM_EXEC},
+		{VMID_CDSP_Q6, PERM_READ | PERM_WRITE | PERM_EXEC}
+	};
+
 	if (!me->hyp_assigned) {
-		rc = hyp_assign_phys(addr, size, hlosVM, HLOS_VM_NUM, dspVM,
-			dspVMperm, DSP_VM_NUM);
+		rc = qcom_scm_assign_mem(addr, size, &hlosVMid, dspVM, DSP_VM_NUM);
 		if (rc) {
 			dprintk(CVP_ERR, "%s failed. rc=%d\n", __func__, rc);
 			return rc;
@@ -161,9 +162,13 @@ static int cvp_hyp_assign_from_dsp(void)
 	int rc = 0;
 	struct cvp_dsp_apps *me = &gfa_cv;
 
+	uint64_t dspVMids = BIT(VMID_HLOS) | BIT(VMID_CDSP_Q6);
+	struct qcom_scm_vmperm hlosVM[HLOS_VM_NUM] = {
+		{VMID_HLOS, PERM_READ | PERM_WRITE | PERM_EXEC},
+	};
+
 	if (me->hyp_assigned) {
-		rc = hyp_assign_phys(me->addr, me->size, dspVM, DSP_VM_NUM,
-				hlosVM, hlosVMperm, HLOS_VM_NUM);
+		rc = qcom_scm_assign_mem(me->addr, me->size, &dspVMids, hlosVM, HLOS_VM_NUM);
 		if (rc) {
 			dprintk(CVP_ERR, "%s failed. rc=%d\n", __func__, rc);
 			return rc;
@@ -568,6 +573,8 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
+		if (!s)
+			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
 			if (!s || !next_s)
