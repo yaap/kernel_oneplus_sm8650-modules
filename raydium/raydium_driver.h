@@ -306,8 +306,11 @@ struct raydium_ts_data {
 	struct irq_desc *irq_desc;
 	bool irq_enabled;
 	bool irq_wake;
-
-#if defined(CONFIG_FB) || defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
+#if defined(CONFIG_PANEL_NOTIFIER)
+	struct panel_event_notifier_entry *entry;
+	int blank;
+	enum raydium_fb_state fb_state;
+#elif defined(CONFIG_FB) || defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 	struct notifier_block fb_notif;
 	int blank;
 	enum raydium_fb_state fb_state;

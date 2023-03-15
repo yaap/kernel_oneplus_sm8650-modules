@@ -1671,6 +1671,7 @@ static void raydium_setup_panel_notifier(struct raydium_ts_data *g_raydium_ts)
 	cookie = panel_event_notifier_register(PANEL_EVENT_NOTIFICATION_PRIMARY,
 			PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH,
 			active_panel,&panel_event_notifier_callback, g_raydium_ts);
+	g_raydium_ts->entry = cookie;
 }
 
 #elif defined(CONFIG_DRM)
@@ -2461,8 +2462,7 @@ exit_irq_request_failed:
 #if defined(CONFIG_FB)
 	raydium_unregister_notifier();
 #elif defined(CONFIG_PANEL_NOTIFIER)
-	if (active_panel)
-		panel_event_notifier_unregister(&g_raydium_ts->fb_notif);
+	panel_event_notifier_unregister(g_raydium_ts->entry);
 #elif defined(CONFIG_DRM)
         raydium_setup_drm_unregister_notifier();
 #endif
@@ -2527,7 +2527,7 @@ void raydium_ts_shutdown(struct i2c_client *client)
 	unregister_early_suspend(&g_raydium_ts->early_suspend);
 #elif defined(CONFIG_PANEL_NOTIFIER)
 if (active_panel)
-	panel_event_notifier_unregister(&g_raydium_ts->fb_notif);
+	panel_event_notifier_unregister(g_raydium_ts->entry);
 #elif defined(CONFIG_DRM)
 if (active_panel)
 	drm_panel_notifier_unregister(active_panel, &g_raydium_ts->fb_notif);
@@ -2577,7 +2577,7 @@ static int raydium_ts_remove(struct i2c_client *client)
 	unregister_early_suspend(&g_raydium_ts->early_suspend);
 #elif defined(CONFIG_PANEL_NOTIFIER)
 if (active_panel)
-	panel_event_notifier_unregister(&g_raydium_ts->fb_notif);
+	panel_event_notifier_unregister(g_raydium_ts->entry);
 #elif defined(CONFIG_DRM)
 if (active_panel)
 	drm_panel_notifier_unregister(active_panel, &g_raydium_ts->fb_notif);
