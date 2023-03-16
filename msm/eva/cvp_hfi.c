@@ -1177,10 +1177,6 @@ static void cvp_dump_csr(struct iris_hfi_device *dev)
 	dprintk(CVP_ERR, "CVP_WRAPPER_CPU_STATUS: %x\n", reg);
 	reg = __read_register(dev, CVP_CPU_CS_SCIACMDARG0);
 	dprintk(CVP_ERR, "CVP_CPU_CS_SCIACMDARG0: %x\n", reg);
-	reg = __read_register(dev, CVP_WRAPPER_CPU_CLOCK_CONFIG);
-	dprintk(CVP_ERR, "CVP_WRAPPER_CPU_CLOCK_CONFIG: %x\n", reg);
-	reg = __read_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG);
-	dprintk(CVP_ERR, "CVP_WRAPPER_CORE_CLOCK_CONFIG: %x\n", reg);
 	reg = __read_register(dev, CVP_WRAPPER_INTR_STATUS);
 	dprintk(CVP_ERR, "CVP_WRAPPER_INTR_STATUS: %x\n", reg);
 	reg = __read_register(dev, CVP_CPU_CS_H2ASOFTINT);
@@ -1191,6 +1187,10 @@ static void cvp_dump_csr(struct iris_hfi_device *dev)
 	dprintk(CVP_ERR, "CVP_CC_MVS1C_GDSCR: %x\n", reg);
 	reg = __read_register(dev, CVP_CC_MVS1C_CBCR);
 	dprintk(CVP_ERR, "CVP_CC_MVS1C_CBCR: %x\n", reg);
+	reg = __read_register(dev, CVP_WRAPPER_CPU_CLOCK_CONFIG);
+	dprintk(CVP_ERR, "CVP_WRAPPER_CPU_CLOCK_CONFIG: %x\n", reg);
+	reg = __read_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG);
+	dprintk(CVP_ERR, "CVP_WRAPPER_CORE_CLOCK_CONFIG: %x\n", reg);
 	dev->reg_dumped = true;
 }
 
