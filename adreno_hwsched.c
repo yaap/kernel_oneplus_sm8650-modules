@@ -4,7 +4,6 @@
  * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <dt-bindings/soc/qcom,ipcc.h>
 #include <linux/dma-fence-array.h>
 #include <soc/qcom/msm_performance.h>
 
@@ -386,45 +385,6 @@ void adreno_hwsched_flush(struct adreno_device *adreno_dev)
 	kthread_flush_worker(hwsched->worker);
 }
 
-void adreno_hwsched_remove_hw_fence_entry(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *entry)
-{
-	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
-	struct adreno_context *drawctxt = entry->drawctxt;
-
-	atomic_dec(&hwsched->hw_fence_count);
-	drawctxt->hw_fence_count--;
-
-	dma_fence_put(&entry->kfence->fence);
-
-	list_del_init(&entry->node);
-	kmem_cache_free(hwsched->hw_fence_cache, entry);
-}
-
-/**
- * adreno_hwsched_process_hw_fence_list - This function walks the list of hardware fences
- * that have been sent to GMU. It makes sure that we put back the reference on the fence
- * only when GMU has sent the fence to TxQueue.
- */
-static void adreno_hwsched_process_hw_fence_list(struct adreno_device *adreno_dev)
-{
-	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
-	struct adreno_hw_fence_entry *fence, *tmp;
-
-	list_for_each_entry_safe(fence, tmp, &hwsched->hw_fence_list, node) {
-		struct kgsl_sync_fence *kfence = fence->kfence;
-		struct adreno_context *drawctxt = fence->drawctxt;
-		struct gmu_context_queue_header *hdr = drawctxt->gmu_context_queue.hostptr;
-		bool pending = timestamp_cmp(kfence->timestamp, hdr->out_fence_ts) >= 0;
-
-		/* Do not delete fences that GMU hasn't signaled yet */
-		if (pending)
-			continue;
-
-		adreno_hwsched_remove_hw_fence_entry(adreno_dev, fence);
-	}
-}
-
 /**
  * is_marker_skip() - Check if the draw object is a MARKEROBJ_TYPE and CMDOBJ_SKIP bit is set
  */
@@ -533,8 +493,6 @@ static int hwsched_sendcmd(struct adreno_device *adreno_dev,
 	list_add_tail(&obj->node, &hwsched->cmd_list);
 
 done:
-	adreno_hwsched_process_hw_fence_list(adreno_dev);
-
 	mutex_unlock(&device->mutex);
 
 	return 0;
@@ -1397,7 +1355,7 @@ static bool drawobj_replay(struct adreno_device *adreno_dev,
 	return true;
 }
 
-static void adreno_hwsched_replay(struct adreno_device *adreno_dev)
+void adreno_hwsched_replay(struct adreno_device *adreno_dev)
 {
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -1935,8 +1893,6 @@ static bool adreno_hwsched_do_fault(struct adreno_device *adreno_dev)
 	else
 		adreno_hwsched_reset_and_snapshot(adreno_dev, fault);
 
-	adreno_hwsched_replay(adreno_dev);
-
 	adreno_hwsched_trigger(adreno_dev);
 
 	mutex_unlock(&device->mutex);
@@ -2098,7 +2054,6 @@ int adreno_hwsched_init(struct adreno_device *adreno_dev,
 	obj_cache = KMEM_CACHE(cmd_list_obj, 0);
 
 	INIT_LIST_HEAD(&hwsched->cmd_list);
-	INIT_LIST_HEAD(&hwsched->hw_fence_list);
 
 	for (i = 0; i < ARRAY_SIZE(hwsched->jobs); i++) {
 		init_llist_head(&hwsched->jobs[i]);
@@ -2342,24 +2297,6 @@ void adreno_hwsched_register_hw_fence(struct adreno_device *adreno_dev)
 	hwsched->hw_fence_cache = KMEM_CACHE(adreno_hw_fence_entry, 0);
 
 	set_bit(ADRENO_HWSCHED_HW_FENCE, &hwsched->flags);
-}
-
-void adreno_hwsched_trigger_hw_fence_cpu(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *fence)
-{
-	struct kgsl_sync_fence *kfence = fence->kfence;
-	int ret = msm_hw_fence_update_txq(kfence->hw_fence_handle,
-			kfence->hw_fence_index, 0, 0);
-
-	if (ret) {
-		dev_err_ratelimited(adreno_dev->dev.dev,
-			"Failed to trigger hw fence via cpu: ctx:%d ts:%d ret:%d\n",
-			fence->drawctxt->base.id, kfence->timestamp, ret);
-		return;
-	}
-
-	msm_hw_fence_trigger_signal(kfence->hw_fence_handle, IPCC_CLIENT_GPU,
-		IPCC_CLIENT_APSS, 0);
 }
 
 int adreno_hwsched_wait_ack_completion(struct adreno_device *adreno_dev,

@@ -251,4 +251,37 @@ int gen7_hwsched_trigger_hw_fence(struct adreno_device *adreno_dev,
 int gen7_hwsched_drain_context_hw_fences(struct adreno_device *adreno_dev,
 		struct adreno_context *drawctxt);
 
+/**
+ * gen7_hwsched_check_context_inflight_hw_fences - Check whether all hardware fences
+ * from a context have been sent to the TxQueue or not
+ * @adreno_dev: Pointer to adreno device
+ * @drawctxt: Pointer to the adreno context which is to be flushed
+ *
+ * Check if all hardware fences from this context have been sent to the
+ * TxQueue. If not, log an error and return error code.
+ *
+ * Return: Zero on success or negative error on failure
+ */
+int gen7_hwsched_check_context_inflight_hw_fences(struct adreno_device *adreno_dev,
+	struct adreno_context *drawctxt);
+
+/**
+ * gen7_remove_hw_fence_entry - Remove hardware fence entry
+ * @adreno_dev: pointer to the adreno device
+ * @entry: Pointer to the hardware fence entry
+ */
+void gen7_remove_hw_fence_entry(struct adreno_device *adreno_dev,
+	struct adreno_hw_fence_entry *entry);
+
+/**
+ * gen7_trigger_hw_fence_cpu - Trigger hardware fence from cpu
+ * @adreno_dev: pointer to the adreno device
+ * @fence: hardware fence entry to be triggered
+ *
+ * Trigger the hardware fence by sending it to GMU's TxQueue and raise the
+ * interrupt from GMU to APPS
+ */
+void gen7_trigger_hw_fence_cpu(struct adreno_device *adreno_dev,
+	struct adreno_hw_fence_entry *fence);
+
 #endif

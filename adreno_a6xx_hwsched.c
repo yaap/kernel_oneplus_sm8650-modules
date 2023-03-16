@@ -1182,7 +1182,7 @@ static void a6xx_hwsched_drain_ctxt_unregister(struct adreno_device *adreno_dev)
 	read_unlock(&hfi->msglock);
 }
 
-int a6xx_hwsched_reset(struct adreno_device *adreno_dev)
+int a6xx_hwsched_reset_replay(struct adreno_device *adreno_dev)
 {
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	int ret;
@@ -1211,6 +1211,9 @@ int a6xx_hwsched_reset(struct adreno_device *adreno_dev)
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	ret = a6xx_hwsched_boot(adreno_dev);
+
+	if (!ret)
+		adreno_hwsched_replay(adreno_dev);
 
 	BUG_ON(ret);
 

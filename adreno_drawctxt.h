@@ -82,6 +82,8 @@ struct adreno_context {
 	struct kgsl_memdesc gmu_hw_fence_queue;
 	/** @hw_fence_list: List of hardware fences(sorted by timestamp) not yet submitted to GMU */
 	struct list_head hw_fence_list;
+	/** @hw_fence_inflight_list: List of hardware fences submitted to GMU */
+	struct list_head hw_fence_inflight_list;
 	/** @hw_fence_count: Number of hardware fences not yet sent to Tx Queue */
 	u32 hw_fence_count;
 	/** @syncobj_timestamp: Timestamp to check whether GMU has consumed a syncobj */
@@ -111,11 +113,6 @@ enum adreno_context_priv {
 	ADRENO_CONTEXT_FORCE_PREAMBLE,
 	ADRENO_CONTEXT_SKIP_CMD,
 	ADRENO_CONTEXT_FENCE_LOG,
-	/**
-	 * @ADRENO_CONTEXT_DRAIN_HW_FENCE: Signal any hardware fences that weren't dispatched to
-	 * GMU
-	 */
-	ADRENO_CONTEXT_DRAIN_HW_FENCE,
 };
 
 struct kgsl_context *adreno_drawctxt_create(
