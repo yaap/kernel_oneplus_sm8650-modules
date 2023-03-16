@@ -1188,8 +1188,8 @@ reset_error:
 static void raydium_work_handler(struct work_struct *work)
 {
 	int i32_ret = 0;
-	unsigned char u8_tp_status[MAX_TCH_STATUS_PACKET_SIZE];
-	unsigned char u8_buf[MAX_REPORT_PACKET_SIZE];
+	unsigned char u8_tp_status[MAX_TCH_STATUS_PACKET_SIZE] = {0};
+	unsigned char u8_buf[MAX_REPORT_PACKET_SIZE] = {0};
 
 #ifdef GESTURE_EN
 	unsigned char u8_i;

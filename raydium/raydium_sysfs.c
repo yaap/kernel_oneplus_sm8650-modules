@@ -1080,7 +1080,7 @@ static ssize_t raydium_receive_fw_store(struct device *dev,
 		free_token = token;
 		free_temp_buf = temp_buf;
 
-		snprintf(temp_buf, PAGE_SIZE, "%s", p_i8_buf);
+		snprintf(temp_buf, 32, "%s", p_i8_buf);
 		token = strsep(&temp_buf, delim);
 		i32_ret = kstrtou8(token, 16, &u8_cmd);
 		if (i32_ret < 0) {
