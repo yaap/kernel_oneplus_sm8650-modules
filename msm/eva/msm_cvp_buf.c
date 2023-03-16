@@ -1246,6 +1246,8 @@ static struct msm_cvp_smem *msm_cvp_session_get_smem(struct msm_cvp_inst *inst,
 		smem->bitmap_index = MAX_DMABUF_NUMS;
 		smem->pkt_type = pkt_type;
 		smem->fd = buf->fd;
+		if (is_params_pkt(pkt_type))
+			smem->flags |= SMEM_PERSIST;
 		rc = msm_cvp_map_smem(inst, smem, "map cpu");
 		if (rc)
 			goto exit;
