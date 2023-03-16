@@ -28,6 +28,7 @@ LOCAL_MODULE              := mmrm-module-symvers
 LOCAL_MODULE_STEM         := Module.symvers
 LOCAL_MODULE_KBUILD_NAME  := Module.symvers
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+ENABLE_DDK_BUILD          := true
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
@@ -40,6 +41,7 @@ LOCAL_MODULE_KBUILD_NAME  := driver/msm-mmrm.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+ENABLE_DDK_BUILD          := true
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
@@ -52,6 +54,7 @@ LOCAL_MODULE_KBUILD_NAME  := test/mmrm_test_module.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+ENABLE_DDK_BUILD          := true
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk

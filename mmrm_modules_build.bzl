@@ -25,9 +25,6 @@ def _get_kernel_build_module_srcs(module, options, formatter):
     globbed_srcs = native.glob(["{}{}".format(module_path, formatter(src)) for src in srcs])
     return globbed_srcs
 
-def _get_kernel_build_module_deps(module, options, formatter):
-    return [formatter(dep) for dep in module.deps]
-
 def mmrm_driver_modules_entry(hdrs = []):
     module_map = {}
 
