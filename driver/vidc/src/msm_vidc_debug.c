@@ -124,6 +124,10 @@ module_param_cb(msm_vidc_fw_dump, &msm_vidc_fw_dump_fops, &g_core, 0644);
 bool msm_vidc_lossless_encode = !true;
 EXPORT_SYMBOL(msm_vidc_lossless_encode);
 
+/* disabled synx fence by default temporarily */
+bool msm_vidc_disable_synx_fence = !false;
+EXPORT_SYMBOL(msm_vidc_disable_synx_fence);
+
 bool msm_vidc_syscache_disable = !true;
 EXPORT_SYMBOL(msm_vidc_syscache_disable);
 
@@ -398,6 +402,8 @@ struct dentry* msm_vidc_debugfs_init_drv(void)
 			&msm_vidc_syscache_disable);
 	debugfs_create_bool("lossless_encoding", 0644, dir,
 			&msm_vidc_lossless_encode);
+	debugfs_create_bool("disable_synx_v2_fence", 0644, dir,
+			&msm_vidc_disable_synx_fence);
 	debugfs_create_u32("enable_bugon", 0644, dir,
 			&msm_vidc_enable_bugon);
 

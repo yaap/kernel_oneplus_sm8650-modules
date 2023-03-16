@@ -568,38 +568,37 @@ static int msm_vidc_component_master_bind(struct device *dev)
 		return rc;
 	}
 
-	/* register for synx fence */
 	if (core->capabilities[SUPPORTS_SYNX_FENCE].value) {
-		rc = call_fence_op(core, fence_register, core);
-		if (rc) {
-			d_vpr_e("%s: failed to register synx fence\n",
-				__func__);
-			core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
-			/*
-			 * - Bail out the session for time being for this
-			 *   case where synx fence register call retunrs error
-			 *   to help with debugging
-			 * - Re-initialize fence ops with dma_fence_ops.
-			 *   This is required once we start ignoring this
-			 *   synx fence register call error.
-			 */
+		if (msm_vidc_disable_synx_fence) {
+			/* override synx fence ops with dma fence ops */
 			core->fence_ops = get_dma_fence_ops();
 			if (!core->fence_ops) {
 				d_vpr_e("%s: invalid dma fence ops\n", __func__);
 				return -EINVAL;
 			}
-
-			return rc;
-		}
-	} else {
-		/*
-		 * override synx fence ops with dma fence ops for
-		 * time being until synx fence support is enabled
-		 */
-		core->fence_ops = get_dma_fence_ops();
-		if (!core->fence_ops) {
-			d_vpr_e("%s: invalid dma fence ops\n", __func__);
-			return -EINVAL;
+			core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+		} else {
+			/* register for synx fence */
+			rc = call_fence_op(core, fence_register, core);
+			if (rc) {
+				d_vpr_e("%s: failed to register synx fence\n",
+					__func__);
+				core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+				/*
+				 * - Bail out the session for time being for this
+				 *   case where synx fence register call retunrs error
+				 *   to help with debugging
+				 * - Re-initialize fence ops with dma_fence_ops.
+				 *   This is required once we start ignoring this
+				 *   synx fence register call error.
+				 */
+				core->fence_ops = get_dma_fence_ops();
+				if (!core->fence_ops) {
+					d_vpr_e("%s: invalid dma fence ops\n", __func__);
+					return -EINVAL;
+				}
+				return rc;
+			}
 		}
 	}
 
