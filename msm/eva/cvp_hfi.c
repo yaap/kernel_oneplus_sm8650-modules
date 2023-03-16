@@ -2249,11 +2249,9 @@ err_core_init:
 		msm_cvp_mmrm_deregister(dev);
 	}
 err_load_fw:
+	__hwfence_regs_unmap(dev);
 err_no_mem:
 	dprintk(CVP_ERR, "Core init failed\n");
-	__release_subcaches(device);
-	__disable_subcaches(device);
-	__hwfence_regs_unmap(dev);
 	mutex_unlock(&dev->lock);
 	pm_relax(dev->res->pdev->dev.parent);
 	return rc;
