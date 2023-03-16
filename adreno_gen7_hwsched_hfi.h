@@ -205,16 +205,27 @@ void gen7_hwsched_context_destroy(struct adreno_device *adreno_dev,
 u32 gen7_hwsched_hfi_get_value(struct adreno_device *adreno_dev, u32 prop);
 
 /**
- * gen7_hwsched_send_hw_fence - Send hardware fence info to GMU
+ * gen7_send_hw_fence_hfi - Send hardware fence info to GMU
  * @adreno_dev: Pointer to adreno device
  * @entry: Pointer to the adreno hardware fence entry
+ * @flags: Flags for this hardware fence
  *
- * Send the hardware fence info to the GMU
+ * Send the hardware fence info to the GMU without waiting for the ack
  *
- * Return: Zero on success or negative error on failure
+ * Return: 0 on success or negative error on failure
  */
-int gen7_hwsched_send_hw_fence(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *entry);
+int gen7_send_hw_fence_hfi(struct adreno_device *adreno_dev,
+	struct adreno_hw_fence_entry *entry, u64 flags);
+
+/**
+ * gen7_hwsched_create_hw_fence - Create a hardware fence
+ * @adreno_dev: Pointer to adreno device
+ * @kfence: Pointer to the kgsl fence
+ *
+ * Create a hardware fence, set up hardware fence info and send it to GMU if required
+ */
+void gen7_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
+	struct kgsl_sync_fence *kfence);
 
 /**
  * gen7_hwsched_trigger_hw_fence - Trigger hardware fence via GMU

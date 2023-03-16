@@ -23,6 +23,8 @@ struct cmd_list_obj {
  * struct adreno_hw_fence_entry - A structure to store hardware fence and the context
  */
 struct adreno_hw_fence_entry {
+	/** @cmd: H2F_MSG_HW_FENCE_INFO packet for this hardware fence */
+	struct hfi_hw_fence_info cmd;
 	/** @kfence: Pointer to the kgsl fence */
 	struct kgsl_sync_fence *kfence;
 	/** @drawctxt: Pointer to the context */
@@ -46,11 +48,10 @@ struct adreno_hwsched_ops {
 	 */
 	u32 (*preempt_count)(struct adreno_device *adreno_dev);
 	/**
-	 * @send_hw_fence - Target specific function to send hardware fence
-	 * info to the GMU
+	 * @create_hw_fence - Target specific function to create a hardware fence
 	 */
-	int (*send_hw_fence)(struct adreno_device *adreno_dev,
-		struct adreno_hw_fence_entry *entry);
+	void (*create_hw_fence)(struct adreno_device *adreno_dev,
+		struct kgsl_sync_fence *kfence);
 
 };
 
@@ -108,7 +109,7 @@ struct adreno_hwsched {
 	/** @hw_fence_list: List of hardware fences sent to GMU */
 	struct list_head hw_fence_list;
 	/** @hw_fence_count: Number of hardware fences that haven't yet been sent to Tx Queue */
-	u32 hw_fence_count;
+	atomic_t hw_fence_count;
 
 };
 

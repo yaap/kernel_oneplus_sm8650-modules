@@ -26,6 +26,8 @@ struct gen7_hfi {
 	struct hfi_acd_table_cmd acd_table;
 	/** @dcvs_table: HFI table for gpu dcvs levels */
 	struct hfi_dcvstable_cmd dcvs_table;
+	/** @cmdq_lock: Spinlock for accessing the cmdq */
+	spinlock_t cmdq_lock;
 };
 
 struct gen7_gmu_device;
@@ -186,11 +188,25 @@ int gen7_hfi_process_queue(struct gen7_gmu_device *gmu,
 		u32 queue_idx, struct pending_cmd *ret_cmd);
 
 /**
+ * gen7_hfi_cmdq_write_unlocked - Write a command to command queue
+ * @adreno_dev: Pointer to the adreno device
+ * @msg: Data to be written to the queue
+ * @size_bytes: Size of the command in bytes
+ *
+ * The caller must take the cmdq spin lock before calling this function
+ *
+ * Return: 0 on success or negative error on failure
+ */
+int gen7_hfi_cmdq_write_unlocked(struct adreno_device *adreno_dev, u32 *msg, u32 size_bytes);
+
+/**
  * gen7_hfi_cmdq_write - Write a command to command queue
  * @adreno_dev: Pointer to the adreno device
  * @msg: Data to be written to the queue
  * @size_bytes: Size of the command in bytes
  *
+ * This function takes the cmdq lock before writing data to the queue
+
  * Return: 0 on success or negative error on failure
  */
 int gen7_hfi_cmdq_write(struct adreno_device *adreno_dev, u32 *msg, u32 size_bytes);

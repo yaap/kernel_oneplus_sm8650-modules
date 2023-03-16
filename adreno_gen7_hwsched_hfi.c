@@ -7,6 +7,7 @@
 #include <linux/dma-fence-array.h>
 #include <linux/iommu.h>
 #include <linux/sched/clock.h>
+#include <linux/soc/qcom/msm_hw_fence.h>
 #include <soc/qcom/msm_performance.h>
 
 #include "adreno.h"
@@ -934,7 +935,7 @@ static void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct gen7_hwsched_hfi *hw_hfi = to_gen7_hwsched_hfi(adreno_dev);
-	u32 rcvd[MAX_RCVD_SIZE], next_hdr;
+	u32 rcvd[MAX_RCVD_SIZE], next_hdr, type;
 
 	mutex_lock(&hw_hfi->msgq_mutex);
 
@@ -944,34 +945,44 @@ static void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev)
 		if (!next_hdr)
 			break;
 
-		if (MSG_HDR_GET_ID(next_hdr) == F2H_MSG_CONTEXT_BAD) {
-			gen7_hfi_queue_read(gmu, HFI_MSG_ID,
-				(u32 *)adreno_dev->hwsched.ctxt_bad,
-				HFI_MAX_MSG_SIZE);
+		if (MSG_HDR_GET_TYPE(next_hdr) == HFI_MSG_ACK)
+			type = HFI_MSG_ACK;
+		else
+			type = MSG_HDR_GET_ID(next_hdr);
+
+		if (type != F2H_MSG_CONTEXT_BAD)
+			gen7_hfi_queue_read(gmu, HFI_MSG_ID, rcvd, sizeof(rcvd));
+
+		switch (type) {
+		case HFI_MSG_ACK:
+			/*
+			 * We are assuming that there is only one outstanding ack because hfi
+			 * sending thread waits for completion while holding the device mutex
+			 * (except when we send H2F_MSG_HW_FENCE_INFO packets)
+			 */
+			if (MSG_HDR_GET_ID(rcvd[1]) != H2F_MSG_HW_FENCE_INFO)
+				gen7_receive_ack_async(adreno_dev, rcvd);
+			break;
+		case F2H_MSG_CONTEXT_BAD:
+			gen7_hfi_queue_read(gmu, HFI_MSG_ID, (u32 *)adreno_dev->hwsched.ctxt_bad,
+						HFI_MAX_MSG_SIZE);
 			process_ctx_bad(adreno_dev);
-			continue;
-		}
-
-		gen7_hfi_queue_read(gmu, HFI_MSG_ID, rcvd, sizeof(rcvd));
-
-		/*
-		 * We are assuming that there is only one outstanding ack
-		 * because hfi sending thread waits for completion while
-		 * holding the device mutex
-		 */
-		if (MSG_HDR_GET_TYPE(rcvd[0]) == HFI_MSG_ACK) {
-			gen7_receive_ack_async(adreno_dev, rcvd);
-		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_TS_RETIRE) {
+			break;
+		case F2H_MSG_TS_RETIRE:
 			log_profiling_info(adreno_dev, rcvd);
 			adreno_hwsched_trigger(adreno_dev);
-		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_SYNCOBJ_QUERY) {
+			break;
+		case F2H_MSG_SYNCOBJ_QUERY:
 			gen7_trigger_syncobj_query(adreno_dev, rcvd);
-		} else if (MSG_HDR_GET_ID(rcvd[0]) == F2H_MSG_GMU_CNTR_RELEASE) {
+			break;
+		case F2H_MSG_GMU_CNTR_RELEASE: {
 			struct hfi_gmu_cntr_release_cmd *cmd =
 				(struct hfi_gmu_cntr_release_cmd *) rcvd;
 
 			adreno_perfcounter_put(adreno_dev,
 				cmd->group_id, cmd->countable, PERFCOUNTER_FLAG_KERNEL);
+			}
+			break;
 		}
 	}
 	mutex_unlock(&hw_hfi->msgq_mutex);
@@ -2620,60 +2631,34 @@ static int check_context_inflight_fences(struct adreno_device *adreno_dev,
 	return ret;
 }
 
-/**
- * gen7_send_hw_fence_hfi - This function sends the hardware fence info to the GMU using the
- * H2F_MSG_HW_FENCE_INFO packet. If GMU acks the packet with an error code, that means GMU
- * can't process this packet. Hence, return error to the caller to indicate that this fence
- * cannot be treated as a hardware fence.
- */
-static int gen7_send_hw_fence_hfi(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *entry, u32 flags)
+static inline int setup_hw_fence_info_cmd(struct adreno_device *adreno_dev,
+	struct adreno_hw_fence_entry *entry)
 {
 	struct kgsl_sync_fence *kfence = entry->kfence;
-	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
-	struct hfi_hw_fence_info cmd = {0};
-	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
-	int ret = 0;
-	struct pending_cmd pending_ack;
+	int ret;
 
-	ret = CMD_MSG_HDR(cmd, H2F_MSG_HW_FENCE_INFO);
+	ret = CMD_MSG_HDR(entry->cmd, H2F_MSG_HW_FENCE_INFO);
 	if (ret)
 		return ret;
 
-	cmd.gmu_ctxt_id = entry->drawctxt->base.id;
-	cmd.ctxt_id = kfence->fence.context;
-	cmd.ts = kfence->fence.seqno;
-	cmd.flags |= flags;
+	entry->cmd.gmu_ctxt_id = entry->drawctxt->base.id;
+	entry->cmd.ctxt_id = kfence->fence.context;
+	entry->cmd.ts = kfence->fence.seqno;
 
-	cmd.hash_index = kfence->hw_fence_index;
+	entry->cmd.hash_index = kfence->hw_fence_index;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr,
-		atomic_inc_return(&gmu->hfi.seqnum));
+	return 0;
+}
 
-	add_waiter(hfi, cmd.hdr, &pending_ack);
+int gen7_send_hw_fence_hfi(struct adreno_device *adreno_dev,
+	struct adreno_hw_fence_entry *entry, u64 flags)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 
-	ret = gen7_hfi_cmdq_write(adreno_dev, (u32 *)&cmd, sizeof(cmd));
-	if (ret)
-		goto done;
+	entry->cmd.flags |= flags;
+	entry->cmd.hdr = MSG_HDR_SET_SEQNUM(entry->cmd.hdr, atomic_inc_return(&gmu->hfi.seqnum));
 
-	ret = adreno_hwsched_wait_ack_completion(adreno_dev, &gmu->pdev->dev, &pending_ack,
-		gen7_hwsched_process_msgq);
-	if (ret)
-		goto done;
-
-	ret = check_ack_failure(adreno_dev, &pending_ack);
-
-	/*
-	 * A non-zero value in pending_ack.results[2] means GMU failed to accept this fence. Return
-	 * this value to the caller to indicate this failure.
-	 */
-	if (!ret)
-		ret = pending_ack.results[2];
-
-done:
-	del_waiter(hfi, &pending_ack);
-
-	return ret;
+	return gen7_hfi_cmdq_write(adreno_dev, (u32 *)&entry->cmd, sizeof(entry->cmd));
 }
 
 /* Request GMU to add this fence to TxQueue without checking memstore */
@@ -2683,21 +2668,157 @@ int gen7_hwsched_trigger_hw_fence(struct adreno_device *adreno_dev,
 	return gen7_send_hw_fence_hfi(adreno_dev, entry, HW_FENCE_FLAG_SKIP_MEMSTORE);
 }
 
-int gen7_hwsched_send_hw_fence(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *entry)
+/**
+ * drawctxt_queue_hw_fence - Add a hardware fence to draw context's hardware fence list and make
+ * sure the list remains sorted (with the fence with the largest timestamp at the end)
+ */
+static void drawctxt_queue_hw_fence(struct adreno_context *drawctxt,
+	struct adreno_hw_fence_entry *new)
 {
-	struct adreno_context *drawctxt = entry->drawctxt;
+	struct adreno_hw_fence_entry *entry = NULL;
+	u32 ts = (u32)new->cmd.ts;
+
+	/* Walk the list backwards to find the right spot for this fence */
+	list_for_each_entry_reverse(entry, &drawctxt->hw_fence_list, node) {
+		if (timestamp_cmp(ts, (u32)entry->cmd.ts) > 0)
+			break;
+	}
+
+	list_add(&new->node, &entry->node);
+}
+
+#define DRAWCTXT_SLOT_AVAILABLE(count)  \
+	((count + 1) < (HW_FENCE_QUEUE_SIZE / sizeof(struct hfi_hw_fence_info)))
+
+/**
+ * allocate_hw_fence_entry - Allocate an entry to keep track of a hardware fence. This is free'd
+ * when we know GMU has sent this fence to the TxQueue
+ */
+static struct adreno_hw_fence_entry *allocate_hw_fence_entry(struct adreno_device *adreno_dev,
+	struct adreno_context *drawctxt, struct kgsl_sync_fence *kfence)
+{
+	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	struct adreno_hw_fence_entry *entry;
+
+	if (!DRAWCTXT_SLOT_AVAILABLE(drawctxt->hw_fence_count))
+		return NULL;
+
+	entry = kmem_cache_zalloc(hwsched->hw_fence_cache, GFP_ATOMIC);
+	if (!entry)
+		return NULL;
+
+	entry->kfence = kfence;
+	entry->drawctxt = drawctxt;
+
+	if (setup_hw_fence_info_cmd(adreno_dev, entry)) {
+		kmem_cache_free(hwsched->hw_fence_cache, entry);
+		return NULL;
+	}
+
+	dma_fence_get(&kfence->fence);
+
+	drawctxt->hw_fence_count++;
+	atomic_inc(&hwsched->hw_fence_count);
+
+	INIT_LIST_HEAD(&entry->node);
+	return entry;
+}
+
+void gen7_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
+	struct kgsl_sync_fence *kfence)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct kgsl_sync_timeline *ktimeline = kfence->parent;
+	struct kgsl_context *context = ktimeline->context;
+	struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
+	struct adreno_hw_fence_entry *entry = NULL;
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct msm_hw_fence_create_params params = {0};
+	/* Only allow a single log in a second */
+	static DEFINE_RATELIMIT_STATE(_rs, HZ, 1);
+	u32 retired = 0;
 	int ret = 0;
 
-	/*
-	 * This function may be called after hang recovery to send pending hardware fences to the
-	 * GMU. So make sure we register the context first.
-	 */
-	ret = hfi_context_register(adreno_dev, &drawctxt->base);
-	if (ret)
-		return ret;
+	params.fence = &kfence->fence;
+	params.handle = &kfence->hw_fence_index;
+	kfence->hw_fence_handle = adreno_dev->hwsched.hw_fence.handle;
 
-	return gen7_send_hw_fence_hfi(adreno_dev, entry, 0);
+	ret = msm_hw_fence_create(kfence->hw_fence_handle, &params);
+	if (ret || IS_ERR_OR_NULL(params.handle)) {
+		dev_err(device->dev, "Failed to create ctx:%d ts:%d hardware fence:%d\n",
+			kfence->context_id, kfence->timestamp, ret);
+		return;
+	}
+
+	spin_lock(&drawctxt->lock);
+
+	/*
+	 * If we create a hardware fence and this context is going away, we may never dispatch
+	 * this fence to the GMU. Hence, avoid creating a hardware fence if context is going away.
+	 */
+	if (kgsl_context_is_bad(context)) {
+		spin_unlock(&drawctxt->lock);
+		goto destroy;
+	}
+
+	entry = allocate_hw_fence_entry(adreno_dev, drawctxt, kfence);
+	if (!entry) {
+		spin_unlock(&drawctxt->lock);
+		goto destroy;
+	}
+
+	/*
+	 * If this ts hasn't been submitted yet, then store it in the drawctxt hardware fence
+	 * list and return. This fence will be sent to GMU when this ts is dispatched to GMU.
+	 */
+	if (timestamp_cmp(kfence->timestamp, drawctxt->internal_timestamp) > 0) {
+		drawctxt_queue_hw_fence(drawctxt, entry);
+		spin_unlock(&drawctxt->lock);
+		return;
+	}
+
+	spin_unlock(&drawctxt->lock);
+
+	spin_lock(&gmu->hfi.cmdq_lock);
+
+	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_RETIRED, &retired);
+
+	/*
+	 * The context may have gone bad (detached or invalidated) by the time we get here.
+	 * This means that GMU can fail to process this hardware fence if context got unregistered
+	 * with the GMU. Hence, check one last time if the context is still good. If we are in
+	 * SLUMBER at this point, the timestamp is guaranteed to be retired. This way, we don't
+	 * need the device mutex to check the device state explicitly.
+	 */
+	if (kgsl_context_is_bad(context) || (timestamp_cmp(retired, kfence->timestamp) >= 0)) {
+		spin_unlock(&gmu->hfi.cmdq_lock);
+		goto remove;
+	}
+
+	entry->cmd.hdr = MSG_HDR_SET_SEQNUM(entry->cmd.hdr, atomic_inc_return(&gmu->hfi.seqnum));
+
+	/*
+	 * If timestamp is not retired then GMU must already be powered up. This is because SLUMBER
+	 * sequence has to wait for cmdq spinlock to send H2F_MSG_PREPARE_SLUMBER hfi packet.
+	 */
+	ret = gen7_hfi_cmdq_write_unlocked(adreno_dev, (u32 *)&entry->cmd, sizeof(entry->cmd));
+
+	spin_unlock(&gmu->hfi.cmdq_lock);
+
+	if (!ret) {
+		list_add_tail(&entry->node, &adreno_dev->hwsched.hw_fence_list);
+		return;
+	}
+
+	if (__ratelimit(&_rs))
+		dev_err(&gmu->pdev->dev, "Aborting hw fence for ctx:%d ts:%d ret:%d\n",
+			kfence->context_id, kfence->timestamp, ret);
+
+remove:
+	adreno_hwsched_remove_hw_fence_entry(adreno_dev, entry);
+
+destroy:
+	msm_hw_fence_destroy(kfence->hw_fence_handle, &kfence->fence);
 }
 
 /**
@@ -2708,11 +2829,11 @@ int gen7_hwsched_send_hw_fence(struct adreno_device *adreno_dev,
 static int process_hw_fence_queue(struct adreno_device *adreno_dev,
 	struct adreno_context *drawctxt, u32 ts)
 {
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct adreno_hw_fence_entry *entry = NULL, *next;
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	int ret = 0;
 
+	spin_lock(&drawctxt->lock);
 	/* This list is sorted with smallest timestamp at head and highest timestamp at tail */
 	list_for_each_entry_safe(entry, next, &drawctxt->hw_fence_list, node) {
 		struct kgsl_sync_fence *kfence = entry->kfence;
@@ -2721,21 +2842,22 @@ static int process_hw_fence_queue(struct adreno_device *adreno_dev,
 			break;
 
 		ret = gen7_send_hw_fence_hfi(adreno_dev, entry, 0);
-		if (!ret) {
-			list_del_init(&entry->node);
-			/*
-			 * A fence that is sent to GMU must be added to the hwsched hardware fence
-			 * list so that we can keep track of when GMU sends it to the TxQueue
-			 */
-			list_add_tail(&entry->node, &hwsched->hw_fence_list);
-			continue;
-		}
+		if (ret)
+			break;
 
-		/* Trigger recovery if we hit a GMU fault while sending this fence to GMU */
-		if (device->gmu_fault)
-			adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
-		break;
+		list_del_init(&entry->node);
+		/*
+		 * A fence that is sent to GMU must be added to the hwsched hardware fence list so
+		 * that we can keep track of when GMU sends it to the TxQueue
+		 */
+		list_add_tail(&entry->node, &hwsched->hw_fence_list);
 	}
+	/*
+	 * We need to update the internal timestamp while holding the drawctxt lock since we have to
+	 * check it in the hardware fence creation path, where we are not taking the device mutex.
+	 */
+	drawctxt->internal_timestamp = ts;
+	spin_unlock(&drawctxt->lock);
 
 	return ret;
 }
@@ -2897,8 +3019,6 @@ skipib:
 	/* Send interrupt to GMU to receive the message */
 	gmu_core_regwrite(KGSL_DEVICE(adreno_dev), GEN7_GMU_HOST2GMU_INTR_SET,
 		DISPQ_IRQ_BIT(get_irq_bit(adreno_dev, drawobj)));
-
-	drawctxt->internal_timestamp = drawobj->timestamp;
 
 	return process_hw_fence_queue(adreno_dev, drawctxt, drawobj->timestamp);
 }

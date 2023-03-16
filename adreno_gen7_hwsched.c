@@ -1395,7 +1395,7 @@ static int process_inflight_fences(struct adreno_device *adreno_dev)
 		 * If GPU hasn't retired this timestamp, and context is still good, then send the
 		 * fence to the GMU
 		 */
-		ret = gen7_hwsched_send_hw_fence(adreno_dev, fence);
+		ret = gen7_send_hw_fence_hfi(adreno_dev, fence, 0);
 		if (ret)
 			return ret;
 	}
@@ -1507,7 +1507,7 @@ const struct adreno_power_ops gen7_hwsched_power_ops = {
 const struct adreno_hwsched_ops gen7_hwsched_ops = {
 	.submit_drawobj = gen7_hwsched_submit_drawobj,
 	.preempt_count = gen7_hwsched_preempt_count_get,
-	.send_hw_fence = gen7_hwsched_send_hw_fence,
+	.create_hw_fence = gen7_hwsched_create_hw_fence,
 };
 
 int gen7_hwsched_probe(struct platform_device *pdev,

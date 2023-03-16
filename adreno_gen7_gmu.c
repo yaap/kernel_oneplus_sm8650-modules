@@ -2666,6 +2666,8 @@ int gen7_gmu_probe(struct kgsl_device *device,
 	of_property_read_u32(gmu->pdev->dev.of_node, "qcom,gmu-perf-ddr-bw",
 		&gmu->perf_ddr_bw);
 
+	spin_lock_init(&gmu->hfi.cmdq_lock);
+
 	gmu->irq = kgsl_request_irq(gmu->pdev, "gmu",
 		gen7_gmu_irq_handler, device);
 

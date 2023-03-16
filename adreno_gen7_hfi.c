@@ -144,7 +144,7 @@ int gen7_hfi_queue_write(struct adreno_device *adreno_dev, u32 queue_idx,
 	return 0;
 }
 
-int gen7_hfi_cmdq_write(struct adreno_device *adreno_dev, u32 *msg, u32 size_bytes)
+int gen7_hfi_cmdq_write_unlocked(struct adreno_device *adreno_dev, u32 *msg, u32 size_bytes)
 {
 	int ret;
 
@@ -160,6 +160,19 @@ int gen7_hfi_cmdq_write(struct adreno_device *adreno_dev, u32 *msg, u32 size_byt
 	if (!ret)
 		gmu_core_regwrite(KGSL_DEVICE(adreno_dev),
 			GEN7_GMU_HOST2GMU_INTR_SET, 0x1);
+
+	return ret;
+}
+
+int gen7_hfi_cmdq_write(struct adreno_device *adreno_dev, u32 *msg, u32 size_bytes)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct gen7_hfi *hfi = &gmu->hfi;
+	int ret;
+
+	spin_lock(&hfi->cmdq_lock);
+	ret = gen7_hfi_cmdq_write_unlocked(adreno_dev, msg, size_bytes);
+	spin_unlock(&hfi->cmdq_lock);
 
 	return ret;
 }
