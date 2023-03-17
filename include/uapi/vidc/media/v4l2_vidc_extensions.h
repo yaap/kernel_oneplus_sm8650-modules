@@ -10,18 +10,6 @@
 #include <linux/types.h>
 #include <linux/v4l2-controls.h>
 
-/*
- * supported standard color formats
- * V4L2_PIX_FMT_NV12   Y/CbCr 4:2:0
- * V4L2_PIX_FMT_RGBA32  RGBA-8-8-8-8
- */
- /* Below are additional color formats */
-/* 12  Y/CbCr 4:2:0  compressed */
-#define V4L2_PIX_FMT_VIDC_NV12C                 v4l2_fourcc('Q', '1', '2', 'C')
-/* Y/CbCr 4:2:0, 10 bits per channel compressed */
-#define V4L2_PIX_FMT_VIDC_TP10C                 v4l2_fourcc('Q', '1', '0', 'C')
-/* Y/CbCr 4:2:0, 10 bits per channel */
-#define V4L2_PIX_FMT_VIDC_P010                  v4l2_fourcc('P', '0', '1', '0')
 /* 32  RGBA-8-8-8-8 compressed */
 #define V4L2_PIX_FMT_VIDC_ARGB32C               v4l2_fourcc('Q', '2', '4', 'C')
 #define V4L2_META_FMT_VIDC                      v4l2_fourcc('Q', 'M', 'E', 'T')
@@ -291,97 +279,6 @@ enum v4l2_mpeg_video_av1_tier {
 /* control to enable csc */
 #define V4L2_CID_MPEG_VIDC_CSC                                                \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x47)
-
-/* add new controls above this line */
-/* Deprecate below controls once availble in gki and gsi bionic header */
-#ifndef V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID
-#define V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID                            \
-	(V4L2_CID_MPEG_BASE + 230)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_AU_DELIMITER
-#define V4L2_CID_MPEG_VIDEO_AU_DELIMITER                                     \
-	(V4L2_CID_MPEG_BASE + 231)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_LTR_COUNT
-#define V4L2_CID_MPEG_VIDEO_LTR_COUNT                                        \
-	(V4L2_CID_MPEG_BASE + 232)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX
-#define V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX                                  \
-	(V4L2_CID_MPEG_BASE + 233)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES
-#define V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES                                   \
-	(V4L2_CID_MPEG_BASE + 234)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 389)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 390)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L0_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L0_BR                           \
-	(V4L2_CID_MPEG_BASE + 391)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L1_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L1_BR                           \
-	(V4L2_CID_MPEG_BASE + 392)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L2_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L2_BR                           \
-	(V4L2_CID_MPEG_BASE + 393)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L3_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L3_BR                           \
-	(V4L2_CID_MPEG_BASE + 394)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L4_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L4_BR                           \
-	(V4L2_CID_MPEG_BASE + 395)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L5_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L5_BR                           \
-	(V4L2_CID_MPEG_BASE + 396)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L6_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L6_BR                           \
-	(V4L2_CID_MPEG_BASE + 397)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 647)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 648)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 649)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 650)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 651)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 652)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY
-#define V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY                                \
-	(V4L2_CID_MPEG_BASE + 653)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE
-#define V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE                         \
-	(V4L2_CID_MPEG_BASE + 654)
-#endif
 
 enum v4l2_mpeg_vidc_metapayload_header_flags {
 	METADATA_FLAGS_NONE             = 0,

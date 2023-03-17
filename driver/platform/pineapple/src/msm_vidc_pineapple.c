@@ -90,12 +90,12 @@ static struct color_format_info color_format_data_pineapple[] = {
 		.pixfmt_name       = "NV21",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_NV12C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC08C,
 		.vidc_color_format = MSM_VIDC_FMT_NV12C,
 		.pixfmt_name       = "NV12C",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_TP10C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC10C,
 		.vidc_color_format = MSM_VIDC_FMT_TP10C,
 		.pixfmt_name       = "TP10C",
 	},
@@ -110,7 +110,7 @@ static struct color_format_info color_format_data_pineapple[] = {
 		.pixfmt_name       = "RGBAC",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_P010,
+		.v4l2_color_format = V4L2_PIX_FMT_P010,
 		.vidc_color_format = MSM_VIDC_FMT_P010,
 		.pixfmt_name       = "P010",
 	},
