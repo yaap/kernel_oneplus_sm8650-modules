@@ -247,30 +247,15 @@ static void __dump_packet(u8 *packet, enum cvp_msg_prio log_level)
 	}
 }
 
-static int __dsp_suspend(struct iris_hfi_device *device, bool force, u32 flags)
+static int __dsp_suspend(struct iris_hfi_device *device, bool force)
 {
 	int rc;
-	struct cvp_hal_session *temp;
 
 	if (msm_cvp_dsp_disable)
 		return 0;
 
-	list_for_each_entry(temp, &device->sess_head, list) {
-		/* if forceful suspend, don't check session pause info */
-		if (force)
-			continue;
-
-		/* don't suspend if cvp session is not paused */
-		if (!(temp->flags & SESSION_PAUSE)) {
-			dprintk(CVP_DSP,
-				"%s: cvp session %x not paused %d\n",
-				__func__, hash32_ptr(temp), gfa_cv.state);
-			return -EBUSY;
-		}
-	}
-
 	dprintk(CVP_DSP, "%s: suspend dsp\n", __func__);
-	rc = cvp_dsp_suspend(flags);
+	rc = cvp_dsp_suspend(force);
 	if (rc) {
 		dprintk(CVP_ERR, "%s: dsp suspend failed with error %d\n",
 			__func__, rc);
@@ -281,7 +266,7 @@ static int __dsp_suspend(struct iris_hfi_device *device, bool force, u32 flags)
 	return 0;
 }
 
-static int __dsp_resume(struct iris_hfi_device *device, u32 flags)
+static int __dsp_resume(struct iris_hfi_device *device)
 {
 	int rc;
 
@@ -289,7 +274,7 @@ static int __dsp_resume(struct iris_hfi_device *device, u32 flags)
 		return 0;
 
 	dprintk(CVP_DSP, "%s: resume dsp\n", __func__);
-	rc = cvp_dsp_resume(flags);
+	rc = cvp_dsp_resume();
 	if (rc) {
 		dprintk(CVP_ERR,
 			"%s: dsp resume failed with error %d\n",
@@ -301,7 +286,7 @@ static int __dsp_resume(struct iris_hfi_device *device, u32 flags)
 	return rc;
 }
 
-static int __dsp_shutdown(struct iris_hfi_device *device, u32 flags)
+static int __dsp_shutdown(struct iris_hfi_device *device)
 {
 	int rc;
 
@@ -309,7 +294,7 @@ static int __dsp_shutdown(struct iris_hfi_device *device, u32 flags)
 		return 0;
 
 	dprintk(CVP_DSP, "%s: shutdown dsp\n", __func__);
-	rc = cvp_dsp_shutdown(flags);
+	rc = cvp_dsp_shutdown();
 	if (rc) {
 		dprintk(CVP_ERR,
 			"%s: dsp shutdown failed with error %d\n",
@@ -2285,7 +2270,7 @@ static int iris_hfi_core_release(void *dev)
 	__resume(device);
 	__set_state(device, IRIS_STATE_DEINIT);
 
-	__dsp_shutdown(device, 0);
+	__dsp_shutdown(device);
 
 	__disable_subcaches(device);
 	__unload_fw(device);
@@ -2938,7 +2923,6 @@ static int __power_collapse(struct iris_hfi_device *device, bool force)
 {
 	int rc = 0;
 	u32 wfi_status = 0, idle_status = 0, pc_ready = 0;
-	u32 flags = 0;
 	int count = 0;
 	const int max_tries = 150;
 
@@ -2959,7 +2943,7 @@ static int __power_collapse(struct iris_hfi_device *device, bool force)
 		return -EINVAL;
 	}
 
-	rc = __dsp_suspend(device, force, flags);
+	rc = __dsp_suspend(device, force);
 	if (rc == -EBUSY)
 		goto exit;
 	else if (rc)
@@ -4788,7 +4772,7 @@ static void power_off_iris2(struct iris_hfi_device *device)
 static inline int __resume(struct iris_hfi_device *device)
 {
 	int rc = 0;
-	u32 flags = 0, reg_gdsc, reg_cbcr;
+	u32 reg_gdsc, reg_cbcr;
 	struct msm_cvp_core *core;
 
 	if (!device) {
@@ -4848,7 +4832,7 @@ static inline int __resume(struct iris_hfi_device *device)
 	__set_subcaches(device);
 
 
-	__dsp_resume(device, flags);
+	__dsp_resume(device);
 
 	dprintk(CVP_PWR, "Resumed from power collapse\n");
 exit:

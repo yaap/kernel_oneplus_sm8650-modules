@@ -487,13 +487,40 @@ exit:
 	return 0;
 }
 
-int cvp_dsp_suspend(uint32_t session_flag)
+static bool dsp_session_exist(void)
+{
+	struct msm_cvp_core *core;
+	struct msm_cvp_inst *inst = NULL;
+
+	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	if (core) {
+		mutex_lock(&core->lock);
+		list_for_each_entry(inst, &core->instances, list) {
+			if (inst->session_type == MSM_CVP_DSP) {
+				mutex_unlock(&core->lock);
+				return true;
+			}
+		}
+		mutex_unlock(&core->lock);
+	}
+
+	return false;
+}
+
+int cvp_dsp_suspend(bool force)
 {
 	int rc = 0;
 	struct cvp_dsp_cmd_msg cmd;
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct cvp_dsp_rsp_msg rsp;
 	bool retried = false;
+
+
+	/* If not forced to suspend, check if DSP requested PC earlier */
+	if (force == false)
+		if (dsp_session_exist())
+			if (me->state != DSP_SUSPEND)
+				return -EBUSY;
 
 	cmd.type = CPU2DSP_SUSPEND;
 
@@ -546,7 +573,7 @@ exit:
 	return rc;
 }
 
-int cvp_dsp_resume(uint32_t session_flag)
+int cvp_dsp_resume(void)
 {
 	int rc = 0;
 	struct cvp_dsp_cmd_msg cmd;
@@ -610,7 +637,7 @@ static void cvp_remove_dsp_sessions(void)
 	dprintk(CVP_WARN, "%s: EVA SSR handled for CDSP\n", __func__);
 }
 
-int cvp_dsp_shutdown(uint32_t session_flag)
+int cvp_dsp_shutdown(void)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	int rc = 0;
@@ -860,7 +887,6 @@ void cvp_dsp_init_hfi_queue_hdr(struct iris_hfi_device *device)
 static int __reinit_dsp(void)
 {
 	int rc;
-	uint32_t flag = 0;
 	uint64_t addr;
 	uint32_t size;
 	struct cvp_dsp_apps *me = &gfa_cv;
@@ -880,7 +906,7 @@ static int __reinit_dsp(void)
 	}
 
 	/* Force shutdown DSP */
-	rc = cvp_dsp_shutdown(flag);
+	rc = cvp_dsp_shutdown();
 	if (rc)
 		return rc;
 	/*
