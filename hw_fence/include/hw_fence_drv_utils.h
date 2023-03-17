@@ -39,33 +39,6 @@ enum hw_fence_mem_reserve {
 };
 
 /**
- * struct hw_fence_client_type_desc - Structure holding client type properties, including static
- *                                    properties and client queue properties read from device-tree.
- *
- * @name: name of client type, used to parse properties from device-tree
- * @init_id: initial client_id for given client type within the 'hw_fence_client_id' enum, e.g.
- *           HW_FENCE_CLIENT_ID_CTL0 for DPU clients
- * @max_clients_num: maximum number of clients of given client type
- * @clients_num: number of clients of given client type
- * @queues_num: number of queues per client of given client type; either one (for only Tx Queue) or
- *              two (for both Tx and Rx Queues)
- * @queue_entries: number of entries per client queue of given client type
- * @mem_size: size of memory allocated for client queue(s) per client
- * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
- *                   driver and hfi_header->tx_wm is updated instead
- */
-struct hw_fence_client_type_desc {
-	char *name;
-	enum hw_fence_client_id init_id;
-	u32 max_clients_num;
-	u32 clients_num;
-	u32 queues_num;
-	u32 queue_entries;
-	u32 mem_size;
-	bool skip_txq_wr_idx;
-};
-
-/**
  * global_atomic_store() - Inter-processor lock
  * @drv_data: hw fence driver data
  * @lock: memory to lock
@@ -174,16 +147,13 @@ enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver
 	enum hw_fence_client_id client_id);
 
 /**
- * hw_fence_utils_skips_txq_wr_index() - Returns bool to indicate if client Tx Queue write_index
- *                                       is not updated in hw fence driver. Instead,
- *                                       hfi_header->tx_wm tracks where payload is written within
- *                                       the queue.
+ * hw_fence_utils_get_queues_num() - Returns number of client queues for the client_id.
  *
  * @drv_data: driver data
  * @client_id: hw fence driver client id
  *
- * Returns: true if hw fence driver skips update to client tx queue write_index, false otherwise
+ * Returns: number of client queues
  */
-bool hw_fence_utils_skips_txq_wr_idx(struct hw_fence_driver_data *drv_data, int client_id);
+int hw_fence_utils_get_queues_num(struct hw_fence_driver_data *drv_data, int client_id);
 
 #endif /* __HW_FENCE_DRV_UTILS_H */

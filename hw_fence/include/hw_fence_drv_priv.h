@@ -150,12 +150,19 @@ enum hw_fence_client_data_id {
  * @q_size_bytes: size of the queue
  * @va_header: pointer to the hfi header virtual address
  * @pa_queue: physical address of the queue
+ * @rd_wr_idx_start: start read and write indexes for client queue (zero by default)
+ * @rd_wr_idx_factor: factor to multiply custom index to get index in dwords (one by default)
+ * @skip_wr_idx: bool to indicate if update to write_index is skipped within hw fence driver and
+ *               hfi_header->tx_wm is updated instead
  */
 struct msm_hw_fence_queue {
 	void *va_queue;
 	u32 q_size_bytes;
 	void *va_header;
 	phys_addr_t pa_queue;
+	u32 rd_wr_idx_start;
+	u32 rd_wr_idx_factor;
+	bool skip_wr_idx;
 };
 
 /**
@@ -172,13 +179,12 @@ enum payload_type {
  *                 number of sub-clients (e.g. ife clients)
  * @mem_descriptor: hfi header memory descriptor
  * @queues: queues descriptor
+ * @queues_num: number of client queues
  * @ipc_signal_id: id of the signal to be triggered for this client
  * @ipc_client_vid: virtual id of the ipc client for this hw fence driver client
  * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
  * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
- * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
- *                   driver and hfi_header->tx_wm is updated instead
  * @wait_queue: wait queue for the validation clients
  * @val_signal: doorbell flag to signal the validation clients in the wait queue
  */
@@ -187,12 +193,12 @@ struct msm_hw_fence_client {
 	enum hw_fence_client_id client_id_ext;
 	struct msm_hw_fence_mem_addr mem_descriptor;
 	struct msm_hw_fence_queue queues[HW_FENCE_CLIENT_QUEUES];
+	int queues_num;
 	int ipc_signal_id;
 	int ipc_client_vid;
 	int ipc_client_pid;
 	bool update_rxq;
 	bool send_ipc;
-	bool skip_txq_wr_idx;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	wait_queue_head_t wait_queue;
 	atomic_t val_signal;
@@ -239,22 +245,50 @@ struct msm_hw_fence_dbg_data {
 };
 
 /**
- * struct hw_fence_client_queue_size_desc - Structure holding client queue properties for a client.
+ * struct hw_fence_client_type_desc - Structure holding client type properties, including static
+ *                                    properties and client queue properties read from device-tree.
  *
- * @queues_num: number of client queues
- * @queue_entries: number of queue entries per client queue
- * @mem_size: size of memory allocated for client queues
- * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
- *                allocation for hw fence driver
+ * @name: name of client type, used to parse properties from device-tree
+ * @init_id: initial client_id for given client type within the 'hw_fence_client_id' enum, e.g.
+ *           HW_FENCE_CLIENT_ID_CTL0 for DPU clients
+ * @max_clients_num: maximum number of clients of given client type
+ * @clients_num: number of clients of given client type
+ * @queues_num: number of queues per client of given client type; either one (for only Tx Queue) or
+ *              two (for both Tx and Rx Queues)
+ * @queue_entries: number of entries per client queue of given client type
+ * @start_padding: size of padding between queue table header and first queue header in bytes
+ * @end_padding: size of padding between queue header(s) and first queue payload in bytes
+ * @mem_size: size of memory allocated for client queue(s) per client in bytes
+ * @txq_idx_start: start read and write indexes for client tx queue (zero by default)
+ * @txq_idx_factor: factor to multiply custom TxQ idx to get index in dwords (one by default)
  * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
  *                   driver and hfi_header->tx_wm is updated instead
  */
-struct hw_fence_client_queue_size_desc {
+struct hw_fence_client_type_desc {
+	char *name;
+	enum hw_fence_client_id init_id;
+	u32 max_clients_num;
+	u32 clients_num;
 	u32 queues_num;
 	u32 queue_entries;
+	u32 start_padding;
+	u32 end_padding;
 	u32 mem_size;
-	u32 start_offset;
+	u32 txq_idx_start;
+	u32 txq_idx_factor;
 	bool skip_txq_wr_idx;
+};
+
+/**
+ * struct hw_fence_client_queue_desc - Structure holding client queue properties for a client.
+ *
+ * @type: pointer to client queue properties of client type
+ * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
+ *                allocation for hw fence driver
+ */
+struct hw_fence_client_queue_desc {
+	struct hw_fence_client_type_desc *type;
+	u32 start_offset;
 };
 
 /**
@@ -268,6 +302,7 @@ struct hw_fence_client_queue_size_desc {
  * @hw_fence_ctrl_queue_size: size of the ctrl queue for the payload
  * @hw_fence_mem_ctrl_queues_size: total size of ctrl queues, including: header + rxq + txq
  * @hw_fence_client_queue_size: descriptors of client queue properties for each hw fence client
+ * @hw_fence_client_types: descriptors of properties for each hw fence client type
  * @rxq_clients_num: number of supported hw fence clients with rxq (configured based on device-tree)
  * @clients_num: number of supported hw fence clients (configured based on device-tree)
  * @hw_fences_tbl: pointer to the hw-fences table
@@ -320,7 +355,7 @@ struct hw_fence_driver_data {
 	u32 hw_fence_ctrl_queue_size;
 	u32 hw_fence_mem_ctrl_queues_size;
 	/* client queues */
-	struct hw_fence_client_queue_size_desc *hw_fence_client_queue_size;
+	struct hw_fence_client_queue_desc *hw_fence_client_queue_size;
 	struct hw_fence_client_type_desc *hw_fence_client_types;
 	u32 rxq_clients_num;
 	u32 clients_num;
