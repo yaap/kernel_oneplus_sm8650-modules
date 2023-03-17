@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __IPCLITE_CLIENT_H__
 #define __IPCLITE_CLIENT_H__
@@ -26,13 +26,6 @@ enum ipcmem_host_type {
 	IPCMEM_GLOBAL_HOST  =  0xFE,                  /**< Global Host */
 	IPCMEM_INVALID_HOST =  0xFF,				  /**< Invalid processor */
 };
-
-/**
- * IPCLite return codes
- */
-#define IPCLITE_SUCCESS		0 /*< Success > */
-#define IPCLITE_FAILURE		1 /*< Failure > */
-#define IPCLITE_EINCHAN		9 /*< Inactive Channel */
 
 struct global_region_info {
 	void *virt_base;

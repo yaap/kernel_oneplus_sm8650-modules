@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved..
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved..
  */
 #include <linux/hwspinlock.h>
 #include <linux/module.h>
@@ -14,9 +14,10 @@
 #define ACTIVE_CHANNEL			0x1
 
 #define IPCMEM_TOC_SIZE			(4*1024)
+#define IPCMEM_TOC_VAR_OFFSET	0x100
 #define MAX_CHANNEL_SIGNALS		6
 
-#define MAX_PARTITION_COUNT		11	/*11 partitions other than global partition*/
+#define GLOBAL_ATOMIC_SUPPORT_BMSK 0x1UL
 
 #define IPCLITE_MSG_SIGNAL		0
 #define IPCLITE_MEM_INIT_SIGNAL 1
@@ -26,13 +27,13 @@
 #define IPCLITE_DEBUG_SIGNAL	5
 
 /** Flag definitions for the entries */
-#define IPCMEM_TOC_ENTRY_FLAGS_ENABLE_READ_PROTECTION   (0x01)
-#define IPCMEM_TOC_ENTRY_FLAGS_ENABLE_WRITE_PROTECTION  (0x02)
-#define IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION \
-		(IPCMEM_TOC_ENTRY_FLAGS_ENABLE_READ_PROTECTION | \
-		IPCMEM_TOC_ENTRY_FLAGS_ENABLE_WRITE_PROTECTION)
+#define IPCMEM_FLAGS_ENABLE_READ_PROTECTION   (0x01)
+#define IPCMEM_FLAGS_ENABLE_WRITE_PROTECTION  (0x02)
+#define IPCMEM_FLAGS_ENABLE_RW_PROTECTION \
+		(IPCMEM_FLAGS_ENABLE_READ_PROTECTION | \
+		IPCMEM_FLAGS_ENABLE_WRITE_PROTECTION)
 
-#define IPCMEM_TOC_ENTRY_FLAGS_IGNORE_PARTITION         (0x00000004)
+#define IPCMEM_FLAGS_IGNORE_PARTITION         (0x00000004)
 
 /*Hardcoded macro to identify local host on each core*/
 #define LOCAL_HOST		IPCMEM_APPS
@@ -40,13 +41,6 @@
 /* Timeout (ms) for the trylock of remote spinlocks */
 #define HWSPINLOCK_TIMEOUT	1000
 
-#define CHANNEL_INACTIVE		0
-#define CHANNEL_ACTIVATE_IN_PROGRESS    1
-#define CHANNEL_ACTIVE			2
-
-#define CONFIGURED_CORE		1
-
-#define IPCLITE_DEBUG_SIZE			(64 * 1024)
 #define IPCLITE_DEBUG_INFO_SIZE		256
 #define IPCLITE_CORE_DBG_LABEL		"APSS:"
 #define IPCLITE_LOG_MSG_SIZE		100
@@ -54,6 +48,8 @@
 #define IPCLITE_DBG_LABEL_SIZE		5
 #define IPCLITE_SIGNAL_LABEL_SIZE	10
 #define PREV_INDEX					2
+
+#define ADD_OFFSET(x, y)	((void *)((size_t)x + y))
 
 #define IPCLITE_OS_LOG(__level, __fmt, arg...) \
 	do { \
@@ -69,7 +65,18 @@
 		} \
 	} while (0)
 
-/*IPCMEM Structure Definitions*/
+/**
+ * enum ipclite_channel_status - channel status
+ *
+ * INACTIVE             : Channel uninitialized or init failed
+ * IN_PROGRESS          : Channel init passed, awaiting confirmation from remote host
+ * ACTIVE               : Channel init passed in local and remote host, thus active
+ */
+enum ipclite_channel_status {
+	INACTIVE				= 0,
+	IN_PROGRESS				= 1,
+	ACTIVE					= 2,
+};
 
 enum ipclite_debug_level {
 	IPCLITE_ERR  = 0x0001,
@@ -96,6 +103,11 @@ static const char ipclite_dbg_label[][IPCLITE_DBG_LABEL_SIZE] = {
 	[IPCLITE_INFO] = "info",
 	[IPCLITE_DBG] = "dbg"
 };
+
+/**
+ * IPCMEM Debug Structure Definitions
+ *  - Present in Local Memory
+ */
 
 struct ipclite_debug_info_host {
 	uint32_t numsig_sent; //no. of signals sent from the core
@@ -137,60 +149,77 @@ struct ipclite_debug_struct {
 	struct ipclite_debug_info_host dbg_info_host[IPCMEM_NUM_HOSTS];
 };
 
-struct ipclite_features {
-	uint32_t global_atomic_support;
-	uint32_t version_finalised;
+/**
+ * IPCMEM TOC Structure Definitions
+ *  - Present in toc in shared memory
+ */
+
+struct ipcmem_host_info {
+	uint32_t hwlock_owner;
+	uint32_t configured_host;
 };
 
-struct ipclite_recover {
-	uint32_t global_atomic_hwlock_owner;
-	uint32_t configured_core[IPCMEM_NUM_HOSTS];
-};
-
-struct ipcmem_partition_header {
-	uint32_t type;			   /*partition type*/
-	uint32_t desc_offset;      /*descriptor offset*/
-	uint32_t desc_size;        /*descriptor size*/
-	uint32_t fifo0_offset;     /*fifo 0 offset*/
-	uint32_t fifo0_size;       /*fifo 0 size*/
-	uint32_t fifo1_offset;     /*fifo 1 offset*/
-	uint32_t fifo1_size;       /*fifo 1 size*/
-};
-
-struct ipcmem_toc_entry {
+struct ipcmem_partition_entry {
 	uint32_t base_offset;	/*partition offset from IPCMEM base*/
 	uint32_t size;			/*partition size*/
 	uint32_t flags;			/*partition flags if required*/
 	uint32_t host0;			/*subsystem 0 who can access this partition*/
 	uint32_t host1;			/*subsystem 1 who can access this partition*/
-	uint32_t status;		/*partition active status*/
+	uint32_t reserved;		/*legacy partition active status*/
 };
 
+struct ipcmem_partition_info {
+	uint32_t num_entries;	/* Number of channel partitions */
+	uint32_t entry_size;	/* Size of partition_entry structure */
+};
+
+struct ipcmem_offsets {
+	uint32_t host_info;
+	uint32_t global_entry;
+	uint32_t partition_info;
+	uint32_t partition_entry;
+	uint32_t debug;
+	uint32_t reserved;		/*Padded for 64-bit alignment*/
+};
+
+/**
+ * Any change in TOC header size can only be accomodated with
+ * major version change, as it is not backward compatible.
+ */
 struct ipcmem_toc_header {
-	uint32_t size;
-	uint32_t init_done;
+	uint32_t magic_number;		/*Checksum of TOC*/
+	uint32_t init_done;			/*TOC initialization status*/
+	uint32_t major_version;
+	uint32_t minor_version;
+	uint64_t feature_mask;
+	uint32_t reserved[6];		/*Padded for future use and 64-bit alignment*/
 };
 
+/**
+ * struct ipcmem_toc - Table of contents in ipcmem
+ *
+ * @hdr     : Header to check for toc integrity, version and features
+ * @offsets : List of offsetted structures and partition entries
+ *            available in the toc data region (ipcmem_toc_data)
+ */
 struct ipcmem_toc {
 	struct ipcmem_toc_header hdr;
-	struct ipcmem_toc_entry toc_entry_global;
-	struct ipcmem_toc_entry toc_entry[IPCMEM_NUM_HOSTS][IPCMEM_NUM_HOSTS];
-	/* Need to have a better implementation here */
-	/* as ipcmem is 4k and if host number increases */
-	/* it would create problems*/
-	struct ipclite_features ipclite_features;
-	struct ipclite_recover recovery;
+	struct ipcmem_offsets offsets;
+
+	/* ---------------------------------------
+	 * ipcmem_toc_data @ 256-byte offset
+	 * struct ipcmem_host_info host_info;
+	 * struct ipcmem_partition_entry global_entry;
+	 * struct ipcmem_partition_info partition_info;
+	 * struct ipcmem_partition_entry partition_entry[num_entries];
+	 * ---------------------------------------
+	 */
 };
 
-struct ipcmem_region {
-	u64 aux_base;
-	void __iomem *virt_base;
-	uint32_t size;
-};
-
-struct ipcmem_partition {
-	struct ipcmem_partition_header hdr;
-};
+/**
+ * IPCMEM Partition Structure Definitions
+ *  - Present in partitions in shared memory
+ */
 
 struct global_partition_header {
 	uint32_t partition_type;
@@ -202,12 +231,54 @@ struct ipcmem_global_partition {
 	struct global_partition_header hdr;
 };
 
+struct ipcmem_partition_header {
+	uint32_t type;			   /*partition type*/
+	uint32_t desc_offset;      /*descriptor offset*/
+	uint32_t desc_size;        /*descriptor size*/
+	uint32_t fifo0_offset;     /*fifo 0 offset*/
+	uint32_t fifo0_size;       /*fifo 0 size*/
+	uint32_t fifo1_offset;     /*fifo 1 offset*/
+	uint32_t fifo1_size;       /*fifo 1 size*/
+	uint32_t status;           /*partition status*/
+};
+
+struct ipcmem_partition {
+	struct ipcmem_partition_header hdr;
+};
+
+/**
+ * IPCMEM Helper Structure Definitions
+ *  - Present in local memory
+ *  - Can have pointers to toc and partitions in shared memory
+ */
+
+/*Pointers to offsetted structures in TOC*/
+struct ipcmem_toc_data {
+	struct ipcmem_host_info *host_info;
+	struct ipcmem_partition_entry *global_entry;
+	struct ipcmem_partition_info *partition_info;
+	struct ipcmem_partition_entry *partition_entry;
+};
+
+struct ipcmem_region {
+	u64 aux_base;
+	void __iomem *virt_base;
+	uint32_t size;
+};
+
 struct ipclite_mem {
 	struct ipcmem_toc *toc;
+	struct ipcmem_toc_data toc_data;
 	struct ipcmem_region mem;
 	struct ipcmem_global_partition *global_partition;
-	struct ipcmem_partition *partition[MAX_PARTITION_COUNT];
+	struct ipcmem_partition **partition;
 };
+
+/**
+ * IPCLite Structure Definitions
+ *  - Present in local memory
+ *  - Can have pointers to partitions in shared memory
+ */
 
 struct ipclite_fifo {
 	uint32_t length;
@@ -265,7 +336,8 @@ struct ipclite_channel {
 	uint32_t channel_version;
 	uint32_t version_finalised;
 
-	uint32_t channel_status;
+	uint32_t *gstatus_ptr;
+	uint32_t status;
 };
 
 /*Single structure that defines everything about IPCLite*/
@@ -277,157 +349,36 @@ struct ipclite_info {
 	struct ipclite_hw_mutex_ops *ipclite_hw_mutex;
 };
 
-const struct ipcmem_toc_entry ipcmem_toc_global_partition_entry = {
-	/* Global partition. */
-	  4 * 1024,
-	  128 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_GLOBAL_HOST,
-	  IPCMEM_GLOBAL_HOST,
-};
+/*Default partition parameters*/
+#define DEFAULT_PARTITION_TYPE			0x0
+#define DEFAULT_PARTITION_STATUS		INACTIVE
+#define DEFAULT_PARTITION_HDR_SIZE		1024
 
-const struct ipcmem_toc_entry ipcmem_toc_partition_entries[] = {
-	/* Global partition. */
-	/* {
-	 *   4 * 1024,
-	 *   128 * 1024,
-	 *   IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	 *   IPCMEM_GLOBAL_HOST,
-	 *   IPCMEM_GLOBAL_HOST,
-	 * },
-	 */
-
-	/* APPS<->CDSP partition. */
-	{
-	  132 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_APPS,
-	  IPCMEM_CDSP,
-	  CHANNEL_INACTIVE,
-	},
-	/* APPS<->CVP (EVA) partition. */
-	{
-	  164 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_APPS,
-	  IPCMEM_CVP,
-	  CHANNEL_INACTIVE,
-	},
-	/* APPS<->CAM (ICP) partition. */
-	{
-	  196 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_APPS,
-	  IPCMEM_CAM,
-	  CHANNEL_INACTIVE,
-	},
-	/* APPS<->VPU (IRIS) partition. */
-	{
-	  228 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_APPS,
-	  IPCMEM_VPU,
-	  CHANNEL_INACTIVE,
-	},
-	/* CDSP<->CVP (EVA) partition. */
-	{
-	  260 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CDSP,
-	  IPCMEM_CVP,
-	  CHANNEL_INACTIVE,
-	},
-	/* CDSP<->CAM (ICP) partition. */
-	{
-	  292 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CDSP,
-	  IPCMEM_CAM,
-	  CHANNEL_INACTIVE,
-	},
-	/* CDSP<->VPU (IRIS) partition. */
-	{
-	  324 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CDSP,
-	  IPCMEM_VPU,
-	  CHANNEL_INACTIVE,
-	},
-	/* CVP<->CAM (ICP) partition. */
-	{
-	  356 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CVP,
-	  IPCMEM_CAM,
-	  CHANNEL_INACTIVE,
-	},
-	/* CVP<->VPU (IRIS) partition. */
-	{
-	  388 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CVP,
-	  IPCMEM_VPU,
-	  CHANNEL_INACTIVE,
-	},
-	/* CAM<->VPU (IRIS) partition. */
-	{
-	  420 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_CAM,
-	  IPCMEM_VPU,
-	  CHANNEL_INACTIVE,
-	},
-	/* APPS<->APPS partition. */
-	{
-	  454 * 1024,
-	  32 * 1024,
-	  IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	  IPCMEM_APPS,
-	  IPCMEM_APPS,
-	  CHANNEL_INACTIVE,
-	}
-	/* Last entry uses invalid hosts and no protections to signify the end. */
-	/* {
-	 *   0,
-	 *   0,
-	 *   IPCMEM_TOC_ENTRY_FLAGS_ENABLE_RW_PROTECTION,
-	 *   IPCMEM_INVALID_HOST,
-	 *   IPCMEM_INVALID_HOST,
-	 * }
-	 */
-};
-
-/*D:wefault partition parameters*/
-#define	DEFAULT_PARTITION_TYPE			0x0
-#define	DEFAULT_PARTITION_HDR_SIZE		1024
-
-#define	DEFAULT_DESCRIPTOR_OFFSET		1024
-#define	DEFAULT_DESCRIPTOR_SIZE			(3*1024)
+#define DEFAULT_DESCRIPTOR_OFFSET		1024
+#define DEFAULT_DESCRIPTOR_SIZE			(3*1024)
 #define DEFAULT_FIFO0_OFFSET			(4*1024)
 #define DEFAULT_FIFO0_SIZE				(8*1024)
 #define DEFAULT_FIFO1_OFFSET			(12*1024)
 #define DEFAULT_FIFO1_SIZE				(8*1024)
 
+#define DEFAULT_PARTITION_SIZE			(32*1024)
+#define DEFAULT_PARTITION_FLAGS			IPCMEM_FLAGS_ENABLE_RW_PROTECTION
+
 /*Loopback partition parameters*/
-#define	LOOPBACK_PARTITION_TYPE			0x1
+#define LOOPBACK_PARTITION_TYPE			0x1
 
 /*Global partition parameters*/
-#define	GLOBAL_PARTITION_TYPE			0xFF
+#define GLOBAL_PARTITION_TYPE			0xFF
 #define GLOBAL_PARTITION_HDR_SIZE		(4*1024)
 
 #define GLOBAL_REGION_OFFSET			(4*1024)
 #define GLOBAL_REGION_SIZE				(124*1024)
 
+#define GLOBAL_PARTITION_SIZE			(128*1024)
+#define GLOBAL_PARTITION_FLAGS			IPCMEM_FLAGS_ENABLE_RW_PROTECTION
+
+/*Debug partition parameters*/
+#define DEBUG_PARTITION_SIZE			(64*1024)
 
 const struct ipcmem_partition_header default_partition_hdr = {
 	DEFAULT_PARTITION_TYPE,
@@ -437,6 +388,7 @@ const struct ipcmem_partition_header default_partition_hdr = {
 	DEFAULT_FIFO0_SIZE,
 	DEFAULT_FIFO1_OFFSET,
 	DEFAULT_FIFO1_SIZE,
+	DEFAULT_PARTITION_STATUS,
 };
 
 /* TX and RX FIFO point to same location for such loopback partition type
@@ -450,6 +402,7 @@ const struct ipcmem_partition_header loopback_partition_hdr = {
 	DEFAULT_FIFO0_SIZE,
 	DEFAULT_FIFO0_OFFSET,
 	DEFAULT_FIFO0_SIZE,
+	DEFAULT_PARTITION_STATUS,
 };
 
 const struct global_partition_header global_partition_hdr = {
