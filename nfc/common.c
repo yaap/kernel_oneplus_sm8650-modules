@@ -558,7 +558,9 @@ bool nfc_hw_secure_check(void)
 
 	secure_peripheral_not_found = false;
 
-	/* Refer peripheral state utilities for different states of NFC peripherals */
+	/* Refer peripheral state utilities for different states of NFC peripherals;
+	 * path: vendor/qcom/proprietary/securemsm/peripheralStateUtils/inc/peripheralStateUtils.h
+	 */
 	if (nfc_sec_state == 1) {
 		/*Secure Zone*/
 		retstat = 1;
