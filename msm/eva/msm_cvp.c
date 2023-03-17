@@ -588,7 +588,7 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int offset, unsigned int num, struct msm_cvp_inst *inst)
 {
 #ifdef CVP_CONFIG_SYNX_V2
-	u32 i, buf_offset;
+	u32 i, buf_offset, fence_cnt;
 	struct eva_kmd_fence fences[MAX_HFI_FENCE_SIZE];
 	struct cvp_fence_command *f;
 	struct cvp_hfi_cmd_session_hdr *cmd_hdr;
@@ -690,6 +690,7 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	}
 
 fence_cmd_queue:
+	fence_cnt = f->num_fences;
 	memcpy(f->pkt, cmd_hdr, cmd_hdr->size);
 	f->pkt->client_data.kdata |= FENCE_BIT;
 
@@ -699,7 +700,7 @@ fence_cmd_queue:
 
 	wake_up(&inst->fence_cmd_queue.wq);
 
-	return f->num_fences;
+	return fence_cnt;
 
 free_exit:
 	cvp_free_fence_data(f);
