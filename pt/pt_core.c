@@ -12961,6 +12961,7 @@ static void pt_setup_panel_event_notifier(struct pt_core_data *cd)
 		pt_debug(cd->dev, DL_ERROR,
 				"%s: Register notifier failed!\n", __func__);
 	}
+	cd->entry = cookie;
 }
 #else
 
@@ -15061,7 +15062,7 @@ static int pt_device_exit(struct i2c_client *client)
 		pt_debug(dev, DL_INFO,"%s: Start pt_device_exit\n", __func__);
 
 		if (active_panel)
-			panel_event_notifier_unregister(&cd->fb_notifier);
+			panel_event_notifier_unregister(cd->entry);
 		pt_core_state = STATE_SUSPEND;
 
 		pm_runtime_suspend(dev);
@@ -18435,7 +18436,7 @@ int pt_release(struct pt_core_data *cd)
 	unregister_early_suspend(&cd->es);
 #elif defined(CONFIG_PANEL_NOTIFIER)
 	if (active_panel)
-		panel_event_notifier_unregister(&cd->fb_notifier);
+		panel_event_notifier_unregister(cd->entry);
 #elif defined(CONFIG_DRM)
 	if (active_panel)
 		drm_panel_notifier_unregister(active_panel, &cd->fb_notifier);

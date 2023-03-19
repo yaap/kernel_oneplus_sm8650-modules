@@ -1525,6 +1525,9 @@ struct pt_core_data {
 	int raw_cmd_status;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend es;
+#elif defined(CONFIG_PANEL_NOTIFIER)
+	struct panel_event_notifier_entry *entry;
+	enum pt_fb_state fb_state;
 #elif defined(CONFIG_FB) || defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 	struct notifier_block fb_notifier;
 	enum pt_fb_state fb_state;
