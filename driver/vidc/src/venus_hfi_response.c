@@ -1694,7 +1694,7 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 				__func__);
 		break;
 	case HFI_PROP_DPB_LIST:
-		if (is_decode_session(inst) && port == OUTPUT_PORT &&
+		if (is_decode_session(inst) &&
 			inst->capabilities->cap[DPB_LIST].value) {
 			rc = handle_dpb_list_property(inst, pkt);
 			if (rc)

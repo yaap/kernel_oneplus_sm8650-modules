@@ -1075,6 +1075,16 @@ int venus_hfi_trigger_ssr(struct msm_vidc_core *core, u32 type,
 		return -EINVAL;
 	}
 
+	/*
+	 * call resume before preparing ssr hfi packet in core->packet
+	 * otherwise ssr hfi packet in core->packet will be overwritten
+	 * by __resume() call (inside __cmdq_write) which is preparing
+	 * ifpc hfi packets in core->packet
+	 */
+	rc = __resume(core);
+	if (rc)
+		return rc;
+
 	payload[0] = client_id << 4 | type;
 	payload[1] = addr;
 

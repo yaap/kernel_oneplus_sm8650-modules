@@ -46,6 +46,8 @@ struct hfi_debug_header {
 };
 #define HFI_PROP_DEBUG_LOG_LEVEL                                0x0300000b
 
+#define HFI_PROP_FENCE_CLIENT_DATA                              0x0300000d
+
 enum hfi_codec_type {
     HFI_CODEC_DECODE_AVC   = 1,
     HFI_CODEC_ENCODE_AVC   = 2,
@@ -571,6 +573,25 @@ enum hfi_saliency_type {
 
 #define HFI_PROP_SLICE_DECODE                                   0x03000196
 
+#define HFI_PROP_ENC_RING_BIN_BUF                               0x0300019C
+
+/* u32 */
+enum hfi_fence_type {
+    HFI_SW_FENCE                      = 0x00000001,
+    HFI_SYNX_V2_FENCE                 = 0x00000002,
+};
+
+#define HFI_PROP_FENCE_TYPE                                     0x0300019D
+
+enum hfi_fence_direction_type {
+    HFI_FENCE_TX_ENABLE          = 0x00000001,
+    HFI_FENCE_RX_ENABLE          = 0x00000002,
+};
+
+#define HFI_PROP_FENCE_DIRECTION                                0x0300019E
+
+#define HFI_PROP_FENCE_ERROR_DATA_CORRUPT                       0x0300019F
+
 #define HFI_PROP_END                                            0x03FFFFFF
 
 #define HFI_SESSION_ERROR_BEGIN                                 0x04000000
@@ -616,6 +637,8 @@ enum hfi_saliency_type {
 #define HFI_INFO_HFI_FLAG_DRAIN_LAST                            0x06000006
 
 #define HFI_INFO_HFI_FLAG_PSC_LAST                              0x06000007
+
+#define HFI_INFO_FENCE_SIGNAL_ERROR                             0x06000008
 
 #define HFI_INFORMATION_END                                     0x06FFFFFF
 

@@ -351,7 +351,7 @@ static int __init_power_domains(struct msm_vidc_core *core)
 	const struct pd_table *pd_tbl;
 	struct power_domain_set *pds;
 	struct device **opp_vdevs = NULL;
-	const char **opp_tbl;
+	const char * const *opp_tbl;
 	u32 pd_count = 0, opp_count = 0, cnt = 0;
 	int rc = 0;
 
@@ -572,28 +572,6 @@ static int __init_clocks(struct msm_vidc_core *core)
 	}
 
 	return rc;
-}
-
-static int __clock_set_flag(struct msm_vidc_core *core,
-	const char *name, enum branch_mem_flags flag)
-{
-        struct clock_info *cinfo = NULL;
-	bool found = false;
-
-        /* get clock handle */
-        venus_hfi_for_each_clock(core, cinfo) {
-		if (strcmp(cinfo->name, name))
-			continue;
-		found = true;
-		qcom_clk_set_flags(cinfo->clk, flag);
-		d_vpr_h("%s: set flag %d on clock %s\n", __func__, flag, name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: failed to find clock: %s\n", __func__, name);
-		return -EINVAL;
-	}
-	return 0;
 }
 
 static int __init_reset_clocks(struct msm_vidc_core *core)
@@ -1222,9 +1200,9 @@ static int print_residency_stats(struct msm_vidc_core *core, struct clock_info *
 
 	/* print residency percent for each clock */
 	list_for_each_entry(residency, &cl->residency_list, list) {
-		d_vpr_h("%s: %s clock rate [%d] total %lluus residency %u%%\n",
+		d_vpr_hs("%s: %s clock rate [%d] total %lluus residency %u%%\n",
 			__func__, cl->name, residency->rate, residency->total_time_us,
-			residency->total_time_us * 100 / total_time_us);
+			(residency->total_time_us * 100 + total_time_us - 1) / total_time_us);
 	}
 
 	return rc;
@@ -1328,7 +1306,6 @@ static int update_residency_stats(
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
 {
-	u64 srate;
 	int rc = 0;
 
 	/* not registered */
@@ -1340,25 +1317,17 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	/* update clock residency stats */
 	update_residency_stats(core, cl, rate);
 
-	/*
-	 * This conversion is necessary since we are scaling clock values based on
-	 * the branch clock. However, mmrm driver expects source clock to be registered
-	 * and used for scaling.
-	 * TODO: Remove this scaling if using source clock instead of branch clock.
-	 */
-	srate = rate * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
-
 	/* bail early if requested clk rate is not changed */
 	if (rate == cl->prev)
 		return 0;
 
 	d_vpr_p("Scaling clock %s to %llu, prev %llu\n",
-		cl->name, srate, cl->prev * MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO);
+		cl->name, rate, cl->prev);
 
-	rc = clk_set_rate(cl->clk, srate);
+	rc = clk_set_rate(cl->clk, rate);
 	if (rc) {
 		d_vpr_e("%s: Failed to set clock rate %llu %s: %d\n",
-			__func__, srate, cl->name, rc);
+			__func__, rate, cl->name, rc);
 		return rc;
 	}
 
@@ -1808,7 +1777,6 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.set_clks = __set_clocks,
 	.clk_enable = __prepare_enable_clock,
 	.clk_disable = __disable_unprepare_clock,
-	.clk_set_flag = __clock_set_flag,
 	.clk_print_residency_stats = __print_clock_residency_stats,
 	.clk_reset_residency_stats = __reset_clock_residency_stats,
 };

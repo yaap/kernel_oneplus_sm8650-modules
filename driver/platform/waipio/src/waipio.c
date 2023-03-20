@@ -207,7 +207,7 @@ static struct msm_platform_core_capability core_data_waipio[] = {
 	{MAX_MBPS_HQ, 489600}, /* ((1920x1088)/256)@60fps */
 	{MAX_MBPF_B_FRAME, 32640}, /* 3840x2176/256 */
 	{MAX_MBPS_B_FRAME, 1958400}, /* 3840x2176/256 MBs@60fps */
-	{MAX_MBPS_ALL_INTRA, 1958400}, /* 3840x2176/256 MBs@60fps */
+	{MAX_MBPS_ALL_INTRA, 1044480}, /* 4096x2176/256 MBs@30fps */
 	{MAX_ENH_LAYER_COUNT, 5},
 	{NUM_VPP_PIPE, 4},
 	{SW_PC, 1},
@@ -302,14 +302,14 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 	/* (4096 * 2304) / 256 */
 	{BATCH_FPS, DEC, H264|HEVC|VP9, 1, 120, 1, 120},
 
-	{FRAME_RATE, ENC, CODECS_ALL,
+	{FRAME_RATE, ENC|DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), (MAXIMUM_FPS << 16),
 		1, (DEFAULT_FPS << 16),
 		0,
 		HFI_PROP_FRAME_RATE,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{OPERATING_RATE, ENC, CODECS_ALL,
+	{OPERATING_RATE, ENC|DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), (MAXIMUM_FPS << 16),
 		1, (DEFAULT_FPS << 16)},
 
@@ -1290,12 +1290,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 		msm_vidc_set_req_sync_frame},
 
 	{BIT_RATE, ENC, H264,
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
 	{BIT_RATE, ENC, HEVC,
-		{PEAK_BITRATE},
+		{PEAK_BITRATE, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
 
@@ -1459,34 +1459,34 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 		msm_vidc_set_layer_count_and_type},
 
 	{L0_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L1_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L1_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L2_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L2_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L3_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L3_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L4_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L4_BR, ENC, H264|HEVC,
-		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		{L5_BR},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{L5_BR, ENC, H264|HEVC,
 		{0},
-		msm_vidc_adjust_dynamic_layer_bitrate,
-		msm_vidc_set_dynamic_layer_bitrate},
+		msm_vidc_adjust_layer_bitrate,
+		msm_vidc_set_layer_bitrate},
 
 	{ENTROPY_MODE, ENC, H264,
 		{BIT_RATE},
@@ -1680,7 +1680,7 @@ static const char * const waipio_opp_table[] = { "mx", "mmcx", NULL };
 /* name, clock id, scaling */
 static const struct clk_table waipio_clk_table[] = {
 	{ "gcc_video_axi0",         GCC_VIDEO_AXI0_CLK,     0 },
-	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     1 },
+	{ "core_clk",               VIDEO_CC_MVS0C_CLK,     0 },
 	{ "vcodec_clk",             VIDEO_CC_MVS0_CLK,      1 },
 };
 
@@ -1698,7 +1698,7 @@ const struct context_bank_table waipio_context_bank_table[] = {
 
 /* freq */
 static struct freq_table waipio_freq_table[] = {
-	{444000000}, {366000000}, {338000000}, {239999999}
+	{444000000}, {366000000}, {338000000}, {240000000}
 };
 
 /* register, value, mask */
@@ -1750,7 +1750,7 @@ static const struct msm_vidc_platform_data waipio_data = {
 	.format_data = &format_data_waipio,
 };
 
-static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_init_data(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
@@ -1765,18 +1765,18 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 	return rc;
 }
 
-int msm_vidc_init_platform_waipio(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_init_platform_waipio(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core, dev);
+	rc = msm_vidc_init_data(core);
 	if (rc)
 		return rc;
 
 	return 0;
 }
 
-int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_deinit_platform_waipio(struct msm_vidc_core *core)
 {
 	/* do nothing */
 	return 0;

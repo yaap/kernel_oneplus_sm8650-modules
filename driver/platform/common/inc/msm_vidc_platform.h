@@ -167,6 +167,14 @@ struct msm_platform_inst_cap_dependency {
 		enum msm_vidc_inst_capability_type cap_id);
 };
 
+struct msm_vidc_compat_handle {
+	const char *compat;
+	int (*init_platform)(struct msm_vidc_core *core);
+	int (*deinit_platform)(struct msm_vidc_core *core);
+	int (*init_iris)(struct msm_vidc_core *core);
+	int (*deinit_iris)(struct msm_vidc_core *core);
+};
+
 struct msm_vidc_csc_coeff {
 	u32 *vpe_csc_custom_matrix_coeff;
 	u32 *vpe_csc_custom_bias_coeff;
@@ -201,7 +209,7 @@ struct msm_vidc_platform_data {
 	unsigned int regulator_tbl_size;
 	const struct pd_table *pd_tbl;
 	unsigned int pd_tbl_size;
-	const char **opp_tbl;
+	const char * const *opp_tbl;
 	unsigned int opp_tbl_size;
 	const struct clk_table *clk_tbl;
 	unsigned int clk_tbl_size;
@@ -232,6 +240,18 @@ struct msm_vidc_platform_data {
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
 	struct msm_vidc_format_capability *format_data;
+	const u32 *psc_avc_tbl;
+	unsigned int psc_avc_tbl_size;
+	const u32 *psc_hevc_tbl;
+	unsigned int psc_hevc_tbl_size;
+	const u32 *psc_vp9_tbl;
+	unsigned int psc_vp9_tbl_size;
+	const u32 *psc_av1_tbl;
+	unsigned int psc_av1_tbl_size;
+	const u32 *dec_input_prop;
+	unsigned int dec_input_prop_size;
+	const u32 *dec_output_prop;
+	unsigned int dec_output_prop_size;
 };
 
 struct msm_vidc_platform {

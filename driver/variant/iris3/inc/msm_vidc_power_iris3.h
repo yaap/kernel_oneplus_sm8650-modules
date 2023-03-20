@@ -10,6 +10,8 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_power.h"
 
+#define ENABLE_LEGACY_POWER_CALCULATIONS  0
+
 u64 msm_vidc_calc_freq_iris3(struct msm_vidc_inst* inst, u32 data_size);
 int msm_vidc_calc_bw_iris3(struct msm_vidc_inst* inst,
 		struct vidc_bus_vote_data* vote_data);

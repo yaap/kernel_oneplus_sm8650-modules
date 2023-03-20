@@ -98,6 +98,10 @@ enum msm_vidc_metadata_bits {
 #define MIN_QP_8BIT                           1
 #define INVALID_FD                           -1
 #define INVALID_CLIENT_ID                    -1
+#define MAX_ENCODING_REFERNCE_FRAMES          7
+#define MAX_LTR_FRAME_COUNT_5                 5
+#define MAX_LTR_FRAME_COUNT_2                 2
+#define MAX_ENC_RING_BUF_COUNT                5 /* to be tuned */
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -285,6 +289,7 @@ enum msm_vidc_metadata_bits {
 	CAP(MB_CYCLES_LP)                         \
 	CAP(MB_CYCLES_FW)                         \
 	CAP(MB_CYCLES_FW_VPP)                     \
+	CAP(ENC_RING_BUFFER_COUNT)                \
 	CAP(CLIENT_ID)                            \
 	CAP(SECURE_MODE)                          \
 	CAP(FENCE_ID)                             \
@@ -367,6 +372,7 @@ enum msm_vidc_metadata_bits {
 	CAP(LOWLATENCY_MAX_BITRATE)               \
 	CAP(LAST_FLAG_EVENT_ENABLE)               \
 	CAP(NUM_COMV)                             \
+	CAP(SIGNAL_COLOR_INFO)                    \
 	CAP(INST_CAP_MAX)                         \
 }
 
@@ -768,6 +774,7 @@ struct msm_vidc_subscription_params {
 	u32                    tier;
 	u32                    av1_film_grain_present;
 	u32                    av1_super_block_enabled;
+	u32                    dpb_list_enabled;
 };
 
 struct msm_vidc_hfi_frame_info {
@@ -887,6 +894,7 @@ struct msm_vidc_buffer {
 	struct list_head                   list;
 	struct msm_vidc_inst              *inst;
 	enum msm_vidc_buffer_type          type;
+	enum msm_vidc_buffer_region        region;
 	u32                                index;
 	int                                fd;
 	u32                                buffer_size;

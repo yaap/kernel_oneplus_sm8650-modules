@@ -46,13 +46,18 @@ static inline bool is_video_device(struct device *dev)
 		of_device_is_compatible(dev->of_node, "qcom,sm8650-vidc-v2");
 }
 
+static inline bool is_video_context_bank_device_node(struct device_node *of_node)
+{
+	return !!(of_device_is_compatible(of_node, "qcom,vidc,cb-sec-pxl") ||
+		of_device_is_compatible(of_node, "qcom,vidc,cb-sec-bitstream") ||
+		of_device_is_compatible(of_node, "qcom,vidc,cb-sec-non-pxl") ||
+		of_device_is_compatible(of_node, "qcom,vidc,cb-ns") ||
+		of_device_is_compatible(of_node, "qcom,vidc,cb-ns-pxl"));
+}
+
 static inline bool is_video_context_bank_device(struct device *dev)
 {
-	return !!(of_device_is_compatible(dev->of_node, "qcom,vidc,cb-sec-pxl") ||
-		of_device_is_compatible(dev->of_node, "qcom,vidc,cb-sec-bitstream") ||
-		of_device_is_compatible(dev->of_node, "qcom,vidc,cb-sec-non-pxl") ||
-		of_device_is_compatible(dev->of_node, "qcom,vidc,cb-ns") ||
-		of_device_is_compatible(dev->of_node, "qcom,vidc,cb-ns-pxl"));
+	return is_video_context_bank_device_node(dev->of_node);
 }
 
 static int msm_vidc_init_resources(struct msm_vidc_core *core)
@@ -234,6 +239,78 @@ video_reg_failed:
 	return rc;
 }
 
+static int msm_vidc_initialize_media(struct msm_vidc_core *core)
+{
+	int rc = 0, nr = BASE_DEVICE_NUMBER;
+
+	rc = v4l2_device_register(&core->pdev->dev, &core->v4l2_dev);
+	if (rc) {
+		d_vpr_e("Failed to register v4l2 device\n");
+		return -EINVAL;
+	}
+
+#ifdef CONFIG_MEDIA_CONTROLLER
+	core->media_dev.dev = &core->pdev->dev;
+	strscpy(core->media_dev.model, "msm_vidc_media", sizeof(core->media_dev.model));
+	media_device_init(&core->media_dev);
+	core->media_dev.ops = core->media_device_ops;
+	core->v4l2_dev.mdev = &core->media_dev;
+#endif
+
+	/* setup the decoder device */
+	rc = msm_vidc_register_video_device(core, MSM_VIDC_DECODER, nr);
+	if (rc) {
+		d_vpr_e("Failed to register video decoder\n");
+		goto dec_reg_failed;
+	}
+
+	/* setup the encoder device */
+	rc = msm_vidc_register_video_device(core, MSM_VIDC_ENCODER, nr + 1);
+	if (rc) {
+		d_vpr_e("Failed to register video encoder\n");
+		goto enc_reg_failed;
+	}
+#ifdef CONFIG_MEDIA_CONTROLLER
+	rc = media_device_register(&core->media_dev);
+	if (rc) {
+		d_vpr_e("%s: media_device_register failed with %d\n", __func__, rc);
+		goto media_reg_failed;
+	}
+#endif
+
+	return rc;
+#ifdef CONFIG_MEDIA_CONTROLLER
+media_reg_failed:
+#endif
+	msm_vidc_unregister_video_device(core, MSM_VIDC_ENCODER);
+enc_reg_failed:
+	msm_vidc_unregister_video_device(core, MSM_VIDC_DECODER);
+dec_reg_failed:
+#ifdef CONFIG_MEDIA_CONTROLLER
+	media_device_cleanup(&core->media_dev);
+#endif
+	v4l2_device_unregister(&core->v4l2_dev);
+
+	return rc;
+}
+
+static int msm_vidc_deinitialize_media(struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+#ifdef CONFIG_MEDIA_CONTROLLER
+	media_device_unregister(&core->media_dev);
+#endif
+	msm_vidc_unregister_video_device(core, MSM_VIDC_ENCODER);
+	msm_vidc_unregister_video_device(core, MSM_VIDC_DECODER);
+#ifdef CONFIG_MEDIA_CONTROLLER
+	media_device_cleanup(&core->media_dev);
+#endif
+	v4l2_device_unregister(&core->v4l2_dev);
+
+	return rc;
+}
+
 #ifdef CONFIG_MSM_MMRM
 static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
@@ -382,6 +459,10 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	/* populate dev & domain field */
 	cb->dev = dev;
 	cb->domain = iommu_get_domain_for_dev(cb->dev);
+	if (!cb->domain) {
+		d_vpr_e("%s: Failed to get iommu domain for %s\n", __func__, dev_name(dev));
+		return -EIO;
+	}
 
 	if (cb->dma_mask) {
 		rc = dma_set_mask_and_coherent(cb->dev, cb->dma_mask);
@@ -436,25 +517,22 @@ static void msm_vidc_component_release_of(struct device *dev, void *data)
 	of_node_put(data);
 }
 
-static int msm_vidc_component_cb_bind(struct device *dev,
-	struct device *master, void *data)
+static int msm_vidc_component_bind(struct device *dev,
+	struct device *parent, void *data)
 {
 	struct msm_vidc_core *core;
 	int rc = 0;
 
-	if (!dev) {
-		d_vpr_e("%s: invalid device\n", __func__);
+	if (!dev || !parent || !data) {
+		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	} else if (!dev->parent) {
+	}
+	core = (struct msm_vidc_core *)data;
+
+	if (!dev->parent || dev->parent != parent) {
 		d_vpr_e("%s: failed to find a parent for %s\n",
 			__func__, dev_name(dev));
 		return -ENODEV;
-	}
-	core = dev_get_drvdata(dev->parent);
-	if (!core) {
-		d_vpr_e("%s: failed to find cookie in parent device %s",
-				__func__, dev_name(dev->parent));
-		return -EINVAL;
 	}
 
 	rc = msm_vidc_setup_context_bank(core, dev);
@@ -470,13 +548,13 @@ static int msm_vidc_component_cb_bind(struct device *dev,
 	return rc;
 }
 
-static void msm_vidc_component_cb_unbind(struct device *dev,
-	struct device *master, void *data)
+static void msm_vidc_component_unbind(struct device *dev,
+	struct device *parent, void *data)
 {
 	d_vpr_h("%s(): %s\n", __func__, dev_name(dev));
 }
 
-static int msm_vidc_component_bind(struct device *dev)
+static int msm_vidc_component_master_bind(struct device *dev)
 {
 	struct msm_vidc_core *core = dev_get_drvdata(dev);
 	int rc = 0;
@@ -486,6 +564,12 @@ static int msm_vidc_component_bind(struct device *dev)
 	rc = component_bind_all(dev, core);
 	if (rc) {
 		d_vpr_e("%s: sub-device bind failed. rc %d\n", __func__, rc);
+		return rc;
+	}
+
+	rc = msm_vidc_initialize_media(core);
+	if (rc) {
+		d_vpr_e("%s: media initialization failed\n", __func__);
 		return rc;
 	}
 
@@ -514,7 +598,7 @@ queues_deinit:
 	return 0;
 }
 
-static void msm_vidc_component_unbind(struct device *dev)
+static void msm_vidc_component_master_unbind(struct device *dev)
 {
 	struct msm_vidc_core *core = dev_get_drvdata(dev);
 
@@ -522,19 +606,20 @@ static void msm_vidc_component_unbind(struct device *dev)
 
 	msm_vidc_core_deinit(core, true);
 	venus_hfi_queue_deinit(core);
+	msm_vidc_deinitialize_media(core);
 	component_unbind_all(dev, core);
 
 	d_vpr_h("%s(): succssful\n", __func__);
 }
 
-static const struct component_ops msm_vidc_component_cb_ops = {
-	.bind           = msm_vidc_component_cb_bind,
-	.unbind         = msm_vidc_component_cb_unbind,
-};
-
-static const struct component_master_ops msm_vidc_component_ops = {
+static const struct component_ops msm_vidc_component_ops = {
 	.bind           = msm_vidc_component_bind,
 	.unbind         = msm_vidc_component_unbind,
+};
+
+static const struct component_master_ops msm_vidc_component_master_ops = {
+	.bind           = msm_vidc_component_master_bind,
+	.unbind         = msm_vidc_component_master_unbind,
 };
 
 static int msm_vidc_remove_video_device(struct platform_device *pdev)
@@ -554,7 +639,7 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 	d_vpr_h("%s()\n", __func__);
 
 	/* destroy component master and deallocate match data */
-	component_master_del(&pdev->dev, &msm_vidc_component_ops);
+	component_master_del(&pdev->dev, &msm_vidc_component_master_ops);
 
 	d_vpr_h("depopulating sub devices\n");
 	/*
@@ -564,19 +649,6 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 	 */
 	of_platform_depopulate(&pdev->dev);
 
-#ifdef CONFIG_MEDIA_CONTROLLER
-	media_device_unregister(&core->media_dev);
-#endif
-	msm_vidc_unregister_video_device(core, MSM_VIDC_ENCODER);
-	msm_vidc_unregister_video_device(core, MSM_VIDC_DECODER);
-	//device_remove_file(&core->vdev[MSM_VIDC_ENCODER].vdev.dev,
-		//&dev_attr_link_name);
-	//device_remove_file(&core->vdev[MSM_VIDC_DECODER].vdev.dev,
-		//&dev_attr_link_name);
-#ifdef CONFIG_MEDIA_CONTROLLER
-	media_device_cleanup(&core->media_dev);
-#endif
-	v4l2_device_unregister(&core->v4l2_dev);
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 
 	msm_vidc_deinit_instance_caps(core);
@@ -598,7 +670,7 @@ static int msm_vidc_remove_context_bank(struct platform_device *pdev)
 {
 	d_vpr_h("%s(): %s\n", __func__, dev_name(&pdev->dev));
 
-	component_del(&pdev->dev, &msm_vidc_component_cb_ops);
+	component_del(&pdev->dev, &msm_vidc_component_ops);
 
 	return 0;
 }
@@ -626,7 +698,7 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 	struct component_match *match = NULL;
 	struct msm_vidc_core *core = NULL;
 	struct device_node *child = NULL;
-	int sub_node_count = 0, nr = BASE_DEVICE_NUMBER;
+	int cb_count = 0;
 
 	d_vpr_h("%s: %s\n", __func__, dev_name(&pdev->dev));
 
@@ -679,40 +751,6 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		goto init_group_failed;
 	}
 
-	rc = v4l2_device_register(&pdev->dev, &core->v4l2_dev);
-	if (rc) {
-		d_vpr_e("Failed to register v4l2 device\n");
-		goto v4l2_reg_failed;
-	}
-
-#ifdef CONFIG_MEDIA_CONTROLLER
-	core->media_dev.dev = &core->pdev->dev;
-	strscpy(core->media_dev.model, "msm_vidc_media", sizeof(core->media_dev.model));
-	media_device_init(&core->media_dev);
-	core->media_dev.ops = core->media_device_ops;
-	core->v4l2_dev.mdev = &core->media_dev;
-#endif
-
-	/* setup the decoder device */
-	rc = msm_vidc_register_video_device(core, MSM_VIDC_DECODER, nr);
-	if (rc) {
-		d_vpr_e("Failed to register video decoder\n");
-		goto dec_reg_failed;
-	}
-
-	/* setup the encoder device */
-	rc = msm_vidc_register_video_device(core, MSM_VIDC_ENCODER, nr + 1);
-	if (rc) {
-		d_vpr_e("Failed to register video encoder\n");
-		goto enc_reg_failed;
-	}
-#ifdef CONFIG_MEDIA_CONTROLLER
-	rc = media_device_register(&core->media_dev);
-	if (rc) {
-		d_vpr_e("%s: media_device_register failed with %d\n", __func__, rc);
-		goto media_reg_failed;
-	}
-#endif
 	rc = msm_vidc_check_mmrm_support(core);
 	if (rc) {
 		d_vpr_e("Failed to check MMRM scaling support\n");
@@ -725,8 +763,14 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 
 	/* registering sub-device with component model framework */
 	for_each_available_child_of_node(pdev->dev.of_node, child) {
-		sub_node_count++;
+		/* consider only context bank devices */
+		if (!is_video_context_bank_device_node(child))
+			continue;
+
+		/* take refcount on device node */
 		of_node_get(child);
+
+		/* add entry into component_match array */
 		component_match_add_release(&pdev->dev, &match, msm_vidc_component_release_of,
 			msm_vidc_component_compare_of, child);
 		if (IS_ERR(match)) {
@@ -735,9 +779,12 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 			d_vpr_e("%s: component match add release failed\n", __func__);
 			goto sub_dev_failed;
 		}
+
+		/* count context bank devices */
+		cb_count++;
 	}
 
-	d_vpr_h("populating sub devices. count %d\n", sub_node_count);
+	d_vpr_h("populating sub devices. count %d\n", cb_count);
 	/*
 	 * Trigger probe for each sub-device i.e. qcom,msm-vidc,context-bank.
 	 * When msm_vidc_probe is called for each sub-device, parse the
@@ -750,8 +797,12 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		goto sub_dev_failed;
 	}
 
-	/* create component master and add match data */
-	rc = component_master_add_with_match(&pdev->dev, &msm_vidc_component_ops, match);
+	/**
+	 * create and try to bring up aggregate device for master.
+	 * match is a component_match_array and acts as a placeholder for
+	 * components added via component_add().
+	 */
+	rc = component_master_add_with_match(&pdev->dev, &msm_vidc_component_master_ops, match);
 	if (rc) {
 		d_vpr_e("%s: component master add with match failed\n", __func__);
 		goto master_add_failed;
@@ -764,16 +815,6 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 master_add_failed:
 	of_platform_depopulate(&pdev->dev);
 sub_dev_failed:
-#ifdef CONFIG_MEDIA_CONTROLLER
-	media_device_unregister(&core->media_dev);
-media_reg_failed:
-#endif
-	msm_vidc_unregister_video_device(core, MSM_VIDC_ENCODER);
-enc_reg_failed:
-	msm_vidc_unregister_video_device(core, MSM_VIDC_DECODER);
-dec_reg_failed:
-	v4l2_device_unregister(&core->v4l2_dev);
-v4l2_reg_failed:
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 init_group_failed:
 	msm_vidc_deinit_instance_caps(core);
@@ -796,7 +837,7 @@ static int msm_vidc_probe_context_bank(struct platform_device *pdev)
 {
 	d_vpr_h("%s(): %s\n", __func__, dev_name(&pdev->dev));
 
-	return component_add(&pdev->dev, &msm_vidc_component_cb_ops);
+	return component_add(&pdev->dev, &msm_vidc_component_ops);
 }
 
 static int msm_vidc_probe(struct platform_device *pdev)
@@ -822,7 +863,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
-	bool allow = false;
+	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 
 	/*
 	 * Bail out if
@@ -841,8 +882,14 @@ static int msm_vidc_pm_suspend(struct device *dev)
 
 	core_lock(core, __func__);
 	allow = msm_vidc_allow_pm_suspend(core);
-	if (!allow) {
-		d_vpr_e("%s: pm suspend not allowed\n", __func__);
+
+	if (allow == MSM_VIDC_IGNORE) {
+		d_vpr_h("%s: pm already suspended\n", __func__);
+		msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PM_SUSPEND, __func__);
+		rc = 0;
+		goto unlock;
+	} else if (allow != MSM_VIDC_ALLOW) {
+		d_vpr_h("%s: pm suspend not allowed\n", __func__);
 		rc = 0;
 		goto unlock;
 	}

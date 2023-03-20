@@ -24,64 +24,6 @@
 #define MAX_DEC_BATCH_SIZE 6
 #define SKIP_BATCH_WINDOW 100
 
-static const u32 msm_vdec_subscribe_for_psc_avc[] = {
-	HFI_PROP_BITSTREAM_RESOLUTION,
-	HFI_PROP_CROP_OFFSETS,
-	HFI_PROP_CODED_FRAMES,
-	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
-	HFI_PROP_PIC_ORDER_CNT_TYPE,
-	HFI_PROP_PROFILE,
-	HFI_PROP_LEVEL,
-	HFI_PROP_SIGNAL_COLOR_INFO,
-};
-
-static const u32 msm_vdec_subscribe_for_psc_hevc[] = {
-	HFI_PROP_BITSTREAM_RESOLUTION,
-	HFI_PROP_CROP_OFFSETS,
-	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
-	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
-	HFI_PROP_PROFILE,
-	HFI_PROP_LEVEL,
-	HFI_PROP_TIER,
-	HFI_PROP_SIGNAL_COLOR_INFO,
-};
-
-static const u32 msm_vdec_subscribe_for_psc_vp9[] = {
-	HFI_PROP_BITSTREAM_RESOLUTION,
-	HFI_PROP_CROP_OFFSETS,
-	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
-	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
-	HFI_PROP_PROFILE,
-	HFI_PROP_LEVEL,
-};
-
-static const u32 msm_vdec_subscribe_for_psc_av1[] = {
-	HFI_PROP_BITSTREAM_RESOLUTION,
-	HFI_PROP_CROP_OFFSETS,
-	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
-	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
-	HFI_PROP_AV1_FILM_GRAIN_PRESENT,
-	HFI_PROP_AV1_SUPER_BLOCK_ENABLED,
-	HFI_PROP_PROFILE,
-	HFI_PROP_LEVEL,
-	HFI_PROP_TIER,
-	HFI_PROP_SIGNAL_COLOR_INFO,
-};
-
-static const u32 msm_vdec_input_subscribe_for_properties[] = {
-	HFI_PROP_NO_OUTPUT,
-	HFI_PROP_SUBFRAME_INPUT,
-};
-
-static const u32 msm_vdec_output_subscribe_for_properties[] = {
-	HFI_PROP_WORST_COMPRESSION_RATIO,
-	HFI_PROP_WORST_COMPLEXITY_FACTOR,
-	HFI_PROP_PICTURE_TYPE,
-	HFI_PROP_DPB_LIST,
-	HFI_PROP_CABAC_SESSION,
-	HFI_PROP_FENCE,
-};
-
 static const u32 msm_vdec_internal_buffer_type[] = {
 	MSM_VIDC_BUF_BIN,
 	MSM_VIDC_BUF_COMV,
@@ -884,22 +826,27 @@ static int msm_vdec_subscribe_input_port_settings_change(struct msm_vidc_inst *i
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
+
+	core = inst->core;
+	if (!core->platform) {
+		d_vpr_e("%s: invalid platform data\n", __func__);
+		return -EINVAL;
+	}
 
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_avc);
-		psc = msm_vdec_subscribe_for_psc_avc;
+		subscribe_psc_size = core->platform->data.psc_avc_tbl_size;
+		psc = core->platform->data.psc_avc_tbl;
 	} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_hevc);
-		psc = msm_vdec_subscribe_for_psc_hevc;
+		subscribe_psc_size = core->platform->data.psc_hevc_tbl_size;
+		psc = core->platform->data.psc_hevc_tbl;
 	} else if (inst->codec == MSM_VIDC_VP9) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_vp9);
-		psc = msm_vdec_subscribe_for_psc_vp9;
+		subscribe_psc_size = core->platform->data.psc_vp9_tbl_size;
+		psc = core->platform->data.psc_vp9_tbl;
 	} else if (inst->codec == MSM_VIDC_AV1) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_av1);
-		psc = msm_vdec_subscribe_for_psc_av1;
+		subscribe_psc_size = core->platform->data.psc_av1_tbl_size;
+		psc = core->platform->data.psc_av1_tbl;
 	} else {
 		i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
 		psc = NULL;
@@ -949,30 +896,61 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 	bool allow = false;
+	struct msm_vidc_core *core;
+	u32 subscribe_prop_size;
+	const u32 *subcribe_prop;
 
-	if (!inst) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
+
+	if (!core->platform) {
+		d_vpr_e("%s: invalid platform data\n", __func__);
+		return -EINVAL;
+	}
 
 	payload[0] = HFI_MODE_PROPERTY;
 
 	if (port == INPUT_PORT) {
-		for (i = 0; i < ARRAY_SIZE(msm_vdec_input_subscribe_for_properties); i++) {
-			payload[count + 1] = msm_vdec_input_subscribe_for_properties[i];
-			count++;
-		}
-	} else if (port == OUTPUT_PORT) {
-		for (i = 0; i < ARRAY_SIZE(msm_vdec_output_subscribe_for_properties); i++) {
+		subscribe_prop_size = core->platform->data.dec_input_prop_size;
+		subcribe_prop = core->platform->data.dec_input_prop;
+		for (i = 0; i < subscribe_prop_size; i++) {
 			allow = msm_vidc_allow_property(inst,
-				msm_vdec_output_subscribe_for_properties[i]);
+				subcribe_prop[i]);
 			if (allow) {
-				payload[count + 1] = msm_vdec_output_subscribe_for_properties[i];
+				payload[count + 1] = subcribe_prop[i];
 				count++;
 			}
+
+			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
+				inst->subcr_params[port].dpb_list_enabled = true;
+				i_vpr_h(inst, "%s: DPB_LIST suscribed on input port", __func__);
+			}
+
 			msm_vidc_update_property_cap(inst,
-				msm_vdec_output_subscribe_for_properties[i], allow);
+				subcribe_prop[i], allow);
+		}
+	} else if (port == OUTPUT_PORT) {
+		subscribe_prop_size = core->platform->data.dec_output_prop_size;
+		subcribe_prop = core->platform->data.dec_output_prop;
+		for (i = 0; i < subscribe_prop_size; i++) {
+			allow = msm_vidc_allow_property(inst,
+				subcribe_prop[i]);
+			if (allow) {
+				payload[count + 1] = subcribe_prop[i];
+				count++;
+			}
+
+			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
+				inst->subcr_params[port].dpb_list_enabled = true;
+				i_vpr_h(inst, "%s: DPB_LIST suscribed on output port", __func__);
+			}
+
+			msm_vidc_update_property_cap(inst,
+				subcribe_prop[i], allow);
 		}
 	} else {
 		i_vpr_e(inst, "%s: invalid port: %d\n", __func__, port);
@@ -1592,6 +1570,7 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
+	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 prop_type, payload_size, payload_type;
 	u32 i;
@@ -1599,25 +1578,31 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 	u32 subscribe_psc_size = 0;
 	const u32 *psc = NULL;
 
-	if (!inst) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
+	core = inst->core;
+	if (!core->platform) {
+		d_vpr_e("%s: invalid platform data\n", __func__);
+		return -EINVAL;
+	}
+
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_avc);
-		psc = msm_vdec_subscribe_for_psc_avc;
+		subscribe_psc_size = core->platform->data.psc_avc_tbl_size;
+		psc = core->platform->data.psc_avc_tbl;
 	} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_hevc);
-		psc = msm_vdec_subscribe_for_psc_hevc;
+		subscribe_psc_size = core->platform->data.psc_hevc_tbl_size;
+		psc = core->platform->data.psc_hevc_tbl;
 	} else if (inst->codec == MSM_VIDC_VP9) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_vp9);
-		psc = msm_vdec_subscribe_for_psc_vp9;
+		subscribe_psc_size = core->platform->data.psc_vp9_tbl_size;
+		psc = core->platform->data.psc_vp9_tbl;
 	} else if (inst->codec == MSM_VIDC_AV1) {
-		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_av1);
-		psc = msm_vdec_subscribe_for_psc_av1;
+		subscribe_psc_size = core->platform->data.psc_av1_tbl_size;
+		psc = core->platform->data.psc_av1_tbl;
 	} else {
 		i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
 		psc = NULL;
@@ -1935,6 +1920,13 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
+	/*
+	 * if DPB_LIST subscribed on output port then driver need to
+	 * hold MAX_BPB_COUNT of read only buffer at least.
+	 */
+	if (!inst->subcr_params[OUTPUT_PORT].dpb_list_enabled)
+		goto release_buffers;
+
 	/* count read_only buffers which are not pending release in read_only list */
 	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
 		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
@@ -1980,6 +1972,7 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	i_vpr_l(inst, "%s: fw ro buf count %d, non-ref ro count %d\n",
 		__func__, fw_ro_count, nonref_ro_count);
 
+release_buffers:
 	/* release the eligible buffers as per above condition */
 	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
 		found = false;
@@ -2091,17 +2084,9 @@ static int msm_vdec_alloc_and_queue_additional_dpb_buffers(struct msm_vidc_inst 
 
 int msm_vdec_stop_cmd(struct msm_vidc_inst *inst)
 {
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: drain\n");
-	allow = msm_vidc_allow_stop(inst);
-	if (allow == MSM_VIDC_DISALLOW)
-		return -EBUSY;
-	else if (allow == MSM_VIDC_IGNORE)
-		return 0;
-	else if (allow != MSM_VIDC_ALLOW)
-		return -EINVAL;
 	rc = msm_vidc_process_drain(inst);
 	if (rc)
 		return rc;
@@ -2131,9 +2116,6 @@ int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 			__func__);
 		return -EINVAL;
 	}
-
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
 
 	/* tune power features */
 	inst->decode_batch.enable = msm_vidc_allow_decode_batch(inst);
@@ -2717,6 +2699,8 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 	inst->buffers.output_meta.extra_count = 0;
 	inst->buffers.output_meta.actual_count = 0;
 	inst->buffers.output_meta.size = 0;
+	inst->subcr_params[INPUT_PORT].dpb_list_enabled = 0;
+	inst->subcr_params[OUTPUT_PORT].dpb_list_enabled = 0;
 
 	rc = msm_vdec_codec_change(inst,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat);

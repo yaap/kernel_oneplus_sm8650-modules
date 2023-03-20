@@ -5,6 +5,8 @@
  */
 
 #include <linux/clk.h>
+#include <linux/clk/qcom.h>
+
 #ifdef CONFIG_MSM_MMRM
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
@@ -499,6 +501,63 @@ static int __set_clocks_ext(struct msm_vidc_core *core, u64 freq)
 	return 0;
 }
 
+static int qcom_clk_get_branch_flag(enum msm_vidc_branch_mem_flags vidc_flag,
+	enum branch_mem_flags *clk_flag)
+{
+	switch (vidc_flag) {
+	case MSM_VIDC_CLKFLAG_RETAIN_PERIPH:
+		*clk_flag = CLKFLAG_RETAIN_PERIPH;
+		break;
+	case MSM_VIDC_CLKFLAG_NORETAIN_PERIPH:
+		*clk_flag = CLKFLAG_NORETAIN_PERIPH;
+		break;
+	case MSM_VIDC_CLKFLAG_RETAIN_MEM:
+		*clk_flag = CLKFLAG_RETAIN_MEM;
+		break;
+	case MSM_VIDC_CLKFLAG_NORETAIN_MEM:
+		*clk_flag = CLKFLAG_NORETAIN_MEM;
+		break;
+	case MSM_VIDC_CLKFLAG_PERIPH_OFF_SET:
+		*clk_flag = CLKFLAG_PERIPH_OFF_SET;
+		break;
+	case MSM_VIDC_CLKFLAG_PERIPH_OFF_CLEAR:
+		*clk_flag = CLKFLAG_PERIPH_OFF_CLEAR;
+		break;
+	default:
+		d_vpr_e("%s: invalid clk flag: %d\n", __func__, vidc_flag);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int __clock_set_flag_ext(struct msm_vidc_core *core,
+	const char *name, enum msm_vidc_branch_mem_flags flag)
+{
+	int rc = 0;
+	struct clock_info *cinfo = NULL;
+	bool found = false;
+	enum branch_mem_flags mem_flag;
+
+	/* get clock handle */
+	venus_hfi_for_each_clock(core, cinfo) {
+		if (strcmp(cinfo->name, name))
+			continue;
+		found = true;
+		rc = qcom_clk_get_branch_flag(flag, &mem_flag);
+		if (rc)
+			return rc;
+
+		qcom_clk_set_flags(cinfo->clk, mem_flag);
+		d_vpr_h("%s: set flag %d on clock %s\n", __func__, mem_flag, name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: failed to find clock: %s\n", __func__, name);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 const struct msm_vidc_resources_ops *get_res_ops_ext(void)
 {
 	const struct msm_vidc_resources_ops *res_ops = get_resources_ops();
@@ -511,6 +570,7 @@ const struct msm_vidc_resources_ops *get_res_ops_ext(void)
 	res_ops_ext.gdsc_hw_ctrl     = __hand_off_regulators;
 	res_ops_ext.gdsc_sw_ctrl     = __acquire_regulators;
 	res_ops_ext.set_clks         = __set_clocks_ext;
+	res_ops_ext.clk_set_flag     = __clock_set_flag_ext;
 
 	return &res_ops_ext;
 }

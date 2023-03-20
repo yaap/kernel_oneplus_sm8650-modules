@@ -128,7 +128,6 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 		return;
 	}
 	inst = vbuf->inst;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
@@ -156,7 +155,6 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 	vbuf->inst = NULL;
 
 exit:
-	put_inst(inst);
 	return;
 }
 
@@ -207,7 +205,6 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 		return;
 	}
 	inst = vbuf->inst;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
 		return;
@@ -235,7 +232,6 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 	}
 
 exit:
-	put_inst(inst);
 	return;
 }
 
@@ -415,9 +411,6 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_streamon(inst, q->type))
-		return -EBUSY;
-
 	if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
 		i_vpr_h(inst, "%s: nothing to start on %s\n",
 			__func__, v4l2_type_name(q->type));
@@ -577,25 +570,16 @@ void msm_vb2_stop_streaming(struct vb2_queue *q)
 		return;
 	}
 	inst = q->drv_priv;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
 
-	client_lock(inst, __func__);
-	inst_lock(inst, __func__);
 	rc = inst->event_handle(inst, MSM_VIDC_STREAMOFF, q);
 	if (rc) {
 		i_vpr_e(inst, "Streamoff: %s failed\n", v4l2_type_name(q->type));
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-		goto unlock;
 	}
-
-unlock:
-	inst_unlock(inst, __func__);
-	client_unlock(inst, __func__);
-	put_inst(inst);
 
 	return;
 }
@@ -678,7 +662,7 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 	}
 	inst->last_qbuf_time_ns = ktime_ns;
 
-	if (is_decode_session(inst) && vb2->type == INPUT_MPLANE) {
+	if (vb2->type == INPUT_MPLANE) {
 		rc = msm_vidc_update_input_rate(inst, div_u64(ktime_ns, 1000));
 		if (rc)
 			goto unlock;

@@ -15,7 +15,7 @@
 #include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
-#include "msm_vidc_control_ext.h"
+#include "msm_vidc_platform_ext.h"
 #include "msm_vidc_memory_ext.h"
 #include "resources_ext.h"
 #include "msm_vidc_iris3.h"
@@ -23,7 +23,6 @@
 #include "hfi_command.h"
 
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
-#define MAX_LTR_FRAME_COUNT     2
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_OP_POINT            31
 #define MAX_BITRATE             245000000
@@ -304,7 +303,7 @@ static struct msm_platform_core_capability core_data_kalama[] = {
 	{MAX_MBPS_HQ, 489600}, /* ((1920x1088)/256)@60fps */
 	{MAX_MBPF_B_FRAME, 32640}, /* 3840x2176/256 */
 	{MAX_MBPS_B_FRAME, 1958400}, /* 3840x2176/256 MBs@60fps */
-	{MAX_MBPS_ALL_INTRA, 2088960}, /* 4096x2176/256 MBs@60fps */
+	{MAX_MBPS_ALL_INTRA, 1044480}, /* 4096x2176/256 MBs@30fps */
 	{MAX_ENH_LAYER_COUNT, 5},
 	{NUM_VPP_PIPE, 4},
 	{SW_PC, 1},
@@ -783,7 +782,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{CSC, ENC, CODECS_ALL,
 		0, 1, 1, 0,
-		0,
+		V4L2_CID_MPEG_VIDC_CSC,
 		HFI_PROP_CSC},
 
 	{CSC_CUSTOM_MATRIX, ENC, CODECS_ALL,
@@ -805,14 +804,14 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{LTR_COUNT, ENC, H264|HEVC,
-		0, 2, 1, 0,
+		0, MAX_LTR_FRAME_COUNT_2, 1, 0,
 		V4L2_CID_MPEG_VIDEO_LTR_COUNT,
 		HFI_PROP_LTR_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
 	{USE_LTR, ENC, H264|HEVC,
 		0,
-		((1 << MAX_LTR_FRAME_COUNT) - 1),
+		((1 << MAX_LTR_FRAME_COUNT_2) - 1),
 		0, 0,
 		V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES,
 		HFI_PROP_LTR_USE,
@@ -820,7 +819,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{MARK_LTR, ENC, H264|HEVC,
 		INVALID_DEFAULT_MARK_OR_USE_LTR,
-		(MAX_LTR_FRAME_COUNT - 1),
+		(MAX_LTR_FRAME_COUNT_2 - 1),
 		1, INVALID_DEFAULT_MARK_OR_USE_LTR,
 		V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX,
 		HFI_PROP_LTR_MARK,
@@ -1935,6 +1934,12 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		V4L2_CID_MPEG_VIDC_H264_ENCODE_DELIVERY_MODE,
 		HFI_PROP_ENABLE_SLICE_DELIVERY,
 		CAP_FLAG_OUTPUT_PORT},
+
+	{SIGNAL_COLOR_INFO, ENC, CODECS_ALL,
+		0, INT_MAX, 1, 0,
+		V4L2_CID_MPEG_VIDC_SIGNAL_COLOR_INFO,
+		HFI_PROP_SIGNAL_COLOR_INFO,
+		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 };
 
 static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kalama[] = {
@@ -1949,7 +1954,8 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 
 	{PIX_FMTS, ENC, HEVC,
 		{PROFILE, MIN_FRAME_QP, MAX_FRAME_QP, I_FRAME_QP, P_FRAME_QP,
-			B_FRAME_QP, META_ROI_INFO, MIN_QUALITY, BLUR_TYPES, IR_PERIOD}},
+			B_FRAME_QP, META_ROI_INFO, MIN_QUALITY, BLUR_TYPES, IR_PERIOD,
+			LTR_COUNT}},
 
 	{PIX_FMTS, ENC, HEIC,
 		{PROFILE}},
@@ -2219,13 +2225,14 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_frame_qp},
 
 	{LAYER_TYPE, ENC, H264|HEVC,
-		{CONTENT_ADAPTIVE_CODING}},
+		{CONTENT_ADAPTIVE_CODING, LTR_COUNT}},
 
 	{LAYER_ENABLE, ENC, H264|HEVC,
 		{CONTENT_ADAPTIVE_CODING}},
 
 	{ENH_LAYER_COUNT, ENC, H264|HEVC,
-		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY, SLICE_MODE},
+		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY, SLICE_MODE,
+			LTR_COUNT},
 		msm_vidc_adjust_layer_count,
 		msm_vidc_set_layer_count_and_type},
 
@@ -2474,6 +2481,11 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		{0},
 		NULL,
 		msm_vidc_set_vui_timing_info},
+
+	{SIGNAL_COLOR_INFO, ENC, CODECS_ALL,
+		{0},
+		NULL,
+		msm_vidc_set_signal_color_info},
 };
 
 /* Default UBWC config for LPDDR5 */
@@ -2549,6 +2561,65 @@ static const struct reg_preset_table kalama_reg_preset_table[] = {
 	{ 0xB0088, 0x0, 0x11 },
 };
 
+/* decoder properties */
+static const u32 kalama_vdec_psc_avc[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_CODED_FRAMES,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PIC_ORDER_CNT_TYPE,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 kalama_vdec_psc_hevc[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_TIER,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 kalama_vdec_psc_vp9[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+};
+
+static const u32 kalama_vdec_psc_av1[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_AV1_FILM_GRAIN_PRESENT,
+	HFI_PROP_AV1_SUPER_BLOCK_ENABLED,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+	HFI_PROP_TIER,
+	HFI_PROP_SIGNAL_COLOR_INFO,
+};
+
+static const u32 kalama_vdec_input_properties[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+};
+
+static const u32 kalama_vdec_output_properties[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
+	HFI_PROP_CABAC_SESSION,
+	HFI_PROP_FENCE,
+};
+
 static const struct msm_vidc_platform_data kalama_data = {
 	/* resources dependent on other module */
 	.bw_tbl = kalama_bw_table,
@@ -2587,6 +2658,20 @@ static const struct msm_vidc_platform_data kalama_data = {
 	.csc_data.vpe_csc_custom_limit_coeff = vpe_csc_custom_limit_coeff,
 	.ubwc_config = ubwc_config_kalama,
 	.format_data = &format_data_kalama,
+
+	/* decoder properties related*/
+	.psc_avc_tbl = kalama_vdec_psc_avc,
+	.psc_avc_tbl_size = ARRAY_SIZE(kalama_vdec_psc_avc),
+	.psc_hevc_tbl = kalama_vdec_psc_hevc,
+	.psc_hevc_tbl_size = ARRAY_SIZE(kalama_vdec_psc_hevc),
+	.psc_vp9_tbl = kalama_vdec_psc_vp9,
+	.psc_vp9_tbl_size = ARRAY_SIZE(kalama_vdec_psc_vp9),
+	.psc_av1_tbl = kalama_vdec_psc_av1,
+	.psc_av1_tbl_size = ARRAY_SIZE(kalama_vdec_psc_av1),
+	.dec_input_prop = kalama_vdec_input_properties,
+	.dec_input_prop_size = ARRAY_SIZE(kalama_vdec_input_properties),
+	.dec_output_prop = kalama_vdec_output_properties,
+	.dec_output_prop_size = ARRAY_SIZE(kalama_vdec_output_properties),
 };
 
 static const struct msm_vidc_platform_data kalama_data_v2 = {
@@ -2644,14 +2729,17 @@ int msm_vidc_kalama_check_ddr_type(void)
 	return 0;
 }
 
-static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
+static int msm_vidc_init_data(struct msm_vidc_core *core)
 {
+	struct device *dev = NULL;
 	int rc = 0;
 
-	if (!core || !core->platform || !dev) {
+	if (!core || !core->pdev || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	dev = &core->pdev->dev;
+
 	d_vpr_h("%s: initialize kalama data\n", __func__);
 
 	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2"))
@@ -2676,18 +2764,18 @@ static int msm_vidc_init_data(struct msm_vidc_core *core, struct device *dev)
 	return rc;
 }
 
-int msm_vidc_init_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_init_platform_kalama(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	rc = msm_vidc_init_data(core, dev);
+	rc = msm_vidc_init_data(core);
 	if (rc)
 		return rc;
 
 	return 0;
 }
 
-int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core, struct device *dev)
+int msm_vidc_deinit_platform_kalama(struct msm_vidc_core *core)
 {
 	/* do nothing */
 	return 0;

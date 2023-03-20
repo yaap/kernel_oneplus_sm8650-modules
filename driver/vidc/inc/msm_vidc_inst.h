@@ -14,15 +14,6 @@
 
 struct msm_vidc_inst;
 
-#define FOREACH_STATE(STATE) {                    \
-	STATE(OPEN)                               \
-	STATE(INPUT_STREAMING)                    \
-	STATE(OUTPUT_STREAMING)                   \
-	STATE(STREAMING)                          \
-	STATE(CLOSE)                              \
-	STATE(ERROR)                              \
-}
-
 #define call_session_op(c, op, ...)			\
 	(((c) && (c)->session_ops && (c)->session_ops->op) ? \
 	((c)->session_ops->op(__VA_ARGS__)) : 0)
@@ -37,6 +28,7 @@ struct msm_vidc_session_ops {
 	int (*buffer_size)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
 	int (*min_count)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
 	int (*extra_count)(struct msm_vidc_inst *inst, enum msm_vidc_buffer_type type);
+	int (*ring_buf_count)(struct msm_vidc_inst *inst, u32 data_size);
 };
 
 struct msm_vidc_mem_list_info {
@@ -66,25 +58,6 @@ struct msm_vidc_buffers_info {
 	struct msm_vidc_buffers        persist;
 	struct msm_vidc_buffers        vpss;
 	struct msm_vidc_buffers        partial_data;
-};
-
-enum msm_vidc_state FOREACH_STATE(GENERATE_MSM_VIDC_ENUM);
-
-#define MSM_VIDC_SUB_STATE_NONE          0
-#define MSM_VIDC_MAX_SUB_STATES          6
-/*
- * max value of inst->sub_state if all
- * the 6 valid bits are set i.e 111111==>63
- */
-#define MSM_VIDC_MAX_SUB_STATE_VALUE     ((1 << MSM_VIDC_MAX_SUB_STATES) - 1)
-
-enum msm_vidc_sub_state {
-	MSM_VIDC_DRAIN                     = BIT(0),
-	MSM_VIDC_DRC                       = BIT(1),
-	MSM_VIDC_DRAIN_LAST_BUFFER         = BIT(2),
-	MSM_VIDC_DRC_LAST_BUFFER           = BIT(3),
-	MSM_VIDC_INPUT_PAUSE               = BIT(4),
-	MSM_VIDC_OUTPUT_PAUSE              = BIT(5),
 };
 
 struct buf_queue {
@@ -164,7 +137,6 @@ struct msm_vidc_inst {
 	bool                               active;
 	u64                                last_qbuf_time_ns;
 	u64                                initial_time_us;
-	bool                               vb2q_init;
 	u32                                max_input_data_size;
 	u32                                dpb_list_payload[MAX_DPB_LIST_ARRAY_SIZE];
 	u32                                max_map_output_count;

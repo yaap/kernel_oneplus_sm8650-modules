@@ -4,7 +4,7 @@
  */
 
 #include <media/v4l2_vidc_extensions.h>
-#include "msm_vidc_control_ext.h"
+#include "msm_vidc_platform_ext.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
@@ -201,3 +201,109 @@ int msm_vidc_set_ir_period(void *instance,
 	return rc;
 }
 
+int msm_vidc_set_signal_color_info(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
+	struct msm_vidc_inst_capability *capability;
+	u32 color_info, matrix_coeff, transfer_char, primaries, range;
+	u32 full_range = 0;
+	u32 colour_description_present_flag = 0;
+	u32 video_signal_type_present_flag = 0, hfi_value = 0;
+	struct v4l2_format *input_fmt;
+	u32 pix_fmt;
+	/* Unspecified video format */
+	u32 video_format = 5;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	if (!(capability->cap[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
+		i_vpr_h(inst, "%s: colorspace not configured via control\n", __func__);
+		return 0;
+	}
+
+	color_info = capability->cap[cap_id].value;
+	matrix_coeff = color_info & 0xFF;
+	transfer_char = (color_info & 0xFF00) >> 8;
+	primaries = (color_info & 0xFF0000) >> 16;
+	range = (color_info & 0xFF000000) >> 24;
+
+	input_fmt = &inst->fmts[INPUT_PORT];
+	pix_fmt = v4l2_colorformat_to_driver(inst,
+		input_fmt->fmt.pix_mp.pixelformat, __func__);
+	if (primaries != V4L2_COLORSPACE_DEFAULT ||
+	    matrix_coeff != V4L2_YCBCR_ENC_DEFAULT ||
+	    transfer_char != V4L2_XFER_FUNC_DEFAULT) {
+		colour_description_present_flag = 1;
+		video_signal_type_present_flag = 1;
+		primaries = v4l2_color_primaries_to_driver(inst,
+			primaries, __func__);
+		matrix_coeff = v4l2_matrix_coeff_to_driver(inst,
+			matrix_coeff, __func__);
+		transfer_char = v4l2_transfer_char_to_driver(inst,
+			transfer_char, __func__);
+	} else if (is_rgba_colorformat(pix_fmt)) {
+		colour_description_present_flag = 1;
+		video_signal_type_present_flag = 1;
+		primaries = MSM_VIDC_PRIMARIES_BT709;
+		matrix_coeff = MSM_VIDC_MATRIX_COEFF_BT709;
+		transfer_char = MSM_VIDC_TRANSFER_BT709;
+		full_range = 0;
+	}
+
+	if (range != V4L2_QUANTIZATION_DEFAULT) {
+		video_signal_type_present_flag = 1;
+		full_range = range == V4L2_QUANTIZATION_FULL_RANGE ? 1 : 0;
+	}
+
+	hfi_value = (matrix_coeff & 0xFF) |
+		((transfer_char << 8) & 0xFF00) |
+		((primaries << 16) & 0xFF0000) |
+		((colour_description_present_flag << 24) & 0x1000000) |
+		((full_range << 25) & 0x2000000) |
+		((video_format << 26) & 0x1C000000) |
+		((video_signal_type_present_flag << 29) & 0x20000000);
+
+	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_32_PACKED,
+		&hfi_value, sizeof(u32), __func__);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value;
+	s32 pix_fmt = -1;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	if (is_decode_session(inst))
+		return 0;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[CSC].value;
+
+	if (msm_vidc_get_parent_value(inst, CSC, PIX_FMTS,
+		&pix_fmt, __func__))
+		return -EINVAL;
+
+	/* disable csc for 10-bit encoding */
+	if (is_10bit_colorformat(pix_fmt))
+		adjusted_value = 0;
+
+	msm_vidc_update_cap_value(inst, CSC, adjusted_value, __func__);
+
+	return 0;
+}

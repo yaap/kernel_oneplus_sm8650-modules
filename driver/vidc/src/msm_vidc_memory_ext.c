@@ -340,7 +340,7 @@ static u32 msm_vidc_buffer_region_ext(struct msm_vidc_inst *inst,
 	if (!is_secure_session(inst)) {
 		switch (buffer_type) {
 		case MSM_VIDC_BUF_ARP:
-			region = MSM_VIDC_SECURE_NONPIXEL;
+			region = MSM_VIDC_NON_SECURE;
 			break;
 		case MSM_VIDC_BUF_INPUT:
 			if (is_encode_session(inst))

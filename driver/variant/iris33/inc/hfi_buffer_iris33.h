@@ -1447,7 +1447,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 	} while (0)
 
 #define HFI_BUFFER_BIN_ENC(_size, rc_type, frame_width, frame_height, lcu_size, \
-				work_mode, num_vpp_pipes, profile)           \
+			work_mode, num_vpp_pipes, profile, ring_buf_count) \
 	do \
 	{ \
 		HFI_U32 bitstream_size = 0, total_bitbin_buffers = 0, \
@@ -1456,8 +1456,8 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			frame_height, work_mode, lcu_size, profile);         \
 		if (work_mode == HFI_WORKMODE_2) \
 		{ \
-			total_bitbin_buffers = 3; \
-			bitbin_size = bitstream_size * 12 / 10; \
+			total_bitbin_buffers = (ring_buf_count > 3) ? ring_buf_count : 3; \
+			bitbin_size = bitstream_size * 17 / 10; \
 			bitbin_size = HFI_ALIGN(bitbin_size, \
 				VENUS_DMA_ALIGNMENT); \
 		} \
@@ -1482,19 +1482,19 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 	} while (0)
 
 #define HFI_BUFFER_BIN_H264E(_size, rc_type, frame_width, frame_height, \
-				work_mode, num_vpp_pipes, profile)    \
+			work_mode, num_vpp_pipes, profile, ring_buf_count) \
 	do \
 	{ \
 		HFI_BUFFER_BIN_ENC(_size, rc_type, frame_width, frame_height, 16, \
-				work_mode, num_vpp_pipes, profile); \
+			work_mode, num_vpp_pipes, profile, ring_buf_count); \
 	} while (0)
 
 #define HFI_BUFFER_BIN_H265E(_size, rc_type, frame_width, frame_height, \
-				work_mode, num_vpp_pipes, profile)    \
+			work_mode, num_vpp_pipes, profile, ring_buf_count)    \
 	do \
 	{ \
 		HFI_BUFFER_BIN_ENC(_size, rc_type, frame_width, frame_height, 32,\
-				work_mode, num_vpp_pipes, profile); \
+			work_mode, num_vpp_pipes, profile, ring_buf_count); \
 	} while (0)
 
 #define SIZE_ENC_SLICE_INFO_BUF(num_lcu_in_frame) HFI_ALIGN((256 + \

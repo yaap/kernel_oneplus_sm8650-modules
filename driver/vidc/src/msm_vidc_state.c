@@ -24,6 +24,18 @@ bool is_core_state(struct msm_vidc_core *core, enum msm_vidc_core_state state)
 	return core->state == state;
 }
 
+bool is_drc_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRC) &&
+		is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER);
+}
+
+bool is_drain_pending(struct msm_vidc_inst *inst)
+{
+	return is_sub_state(inst, MSM_VIDC_DRAIN) &&
+		is_sub_state(inst, MSM_VIDC_DRAIN_LAST_BUFFER);
+}
+
 static const char * const core_state_name_arr[] =
 	FOREACH_CORE_STATE(GENERATE_STRING);
 
@@ -496,6 +508,136 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 	return 0;
 }
 
+/* do not modify the state names as it is used in test scripts */
+static const char * const state_name_arr[] =
+	FOREACH_STATE(GENERATE_STRING);
+
+const char *state_name(enum msm_vidc_state state)
+{
+	const char *name = "UNKNOWN STATE";
+
+	if (state >= ARRAY_SIZE(state_name_arr))
+		goto exit;
+
+	name = state_name_arr[state];
+
+exit:
+	return name;
+}
+
+bool is_state(struct msm_vidc_inst *inst, enum msm_vidc_state state)
+{
+	return inst->state == state;
+}
+
+bool is_sub_state(struct msm_vidc_inst *inst, enum msm_vidc_sub_state sub_state)
+{
+	return (inst->sub_state & sub_state);
+}
+
+const char *sub_state_name(enum msm_vidc_sub_state sub_state)
+{
+	switch (sub_state) {
+	case MSM_VIDC_DRAIN:               return "DRAIN ";
+	case MSM_VIDC_DRC:                 return "DRC ";
+	case MSM_VIDC_DRAIN_LAST_BUFFER:   return "DRAIN_LAST_BUFFER ";
+	case MSM_VIDC_DRC_LAST_BUFFER:     return "DRC_LAST_BUFFER ";
+	case MSM_VIDC_INPUT_PAUSE:         return "INPUT_PAUSE ";
+	case MSM_VIDC_OUTPUT_PAUSE:        return "OUTPUT_PAUSE ";
+	}
+
+	return "SUB_STATE_NONE";
+}
+
+static int prepare_sub_state_name(enum msm_vidc_sub_state sub_state,
+	char *buf, u32 size)
+{
+	int i = 0;
+
+	if (!buf || !size)
+		return -EINVAL;
+
+	strscpy(buf, "\0", size);
+	if (sub_state == MSM_VIDC_SUB_STATE_NONE) {
+		strscpy(buf, "SUB_STATE_NONE", size);
+		return 0;
+	}
+
+	for (i = 0; i < MSM_VIDC_MAX_SUB_STATES; i++) {
+		if (sub_state & BIT(i))
+			strlcat(buf, sub_state_name(BIT(i)), size);
+	}
+
+	return 0;
+}
+
+struct msm_vidc_state_allow {
+	enum msm_vidc_state        from;
+	enum msm_vidc_state        to;
+	enum msm_vidc_allow        allow;
+};
+
+static enum msm_vidc_allow msm_vidc_allow_state_change(
+	struct msm_vidc_inst *inst,
+	enum msm_vidc_state req_state)
+{
+	int cnt;
+	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
+	static struct msm_vidc_state_allow state[] = {
+		/* from, to, allow */
+		{MSM_VIDC_OPEN,             MSM_VIDC_OPEN,               MSM_VIDC_IGNORE    },
+		{MSM_VIDC_OPEN,             MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OPEN,             MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OPEN,             MSM_VIDC_STREAMING,          MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_OPEN,             MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OPEN,             MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_OPEN,               MSM_VIDC_ALLOW     },
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_IGNORE    },
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_STREAMING,          MSM_VIDC_ALLOW     },
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_OPEN,               MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_IGNORE    },
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_STREAMING,          MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+
+		{MSM_VIDC_STREAMING,        MSM_VIDC_OPEN,               MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_STREAMING,        MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_ALLOW     },
+		{MSM_VIDC_STREAMING,        MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_ALLOW     },
+		{MSM_VIDC_STREAMING,        MSM_VIDC_STREAMING,          MSM_VIDC_IGNORE    },
+		{MSM_VIDC_STREAMING,        MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_STREAMING,        MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+
+		{MSM_VIDC_CLOSE,            MSM_VIDC_OPEN,               MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_CLOSE,            MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_CLOSE,            MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_CLOSE,            MSM_VIDC_STREAMING,          MSM_VIDC_DISALLOW  },
+		{MSM_VIDC_CLOSE,            MSM_VIDC_CLOSE,              MSM_VIDC_IGNORE    },
+		{MSM_VIDC_CLOSE,            MSM_VIDC_ERROR,              MSM_VIDC_IGNORE    },
+
+		{MSM_VIDC_ERROR,            MSM_VIDC_OPEN,               MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,            MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,            MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,            MSM_VIDC_STREAMING,          MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,            MSM_VIDC_CLOSE,              MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,            MSM_VIDC_ERROR,              MSM_VIDC_IGNORE    },
+	};
+
+	for (cnt = 0; cnt < ARRAY_SIZE(state); cnt++) {
+		if (state[cnt].from == inst->state && state[cnt].to == req_state) {
+			allow = state[cnt].allow;
+			break;
+		}
+	}
+
+	return allow;
+}
+
 static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_event event, void *data)
 {
@@ -518,6 +660,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
 
+		/* allow s_fmt request in open state */
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
 			return rc;
@@ -537,6 +680,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* allow reqbufs request in open state */
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -546,6 +690,7 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
+		/* allow streamon request in open state */
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
 			return rc;
@@ -556,23 +701,23 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
 		/* ignore streamoff request in open state */
-		i_vpr_e(inst, "%s: type %d is %s in state %s\n",
-						__func__, q->type, allow_name(MSM_VIDC_IGNORE),
-						state_name(inst->state));
+		i_vpr_h(inst, "%s: streamoff of (%s) ignored in state (%s)\n",
+			__func__, v4l2_type_name(q->type), state_name(inst->state));
 		break;
 	}
 	case MSM_VIDC_CMD_START:
 	{
-		rc = msm_vidc_start_cmd(inst);
-		if (rc)
-			return rc;
-		break;
+		/* disallow start cmd request in open state */
+		i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
+
+		return -EBUSY;
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
+		/* ignore stop cmd request in open state */
+		i_vpr_h(inst, "%s: (%s) ignored, sub_state (%s)\n",
+			__func__, event_name(event), inst->sub_state_name);
 		break;
 	}
 	case MSM_VIDC_BUF_QUEUE:
@@ -611,9 +756,43 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 
 	switch (event) {
+	case MSM_VIDC_BUF_QUEUE:
+	{
+		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
+
+		/* defer meta port */
+		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
+			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
+			return 0;
+		}
+
+		/* disallow */
+		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
+			return -EINVAL;
+		}
+
+		/* defer output port */
+		if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
+			return 0;
+		}
+
+		rc = msm_vidc_buf_queue(inst, buf);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == INPUT_MPLANE || f->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
@@ -649,6 +828,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* disallow */
+		if (b->type == INPUT_MPLANE || b->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -658,6 +844,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
+		/* disallow */
+		if (q->type == INPUT_MPLANE || q->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
 			return rc;
@@ -666,20 +859,19 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMOFF:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
-		enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
 
 		/* ignore */
-		if (q->type == OUTPUT_MPLANE || q->type == OUTPUT_META_PLANE)
-			allow = MSM_VIDC_IGNORE;
-		/* disallow */
-		else if (q->type == INPUT_META_PLANE)
-			allow = MSM_VIDC_DISALLOW;
+		if (q->type == OUTPUT_MPLANE || q->type == OUTPUT_META_PLANE) {
+			i_vpr_h(inst, "%s: streamoff of (%s) ignored in state (%s)\n",
+				__func__, v4l2_type_name(q->type), state_name(inst->state));
+			return 0;
+		}
 
-		if (allow != MSM_VIDC_ALLOW) {
-			i_vpr_e(inst, "%s: type %d is %s in state %s\n",
-				__func__, q->type, allow_name(allow),
-					state_name(inst->state));
-			return (allow == MSM_VIDC_DISALLOW ? -EINVAL : 0);
+		/* disallow */
+		if (q->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: streamoff of (%s) not allowed in state (%s)\n",
+				__func__, v4l2_type_name(q->type), state_name(inst->state));
+			return -EINVAL;
 		}
 
 		/* sanitize type field */
@@ -695,6 +887,14 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -702,34 +902,14 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
-		break;
-	}
-	case MSM_VIDC_BUF_QUEUE:
-	{
-		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
-
-		/* defer meta port */
-		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
-			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
-			return 0;
-		}
-
-		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
-			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
-			return -EINVAL;
-		}
-
-		/* defer output port */
-		if (buf->type == MSM_VIDC_BUF_OUTPUT) {
-			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
-			return 0;
-		}
-
-		rc = msm_vidc_buf_queue(inst, buf);
 		if (rc)
 			return rc;
 		break;
@@ -762,9 +942,43 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 
 	switch (event) {
+	case MSM_VIDC_BUF_QUEUE:
+	{
+		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
+
+		/* defer meta port */
+		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
+			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
+			return 0;
+		}
+
+		/* disallow */
+		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
+			return -EINVAL;
+		}
+
+		/* defer input port */
+		if (buf->type == MSM_VIDC_BUF_INPUT) {
+			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
+			return 0;
+		}
+
+		rc = msm_vidc_buf_queue(inst, buf);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == OUTPUT_MPLANE || f->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
 
 		rc = msm_vidc_s_fmt(inst, f);
 		if (rc)
@@ -800,6 +1014,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct v4l2_requestbuffers *b = (struct v4l2_requestbuffers *)data;
 
+		/* disallow */
+		if (b->type == OUTPUT_MPLANE || b->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(b->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_reqbufs(inst, b);
 		if (rc)
 			return rc;
@@ -809,6 +1030,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
 
+		/* disallow */
+		if (q->type == OUTPUT_MPLANE || q->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) type\n",
+				__func__, event_name(event), v4l2_type_name(q->type));
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_start_streaming(inst, q);
 		if (rc)
 			return rc;
@@ -817,20 +1045,19 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	case MSM_VIDC_STREAMOFF:
 	{
 		struct vb2_queue *q = (struct vb2_queue *)data;
-		enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
 
 		/* ignore */
-		if (q->type == INPUT_MPLANE || q->type == INPUT_META_PLANE)
-			allow = MSM_VIDC_IGNORE;
-		/* disallow */
-		else if (q->type == OUTPUT_META_PLANE)
-			allow = MSM_VIDC_DISALLOW;
+		if (q->type == INPUT_MPLANE || q->type == INPUT_META_PLANE) {
+			i_vpr_h(inst, "%s: streamoff of (%s) ignored in state (%s)\n",
+				__func__, v4l2_type_name(q->type), state_name(inst->state));
+			return 0;
+		}
 
-		if (allow != MSM_VIDC_ALLOW) {
-			i_vpr_e(inst, "%s: type %d is %s in state %s\n",
-				__func__, q->type, allow_name(allow),
-					state_name(inst->state));
-			return (allow == MSM_VIDC_DISALLOW ? -EINVAL : 0);
+		/* disallow */
+		if (q->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: streamoff of (%s) not allowed in state (%s)\n",
+				__func__, v4l2_type_name(q->type), state_name(inst->state));
+			return -EINVAL;
 		}
 
 		/* sanitize type field */
@@ -846,6 +1073,14 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -853,37 +1088,10 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
-		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
-		break;
-	}
-	case MSM_VIDC_BUF_QUEUE:
-	{
-		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
-
-		/* defer meta port */
-		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
-			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
-			return 0;
-		}
-
-		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
-			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
-			return -EINVAL;
-		}
-
-		/* defer input port */
-		if (buf->type == MSM_VIDC_BUF_INPUT) {
-			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
-			return 0;
-		}
-
-		rc = msm_vidc_buf_queue(inst, buf);
-		if (rc)
-			return rc;
-		break;
+		/* drain not allowed as input is not streaming */
+		i_vpr_e(inst, "%s: drain (%s) not allowed, sub state %s\n",
+			__func__, event_name(event), inst->sub_state_name);
+		return -EBUSY;
 	}
 	default: {
 		i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
@@ -912,6 +1120,27 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 
 	switch (event) {
+	case MSM_VIDC_BUF_QUEUE:
+	{
+		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
+
+		/* defer meta port */
+		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
+			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
+			return 0;
+		}
+
+		/* disallow */
+		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
+			return -EINVAL;
+		}
+
+		rc = msm_vidc_buf_queue(inst, buf);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_CTRL:
 	{
 		struct v4l2_ctrl *ctrl = (struct v4l2_ctrl *)data;
@@ -940,9 +1169,8 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 
 		/* disallow */
 		if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
-			i_vpr_e(inst, "%s: type %d is %s in state %s\n",
-					__func__, q->type, allow_name(MSM_VIDC_DISALLOW),
-					state_name(inst->state));
+			i_vpr_e(inst, "%s: streamoff of (%s) not allowed in state (%s)\n",
+				__func__, v4l2_type_name(q->type), state_name(inst->state));
 			return -EINVAL;
 		}
 
@@ -959,6 +1187,14 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_START:
 	{
+		/* disallow if START called for non DRC/drain cases */
+		if (!is_drc_pending(inst) && !is_drain_pending(inst)) {
+			i_vpr_e(inst, "%s: (%s) not allowed, sub_state (%s)\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
+		/* client would call start(resume) to complete DRC/drain sequence */
 		rc = msm_vidc_start_cmd(inst);
 		if (rc)
 			return rc;
@@ -966,28 +1202,14 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 	}
 	case MSM_VIDC_CMD_STOP:
 	{
+		/* back to back drain not allowed */
+		if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
+			i_vpr_e(inst, "%s: drain (%s) not allowed, sub_state (%s)\n\n",
+				__func__, event_name(event), inst->sub_state_name);
+			return -EBUSY;
+		}
+
 		rc = msm_vidc_stop_cmd(inst);
-		if (rc)
-			return rc;
-		break;
-	}
-	case MSM_VIDC_BUF_QUEUE:
-	{
-		struct msm_vidc_buffer *buf = (struct msm_vidc_buffer *)data;
-
-		/* defer meta port */
-		if (buf->type == MSM_VIDC_BUF_INPUT_META || buf->type == MSM_VIDC_BUF_OUTPUT_META) {
-			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
-			return 0;
-		}
-
-		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
-			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
-			return -EINVAL;
-		}
-
-		rc = msm_vidc_buf_queue(inst, buf);
 		if (rc)
 			return rc;
 		break;
@@ -1124,69 +1346,222 @@ int msm_vidc_update_state(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-struct msm_vidc_state_allow {
-	enum msm_vidc_state        from;
-	enum msm_vidc_state        to;
-	enum msm_vidc_allow        allow;
+int msm_vidc_change_state(struct msm_vidc_inst *inst,
+		enum msm_vidc_state request_state, const char *func)
+{
+	enum msm_vidc_allow allow;
+	int rc;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (is_session_error(inst)) {
+		i_vpr_h(inst,
+			"%s: inst is in bad state, can not change state to %s\n",
+			func, state_name(request_state));
+		return 0;
+	}
+
+	/* current and requested state is same */
+	if (inst->state == request_state)
+		return 0;
+
+	/* check if requested state movement is allowed */
+	allow = msm_vidc_allow_state_change(inst, request_state);
+	if (allow != MSM_VIDC_ALLOW) {
+		i_vpr_e(inst, "%s: %s state change %s -> %s\n", func,
+			allow_name(allow), state_name(inst->state),
+			state_name(request_state));
+		return (allow == MSM_VIDC_DISALLOW ? -EINVAL : 0);
+	}
+
+	/* go ahead and update inst state */
+	rc = msm_vidc_update_state(inst, request_state, func);
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+struct msm_vidc_sub_state_allow {
+	enum msm_vidc_state            state;
+	enum msm_vidc_allow            allow;
+	u32                            sub_state_mask;
 };
 
-enum msm_vidc_allow msm_vidc_allow_state_change(
-	struct msm_vidc_inst *inst,
-	enum msm_vidc_state req_state)
+static int msm_vidc_set_sub_state(struct msm_vidc_inst *inst,
+	enum msm_vidc_sub_state sub_state, const char *func)
 {
-	int cnt;
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
-	static struct msm_vidc_state_allow state[] = {
-		/* from, to, allow */
-		{MSM_VIDC_OPEN,             MSM_VIDC_OPEN,               MSM_VIDC_IGNORE    },
-		{MSM_VIDC_OPEN,             MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OPEN,             MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OPEN,             MSM_VIDC_STREAMING,          MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_OPEN,             MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OPEN,             MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+	char sub_state_name[MAX_NAME_LENGTH];
+	int cnt, rc = 0;
+	static struct msm_vidc_sub_state_allow sub_state_allow[] = {
+		/* state, allow, sub_state */
+		{MSM_VIDC_OPEN,              MSM_VIDC_DISALLOW,    MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_INPUT_PAUSE         |
+								   MSM_VIDC_OUTPUT_PAUSE         },
 
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_OPEN,               MSM_VIDC_ALLOW     },
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_IGNORE    },
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_STREAMING,          MSM_VIDC_ALLOW     },
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
-		{MSM_VIDC_INPUT_STREAMING,  MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_INPUT_STREAMING,   MSM_VIDC_DISALLOW,    MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_OUTPUT_PAUSE         },
+		{MSM_VIDC_INPUT_STREAMING,   MSM_VIDC_ALLOW,       MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_INPUT_PAUSE          },
 
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_OPEN,               MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_IGNORE    },
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_STREAMING,          MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
-		{MSM_VIDC_OUTPUT_STREAMING, MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_OUTPUT_STREAMING,  MSM_VIDC_DISALLOW,    MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_INPUT_PAUSE          },
+		{MSM_VIDC_OUTPUT_STREAMING,  MSM_VIDC_ALLOW,       MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_OUTPUT_PAUSE         },
 
-		{MSM_VIDC_STREAMING,        MSM_VIDC_OPEN,               MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_STREAMING,        MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_ALLOW     },
-		{MSM_VIDC_STREAMING,        MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_ALLOW     },
-		{MSM_VIDC_STREAMING,        MSM_VIDC_STREAMING,          MSM_VIDC_IGNORE    },
-		{MSM_VIDC_STREAMING,        MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
-		{MSM_VIDC_STREAMING,        MSM_VIDC_ERROR,              MSM_VIDC_ALLOW     },
+		{MSM_VIDC_STREAMING,         MSM_VIDC_ALLOW,       MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_INPUT_PAUSE         |
+								   MSM_VIDC_OUTPUT_PAUSE         },
 
-		{MSM_VIDC_CLOSE,            MSM_VIDC_OPEN,               MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_CLOSE,            MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_CLOSE,            MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_CLOSE,            MSM_VIDC_STREAMING,          MSM_VIDC_DISALLOW  },
-		{MSM_VIDC_CLOSE,            MSM_VIDC_CLOSE,              MSM_VIDC_IGNORE    },
-		{MSM_VIDC_CLOSE,            MSM_VIDC_ERROR,              MSM_VIDC_IGNORE    },
+		{MSM_VIDC_CLOSE,             MSM_VIDC_ALLOW,       MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_INPUT_PAUSE         |
+								   MSM_VIDC_OUTPUT_PAUSE         },
 
-		{MSM_VIDC_ERROR,            MSM_VIDC_OPEN,               MSM_VIDC_IGNORE    },
-		{MSM_VIDC_ERROR,            MSM_VIDC_INPUT_STREAMING,    MSM_VIDC_IGNORE    },
-		{MSM_VIDC_ERROR,            MSM_VIDC_OUTPUT_STREAMING,   MSM_VIDC_IGNORE    },
-		{MSM_VIDC_ERROR,            MSM_VIDC_STREAMING,          MSM_VIDC_IGNORE    },
-		{MSM_VIDC_ERROR,            MSM_VIDC_CLOSE,              MSM_VIDC_ALLOW     },
-		{MSM_VIDC_ERROR,            MSM_VIDC_ERROR,              MSM_VIDC_IGNORE    },
+		{MSM_VIDC_ERROR,             MSM_VIDC_ALLOW,       MSM_VIDC_DRC                 |
+								   MSM_VIDC_DRAIN               |
+								   MSM_VIDC_DRC_LAST_BUFFER     |
+								   MSM_VIDC_DRAIN_LAST_BUFFER   |
+								   MSM_VIDC_INPUT_PAUSE         |
+								   MSM_VIDC_OUTPUT_PAUSE         },
 	};
 
-	for (cnt = 0; cnt < ARRAY_SIZE(state); cnt++) {
-		if (state[cnt].from == inst->state && state[cnt].to == req_state) {
-			allow = state[cnt].allow;
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/* no substate to update */
+	if (!sub_state)
+		return 0;
+
+	/* check if any substate is disallowed */
+	for (cnt = 0; cnt < ARRAY_SIZE(sub_state_allow); cnt++) {
+		/* skip other states */
+		if (sub_state_allow[cnt].state != inst->state)
+			continue;
+
+		/* continue if not disallowed */
+		if (sub_state_allow[cnt].allow != MSM_VIDC_DISALLOW)
+			continue;
+
+		if (sub_state_allow[cnt].sub_state_mask & sub_state) {
+			prepare_sub_state_name(sub_state, sub_state_name, sizeof(sub_state_name));
+			i_vpr_e(inst, "%s: state (%s), disallow substate (%s)\n",
+				func, state_name(inst->state), sub_state_name);
+			return -EINVAL;
+		}
+	}
+
+	/* remove ignorable substates from a given substate */
+	for (cnt = 0; cnt < ARRAY_SIZE(sub_state_allow); cnt++) {
+		/* skip other states */
+		if (sub_state_allow[cnt].state != inst->state)
+			continue;
+
+		/* continue if not ignored */
+		if (sub_state_allow[cnt].allow != MSM_VIDC_IGNORE)
+			continue;
+
+		if (sub_state_allow[cnt].sub_state_mask & sub_state) {
+			prepare_sub_state_name(sub_state, sub_state_name, sizeof(sub_state_name));
+			i_vpr_h(inst, "%s: state (%s), ignore substate (%s)\n",
+				func, state_name(inst->state), sub_state_name);
+
+			/* remove ignorable substate bits from actual */
+			sub_state &= ~(sub_state_allow[cnt].sub_state_mask & sub_state);
 			break;
 		}
 	}
 
-	return allow;
+	/* check if all substate bits are allowed */
+	for (cnt = 0; cnt < ARRAY_SIZE(sub_state_allow); cnt++) {
+		/* skip other states */
+		if (sub_state_allow[cnt].state != inst->state)
+			continue;
+
+		/* continue if not allowed */
+		if (sub_state_allow[cnt].allow != MSM_VIDC_ALLOW)
+			continue;
+
+		if ((sub_state_allow[cnt].sub_state_mask & sub_state) != sub_state) {
+			prepare_sub_state_name(sub_state, sub_state_name, sizeof(sub_state_name));
+			i_vpr_e(inst, "%s: state (%s), not all substates allowed (%s)\n",
+				func, state_name(inst->state), sub_state_name);
+			return -EINVAL;
+		}
+	}
+
+	/* update substate */
+	inst->sub_state |= sub_state;
+
+	return rc;
+}
+
+int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
+		enum msm_vidc_sub_state clear_sub_state,
+		enum msm_vidc_sub_state set_sub_state, const char *func)
+{
+	enum msm_vidc_sub_state prev_sub_state;
+	int rc = 0;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (is_session_error(inst)) {
+		i_vpr_h(inst,
+			"%s: inst is in bad state, can not change sub state\n", func);
+		return 0;
+	}
+
+	/* final value will not change */
+	if (!clear_sub_state && !set_sub_state)
+		return 0;
+
+	/* sanitize clear & set value */
+	if ((clear_sub_state & set_sub_state) ||
+		(set_sub_state > MSM_VIDC_MAX_SUB_STATE_VALUE) ||
+		(clear_sub_state > MSM_VIDC_MAX_SUB_STATE_VALUE)) {
+		i_vpr_e(inst, "%s: invalid sub states to clear %#x or set %#x\n",
+			func, clear_sub_state, set_sub_state);
+		return -EINVAL;
+	}
+
+	prev_sub_state = inst->sub_state;
+
+	/* set sub state */
+	rc = msm_vidc_set_sub_state(inst, set_sub_state, __func__);
+	if (rc)
+		return rc;
+
+	/* clear sub state */
+	inst->sub_state &= ~clear_sub_state;
+
+	/* print substates only when there is a change */
+	if (inst->sub_state != prev_sub_state) {
+		rc = prepare_sub_state_name(inst->sub_state, inst->sub_state_name,
+			sizeof(inst->sub_state_name));
+		if (!rc)
+			i_vpr_h(inst, "%s: state %s and sub state changed to %s\n",
+				func, state_name(inst->state), inst->sub_state_name);
+	}
+
+	return 0;
 }

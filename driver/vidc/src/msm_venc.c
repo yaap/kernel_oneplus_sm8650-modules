@@ -21,6 +21,7 @@
 static const u32 msm_venc_input_set_prop[] = {
 	HFI_PROP_COLOR_FORMAT,
 	HFI_PROP_RAW_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
 	HFI_PROP_LINEAR_STRIDE_SCANLINE,
 	HFI_PROP_SIGNAL_COLOR_INFO,
 };
@@ -213,9 +214,10 @@ static int msm_venc_set_raw_resolution(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	resolution = inst->crop.width << 16 | inst->crop.height;
+	resolution = (inst->fmts[port].fmt.pix_mp.width << 16) |
+		inst->fmts[port].fmt.pix_mp.height;
 	i_vpr_h(inst, "%s: width: %d height: %d\n", __func__,
-			inst->crop.width, inst->crop.height);
+			inst->fmts[port].fmt.pix_mp.width, inst->fmts[port].fmt.pix_mp.height);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_RAW_RESOLUTION,
 			HFI_HOST_FLAGS_NONE,
@@ -264,19 +266,25 @@ static int msm_venc_set_crop_offsets(struct msm_vidc_inst *inst,
 	u32 crop[2] = {0};
 	u32 width, height;
 
-	if (port != OUTPUT_PORT) {
+	if (port != OUTPUT_PORT && port != INPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		return -EINVAL;
 	}
 
-	left_offset = inst->compose.left;
-	top_offset = inst->compose.top;
-
-	width = inst->compose.width;
-	height = inst->compose.height;
-	if (is_rotation_90_or_270(inst)) {
-		width = inst->compose.height;
-		height = inst->compose.width;
+	if (port == INPUT_PORT) {
+		left_offset = inst->crop.left;
+		top_offset = inst->crop.top;
+		width = inst->crop.width;
+		height = inst->crop.height;
+	} else {
+		left_offset = inst->compose.left;
+		top_offset = inst->compose.top;
+		width = inst->compose.width;
+		height = inst->compose.height;
+		if (is_rotation_90_or_270(inst)) {
+			width = inst->compose.height;
+			height = inst->compose.width;
+		}
 	}
 
 	right_offset = (inst->fmts[port].fmt.pix_mp.width - width);
@@ -321,6 +329,11 @@ static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
 	if (port != INPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		return -EINVAL;
+	}
+
+	if (inst->capabilities->cap[SIGNAL_COLOR_INFO].flags & CAP_FLAG_CLIENT_SET) {
+		i_vpr_h(inst, "%s: client configured colorspace via control\n", __func__);
+		return 0;
 	}
 
 	input_fmt = &inst->fmts[INPUT_PORT];
@@ -373,19 +386,6 @@ static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
 	return 0;
 }
 
-static bool msm_venc_csc_required(struct msm_vidc_inst* inst)
-{
-	struct v4l2_format *in_fmt = &inst->fmts[INPUT_PORT];
-	struct v4l2_format *out_fmt = &inst->fmts[OUTPUT_PORT];
-
-	/* video hardware supports conversion to REC709 CSC only */
-	if (in_fmt->fmt.pix_mp.colorspace != out_fmt->fmt.pix_mp.colorspace &&
-		out_fmt->fmt.pix_mp.colorspace == V4L2_COLORSPACE_REC709)
-		return true;
-
-	return false;
-}
-
 static int msm_venc_set_csc(struct msm_vidc_inst* inst,
 	enum msm_vidc_port_type port)
 {
@@ -396,9 +396,6 @@ static int msm_venc_set_csc(struct msm_vidc_inst* inst,
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		return -EINVAL;
 	}
-
-	msm_vidc_update_cap_value(inst, CSC,
-		msm_venc_csc_required(inst) ? 1 : 0, __func__);
 
 	csc = inst->capabilities->cap[CSC].value;
 	i_vpr_h(inst, "%s: csc: %u\n", __func__, csc);
@@ -443,12 +440,36 @@ static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 	return 0;
 }
 
+static int msm_venc_set_ring_buffer_count(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct msm_vidc_inst_cap *cap;
+
+	if (!inst->capabilities) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	cap = &inst->capabilities->cap[ENC_RING_BUFFER_COUNT];
+
+	if (!cap->set)
+		return 0;
+
+	rc = cap->set(inst, ENC_RING_BUFFER_COUNT);
+	if (rc) {
+		i_vpr_e(inst, "%s: set cap failed\n", __func__);
+		return rc;
+	}
+
+	return 0;
+}
+
 static int msm_venc_set_input_properties(struct msm_vidc_inst *inst)
 {
 	int i, j, rc = 0;
 	static const struct msm_venc_prop_type_handle prop_type_handle_arr[] = {
 		{HFI_PROP_COLOR_FORMAT,               msm_venc_set_colorformat                 },
 		{HFI_PROP_RAW_RESOLUTION,             msm_venc_set_raw_resolution              },
+		{HFI_PROP_CROP_OFFSETS,               msm_venc_set_crop_offsets                },
 		{HFI_PROP_LINEAR_STRIDE_SCANLINE,     msm_venc_set_stride_scanline             },
 		{HFI_PROP_SIGNAL_COLOR_INFO,          msm_venc_set_colorspace                  },
 	};
@@ -527,6 +548,10 @@ static int msm_venc_set_internal_properties(struct msm_vidc_inst *inst)
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	rc = msm_venc_set_quality_mode(inst);
+	if (rc)
+		return rc;
+
+	rc = msm_venc_set_ring_buffer_count(inst);
 	if (rc)
 		return rc;
 
@@ -907,17 +932,9 @@ int msm_venc_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 
 int msm_venc_stop_cmd(struct msm_vidc_inst *inst)
 {
-	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: drain\n");
-	allow = msm_vidc_allow_stop(inst);
-	if (allow == MSM_VIDC_DISALLOW)
-		return -EBUSY;
-	else if (allow == MSM_VIDC_IGNORE)
-		return 0;
-	else if (allow != MSM_VIDC_ALLOW)
-		return -EINVAL;
 	rc = msm_vidc_process_drain(inst);
 	if (rc)
 		return rc;
@@ -930,8 +947,7 @@ int msm_venc_start_cmd(struct msm_vidc_inst *inst)
 	int rc = 0;
 
 	i_vpr_h(inst, "received cmd: resume\n");
-	if (!msm_vidc_allow_start(inst))
-		return -EBUSY;
+
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 
@@ -1001,6 +1017,10 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_venc_set_internal_properties(inst);
+	if (rc)
+		goto error;
+
 	rc = msm_venc_get_output_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1010,10 +1030,6 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 		goto error;
 
 	rc = msm_venc_queue_output_internal_buffers(inst);
-	if (rc)
-		goto error;
-
-	rc = msm_venc_set_internal_properties(inst);
 	if (rc)
 		goto error;
 

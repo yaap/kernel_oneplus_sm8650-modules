@@ -44,6 +44,7 @@ typedef enum
     HFI_CTRL_READY                      = 0x1,
     HFI_CTRL_ERROR_FATAL                = 0x2,
     HFI_CTRL_ERROR_UC_REGION_NOT_SET    = 0x4,
+    HFI_CTRL_ERROR_HW_FENCE_QUEUE       = 0x8,
     HFI_CTRL_PC_READY                   = 0x100,
     HFI_CTRL_VCODEC_IDLE                = 0x40000000
 } hfi_ctrl_status_type;
@@ -432,11 +433,11 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 		d_vpr_e("%s: assert video_axi_reset failed\n", __func__);
 	/* set retain mem and peripheral before asset mvs0c reset */
 	rc = call_res_op(core, clk_set_flag, core,
-		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_MEM);
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_RETAIN_MEM);
 	if (rc)
 		d_vpr_e("%s: set retain mem failed\n", __func__);
 	rc = call_res_op(core, clk_set_flag, core,
-		"video_cc_mvs0c_clk", CLKFLAG_RETAIN_PERIPH);
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_RETAIN_PERIPH);
 	if (rc)
 		d_vpr_e("%s: set retain peripheral failed\n", __func__);
 	rc = call_res_op(core, reset_control_assert, core, "video_mvs0c_reset");
@@ -471,13 +472,16 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	count = 0;
 	do {
 		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
-		if (rc) {
-			d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
+		if (!rc) {
+			break;
 		} else {
+			d_vpr_e(
+				"%s: failed to acquire video_xo_reset control, count %d\n",
+				__func__, count);
 			count++;
 			usleep_range(1000, 1000);
 		}
-	} while (rc && count < 100);
+	} while (count < 100);
 
 	if (count >= 100) {
 		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
@@ -531,11 +535,11 @@ skip_video_xo_reset:
 
         /* remove retain mem and retain peripheral */
         rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_PERIPH);
+                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
         if (rc)
                 d_vpr_e("%s: set noretain peripheral failed\n", __func__);
         rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", CLKFLAG_NORETAIN_MEM);
+                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
         if (rc)
                 d_vpr_e("%s: set noretain mem failed\n", __func__);
 
@@ -593,9 +597,8 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("%s: failed to unvote buses\n", __func__);
 
-	if (!(core->intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS33))
+	if (!call_venus_op(core, watchdog, core, core->intr_status))
 		disable_irq_nosync(core->resource->irq);
-	core->intr_status = 0;
 
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
 
@@ -1228,6 +1231,7 @@ static struct msm_vidc_session_ops msm_session_ops = {
 	.buffer_size = msm_buffer_size_iris33,
 	.min_count = msm_buffer_min_count_iris33,
 	.extra_count = msm_buffer_extra_count_iris33,
+	.ring_buf_count = msm_vidc_ring_buf_count_iris33,
 	.calc_freq = msm_vidc_calc_freq_iris33,
 	.calc_bw = msm_vidc_calc_bw_iris33,
 	.decide_work_route = msm_vidc_decide_work_route_iris33,

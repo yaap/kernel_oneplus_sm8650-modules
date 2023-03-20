@@ -253,9 +253,6 @@ int msm_vidc_s_fmt(void *instance, struct v4l2_format *f)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_s_fmt(inst, f->type))
-		return -EBUSY;
-
 	if (inst->domain == MSM_VIDC_DECODER)
 		rc = msm_vdec_s_fmt(inst, f);
 	if (inst->domain == MSM_VIDC_ENCODER)
@@ -398,11 +395,6 @@ int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b)
 	if (!inst || !b) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	}
-
-	if (!msm_vidc_allow_reqbufs(inst, b->type)) {
-		rc = -EBUSY;
-		goto exit;
 	}
 
 	port = v4l2_type_to_driver_port(inst, b->type, __func__);
@@ -918,6 +910,11 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	if (rc)
 		return NULL;
 
+	rc = msm_vidc_vmem_alloc(sizeof(struct msm_vidc_inst_capability),
+		(void **)&inst->capabilities, "inst capability");
+	if (rc)
+		goto fail_alloc_inst_caps;
+
 	inst->core = core;
 	inst->domain = session_type;
 	inst->session_id = hash32_ptr(inst);
@@ -939,11 +936,16 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	msm_vidc_update_debug_str(inst);
 	i_vpr_h(inst, "Opening video instance: %d\n", session_type);
 
+	rc = msm_vidc_add_session(inst);
+	if (rc) {
+		i_vpr_e(inst, "%s: failed to add session\n", __func__);
+		goto fail_add_session;
+	}
+
 	rc = msm_vidc_pools_init(inst);
 	if (rc) {
 		i_vpr_e(inst, "%s: failed to init pool buffers\n", __func__);
-		msm_vidc_vmem_free((void **)&inst);
-		return NULL;
+		goto fail_pools_init;
 	}
 	INIT_LIST_HEAD(&inst->caps_list);
 	INIT_LIST_HEAD(&inst->timestamps.list);
@@ -985,41 +987,30 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	inst->workq = create_singlethread_workqueue("workq");
 	if (!inst->workq) {
 		i_vpr_e(inst, "%s: create workq failed\n", __func__);
-		goto error;
+		goto fail_create_workq;
 	}
 
 	INIT_DELAYED_WORK(&inst->stats_work, msm_vidc_stats_handler);
 	INIT_WORK(&inst->stability_work, msm_vidc_stability_handler);
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct msm_vidc_inst_capability),
-		(void **)&inst->capabilities, "inst capability");
-	if (rc)
-		goto error;
-
 	rc = msm_vidc_event_queue_init(inst);
 	if (rc)
-		goto error;
+		goto fail_eventq_init;
 
 	rc = msm_vidc_vb2_queue_init(inst);
 	if (rc)
-		goto error;
+		goto fail_vb2q_init;
 
 	if (is_decode_session(inst))
 		rc = msm_vdec_inst_init(inst);
 	else if (is_encode_session(inst))
 		rc = msm_venc_inst_init(inst);
 	if (rc)
-		goto error;
+		goto fail_inst_init;
 
 	rc = msm_vidc_fence_init(inst);
 	if (rc)
-		goto error;
-
-	rc = msm_vidc_add_session(inst);
-	if (rc) {
-		i_vpr_e(inst, "%s: failed to get session id\n", __func__);
-		goto error;
-	}
+		goto fail_fence_init;
 
 	/* reset clock residency stats */
 	msm_vidc_reset_residency_stats(core);
@@ -1029,7 +1020,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	rc = msm_vidc_session_open(inst);
 	if (rc) {
 		msm_vidc_core_deinit(core, true);
-		goto error;
+		goto fail_session_open;
 	}
 
 	inst->debugfs_root =
@@ -1039,8 +1030,31 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 
 	return inst;
 
-error:
-	msm_vidc_close(inst);
+fail_session_open:
+	msm_vidc_fence_deinit(inst);
+fail_fence_init:
+	if (is_decode_session(inst))
+		msm_vdec_inst_deinit(inst);
+	else if (is_encode_session(inst))
+		msm_venc_inst_deinit(inst);
+fail_inst_init:
+	msm_vidc_vb2_queue_deinit(inst);
+fail_vb2q_init:
+	msm_vidc_event_queue_deinit(inst);
+fail_eventq_init:
+	destroy_workqueue(inst->workq);
+fail_create_workq:
+	msm_vidc_pools_deinit(inst);
+fail_pools_init:
+	msm_vidc_remove_session(inst);
+	msm_vidc_remove_dangling_session(inst);
+fail_add_session:
+	mutex_destroy(&inst->client_lock);
+	mutex_destroy(&inst->request_lock);
+	mutex_destroy(&inst->lock);
+	msm_vidc_vmem_free((void **)&inst->capabilities);
+fail_alloc_inst_caps:
+	msm_vidc_vmem_free((void **)&inst);
 	return NULL;
 }
 EXPORT_SYMBOL(msm_vidc_open);
@@ -1065,9 +1079,6 @@ int msm_vidc_close(void *instance)
 	msm_vidc_print_stats(inst);
 	msm_vidc_print_residency_stats(core);
 	msm_vidc_session_close(inst);
-	msm_vidc_event_queue_deinit(inst);
-	msm_vidc_vb2_queue_deinit(inst);
-	msm_vidc_remove_session(inst);
 	msm_vidc_change_state(inst, MSM_VIDC_CLOSE, __func__);
 	inst->sub_state = MSM_VIDC_SUB_STATE_NONE;
 	strscpy(inst->sub_state_name, "SUB_STATE_NONE", sizeof(inst->sub_state_name));
