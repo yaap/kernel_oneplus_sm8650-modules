@@ -15,7 +15,7 @@
 #include "hw_fence_drv_ipc.h"
 
 struct hw_fence_driver_data *hw_fence_drv_data;
-static bool hw_fence_driver_enable;
+bool hw_fence_driver_enable;
 
 void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	struct msm_hw_fence_mem_addr *mem_descriptor)
@@ -313,10 +313,10 @@ int msm_hw_fence_wait_update_v2(void *client_handle,
 	}
 
 	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
-	data_id = hw_fence_get_client_data_id(hw_fence_client->client_id);
+	data_id = hw_fence_get_client_data_id(hw_fence_client->client_id_ext);
 	if (client_data_list && data_id >= HW_FENCE_MAX_CLIENTS_WITH_DATA) {
-		HWFNC_ERR("Populating non-NULL client_data_list with unsupported client id:%d\n",
-			hw_fence_client->client_id);
+		HWFNC_ERR("Populating non-NULL client_data_list with invalid client_id_ext:%d\n",
+			hw_fence_client->client_id_ext);
 		return -EINVAL;
 	}
 

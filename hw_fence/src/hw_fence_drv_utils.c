@@ -9,6 +9,7 @@
 #include <linux/gunyah/gh_rm_drv.h>
 #include <linux/gunyah/gh_dbl.h>
 #include <linux/qcom_scm.h>
+#include <linux/version.h>
 #include <soc/qcom/secure_buffer.h>
 
 #include "hw_fence_drv_priv.h"
@@ -30,12 +31,6 @@
 	HW_FENCE_MAX_CLIENT_TYPE_CONFIGURABLE)
 
 /**
- * HW_FENCE_MAX_STATIC_CLIENTS_INDEX:
- * Maximum number of static clients, i.e. clients without configurable numbers of sub-clients
- */
-#define HW_FENCE_MAX_STATIC_CLIENTS_INDEX HW_FENCE_CLIENT_ID_IFE0
-
-/**
  * HW_FENCE_MIN_RXQ_CLIENTS:
  * Minimum number of static hw fence clients with rxq
  */
@@ -51,9 +46,15 @@
 #define HW_FENCE_CLIENT_TYPE_MAX_GPU 1
 #define HW_FENCE_CLIENT_TYPE_MAX_DPU 6
 #define HW_FENCE_CLIENT_TYPE_MAX_VAL 7
-#define HW_FENCE_CLIENT_TYPE_MAX_IPE 1
-#define HW_FENCE_CLIENT_TYPE_MAX_VPU 1
+#define HW_FENCE_CLIENT_TYPE_MAX_IPE 32
+#define HW_FENCE_CLIENT_TYPE_MAX_VPU 32
 #define HW_FENCE_CLIENT_TYPE_MAX_IFE 32
+
+/*
+ * Each bit in this mask represents each of the loopback clients supported in
+ * the enum hw_fence_loopback_id
+ */
+#define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7fff
 
 /**
  * struct hw_fence_client_types - Table describing all supported client types, used to parse
@@ -160,12 +161,6 @@ void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, 
 		preempt_enable();
 	}
 }
-
-/*
- * Each bit in this mask represents each of the loopback clients supported in
- * the enum hw_fence_loopback_id
- */
-#define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7f
 
 static inline int _process_dpu_client_loopback(struct hw_fence_driver_data *drv_data,
 	int client_id)
@@ -343,12 +338,17 @@ static int hw_fence_gunyah_share_mem(struct hw_fence_driver_data *drv_data,
 	struct qcom_scm_vmperm src_vmlist[] = {{self, PERM_READ | PERM_WRITE | PERM_EXEC}};
 	struct qcom_scm_vmperm dst_vmlist[] = {{self, PERM_READ | PERM_WRITE},
 					       {peer, PERM_READ | PERM_WRITE}};
-	int srcvmids = BIT(src_vmlist[0].vmid);
-	int dstvmids = BIT(dst_vmlist[0].vmid) | BIT(dst_vmlist[1].vmid);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	u64 srcvmids, dstvmids;
+#else
+	unsigned int srcvmids, dstvmids;
+#endif
 	struct gh_acl_desc *acl;
 	struct gh_sgl_desc *sgl;
 	int ret;
 
+	srcvmids = BIT(src_vmlist[0].vmid);
+	dstvmids = BIT(dst_vmlist[0].vmid) | BIT(dst_vmlist[1].vmid);
 	ret = qcom_scm_assign_mem(drv_data->res.start, resource_size(&drv_data->res), &srcvmids,
 			dst_vmlist, ARRAY_SIZE(dst_vmlist));
 	if (ret) {

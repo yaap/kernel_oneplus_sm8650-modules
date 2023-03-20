@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -568,10 +568,10 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	 *
 	 * NOTE: For each Client HW-Core, the client drivers might be the ones making
 	 * it's own initialization (in case that any hw-sequence must be enforced),
-	 * however, if that is  not the case, any per-client ipcc init to enable the
+	 * however, if that is not the case, any per-client ipcc init to enable the
 	 * signaling, can go here.
 	 */
-	switch ((int)hw_fence_client->client_id) {
+	switch ((int)hw_fence_client->client_id_ext) {
 	case HW_FENCE_CLIENT_ID_CTX0:
 		/* nothing to initialize for gpu client */
 		break;
@@ -594,8 +594,8 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 	case HW_FENCE_CLIENT_ID_CTL5:
 #ifdef HW_DPU_IPCC
 		/* initialize ipcc signals for dpu clients */
-		HWFNC_DBG_H("init_controller_signal: DPU client:%d initialized:%d\n",
-			hw_fence_client->client_id, drv_data->ipcc_dpu_initialized);
+		HWFNC_DBG_H("init_controller_signal: DPU client_id_ext:%d initialized:%d\n",
+			hw_fence_client->client_id_ext, drv_data->ipcc_dpu_initialized);
 		if (!drv_data->ipcc_dpu_initialized) {
 			drv_data->ipcc_dpu_initialized = true;
 
@@ -604,10 +604,12 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 		}
 #endif /* HW_DPU_IPCC */
 		break;
-	case HW_FENCE_CLIENT_ID_IPE:
+	case HW_FENCE_CLIENT_ID_IPE ... HW_FENCE_CLIENT_ID_IPE +
+			MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - 1:
 		/* nothing to initialize for IPE client */
 		break;
-	case HW_FENCE_CLIENT_ID_VPU:
+	case HW_FENCE_CLIENT_ID_VPU ... HW_FENCE_CLIENT_ID_VPU +
+			MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - 1:
 		/* nothing to initialize for VPU client */
 		break;
 	case HW_FENCE_CLIENT_ID_IFE0 ... HW_FENCE_CLIENT_ID_IFE7 +
@@ -615,7 +617,7 @@ int hw_fence_init_controller_signal(struct hw_fence_driver_data *drv_data,
 		/* nothing to initialize for IFE clients */
 		break;
 	default:
-		HWFNC_ERR("Unexpected client:%d\n", hw_fence_client->client_id);
+		HWFNC_ERR("Unexpected client_id_ext:%d\n", hw_fence_client->client_id_ext);
 		ret = -EINVAL;
 		break;
 	}
@@ -1123,6 +1125,12 @@ static void _fence_ctl_signal(struct hw_fence_driver_data *drv_data,
 	if (hw_fence_client->send_ipc)
 		hw_fence_ipcc_trigger_signal(drv_data, tx_client_id, rx_client_id,
 			hw_fence_client->ipc_signal_id);
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_ID_VAL0
+			&& hw_fence_client->client_id <= HW_FENCE_CLIENT_ID_VAL6)
+		process_validation_client_loopback(drv_data, hw_fence_client->client_id);
+#endif /* CONFIG_DEBUG_FS */
 }
 
 static void _cleanup_join_and_child_fences(struct hw_fence_driver_data *drv_data,
@@ -1201,10 +1209,10 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	enum hw_fence_client_data_id data_id;
 
 	if (client_data) {
-		data_id = hw_fence_get_client_data_id(hw_fence_client->client_id);
+		data_id = hw_fence_get_client_data_id(hw_fence_client->client_id_ext);
 		if (data_id >= HW_FENCE_MAX_CLIENTS_WITH_DATA) {
-			HWFNC_ERR("Populating non-zero client_data:%llu with invalid client:%d\n",
-				client_data, hw_fence_client->client_id);
+			HWFNC_ERR("Populating client_data:%llu with invalid client_id_ext:%d\n",
+				client_data, hw_fence_client->client_id_ext);
 			return -EINVAL;
 		}
 	}
@@ -1343,9 +1351,9 @@ int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 	enum hw_fence_client_data_id data_id;
 
 	if (client_data) {
-		data_id = hw_fence_get_client_data_id(hw_fence_client->client_id);
+		data_id = hw_fence_get_client_data_id(hw_fence_client->client_id_ext);
 		if (data_id >= HW_FENCE_MAX_CLIENTS_WITH_DATA) {
-			HWFNC_ERR("Populating non-zero client_data:%llu with invalid client:%d\n",
+			HWFNC_ERR("Populating client_data:%llu with invalid client_id_ext:%d\n",
 				client_data, hw_fence_client->client_id);
 			return -EINVAL;
 		}
@@ -1418,7 +1426,7 @@ static void _signal_all_wait_clients(struct hw_fence_driver_data *drv_data,
 	for (wait_client_id = 0; wait_client_id <= drv_data->rxq_clients_num; wait_client_id++) {
 		if (hw_fence->wait_client_mask & BIT(wait_client_id)) {
 			hw_fence_wait_client = drv_data->clients[wait_client_id];
-			data_id = hw_fence_get_client_data_id(wait_client_id);
+			data_id = hw_fence_get_client_data_id(hw_fence_wait_client->client_id_ext);
 
 			if (data_id < HW_FENCE_MAX_CLIENTS_WITH_DATA)
 				client_data = hw_fence->client_data[data_id];

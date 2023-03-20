@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HW_FENCE_DRV_INTERNAL_H
@@ -108,7 +108,7 @@ enum hw_fence_loopback_id {
 	HW_FENCE_LOOPBACK_DPU_CTL_5,
 	HW_FENCE_LOOPBACK_GFX_CTX_0,
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-	HW_FENCE_LOOPBACK_VAL_0,
+	HW_FENCE_LOOPBACK_VAL_0 = HW_FENCE_CLIENT_ID_VAL0,
 	HW_FENCE_LOOPBACK_VAL_1,
 	HW_FENCE_LOOPBACK_VAL_2,
 	HW_FENCE_LOOPBACK_VAL_3,
@@ -124,10 +124,12 @@ enum hw_fence_loopback_id {
 /**
  * enum hw_fence_client_data_id - Enum with the clients having client_data, an optional
  *                                parameter passed from the waiting client and returned
- *                                to it upon fence signaling
- * @HW_FENCE_CLIENT_DATA_ID_CTX0: GFX Client.
- * @HW_FENCE_CLIENT_DATA_ID_IPE: IPE Client.
- * @HW_FENCE_CLIENT_DATA_ID_VPU: VPU Client.
+ *                                to it upon fence signaling. Only the first HW Fence
+ *                                Client for non-VAL clients (e.g. GFX, IPE, VPU) have
+ *                                client_data.
+ * @HW_FENCE_CLIENT_DATA_ID_CTX0: GFX Client 0.
+ * @HW_FENCE_CLIENT_DATA_ID_IPE: IPE Client 0.
+ * @HW_FENCE_CLIENT_DATA_ID_VPU: VPU Client 0.
  * @HW_FENCE_CLIENT_DATA_ID_VAL0: Debug validation client 0.
  * @HW_FENCE_CLIENT_DATA_ID_VAL1: Debug validation client 1.
  * @HW_FENCE_MAX_CLIENTS_WITH_DATA: Max number of clients with data, also indicates an

@@ -3,7 +3,9 @@
 KDIR := $(TOP)/kernel_platform/msm-kernel
 include $(MSM_HW_FENCE_ROOT)/config/kalamammdrivers.conf
 LINUXINCLUDE += -include $(MSM_HW_FENCE_ROOT)/config/kalamammdriversconf.h \
-		-I$(MSM_HW_FENCE_ROOT)hw_fence/include/
+		-I$(MSM_HW_FENCE_ROOT)hw_fence/include/ \
+		-I$(MSM_HW_FENCE_ROOT)/../synx-kernel/msm/synx/ \
+		-I$(MSM_HW_FENCE_ROOT)/../synx-kernel/include/uapi/synx/media/
 
 ifdef CONFIG_QTI_HW_FENCE
 obj-m += msm_hw_fence.o
@@ -12,7 +14,8 @@ msm_hw_fence-y := src/msm_hw_fence.o \
 		src/hw_fence_drv_priv.o \
 		src/hw_fence_drv_utils.o \
 		src/hw_fence_drv_debug.o \
-		src/hw_fence_drv_ipc.o
+		src/hw_fence_drv_ipc.o \
+		src/msm_hw_fence_synx_translation.o
 
 msm_hw_fence-$(CONFIG_DEBUG_FS) += src/hw_fence_ioctl.o
 
