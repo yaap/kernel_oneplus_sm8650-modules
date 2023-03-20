@@ -1,5 +1,5 @@
 /* Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,13 +26,13 @@ DATARMNETa804c0b904,
 DATARMNETcab56af6d5,
 "\x6d\x6f\x76\x69\x6e\x67\x20\x61\x76\x65\x72\x61\x67\x65\x20\x77\x65\x69\x67\x68\x74\x61\x67\x65"
 );unsigned long long DATARMNET713717107f[DATARMNETc6782fed88]__read_mostly={
-DATARMNETfbee9e182e,DATARMNETb38cb72105,DATARMNETb38cb72105,DATARMNET243c638e7d,
+DATARMNETfbee9e182e,DATARMNETb38cb72105,DATARMNET243c638e7d,DATARMNET243c638e7d,
 DATARMNET243c638e7d,DATARMNET243c638e7d,DATARMNET243c638e7d,DATARMNET243c638e7d}
 ;module_param_array(DATARMNET713717107f,ullong,NULL,(0xdb7+6665-0x261c));
 MODULE_PARM_DESC(DATARMNET713717107f,
 "\x4d\x61\x78\x20\x70\x6b\x74\x73\x20\x63\x6f\x72\x65\x20\x63\x61\x6e\x20\x68\x61\x6e\x64\x6c\x65"
 );unsigned long long DATARMNET4793ed48af[DATARMNETc6782fed88]__read_mostly={
-DATARMNET9bc9e0cac3,DATARMNET9bc9e0cac3,DATARMNET9bc9e0cac3,DATARMNET22feab5726,
+DATARMNET9bc9e0cac3,DATARMNET9bc9e0cac3,DATARMNET22feab5726,DATARMNET22feab5726,
 DATARMNET22feab5726,DATARMNET22feab5726,DATARMNET22feab5726,DATARMNET22feab5726}
 ;module_param_array(DATARMNET4793ed48af,ullong,NULL,(0xdb7+6665-0x261c));
 MODULE_PARM_DESC(DATARMNET4793ed48af,
@@ -197,6 +197,10 @@ DATARMNET25c61a512c,
 module_param(DATARMNET1ad396a890,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
 DATARMNET1ad396a890,
 "\x4d\x61\x78\x20\x72\x6d\x6e\x65\x74\x20\x70\x72\x65\x2d\x62\x61\x63\x6b\x6c\x6f\x67"
+);unsigned int DATARMNET121c8bc82a __read_mostly=(0xd2d+202-0xdf7);module_param(
+DATARMNET121c8bc82a,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+DATARMNET121c8bc82a,
+"\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x5f\x72\x65\x73\x65\x72\x76\x65\x5f\x6d\x61\x73\x6b"
 );unsigned int DATARMNET756bdd424a __read_mostly;module_param(
 DATARMNET756bdd424a,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
 DATARMNET756bdd424a,
@@ -221,3 +225,16 @@ DATARMNET3874292c18,
 DATARMNETbb1a9dff8b,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
 DATARMNETbb1a9dff8b,
 "\x43\x75\x72\x72\x65\x6e\x74\x20\x4c\x4c\x20\x70\x68\x79\x20\x63\x70\x75\x20");
+unsigned int DATARMNETd619186789=(0xd2d+202-0xdf7);module_param(
+DATARMNETd619186789,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+DATARMNETd619186789,
+"\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x5f\x57\x71\x20\x65\x78\x65\x63\x75\x74\x69\x6f\x6e\x20\x74\x69\x63\x6b\x20"
+);unsigned int DATARMNETaf95716235=(0xd2d+202-0xdf7);module_param(
+DATARMNETaf95716235,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+DATARMNETaf95716235,
+"\x72\x6d\x6e\x65\x74\x20\x73\x68\x73\x20\x77\x71\x20\x70\x61\x75\x73\x65\x20\x63\x6f\x75\x6e\x74"
+);unsigned int DATARMNET7e039054c6=(0xd2d+202-0xdf7);module_param(
+DATARMNET7e039054c6,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+DATARMNET7e039054c6,
+"\x72\x6d\x6e\x65\x74\x20\x73\x68\x73\x20\x77\x71\x20\x72\x65\x73\x74\x61\x72\x74\x20\x63\x6f\x75\x6e\x74"
+);

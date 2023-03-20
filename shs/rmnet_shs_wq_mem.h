@@ -1,5 +1,5 @@
 /* Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,7 +30,7 @@
 "\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x5f\x6e\x65\x74\x64\x65\x76"
 #define DATARMNET67578af78f ((0xec7+1108-0x12fd))
 #define DATARMNETa847b6b6d0 (DATARMNET67578af78f)
-#define DATARMNET75c69edb82 ((0xef7+694-0x112d))
+#define DATARMNET75c69edb82 ((0xeb7+698-0x110d))
 #define DATARMNETe4d15b9332 ((0xec7+1166-0x132d))
 #define DATARMNET9ae5f81f71 ((0xeb7+1158-0x132d))
 #define DATARMNET29d29f44cf ((0xd2d+202-0xdf7))
@@ -41,20 +41,20 @@ u64 DATARMNET4da6031170;u64 DATARMNET4df302dbd6;u16 DATARMNET42a992465f;};struct
 __attribute__((__packed__))DATARMNETf44cda1bf2{u64 DATARMNET324c1a8f98;u64 
 DATARMNET253a9fc708;u64 DATARMNETbb80fccd97;u32 hash;u16 DATARMNET42a992465f;};
 struct __attribute__((__packed__))DATARMNET3a84fbfeae{u64 DATARMNET324c1a8f98;
-u64 DATARMNET253a9fc708;u64 DATARMNETbb80fccd97;u32 hash;u16 DATARMNET42a992465f
-;};struct __attribute__((__packed__))DATARMNET26737fb11e{union{struct iphdr 
+u64 DATARMNET253a9fc708;u64 DATARMNETbb80fccd97;u32 hash;u32 bif;u32 ack_thresh;
+u16 DATARMNET42a992465f;};struct __attribute__((__packed__))DATARMNET26737fb11e{
+union{struct iphdr DATARMNETac9bbaad7c;struct ipv6hdr DATARMNET1688a97aa4;}
+ip_hdr;union{struct tcphdr tp;struct udphdr up;}DATARMNETe33b41dad9;u64 
+DATARMNET324c1a8f98;u64 DATARMNET253a9fc708;u64 DATARMNETbb80fccd97;u64 
+DATARMNET95266642d1;u64 DATARMNET0d682bcb29;u64 DATARMNET20e8fc9db8;u32 hash;u16
+ DATARMNET42a992465f;u16 trans_proto;u8 mux_id;u8 DATARMNETda8e8ae7ed;};struct 
+__attribute__((__packed__))DATARMNETc13d990bf1{union{struct iphdr 
 DATARMNETac9bbaad7c;struct ipv6hdr DATARMNET1688a97aa4;}ip_hdr;union{struct 
 tcphdr tp;struct udphdr up;}DATARMNETe33b41dad9;u64 DATARMNET324c1a8f98;u64 
 DATARMNET253a9fc708;u64 DATARMNETbb80fccd97;u64 DATARMNET95266642d1;u64 
 DATARMNET0d682bcb29;u64 DATARMNET20e8fc9db8;u32 hash;u16 DATARMNET42a992465f;u16
- trans_proto;u8 mux_id;u8 DATARMNETda8e8ae7ed;};struct __attribute__((__packed__
-))DATARMNETc13d990bf1{union{struct iphdr DATARMNETac9bbaad7c;struct ipv6hdr 
-DATARMNET1688a97aa4;}ip_hdr;union{struct tcphdr tp;struct udphdr up;}
-DATARMNETe33b41dad9;u64 DATARMNET324c1a8f98;u64 DATARMNET253a9fc708;u64 
-DATARMNETbb80fccd97;u64 DATARMNET95266642d1;u64 DATARMNET0d682bcb29;u64 
-DATARMNET20e8fc9db8;u32 hash;u16 DATARMNET42a992465f;u16 trans_proto;u8 mux_id;}
-;struct __attribute__((__packed__))DATARMNET57ccbe14f3{char name[
-DATARMNET9ae5f81f71];u64 DATARMNET77de6e34f2;u64 hw_evict;u64 
+ trans_proto;u8 mux_id;};struct __attribute__((__packed__))DATARMNET57ccbe14f3{
+char name[DATARMNET9ae5f81f71];u64 DATARMNET77de6e34f2;u64 hw_evict;u64 
 DATARMNET870c3dafcb;u64 coal_tcp;u64 coal_tcp_bytes;u64 coal_udp;u64 
 coal_udp_bytes;u64 DATARMNET257fc4b2d4;u64 DATARMNET4eb77c78e6;u8 mux_id;};
 extern struct list_head DATARMNET6c23f11e81;extern struct list_head 
