@@ -656,6 +656,16 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	}
 
 	switch (event) {
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* allow try_fmt request in open state */
+		rc = msm_vidc_try_fmt(inst, f);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
@@ -779,6 +789,22 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		rc = msm_vidc_buf_queue(inst, buf);
+		if (rc)
+			return rc;
+		break;
+	}
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == INPUT_MPLANE || f->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
+		rc = msm_vidc_try_fmt(inst, f);
 		if (rc)
 			return rc;
 		break;
@@ -965,6 +991,22 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		rc = msm_vidc_buf_queue(inst, buf);
+		if (rc)
+			return rc;
+		break;
+	}
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == OUTPUT_MPLANE || f->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
+		rc = msm_vidc_try_fmt(inst, f);
 		if (rc)
 			return rc;
 		break;

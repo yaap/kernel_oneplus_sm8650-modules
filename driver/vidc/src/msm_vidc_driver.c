@@ -958,38 +958,6 @@ int signal_session_msg_receipt(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-bool msm_vidc_allow_s_fmt(struct msm_vidc_inst *inst, u32 type)
-{
-	bool allow = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-	if (is_state(inst, MSM_VIDC_OPEN)) {
-		allow = true;
-		goto exit;
-	}
-	if (type == OUTPUT_MPLANE || type == OUTPUT_META_PLANE) {
-		if (is_state(inst, MSM_VIDC_INPUT_STREAMING)) {
-			allow = true;
-			goto exit;
-		}
-	}
-	if (type == INPUT_MPLANE || type == INPUT_META_PLANE) {
-		if (is_state(inst, MSM_VIDC_OUTPUT_STREAMING)) {
-			allow = true;
-			goto exit;
-		}
-	}
-
-exit:
-	if (!allow)
-		i_vpr_e(inst, "%s: type %d not allowed in state %s\n",
-				__func__, type, state_name(inst->state));
-	return allow;
-}
-
 bool msm_vidc_allow_metadata_delivery(struct msm_vidc_inst *inst, u32 cap_id,
 	u32 port)
 {

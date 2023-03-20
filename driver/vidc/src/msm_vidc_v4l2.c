@@ -135,7 +135,7 @@ int msm_v4l2_try_fmt(struct file *filp, void *fh, struct v4l2_format *f)
 		rc = -EBUSY;
 		goto unlock;
 	}
-	rc = msm_vidc_try_fmt((void *)inst, f);
+	rc = inst->event_handle(inst, MSM_VIDC_TRY_FMT, f);
 	if (rc)
 		goto unlock;
 
