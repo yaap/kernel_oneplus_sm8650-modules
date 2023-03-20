@@ -345,11 +345,12 @@ wait_frame:
 
 	if (!empty) {
 		dprintk(CVP_WARN,
-			"Failed to process frames before session close\n");
+			"Failed to process frames before session %pK close\n",
+			inst);
 		mutex_lock(&inst->frames.lock);
 		list_for_each_entry(frame, &inst->frames.list, list)
-			dprintk(CVP_WARN, "Unprocessed frame %d\n",
-				frame->pkt_type);
+			dprintk(CVP_WARN, "Unprocessed frame %08x ktid %llu\n",
+				frame->pkt_type, frame->ktid);
 		mutex_unlock(&inst->frames.lock);
 		inst->core->synx_ftbl->cvp_dump_fence_queue(inst);
 	}

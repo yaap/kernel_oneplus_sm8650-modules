@@ -457,17 +457,17 @@ static int cvp_dsp_rpmsg_callback(struct rpmsg_device *rpdev,
 			goto exit;
 		}
 	} else if (rsp->type < CVP_DSP_MAX_CMD &&
-			len == sizeof(struct cvp_dsp2cpu_cmd_msg)) {
+			len == sizeof(struct cvp_dsp2cpu_cmd)) {
 		if (me->pending_dsp2cpu_cmd.type != CVP_INVALID_RPMSG_TYPE) {
 			dprintk(CVP_ERR,
 				"%s: DSP2CPU cmd:%d pending %d %d expect %d\n",
 					__func__, rsp->type,
 				me->pending_dsp2cpu_cmd.type, len,
-				sizeof(struct cvp_dsp2cpu_cmd_msg));
+				sizeof(struct cvp_dsp2cpu_cmd));
 			goto exit;
 		}
 		memcpy(&me->pending_dsp2cpu_cmd, rsp,
-			sizeof(struct cvp_dsp2cpu_cmd_msg));
+			sizeof(struct cvp_dsp2cpu_cmd));
 		complete(&me->completions[CPU2DSP_MAX_CMD]);
 	} else {
 		dprintk(CVP_ERR, "%s: Invalid type: %d\n", __func__, rsp->type);
@@ -568,11 +568,9 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
-		if (!s)
-			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
-			if (!s)
+			if (!s || !next_s)
 				return;
 			inst = list_entry(s, struct msm_cvp_inst,
 					dsp_list);
@@ -1242,7 +1240,7 @@ static void eva_fastrpc_driver_unregister(uint32_t handle, bool force_exit)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	dprintk(CVP_DSP, "%s Unregister fastrpc driver hdl %#x pid %#x, f %d\n",
 		__func__, handle, dsp2cpu_cmd->pid, (uint32_t)force_exit);
@@ -1372,8 +1370,8 @@ void cvp_dsp_send_hfi_queue(void)
 	}
 
 	if (rsp.ret == CPU2DSP_EFATAL || rsp.ret == CPU2DSP_EUNAVAILABLE) {
-		dprintk(CVP_ERR, "%s fatal error returned %d\n",
-				__func__, rsp.dsp_state);
+		dprintk(CVP_ERR, "%s fatal error returned %d %d\n",
+				__func__, rsp.dsp_state, rsp.ret);
 		me->state = DSP_INVALID;
 		cvp_hyp_assign_from_dsp();
 		goto exit;
@@ -1439,7 +1437,7 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	struct msm_cvp_inst *inst = NULL;
 	uint64_t inst_handle = 0;
 	int rc = 0;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct pid *pid_s = NULL;
 	struct task_struct *task = NULL;
@@ -1546,7 +1544,7 @@ static void __dsp_cvp_sess_delete(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst;
 	int rc;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct task_struct *task = NULL;
 	struct cvp_hfi_device *hdev;
@@ -1616,7 +1614,7 @@ static void __dsp_cvp_power_req(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst;
 	int rc;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	cmd->ret = 0;
 	dprintk(CVP_DSP,
@@ -1674,7 +1672,7 @@ static void __dsp_cvp_buf_register(struct cvp_dsp_cmd_msg *cmd)
 	struct eva_kmd_arg *kmd;
 	struct eva_kmd_buffer *kmd_buf;
 	int rc;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	cmd->ret = 0;
 
@@ -1732,7 +1730,7 @@ static void __dsp_cvp_buf_deregister(struct cvp_dsp_cmd_msg *cmd)
 	struct eva_kmd_arg *kmd;
 	struct eva_kmd_buffer *kmd_buf;
 	int rc;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	cmd->ret = 0;
 
@@ -1784,7 +1782,7 @@ static void __dsp_cvp_mem_alloc(struct cvp_dsp_cmd_msg *cmd)
 	struct msm_cvp_inst *inst;
 	int rc;
 	struct cvp_internal_buf *buf = NULL;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 	uint64_t v_dsp_addr = 0;
 
 	struct fastrpc_device *frpc_device = NULL;
@@ -1869,7 +1867,7 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_internal_buf *buf = NULL;
 	struct list_head *ptr = NULL, *next = NULL;
 	struct msm_cvp_list *buf_list = NULL;
-	struct cvp_dsp2cpu_cmd_msg *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	struct fastrpc_device *frpc_device = NULL;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
@@ -1948,6 +1946,64 @@ fail_release_buf:
 fail_fastrpc_dev_unmap_dma:
 	mutex_unlock(&buf_list->lock);
 	cvp_put_fastrpc_node(frpc_node);
+}
+
+static void __dsp_cvp_sess_start(struct cvp_dsp_cmd_msg *cmd)
+{
+	struct cvp_dsp_apps *me = &gfa_cv;
+	struct msm_cvp_inst *inst;
+	int rc;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+
+	cmd->ret = 0;
+
+	dprintk(CVP_DSP,
+		"%s sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
+		__func__, dsp2cpu_cmd->session_id,
+		dsp2cpu_cmd->session_cpu_low,
+		dsp2cpu_cmd->session_cpu_high,
+		dsp2cpu_cmd->pid);
+
+	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+			dsp2cpu_cmd->session_cpu_high,
+			dsp2cpu_cmd->session_cpu_low);
+
+	rc = msm_cvp_session_start(inst, (struct eva_kmd_arg *)NULL);
+	if (rc) {
+		dprintk(CVP_ERR, "%s Failed to start session\n", __func__);
+		cmd->ret = -1;
+		return;
+	}
+	dprintk(CVP_DSP, "%s session started\n", __func__);
+}
+
+static void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
+{
+	struct cvp_dsp_apps *me = &gfa_cv;
+	struct msm_cvp_inst *inst;
+	int rc;
+	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
+
+	cmd->ret = 0;
+
+	dprintk(CVP_DSP,
+		"%s sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
+		__func__, dsp2cpu_cmd->session_id,
+		dsp2cpu_cmd->session_cpu_low,
+		dsp2cpu_cmd->session_cpu_high,
+		dsp2cpu_cmd->pid);
+
+	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+			dsp2cpu_cmd->session_cpu_high,
+			dsp2cpu_cmd->session_cpu_low);
+
+	rc = msm_cvp_session_stop(inst, (struct eva_kmd_arg *)NULL);
+	if (rc) {
+		dprintk(CVP_ERR, "%s Failed to stop session\n", __func__);
+		cmd->ret = -1;
+		return;
+	}
+	dprintk(CVP_DSP, "%s session stoppd\n", __func__);
 }
 
 static int cvp_dsp_thread(void *data)
@@ -2067,6 +2123,18 @@ wait_dsp:
 		case DSP2CPU_MEM_FREE:
 		{
 			__dsp_cvp_mem_free(&cmd);
+
+			break;
+		}
+		case DSP2CPU_START_SESSION:
+		{
+			__dsp_cvp_sess_start(&cmd);
+
+			break;
+		}
+		case DSP2CPU_STOP_SESSION:
+		{
+			__dsp_cvp_sess_stop(&cmd);
 
 			break;
 		}

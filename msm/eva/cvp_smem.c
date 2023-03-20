@@ -99,6 +99,8 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 		 * required buffer size
 		 */
 		attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
+		if (flags & SMEM_CAMERA)
+			attach->dma_map_attrs |= DMA_ATTR_QTI_SMMU_PROXY_MAP;
 		if (res->sys_cache_present)
 			attach->dma_map_attrs |=
 				DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
@@ -232,7 +234,9 @@ int msm_cvp_map_smem(struct msm_cvp_inst *inst,
 			smem->flags |= (SMEM_SECURE | SMEM_PIXEL);
 		else if (vmid_list[temp] == VMID_CP_NON_PIXEL)
 			smem->flags |= (SMEM_SECURE | SMEM_NON_PIXEL);
-		else if (vmid_list[temp] == VMID_CP_CAMERA)
+		else if (vmid_list[temp] == VMID_CP_CAMERA ||
+				/* To-do: what if the EVA driver runs in TVM */
+				vmid_list[temp] == VMID_TVM)
 			smem->flags |= (SMEM_SECURE | SMEM_CAMERA);
 		dprintk(CVP_MEM, "inst %pK VM idx %d VM_ID %d fd %d pkt_type %#x\n",
 			inst, temp, vmid_list[temp], smem->fd, smem->pkt_type);
@@ -536,7 +540,7 @@ struct context_bank_info *msm_cvp_smem_get_context_bank(
 	char *non_secure_cb = "cvp_hlos";
 	char *secure_nonpixel_cb = "cvp_sec_nonpixel";
 	char *secure_pixel_cb = "cvp_sec_pixel";
-	char *dummy_cb = "cvp_dummy";
+	char *camera_cb = "cvp_camera";
 	bool is_secure = (flags & SMEM_SECURE) ? true : false;
 
 	if (flags & SMEM_PIXEL)
@@ -545,7 +549,7 @@ struct context_bank_info *msm_cvp_smem_get_context_bank(
 		search_str = secure_nonpixel_cb;
 	else if (flags & SMEM_CAMERA)
 		/* Secure Camera pixel buffer */
-		search_str = dummy_cb;
+		search_str = camera_cb;
 	else
 		search_str = non_secure_cb;
 
