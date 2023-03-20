@@ -17,6 +17,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_platform_ext.h"
 #include "msm_vidc_memory_ext.h"
+#include "msm_vidc_synx.h"
 #include "resources_ext.h"
 #include "msm_vidc_iris33.h"
 #include "hfi_property.h"
@@ -323,6 +324,7 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{ENC_AUTO_FRAMERATE, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
+	{SUPPORTS_SYNX_FENCE, 1},
 	{SUPPORTS_REQUESTS, 1},
 };
 
@@ -2656,7 +2658,21 @@ static const struct reg_preset_table pineapple_reg_preset_table[] = {
 
 /* name, phys_addr, size, device_addr, device region type */
 static const struct device_region_table pineapple_device_region_table[] = {
-	{ "aon-registers", 0x0AAE0000, 0x1000, 0xFFAE0000, MSM_VIDC_AON_REGISTERS },
+	{
+		"aon-registers",
+		0x0AAE0000, 0x1000, 0xFFAE0000,
+		MSM_VIDC_AON
+	},
+	{
+		"ipc_protocol4_client8_version-registers",
+		0x00508000, 0x1000, 0xFFADD000,
+		MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU
+	},
+	{
+		"qtimer_f0v1_qtmr_v1_cntpct_lo",
+		0x17421000, 0x1000, 0xFFADC000,
+		MSM_VIDC_QTIMER
+	},
 };
 
 /* decoder properties */
@@ -2819,6 +2835,12 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 		d_vpr_e("%s: invalid resource ext ops\n", __func__);
 		return -EINVAL;
 	}
+	core->fence_ops = get_synx_fence_ops();
+	if (!core->fence_ops) {
+		d_vpr_e("%s: invalid synx fence ops\n", __func__);
+		return -EINVAL;
+	}
+
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;

@@ -464,7 +464,9 @@ enum msm_vidc_buffer_region {
 
 enum msm_vidc_device_region {
 	MSM_VIDC_DEVICE_REGION_NONE = 0,
-	MSM_VIDC_AON_REGISTERS,
+	MSM_VIDC_AON,
+	MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU,
+	MSM_VIDC_QTIMER,
 	MSM_VIDC_DEVICE_REGION_MAX,
 };
 
@@ -598,6 +600,7 @@ enum msm_vidc_core_capability_type {
 	ENC_AUTO_FRAMERATE,
 	DEVICE_CAPS,
 	SUPPORTS_REQUESTS,
+	SUPPORTS_SYNX_FENCE,
 	CORE_CAP_MAX,
 };
 
@@ -858,6 +861,8 @@ struct msm_vidc_fence {
 	spinlock_t                  lock;
 	struct sync_file            *sync_file;
 	int                         fd;
+	u64                         fence_id;
+	void                        *session;
 };
 
 struct msm_vidc_mem {
@@ -884,6 +889,7 @@ struct msm_vidc_mem {
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
 	phys_addr_t                 phys_addr;
+	enum dma_data_direction     direction;
 };
 
 struct msm_vidc_mem_list {

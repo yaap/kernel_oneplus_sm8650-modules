@@ -17,6 +17,7 @@
 #include "msm_vidc_memory.h"
 #include "msm_vidc_control.h"
 #include "msm_vidc_driver.h"
+#include "msm_vidc_fence.h"
 #include "hfi_packet.h"
 #include "hfi_property.h"
 #include "venus_hfi.h"
@@ -273,6 +274,11 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	core->res_ops = get_resources_ops();
 	if (!core->res_ops) {
 		d_vpr_e("%s: invalid resource ops\n", __func__);
+		return -EINVAL;
+	}
+	core->fence_ops = get_dma_fence_ops();
+	if (!core->fence_ops) {
+		d_vpr_e("%s: invalid dma fence ops\n", __func__);
 		return -EINVAL;
 	}
 

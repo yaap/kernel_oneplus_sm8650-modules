@@ -25,7 +25,10 @@ endif
 LINUXINCLUDE   += -I$(VIDEO_DRIVER_ABS_PATH)/platform/common/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/variant/common/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/vidc/inc \
-                  -I$(VIDEO_ROOT)/include/uapi/vidc
+                  -I$(VIDEO_ROOT)/include/uapi/vidc \
+                  -I$(VIDEO_ROOT)/../mm-drivers/hw_fence/include/ \
+                  -I$(VIDEO_ROOT)/../synx-kernel/msm/synx/ \
+                  -I$(VIDEO_ROOT)/../synx-kernel/include/uapi/synx/media/
 
 USERINCLUDE    += -I$(VIDEO_ROOT)/include/uapi/vidc/media \
                   -I$(VIDEO_ROOT)/include/uapi/vidc
@@ -69,6 +72,7 @@ msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_memory.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_memory_ext.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_fence.o \
+                  $(VIDEO_DRIVER_REL_PATH)/vidc/src/msm_vidc_synx.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/venus_hfi.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/venus_hfi_queue.o \
                   $(VIDEO_DRIVER_REL_PATH)/vidc/src/hfi_packet.o \

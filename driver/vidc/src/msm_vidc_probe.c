@@ -24,6 +24,7 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_state.h"
+#include "msm_vidc_fence.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
@@ -567,6 +568,40 @@ static int msm_vidc_component_master_bind(struct device *dev)
 		return rc;
 	}
 
+	if (core->capabilities[SUPPORTS_SYNX_FENCE].value) {
+		if (msm_vidc_disable_synx_fence) {
+			/* override synx fence ops with dma fence ops */
+			core->fence_ops = get_dma_fence_ops();
+			if (!core->fence_ops) {
+				d_vpr_e("%s: invalid dma fence ops\n", __func__);
+				return -EINVAL;
+			}
+			core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+		} else {
+			/* register for synx fence */
+			rc = call_fence_op(core, fence_register, core);
+			if (rc) {
+				d_vpr_e("%s: failed to register synx fence\n",
+					__func__);
+				core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+				/*
+				 * - Bail out the session for time being for this
+				 *   case where synx fence register call retunrs error
+				 *   to help with debugging
+				 * - Re-initialize fence ops with dma_fence_ops.
+				 *   This is required once we start ignoring this
+				 *   synx fence register call error.
+				 */
+				core->fence_ops = get_dma_fence_ops();
+				if (!core->fence_ops) {
+					d_vpr_e("%s: invalid dma fence ops\n", __func__);
+					return -EINVAL;
+				}
+				return rc;
+			}
+		}
+	}
+
 	rc = msm_vidc_initialize_media(core);
 	if (rc) {
 		d_vpr_e("%s: media initialization failed\n", __func__);
@@ -607,6 +642,7 @@ static void msm_vidc_component_master_unbind(struct device *dev)
 	msm_vidc_core_deinit(core, true);
 	venus_hfi_queue_deinit(core);
 	msm_vidc_deinitialize_media(core);
+	call_fence_op(core, fence_deregister, core);
 	component_unbind_all(dev, core);
 
 	d_vpr_h("%s(): succssful\n", __func__);

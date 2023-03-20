@@ -1682,17 +1682,19 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 {
 	int rc = 0;
 	struct msm_vidc_fence *fence, *dummy_fence;
+	struct msm_vidc_core *core;
 	bool found = false;
 
 	*fence_fd = INVALID_FD;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst || !inst->capabilities || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
-		if (fence->dma_fence.seqno ==
+		if (fence->fence_id ==
 			(u64)inst->capabilities->cap[FENCE_ID].value) {
 			found = true;
 			break;
@@ -1706,7 +1708,7 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 	}
 
 	if (fence->fd == INVALID_FD) {
-		rc = msm_vidc_create_fence_fd(inst, fence);
+		rc = call_fence_op(core, fence_create_fd, inst, fence);
 		if (rc)
 			goto exit;
 	}
@@ -2995,11 +2997,13 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 	int rc = 0;
 	struct msm_vidc_buffer *buf = NULL;
 	struct msm_vidc_fence *fence = NULL;
+	struct msm_vidc_core *core = NULL;
 
-	if (!inst || !vb2 || !inst->capabilities) {
+	if (!inst || !vb2 || !inst->capabilities || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
+	core = inst->core;
 
 	buf = msm_vidc_get_driver_buf(inst, vb2);
 	if (!buf)
@@ -3007,10 +3011,10 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 
 	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE) &&
 		is_output_buffer(buf->type)) {
-		fence = msm_vidc_fence_create(inst);
+		fence = call_fence_op(core, fence_create, inst);
 		if (!fence)
-			return rc;
-		buf->fence_id = fence->dma_fence.seqno;
+			return -EINVAL;
+		buf->fence_id = fence->fence_id;
 	}
 
 	rc = inst->event_handle(inst, MSM_VIDC_BUF_QUEUE, buf);
@@ -3021,7 +3025,7 @@ exit:
 	if (rc) {
 		i_vpr_e(inst, "%s: qbuf failed\n", __func__);
 		if (fence)
-			msm_vidc_fence_destroy(inst, (u32)fence->dma_fence.seqno);
+			call_fence_op(core, fence_destroy, inst, fence->fence_id);
 	}
 	return rc;
 }
@@ -5088,7 +5092,7 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
 		i_vpr_e(inst, "%s: destroying fence %s\n", __func__, fence->name);
-		msm_vidc_fence_destroy(inst, (u32)fence->dma_fence.seqno);
+		call_fence_op(core, fence_destroy, inst, fence->fence_id);
 	}
 
 	/* destroy buffers from pool */

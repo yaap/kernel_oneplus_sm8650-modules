@@ -39,6 +39,7 @@ extern int msm_vidc_ddr_bw;
 extern int msm_vidc_llc_bw;
 extern bool msm_vidc_fw_dump;
 extern unsigned int msm_vidc_enable_bugon;
+extern bool msm_vidc_disable_synx_fence;
 
 /* do not modify the log message as it is used in test scripts */
 #define FMT_STRING_SET_CTRL \
