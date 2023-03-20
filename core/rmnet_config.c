@@ -1,5 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -228,6 +228,8 @@ static int rmnet_newlink(struct net *src_net, struct net_device *dev,
 		flags = nla_data(data[IFLA_RMNET_FLAGS]);
 		data_format = flags->flags & flags->mask;
 		netdev_dbg(dev, "data format [0x%08X]\n", data_format);
+		if (port->data_format & RMNET_INGRESS_FORMAT_PS)
+			data_format |= RMNET_INGRESS_FORMAT_PS;
 		port->data_format = data_format;
 	}
 
@@ -403,6 +405,7 @@ static int rmnet_changelink(struct net_device *dev, struct nlattr *tb[],
 	struct rmnet_endpoint *ep;
 	struct rmnet_port *port;
 	u16 mux_id;
+	u32 data_format;
 	int rc = 0;
 
 	real_dev = __dev_get_by_index(dev_net(dev),
@@ -430,7 +433,10 @@ static int rmnet_changelink(struct net_device *dev, struct nlattr *tb[],
 		struct ifla_rmnet_flags *flags;
 
 		flags = nla_data(data[IFLA_RMNET_FLAGS]);
-		port->data_format = flags->flags & flags->mask;
+		data_format = flags->flags & flags->mask;
+		if (port->data_format & RMNET_INGRESS_FORMAT_PS)
+			data_format |= RMNET_INGRESS_FORMAT_PS;
+		port->data_format = data_format;
 	}
 
 	if (data[IFLA_RMNET_DFC_QOS]) {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -92,6 +92,13 @@ RMNET_MODULE_HOOK(perf_egress,
 	RMNET_MODULE_HOOK_RETURN_TYPE(void)
 );
 
+RMNET_MODULE_HOOK(perf_set_thresh,
+	RMNET_MODULE_HOOK_NUM(PERF_SET_THRESH),
+	RMNET_MODULE_HOOK_PROTOCOL(u32 hash, u32 thresh),
+	RMNET_MODULE_HOOK_ARGS(hash, thresh),
+	RMNET_MODULE_HOOK_RETURN_TYPE(void)
+);
+
 RMNET_MODULE_HOOK(aps_pre_queue,
 	RMNET_MODULE_HOOK_NUM(APS_PRE_QUEUE),
 	RMNET_MODULE_HOOK_PROTOCOL(struct net_device *dev, struct sk_buff *skb),
@@ -110,6 +117,21 @@ RMNET_MODULE_HOOK(wlan_flow_match,
 	RMNET_MODULE_HOOK_NUM(WLAN_FLOW_MATCH),
 	RMNET_MODULE_HOOK_PROTOCOL(struct sk_buff *skb),
 	RMNET_MODULE_HOOK_ARGS(skb),
+	RMNET_MODULE_HOOK_RETURN_TYPE(void)
+);
+
+RMNET_MODULE_HOOK(aps_data_inactive,
+	RMNET_MODULE_HOOK_NUM(APS_DATA_INACTIVE),
+	RMNET_MODULE_HOOK_PROTOCOL(void),
+	RMNET_MODULE_HOOK_ARGS(),
+	RMNET_MODULE_HOOK_RETURN_TYPE(void)
+);
+
+RMNET_MODULE_HOOK(aps_data_active,
+	RMNET_MODULE_HOOK_NUM(APS_DATA_ACTIVE),
+	RMNET_MODULE_HOOK_PROTOCOL(struct rmnet_frag_descriptor *frag_desc,
+				   struct sk_buff *skb),
+	RMNET_MODULE_HOOK_ARGS(frag_desc, skb),
 	RMNET_MODULE_HOOK_RETURN_TYPE(void)
 );
 

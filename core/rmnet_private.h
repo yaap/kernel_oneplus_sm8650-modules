@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2014, 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,9 +54,15 @@ struct rmnet_skb_cb {
 	char flush_shs;
 	char qmap_steer;
 
+	bool tethered;
+
 	/* coalescing stats */
 	u32 coal_bytes;
 	u32 coal_bufsize;
+
+	u32 bif;
+	u32 ack_thresh;
+	u32 ack_forced;
 };
 
 #define RMNET_SKB_CB(skb) ((struct rmnet_skb_cb *)(skb)->cb)

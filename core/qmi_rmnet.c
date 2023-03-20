@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,8 @@
 #include "qmi_rmnet_i.h"
 #include "qmi_rmnet.h"
 #include "rmnet_qmi.h"
+#include "rmnet_module.h"
+#include "rmnet_hook.h"
 #include "dfc.h"
 #include <linux/rtnetlink.h>
 #include <uapi/linux/rtnetlink.h>
@@ -1364,6 +1366,7 @@ static void qmi_rmnet_check_stats_2(struct work_struct *work)
 	if (!rxd && !txd) {
 		qmi->ps_ignore_grant = true;
 		qmi->ps_enabled = true;
+		rmnet_module_hook_aps_data_inactive();
 		clear_bit(PS_WORK_ACTIVE_BIT, &qmi->ps_work_active);
 
 		smp_mb();
@@ -1441,7 +1444,7 @@ void qmi_rmnet_work_init(void *port)
 }
 EXPORT_SYMBOL(qmi_rmnet_work_init);
 
-void qmi_rmnet_work_maybe_restart(void *port)
+void qmi_rmnet_work_maybe_restart(void *port, void *desc, struct sk_buff *skb)
 {
 	struct qmi_info *qmi;
 
@@ -1452,6 +1455,9 @@ void qmi_rmnet_work_maybe_restart(void *port)
 	if (!test_and_set_bit(PS_WORK_ACTIVE_BIT, &qmi->ps_work_active)) {
 		qmi->ps_ignore_grant = false;
 		qmi_rmnet_work_restart(port);
+		if (desc || skb)
+			rmnet_module_hook_aps_data_active(
+				(struct rmnet_frag_descriptor *)desc, skb);
 	}
 }
 EXPORT_SYMBOL(qmi_rmnet_work_maybe_restart);
