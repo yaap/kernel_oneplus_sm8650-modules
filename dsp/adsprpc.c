@@ -24,7 +24,7 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 #include <linux/msm_ion.h>
-#include <soc/qcom/secure_buffer.h>
+#include <linux/qcom_scm.h>
 #include <linux/ipc_logging.h>
 #include <linux/remoteproc/qcom_rproc.h>
 #include <linux/scatterlist.h>
@@ -237,6 +237,13 @@ enum fastrpc_proc_attr {
 	FASTRPC_MODE_SYSTEM_UNSIGNED_PD	= 1 << 17,
 };
 
+/* FastRPC remote subsystem state*/
+enum fastrpc_remote_subsys_state {
+	SUBSYSTEM_RESTARTING = 0,
+	SUBSYSTEM_DOWN,
+	SUBSYSTEM_UP,
+};
+
 #define PERF_END ((void)0)
 
 #define PERF(enb, cnt, ff) \
@@ -377,8 +384,6 @@ static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	},
 };
 
-static int hlosvm[1] = {VMID_HLOS};
-static int hlosvmperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 
 static uint32_t kernel_capabilities[FASTRPC_MAX_ATTRIBUTES -
 					FASTRPC_MAX_DSP_ATTRIBUTES] = {
@@ -481,38 +486,76 @@ static inline int poll_for_remote_response(struct smq_invoke_ctx *ctx, uint32_t 
 	return err;
 }
 
+enum interrupted_state {
+	DEFAULT_STATE = 0,
+	INTERRUPTED_STATE = 1,
+	RESTORED_STATE = 2,
+};
+
 /**
  * fastrpc_update_txmsg_buf - Update history of sent glink messages
- * @chan               : Channel context
  * @msg                : Pointer to RPC message to remote subsystem
  * @transport_send_err : Error from transport
  * @ns                 : Timestamp (in ns) of sent message
  * @xo_time_in_us      : XO Timestamp (in us) of sent message
+ * @ctx                : invoke ctx
+ * @interrupted        : 0/1/2 (default/interrupted/restored)
  *
  * Returns none
  */
-static inline void fastrpc_update_txmsg_buf(struct fastrpc_channel_ctx *chan,
-	struct smq_msg *msg, int transport_send_err, int64_t ns, uint64_t xo_time_in_us)
+static inline void fastrpc_update_txmsg_buf(struct smq_msg *msg,
+	int transport_send_err, int64_t ns, uint64_t xo_time_in_us,
+	struct smq_invoke_ctx *ctx, enum interrupted_state interrupted)
 {
 	unsigned long flags = 0;
 	unsigned int tx_index = 0;
 	struct fastrpc_tx_msg *tx_msg = NULL;
+	struct fastrpc_channel_ctx *chan = NULL;
+	struct fastrpc_file *fl = ctx->fl;
+	int err = 0, cid = -1;
 
+	if (!fl) {
+		err = -EBADF;
+		goto bail;
+	}
+	cid = fl->cid;
+	VERIFY(err, VALID_FASTRPC_CID(cid));
+	if (err) {
+		err = -ECHRNG;
+		goto bail;
+	}
+	chan = &fl->apps->channel[cid];
 	spin_lock_irqsave(&chan->gmsg_log.lock, flags);
 
-	tx_index = chan->gmsg_log.tx_index;
-	tx_msg = &chan->gmsg_log.tx_msgs[tx_index];
+	if (interrupted){
+		if (ctx->tx_index >= 0 && ctx->tx_index < GLINK_MSG_HISTORY_LEN) {
+			tx_msg = &chan->gmsg_log.tx_msgs[ctx->tx_index];
 
-	memcpy(&tx_msg->msg, msg, sizeof(struct smq_msg));
-	tx_msg->transport_send_err = transport_send_err;
-	tx_msg->ns = ns;
-	tx_msg->xo_time_in_us = xo_time_in_us;
+			if (tx_msg->msg.invoke.header.ctx == ctx->msg.invoke.header.ctx) {
+				tx_msg->xo_time_in_us_interrupted = ctx->xo_time_in_us_interrupted;
+				tx_msg->xo_time_in_us_restored = ctx->xo_time_in_us_restored;
+			}
+		}
+	} else {
+		tx_index = chan->gmsg_log.tx_index;
+		ctx->tx_index = tx_index;
+		tx_msg = &chan->gmsg_log.tx_msgs[tx_index];
 
-	tx_index++;
-	chan->gmsg_log.tx_index =
-		(tx_index > (GLINK_MSG_HISTORY_LEN - 1)) ? 0 : tx_index;
+		memcpy(&tx_msg->msg, msg, sizeof(struct smq_msg));
+		tx_msg->transport_send_err = transport_send_err;
+		tx_msg->ns = ns;
+		tx_msg->xo_time_in_us = xo_time_in_us;
+
+		tx_index++;
+		chan->gmsg_log.tx_index =
+			(tx_index > (GLINK_MSG_HISTORY_LEN - 1)) ? 0 : tx_index;
+	}
 
 	spin_unlock_irqrestore(&chan->gmsg_log.lock, flags);
+bail:
+	if (err)
+		ADSPRPC_ERR("adsprpc: %s: unable to update txmsg buf (err %d) for ctx: 0x%x\n",
+			__func__, err, ctx->msg.invoke.header.ctx);
 }
 
 /**
@@ -683,9 +726,6 @@ skip_buf_cache:
 		buf->raddr = 0;
 	}
 	if (!IS_ERR_OR_NULL(buf->virt)) {
-		int destVM[1] = {VMID_HLOS};
-		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
-
 		VERIFY(err, fl->sctx != NULL);
 		if (err)
 			goto bail;
@@ -702,12 +742,16 @@ skip_buf_cache:
 		}
 		vmid = fl->apps->channel[cid].vmid;
 		if ((vmid) && (fl->apps->channel[cid].in_hib == 0)) {
-			int srcVM[2] = {VMID_HLOS, vmid};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS)| BIT(vmid);
+			struct qcom_scm_vmperm dest_perms = {0};
 			int hyp_err = 0;
 
-			hyp_err = hyp_assign_phys(buf->phys,
+			dest_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dest_perms.perm = QCOM_SCM_PERM_RWX;
+
+			hyp_err = qcom_scm_assign_mem(buf->phys,
 				buf_page_size(buf->size),
-				srcVM, 2, destVM, destVMperm, 1);
+				&src_perms, &dest_perms, 1);
 			if (hyp_err) {
 				ADSPRPC_ERR(
 					"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -994,8 +1038,6 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		if (!IS_ERR_OR_NULL(map->buf))
 			dma_buf_put(map->buf);
 	} else {
-		int destVM[1] = {VMID_HLOS};
-		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 		if (!fl)
 			goto bail;
 
@@ -1007,11 +1049,14 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		vmid = fl->apps->channel[cid].vmid;
 		if (vmid && map->phys && (me->channel[cid].in_hib == 0)) {
 			int hyp_err = 0;
-			int srcVM[2] = {VMID_HLOS, vmid};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS) | BIT(vmid);
+			struct qcom_scm_vmperm dst_perms = {0};
 
-			hyp_err = hyp_assign_phys(map->phys,
+			dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms.perm = QCOM_SCM_PERM_RWX;
+			hyp_err = qcom_scm_assign_mem(map->phys,
 				buf_page_size(map->size),
-				srcVM, 2, destVM, destVMperm, 1);
+				&src_perms, &dst_perms, 1);
 			if (hyp_err) {
 				ADSPRPC_ERR(
 					"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -1306,14 +1351,17 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 
 		vmid = fl->apps->channel[cid].vmid;
 		if (vmid) {
-			int srcVM[1] = {VMID_HLOS};
-			int destVM[2] = {VMID_HLOS, vmid};
-			int destVMperm[2] = {PERM_READ | PERM_WRITE,
-					PERM_READ | PERM_WRITE | PERM_EXEC};
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+			struct qcom_scm_vmperm dst_perms[2] = {0};
 
-			err = hyp_assign_phys(map->phys,
+			dst_perms[0].vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms[0].perm = QCOM_SCM_PERM_RW;
+			dst_perms[1].vmid = vmid;
+			dst_perms[1].perm = QCOM_SCM_PERM_RWX;
+
+			err = qcom_scm_assign_mem(map->phys,
 					buf_page_size(map->size),
-					srcVM, 1, destVM, destVMperm, 2);
+					&src_perms, dst_perms, 2);
 			if (err) {
 				ADSPRPC_ERR(
 					"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -1481,13 +1529,16 @@ static int fastrpc_buf_alloc(struct fastrpc_file *fl, size_t size,
 
 	vmid = fl->apps->channel[cid].vmid;
 	if (vmid) {
-		int srcVM[1] = {VMID_HLOS};
-		int destVM[2] = {VMID_HLOS, vmid};
-		int destVMperm[2] = {PERM_READ | PERM_WRITE,
-					PERM_READ | PERM_WRITE | PERM_EXEC};
+		u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+		struct qcom_scm_vmperm dst_perms[2] = {0};
 
-		err = hyp_assign_phys(buf->phys, buf_page_size(size),
-			srcVM, 1, destVM, destVMperm, 2);
+		dst_perms[0].vmid = QCOM_SCM_VMID_HLOS;
+		dst_perms[0].perm = QCOM_SCM_PERM_RW;
+		dst_perms[1].vmid = vmid;
+		dst_perms[1].perm = QCOM_SCM_PERM_RWX;
+
+		err = qcom_scm_assign_mem(buf->phys, buf_page_size(size),
+			&src_perms, dst_perms, 2);
 		if (err) {
 			ADSPRPC_DEBUG(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -1534,6 +1585,11 @@ static int context_restore_interrupted(struct fastrpc_file *fl,
 					"interrupted sc (0x%x) or fl (%pK) does not match with invoke sc (0x%x) or fl (%pK)\n",
 					ictx->sc, ictx->fl, invoke->sc, fl);
 			} else {
+				ictx->xo_time_in_us_restored = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
+				fastrpc_update_txmsg_buf(NULL, 0, 0, 0, ictx, RESTORED_STATE);
+				ADSPRPC_DEBUG(
+					"restored sc (0x%x) of fl (%pK), interrupt ts 0x%llx, restore ts 0x%llx \n",
+					ictx->sc, ictx->fl, ictx->xo_time_in_us_interrupted, ictx->xo_time_in_us_restored);
 				ctx = ictx;
 				hlist_del_init(&ctx->hn);
 				hlist_add_head(&ctx->hn, &fl->clst.pending);
@@ -1832,6 +1888,8 @@ static void context_save_interrupted(struct smq_invoke_ctx *ctx)
 {
 	struct fastrpc_ctx_lst *clst = &ctx->fl->clst;
 
+	ctx->xo_time_in_us_interrupted = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
+	fastrpc_update_txmsg_buf(NULL, 0, 0, 0, ctx, INTERRUPTED_STATE);
 	spin_lock(&ctx->fl->hlock);
 	hlist_del_init(&ctx->hn);
 	hlist_add_head(&ctx->hn, &clst->interrupted);
@@ -2318,7 +2376,7 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 		VERIFY(err, !IS_ERR_OR_NULL(ctx->buf->virt));
 		if (err)
 			goto bail;
-		memset(ctx->buf->virt, 0, metalen);
+		memset(ctx->buf->virt, 0, ctx->buf->size);
 	}
 	ctx->used = metalen;
 
@@ -2806,7 +2864,7 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 	trace_fastrpc_transport_send(cid, (uint64_t)ctx, msg->invoke.header.ctx,
 		handle, sc, msg->invoke.page.addr, msg->invoke.page.size);
 	ns = get_timestamp_in_ns();
-	fastrpc_update_txmsg_buf(channel_ctx, msg, err, ns, xo_time_in_us);
+	fastrpc_update_txmsg_buf(msg, err, ns, xo_time_in_us, ctx, DEFAULT_STATE);
  bail:
 	return err;
 }
@@ -3230,6 +3288,10 @@ read_async_job:
 		err = -EBADF;
 		goto bail;
 	}
+	if (fl->exit_async) {
+		err = -EFAULT;
+		goto bail;
+	}
 	VERIFY(err, 0 == (err = interrupted));
 	if (err)
 		goto bail;
@@ -3310,6 +3372,10 @@ read_notif_status:
 				atomic_read(&fl->proc_state_notif.notif_queue_count));
 	if (!fl) {
 		err = -EBADF;
+		goto bail;
+	}
+	if (fl->exit_notif) {
+		err = -EFAULT;
 		goto bail;
 	}
 	VERIFY(err, 0 == (err = interrupted));
@@ -3953,9 +4019,20 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		 * hyp_assign from HLOS to those VMs (LPASS, ADSP).
 		 */
 		if (rhvm->vmid && mem && mem->refs == 1 && size) {
-			err = hyp_assign_phys(phys, (uint64_t)size,
-				hlosvm, 1,
-				rhvm->vmid, rhvm->vmperm, rhvm->vmcount);
+			u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+			struct qcom_scm_vmperm *dst_perms;
+			uint32_t i = 0;
+
+			VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
+						sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
+			for (i = 0; i < rhvm->vmcount; i++) {
+				dst_perms[i].vmid = rhvm->vmid[i];
+				dst_perms[i].perm = rhvm->vmperm[i];
+			}
+
+			err = qcom_scm_assign_mem(phys, (uint64_t)size,
+				&src_perms, dst_perms, rhvm->vmcount);
+			kfree(dst_perms);
 			if (err) {
 				ADSPRPC_ERR(
 					"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -4006,11 +4083,19 @@ bail:
 		me->staticpd_flags = 0;
 		if (rh_hyp_done) {
 			int hyp_err = 0;
+			u64 src_perms = 0;
+			struct qcom_scm_vmperm dst_perms;
+			uint32_t i = 0;
 
+			for (i = 0; i < rhvm->vmcount; i++) {
+				src_perms |= BIT(rhvm->vmid[i]);
+			}
+
+			dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+			dst_perms.perm = QCOM_SCM_PERM_RWX;
 			/* Assign memory back to HLOS in case of errors */
-			hyp_err = hyp_assign_phys(phys, (uint64_t)size,
-					rhvm->vmid, rhvm->vmcount,
-					hlosvm, hlosvmperm, 1);
+			hyp_err = qcom_scm_assign_mem(phys, (uint64_t)size,
+					&src_perms, &dst_perms, 1);
 			if (hyp_err)
 				ADSPRPC_WARN(
 					"rh hyp unassign failed with %d for phys 0x%llx of size %zu\n",
@@ -4320,7 +4405,7 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 	if (err)
 		goto bail;
 
-	VERIFY(err, fl->apps->channel[cid].issubsystemup == 1);
+	VERIFY(err, fl->apps->channel[cid].subsystemstate != SUBSYSTEM_RESTARTING);
 	if (err) {
 		wait_for_completion(&fl->shutdown);
 		err = -ECONNRESET;
@@ -4567,10 +4652,21 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 	}
 	if (flags == ADSP_MMAP_REMOTE_HEAP_ADDR
 				&& me->channel[cid].rhvm.vmid && refs == 1) {
-		err = hyp_assign_phys(phys, (uint64_t)size,
-				hlosvm, 1, me->channel[cid].rhvm.vmid,
-				me->channel[cid].rhvm.vmperm,
-				me->channel[cid].rhvm.vmcount);
+		struct secure_vm *rhvm = &me->channel[cid].rhvm;
+		u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
+		struct qcom_scm_vmperm *dst_perms;
+		uint32_t i = 0;
+
+		VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
+					sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
+
+		for (i = 0; i < rhvm->vmcount; i++) {
+			dst_perms[i].vmid = rhvm->vmid[i];
+			dst_perms[i].perm = rhvm->vmperm[i];
+		}
+		err = qcom_scm_assign_mem(phys, (uint64_t)size,
+				&src_perms, dst_perms, rhvm->vmcount);
+		kfree(dst_perms);
 		if (err) {
 			ADSPRPC_ERR(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
@@ -4653,16 +4749,22 @@ static int fastrpc_munmap_rh(uint64_t phys, size_t size,
 {
 	int err = 0;
 	struct fastrpc_apps *me = &gfa;
-	int destVM[1] = {VMID_HLOS};
-	int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
+	struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
 
-	if ((me->channel[RH_CID].rhvm.vmid)
+	if ((rhvm->vmid)
 			&& (me->channel[RH_CID].in_hib == 0)) {
-		err = hyp_assign_phys(phys,
-				(uint64_t)size,
-				me->channel[RH_CID].rhvm.vmid,
-				me->channel[RH_CID].rhvm.vmcount,
-				destVM, destVMperm, 1);
+		u64 src_perms = 0;
+		struct qcom_scm_vmperm dst_perms = {0};
+		uint32_t i = 0;
+
+		for (i = 0; i < rhvm->vmcount; i++) {
+			src_perms |= BIT(rhvm->vmid[i]);
+		}
+		dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+		dst_perms.perm = QCOM_SCM_PERM_RWX;
+
+		err = qcom_scm_assign_mem(phys,
+				(uint64_t)size, &src_perms, &dst_perms, 1);
 		if (err) {
 			ADSPRPC_ERR(
 				"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
@@ -4720,24 +4822,30 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 		match = NULL;
 		spin_lock_irqsave(&me->hlock, irq_flags);
 		hlist_for_each_entry_safe(map, n, &me->maps, hn) {
-			if (map->servloc_name && fl &&
-				fl->servloc_name && !strcmp(map->servloc_name, fl->servloc_name)) {
+			/* In hibernation suspend case fl is NULL, check !fl to cleanup */
+			if (!fl || (fl && map->servloc_name && fl->servloc_name
+				&& !strcmp(map->servloc_name, fl->servloc_name))) {
 				match = map;
 				if (map->is_persistent && map->in_use) {
-					int destVM[1] = {VMID_HLOS};
-					int destVMperm[1] = {PERM_READ | PERM_WRITE
-					| PERM_EXEC};
+					struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
 					uint64_t phys = map->phys;
 					size_t size = map->size;
 
 					spin_unlock_irqrestore(&me->hlock, irq_flags);
-					//hyp assign it back to HLOS
-					if (me->channel[RH_CID].rhvm.vmid) {
-						err = hyp_assign_phys(phys,
-							(uint64_t)size,
-							me->channel[RH_CID].rhvm.vmid,
-							me->channel[RH_CID].rhvm.vmcount,
-							destVM, destVMperm, 1);
+					//scm assign it back to HLOS
+					if (rhvm->vmid) {
+						u64 src_perms = 0;
+						struct qcom_scm_vmperm dst_perms = {0};
+						uint32_t i = 0;
+
+						for (i = 0; i < rhvm->vmcount; i++) {
+							src_perms |= BIT(rhvm->vmid[i]);
+						}
+
+						dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+						dst_perms.perm = QCOM_SCM_PERM_RWX;
+						err = qcom_scm_assign_mem(phys, (uint64_t)size,
+									&src_perms, &dst_perms, 1);
 					}
 					if (err) {
 						ADSPRPC_ERR(
@@ -5558,8 +5666,8 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"\n%s %s %s\n", title, " CHANNEL INFO ", title);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
-			"%-7s|%-10s|%-14s|%-9s|%-13s\n",
-			"subsys", "sesscount", "issubsystemup",
+			"%-7s|%-10s|%-15s|%-9s|%-13s\n",
+			"subsys", "sesscount", "subsystemstate",
 			"ssrcount", "session_used");
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"-%s%s%s%s-\n", single_line, single_line,
@@ -5573,8 +5681,8 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 				DEBUGFS_SIZE - len, "|%-10u",
 				chan->sesscount);
 			len += scnprintf(fileinfo + len,
-				DEBUGFS_SIZE - len, "|%-14d",
-				chan->issubsystemup);
+				DEBUGFS_SIZE - len, "|%-15d",
+				chan->subsystemstate);
 			len += scnprintf(fileinfo + len,
 				DEBUGFS_SIZE - len, "|%-9u",
 				chan->ssrcount);
@@ -5805,7 +5913,7 @@ static int fastrpc_channel_open(struct fastrpc_file *fl, uint32_t flags)
 	mutex_lock(&me->channel[cid].smd_mutex);
 	if (me->channel[cid].ssrcount !=
 				 me->channel[cid].prevssrcount) {
-		if (!me->channel[cid].issubsystemup) {
+		if (me->channel[cid].subsystemstate != SUBSYSTEM_UP) {
 			err = -ECONNREFUSED;
 			mutex_unlock(&me->channel[cid].smd_mutex);
 			goto bail;
@@ -5900,6 +6008,8 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
 	fl->is_unsigned_pd = false;
 	fl->is_compat = false;
+	fl->exit_notif = false;
+	fl->exit_async = false;
 	init_completion(&fl->work);
 	fl->file_close = FASTRPC_PROCESS_DEFAULT_STATE;
 	filp->private_data = fl;
@@ -6109,6 +6219,7 @@ int fastrpc_internal_control(struct fastrpc_file *fl,
 	struct fastrpc_apps *me = &gfa;
 	int sessionid = 0;
 	u32 silver_core_count = me->silvercores.corecount, ii = 0, cpu;
+	unsigned long flags = 0;
 
 	VERIFY(err, !IS_ERR_OR_NULL(fl) && !IS_ERR_OR_NULL(fl->apps));
 	if (err) {
@@ -6208,6 +6319,20 @@ int fastrpc_internal_control(struct fastrpc_file *fl,
 		break;
 	case FASTRPC_CONTROL_SMMU:
 		fl->sharedcb = cp->smmu.sharedcb;
+		break;
+	case FASTRPC_CONTROL_ASYNC_WAKE:
+		fl->exit_async = true;
+		spin_lock_irqsave(&fl->aqlock, flags);
+		atomic_add(1, &fl->async_queue_job_count);
+		wake_up_interruptible(&fl->async_wait_queue);
+		spin_unlock_irqrestore(&fl->aqlock, flags);
+		break;
+	case FASTRPC_CONTROL_NOTIF_WAKE:
+		fl->exit_notif = true;
+		spin_lock_irqsave(&fl->proc_state_notif.nqlock, flags);
+		atomic_add(1, &fl->proc_state_notif.notif_queue_count);
+		wake_up_interruptible(&fl->proc_state_notif.notif_wait_queue);
+		spin_unlock_irqrestore(&fl->proc_state_notif.nqlock, flags);
 		break;
 	default:
 		err = -EBADRQC;
@@ -7220,7 +7345,7 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 			__func__, gcinfo[cid].subsys);
 		mutex_lock(&me->channel[cid].smd_mutex);
 		ctx->ssrcount++;
-		ctx->issubsystemup = 0;
+		ctx->subsystemstate = SUBSYSTEM_RESTARTING;
 		mutex_unlock(&me->channel[cid].smd_mutex);
 		if (cid == RH_CID)
 			me->staticpd_flags = 0;
@@ -7235,6 +7360,7 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 			complete(&fl->shutdown);
 		}
 		spin_unlock(&me->hlock);
+		ctx->subsystemstate = SUBSYSTEM_DOWN;
 		pr_info("adsprpc: %s: received RAMDUMP notification for %s\n",
 			__func__, gcinfo[cid].subsys);
 		break;
@@ -7264,7 +7390,7 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 			"QCOM_SSR_AFTER_POWERUP", "fastrpc_restart_notifier-enter");
 		pr_info("adsprpc: %s: %s subsystem is up\n",
 			__func__, gcinfo[cid].subsys);
-		ctx->issubsystemup = 1;
+		ctx->subsystemstate = SUBSYSTEM_UP;
 		break;
 	default:
 		break;
@@ -7561,7 +7687,7 @@ static void init_secure_vmid_list(struct device *dev, char *prop_name,
 		}
 		ADSPRPC_INFO("secure VMID = %d\n",
 			rhvmlist[i]);
-		rhvmpermlist[i] = PERM_READ | PERM_WRITE | PERM_EXEC;
+		rhvmpermlist[i] = QCOM_SCM_PERM_RWX;
 	}
 	destvm->vmid = rhvmlist;
 	destvm->vmperm = rhvmpermlist;
@@ -8281,7 +8407,7 @@ static int __init fastrpc_device_init(void)
 		me->channel[i].ssrcount = 0;
 		me->channel[i].in_hib = 0;
 		me->channel[i].prevssrcount = 0;
-		me->channel[i].issubsystemup = 1;
+		me->channel[i].subsystemstate = SUBSYSTEM_UP;
 		me->channel[i].rh_dump_dev = NULL;
 		me->channel[i].nb.notifier_call = fastrpc_restart_notifier_cb;
 		me->channel[i].handle = qcom_register_ssr_notifier(
@@ -8289,10 +8415,12 @@ static int __init fastrpc_device_init(void)
 							&me->channel[i].nb);
 		if (i == CDSP_DOMAIN_ID) {
 			me->channel[i].dev = me->non_secure_dev;
+#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
 			err = fastrpc_alloc_cma_memory(&region_phys,
 								&region_vaddr,
 								MINI_DUMP_DBG_SIZE,
 								(unsigned long)attr);
+#endif
 			if (err)
 				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
 						__func__, err);

@@ -112,7 +112,7 @@
 #define MAX_DOMAIN_ID	CDSP_DOMAIN_ID
 
 #define NUM_CHANNELS	4	/* adsp, mdsp, slpi, cdsp*/
-#define NUM_SESSIONS	13	/* max 12 compute, 1 cpz */
+#define NUM_SESSIONS	14	/* max 11 compute, 3 cpz */
 
 #define VALID_FASTRPC_CID(cid) \
 	(cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS)
@@ -491,6 +491,8 @@ enum fastrpc_control_type {
 /* Clean process on DSP */
 	FASTRPC_CONTROL_DSPPROCESS_CLEAN	=	6,
 	FASTRPC_CONTROL_RPC_POLL = 7,
+	FASTRPC_CONTROL_ASYNC_WAKE = 8,
+	FASTRPC_CONTROL_NOTIF_WAKE = 9,
 };
 
 struct fastrpc_ctrl_latency {
@@ -735,6 +737,8 @@ struct fastrpc_tx_msg {
 	int transport_send_err; /* transport error */
 	int64_t ns;             /* Timestamp (in ns) of msg */
 	uint64_t xo_time_in_us; /* XO Timestamp (in us) of sent message */
+	uint64_t xo_time_in_us_interrupted; /* XO Timestamp (in us) of interrupted ctx */
+	uint64_t xo_time_in_us_restored; /* XO Timestamp (in us) of restored ctx */
 };
 
 struct fastrpc_rx_msg {
@@ -827,6 +831,9 @@ struct smq_invoke_ctx {
 	uint32_t sc_interrupted;
 	struct fastrpc_file *fl_interrupted;
 	uint32_t handle_interrupted;
+	uint64_t xo_time_in_us_interrupted; /* XO Timestamp (in us) of interrupted ctx */
+	uint64_t xo_time_in_us_restored; /* XO Timestamp (in us) of restored ctx */
+	int tx_index; /* index of current ctx in channel gmsg_log array */
 };
 
 struct fastrpc_ctx_lst {
@@ -896,7 +903,7 @@ struct fastrpc_channel_ctx {
 	int in_hib;
 	void *handle;
 	uint64_t prevssrcount;
-	int issubsystemup;
+	int subsystemstate;
 	int vmid;
 	struct secure_vm rhvm;
 	void *rh_dump_dev;
@@ -1098,6 +1105,10 @@ struct fastrpc_file {
 	spinlock_t dspsignals_lock;
 	struct mutex signal_create_mutex;
 	struct completion shutdown;
+	/* Flag to indicate notif thread exit requested*/
+	bool exit_notif;
+	/* Flag to indicate async thread exit requested*/
+	bool exit_async;
 };
 
 union fastrpc_ioctl_param {
