@@ -12,6 +12,14 @@
 
 #include "synx_err.h"
 
+#define SYNX_NO_TIMEOUT        ((u64)-1)
+
+/**
+ * SYNX_INVALID_HANDLE      : client can assign the synx handle variable with this value
+ *                            when it doesn't hold a valid synx handle
+ */
+#define SYNX_INVALID_HANDLE 0
+
 /**
  * enum synx_create_flags - Flags passed during synx_create call
  *
@@ -87,7 +95,7 @@ typedef void (*synx_callback)(s32 sync_obj, int status, void *data);
  * synx_user_callback - Callback function registered by clients
  *
  * User callback registered for non-blocking wait. Dispatched when
- * synx object is signaled.
+ * synx object is signaled or timeout has expired.
  */
 typedef void (*synx_user_callback_t)(u32 h_synx, int status, void *data);
 
@@ -330,12 +338,14 @@ struct synx_import_params {
  * @cb_func        : Pointer to callback func to be invoked
  * @userdata       : Opaque pointer passed back with callback
  * @cancel_cb_func : Pointer to callback to ack cancellation (optional)
+ * @timeout_ms     : Timeout in ms. SYNX_NO_TIMEOUT if no timeout.
  */
 struct synx_callback_params {
 	u32 h_synx;
 	synx_user_callback_t cb_func;
 	void *userdata;
 	synx_user_callback_t cancel_cb_func;
+	u64 timeout_ms;
 };
 
 /* Kernel APIs */
