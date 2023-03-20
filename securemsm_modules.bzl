@@ -1,0 +1,78 @@
+SMCINVOKE_PATH = "smcinvoke"
+QSEECOM_PATH = "qseecom"
+TZLOG_PATH = "tz_log"
+
+# This dictionary holds all the securemsm-kernel  modules included by calling register_securemsm_module
+securemsm_modules = {}
+securemsm_modules_by_config = {}
+
+# Registers securemsm module to kernel build system.
+# name: The name of the module. The name of the file generated for this module will be {name}.ko.
+# path: The path that will be prepended to all sources listed for this module.
+# config_option: If this module is enabled, the config optiont that will get enabled if so. Not all modules have this, and this is an optional parameter.
+# config_srcs: A dictionary of sources to be added to the module depending on if a configuration option is enabled or not. The keys to the dictionary are
+# the name of the config option, and the value depends If it is a list, it will just be the list of sources to be added to the module if the config option
+# is enabled. If the value is another dictionary, then you can specify sources to be added if the config option is DISABLED by having a list under the
+# default_srcs: A list of sources to be added to the module regardless of configuration options.
+# deps: A list of kernel_module or ddk_module rules that this module depends on.
+
+def register_securemsm_module(name, path = None, config_option = None, default_srcs = [], config_srcs = {}, deps = [], srcs = [], copts = [], hdrs = []):
+    processed_config_srcs = {}
+
+    for config_src_name in config_srcs:
+        config_src = config_srcs[config_src_name]
+
+        if type(config_src) == "list":
+            processed_config_srcs[config_src_name] = { True: config_src }
+        else:
+            processed_config_srcs[config_src_name] = config_src
+
+    module = {
+        "name": name,
+        "path": path,
+        "default_srcs": default_srcs,
+        "config_srcs": processed_config_srcs,
+        "config_option": config_option,
+        "deps": deps,
+        "copts": copts,
+        "srcs": srcs,
+        "hdrs": hdrs,
+    }
+
+    securemsm_modules[name] = module
+
+    if config_option:
+        securemsm_modules_by_config[config_option] = name
+
+
+# ------------------------------------ SECUREMSM MODULE DEFINITIONS ---------------------------------
+register_securemsm_module(
+    name = "smcinvoke_dlkm",
+    path = SMCINVOKE_PATH,
+    default_srcs = [
+            "smcinvoke.c",
+            "smcinvoke_kernel.c",
+            "trace_smcinvoke.h",
+            "IQSEEComCompat.h",
+            "IQSEEComCompatAppLoader.h",
+
+    ],
+    deps = [":smcinvoke_kernel_headers"],
+    hdrs = [":smcinvoke_kernel_headers"],
+)
+
+register_securemsm_module(
+    name = "qseecom_dlkm",
+    path = QSEECOM_PATH,
+    default_srcs = ["qseecom.c",
+                    "ice.h"],
+    deps = [":securemsm_kernel_headers"],
+    srcs = ["config/sec-kernel_defconfig_qseecom.h"],
+    copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
+)
+
+register_securemsm_module(
+    name = "tz_log_dlkm",
+    path = TZLOG_PATH,
+    default_srcs = ["tz_log.c"],
+)

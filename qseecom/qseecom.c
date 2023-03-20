@@ -46,12 +46,17 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/mem-buf.h>
+#include <linux/version.h>
 #include "ice.h"
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 #include <linux/qseecom_kernel.h>
 #include "misc/qseecom_priv.h"
 #else
 #include "misc/qseecom_kernel.h"
+#endif
+
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(6,0,0))
+#define KERNEL_VERSION_LEGACY
 #endif
 
 #define QSEECOM_DEV			"qseecom"
@@ -1382,7 +1387,11 @@ static int qseecom_vaddr_map(int ion_fd,
 {
 	struct dma_buf *new_dma_buf = NULL;
 	struct dma_buf_attachment *new_attach = NULL;
+#ifdef KERNEL_VERSION_LEGACY
 	struct dma_buf_map new_dma_buf_map = {0};
+#else
+	struct iosys_map new_dma_buf_map = {0};
+#endif
 	struct sg_table *new_sgt = NULL;
 	void *new_va = NULL;
 	int ret = 0;
@@ -1424,11 +1433,15 @@ static void qseecom_vaddr_unmap(void *vaddr, struct sg_table *sgt,
 		struct dma_buf_attachment *attach,
 		struct dma_buf *dmabuf)
 {
-   struct dma_buf_map  dmabufmap = DMA_BUF_MAP_INIT_VADDR(vaddr);
+#ifdef KERNEL_VERSION_LEGACY
+	struct dma_buf_map  dmabufmap = DMA_BUF_MAP_INIT_VADDR(vaddr);
+#else
+	struct iosys_map  dmabufmap = IOSYS_MAP_INIT_VADDR(vaddr);
+#endif
 
 	if (!dmabuf || !vaddr || !sgt || !attach)
 		return;
-	pr_err("SMITA trying to unmap vaddr");
+	pr_err("Trying to unmap vaddr");
 	dma_buf_vunmap(dmabuf, &dmabufmap);
 	dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 	qseecom_dmabuf_unmap(sgt, attach, dmabuf);
@@ -2605,7 +2618,9 @@ err_resp:
 					data->client.app_name, resp->data);
 				goto exit;
 			}
+			fallthrough;
 		case QSEOS_RESULT_SUCCESS:
+			break;
 		case QSEOS_RESULT_INCOMPLETE:
 			break;
 		case QSEOS_RESULT_CBACK_REQUEST:
@@ -3657,6 +3672,7 @@ static int __qseecom_process_reentrancy(struct qseecom_command_scm_resp *resp,
 			data->client.app_id, data->client.app_name, resp->data);
 			return ret;
 		}
+		fallthrough;
 		/* fall through to process incomplete request */
 	case QSEOS_RESULT_INCOMPLETE:
 		qseecom.app_block_ref_cnt++;
@@ -3676,6 +3692,7 @@ static int __qseecom_process_reentrancy(struct qseecom_command_scm_resp *resp,
 						resp->result);
 		return -EINVAL;
 	}
+	return ret;
 }
 
 static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
@@ -9837,6 +9854,7 @@ static void qseecom_exit(void)
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("QTI Secure Execution Environment Communicator");
+MODULE_IMPORT_NS(DMA_BUF);
 
 module_init(qseecom_init);
 module_exit(qseecom_exit);

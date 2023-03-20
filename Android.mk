@@ -122,4 +122,17 @@ include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif #TARGET_ENABLE_QSEECOM OR TARGET_BOARD_AUTO
 ###################################################
 ###################################################
+ifeq ($(TARGET_USES_SMMU_PROXY), true)
+include $(CLEAR_VARS)
+#LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
+LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/smmu-proxy/ $(LOCAL_PATH)/
+LOCAL_MODULE              := smmu_proxy_dlkm.ko
+LOCAL_MODULE_KBUILD_NAME  := smmu_proxy_dlkm.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif
+###################################################
+###################################################
 endif #COMPILE_SECUREMSM_DLKM check
