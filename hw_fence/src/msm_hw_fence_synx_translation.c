@@ -169,7 +169,9 @@ int synx_hwfence_create(struct synx_session *session, struct synx_create_params 
 		return -SYNX_INVALID;
 	}
 
-	if (IS_ERR_OR_NULL(params->h_synx) || (params->flags != SYNX_CREATE_DMA_FENCE) ||
+	if (IS_ERR_OR_NULL(params->h_synx) || (params->flags > SYNX_CREATE_MAX_FLAGS) ||
+			!(params->flags & SYNX_CREATE_DMA_FENCE) ||
+			(params->flags & SYNX_CREATE_CSL_FENCE) ||
 			IS_ERR_OR_NULL(params->fence)) {
 		HWFNC_ERR("synx_id:%d invalid create params h_synx:0x%pK flags:0x%x fence:0x%pK\n",
 			session->type, params->h_synx, params->flags, params->fence);
@@ -259,7 +261,8 @@ static int synx_hwfence_import_indv(void *client, struct synx_import_indv_params
 
 	if (IS_ERR_OR_NULL(client) || IS_ERR_OR_NULL(params) ||
 			IS_ERR_OR_NULL(params->new_h_synx) ||
-			(params->flags != SYNX_IMPORT_DMA_FENCE) || IS_ERR_OR_NULL(params->fence)) {
+			!(params->flags & SYNX_IMPORT_DMA_FENCE) ||
+			(params->flags & SYNX_IMPORT_SYNX_FENCE) || IS_ERR_OR_NULL(params->fence)) {
 		HWFNC_ERR("invalid client:0x%pK params:0x%pK h_synx:0x%pK flags:0x%x fence:0x%pK\n",
 			client, params, IS_ERR_OR_NULL(params) ? NULL : params->new_h_synx,
 			IS_ERR_OR_NULL(params) ? 0 : params->flags,
