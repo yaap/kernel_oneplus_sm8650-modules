@@ -9,9 +9,10 @@
 enum transport_type {
 	BT = 1,
 	BTADV,
+	NONE,
 };
 
-static char *transport_type_text[] = {"BT", "BTADV"};
+static char *transport_type_text[] = {"BT", "BTADV", "NONE"};
 
 void btfmcodec_set_current_state(struct btfmcodec_state_machine *, btfmcodec_state);
 void btfmcodec_wq_prepare_bearer(struct work_struct *);

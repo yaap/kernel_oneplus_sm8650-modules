@@ -305,6 +305,13 @@ void btfmcodec_prepare_bearer(struct btfmcodec_char_device *btfmcodec_dev,
 				btfmcodec_initiate_hwep_shutdown(btfmcodec_dev);
 			}
 		}
+	} else if (new_transport == NONE) {
+		/* Let ALSA handles the transport close  for BT */
+		if (current_state != BT_Connecting && current_state != BT_Connected)
+			btfmcodec_set_current_state(state, IDLE);
+		btfmcodec_frame_prepare_bearer_rsp_pkt(btfmcodec_dev, (uint8_t)current_state,
+							MSG_SUCCESS);
+		return;
 	}
 }
 
