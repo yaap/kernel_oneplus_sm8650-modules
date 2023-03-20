@@ -1449,6 +1449,24 @@ static void msm_cvp_unmap_frame_buf(struct msm_cvp_inst *inst,
 	cvp_kmem_cache_free(&cvp_driver->frame_cache, frame);
 }
 
+static void backup_frame_buffers(struct msm_cvp_inst *inst,
+			struct msm_cvp_frame *frame)
+{
+	/* Save frame buffers before unmap them */
+	int i = frame->nr;
+
+	if (i == 0 || i > MAX_FRAME_BUFFER_NUMS)
+		return;
+
+	inst->last_frame.ktid = frame->ktid;
+	inst->last_frame.nr = frame->nr;
+
+	do {
+		i--;
+		inst->last_frame.smem[i] = *(frame->bufs[i].smem);
+	} while (i);
+}
+
 void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 {
 	struct msm_cvp_frame *frame, *dummy1;
@@ -1480,6 +1498,8 @@ void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 			__func__, frame->pkt_type,
 			hash32_ptr(inst->session),
 			frame->ktid);
+		/* Save the previous frame mappings for debug */
+		backup_frame_buffers(inst, frame);
 		msm_cvp_unmap_frame_buf(inst, frame);
 	}
 	else
@@ -1788,6 +1808,10 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	list_for_each_entry(buf, &inst->persistbufs.list, list)
 		_log_buf(snap, SMEM_PERSIST, inst, buf, log);
 	mutex_unlock(&inst->persistbufs.lock);
+
+	dprintk(CVP_ERR, "last frame ktid %llx\n", inst->last_frame.ktid);
+	for (i = 0; i < inst->last_frame.nr; i++)
+		_log_smem(snap, inst, &inst->last_frame.smem[i], log);
 }
 
 struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
