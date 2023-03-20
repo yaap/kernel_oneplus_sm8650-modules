@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
@@ -15,6 +16,10 @@
 #define Q16_FRAC(q) ((((q) & 0xFFFF) * 100) >> 16)
 #define CLK_RATE_STEP 1000000
 #define NOTIFY_TIMEOUT 100000000
+/* Max HW DRV Instances (inst 0-5)*/
+#define MAX_HW_DRV_INSTANCES 6
+/* Max HW DRV Instances (power states 0-4)*/
+#define MAX_POWER_STATES 5
 
 static int mmrm_sw_update_freq(
 	struct mmrm_sw_clk_mgr_info *sinfo, struct mmrm_sw_clk_client_tbl_entry *tbl_entry)
@@ -106,6 +111,72 @@ static void mmrm_sw_print_client_data(struct mmrm_sw_clk_mgr_info *sinfo,
 				tbl_entry->current_ma[i][j]);
 		}
 	}
+}
+
+static void mmrm_sw_print_crm_table(struct mmrm_sw_clk_client_tbl_entry *tbl_entry)
+{
+	int i;
+
+	if (!tbl_entry->is_crm_client)
+		return;
+
+	for (i = 0; i < tbl_entry->crm_client_tbl_size; i++)
+		d_mpr_h("%s: csid(0x%x) client tbl idx %d val %llu\n",
+			__func__, tbl_entry->clk_src_id,
+			i, tbl_entry->crm_client_tbl[i]);
+}
+
+static u64 mmrm_sw_get_max_crm_rate(
+	struct mmrm_sw_clk_client_tbl_entry *tbl_entry,
+	struct mmrm_client_data *client_data, unsigned long new_clk_val,
+	int *new_max_rate_idx)
+{
+	u32 crm_max_rate, new_val_idx;
+
+	crm_max_rate = tbl_entry->clk_rate;
+	*new_max_rate_idx = tbl_entry->max_rate_idx;
+
+	new_val_idx = (client_data->drv_type == MMRM_CRM_SW_DRV) ?
+			(tbl_entry->crm_client_tbl_size - 1) : (tbl_entry->num_pwr_states *
+			client_data->crm_drv_idx + client_data->pwr_st);
+
+	if (new_clk_val > crm_max_rate) {
+		crm_max_rate = new_clk_val;
+		*new_max_rate_idx = new_val_idx;
+	} else {
+		/*
+		 * Get the new crm_max_rate from all SW/HW clients.
+		 * If the index with current max value is being updated with a lower value,
+		 * check if that index still has the max value or if another index has
+		 * the new max value.
+		 */
+		if (new_val_idx == tbl_entry->max_rate_idx) {
+			int i;
+
+			crm_max_rate = 0;
+			for (i = 0; i < tbl_entry->crm_client_tbl_size; i++) {
+				if (i == tbl_entry->max_rate_idx)
+					continue;
+
+				if (tbl_entry->crm_client_tbl[i] > crm_max_rate) {
+					crm_max_rate = tbl_entry->crm_client_tbl[i];
+					*new_max_rate_idx = i;
+				}
+			}
+
+			if (new_clk_val >= crm_max_rate) {
+				/* New value at old max index is still the maximum value */
+				crm_max_rate = tbl_entry->crm_client_tbl[tbl_entry->max_rate_idx];
+				*new_max_rate_idx = tbl_entry->max_rate_idx;
+			}
+		}
+	}
+
+	d_mpr_h("%s: csid(0x%x) new clk rate(idx %d) = %llu, crm_max_rate(idx %d) = %llu\n",
+		__func__, tbl_entry->clk_src_id, new_val_idx, new_clk_val,
+		*new_max_rate_idx, crm_max_rate);
+
+	return crm_max_rate;
 }
 
 static int mmrm_sw_update_curr(struct mmrm_sw_clk_mgr_info *sinfo,
@@ -256,14 +327,43 @@ static struct mmrm_client *mmrm_sw_clk_client_register(
 	tbl_entry->pvt_data = pvt_data;
 	tbl_entry->notifier_cb_fn = not_fn_cb;
 
+	if (clk_desc.hw_drv_instances > MAX_HW_DRV_INSTANCES
+		|| clk_desc.num_pwr_states > MAX_POWER_STATES) {
+		d_mpr_e("%s: Invalid CRM data: HW DRV instances %d power states %d\n",
+			__func__, clk_desc.hw_drv_instances, clk_desc.num_pwr_states);
+		rc = -EINVAL;
+		goto err_invalid_crm_data;
+	}
+
+	/* CRM-managed client */
+	if (clk_desc.hw_drv_instances > 0 && clk_desc.num_pwr_states > 0) {
+		d_mpr_h("%s: CRM-managed clock client: HW DRV instances %d, power states %d\n",
+			__func__, clk_desc.hw_drv_instances, clk_desc.num_pwr_states);
+		tbl_entry->crm_client_tbl_size = clk_desc.hw_drv_instances *
+			clk_desc.num_pwr_states + 1;
+		tbl_entry->crm_client_tbl = kcalloc(tbl_entry->crm_client_tbl_size,
+			sizeof(u64), GFP_KERNEL);
+		if (!tbl_entry->crm_client_tbl) {
+			d_mpr_e("%s: failed to allocate CRM client table\n", __func__);
+			rc = -ENOMEM;
+			goto err_fail_alloc_crm_tbl;
+		}
+		tbl_entry->is_crm_client = 1;
+		tbl_entry->max_rate_idx = 0;
+		tbl_entry->hw_drv_instances = clk_desc.hw_drv_instances;
+		tbl_entry->num_pwr_states = clk_desc.num_pwr_states;
+	}
+
 	/* print table entry */
-	d_mpr_h("%s: csid(0x%x) name(%s) pri(%d) pvt(%p) notifier(%p)\n",
+	d_mpr_h("%s: csid(0x%x) name(%s) pri(%d) pvt(%p) notifier(%p) hw_drv_instances(%d) num_pwr_states(%d)\n",
 		__func__,
 		tbl_entry->clk_src_id,
 		tbl_entry->name,
 		tbl_entry->pri,
 		tbl_entry->pvt_data,
-		tbl_entry->notifier_cb_fn);
+		tbl_entry->notifier_cb_fn,
+		tbl_entry->hw_drv_instances,
+		tbl_entry->num_pwr_states);
 
 	/* determine full range of clock freq */
 	rc = mmrm_sw_update_freq(sinfo, tbl_entry);
@@ -286,6 +386,15 @@ exit_found:
 	return clk_client;
 
 err_fail_update_entry:
+	tbl_entry->is_crm_client = 0;
+	tbl_entry->max_rate_idx = 0;
+	tbl_entry->hw_drv_instances = 0;
+	tbl_entry->num_pwr_states = 0;
+	kfree(tbl_entry->crm_client_tbl);
+	tbl_entry->crm_client_tbl = NULL;
+err_fail_alloc_crm_tbl:
+	tbl_entry->crm_client_tbl_size = 0;
+err_invalid_crm_data:
 	kfree(clk_client);
 
 err_fail_alloc_clk_client:
@@ -331,7 +440,8 @@ static int mmrm_sw_clk_client_deregister(struct mmrm_clk_mgr *sw_clk_mgr,
 	}
 
 	if (tbl_entry->ref_count == 0) {
-
+		kfree(tbl_entry->crm_client_tbl);
+		tbl_entry->crm_client_tbl = NULL;
 		kfree(tbl_entry->client);
 		tbl_entry->vdd_level = 0;
 		tbl_entry->clk_rate = 0;
@@ -340,6 +450,11 @@ static int mmrm_sw_clk_client_deregister(struct mmrm_clk_mgr *sw_clk_mgr,
 		tbl_entry->pri = 0x0;
 		tbl_entry->pvt_data = NULL;
 		tbl_entry->notifier_cb_fn = NULL;
+		tbl_entry->is_crm_client = 0;
+		tbl_entry->max_rate_idx = 0;
+		tbl_entry->hw_drv_instances = 0;
+		tbl_entry->num_pwr_states = 0;
+		tbl_entry->crm_client_tbl_size = 0;
 	}
 
 	mutex_unlock(&sw_clk_mgr->lock);
@@ -798,6 +913,8 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	struct mmrm_sw_clk_mgr_info *sinfo = &(sw_clk_mgr->data.sw_info);
 	bool req_reserve;
 	u32 req_level;
+	unsigned long crm_max_rate = 0;
+	int max_rate_idx = 0;
 
 	/* validate input params */
 	if (!client) {
@@ -829,9 +946,23 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	d_mpr_h("%s: csid(0x%x) clk rate %llu\n",
 		__func__, tbl_entry->clk_src_id, clk_val);
 
-	/* Check if the requested clk rate is the same as the current clk rate.
+	if (tbl_entry->is_crm_client) {
+		if (client_data->crm_drv_idx >= tbl_entry->hw_drv_instances ||
+			client_data->pwr_st >= tbl_entry->num_pwr_states) {
+			d_mpr_e("%s: invalid CRM data\n", __func__);
+			rc = -EINVAL;
+			goto err_invalid_client_data;
+		}
+
+		crm_max_rate = mmrm_sw_get_max_crm_rate(tbl_entry, client_data,
+						clk_val, &max_rate_idx);
+	}
+
+	/*
+	 * Check if the requested clk rate is the same as the current clk rate.
 	 * When clk rates are the same, compare this with the current state.
 	 * Skip when duplicate calculations will be made.
+	 * CRM Clients: Always set the rate
 	 * --- current ---- requested --- action ---
 	 * a.  reserve  &&  req_reserve:  skip
 	 * b. !reserve  && !req_reserve:  skip
@@ -840,7 +971,8 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	 */
 	req_reserve = client_data->flags & MMRM_CLIENT_DATA_FLAG_RESERVE_ONLY;
 	if (tbl_entry->clk_rate == clk_val &&
-		tbl_entry->num_hw_blocks == client_data->num_hw_blocks) {
+		tbl_entry->num_hw_blocks == client_data->num_hw_blocks &&
+		tbl_entry->is_crm_client == false) {
 
 		d_mpr_h("%s: csid(0x%x) same as previous clk rate %llu\n",
 			__func__, tbl_entry->clk_src_id, clk_val);
@@ -863,10 +995,13 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	/* get corresponding level */
 	if (clk_val) {
-		rc = mmrm_sw_get_req_level(tbl_entry, clk_val, &req_level);
+		if (!tbl_entry->is_crm_client)
+			rc = mmrm_sw_get_req_level(tbl_entry, clk_val, &req_level);
+		else
+			rc = mmrm_sw_get_req_level(tbl_entry, crm_max_rate, &req_level);
 		if (rc || req_level >= MMRM_VDD_LEVEL_MAX) {
-			d_mpr_e("%s: csid(0x%x) unable to get level for clk rate %llu\n",
-				__func__, tbl_entry->clk_src_id, clk_val);
+			d_mpr_e("%s: csid(0x%x) unable to get level for clk rate %llu crm_max_rate %llu\n",
+				__func__, tbl_entry->clk_src_id, clk_val, crm_max_rate);
 			rc = -EINVAL;
 			goto err_invalid_clk_val;
 		}
@@ -884,8 +1019,14 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	mutex_lock(&sw_clk_mgr->lock);
 
 	/* check and update for peak current */
-	rc = mmrm_sw_check_peak_current(sinfo, tbl_entry,
-		req_level, clk_val, client_data->num_hw_blocks);
+	if (!tbl_entry->is_crm_client) {
+		rc = mmrm_sw_check_peak_current(sinfo, tbl_entry,
+			req_level, clk_val, client_data->num_hw_blocks);
+	} else {
+		rc = mmrm_sw_check_peak_current(sinfo, tbl_entry,
+			req_level, crm_max_rate, client_data->num_hw_blocks);
+	}
+
 	if (rc) {
 		d_mpr_e("%s: csid (0x%x) peak overshoot peak_cur(%lu)\n",
 			__func__, tbl_entry->clk_src_id,
@@ -895,7 +1036,20 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	}
 
 	/* update table entry */
-	tbl_entry->clk_rate = clk_val;
+	if (!tbl_entry->is_crm_client) {
+		tbl_entry->clk_rate = clk_val;
+	} else {
+		tbl_entry->max_rate_idx = max_rate_idx;
+		tbl_entry->clk_rate = crm_max_rate;
+		if (client_data->drv_type == MMRM_CRM_SW_DRV)
+			tbl_entry->crm_client_tbl[tbl_entry->crm_client_tbl_size - 1] = clk_val;
+		else
+			tbl_entry->crm_client_tbl[tbl_entry->num_pwr_states *
+				client_data->crm_drv_idx +
+				client_data->pwr_st] = clk_val;
+
+		mmrm_sw_print_crm_table(tbl_entry);
+	}
 	tbl_entry->vdd_level = req_level;
 	tbl_entry->reserve = req_reserve;
 	tbl_entry->num_hw_blocks = client_data->num_hw_blocks;
@@ -903,7 +1057,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	mutex_unlock(&sw_clk_mgr->lock);
 
 	/* check reserve only flag (skip set clock rate) */
-	if (req_reserve) {
+	if (req_reserve && !tbl_entry->is_crm_client) {
 		d_mpr_h("%s: csid(0x%x) skip setting clk rate\n",
 		__func__, tbl_entry->clk_src_id);
 		rc = 0;
@@ -911,15 +1065,34 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	}
 
 set_clk_rate:
-	d_mpr_h("%s: csid(0x%x) setting clk rate %llu\n",
-		__func__, tbl_entry->clk_src_id, clk_val);
-	rc = clk_set_rate(tbl_entry->clk, clk_val);
-	if (rc) {
-		d_mpr_e("%s: csid(0x%x) failed to set clk rate %llu\n",
+	if (!tbl_entry->is_crm_client || client_data->drv_type == MMRM_CRM_SW_DRV) {
+		d_mpr_h("%s: csid(0x%x) setting clk rate %llu\n",
 			__func__, tbl_entry->clk_src_id, clk_val);
-		rc = -EINVAL;
-		/* TBD: incase of failure clk_rate is invalid */
-		goto err_clk_set_fail;
+
+		rc = clk_set_rate(tbl_entry->clk, clk_val);
+		if (rc) {
+			d_mpr_e("%s: csid(0x%x) failed to set clk rate %llu\n",
+				__func__, tbl_entry->clk_src_id, clk_val);
+			rc = -EINVAL;
+			/* TBD: incase of failure clk_rate is invalid */
+			goto err_clk_set_fail;
+		}
+	} else {
+		d_mpr_h("%s: csid(0x%x) setting clk rate %llu drv_type %u, crm_drv_idx %u, pwr_st %u\n",
+				__func__, tbl_entry->clk_src_id, clk_val,
+				CRM_HW_DRV, client_data->crm_drv_idx,
+				client_data->pwr_st);
+
+		rc = qcom_clk_crm_set_rate(tbl_entry->clk, CRM_HW_DRV,
+				client_data->crm_drv_idx,
+				client_data->pwr_st, clk_val);
+		if (rc) {
+			d_mpr_e("%s: csid(0x%x) failed to set clk rate %llu\n",
+				__func__, tbl_entry->clk_src_id, clk_val);
+			rc = -EINVAL;
+			/* TBD: incase of failure clk_rate is invalid */
+			goto err_clk_set_fail;
+		}
 	}
 
 exit_no_err:
