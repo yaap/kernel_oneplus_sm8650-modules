@@ -55,7 +55,17 @@
 #define CNSS_RAMDUMP_VERSION		0
 #define MAX_FIRMWARE_NAME_LEN		40
 #define FW_V2_NUMBER                    2
+#ifdef CONFIG_CNSS_SUPPORT_DUAL_DEV
+#define POWER_ON_RETRY_MAX_TIMES	2
+#else
 #define POWER_ON_RETRY_MAX_TIMES        4
+#endif
+#define POWER_ON_RETRY_DELAY_MS         500
+#define CNSS_FS_NAME			"cnss"
+#define CNSS_FS_NAME_SIZE		15
+#define CNSS_DEVICE_NAME_SIZE		16
+#define QRTR_NODE_FW_ID_BASE		7
+
 #define POWER_ON_RETRY_DELAY_MS         500
 #define WLFW_MAX_HANG_EVENT_DATA_SIZE   384
 
@@ -458,6 +468,15 @@ struct cnss_sol_gpio {
 	int host_sol_gpio;
 };
 
+struct cnss_thermal_cdev {
+	struct list_head tcdev_list;
+	int tcdev_id;
+	unsigned long curr_thermal_state;
+	unsigned long max_thermal_state;
+	struct device_node *dev_node;
+	struct thermal_cooling_device *tcdev;
+};
+
 struct cnss_plat_data {
 	struct platform_device *plat_dev;
 	void *bus_priv;
@@ -490,6 +509,8 @@ struct cnss_plat_data {
 	u8 hds_enabled;
 	unsigned long driver_state;
 	struct list_head event_list;
+	struct list_head cnss_tcdev_list;
+	struct mutex tcdev_lock; /* mutex for cooling devices list access */
 	spinlock_t event_lock; /* spinlock for driver work event handling */
 	struct work_struct event_work;
 	struct workqueue_struct *event_wq;
@@ -578,6 +599,14 @@ struct cnss_plat_data {
 	uint32_t num_shadow_regs_v3;
 	bool sec_peri_feature_disable;
 	struct device_node *dev_node;
+	char device_name[CNSS_DEVICE_NAME_SIZE];
+	u32 plat_idx;
+	bool enumerate_done;
+	int qrtr_node_id;
+	unsigned int wlfw_service_instance_id;
+	const char *pld_bus_ops_name;
+	u32 on_chip_pmic_devices_count;
+	u32 *on_chip_pmic_board_ids;
 };
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
@@ -605,6 +634,11 @@ int cnss_wlan_hw_enable(void);
 struct cnss_plat_data *cnss_get_plat_priv(struct platform_device *plat_dev);
 void cnss_pm_stay_awake(struct cnss_plat_data *plat_priv);
 void cnss_pm_relax(struct cnss_plat_data *plat_priv);
+struct cnss_plat_data *cnss_get_plat_priv_by_rc_num(int rc_num);
+int cnss_get_plat_env_count(void);
+struct cnss_plat_data *cnss_get_plat_env(int index);
+void cnss_get_qrtr_info(struct cnss_plat_data *plat_priv);
+bool cnss_is_dual_wlan_enabled(void);
 int cnss_driver_event_post(struct cnss_plat_data *plat_priv,
 			   enum cnss_driver_event_type type,
 			   u32 flags, void *data);

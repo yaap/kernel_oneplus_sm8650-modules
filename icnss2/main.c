@@ -45,7 +45,7 @@
 #include <linux/soc/qcom/pdr.h>
 #include <linux/remoteproc.h>
 #include <trace/hooks/remoteproc.h>
-#include <../drivers/soc/qcom/slatecom_interface.h>
+#include <linux/soc/qcom/slatecom_interface.h>
 #include "main.h"
 #include "qmi.h"
 #include "debug.h"
@@ -83,8 +83,13 @@ module_param(qmi_timeout, ulong, 0600);
 #define WLFW_TIMEOUT                    msecs_to_jiffies(3000)
 #endif
 
+#define ICNSS_RECOVERY_TIMEOUT		60000
+#define ICNSS_WPSS_SSR_TIMEOUT          5000
+#define ICNSS_CAL_TIMEOUT		40000
+
 static struct icnss_priv *penv;
 static struct work_struct wpss_loader;
+static struct work_struct wpss_ssr_work;
 uint64_t dynamic_feature_mask = ICNSS_DEFAULT_FEATURE_MASK;
 
 #define ICNSS_EVENT_PENDING			2989
@@ -132,14 +137,29 @@ static struct icnss_priv *icnss_get_plat_priv(void)
 	return penv;
 }
 
+static inline void icnss_wpss_unload(struct icnss_priv *priv)
+{
+	if (priv && priv->rproc) {
+		rproc_shutdown(priv->rproc);
+		rproc_put(priv->rproc);
+		priv->rproc = NULL;
+	}
+}
+
 static ssize_t icnss_sysfs_store(struct kobject *kobj,
 				 struct kobj_attribute *attr,
 				 const char *buf, size_t count)
 {
 	struct icnss_priv *priv = icnss_get_plat_priv();
 
-	atomic_set(&priv->is_shutdown, true);
+	if (!priv)
+		return count;
+
 	icnss_pr_dbg("Received shutdown indication");
+
+	atomic_set(&priv->is_shutdown, true);
+	if (priv->wpss_supported && priv->device_id == ADRASTEA_DEVICE_ID)
+		icnss_wpss_unload(priv);
 	return count;
 }
 
@@ -449,7 +469,7 @@ static int icnss_send_smp2p(struct icnss_priv *priv,
 	unsigned int value = 0;
 	int ret;
 
-	if (IS_ERR(priv->smp2p_info[smp2p_entry].smem_state))
+	if (!priv || IS_ERR(priv->smp2p_info[smp2p_entry].smem_state))
 		return -EINVAL;
 
 	/* No Need to check FW_DOWN for ICNSS_RESET_MSG */
@@ -502,6 +522,15 @@ static int icnss_send_smp2p(struct icnss_priv *priv,
 	return ret;
 }
 
+bool icnss_is_low_power(void)
+{
+	if (!penv)
+		return false;
+	else
+		return test_bit(ICNSS_LOW_POWER, &penv->state);
+}
+EXPORT_SYMBOL(icnss_is_low_power);
+
 static irqreturn_t fw_error_fatal_handler(int irq, void *ctx)
 {
 	struct icnss_priv *priv = ctx;
@@ -522,6 +551,10 @@ static irqreturn_t fw_crash_indication_handler(int irq, void *ctx)
 	icnss_pr_err("Received early crash indication from FW\n");
 
 	if (priv) {
+		if (priv->wpss_self_recovery_enabled)
+			mod_timer(&priv->wpss_ssr_timer,
+				  jiffies + msecs_to_jiffies(ICNSS_WPSS_SSR_TIMEOUT));
+
 		set_bit(ICNSS_FW_DOWN, &priv->state);
 		icnss_ignore_fw_timeout(true);
 
@@ -863,7 +896,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 		}
 	}
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		if (!icnss_get_temperature(priv, &temp)) {
 			icnss_pr_dbg("Temperature: %d\n", temp);
 			if (temp < WLAN_EN_TEMP_THRESHOLD)
@@ -895,6 +929,9 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 		}
 	}
 
+	if (priv->device_id == WCN6450_DEVICE_ID)
+		icnss_hw_power_off(priv);
+
 	ret = wlfw_cap_send_sync_msg(priv);
 	if (ret < 0) {
 		ignore_assert = true;
@@ -905,7 +942,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 	if (ret)
 		goto fail;
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		ret = wlfw_device_info_send_msg(priv);
 		if (ret < 0) {
 			ignore_assert = true;
@@ -945,7 +983,15 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 			goto device_info_failure;
 	}
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6450_DEVICE_ID) {
+		ret = icnss_wlfw_qdss_dnld_send_sync(priv);
+		if (ret < 0)
+			icnss_pr_info("Failed to download qdss config file for WCN6450, ret = %d\n",
+				      ret);
+	}
+
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		if (!priv->fw_soc_wake_ack_irq)
 			register_soc_wake_notif(&priv->pdev->dev);
 
@@ -1071,6 +1117,7 @@ static int icnss_pd_restart_complete(struct icnss_priv *priv)
 	clear_bit(ICNSS_PDR, &priv->state);
 	clear_bit(ICNSS_REJUVENATE, &priv->state);
 	clear_bit(ICNSS_PD_RESTART, &priv->state);
+	clear_bit(ICNSS_LOW_POWER, &priv->state);
 	priv->early_crash_ind = false;
 	priv->is_ssr = false;
 
@@ -1124,11 +1171,13 @@ static int icnss_driver_event_fw_ready_ind(struct icnss_priv *priv, void *data)
 	if (!priv)
 		return -ENODEV;
 
+	del_timer(&priv->recovery_timer);
 	set_bit(ICNSS_FW_READY, &priv->state);
 	clear_bit(ICNSS_MODE_ON, &priv->state);
 	atomic_set(&priv->soc_wake_ref_count, 0);
 
-	if (priv->device_id == WCN6750_DEVICE_ID)
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID)
 		icnss_free_qdss_mem(priv);
 
 	icnss_pr_info("WLAN FW is ready: 0x%lx\n", priv->state);
@@ -1169,14 +1218,21 @@ static int icnss_driver_event_fw_init_done(struct icnss_priv *priv, void *data)
 
 	icnss_pr_info("WLAN FW Initialization done: 0x%lx\n", priv->state);
 
-	if (icnss_wlfw_qdss_dnld_send_sync(priv))
-		icnss_pr_info("Failed to download qdss configuration file");
+	if (priv->device_id == WCN6750_DEVICE_ID) {
+		ret = icnss_wlfw_qdss_dnld_send_sync(priv);
+		if (ret < 0)
+			icnss_pr_info("Failed to download qdss config file for WCN6750, ret = %d\n",
+				      ret);
+	}
 
-	if (test_bit(ICNSS_COLD_BOOT_CAL, &priv->state))
+	if (test_bit(ICNSS_COLD_BOOT_CAL, &priv->state)) {
+		mod_timer(&priv->recovery_timer,
+			  jiffies + msecs_to_jiffies(ICNSS_CAL_TIMEOUT));
 		ret = wlfw_wlan_mode_send_sync_msg(priv,
 			(enum wlfw_driver_mode_enum_v01)ICNSS_CALIBRATION);
-	else
+	} else {
 		icnss_driver_event_fw_ready_ind(priv, NULL);
+	}
 
 	return ret;
 }
@@ -1560,7 +1616,8 @@ static int icnss_driver_event_pd_service_down(struct icnss_priv *priv,
 	if (priv->force_err_fatal)
 		ICNSS_ASSERT(0);
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
 				 ICNSS_SMP2P_OUT_SOC_WAKE);
 		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
@@ -1757,6 +1814,19 @@ static int icnss_subsys_restart_level(struct icnss_priv *priv, void *data)
 	kfree(data);
 
 	return ret;
+}
+
+static void icnss_wpss_self_recovery(struct work_struct *wpss_load_work)
+{
+	int ret;
+	struct icnss_priv *priv = icnss_get_plat_priv();
+
+	rproc_shutdown(priv->rproc);
+	ret = rproc_boot(priv->rproc);
+	if (ret) {
+		icnss_pr_err("Failed to self recover wpss rproc, ret: %d", ret);
+		rproc_put(priv->rproc);
+	}
 }
 
 static void icnss_driver_event_work(struct work_struct *work)
@@ -2063,19 +2133,24 @@ static int icnss_wpss_notifier_nb(struct notifier_block *nb,
 	if (code != QCOM_SSR_BEFORE_SHUTDOWN)
 		goto out;
 
+	if (priv->wpss_self_recovery_enabled)
+		del_timer(&priv->wpss_ssr_timer);
+
 	priv->is_ssr = true;
 
 	icnss_pr_info("WPSS went down, state: 0x%lx, crashed: %d\n",
 		      priv->state, notif->crashed);
 
+	if (priv->device_id == ADRASTEA_DEVICE_ID)
+		icnss_update_state_send_modem_shutdown(priv, data);
+
 	set_bit(ICNSS_FW_DOWN, &priv->state);
+	icnss_ignore_fw_timeout(true);
 
 	if (notif->crashed)
 		priv->stats.recovery.root_pd_crash++;
 	else
 		priv->stats.recovery.root_pd_shutdown++;
-
-	icnss_ignore_fw_timeout(true);
 
 	event_data = kzalloc(sizeof(*event_data), GFP_KERNEL);
 
@@ -2094,6 +2169,10 @@ static int icnss_wpss_notifier_nb(struct notifier_block *nb,
 	}
 	icnss_driver_event_post(priv, ICNSS_DRIVER_EVENT_PD_SERVICE_DOWN,
 				ICNSS_EVENT_SYNC, event_data);
+
+	if (notif->crashed)
+		mod_timer(&priv->recovery_timer,
+			  jiffies + msecs_to_jiffies(ICNSS_RECOVERY_TIMEOUT));
 out:
 	icnss_pr_vdbg("Exit %s,state: 0x%lx\n", __func__, priv->state);
 	return NOTIFY_OK;
@@ -2112,14 +2191,28 @@ static int icnss_modem_notifier_nb(struct notifier_block *nb,
 	icnss_pr_vdbg("Modem-Notify: event %s(%lu)\n",
 		      icnss_qcom_ssr_notify_state_to_str(code), code);
 
-	if (code == QCOM_SSR_AFTER_SHUTDOWN) {
-		icnss_pr_info("Collecting msa0 segment dump\n");
-		icnss_msa0_ramdump(priv);
+	switch (code) {
+	case QCOM_SSR_BEFORE_SHUTDOWN:
+		if (!notif->crashed &&
+		    priv->low_power_support) { /* Hibernate */
+			if (test_bit(ICNSS_MODE_ON, &priv->state))
+				icnss_driver_event_post(
+					priv, ICNSS_DRIVER_EVENT_IDLE_SHUTDOWN,
+					ICNSS_EVENT_SYNC_UNINTERRUPTIBLE, NULL);
+			set_bit(ICNSS_LOW_POWER, &priv->state);
+		}
+		break;
+	case QCOM_SSR_AFTER_SHUTDOWN:
+		/* Collect ramdump only when there was a crash. */
+		if (notif->crashed) {
+			icnss_pr_info("Collecting msa0 segment dump\n");
+			icnss_msa0_ramdump(priv);
+		}
+
+		goto out;
+	default:
 		goto out;
 	}
-
-	if (code != QCOM_SSR_BEFORE_SHUTDOWN)
-		goto out;
 
 	priv->is_ssr = true;
 
@@ -2171,6 +2264,10 @@ static int icnss_modem_notifier_nb(struct notifier_block *nb,
 	}
 	icnss_driver_event_post(priv, ICNSS_DRIVER_EVENT_PD_SERVICE_DOWN,
 				ICNSS_EVENT_SYNC, event_data);
+
+	if (notif->crashed)
+		mod_timer(&priv->recovery_timer,
+			  jiffies + msecs_to_jiffies(ICNSS_RECOVERY_TIMEOUT));
 out:
 	icnss_pr_vdbg("Exit %s,state: 0x%lx\n", __func__, priv->state);
 	return NOTIFY_OK;
@@ -2351,6 +2448,9 @@ static void icnss_pdr_notifier_cb(int state, char *service_path, void *priv_cb)
 	struct icnss_uevent_fw_down_data fw_down_data = {0};
 	enum icnss_pdr_cause_index cause = ICNSS_ROOT_PD_CRASH;
 
+	if (!priv)
+		return;
+
 	icnss_pr_dbg("PD service notification: 0x%lx state: 0x%lx\n",
 		     state, priv->state);
 
@@ -2393,6 +2493,12 @@ static void icnss_pdr_notifier_cb(int state, char *service_path, void *priv_cb)
 			}
 		}
 		clear_bit(ICNSS_HOST_TRIGGERED_PDR, &priv->state);
+
+		if (event_data->crashed)
+			mod_timer(&priv->recovery_timer,
+				  jiffies +
+				  msecs_to_jiffies(ICNSS_RECOVERY_TIMEOUT));
+
 		icnss_driver_event_post(priv, ICNSS_DRIVER_EVENT_PD_SERVICE_DOWN,
 					ICNSS_EVENT_SYNC, event_data);
 		break;
@@ -2527,7 +2633,8 @@ static int icnss_register_ramdump_devices(struct icnss_priv *priv)
 		return -ENOMEM;
 	}
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		priv->m3_dump_phyareg = icnss_create_ramdump_device(priv,
 						ICNSS_M3_SEGMENT(
 						ICNSS_M3_SEGMENT_PHYAREG));
@@ -2883,7 +2990,7 @@ out:
 }
 EXPORT_SYMBOL(icnss_unregister_driver);
 
-static struct icnss_msi_config msi_config = {
+static struct icnss_msi_config msi_config_wcn6750 = {
 	.total_vectors = 28,
 	.total_users = 2,
 	.users = (struct icnss_msi_user[]) {
@@ -2892,9 +2999,20 @@ static struct icnss_msi_config msi_config = {
 	},
 };
 
+static struct icnss_msi_config msi_config_wcn6450 = {
+	.total_vectors = 10,
+	.total_users = 1,
+	.users = (struct icnss_msi_user[]) {
+		{ .name = "CE", .num_vectors = 10, .base_vector = 0 },
+	},
+};
+
 static int icnss_get_msi_assignment(struct icnss_priv *priv)
 {
-	priv->msi_config = &msi_config;
+	if (priv->device_id == WCN6750_DEVICE_ID)
+		priv->msi_config = &msi_config_wcn6750;
+	else
+		priv->msi_config = &msi_config_wcn6450;
 
 	return 0;
 }
@@ -3336,7 +3454,7 @@ int icnss_wlan_enable(struct device *dev, struct icnss_wlan_enable_cfg *config,
 		      const char *host_version)
 {
 	struct icnss_priv *priv = dev_get_drvdata(dev);
-	int temp = 0;
+	int temp = 0, ret = 0;
 
 	if (test_bit(ICNSS_FW_DOWN, &priv->state) ||
 	    !test_bit(ICNSS_FW_READY, &priv->state)) {
@@ -3363,7 +3481,15 @@ int icnss_wlan_enable(struct device *dev, struct icnss_wlan_enable_cfg *config,
 		}
 	}
 
-	return icnss_send_wlan_enable_to_fw(priv, config, mode, host_version);
+	if (priv->device_id == WCN6450_DEVICE_ID)
+		icnss_hw_power_off(priv);
+
+	ret = icnss_send_wlan_enable_to_fw(priv, config, mode, host_version);
+
+	if (priv->device_id == WCN6450_DEVICE_ID)
+		icnss_hw_power_on(priv);
+
+	return ret;
 }
 EXPORT_SYMBOL(icnss_wlan_enable);
 
@@ -3799,15 +3925,6 @@ static void icnss_wpss_load(struct work_struct *wpss_load_work)
 	}
 }
 
-static inline void icnss_wpss_unload(struct icnss_priv *priv)
-{
-	if (priv && priv->rproc) {
-		rproc_shutdown(priv->rproc);
-		rproc_put(priv->rproc);
-		priv->rproc = NULL;
-	}
-}
-
 static ssize_t wpss_boot_store(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t count)
@@ -3840,7 +3957,7 @@ static ssize_t wlan_en_delay_store(struct device *dev,
 	struct icnss_priv *priv = dev_get_drvdata(dev);
 	uint32_t wlan_en_delay  = 0;
 
-	if (priv->device_id != WCN6750_DEVICE_ID)
+	if (priv->device_id == ADRASTEA_DEVICE_ID)
 		return count;
 
 	if (sscanf(buf, "%du", &wlan_en_delay) != 1) {
@@ -3990,6 +4107,12 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 			}
 		}
 
+		if (of_property_read_bool(pdev->dev.of_node,
+					  "qcom,is_low_power")) {
+			priv->low_power_support = true;
+			icnss_pr_dbg("Deep Sleep/Hibernate mode supported\n");
+		}
+
 		if (of_property_read_u32(pdev->dev.of_node, "qcom,rf_subtype",
 					 &priv->rf_subtype) == 0) {
 			priv->is_rf_subtype_valid = true;
@@ -4001,7 +4124,8 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 			priv->is_slate_rfa = true;
 			icnss_pr_err("SLATE rfa is enabled\n");
 		}
-	} else if (priv->device_id == WCN6750_DEVICE_ID) {
+	} else if (priv->device_id == WCN6750_DEVICE_ID ||
+		   priv->device_id == WCN6450_DEVICE_ID) {
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						   "msi_addr");
 		if (!res) {
@@ -4038,7 +4162,7 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 			     priv->msi_base_data, int_prop);
 
 		icnss_get_msi_assignment(priv);
-		for (i = 0; i < msi_config.total_vectors; i++) {
+		for (i = 0; i < priv->msi_config->total_vectors; i++) {
 			res = platform_get_resource(priv->pdev,
 						    IORESOURCE_IRQ, i);
 			if (!res) {
@@ -4189,7 +4313,8 @@ static int icnss_smmu_dt_parse(struct icnss_priv *priv)
 		if (!ret && !strcmp("fastmap", iommu_dma_type)) {
 			icnss_pr_dbg("SMMU S1 stage enabled\n");
 			priv->smmu_s1_enable = true;
-			if (priv->device_id == WCN6750_DEVICE_ID)
+			if (priv->device_id == WCN6750_DEVICE_ID ||
+			    priv->device_id == WCN6450_DEVICE_ID)
 				iommu_set_fault_handler(priv->iommu_domain,
 						icnss_smmu_fault_handler,
 						priv);
@@ -4255,16 +4380,19 @@ void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 	if (priv->device_id == ADRASTEA_DEVICE_ID)
 		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
 			  ADRASTEA_PATH_PREFIX "%s", name);
-	else
+	else if (priv->device_id == WCN6750_DEVICE_ID)
 		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
 			  QCA6750_PATH_PREFIX "%s", name);
-
+	else if (priv->device_id == WCN6450_DEVICE_ID)
+		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
+			  WCN6450_PATH_PREFIX "%s", name);
 	icnss_pr_dbg("File added with prefix: %s\n", prefix_name);
 }
 
 static const struct platform_device_id icnss_platform_id_table[] = {
 	{ .name = "wcn6750", .driver_data = WCN6750_DEVICE_ID, },
 	{ .name = "adrastea", .driver_data = ADRASTEA_DEVICE_ID, },
+	{ .name = "wcn6450", .driver_data = WCN6450_DEVICE_ID, },
 	{ },
 };
 
@@ -4275,6 +4403,9 @@ static const struct of_device_id icnss_dt_match[] = {
 	{
 		.compatible = "qcom,icnss",
 		.data = (void *)&icnss_platform_id_table[1]},
+	{
+		.compatible = "qcom,wcn6450",
+		.data = (void *)&icnss_platform_id_table[2]},
 	{ },
 };
 
@@ -4305,6 +4436,10 @@ static void icnss_read_device_configs(struct icnss_priv *priv)
 				  "wlan-ipa-disabled")) {
 		set_bit(ICNSS_IPA_DISABLED, &priv->device_config);
 	}
+
+	if (of_property_read_bool(priv->pdev->dev.of_node,
+				  "qcom,wpss-self-recovery"))
+		priv->wpss_self_recovery_enabled = true;
 }
 
 static inline void icnss_runtime_pm_init(struct icnss_priv *priv)
@@ -4444,7 +4579,8 @@ static int icnss_probe(struct platform_device *pdev)
 	if (priv->is_slate_rfa)
 		init_completion(&priv->slate_boot_complete);
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		priv->soc_wake_wq = alloc_workqueue("icnss_soc_wake_event",
 						    WQ_UNBOUND|WQ_HIGHPRI, 1);
 		if (!priv->soc_wake_wq) {
@@ -4476,6 +4612,15 @@ static int icnss_probe(struct platform_device *pdev)
 		icnss_pr_dbg("NV MAC feature is %s\n",
 			     priv->use_nv_mac ? "Mandatory":"Not Mandatory");
 		INIT_WORK(&wpss_loader, icnss_wpss_load);
+	}
+
+	timer_setup(&priv->recovery_timer,
+		    icnss_recovery_timeout_hdlr, 0);
+
+	if (priv->wpss_self_recovery_enabled) {
+		INIT_WORK(&wpss_ssr_work, icnss_wpss_self_recovery);
+		timer_setup(&priv->wpss_ssr_timer,
+			    icnss_wpss_ssr_timeout_hdlr, 0);
 	}
 
 	INIT_LIST_HEAD(&priv->icnss_tcdev_list);
@@ -4528,6 +4673,11 @@ static int icnss_remove(struct platform_device *pdev)
 
 	icnss_pr_info("Removing driver: state: 0x%lx\n", priv->state);
 
+	del_timer(&priv->recovery_timer);
+
+	if (priv->wpss_self_recovery_enabled)
+		del_timer(&priv->wpss_ssr_timer);
+
 	device_init_wakeup(&priv->pdev->dev, false);
 
 	icnss_debugfs_destroy(priv);
@@ -4552,7 +4702,8 @@ static int icnss_remove(struct platform_device *pdev)
 		icnss_pdr_unregister_notifier(priv);
 	}
 
-	if (priv->device_id == WCN6750_DEVICE_ID) {
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID) {
 		icnss_genl_exit();
 		icnss_runtime_pm_deinit(priv);
 		if (!IS_ERR_OR_NULL(priv->mbox_chan))
@@ -4586,6 +4737,23 @@ static int icnss_remove(struct platform_device *pdev)
 	return 0;
 }
 
+void icnss_recovery_timeout_hdlr(struct timer_list *t)
+{
+	struct icnss_priv *priv = from_timer(priv, t, recovery_timer);
+
+	icnss_pr_err("Timeout waiting for FW Ready 0x%lx\n", priv->state);
+	ICNSS_ASSERT(0);
+}
+
+void icnss_wpss_ssr_timeout_hdlr(struct timer_list *t)
+{
+	struct icnss_priv *priv = from_timer(priv, t, wpss_ssr_timer);
+
+	icnss_pr_err("Timeout waiting for WPSS SSR notification 0x%lx\n",
+		      priv->state);
+	schedule_work(&wpss_ssr_work);
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int icnss_pm_suspend(struct device *dev)
 {
@@ -4608,7 +4776,8 @@ static int icnss_pm_suspend(struct device *dev)
 	ret = priv->ops->pm_suspend(dev);
 
 	if (ret == 0) {
-		if (priv->device_id == WCN6750_DEVICE_ID) {
+		if (priv->device_id == WCN6750_DEVICE_ID ||
+		    priv->device_id == WCN6450_DEVICE_ID) {
 			if (test_bit(ICNSS_PD_RESTART, &priv->state) ||
 			    !test_bit(ICNSS_MODE_ON, &priv->state))
 				return 0;
@@ -4717,7 +4886,7 @@ static int icnss_pm_runtime_suspend(struct device *dev)
 	struct icnss_priv *priv = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if (priv->device_id != WCN6750_DEVICE_ID) {
+	if (priv->device_id == ADRASTEA_DEVICE_ID) {
 		icnss_pr_err("Ignore runtime suspend:\n");
 		goto out;
 	}
@@ -4751,8 +4920,8 @@ static int icnss_pm_runtime_resume(struct device *dev)
 	struct icnss_priv *priv = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if (priv->device_id != WCN6750_DEVICE_ID) {
-		icnss_pr_err("Ignore runtime resume:\n");
+	if (priv->device_id == ADRASTEA_DEVICE_ID) {
+		icnss_pr_err("Ignore runtime resume\n");
 		goto out;
 	}
 
@@ -4778,8 +4947,8 @@ static int icnss_pm_runtime_idle(struct device *dev)
 {
 	struct icnss_priv *priv = dev_get_drvdata(dev);
 
-	if (priv->device_id != WCN6750_DEVICE_ID) {
-		icnss_pr_err("Ignore runtime idle:\n");
+	if (priv->device_id == ADRASTEA_DEVICE_ID) {
+		icnss_pr_err("Ignore runtime idle\n");
 		goto out;
 	}
 

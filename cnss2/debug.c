@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved. */
-/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved. */
 
 
 #include <linux/err.h>
@@ -576,6 +576,8 @@ static ssize_t cnss_runtime_pm_debug_write(struct file *fp,
 	buf[len] = '\0';
 	cmd = buf;
 
+	cnss_pr_dbg("Received runtime_pm debug command: %s\n", cmd);
+
 	if (sysfs_streq(cmd, "usage_count")) {
 		cnss_pci_pm_runtime_show_usage_count(pci_priv);
 	} else if (sysfs_streq(cmd, "request_resume")) {
@@ -944,8 +946,15 @@ int cnss_debugfs_create(struct cnss_plat_data *plat_priv)
 {
 	int ret = 0;
 	struct dentry *root_dentry;
+	char name[CNSS_FS_NAME_SIZE];
 
-	root_dentry = debugfs_create_dir("cnss", 0);
+	if (cnss_is_dual_wlan_enabled())
+		snprintf(name, CNSS_FS_NAME_SIZE, CNSS_FS_NAME "_%d",
+			 plat_priv->plat_idx);
+	else
+		snprintf(name, CNSS_FS_NAME_SIZE, CNSS_FS_NAME);
+
+	root_dentry = debugfs_create_dir(name, 0);
 	if (IS_ERR(root_dentry)) {
 		ret = PTR_ERR(root_dentry);
 		cnss_pr_err("Unable to create debugfs %d\n", ret);
