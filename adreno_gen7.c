@@ -544,6 +544,13 @@ int gen7_start(struct adreno_device *adreno_dev)
 
 	kgsl_regwrite(device, GEN7_UCHE_CACHE_WAYS, 0x800000);
 
+	/*
+	 * Disable LPAC hard sync event to fix lock up issue when BR/BV event
+	 * fifo is full.
+	 */
+	if (adreno_dev->lpac_enabled)
+		kgsl_regrmw(device, GEN7_UCHE_DBG_CNTL_1, BIT(30), BIT(30));
+
 	kgsl_regwrite(device, GEN7_UCHE_CMDQ_CONFIG,
 			FIELD_PREP(GENMASK(19, 16), 6) |
 			FIELD_PREP(GENMASK(15, 12), 6) |
@@ -1414,6 +1421,8 @@ int gen7_probe_common(struct platform_device *pdev,
 
 	adreno_dev->hwcg_enabled = true;
 	adreno_dev->uche_client_pf = 1;
+
+	device->pwrscale.avoid_ddr_stall = true;
 
 	ret = adreno_device_probe(pdev, adreno_dev);
 	if (ret)
