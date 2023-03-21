@@ -11,6 +11,8 @@ ddk_headers(
     hdrs = glob([
         "include/linux/smcinvoke*.h",
         "include/linux/IClientE*.h",
+        "include/linux/ITrustedCameraDriver.h",
+        "include/linux/CTrustedCameraDriver.h",
         "linux/misc/qseecom_kernel.h",
         "linux/misc/qseecom_priv.h"
     ]),
