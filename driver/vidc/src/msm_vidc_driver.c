@@ -5854,17 +5854,6 @@ static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 		max_height = capability->cap[FRAME_HEIGHT].max;
 	}
 
-	/* reject odd resolution session */
-	if (is_encode_session(inst) &&
-		(is_odd(width) || is_odd(height) ||
-		is_odd(inst->compose.width) ||
-		is_odd(inst->compose.height))) {
-		i_vpr_e(inst, "%s: resolution is not even. wxh [%u x %u], compose [%u x %u]\n",
-			__func__, width, height, inst->compose.width,
-			inst->compose.height);
-		return -EINVAL;
-	}
-
 	/* check if input width and height is in supported range */
 	if (is_decode_session(inst) || is_encode_session(inst)) {
 		if (!in_range(width, min_width, max_width) ||
