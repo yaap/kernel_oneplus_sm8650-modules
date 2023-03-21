@@ -13,6 +13,7 @@
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
 #include <linux/version.h>
+#include <linux/stringify.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
 #endif
@@ -29,14 +30,13 @@
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
 #include "venus_hfi.h"
-#include "video_generated_h"
 
 #define BASE_DEVICE_NUMBER 32
 
 struct msm_vidc_core *g_core;
 
-const char video_banner[] = "Video-Banner: (" VIDEO_COMPILE_BY "@"
-	VIDEO_COMPILE_HOST ") (" VIDEO_COMPILE_TIME ")";
+const char video_banner[] = "Video-Banner: (" __stringify(VIDEO_COMPILE_BY) "@"
+	__stringify(VIDEO_COMPILE_HOST) ") (" __stringify(VIDEO_COMPILE_TIME) ")";
 
 static inline bool is_video_device(struct device *dev)
 {

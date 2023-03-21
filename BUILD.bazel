@@ -10,7 +10,7 @@ ddk_headers(
     hdrs = glob([
         "include/uapi/vidc/media/*.h",
     ]),
-    includes = ["include/uapi/vidc/media"]
+    includes = ["include/uapi/vidc"]
 )
 
 ddk_headers(

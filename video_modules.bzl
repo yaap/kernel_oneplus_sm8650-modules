@@ -5,7 +5,7 @@ module_entry = video_driver_modules.register
 
 module_entry(
     name = "msm_video",
-    srcs = [ # vidc common files
+    srcs = [
         "driver/vidc/src/msm_vidc_v4l2.c",
         "driver/vidc/src/msm_vidc_vb2.c",
         "driver/vidc/src/msm_vidc.c",
@@ -30,23 +30,29 @@ module_entry(
         "driver/vidc/src/hfi_packet.c",
         "driver/vidc/src/venus_hfi_response.c",
         "driver/platform/common/src/msm_vidc_platform.c",
+        "driver/platform/common/src/msm_vidc_platform_ext.c",
         "driver/variant/common/src/msm_vidc_variant.c",
+        "driver/vidc/src/msm_vidc_synx.c",
         ],
     config_srcs = {
-        "CONFIG_MSM_VIDC_IRIS33" : [
+        "CONFIG_MSM_VIDC_PINEAPPLE" : [
             "driver/variant/iris33/src/msm_vidc_buffer_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_bus_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_clock_iris33.c",
             "driver/variant/iris33/src/msm_vidc_power_iris33.c",
             "driver/variant/iris33/src/msm_vidc_iris33.c",
-        ],
-        "CONFIG_MSM_VIDC_PINEAPPLE" : [
             "driver/platform/pineapple/src/msm_vidc_pineapple.c",
         ],
-    }
+    },
+    deps = [
+            "//techpack/mm-drivers:hw_fence_headers",
+            "//techpack/synx-kernel:synx_headers",
+        ],
 )
 
 module_entry(
     name = "video",
-    srcs = [ # vidc common files
+    srcs = [
         "driver/vidc/src/msm_vidc_v4l2.c",
         "driver/vidc/src/msm_vidc_vb2.c",
         "driver/vidc/src/msm_vidc.c",
@@ -71,15 +77,13 @@ module_entry(
         "driver/variant/common/src/msm_vidc_variant.c",
         ],
     config_srcs = {
-        "CONFIG_MSM_VIDC_IRIS33" : [
-            "driver/variant/iris33/src/msm_vidc_buffer_iris33.c",
-            "driver/variant/iris3/src/msm_vidc_power_iris3.o",
-            "driver/variant/iris3/src/msm_vidc_bus_iris3.o",
-            "driver/variant/iris3/src/msm_vidc_clock_iris3.o",
-            "driver/variant/iris3/src/msm_vidc_iris3.o"
-        ],
         "CONFIG_MSM_VIDC_PINEAPPLE" : [
-            "driver/platform/pineapple/src/msm_vidc_pineapple.c",
+            "driver/platform/pineapple/src/pineapple.c",
+            "driver/variant/iris33/src/msm_vidc_buffer_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_power_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_bus_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_clock_iris33.c",
+            "driver/variant/iris33/src/msm_vidc_iris33.c",
         ],
     }
 )

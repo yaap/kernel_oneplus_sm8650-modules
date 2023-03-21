@@ -6,11 +6,10 @@ def define_pineapple():
         target = "pineapple",
         registry = video_driver_modules,
         modules = [
-            "msm_video"
-            # "video"
+            "msm_video",
+            "video",
         ],
         config_options = [
-            "CONFIG_MSM_VIDC_IRIS33",
             "CONFIG_MSM_VIDC_PINEAPPLE",
         ],
     )
