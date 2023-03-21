@@ -914,6 +914,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	bool req_reserve;
 	u32 req_level;
 	unsigned long crm_max_rate = 0;
+	unsigned long clk_round_val = 0;
 	int max_rate_idx = 0;
 
 	/* validate input params */
@@ -943,8 +944,18 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 		rc = -EINVAL;
 		goto err_invalid_client;
 	}
-	d_mpr_h("%s: csid(0x%x) clk rate %llu\n",
-		__func__, tbl_entry->clk_src_id, clk_val);
+
+	/*
+	 * Clients may set rates that are higher than max supported rate for a clock.
+	 * Round the rate to max supported rate and use this rate for tracking/calculations.
+	 * Use the client-set value to set the rate to clock driver - clock driver internally
+	 * rounds the rate to max supported value.
+	 */
+	if (clk_val != 0)
+		clk_round_val = clk_round_rate(tbl_entry->clk, clk_val);
+
+	d_mpr_h("%s: csid(0x%x) clk rate %llu, clk round rate %llu\n",
+		__func__, tbl_entry->clk_src_id, clk_val, clk_round_val);
 
 	if (tbl_entry->is_crm_client) {
 		if (client_data->crm_drv_idx >= tbl_entry->hw_drv_instances ||
@@ -955,7 +966,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 		}
 
 		crm_max_rate = mmrm_sw_get_max_crm_rate(tbl_entry, client_data,
-						clk_val, &max_rate_idx);
+						clk_round_val, &max_rate_idx);
 	}
 
 	/*
@@ -970,12 +981,12 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	 * d.  reserve  && !req_reserve:  set clk rate
 	 */
 	req_reserve = client_data->flags & MMRM_CLIENT_DATA_FLAG_RESERVE_ONLY;
-	if (tbl_entry->clk_rate == clk_val &&
+	if (tbl_entry->clk_rate == clk_round_val &&
 		tbl_entry->num_hw_blocks == client_data->num_hw_blocks &&
 		tbl_entry->is_crm_client == false) {
 
-		d_mpr_h("%s: csid(0x%x) same as previous clk rate %llu\n",
-			__func__, tbl_entry->clk_src_id, clk_val);
+		d_mpr_h("%s: csid(0x%x) same as previous (rounded) clk rate %llu\n",
+			__func__, tbl_entry->clk_src_id, clk_round_val);
 
 		/* a & b */
 		if (tbl_entry->reserve == req_reserve)
@@ -994,14 +1005,14 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	}
 
 	/* get corresponding level */
-	if (clk_val) {
+	if (clk_round_val) {
 		if (!tbl_entry->is_crm_client)
-			rc = mmrm_sw_get_req_level(tbl_entry, clk_val, &req_level);
+			rc = mmrm_sw_get_req_level(tbl_entry, clk_round_val, &req_level);
 		else
 			rc = mmrm_sw_get_req_level(tbl_entry, crm_max_rate, &req_level);
 		if (rc || req_level >= MMRM_VDD_LEVEL_MAX) {
 			d_mpr_e("%s: csid(0x%x) unable to get level for clk rate %llu crm_max_rate %llu\n",
-				__func__, tbl_entry->clk_src_id, clk_val, crm_max_rate);
+				__func__, tbl_entry->clk_src_id, clk_round_val, crm_max_rate);
 			rc = -EINVAL;
 			goto err_invalid_clk_val;
 		}
@@ -1021,7 +1032,7 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 	/* check and update for peak current */
 	if (!tbl_entry->is_crm_client) {
 		rc = mmrm_sw_check_peak_current(sinfo, tbl_entry,
-			req_level, clk_val, client_data->num_hw_blocks);
+			req_level, clk_round_val, client_data->num_hw_blocks);
 	} else {
 		rc = mmrm_sw_check_peak_current(sinfo, tbl_entry,
 			req_level, crm_max_rate, client_data->num_hw_blocks);
@@ -1037,16 +1048,16 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 	/* update table entry */
 	if (!tbl_entry->is_crm_client) {
-		tbl_entry->clk_rate = clk_val;
+		tbl_entry->clk_rate = clk_round_val;
 	} else {
 		tbl_entry->max_rate_idx = max_rate_idx;
 		tbl_entry->clk_rate = crm_max_rate;
 		if (client_data->drv_type == MMRM_CRM_SW_DRV)
-			tbl_entry->crm_client_tbl[tbl_entry->crm_client_tbl_size - 1] = clk_val;
+			tbl_entry->crm_client_tbl[tbl_entry->crm_client_tbl_size - 1] = clk_round_val;
 		else
 			tbl_entry->crm_client_tbl[tbl_entry->num_pwr_states *
 				client_data->crm_drv_idx +
-				client_data->pwr_st] = clk_val;
+				client_data->pwr_st] = clk_round_val;
 
 		mmrm_sw_print_crm_table(tbl_entry);
 	}
