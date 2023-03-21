@@ -704,7 +704,7 @@ static int calculate_bandwidth_encoder_iris33(
 		codec_output->collocated_rd_wr_total_noc;
 
 	/* I frame only */
-	if (codec_input.hierachical_layer == 7) {
+	if (codec_input.hierachical_layer == CODEC_GOP_IONLY) {
 		codec_output->collocated_rd_noc = 0;
 		codec_output->collocated_wr_noc = 0;
 		codec_output->collocated_rd_ddr = 0;
@@ -817,7 +817,7 @@ static int calculate_bandwidth_encoder_iris33(
 		0 : codec_output->dpb_wr_noc;
 
 	/* I frame only */
-	if (codec_input.hierachical_layer == 7) {
+	if (codec_input.hierachical_layer == CODEC_GOP_IONLY) {
 		codec_output->dpb_rd_y_noc = 0;
 		codec_output->dpb_rd_crcb_noc =0;
 		codec_output->dpb_rdwr_duetooverlap_noc =0;
