@@ -224,23 +224,6 @@ static void print_buffer_stats(u32 tag, const char *tag_str, struct msm_vidc_ins
 		stats->data_size, stats->flags);
 }
 
-static void __fatal_error(bool fatal)
-{
-	WARN_ON(fatal);
-}
-
-static int __strict_check(struct msm_vidc_core *core, const char *function)
-{
-	bool fatal = !mutex_is_locked(&core->lock);
-
-	__fatal_error(fatal);
-
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
-	return fatal ? -EINVAL : 0;
-}
-
 static u32 msm_vidc_get_buffer_stats_flag(struct msm_vidc_inst *inst)
 {
 	u32 flags = 0;

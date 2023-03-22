@@ -12,6 +12,7 @@
 #include "msm_vidc_vb2.h"
 #include "msm_vidc.h"
 #include "msm_vidc_events.h"
+#include "venus_hfi.h"
 
 bool core_in_valid_state(struct msm_vidc_core *core)
 {
@@ -66,18 +67,6 @@ static const char *event_name(enum msm_vidc_event event)
 
 exit:
 	return name;
-}
-
-static int __strict_check(struct msm_vidc_core *core, const char *function)
-{
-	bool fatal = !mutex_is_locked(&core->lock);
-
-	WARN_ON(fatal);
-
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
-	return fatal ? -EINVAL : 0;
 }
 
 static int __strict_inst_check(struct msm_vidc_inst *inst, const char *function)

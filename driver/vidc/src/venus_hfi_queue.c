@@ -11,18 +11,6 @@
 #include "msm_vidc_platform.h"
 #include "venus_hfi.h"
 
-static int __strict_check(struct msm_vidc_core *core, const char *function)
-{
-	bool fatal = !mutex_is_locked(&core->lock);
-
-	WARN_ON(fatal);
-
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
-	return fatal ? -EINVAL : 0;
-}
-
 static void __set_queue_hdr_defaults(struct hfi_queue_header *q_hdr)
 {
 	q_hdr->qhdr_status = 0x1;

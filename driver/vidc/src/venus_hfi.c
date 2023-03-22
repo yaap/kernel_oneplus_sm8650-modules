@@ -48,7 +48,7 @@ static void __fatal_error(bool fatal)
 	WARN_ON(fatal);
 }
 
-static int __strict_check(struct msm_vidc_core *core, const char *function)
+int __strict_check(struct msm_vidc_core *core, const char *function)
 {
 	bool fatal = !mutex_is_locked(&core->lock);
 
