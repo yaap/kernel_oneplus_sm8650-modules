@@ -235,6 +235,7 @@ enum msm_vidc_metadata_bits {
 	CAP(META_SALIENCY_INFO)                   \
 	CAP(META_TRANSCODING_STAT_INFO)           \
 	CAP(META_DOLBY_RPU)                       \
+	CAP(DRV_VERSION)                          \
 	CAP(MIN_FRAME_QP)                         \
 	CAP(MAX_FRAME_QP)                         \
 	CAP(I_FRAME_QP)                           \

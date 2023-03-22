@@ -22,6 +22,8 @@
 #include "hfi_property.h"
 #include "hfi_command.h"
 
+/* version: major[24:31], minor[16:23], revision[0:15] */
+#define DRIVER_VERSION          0x04000000
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_OP_POINT            31
@@ -333,6 +335,9 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	 *      hfi_id,
 	 *      flags}
 	 */
+	{DRV_VERSION, DEC|ENC, CODECS_ALL,
+		0, INT_MAX, 1, DRIVER_VERSION,
+		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
 	{FRAME_WIDTH, DEC, CODECS_ALL, 96, 8192, 1, 1920},
 
