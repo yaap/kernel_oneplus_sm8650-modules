@@ -247,6 +247,7 @@ int msm_vb2_queue_setup(struct vb2_queue *q,
 	enum msm_vidc_buffer_type buffer_type = 0;
 	enum msm_vidc_buffer_region region = MSM_VIDC_REGION_NONE;
 	struct context_bank_info *cb = NULL;
+	struct msm_vidc_buffers *buffers;
 
 	if (!q || !num_buffers || !num_planes
 		|| !sizes || !q->drv_priv) {
@@ -269,6 +270,24 @@ int msm_vb2_queue_setup(struct vb2_queue *q,
 	port = v4l2_type_to_driver_port(inst, q->type, __func__);
 	if (port < 0)
 		return -EINVAL;
+
+	/* prepare dependency list once per session */
+	if (!inst->caps_list_prepared) {
+		rc = msm_vidc_prepare_dependency_list(inst);
+		if (rc)
+			return rc;
+		inst->caps_list_prepared = true;
+	}
+
+	/* adjust v4l2 properties for master port */
+	if ((is_encode_session(inst) && port == OUTPUT_PORT) ||
+		(is_decode_session(inst) && port == INPUT_PORT)) {
+		rc = msm_vidc_adjust_v4l2_properties(inst);
+		if (rc) {
+			i_vpr_e(inst, "%s: failed to adjust properties\n", __func__);
+			return rc;
+		}
+	}
 
 	if (*num_planes && (port == INPUT_PORT || port == OUTPUT_PORT)) {
 		f = &inst->fmts[port];
@@ -295,44 +314,26 @@ int msm_vb2_queue_setup(struct vb2_queue *q,
 		return rc;
 	}
 
-	if (port == INPUT_PORT) {
-		*num_planes = 1;
-		if (*num_buffers < inst->buffers.input.min_count +
-			inst->buffers.input.extra_count)
-			*num_buffers = inst->buffers.input.min_count +
-				inst->buffers.input.extra_count;
-		inst->buffers.input.actual_count = *num_buffers;
+	buffers = msm_vidc_get_buffers(inst, buffer_type, __func__);
+	if (!buffers)
+		return -EINVAL;
 
-	} else if (port == INPUT_META_PORT) {
-		*num_planes = 1;
-		if (*num_buffers < inst->buffers.input_meta.min_count +
-			inst->buffers.input_meta.extra_count)
-			*num_buffers = inst->buffers.input_meta.min_count +
-				inst->buffers.input_meta.extra_count;
-		inst->buffers.input_meta.actual_count = *num_buffers;
+	buffers->min_count = call_session_op(core, min_count, inst, buffer_type);
+	buffers->extra_count = call_session_op(core, extra_count, inst, buffer_type);
+	if (*num_buffers < buffers->min_count + buffers->extra_count)
+		*num_buffers = buffers->min_count + buffers->extra_count;
+	buffers->actual_count = *num_buffers;
+	*num_planes = 1;
 
-	} else if (port == OUTPUT_PORT) {
-		*num_planes = 1;
-		if (*num_buffers < inst->buffers.output.min_count +
-			inst->buffers.output.extra_count)
-			*num_buffers = inst->buffers.output.min_count +
-				inst->buffers.output.extra_count;
-		inst->buffers.output.actual_count = *num_buffers;
-
-	} else if (port == OUTPUT_META_PORT) {
-		*num_planes = 1;
-		if (*num_buffers < inst->buffers.output_meta.min_count +
-			inst->buffers.output_meta.extra_count)
-			*num_buffers = inst->buffers.output_meta.min_count +
-				inst->buffers.output_meta.extra_count;
-		inst->buffers.output_meta.actual_count = *num_buffers;
-	}
-
+	buffers->size = call_session_op(core, buffer_size, inst, buffer_type);
 	if (port == INPUT_PORT || port == OUTPUT_PORT) {
+		inst->fmts[port].fmt.pix_mp.plane_fmt[0].sizeimage = buffers->size;
 		sizes[0] = inst->fmts[port].fmt.pix_mp.plane_fmt[0].sizeimage;
 	} else if (port == OUTPUT_META_PORT) {
+		inst->fmts[port].fmt.meta.buffersize = buffers->size;
 		sizes[0] = inst->fmts[port].fmt.meta.buffersize;
 	} else if (port == INPUT_META_PORT) {
+		inst->fmts[port].fmt.meta.buffersize = buffers->size;
 		if (inst->capabilities->cap[SUPER_FRAME].value)
 			sizes[0] = inst->capabilities->cap[SUPER_FRAME].value *
 				inst->fmts[port].fmt.meta.buffersize;
@@ -428,10 +429,6 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 
 	if (!inst->once_per_session_set) {
 		inst->once_per_session_set = true;
-		rc = msm_vidc_prepare_dependency_list(inst);
-		if (rc)
-			return rc;
-
 		rc = msm_vidc_session_set_codec(inst);
 		if (rc)
 			return rc;

@@ -1049,11 +1049,7 @@ error:
 	return rc;
 }
 
-/*
- * Loop over instance capabilities from caps_list
- * and call adjust and set function
- */
-int msm_vidc_adjust_set_v4l2_properties(struct msm_vidc_inst *inst)
+int msm_vidc_adjust_v4l2_properties(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	int rc = 0;
@@ -1073,6 +1069,20 @@ int msm_vidc_adjust_set_v4l2_properties(struct msm_vidc_inst *inst)
 		if (rc)
 			return rc;
 	}
+
+	return rc;
+}
+
+int msm_vidc_set_v4l2_properties(struct msm_vidc_inst *inst)
+{
+	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
+	int rc = 0;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	i_vpr_h(inst, "%s()\n", __func__);
 
 	/* set all caps from caps_list */
 	list_for_each_entry_safe(entry, temp, &inst->caps_list, list) {

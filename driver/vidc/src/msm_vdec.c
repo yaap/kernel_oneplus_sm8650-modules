@@ -1338,8 +1338,11 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 		inst->fmts[OUTPUT_PORT].fmt.pix_mp.quantization;
 
 	inst->buffers.output.min_count = subsc_params.fw_min_count;
+	inst->fw_min_count = subsc_params.fw_min_count;
 	inst->buffers.output.extra_count = call_session_op(core,
 		extra_count, inst, MSM_VIDC_BUF_OUTPUT);
+	inst->buffers.output_meta.min_count = inst->buffers.output.min_count;
+	inst->buffers.output_meta.extra_count = inst->buffers.output.extra_count;
 	if (is_thumbnail_session(inst) && inst->codec != MSM_VIDC_VP9) {
 		if (inst->buffers.output.min_count != 1) {
 			i_vpr_e(inst, "%s: invalid min count %d in thumbnail case\n",
@@ -1448,7 +1451,7 @@ int msm_vdec_streamon_input(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
-	rc = msm_vidc_adjust_set_v4l2_properties(inst);
+	rc = msm_vidc_set_v4l2_properties(inst);
 	if (rc)
 		goto error;
 
@@ -2692,6 +2695,7 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 			inst->buffers.output.extra_count;
 	inst->buffers.output.size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
 	inst->max_map_output_count = MAX_MAP_OUTPUT_COUNT;
+	inst->fw_min_count = 0;
 
 	f = &inst->fmts[OUTPUT_META_PORT];
 	f->type = OUTPUT_META_PLANE;

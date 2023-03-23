@@ -922,6 +922,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	inst->request = false;
 	inst->ipsc_properties_set = false;
 	inst->opsc_properties_set = false;
+	inst->caps_list_prepared = false;
 	inst->has_bframe = false;
 	inst->iframe = false;
 	inst->auto_framerate = DEFAULT_FPS << 16;

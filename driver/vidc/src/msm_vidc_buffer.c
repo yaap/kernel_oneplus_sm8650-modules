@@ -65,6 +65,9 @@ u32 msm_vidc_output_min_count(struct msm_vidc_inst *inst)
 		return 1;
 
 	if (is_decode_session(inst)) {
+		if (inst->fw_min_count)
+			return inst->fw_min_count;
+
 		switch (inst->codec) {
 		case MSM_VIDC_H264:
 		case MSM_VIDC_HEVC:
