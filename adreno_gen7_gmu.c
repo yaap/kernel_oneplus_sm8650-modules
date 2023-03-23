@@ -2179,10 +2179,8 @@ static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 	if (ret)
 		return ret;
 
-	if (buslevel != INVALID_DCVS_IDX) {
+	if (buslevel != INVALID_DCVS_IDX)
 		pwr->cur_buslevel = buslevel;
-		trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel);
-	}
 
 	if (ab != INVALID_AB_VALUE) {
 		if (!adreno_dev->gmu_ab)
@@ -2190,6 +2188,7 @@ static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 		pwr->cur_ab = ab;
 	}
 
+	trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel, ab);
 	return ret;
 }
 

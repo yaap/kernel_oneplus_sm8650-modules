@@ -2624,8 +2624,6 @@ static int a6xx_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 			return ret;
 
 		pwr->cur_buslevel = buslevel;
-
-		trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel);
 	}
 
 	if (ab != pwr->cur_ab) {
@@ -2633,6 +2631,7 @@ static int a6xx_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 		pwr->cur_ab = ab;
 	}
 
+	trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel, ab);
 	return ret;
 }
 
