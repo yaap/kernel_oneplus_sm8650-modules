@@ -1828,6 +1828,7 @@ static int context_alloc(struct fastrpc_file *fl, uint32_t kernel,
 	ctx->is_work_done = false;
 	ctx->copybuf = NULL;
 	ctx->is_early_wakeup = false;
+	ctx->is_job_sent_to_remote_ss = false;
 
 	if (ctx->fl->profile) {
 		ctx->perf = kzalloc(sizeof(*(ctx->perf)), GFP_KERNEL);
@@ -2084,7 +2085,7 @@ static void fastrpc_notify_users(struct fastrpc_file *me)
 		trace_fastrpc_context_complete(me->cid, (uint64_t)ictx,
 			ictx->retval, ictx->msg.invoke.header.ctx,
 			ictx->handle, ictx->sc);
-		if (ictx->asyncjob.isasyncjob)
+		if (ictx->asyncjob.isasyncjob && ictx->is_job_sent_to_remote_ss)
 			fastrpc_queue_completed_async_job(ictx);
 		else
 			complete(&ictx->work);
@@ -2114,7 +2115,7 @@ static void fastrpc_notify_users_staticpd_pdr(struct fastrpc_file *me)
 			trace_fastrpc_context_complete(me->cid, (uint64_t)ictx,
 				ictx->retval, ictx->msg.invoke.header.ctx,
 				ictx->handle, ictx->sc);
-			if (ictx->asyncjob.isasyncjob)
+			if (ictx->asyncjob.isasyncjob && ictx->is_job_sent_to_remote_ss)
 				fastrpc_queue_completed_async_job(ictx);
 			else
 				complete(&ictx->work);
@@ -2868,6 +2869,11 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 		msg = &msg_temp;
 	}
 	err = fastrpc_transport_send(cid, (void *)msg, sizeof(*msg), fl->tvm_remote_domain);
+	if (isasync && !err) {
+		spin_lock(&fl->hlock);
+		ctx->is_job_sent_to_remote_ss = true;
+		spin_unlock(&fl->hlock);
+	}
 	trace_fastrpc_transport_send(cid, (uint64_t)ctx, msg->invoke.header.ctx,
 		handle, sc, msg->invoke.page.addr, msg->invoke.page.size);
 	ns = get_timestamp_in_ns();

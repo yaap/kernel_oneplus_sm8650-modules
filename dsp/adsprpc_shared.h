@@ -836,6 +836,7 @@ struct smq_invoke_ctx {
 	uint64_t xo_time_in_us_interrupted; /* XO Timestamp (in us) of interrupted ctx */
 	uint64_t xo_time_in_us_restored; /* XO Timestamp (in us) of restored ctx */
 	int tx_index; /* index of current ctx in channel gmsg_log array */
+	bool is_job_sent_to_remote_ss; /* Flag to check if job is sent to remote sub system */
 };
 
 struct fastrpc_ctx_lst {
