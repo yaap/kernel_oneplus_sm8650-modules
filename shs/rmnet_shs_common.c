@@ -1,5 +1,5 @@
 /* Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -230,12 +230,13 @@ DATARMNETe33b41dad9.tp),tp,sizeof(struct tcphdr));}else if(node_p->
 DATARMNET1e9d25d9ff==IPPROTO_UDP){up=DATARMNETefcaf5fbe9(skb,ip_len,sizeof(*up),
 &DATARMNETc82d2f4e16);if(!up)return;memcpy(&(node_p->DATARMNETe33b41dad9.up),up,
 sizeof(struct udphdr));}else{}}u32 DATARMNET8532ab3089(u32 index,u32 
-DATARMNET0258668025,u32 hash){int DATARMNETebbd4cd1d9[DATARMNETc6782fed88/
-(0xd1f+216-0xdf5)]={(0xd35+210-0xdff),(0xd11+230-0xdf3),(0xd18+223-0xdf4),
-(0xd1f+216-0xdf5)};u32 ret=(0xd2d+202-0xdf7);if(!DATARMNET0258668025){
-DATARMNET68d84e7b98[DATARMNETef8cbfa62f]++;return ret;}if(DATARMNET0258668025<
-DATARMNETc6782fed88)ret=((((index+((DATARMNET0258668025%(0xd1f+216-0xdf5))?
-(0xd26+209-0xdf6):(0xd2d+202-0xdf7))))<<(0xec7+1122-0x130d))*DATARMNETebbd4cd1d9
-[(DATARMNET0258668025-(0xd26+209-0xdf6))>>(0xd26+209-0xdf6)])|(hash&1048575);
+DATARMNET0258668025,u32 hash,u8 DATARMNET72067bf727){int DATARMNETebbd4cd1d9[
+DATARMNETc6782fed88/(0xd1f+216-0xdf5)]={(0xd35+210-0xdff),(0xd11+230-0xdf3),
+(0xd18+223-0xdf4),(0xd1f+216-0xdf5)};u32 ret=(0xd2d+202-0xdf7);if(!
+DATARMNET0258668025){DATARMNET68d84e7b98[DATARMNETef8cbfa62f]++;return ret;}if(
+DATARMNET0258668025<DATARMNETc6782fed88)ret=((((index+((DATARMNET0258668025%
+(0xd1f+216-0xdf5))?(0xd26+209-0xdf6):(0xd2d+202-0xdf7))))<<(0xec7+1122-0x130d))*
+DATARMNETebbd4cd1d9[(DATARMNET0258668025-(0xd26+209-0xdf6))>>(0xd26+209-0xdf6)])
+|(hash&16777215);if(DATARMNET72067bf727)ret=(ret&~16777215)|DATARMNET94fa0a43a2;
 DATARMNETda96251102(DATARMNETf3aaad06eb,DATARMNET4e91ddb48a,ret,hash,index,
 DATARMNET0258668025,NULL,NULL);return ret;}

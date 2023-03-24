@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -261,8 +261,8 @@ DATARMNET0258668025=DATARMNETecc0627c70.map_len;index=DATARMNET63b1a086d5->
 map_index;}else{map=DATARMNET63b1a086d5->DATARMNETfbbec4c537;DATARMNET0258668025
 =DATARMNET63b1a086d5->DATARMNETa59ce1fd2d;index=DATARMNET63b1a086d5->map_index;}
 if(map){DATARMNET1fcbf046ec=DATARMNET8532ab3089(index,DATARMNET0258668025,
-DATARMNET63b1a086d5->hash);skb->hash=DATARMNET1fcbf046ec;}}int 
-DATARMNETf5821256ad(struct sk_buff*skb,struct rmnet_shs_clnt_s*
+DATARMNET63b1a086d5->hash,(0xd2d+202-0xdf7));skb->hash=DATARMNET1fcbf046ec;}}int
+ DATARMNETf5821256ad(struct sk_buff*skb,struct rmnet_shs_clnt_s*
 DATARMNET0bf01e7c6f){struct DATARMNET63d7680df2*node_p;struct hlist_node*tmp;int
  map=DATARMNETecc0627c70.map_mask;int DATARMNETb925972e2a;int map_cpu;u32 hash;
 u8 is_match_found=(0xd2d+202-0xdf7);struct DATARMNETe600c5b727*

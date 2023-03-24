@@ -56,6 +56,7 @@ DATARMNET756bdd424a;extern unsigned int DATARMNET58b009b16b __read_mostly;extern
 DATARMNET930a441406[DATARMNET0d61981934];extern unsigned int DATARMNET3874292c18
 ;extern unsigned int DATARMNETbb1a9dff8b;extern unsigned int DATARMNET121c8bc82a
 ;extern unsigned int DATARMNETd619186789;extern unsigned int DATARMNETaf95716235
-;extern unsigned int DATARMNET7e039054c6;
+;extern unsigned int DATARMNET7e039054c6;extern unsigned int DATARMNET952c960091
+;
 #endif
 
