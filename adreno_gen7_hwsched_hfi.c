@@ -1706,6 +1706,17 @@ done:
 	return pending_ack.results[2];
 }
 
+static void _context_queue_enable(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+
+	if (GMU_VER_MINOR(gmu->ver.hfi) >= 3) {
+		if (gen7_hfi_send_get_value(adreno_dev, HFI_VALUE_CONTEXT_QUEUE, 0) == 1) {
+			set_bit(ADRENO_HWSCHED_CONTEXT_QUEUE, &adreno_dev->hwsched.flags);
+		}
+	}
+}
+
 static int gen7_hfi_send_hw_fence_feature_ctrl(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
@@ -1792,10 +1803,6 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 			goto err;
 	}
 
-	ret = gen7_hfi_send_hw_fence_feature_ctrl(adreno_dev);
-	if (ret)
-		goto err;
-
 	ret = gen7_hfi_send_perfcounter_feature_ctrl(adreno_dev);
 	if (ret)
 		goto err;
@@ -1823,6 +1830,19 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 			HFI_VALUE_LOG_GROUP, 0, gmu->log_group_mask);
 
 	ret = gen7_hfi_send_core_fw_start(adreno_dev);
+	if (ret)
+		goto err;
+
+	/*
+	 * HFI_VALUE_CONTEXT_QUEUE can only be queried after GMU has initialized some of the
+	 * required resources as part of handling gen7_hfi_send_core_fw_start()
+	 */
+	if (!test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags)) {
+		_context_queue_enable(adreno_dev);
+		adreno_hwsched_register_hw_fence(adreno_dev);
+	}
+
+	ret = gen7_hfi_send_hw_fence_feature_ctrl(adreno_dev);
 	if (ret)
 		goto err;
 

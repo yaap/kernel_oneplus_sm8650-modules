@@ -475,13 +475,6 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
-	if (GMU_VER_MINOR(gmu->ver.hfi) >= 3) {
-		if (gen7_hwsched_hfi_get_value(adreno_dev, HFI_VALUE_CONTEXT_QUEUE) == 1)
-			set_bit(ADRENO_HWSCHED_CONTEXT_QUEUE, &adreno_dev->hwsched.flags);
-	}
-
-	adreno_hwsched_register_hw_fence(adreno_dev);
-
 	if (gen7_hwsched_hfi_get_value(adreno_dev, HFI_VALUE_GMU_AB_VOTE) == 1) {
 		adreno_dev->gmu_ab = true;
 		set_bit(ADRENO_DEVICE_GMU_AB, &adreno_dev->priv);
