@@ -45,7 +45,7 @@ static inline bool is_image_session(struct msm_vidc_inst *inst)
 
 static inline bool is_secure_session(struct msm_vidc_inst *inst)
 {
-	return !!(inst->capabilities->cap[SECURE_MODE].value);
+	return !!(inst->capabilities[SECURE_MODE].value);
 }
 
 static inline bool is_input_buffer(enum msm_vidc_buffer_type buffer_type)
@@ -70,7 +70,7 @@ static inline bool is_output_meta_buffer(enum msm_vidc_buffer_type buffer_type)
 
 static inline bool is_ts_reorder_allowed(struct msm_vidc_inst *inst)
 {
-	return !!(inst->capabilities->cap[TS_REORDER].value &&
+	return !!(inst->capabilities[TS_REORDER].value &&
 		is_decode_session(inst) && !is_image_session(inst));
 }
 
@@ -84,8 +84,8 @@ static inline bool is_scaling_enabled(struct msm_vidc_inst *inst)
 
 static inline bool is_rotation_90_or_270(struct msm_vidc_inst *inst)
 {
-	return inst->capabilities->cap[ROTATION].value == 90 ||
-		inst->capabilities->cap[ROTATION].value == 270;
+	return inst->capabilities[ROTATION].value == 90 ||
+		inst->capabilities[ROTATION].value == 270;
 }
 
 static inline bool is_internal_buffer(enum msm_vidc_buffer_type buffer_type)
@@ -103,7 +103,7 @@ static inline bool is_internal_buffer(enum msm_vidc_buffer_type buffer_type)
 
 static inline bool is_meta_cap(struct msm_vidc_inst *inst, u32 cap)
 {
-	if (inst->capabilities->cap[cap].flags & CAP_FLAG_META)
+	if (inst->capabilities[cap].flags & CAP_FLAG_META)
 		return true;
 
 	return false;
@@ -116,8 +116,8 @@ static inline bool is_meta_rx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_INPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_RX_INPUT)
 		enabled = true;
 
 	return enabled;
@@ -130,8 +130,8 @@ static inline bool is_meta_rx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_RX_OUTPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_RX_OUTPUT)
 		enabled = true;
 
 	return enabled;
@@ -144,8 +144,8 @@ static inline bool is_meta_tx_inp_enabled(struct msm_vidc_inst *inst, u32 cap)
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_INPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_TX_INPUT)
 		enabled = true;
 
 	return enabled;
@@ -158,8 +158,8 @@ static inline bool is_dyn_meta_tx_inp_enabled(struct msm_vidc_inst *inst, u32 ca
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_DYN_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_INPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_DYN_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_TX_INPUT)
 		enabled = true;
 
 	return enabled;
@@ -172,8 +172,8 @@ static inline bool is_meta_tx_out_enabled(struct msm_vidc_inst *inst, u32 cap)
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_OUTPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_TX_OUTPUT)
 		enabled = true;
 
 	return enabled;
@@ -186,8 +186,8 @@ static inline bool is_dyn_meta_tx_out_enabled(struct msm_vidc_inst *inst, u32 ca
 	if (!is_meta_cap(inst, cap))
 		return false;
 
-	if (inst->capabilities->cap[cap].value & MSM_VIDC_META_DYN_ENABLE &&
-		inst->capabilities->cap[cap].value & MSM_VIDC_META_TX_OUTPUT)
+	if (inst->capabilities[cap].value & MSM_VIDC_META_DYN_ENABLE &&
+		inst->capabilities[cap].value & MSM_VIDC_META_TX_OUTPUT)
 		enabled = true;
 
 	return enabled;
@@ -323,37 +323,37 @@ static inline bool is_rgba_colorformat(enum msm_vidc_colorformat_type colorforma
 
 static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 {
-	return !!(inst->capabilities->cap[THUMBNAIL_MODE].value);
+	return !!(inst->capabilities[THUMBNAIL_MODE].value);
 }
 
 static inline bool is_low_power_session(struct msm_vidc_inst *inst)
 {
-	return (inst->capabilities->cap[QUALITY_MODE].value ==
+	return (inst->capabilities[QUALITY_MODE].value ==
 		MSM_VIDC_POWER_SAVE_MODE);
 }
 
 static inline bool is_realtime_session(struct msm_vidc_inst *inst)
 {
-	return inst->capabilities->cap[PRIORITY].value == 0 ? true : false;
+	return inst->capabilities[PRIORITY].value == 0 ? true : false;
 }
 
 static inline bool is_critical_priority_session(struct msm_vidc_inst *inst)
 {
-	return !!(inst->capabilities->cap[CRITICAL_PRIORITY].value);
+	return !!(inst->capabilities[CRITICAL_PRIORITY].value);
 }
 
 static inline bool is_lowlatency_session(struct msm_vidc_inst *inst)
 {
-	return !!(inst->capabilities->cap[LOWLATENCY_MODE].value);
+	return !!(inst->capabilities[LOWLATENCY_MODE].value);
 }
 
 static inline bool is_hierb_type_requested(struct msm_vidc_inst *inst)
 {
 	return (inst->codec == MSM_VIDC_H264 &&
-			inst->capabilities->cap[LAYER_TYPE].value ==
+			inst->capabilities[LAYER_TYPE].value ==
 				V4L2_MPEG_VIDEO_H264_HIERARCHICAL_CODING_B) ||
 			(inst->codec == MSM_VIDC_HEVC &&
-			inst->capabilities->cap[LAYER_TYPE].value ==
+			inst->capabilities[LAYER_TYPE].value ==
 				V4L2_MPEG_VIDEO_HEVC_HIERARCHICAL_CODING_B);
 }
 
@@ -386,9 +386,9 @@ static inline bool is_enc_slice_delivery_mode(struct msm_vidc_inst *inst)
 	if (is_decode_session(inst))
 		return false;
 
-	return (inst->capabilities->cap[SLICE_MODE].value ==
+	return (inst->capabilities[SLICE_MODE].value ==
 			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB &&
-			inst->capabilities->cap[DELIVERY_MODE].value);
+			inst->capabilities[DELIVERY_MODE].value);
 }
 
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id);

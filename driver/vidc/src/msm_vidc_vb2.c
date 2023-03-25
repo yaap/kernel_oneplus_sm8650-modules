@@ -334,8 +334,8 @@ int msm_vb2_queue_setup(struct vb2_queue *q,
 		sizes[0] = inst->fmts[port].fmt.meta.buffersize;
 	} else if (port == INPUT_META_PORT) {
 		inst->fmts[port].fmt.meta.buffersize = buffers->size;
-		if (inst->capabilities->cap[SUPER_FRAME].value)
-			sizes[0] = inst->capabilities->cap[SUPER_FRAME].value *
+		if (inst->capabilities[SUPER_FRAME].value)
+			sizes[0] = inst->capabilities[SUPER_FRAME].value *
 				inst->fmts[port].fmt.meta.buffersize;
 		else
 			sizes[0] = inst->fmts[port].fmt.meta.buffersize;
@@ -374,7 +374,7 @@ int msm_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	}
 	inst = q->drv_priv;
 	inst = get_inst_ref(g_core, inst);
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}

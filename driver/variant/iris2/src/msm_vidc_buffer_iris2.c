@@ -24,7 +24,7 @@ static u32 msm_vidc_decoder_bin_size_iris2(struct msm_vidc_inst *inst)
 	bool is_interlaced;
 	u32 vpp_delay;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return size;
 	}
@@ -39,7 +39,7 @@ static u32 msm_vidc_decoder_bin_size_iris2(struct msm_vidc_inst *inst)
 		vpp_delay = inst->decode_vpp_delay.size;
 	else
 		vpp_delay = DEFAULT_BSE_VPP_DELAY;
-	if (inst->capabilities->cap[CODED_FRAMES].value ==
+	if (inst->capabilities[CODED_FRAMES].value ==
 			CODED_FRAMES_PROGRESSIVE)
 		is_interlaced = false;
 	else
@@ -189,7 +189,7 @@ static u32 msm_vidc_decoder_persist_size_iris2(struct msm_vidc_inst *inst)
 		return size;
 	}
 
-	if (inst->capabilities->cap[META_DOLBY_RPU].value)
+	if (inst->capabilities[META_DOLBY_RPU].value)
 		rpu_enabled = 1;
 
 	if (inst->codec == MSM_VIDC_H264)
@@ -214,7 +214,7 @@ static u32 msm_vidc_decoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 		return size;
 	}
 
-	color_fmt = inst->capabilities->cap[PIX_FMTS].value;
+	color_fmt = inst->capabilities[PIX_FMTS].value;
 	if (!is_linear_colorformat(color_fmt))
 		return size;
 
@@ -258,7 +258,7 @@ static u32 msm_vidc_encoder_bin_size_iris2(struct msm_vidc_inst *inst)
 	u32 width, height, num_vpp_pipes, stage;
 	struct v4l2_format *f;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return size;
 	}
@@ -268,7 +268,7 @@ static u32 msm_vidc_encoder_bin_size_iris2(struct msm_vidc_inst *inst)
 		return size;
 	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
-	stage = inst->capabilities->cap[STAGE].value;
+	stage = inst->capabilities[STAGE].value;
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
@@ -291,13 +291,13 @@ static u32 msm_vidc_get_recon_buf_count(struct msm_vidc_inst *inst)
 	bool is_hybrid_hp = false;
 	u32 hfi_codec = 0;
 
-	n_bframe = inst->capabilities->cap[B_FRAME].value;
-	ltr_count = inst->capabilities->cap[LTR_COUNT].value;
+	n_bframe = inst->capabilities[B_FRAME].value;
+	ltr_count = inst->capabilities[LTR_COUNT].value;
 
 	if (inst->hfi_layer_type == HFI_HIER_B) {
-		hb_layers = inst->capabilities->cap[ENH_LAYER_COUNT].value + 1;
+		hb_layers = inst->capabilities[ENH_LAYER_COUNT].value + 1;
 	} else {
-		hp_layers = inst->capabilities->cap[ENH_LAYER_COUNT].value + 1;
+		hp_layers = inst->capabilities[ENH_LAYER_COUNT].value + 1;
 		if (inst->hfi_layer_type == HFI_HIER_P_HYBRID_LTR)
 			is_hybrid_hp = true;
 	}
@@ -319,7 +319,7 @@ static u32 msm_vidc_encoder_comv_size_iris2(struct msm_vidc_inst* inst)
 	u32 width, height, num_recon = 0;
 	struct v4l2_format* f;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return size;
 	}
@@ -381,12 +381,12 @@ static u32 msm_vidc_encoder_line_size_iris2(struct msm_vidc_inst *inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities || !inst->capabilities) {
+	if (!core->capabilities) {
 		i_vpr_e(inst, "%s: invalid capabilities\n", __func__);
 		return size;
 	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
-	pixfmt = inst->capabilities->cap[PIX_FMTS].value;
+	pixfmt = inst->capabilities[PIX_FMTS].value;
 
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
@@ -409,7 +409,7 @@ static u32 msm_vidc_encoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	bool is_tenbit;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
@@ -418,7 +418,7 @@ static u32 msm_vidc_encoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 
-	pixfmt = inst->capabilities->cap[PIX_FMTS].value;
+	pixfmt = inst->capabilities[PIX_FMTS].value;
 	is_tenbit = (pixfmt == MSM_VIDC_FMT_P010 || pixfmt == MSM_VIDC_FMT_TP10C);
 
 	if (inst->codec == MSM_VIDC_H264)
@@ -452,7 +452,7 @@ static u32 msm_vidc_encoder_vpss_size_iris2(struct msm_vidc_inst* inst)
 	u32 width, height, driver_colorfmt;
 	struct v4l2_format* f;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
@@ -478,7 +478,7 @@ static u32 msm_vidc_encoder_vpss_size_iris2(struct msm_vidc_inst* inst)
 	driver_colorfmt = v4l2_colorformat_to_driver(inst,
 			f->fmt.pix_mp.pixelformat, __func__);
 	is_tenbit = is_10bit_colorformat(driver_colorfmt);
-	if (inst->capabilities->cap[BLUR_TYPES].value != MSM_VIDC_BLUR_NONE)
+	if (inst->capabilities[BLUR_TYPES].value != MSM_VIDC_BLUR_NONE)
 		blur = true;
 
 	HFI_BUFFER_VPSS_ENC(size, width, height, ds_enable, blur, is_tenbit);
@@ -562,7 +562,7 @@ static int msm_vidc_input_min_count_iris2(struct msm_vidc_inst* inst)
 	u32 input_min_count = 0;
 	u32 total_hb_layer = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
@@ -571,9 +571,9 @@ static int msm_vidc_input_min_count_iris2(struct msm_vidc_inst* inst)
 		input_min_count = MIN_DEC_INPUT_BUFFERS;
 	} else if (is_encode_session(inst)) {
 		total_hb_layer = is_hierb_type_requested(inst) ?
-			inst->capabilities->cap[ENH_LAYER_COUNT].value + 1 : 0;
+			inst->capabilities[ENH_LAYER_COUNT].value + 1 : 0;
 		if (inst->codec == MSM_VIDC_H264 &&
-			!inst->capabilities->cap[LAYER_ENABLE].value) {
+			!inst->capabilities[LAYER_ENABLE].value) {
 			total_hb_layer = 0;
 		}
 		HFI_IRIS2_ENC_MIN_INPUT_BUF_COUNT(input_min_count,
@@ -601,7 +601,7 @@ static int msm_buffer_dpb_count(struct msm_vidc_inst *inst)
 
 	/* decoder dpb buffer count */
 	if (is_decode_session(inst)) {
-		color_fmt = inst->capabilities->cap[PIX_FMTS].value;
+		color_fmt = inst->capabilities[PIX_FMTS].value;
 		if (is_linear_colorformat(color_fmt))
 			count = inst->buffers.output.min_count;
 

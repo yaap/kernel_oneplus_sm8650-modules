@@ -122,7 +122,7 @@ static int msm_venc_set_colorformat(struct msm_vidc_inst *inst,
 
 	pixelformat = inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat;
 	colorformat = v4l2_colorformat_to_driver(inst, pixelformat, __func__);
-	if (!(colorformat & inst->capabilities->cap[PIX_FMTS].step_or_mask)) {
+	if (!(colorformat & inst->capabilities[PIX_FMTS].step_or_mask)) {
 		i_vpr_e(inst, "%s: invalid pixelformat %s\n",
 			__func__, v4l2_pixelfmt_name(inst, pixelformat));
 		return -EINVAL;
@@ -156,7 +156,7 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	color_format = inst->capabilities->cap[PIX_FMTS].value;
+	color_format = inst->capabilities[PIX_FMTS].value;
 	if (!is_linear_colorformat(color_format)) {
 		i_vpr_h(inst,
 			"%s: not a linear color fmt, property is not set\n",
@@ -331,7 +331,7 @@ static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
 		return -EINVAL;
 	}
 
-	if (inst->capabilities->cap[SIGNAL_COLOR_INFO].flags & CAP_FLAG_CLIENT_SET) {
+	if (inst->capabilities[SIGNAL_COLOR_INFO].flags & CAP_FLAG_CLIENT_SET) {
 		i_vpr_h(inst, "%s: client configured colorspace via control\n", __func__);
 		return 0;
 	}
@@ -397,7 +397,7 @@ static int msm_venc_set_csc(struct msm_vidc_inst* inst,
 		return -EINVAL;
 	}
 
-	csc = inst->capabilities->cap[CSC].value;
+	csc = inst->capabilities[CSC].value;
 	i_vpr_h(inst, "%s: csc: %u\n", __func__, csc);
 	rc = venus_hfi_session_property(inst,
 		HFI_PROP_CSC,
@@ -416,7 +416,6 @@ static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_core* core = inst->core;
-	struct msm_vidc_inst_capability *capability = inst->capabilities;
 	u32 mode;
 
 	rc = call_session_op(core, decide_quality_mode, inst);
@@ -426,7 +425,7 @@ static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	mode = capability->cap[QUALITY_MODE].value;
+	mode = inst->capabilities[QUALITY_MODE].value;
 	i_vpr_h(inst, "%s: quality_mode: %u\n", __func__, mode);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_QUALITY_MODE,
@@ -445,11 +444,7 @@ static int msm_venc_set_ring_buffer_count(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_inst_cap *cap;
 
-	if (!inst->capabilities) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	cap = &inst->capabilities->cap[ENC_RING_BUFFER_COUNT];
+	cap = &inst->capabilities[ENC_RING_BUFFER_COUNT];
 
 	if (!cap->set)
 		return 0;
@@ -720,7 +715,6 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -728,7 +722,6 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_METADATA;
 
 	if (port == INPUT_PORT) {
@@ -740,7 +733,7 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -753,7 +746,7 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -780,15 +773,13 @@ static int msm_venc_dynamic_metadata_delivery(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_DYNAMIC_METADATA;
 
 	if (port != INPUT_PORT) {
@@ -804,7 +795,7 @@ static int msm_venc_dynamic_metadata_delivery(struct msm_vidc_inst *inst,
 					__func__, count, sizeof(payload) / sizeof(u32));
 				return -EINVAL;
 			}
-			payload[count + 1] = capability->cap[i].hfi_id;
+			payload[count + 1] = inst->capabilities[i].hfi_id;
 			count++;
 		}
 	}
@@ -827,7 +818,6 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -835,7 +825,6 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_METADATA;
 
 	if (port == INPUT_PORT) {
@@ -847,7 +836,7 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -860,7 +849,7 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -885,7 +874,7 @@ int msm_venc_streamoff_input(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -901,7 +890,7 @@ int msm_venc_streamon_input(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -969,7 +958,7 @@ int msm_venc_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 {
 	int rc = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1024,7 +1013,7 @@ int msm_venc_streamoff_output(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1036,7 +1025,7 @@ int msm_venc_streamoff_output(struct msm_vidc_inst *inst)
 	}
 
 	/* restore LAYER_COUNT max allowed value */
-	inst->capabilities->cap[ENH_LAYER_COUNT].max =
+	inst->capabilities[ENH_LAYER_COUNT].max =
 		core->capabilities[MAX_ENH_LAYER_COUNT].value;
 
 	rc = msm_vidc_session_streamoff(inst, OUTPUT_PORT);
@@ -1050,7 +1039,7 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1282,7 +1271,7 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	struct msm_vidc_core *core;
 	u32 pix_fmt, width, height, size, bytesperline;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1629,7 +1618,6 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 		struct v4l2_streamparm *s_parm)
 {
 	int rc = 0;
-	struct msm_vidc_inst_capability *capability = NULL;
 	struct v4l2_fract *timeperframe = NULL;
 	u32 q16_rate, max_rate, default_rate;
 	u64 us_per_frame = 0, input_rate = 0;
@@ -1639,18 +1627,17 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		timeperframe = &s_parm->parm.output.timeperframe;
-		max_rate = capability->cap[OPERATING_RATE].max >> 16;
-		default_rate = capability->cap[OPERATING_RATE].value >> 16;
+		max_rate = inst->capabilities[OPERATING_RATE].max >> 16;
+		default_rate = inst->capabilities[OPERATING_RATE].value >> 16;
 		s_parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 	} else {
 		timeperframe = &s_parm->parm.capture.timeperframe;
 		is_frame_rate = true;
-		max_rate = capability->cap[FRAME_RATE].max >> 16;
-		default_rate = capability->cap[FRAME_RATE].value >> 16;
+		max_rate = inst->capabilities[FRAME_RATE].max >> 16;
+		default_rate = inst->capabilities[FRAME_RATE].value >> 16;
 		s_parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	}
 
@@ -1700,9 +1687,9 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	}
 
 	if (is_frame_rate)
-		capability->cap[FRAME_RATE].flags |= CAP_FLAG_CLIENT_SET;
+		inst->capabilities[FRAME_RATE].flags |= CAP_FLAG_CLIENT_SET;
 	else
-		capability->cap[OPERATING_RATE].flags |= CAP_FLAG_CLIENT_SET;
+		inst->capabilities[OPERATING_RATE].flags |= CAP_FLAG_CLIENT_SET;
 	/*
 	 * In static case, frame rate is set via
 	 * inst database set function mentioned in
@@ -1741,26 +1728,24 @@ exit:
 int msm_venc_g_param(struct msm_vidc_inst *inst,
 		struct v4l2_streamparm *s_parm)
 {
-	struct msm_vidc_inst_capability *capability = NULL;
 	struct v4l2_fract *timeperframe = NULL;
 
 	if (!inst || !s_parm) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		timeperframe = &s_parm->parm.output.timeperframe;
 		timeperframe->numerator = 1;
 		timeperframe->denominator =
-			capability->cap[OPERATING_RATE].value >> 16;
+			inst->capabilities[OPERATING_RATE].value >> 16;
 		s_parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 	} else {
 		timeperframe = &s_parm->parm.capture.timeperframe;
 		timeperframe->numerator = 1;
 		timeperframe->denominator =
-			capability->cap[FRAME_RATE].value >> 16;
+			inst->capabilities[FRAME_RATE].value >> 16;
 		s_parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	}
 
@@ -1805,7 +1790,7 @@ int msm_venc_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 	u32 array[32] = {0};
 	u32 i = 0;
 
-	if (!inst || !inst->core || !inst->capabilities || !f ||
+	if (!inst || !inst->core || !f ||
 	    f->index >= ARRAY_SIZE(array)) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
@@ -1836,7 +1821,7 @@ int msm_venc_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 		f->flags = V4L2_FMT_FLAG_COMPRESSED;
 		strlcpy(f->description, "codec", sizeof(f->description));
 	} else if (f->type == INPUT_MPLANE) {
-		u32 formats = inst->capabilities->cap[PIX_FMTS].step_or_mask;
+		u32 formats = inst->capabilities[PIX_FMTS].step_or_mask;
 		u32 idx = 0;
 
 		for (i = 0; i <= 31; i++) {

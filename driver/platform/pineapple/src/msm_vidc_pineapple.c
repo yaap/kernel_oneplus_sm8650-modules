@@ -339,7 +339,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	struct msm_vidc_core* core;
 	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -347,7 +347,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	output_fmt = &inst->fmts[OUTPUT_PORT];
 	input_fmt = &inst->fmts[INPUT_PORT];
 
-	fps = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	fps = inst->capabilities[FRAME_RATE].value >> 16;
 	pixel_count = output_fmt->fmt.pix_mp.width *
 		output_fmt->fmt.pix_mp.height;
 
@@ -360,7 +360,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 			"%s: session %ux%u@%u fps does not support ring buffer\n",
 			__func__, output_fmt->fmt.pix_mp.width,
 			output_fmt->fmt.pix_mp.height, fps);
-		inst->capabilities->cap[cap_id].value = 0;
+		inst->capabilities[cap_id].value = 0;
 	} else {
 		data_size = input_fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
 		rc = call_session_op(core, ring_buf_count, inst, data_size);
@@ -369,11 +369,11 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 				__func__);
 			/* ignore error */
 			rc = 0;
-			inst->capabilities->cap[cap_id].value = 0;
+			inst->capabilities[cap_id].value = 0;
 		}
 	}
 
-	count = inst->capabilities->cap[cap_id].value;
+	count = inst->capabilities[cap_id].value;
 	i_vpr_h(inst, "%s: ring buffer count: %u\n", __func__, count);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_ENC_RING_BIN_BUF,
