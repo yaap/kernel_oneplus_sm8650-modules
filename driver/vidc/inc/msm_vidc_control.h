@@ -10,8 +10,8 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_inst.h"
 
-int msm_vidc_ctrl_init(struct msm_vidc_inst *inst);
-int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst);
+int msm_vidc_ctrl_handler_init(struct msm_vidc_inst *inst, bool init);
+int msm_vidc_ctrl_handler_deinit(struct msm_vidc_inst *inst);
 int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl);
 int msm_v4l2_op_g_volatile_ctrl(struct v4l2_ctrl *ctrl);
 int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl);

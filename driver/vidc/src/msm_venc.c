@@ -62,6 +62,10 @@ struct msm_venc_prop_type_handle {
 static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 {
 	int rc = 0;
+	bool session_init = false;
+
+	if (!inst->codec)
+		session_init = true;
 
 	if (inst->codec && inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat == v4l2_codec)
 		return 0;
@@ -86,12 +90,8 @@ static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 	if (rc)
 		goto exit;
 
-	rc = msm_vidc_ctrl_deinit(inst);
-	if (rc)
-		goto exit;
-
-	rc = msm_vidc_ctrl_init(inst);
-	if (rc)
+	rc = msm_vidc_ctrl_handler_init(inst, session_init);
+	if(rc)
 		goto exit;
 
 	rc = msm_vidc_update_buffer_count(inst, INPUT_PORT);
@@ -2018,7 +2018,7 @@ int msm_venc_inst_deinit(struct msm_vidc_inst *inst)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	rc = msm_vidc_ctrl_deinit(inst);
+	rc = msm_vidc_ctrl_handler_deinit(inst);
 	if (rc)
 		return rc;
 

@@ -1047,4 +1047,8 @@ struct msm_vidc_sfr {
 	u8 rg_data[1];
 };
 
+struct msm_vidc_ctrl_data {
+	bool skip_s_ctrl;
+};
+
 #endif // _MSM_VIDC_INTERNAL_H_
