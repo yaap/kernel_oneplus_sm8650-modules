@@ -954,7 +954,8 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 			return rc;
 
 		if ((ctrl_status & HFI_CTRL_ERROR_FATAL) ||
-			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET)) {
+			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET) ||
+			(ctrl_status & HFI_CTRL_ERROR_HW_FENCE_QUEUE)) {
 			d_vpr_e("%s: boot firmware failed, ctrl status %#x\n",
 				__func__, ctrl_status);
 			return -EINVAL;

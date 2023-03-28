@@ -634,7 +634,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		CAP_FLAG_VOLATILE},
 
 	/* Fence type for input buffer. Currently unsed */
-	{INBUF_FENCE_TYPE, DEC, CODECS_ALL,
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
 		BIT(MSM_VIDC_FENCE_NONE),
 		MSM_VIDC_FENCE_NONE,
@@ -642,7 +642,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_FENCE_TYPE,
 		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
 
-	{OUTBUF_FENCE_TYPE, DEC, CODECS_ALL,
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
 		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE) |
 			BIT(MSM_VIDC_SYNX_V2_FENCE),
@@ -652,7 +652,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
 	/* Fence direction for input buffer. Currently unsed */
-	{INBUF_FENCE_DIRECTION, DEC, CODECS_ALL,
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
 		BIT(MSM_VIDC_FENCE_DIR_NONE),
 		MSM_VIDC_FENCE_DIR_NONE,
@@ -660,7 +660,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_FENCE_DIRECTION,
 		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
 
-	{OUTBUF_FENCE_DIRECTION, DEC, CODECS_ALL,
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
 		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX) |
 			BIT(MSM_VIDC_FENCE_DIR_RX),
@@ -669,7 +669,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_FENCE_DIRECTION,
 		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
-	{FENCE_ERROR_DATA_CORRUPT, DEC, CODECS_ALL,
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264|HEVC|VP9|AV1,
 		0, 1, 1, 0,
 		0,
 		HFI_PROP_FENCE_ERROR_DATA_CORRUPT},
@@ -2111,27 +2111,27 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_dec_outbuf_fence,
 		NULL},
 
-	{INBUF_FENCE_TYPE, DEC, CODECS_ALL,
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		NULL,
 		NULL},
 
-	{OUTBUF_FENCE_TYPE, DEC, CODECS_ALL,
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		msm_vidc_adjust_dec_outbuf_fence_type,
 		msm_vidc_set_outbuf_fence_type},
 
-	{INBUF_FENCE_DIRECTION, DEC, CODECS_ALL,
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		NULL,
 		NULL},
 
-	{OUTBUF_FENCE_DIRECTION, DEC, CODECS_ALL,
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		msm_vidc_adjust_dec_outbuf_fence_direction,
 		msm_vidc_set_outbuf_fence_direction},
 
-	{FENCE_ERROR_DATA_CORRUPT, DEC, CODECS_ALL,
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264|HEVC|VP9|AV1,
 		{0},
 		NULL,
 		msm_vidc_set_u32},
@@ -2765,12 +2765,12 @@ static const struct device_region_table pineapple_device_region_table[] = {
 	},
 	{
 		"ipc_protocol4_client8_version-registers",
-		0x00508000, 0x1000, 0xFFADD000,
+		0x00508000, 0x1000, 0xFFADF000,
 		MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU
 	},
 	{
 		"qtimer_f0v1_qtmr_v1_cntpct_lo",
-		0x17421000, 0x1000, 0xFFADC000,
+		0x17421000, 0x1000, 0xFFADE000,
 		MSM_VIDC_QTIMER
 	},
 };
