@@ -149,7 +149,8 @@ static int msm_cvp_session_receive_hfi(struct msm_cvp_inst *inst,
 	if (!s)
 		return -ECONNRESET;
 
-	wait_time = msecs_to_jiffies(CVP_MAX_WAIT_TIME);
+	wait_time = msecs_to_jiffies(
+		inst->core->resources.msm_cvp_hw_rsp_timeout);
 	sq = &inst->session_queue;
 
 	rc = cvp_wait_process_message(inst, sq, NULL, wait_time, out_pkt);
@@ -332,7 +333,8 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 		goto exit;
 	}
 
-	timeout = msecs_to_jiffies(CVP_MAX_WAIT_TIME);
+	timeout = msecs_to_jiffies(
+			inst->core->resources.msm_cvp_hw_rsp_timeout);
 	rc = cvp_wait_process_message(inst, sq, &ktid, timeout,
 				(struct eva_kmd_hfi_packet *)&hdr);
 
@@ -1407,7 +1409,8 @@ static int cvp_drain_fence_sched_list(struct msm_cvp_inst *inst)
 		++count;
 	}
 	mutex_unlock(&q->lock);
-	wait_time = count * CVP_MAX_WAIT_TIME * 1000;
+	wait_time = count * 1000;
+	wait_time *= inst->core->resources.msm_cvp_hw_rsp_timeout;
 
 	dprintk(CVP_SYNX, "%s: wait %d us for %d fence command\n",
 			__func__, wait_time, count);
