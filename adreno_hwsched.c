@@ -403,6 +403,19 @@ static bool is_marker_skip(struct kgsl_drawobj *drawobj)
 	return false;
 }
 
+static bool _abort_submission(struct adreno_device *adreno_dev)
+{
+	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+
+	/* We only need a single barrier before reading all the atomic variables below */
+	smp_rmb();
+
+	if (atomic_read(&adreno_dev->halt) || atomic_read(&hwsched->fault))
+		return true;
+
+	return false;
+}
+
 /**
  * sendcmd() - Send a drawobj to the GPU hardware
  * @dispatcher: Pointer to the adreno dispatcher struct
@@ -425,7 +438,7 @@ static int hwsched_sendcmd(struct adreno_device *adreno_dev,
 
 	mutex_lock(&device->mutex);
 
-	if (adreno_gpu_halt(adreno_dev) || hwsched_in_fault(hwsched)) {
+	if (_abort_submission(adreno_dev)) {
 		mutex_unlock(&device->mutex);
 		kmem_cache_free(obj_cache, obj);
 		return -EBUSY;

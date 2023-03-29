@@ -17,6 +17,49 @@
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 
+static void _wakeup_hw_fence_waiters(struct adreno_device *adreno_dev, u32 fault)
+{
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+	bool lock = !in_interrupt();
+
+	if (!test_bit(ADRENO_HWSCHED_HW_FENCE, &adreno_dev->hwsched.flags))
+		return;
+
+	/*
+	 * We could be in interrupt context here, which means we need to use spin_lock_irqsave
+	 * (which disables interrupts) everywhere we take this lock. Instead of that, simply
+	 * avoid taking this lock if we are recording a fault from an interrupt handler.
+	 */
+	if (lock)
+		spin_lock(&hfi->hw_fence.lock);
+
+	clear_bit(GEN7_HWSCHED_HW_FENCE_SLEEP_BIT, &hfi->hw_fence.flags);
+
+	if (!lock)
+		/*
+		 * This barrier ensures that the above clear_bit() operation completes before we
+		 * wake up the waiters
+		 */
+		smp_wmb();
+	else
+		spin_unlock(&hfi->hw_fence.lock);
+
+	wake_up_all(&hfi->hw_fence.unack_wq);
+
+	del_timer_sync(&hfi->hw_fence_timer);
+}
+
+void gen7_hwsched_fault(struct adreno_device *adreno_dev, u32 fault)
+{
+	/*
+	 * Wake up any threads that may be sleeping waiting for the hardware fence unack count to
+	 * drop to a desired threshold.
+	 */
+	_wakeup_hw_fence_waiters(adreno_dev, fault);
+
+	adreno_hwsched_fault(adreno_dev, fault);
+}
+
 static size_t adreno_hwsched_snapshot_rb(struct kgsl_device *device, u8 *buf,
 	size_t remain, void *priv)
 {
@@ -1048,6 +1091,30 @@ no_gx_power:
 	return ret;
 }
 
+static void check_hw_fence_unack_count(struct adreno_device *adreno_dev)
+{
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	u32 unack_count;
+
+	if (!test_bit(ADRENO_HWSCHED_HW_FENCE, &adreno_dev->hwsched.flags))
+		return;
+
+	gen7_hwsched_process_msgq(adreno_dev);
+
+	spin_lock(&hfi->hw_fence.lock);
+	unack_count = hfi->hw_fence.unack_count;
+	spin_unlock(&hfi->hw_fence.lock);
+
+	if (!unack_count)
+		return;
+
+	dev_err(&gmu->pdev->dev, "hardware fence unack_count(%d) isn't zero before SLUMBER\n",
+		unack_count);
+	gmu_core_fault_snapshot(device);
+}
+
 static void hwsched_idle_check(struct work_struct *work)
 {
 	struct kgsl_device *device = container_of(work,
@@ -1080,6 +1147,8 @@ static void hwsched_idle_check(struct work_struct *work)
 		dev_err(device->dev, "GPU isn't idle before SLUMBER\n");
 		gmu_core_fault_snapshot(device);
 	}
+
+	check_hw_fence_unack_count(adreno_dev);
 
 	gen7_hwsched_power_off(adreno_dev);
 
@@ -1188,7 +1257,7 @@ static int gen7_hwsched_dcvs_set(struct adreno_device *adreno_dev,
 		 * dispatcher based reset and recovery.
 		 */
 		if (test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
-			adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
+			gen7_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
 	}
 
 	if (req.freq != INVALID_DCVS_IDX)
@@ -1355,7 +1424,7 @@ void gen7_hwsched_handle_watchdog(struct adreno_device *adreno_dev)
 	dev_err_ratelimited(&gmu->pdev->dev,
 			"GMU watchdog expired interrupt received\n");
 
-	adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
+	gen7_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
 }
 
 static void gen7_hwsched_drain_ctxt_unregister(struct adreno_device *adreno_dev)
@@ -1465,6 +1534,7 @@ static int drain_guilty_context_hw_fences(struct adreno_device *adreno_dev)
 int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 	int ret;
 
 	/*
@@ -1490,6 +1560,13 @@ int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
 
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
+	spin_lock(&hfi->hw_fence.lock);
+
+	/* Reset the unack count back to zero as we start afresh */
+	hfi->hw_fence.unack_count = 0;
+
+	spin_unlock(&hfi->hw_fence.lock);
+
 	ret = gen7_hwsched_boot(adreno_dev);
 	if (ret)
 		goto done;
@@ -1509,6 +1586,10 @@ int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
 	 * is done before we re-send the un-retired hardware fences to the GMU
 	 */
 	ret = check_inflight_hw_fences_after_reset(adreno_dev);
+	if (ret)
+		goto done;
+
+	ret = gen7_hwsched_disable_hw_fence_throttle(adreno_dev);
 
 done:
 	BUG_ON(ret);

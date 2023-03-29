@@ -95,4 +95,12 @@ int gen7_hwsched_add_to_minidump(struct adreno_device *adreno_dev);
  */
 int gen7_hwsched_send_recurring_cmdobj(struct adreno_device *adreno_dev,
 		struct kgsl_drawobj_cmd *cmdobj);
+
+/**
+ * gen7_hwsched_fault - Set hwsched fault to request recovery
+ * @adreno_dev: A handle to adreno device
+ * @fault: The type of fault
+ */
+void gen7_hwsched_fault(struct adreno_device *adreno_dev, u32 fault);
+
 #endif
