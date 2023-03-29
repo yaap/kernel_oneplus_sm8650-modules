@@ -49,7 +49,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		struct api_calculation_input *codec_input)
 {
 	enum msm_vidc_port_type port;
-	u32 color_fmt;
+	u32 color_fmt, tile_rows_columns = 0;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
 		codec_input->decoder_or_encoder = CODEC_ENCODER;
@@ -78,10 +78,11 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		codec_input->lcu_size = 32;
 	} else if (inst->codec == MSM_VIDC_VP9) {
 		codec_input->codec    = CODEC_VP9;
-		codec_input->lcu_size = 16;
+		codec_input->lcu_size = 32;
 	} else if (inst->codec == MSM_VIDC_AV1) {
 		codec_input->codec    = CODEC_AV1;
-		codec_input->lcu_size = 32;
+		codec_input->lcu_size =
+			inst->capabilities[SUPER_BLOCK].value ? 128 : 64;
 	} else {
 		d_vpr_e("%s: invalid codec %d\n", __func__, inst->codec);
 		return -EINVAL;
@@ -128,8 +129,31 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		codec_input->bitrate_mbps =
 			inst->capabilities[BIT_RATE].value / 1000000;
 
-	/* disable av1d commercial tile */
-	codec_input->av1d_commer_tile_enable = 0;
+	/* av1d commercial tile */
+	if (inst->codec == MSM_VIDC_AV1 && codec_input->lcu_size == 128) {
+		tile_rows_columns = inst->power.fw_av1_tile_rows *
+			inst->power.fw_av1_tile_columns;
+
+		/* check resolution and tile info */
+		codec_input->av1d_commer_tile_enable = 1;
+
+		if (res_is_less_than_or_equal_to(1920, 1088, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 2)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(4096, 2172, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 4)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(8192, 4320, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 16)
+				codec_input->av1d_commer_tile_enable = 0;
+		}
+	} else {
+		codec_input->av1d_commer_tile_enable = 0;
+	}
+
 	/* set as sanity mode */
 	codec_input->regression_mode = 1;
 

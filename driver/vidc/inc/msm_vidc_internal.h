@@ -800,6 +800,7 @@ struct msm_vidc_hfi_frame_info {
 	u32                    overflow;
 	u32                    fence_id;
 	u32                    fence_error;
+	u32                    av1_tile_rows_columns;
 };
 
 struct msm_vidc_decode_vpp_delay {
@@ -857,6 +858,8 @@ struct msm_vidc_power {
 	u32                    dcvs_flags;
 	u32                    fw_cr;
 	u32                    fw_cf;
+	u32                    fw_av1_tile_rows;
+	u32                    fw_av1_tile_columns;
 };
 
 enum msm_vidc_fence_type {

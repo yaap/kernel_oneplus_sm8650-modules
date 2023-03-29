@@ -837,6 +837,13 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 		return 0;
 	}
 
+	if (is_decode_session(inst) && inst->codec == MSM_VIDC_AV1) {
+		inst->power.fw_av1_tile_rows =
+			inst->hfi_frame_info.av1_tile_rows_columns >> 16;
+		inst->power.fw_av1_tile_columns =
+			inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
+	}
+
 	buf->data_size = buffer->data_size;
 	buf->attr &= ~MSM_VIDC_ATTR_QUEUED;
 	buf->attr |= MSM_VIDC_ATTR_DEQUEUED;
@@ -1747,6 +1754,10 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 		break;
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 		inst->hfi_frame_info.cf = payload_ptr[0];
+		break;
+	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
+		inst->hfi_frame_info.av1_tile_rows_columns =
+			payload_ptr[0];
 		break;
 	case HFI_PROP_CABAC_SESSION:
 		if (payload_ptr[0] == 1)

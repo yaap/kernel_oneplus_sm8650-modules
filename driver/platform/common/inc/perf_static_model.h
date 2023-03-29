@@ -148,7 +148,6 @@ struct api_calculation_input {
 
 	/* used in aurora for depth map decode */
 	u32 lumaonly_decode;
-
 };
 
 struct corner_voting {

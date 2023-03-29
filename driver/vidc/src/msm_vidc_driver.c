@@ -1007,6 +1007,7 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 	case HFI_PROP_WORST_COMPRESSION_RATIO:
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 	case HFI_PROP_PICTURE_TYPE:
+	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 		is_allowed = true;
 		break;
 	case HFI_PROP_DPB_LIST:
@@ -1047,6 +1048,7 @@ int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
 	case HFI_PROP_WORST_COMPRESSION_RATIO:
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 	case HFI_PROP_PICTURE_TYPE:
+	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 		break;
 	case HFI_PROP_DPB_LIST:
 		if (!allow)

@@ -699,6 +699,8 @@ void msm_vidc_power_data_reset(struct msm_vidc_inst *inst)
 	inst->power.buffer_counter = 0;
 	inst->power.fw_cr = 0;
 	inst->power.fw_cf = INT_MAX;
+	inst->power.fw_av1_tile_rows = 1;
+	inst->power.fw_av1_tile_columns = 1;
 
 	rc = msm_vidc_scale_power(inst, true);
 	if (rc)

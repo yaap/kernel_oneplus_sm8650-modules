@@ -549,6 +549,8 @@ enum hfi_nal_length_field_type {
 
 #define HFI_PROP_OPB_ENABLE                                     0x03000184
 
+#define HFI_PROP_AV1_TILE_ROWS_COLUMNS                          0x03000187
+
 #define HFI_PROP_AV1_DRAP_CONFIG                                0x03000189
 
 enum hfi_saliency_type {
