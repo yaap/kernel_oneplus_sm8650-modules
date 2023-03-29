@@ -204,6 +204,8 @@ static int brl_reset_after(struct goodix_ts_core *cd)
 	return 0;
 }
 
+#define REG_SUSPEND_CURRENT 20
+#define REG_RESUME_CURRENT 14000
 static int brl_power_on(struct goodix_ts_core *cd, bool on)
 {
 	int ret = 0;
@@ -215,6 +217,13 @@ static int brl_power_on(struct goodix_ts_core *cd, bool on)
 		if (iovdd_gpio > 0) {
 			gpio_direction_output(iovdd_gpio, 1);
 		} else if (cd->iovdd) {
+			if (regulator_count_voltages(cd->iovdd) > 0) {
+				ret = regulator_set_load(cd->iovdd, REG_RESUME_CURRENT);
+				if (ret) {
+					ts_err("Setting regulator load failed:%d", ret);
+					goto power_off;
+				}
+			}
 			ret = regulator_enable(cd->iovdd);
 			if (ret < 0) {
 				ts_err("Failed to enable iovdd:%d", ret);
@@ -251,8 +260,11 @@ power_off:
 	gpio_direction_output(reset_gpio, 0);
 	if (iovdd_gpio > 0)
 		gpio_direction_output(iovdd_gpio, 0);
-	else if (cd->iovdd)
+	else if (cd->iovdd) {
 		regulator_disable(cd->iovdd);
+		if (regulator_count_voltages(cd->iovdd) > 0)
+			regulator_set_load(cd->iovdd, REG_SUSPEND_CURRENT);
+	}
 	if (avdd_gpio > 0)
 		gpio_direction_output(avdd_gpio, 0);
 	else if (cd->avdd)
