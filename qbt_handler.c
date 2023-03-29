@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "qbt:%s: " fmt, __func__
@@ -39,6 +39,7 @@
 #define QBT_INPUT_DEV_VERSION 0x0100
 #define QBT_TOUCH_FD_VERSION_2 2
 #define QBT_TOUCH_FD_VERSION_3 3
+#define DEBUG
 
 struct finger_detect_gpio {
 	int gpio;
