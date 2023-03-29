@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
@@ -40,7 +40,11 @@ static struct gh_acl_desc *qts_vm_get_acl(enum gh_vm_names vm_name)
 	struct gh_acl_desc *acl_desc;
 	gh_vmid_t vmid;
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	ghd_rm_get_vmid(vm_name, &vmid);
+#else
 	gh_rm_get_vmid(vm_name, &vmid);
+#endif
 
 	acl_desc = kzalloc(offsetof(struct gh_acl_desc, acl_entries[1]),
 			GFP_KERNEL);
@@ -739,7 +743,12 @@ static void qts_trusted_touch_abort_pvm(struct qts_data *qts_data)
 	case PVM_IOMEM_LENT:
 	case PVM_IOMEM_LENT_NOTIFIED:
 	case PVM_IOMEM_RELEASE_NOTIFIED:
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+		rc = ghd_rm_mem_reclaim(qts_data->vm_info->vm_mem_handle, 0);
+#else
 		rc = gh_rm_mem_reclaim(qts_data->vm_info->vm_mem_handle, 0);
+#endif
+
 		if (rc) {
 			pr_err("failed to reclaim iomem on pvm rc:%d\n", rc);
 			qts_trusted_touch_set_vm_state(qts_data, PVM_IOMEM_RELEASE_NOTIFIED);
@@ -872,7 +881,12 @@ static void qts_trusted_touch_pvm_vm_mode_disable(struct qts_data *qts_data)
 	if (qts_data->vendor_ops.pre_la_tui_disable)
 		qts_data->vendor_ops.pre_la_tui_disable(qts_data->vendor_data);
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	rc = ghd_rm_mem_reclaim(qts_data->vm_info->vm_mem_handle, 0);
+#else
 	rc = gh_rm_mem_reclaim(qts_data->vm_info->vm_mem_handle, 0);
+#endif
+
 	if (rc) {
 		pr_err("Trusted touch VM mem reclaim failed rc:%d\n", rc);
 		goto error;
@@ -990,8 +1004,14 @@ static int qts_vm_mem_lend(struct qts_data *qts_data)
 		goto sgl_error;
 	}
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	rc = ghd_rm_mem_lend(GH_RM_MEM_TYPE_IO, 0, TRUSTED_TOUCH_MEM_LABEL,
+			acl_desc, sgl_desc, NULL, &mem_handle);
+#else
 	rc = gh_rm_mem_lend(GH_RM_MEM_TYPE_IO, 0, TRUSTED_TOUCH_MEM_LABEL,
 			acl_desc, sgl_desc, NULL, &mem_handle);
+#endif
+
 	if (rc) {
 		pr_err("Failed to lend IO memories for Trusted touch rc:%d\n", rc);
 		goto error;
@@ -1001,7 +1021,11 @@ static int qts_vm_mem_lend(struct qts_data *qts_data)
 
 	qts_trusted_touch_set_vm_state(qts_data, PVM_IOMEM_LENT);
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	ghd_rm_get_vmid(GH_TRUSTED_VM, &trusted_vmid);
+#else
 	gh_rm_get_vmid(GH_TRUSTED_VM, &trusted_vmid);
+#endif
 
 	vmid_desc = qts_vm_get_vmid(trusted_vmid);
 
