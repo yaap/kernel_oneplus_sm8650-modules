@@ -1079,7 +1079,7 @@ static int process_hw_fence_deferred_ctxt(struct adreno_device *adreno_dev,
 	return ret;
 }
 
-static void _disable_hw_fence_throttle(struct adreno_device *adreno_dev)
+static void _disable_hw_fence_throttle(struct adreno_device *adreno_dev, bool clear_abort_bit)
 {
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 	bool max;
@@ -1094,6 +1094,8 @@ static void _disable_hw_fence_throttle(struct adreno_device *adreno_dev)
 		clear_bit(GEN7_HWSCHED_HW_FENCE_MAX_BIT, &hfi->hw_fence.flags);
 	}
 
+	if (clear_abort_bit)
+		clear_bit(GEN7_HWSCHED_HW_FENCE_ABORT_BIT, &hfi->hw_fence.flags);
 	spin_unlock(&hfi->hw_fence.lock);
 
 	/* Wake up dispatcher and any sleeping threads that want to create hardware fences */
@@ -1157,7 +1159,7 @@ static void process_hw_fence_ack(struct adreno_device *adreno_dev)
 		mutex_unlock(&adreno_dev->hwsched.mutex);
 	}
 
-	_disable_hw_fence_throttle(adreno_dev);
+	_disable_hw_fence_throttle(adreno_dev, false);
 }
 
 void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev)
@@ -3044,7 +3046,8 @@ static bool _hw_fence_end_sleep(struct adreno_device *adreno_dev)
  * drops to a desired threshold.
  *
  * Return: negative error code if the thread was woken up by a signal, or the context became bad in
- * the meanwhile, or the hardware fence unack count hasn't yet dropped to a desired threshold.
+ * the meanwhile, or the hardware fence unack count hasn't yet dropped to a desired threshold, or
+ * if fault recovery is imminent.
  * Otherwise, return 0.
  */
 static int _hw_fence_sleep(struct adreno_device *adreno_dev, struct adreno_context *drawctxt)
@@ -3070,7 +3073,14 @@ static int _hw_fence_sleep(struct adreno_device *adreno_dev, struct adreno_conte
 	 */
 	if ((ret == -ERESTARTSYS) || kgsl_context_is_bad(&drawctxt->base) ||
 		test_bit(GEN7_HWSCHED_HW_FENCE_MAX_BIT, &hfi->hw_fence.flags))
-		ret = -EINVAL;
+		return -EINVAL;
+
+	/*
+	 * If fault recovery is imminent then return error code to avoid creating new hardware
+	 * fences until recovery is complete
+	 */
+	if (test_bit(GEN7_HWSCHED_HW_FENCE_ABORT_BIT, &hfi->hw_fence.flags))
+		return -EBUSY;
 
 	return ret;
 }
@@ -3117,6 +3127,12 @@ void gen7_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
 	entry = allocate_hw_fence_entry(adreno_dev, drawctxt, kfence);
 	if (!entry)
 		goto done;
+
+	/* If recovery is imminent, then do not create a hardware fence */
+	if (test_bit(GEN7_HWSCHED_HW_FENCE_ABORT_BIT, &hw_hfi->hw_fence.flags)) {
+		destroy_hw_fence = true;
+		goto done;
+	}
 
 	ret = _hw_fence_sleep(adreno_dev, drawctxt);
 	if (ret)
@@ -3762,7 +3778,7 @@ int gen7_hwsched_disable_hw_fence_throttle(struct adreno_device *adreno_dev)
 	gen7_hwsched_active_count_put(adreno_dev);
 
 done:
-	_disable_hw_fence_throttle(adreno_dev);
+	_disable_hw_fence_throttle(adreno_dev, true);
 
 	return ret;
 }

@@ -35,10 +35,12 @@ static void _wakeup_hw_fence_waiters(struct adreno_device *adreno_dev, u32 fault
 
 	clear_bit(GEN7_HWSCHED_HW_FENCE_SLEEP_BIT, &hfi->hw_fence.flags);
 
+	/* Avoid creating new hardware fences until recovery is complete */
+	set_bit(GEN7_HWSCHED_HW_FENCE_ABORT_BIT, &hfi->hw_fence.flags);
+
 	if (!lock)
 		/*
-		 * This barrier ensures that the above clear_bit() operation completes before we
-		 * wake up the waiters
+		 * This barrier ensures that the above bitops complete before we wake up the waiters
 		 */
 		smp_wmb();
 	else

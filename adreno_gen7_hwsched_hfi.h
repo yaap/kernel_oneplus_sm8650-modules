@@ -33,6 +33,11 @@
  */
 #define GEN7_HWSCHED_HW_FENCE_MAX_BIT	0x1
 
+/*
+ * This is used to avoid creating any more hardware fences until concurrent reset/recovery completes
+ */
+#define GEN7_HWSCHED_HW_FENCE_ABORT_BIT 0x2
+
 struct gen7_hwsched_hfi {
 	struct hfi_mem_alloc_entry mem_alloc_table[32];
 	u32 mem_alloc_entries;
