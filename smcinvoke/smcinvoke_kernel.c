@@ -445,13 +445,14 @@ exit_free_cxt:
 
 static int __qseecom_shutdown_app(struct qseecom_handle **handle)
 {
-	struct qseecom_compat_context *cxt =
-		(struct qseecom_compat_context *)(*handle);
 
+	struct qseecom_compat_context *cxt = NULL;
 	if ((handle == NULL)  || (*handle == NULL)) {
 		pr_err("Handle is NULL\n");
 		return -EINVAL;
 	}
+
+	cxt = (struct qseecom_compat_context *)(*handle);
 
 	qtee_shmbridge_free_shm(&cxt->shm);
 	Object_release(cxt->app_controller);

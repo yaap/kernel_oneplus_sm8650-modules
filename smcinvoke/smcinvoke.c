@@ -673,7 +673,7 @@ static void __wakeup_postprocess_kthread(struct smcinvoke_worker_thread *smcinvo
 static int smcinvoke_postprocess_kthread_func(void *data)
 {
 	struct smcinvoke_worker_thread *smcinvoke_wrk_trd = data;
-	const char *tag;
+	static const char *const tag[] = {"shmbridge","object","adci","invalid"};
 
 	if (!smcinvoke_wrk_trd) {
 		pr_err("Bad input.\n");
@@ -688,21 +688,18 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 			== POST_KT_WAKEUP));
 		switch (smcinvoke_wrk_trd->type) {
 		case SHMB_WORKER_THREAD:
-			tag = "shmbridge";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[SHMB_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_shmbridge_post_process();
 			break;
 		case OBJECT_WORKER_THREAD:
-			tag = "object";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[OBJECT_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_object_post_process();
 			break;
 		case ADCI_WORKER_THREAD:
-			tag = "adci";
 			pr_debug("kthread to %s postprocess is called %d\n",
-			tag, atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
+			tag[ADCI_WORKER_THREAD], atomic_read(&smcinvoke_wrk_trd->postprocess_kthread_state));
 			smcinvoke_start_adci_thread();
 			break;
 		default:
@@ -722,7 +719,7 @@ static int smcinvoke_postprocess_kthread_func(void *data)
 		atomic_set(&smcinvoke_wrk_trd->postprocess_kthread_state,
 			POST_KT_SLEEP);
 	}
-	pr_warn("kthread to %s postprocess stopped\n", tag);
+	pr_warn("kthread(worker_thread) processed, worker_thread type is %d \n", smcinvoke_wrk_trd->type);
 
 	return 0;
 }
