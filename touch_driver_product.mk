@@ -16,8 +16,7 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
         else ifeq ($(TARGET_BOARD_PLATFORM), pineapple)
                 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/nt36xxx-i2c.ko \
                         $(KERNEL_MODULES_OUT)/goodix_ts.ko \
-                        $(KERNEL_MODULES_OUT)/atmel_mxt_ts.ko \
-                        $(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko
+                        $(KERNEL_MODULES_OUT)/atmel_mxt_ts.ko
         else
                 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/nt36xxx-i2c.ko \
                         $(KERNEL_MODULES_OUT)/goodix_ts.ko \
