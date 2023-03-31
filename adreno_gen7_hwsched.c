@@ -1447,16 +1447,13 @@ static void gen7_hwsched_drain_ctxt_unregister(struct adreno_device *adreno_dev)
 /**
  * process_context_hw_fences_after_reset - This function processes all hardware fences that were
  * sent to GMU prior to recovery. If a fence is not retired by the GPU, and the context is still
- * good, then send this fence to the GMU again. If this fence is retired or the context is bad,
- * then send it to GMU such that GMU immediately triggers this fence into the TxQueue
- * without checking the memstore
+ * good, then move them to the reset list.
  */
-static int process_context_hw_fences_after_reset(struct adreno_device *adreno_dev,
-	struct adreno_context *drawctxt)
+static void process_context_hw_fences_after_reset(struct adreno_device *adreno_dev,
+	struct adreno_context *drawctxt, struct list_head *reset_list)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct adreno_hw_fence_entry *entry, *tmp;
-	int ret = 0;
 
 	spin_lock(&drawctxt->lock);
 	list_for_each_entry_safe(entry, tmp, &drawctxt->hw_fence_inflight_list, node) {
@@ -1474,40 +1471,82 @@ static int process_context_hw_fences_after_reset(struct adreno_device *adreno_de
 		 * Force retire the fences if the corresponding submission is retired by GPU
 		 * or if the context has gone bad
 		 */
-		if (retired || kgsl_context_is_bad(&drawctxt->base)) {
-			ret = gen7_hwsched_trigger_hw_fence(adreno_dev, entry);
-			if (ret)
-				break;
-			gen7_remove_hw_fence_entry(adreno_dev, entry);
-			continue;
-		}
+		if (retired || kgsl_context_is_bad(&drawctxt->base))
+			entry->cmd.flags |= HW_FENCE_FLAG_SKIP_MEMSTORE;
 
-		/*
-		 * If GPU hasn't retired this timestamp, and context is still good, then send the
-		 * fence to the GMU
-		 */
-		ret = gen7_send_hw_fence_hfi(adreno_dev, entry, 0);
-		if (ret)
-			break;
+		list_add_tail(&entry->reset_node, reset_list);
 	}
 	spin_unlock(&drawctxt->lock);
-
-	return ret;
 }
 
-static int check_inflight_hw_fences_after_reset(struct adreno_device *adreno_dev)
+/**
+ * process_inflight_hw_fences_after_reset - Send hardware fences from all contexts back to the GMU
+ * after fault recovery. We must wait for ack when sending each of these fences to GMU so as to
+ * avoid sending a large number of hardware fences in a short span of time.
+ */
+static int process_inflight_hw_fences_after_reset(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_context *context = NULL;
 	int id, ret = 0;
+	struct list_head hw_fence_list;
+	struct adreno_hw_fence_entry *entry, *tmp;
+
+	/**
+	 * Since we need to wait for ack from GMU when sending each inflight fence back to GMU, we
+	 * cannot send them from within atomic context. Hence, walk list of such hardware fences
+	 * for each context and add it to this local list and then walk this list to send all these
+	 * fences to GMU.
+	 */
+	INIT_LIST_HEAD(&hw_fence_list);
 
 	read_lock(&device->context_lock);
 	idr_for_each_entry(&device->context_idr, context, id) {
-		ret = process_context_hw_fences_after_reset(adreno_dev, ADRENO_CONTEXT(context));
-		if (ret)
-			break;
+		process_context_hw_fences_after_reset(adreno_dev, ADRENO_CONTEXT(context),
+			&hw_fence_list);
 	}
 	read_unlock(&device->context_lock);
+
+	list_for_each_entry_safe(entry, tmp, &hw_fence_list, reset_node) {
+
+		/*
+		 * This is part of the reset sequence and any error in this path will be handled by
+		 * the caller.
+		 */
+		ret = gen7_send_hw_fence_hfi_wait_ack(adreno_dev, entry, 0);
+		if (ret)
+			break;
+
+		list_del_init(&entry->reset_node);
+	}
+
+	return ret;
+}
+
+/**
+ * process_detached_hw_fences_after_reset - Send fences that couldn't be sent to GMU when a context
+ * got detached. We must wait for ack when sending each of these fences to GMU so as to avoid
+ * sending a large number of hardware fences in a short span of time.
+ */
+static int process_detached_hw_fences_after_reset(struct adreno_device *adreno_dev)
+{
+	struct adreno_hw_fence_entry *entry, *tmp;
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+	int ret = 0;
+
+	list_for_each_entry_safe(entry, tmp, &hfi->detached_hw_fence_list, node) {
+
+		/*
+		 * This is part of the reset sequence and any error in this path will be handled by
+		 * the caller.
+		 */
+		ret = gen7_send_hw_fence_hfi_wait_ack(adreno_dev, entry,
+			HW_FENCE_FLAG_SKIP_MEMSTORE);
+		if (ret)
+			return ret;
+
+		gen7_remove_hw_fence_entry(adreno_dev, entry);
+	}
 
 	return ret;
 }
@@ -1515,13 +1554,14 @@ static int check_inflight_hw_fences_after_reset(struct adreno_device *adreno_dev
 static int drain_guilty_context_hw_fences(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct kgsl_context *context = NULL, *guilty = NULL;
+	struct kgsl_context *context = NULL;
+	struct adreno_context *guilty = NULL;
 	int id;
 
 	read_lock(&device->context_lock);
 	idr_for_each_entry(&device->context_idr, context, id) {
 		if (test_bit(KGSL_CONTEXT_PRIV_INVALID, &context->priv)) {
-			guilty = context;
+			guilty = ADRENO_CONTEXT(context);
 			break;
 		}
 	}
@@ -1530,7 +1570,30 @@ static int drain_guilty_context_hw_fences(struct adreno_device *adreno_dev)
 	if (!guilty)
 		return 0;
 
-	return gen7_hwsched_drain_context_hw_fences(adreno_dev, ADRENO_CONTEXT(guilty));
+	return gen7_hwsched_drain_context_hw_fences(adreno_dev, guilty);
+}
+
+static int handle_hw_fences_after_reset(struct adreno_device *adreno_dev)
+{
+	int ret;
+
+	ret = drain_guilty_context_hw_fences(adreno_dev);
+	if (ret)
+		return ret;
+
+	/*
+	 * We must do this after adreno_hwsched_replay() so that context registration
+	 * is done before we re-send the un-retired hardware fences to the GMU
+	 */
+	ret = process_inflight_hw_fences_after_reset(adreno_dev);
+	if (ret)
+		return ret;
+
+	ret = process_detached_hw_fences_after_reset(adreno_dev);
+	if (ret)
+		return ret;
+
+	return gen7_hwsched_disable_hw_fence_throttle(adreno_dev);
 }
 
 int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
@@ -1573,26 +1636,9 @@ int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
 	if (ret)
 		goto done;
 
-	/*
-	 * Sending hardware fences to TxQueue via the GMU is preferred even though we just restarted
-	 * the GMU
-	 */
-	ret = drain_guilty_context_hw_fences(adreno_dev);
-	if (ret)
-		goto done;
-
 	adreno_hwsched_replay(adreno_dev);
 
-	/*
-	 * We must do this after adreno_hwsched_replay() so that context registration
-	 * is done before we re-send the un-retired hardware fences to the GMU
-	 */
-	ret = check_inflight_hw_fences_after_reset(adreno_dev);
-	if (ret)
-		goto done;
-
-	ret = gen7_hwsched_disable_hw_fence_throttle(adreno_dev);
-
+	ret = handle_hw_fences_after_reset(adreno_dev);
 done:
 	BUG_ON(ret);
 

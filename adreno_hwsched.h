@@ -31,6 +31,8 @@ struct adreno_hw_fence_entry {
 	struct adreno_context *drawctxt;
 	/** @node: list node to add it to a list */
 	struct list_head node;
+	/** @reset_node: list node to add it to post reset list of hardware fences */
+	struct list_head reset_node;
 };
 
 /**

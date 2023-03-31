@@ -93,6 +93,10 @@ struct gen7_hwsched_hfi {
 	 * @hw_fence_ws: Work struct that gets scheduled when hw_fence_timer expires
 	 */
 	struct work_struct hw_fence_ws;
+	/** @detached_hw_fences_list: List of hardware fences belonging to detached contexts */
+	struct list_head detached_hw_fence_list;
+	/** @defer_hw_fence_work: The work structure to send deferred hardware fences to GMU */
+	struct kthread_work defer_hw_fence_work;
 };
 
 struct kgsl_drawobj_cmd;
@@ -267,16 +271,16 @@ void gen7_hwsched_context_destroy(struct adreno_device *adreno_dev,
 u32 gen7_hwsched_hfi_get_value(struct adreno_device *adreno_dev, u32 prop);
 
 /**
- * gen7_send_hw_fence_hfi - Send hardware fence info to GMU
+ * gen7_send_hw_fence_hfi_wait_ack - Send hardware fence info to GMU
  * @adreno_dev: Pointer to adreno device
  * @entry: Pointer to the adreno hardware fence entry
  * @flags: Flags for this hardware fence
  *
- * Send the hardware fence info to the GMU without waiting for the ack
+ * Send the hardware fence info to the GMU and wait for the ack
  *
  * Return: 0 on success or negative error on failure
  */
-int gen7_send_hw_fence_hfi(struct adreno_device *adreno_dev,
+int gen7_send_hw_fence_hfi_wait_ack(struct adreno_device *adreno_dev,
 	struct adreno_hw_fence_entry *entry, u64 flags);
 
 /**
@@ -290,19 +294,7 @@ void gen7_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
 	struct kgsl_sync_fence *kfence);
 
 /**
- * gen7_hwsched_trigger_hw_fence - Trigger hardware fence via GMU
- * @adreno_dev: Pointer to adreno device
- * @entry: Pointer to the hardware fence entry
- *
- * Send HFI request to trigger a hardware fence into TxQueue
- *
- * Return: Zero on success or negative error on failure
- */
-int gen7_hwsched_trigger_hw_fence(struct adreno_device *adreno_dev,
-	struct adreno_hw_fence_entry *entry);
-
-/**
- * gen7_hwsched_drain_context_hw_fences - Drain context's hardware fences
+ * gen7_hwsched_drain_context_hw_fences - Drain context's hardware fences via GMU
  * @adreno_dev: Pointer to adreno device
  * @drawctxt: Pointer to the adreno context which is to be flushed
  *
@@ -350,7 +342,7 @@ void gen7_trigger_hw_fence_cpu(struct adreno_device *adreno_dev,
  * gen7_hwsched_disable_hw_fence_throttle - Disable hardware fence throttling after reset
  * @adreno_dev: pointer to the adreno device
  *
- * After device reset, clear hardware fence related data structures, send any hardware fences
+ * After device reset, clear hardware fence related data structures and send any hardware fences
  * that got deferred (prior to reset) and re-open the gates for hardware fence creation
  *
  * Return: Zero on success or negative error on failure
