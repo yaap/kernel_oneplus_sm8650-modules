@@ -228,9 +228,6 @@ int msm_vidc_try_fmt(void *instance, struct v4l2_format *f)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_s_fmt(inst, f->type))
-		return -EBUSY;
-
 	if (inst->domain == MSM_VIDC_DECODER)
 		rc = msm_vdec_try_fmt(inst, f);
 	if (inst->domain == MSM_VIDC_ENCODER)

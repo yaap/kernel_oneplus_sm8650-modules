@@ -19,6 +19,7 @@ struct msm_vidc_core;
 }
 
 #define FOREACH_EVENT(EVENT) {                         \
+	EVENT(TRY_FMT)                                 \
 	EVENT(S_FMT)                                   \
 	EVENT(REQBUFS)                                 \
 	EVENT(S_CTRL)                                  \
