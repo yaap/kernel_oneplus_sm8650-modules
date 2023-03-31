@@ -860,8 +860,6 @@ int cvp_read_platform_resources_from_drv_data(
 			"qcom,enable-thermal-mitigation");
 	res->msm_cvp_pwr_collapse_delay = find_key_value(platform_data,
 			"qcom,power-collapse-delay");
-	res->msm_cvp_firmware_unload_delay = find_key_value(platform_data,
-			"qcom,fw-unload-delay");
 	res->msm_cvp_hw_rsp_timeout = find_key_value(platform_data,
 			"qcom,hw-resp-timeout");
 	res->msm_cvp_dsp_rsp_timeout = find_key_value(platform_data,

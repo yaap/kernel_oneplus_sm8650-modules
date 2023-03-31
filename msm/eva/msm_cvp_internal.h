@@ -412,7 +412,6 @@ int msm_cvp_trigger_ssr(struct msm_cvp_core *core,
 int msm_cvp_noc_error_info(struct msm_cvp_core *core);
 void msm_cvp_comm_handle_thermal_event(void);
 
-void msm_cvp_fw_unload_handler(struct work_struct *work);
 void msm_cvp_ssr_handler(struct work_struct *work);
 /*
  * XXX: normally should be in msm_cvp_core.h, but that's meant for public APIs,
