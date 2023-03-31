@@ -182,7 +182,7 @@ void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
 		goto err_invalid_core;
 	}
 
-	pr_info(
+	pr_info_ratelimited(
 		CVP_DBG_TAG "%s opening cvp instance: %pK type %d cnt %d\n",
 		"sess", task->comm, inst, session_type, instance_count);
 	mutex_init(&inst->sync_lock);
@@ -356,7 +356,7 @@ wait_frame:
 	}
 
 	if (cvp_release_arp_buffers(inst))
-		dprintk(CVP_ERR,
+		dprintk_rl(CVP_WARN,
 			"Failed to release persist buffers\n");
 
 	if (inst->prop.type == HFI_SESSION_FD
@@ -412,7 +412,7 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 	__deinit_fence_queue(inst);
 	core->synx_ftbl->cvp_sess_deinit_synx(inst);
 
-	pr_info(
+	pr_info_ratelimited(
 		CVP_DBG_TAG
 		"closed cvp instance: %pK session_id = %d type %d %d\n",
 		inst->proc_name, inst, hash32_ptr(inst->session),
@@ -448,7 +448,7 @@ int msm_cvp_close(void *instance)
 	int rc = 0;
 
 	if (!inst || !inst->core) {
-		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
+		dprintk_rl(CVP_ERR, "%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 

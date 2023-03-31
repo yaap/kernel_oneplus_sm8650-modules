@@ -82,6 +82,18 @@ extern bool cvp_kernel_fence_enabled;
 		} \
 	} while (0)
 
+/* dprintk_rl is designed for printing frequent recurring errors */
+#define dprintk_rl(__level, __fmt, arg...)	\
+	do { \
+		if (msm_cvp_debug & __level) { \
+			if (msm_cvp_debug_out == CVP_OUT_PRINTK) { \
+				pr_info_ratelimited(CVP_DBG_TAG __fmt, \
+					get_debug_level_str(__level),   \
+					## arg); \
+			} \
+		} \
+	} while (0)
+
 #define MSM_CVP_ERROR(value)					\
 	do {	if (value)					\
 			dprintk(CVP_ERR, "BugOn");		\

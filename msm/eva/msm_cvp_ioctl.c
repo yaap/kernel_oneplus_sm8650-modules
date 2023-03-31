@@ -302,7 +302,7 @@ static int convert_from_user(struct eva_kmd_arg *kp,
 	int pkt_idx;
 
 	if (!kp || !up) {
-		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
+		dprintk_rl(CVP_ERR, "%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
@@ -439,7 +439,7 @@ static int convert_from_user(struct eva_kmd_arg *kp,
 		break;
 	}
 	default:
-		dprintk(CVP_ERR, "%s: unknown cmd type 0x%x\n",
+		dprintk_rl(CVP_ERR, "%s: unknown cmd type 0x%x\n",
 			__func__, kp->type);
 		rc = -EINVAL;
 		break;
@@ -615,7 +615,7 @@ static long cvp_ioctl(struct msm_cvp_inst *inst,
 		return -ENOMEM;
 
 	if (convert_from_user(karg, arg, inst)) {
-		dprintk(CVP_ERR, "%s: failed to get from user cmd %x\n",
+		dprintk_rl(CVP_ERR, "%s: failed to get from user cmd %x\n",
 			__func__, karg->type);
 		kfree(karg);
 		return -EFAULT;

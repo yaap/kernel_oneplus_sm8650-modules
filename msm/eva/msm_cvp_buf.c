@@ -1917,7 +1917,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 				__func__, rc);
 			mutex_lock(&inst->persistbufs.lock);
 		} else {
-			dprintk(CVP_WARN, "Fail to send Rel prst buf\n");
+			dprintk_rl(CVP_WARN, "Fail to send Rel prst buf\n");
 		}
 	}
 
