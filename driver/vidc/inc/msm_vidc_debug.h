@@ -111,7 +111,7 @@ enum vidc_msg_prio {
 #define i_vpr_hp(inst, __fmt, ...) \
 	dprintk_inst(VIDC_HIGH | VIDC_PERF, "high", inst, __fmt, ##__VA_ARGS__)
 #define i_vpr_hs(inst, __fmt, ...) \
-	dprintk_inst(VIDC_HIGH | VIDC_STAT, "high", inst, __fmt, ##__VA_ARGS__)
+	dprintk_inst(VIDC_HIGH | VIDC_STAT, "stat", inst, __fmt, ##__VA_ARGS__)
 
 #define dprintk_core(__level, __level_str, __fmt, ...) \
 	do { \
@@ -180,5 +180,10 @@ void msm_vidc_debugfs_update(void *inst,
 		enum msm_vidc_debugfs_event e);
 int msm_vidc_check_ratelimit(void);
 void msm_vidc_show_stats(void *inst);
+
+static inline bool is_stats_enabled(void)
+{
+	return !!(msm_vidc_debug & VIDC_STAT);
+}
 
 #endif

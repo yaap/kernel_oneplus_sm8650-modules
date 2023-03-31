@@ -1009,6 +1009,9 @@ int msm_venc_start_cmd(struct msm_vidc_inst *inst)
 	/* print final buffer counts & size details */
 	msm_vidc_print_buffer_info(inst);
 
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
+
 	rc = msm_vidc_process_resume(inst);
 	if (rc)
 		return rc;

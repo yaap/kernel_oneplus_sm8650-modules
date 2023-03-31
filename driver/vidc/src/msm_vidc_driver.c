@@ -2760,7 +2760,7 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 	bitrate_kbps = (inst->stats.data_size * 8 * 1000) / (dt_ms * 1024);
 
 	i_vpr_hs(inst,
-		"stats: counts (etb,ebd,ftb,fbd): %u %u %u %u (total %llu %llu %llu %llu), achieved bitrate %lldKbps fps %u/s, frame rate %u, operating rate %u, priority %u, dt %ums\n",
+		"counts (etb,ebd,ftb,fbd): %u %u %u %u (total %llu %llu %llu %llu), achieved bitrate %lldKbps fps %u/s, frame rate %u, operating rate %u, priority %u, dt %ums\n",
 		etb, ebd, ftb, fbd, inst->debug_count.etb, inst->debug_count.ebd,
 		inst->debug_count.ftb, inst->debug_count.fbd,
 		bitrate_kbps, achieved_fps, frame_rate, operating_rate, priority, dt_ms);
@@ -2770,6 +2770,63 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 	inst->stats.time_ms = time_ms;
 }
 
+void msm_vidc_print_memory_stats(struct msm_vidc_inst *inst)
+{
+	static enum msm_vidc_buffer_type buf_type_arr[9] = {
+		MSM_VIDC_BUF_BIN,
+		MSM_VIDC_BUF_ARP,
+		MSM_VIDC_BUF_COMV,
+		MSM_VIDC_BUF_NON_COMV,
+		MSM_VIDC_BUF_LINE,
+		MSM_VIDC_BUF_DPB,
+		MSM_VIDC_BUF_PERSIST,
+		MSM_VIDC_BUF_VPSS,
+		MSM_VIDC_BUF_PARTIAL_DATA,
+	};
+	u32 count_arr[9];
+	u32 size_arr[9];
+	u32 size_kb_arr[9];
+	u64 total_size = 0;
+	struct msm_vidc_buffers *buffers;
+	int cnt;
+
+	if (!inst) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		return;
+	}
+
+	/* reset array values */
+	memset(&count_arr, 0, sizeof(count_arr));
+	memset(&size_arr, 0, sizeof(size_arr));
+	memset(&size_kb_arr, 0, sizeof(size_kb_arr));
+
+	/* populate buffer details */
+	for (cnt = 0; cnt < 9; cnt++) {
+		buffers = msm_vidc_get_buffers(inst, buf_type_arr[cnt], __func__);
+		if (!buffers)
+			continue;
+
+		size_arr[cnt] = buffers->size;
+		count_arr[cnt] = buffers->min_count;
+		size_kb_arr[cnt] = (size_arr[cnt] * count_arr[cnt]) / 1024;
+		total_size += size_arr[cnt] * count_arr[cnt];
+	}
+
+	/* print internal memory stats */
+	i_vpr_hs(inst,
+		"%s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) %s %u kb(%ux%d) total %llu kb\n",
+		buf_name(buf_type_arr[0]), size_kb_arr[0], size_arr[0], count_arr[0],
+		buf_name(buf_type_arr[1]), size_kb_arr[1], size_arr[1], count_arr[1],
+		buf_name(buf_type_arr[2]), size_kb_arr[2], size_arr[2], count_arr[2],
+		buf_name(buf_type_arr[3]), size_kb_arr[3], size_arr[3], count_arr[3],
+		buf_name(buf_type_arr[4]), size_kb_arr[4], size_arr[4], count_arr[4],
+		buf_name(buf_type_arr[5]), size_kb_arr[5], size_arr[5], count_arr[5],
+		buf_name(buf_type_arr[6]), size_kb_arr[6], size_arr[6], count_arr[6],
+		buf_name(buf_type_arr[7]), size_kb_arr[7], size_arr[7], count_arr[7],
+		buf_name(buf_type_arr[8]), size_kb_arr[8], size_arr[8], count_arr[8],
+		(total_size / 1024));
+}
+
 int schedule_stats_work(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
@@ -2777,6 +2834,11 @@ int schedule_stats_work(struct msm_vidc_inst *inst)
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
+	}
+
+	if (!is_stats_enabled()) {
+		i_vpr_h(inst, "%s: stats not enabled. Skip scheduling\n", __func__);
+		return 0;
 	}
 
 	/**

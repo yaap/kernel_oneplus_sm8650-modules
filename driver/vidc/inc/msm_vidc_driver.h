@@ -496,6 +496,7 @@ void msm_vidc_stats_handler(struct work_struct *work);
 int schedule_stats_work(struct msm_vidc_inst *inst);
 int cancel_stats_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_print_stats(struct msm_vidc_inst *inst);
+void msm_vidc_print_memory_stats(struct msm_vidc_inst *inst);
 enum msm_vidc_buffer_type v4l2_type_to_driver(u32 type,
 	const char *func);
 int msm_vidc_buf_queue(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf);

@@ -480,6 +480,9 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 	/* print final buffer counts & size details */
 	msm_vidc_print_buffer_info(inst);
 
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
+
 	buf_type = v4l2_type_to_driver(q->type, __func__);
 	if (!buf_type)
 		return -EINVAL;
@@ -555,6 +558,9 @@ int msm_vidc_stop_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 		/* flush buffer_stats list */
 		msm_vidc_flush_buffer_stats(inst);
 	}
+
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
 
 	i_vpr_h(inst, "Streamoff: %s successful\n", v4l2_type_name(q->type));
 	return rc;

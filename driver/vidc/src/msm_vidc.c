@@ -1077,6 +1077,8 @@ int msm_vidc_close(void *instance)
 	inst_lock(inst, __func__);
 	/* print final stats */
 	msm_vidc_print_stats(inst);
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
 	msm_vidc_print_residency_stats(core);
 	msm_vidc_session_close(inst);
 	msm_vidc_change_state(inst, MSM_VIDC_CLOSE, __func__);
