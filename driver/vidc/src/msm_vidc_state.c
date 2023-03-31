@@ -1271,9 +1271,23 @@ static int msm_vidc_close_state(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
+	switch (event) {
+	case MSM_VIDC_STREAMOFF:
+	{
+		struct vb2_queue *q = (struct vb2_queue *)data;
 
-	return -EINVAL;
+		rc = msm_vidc_stop_streaming(inst, q);
+		if (rc)
+			return rc;
+		break;
+	}
+	default: {
+		i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
+		return -EINVAL;
+	}
+	}
+
+	return rc;
 }
 
 static int msm_vidc_error_state(struct msm_vidc_inst *inst,
