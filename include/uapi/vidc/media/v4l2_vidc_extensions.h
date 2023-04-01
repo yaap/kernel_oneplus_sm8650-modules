@@ -88,19 +88,6 @@ enum v4l2_mpeg_vidc_blur_types {
 /* TODO: jdas: compound control for matrix */
 #define V4L2_CID_MPEG_VIDC_VIDEO_VPE_CSC_CUSTOM_MATRIX                        \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x12)
-
-/* various Metadata - encoder & decoder */
-enum v4l2_mpeg_vidc_metadata_bits {
-	V4L2_MPEG_VIDC_META_DISABLE          = 0x0,
-	V4L2_MPEG_VIDC_META_ENABLE           = 0x1,
-	V4L2_MPEG_VIDC_META_TX_INPUT         = 0x2,
-	V4L2_MPEG_VIDC_META_TX_OUTPUT        = 0x4,
-	V4L2_MPEG_VIDC_META_RX_INPUT         = 0x8,
-	V4L2_MPEG_VIDC_META_RX_OUTPUT        = 0x10,
-	V4L2_MPEG_VIDC_META_DYN_ENABLE       = 0x20,
-	V4L2_MPEG_VIDC_META_MAX              = 0x40,
-};
-
 #define V4L2_CID_MPEG_VIDC_METADATA_LTR_MARK_USE_DETAILS                      \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x13)
 #define V4L2_CID_MPEG_VIDC_METADATA_SEQ_HEADER_NAL                            \
@@ -284,86 +271,6 @@ enum v4l2_mpeg_video_av1_tier {
 #define V4L2_CID_MPEG_VIDC_DRIVER_VERSION                                     \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x48)
 
-enum v4l2_mpeg_vidc_metapayload_header_flags {
-	METADATA_FLAGS_NONE             = 0,
-	METADATA_FLAGS_TOP_FIELD        = (1 << 0),
-	METADATA_FLAGS_BOTTOM_FIELD     = (1 << 1),
-	METADATA_FLAGS_BITSTREAM        = (1 << 2),
-	METADATA_FLAGS_RAW              = (1 << 3),
-};
-
-enum saliency_roi_info {
-	METADATA_SALIENCY_NONE,
-	METADATA_SALIENCY_TYPE0,
-};
-
-struct msm_vidc_metabuf_header {
-	__u32 count;
-	__u32 size;
-	__u32 version;
-	__u32 reserved[5];
-};
-struct msm_vidc_metapayload_header {
-	__u32 type;
-	__u32 size;
-	__u32 version;
-	__u32 offset;
-	__u32 flags;
-	__u32 reserved[3];
-};
-enum v4l2_mpeg_vidc_metadata {
-	METADATA_BITSTREAM_RESOLUTION         = 0x03000103,
-	METADATA_CROP_OFFSETS                 = 0x03000105,
-	METADATA_LTR_MARK_USE_DETAILS         = 0x03000137,
-	METADATA_SEQ_HEADER_NAL               = 0x0300014a,
-	METADATA_DPB_LUMA_CHROMA_MISR         = 0x03000153,
-	METADATA_OPB_LUMA_CHROMA_MISR         = 0x03000154,
-	METADATA_INTERLACE                    = 0x03000156,
-	METADATA_TIMESTAMP                    = 0x0300015c,
-	METADATA_CONCEALED_MB_COUNT           = 0x0300015f,
-	METADATA_HISTOGRAM_INFO               = 0x03000161,
-	METADATA_PICTURE_TYPE                 = 0x03000162,
-	METADATA_SEI_MASTERING_DISPLAY_COLOUR = 0x03000163,
-	METADATA_SEI_CONTENT_LIGHT_LEVEL      = 0x03000164,
-	METADATA_HDR10PLUS                    = 0x03000165,
-	METADATA_EVA_STATS                    = 0x03000167,
-	METADATA_BUFFER_TAG                   = 0x0300016b,
-	METADATA_SUBFRAME_OUTPUT              = 0x0300016d,
-	METADATA_ENC_QP_METADATA              = 0x0300016e,
-	METADATA_DEC_QP_METADATA              = 0x0300016f,
-	METADATA_ROI_INFO                     = 0x03000173,
-	METADATA_DPB_TAG_LIST                 = 0x03000179,
-	METADATA_MAX_NUM_REORDER_FRAMES       = 0x03000127,
-	METADATA_SALIENCY_INFO                = 0x0300018A,
-	METADATA_FENCE                        = 0x0300018B,
-	METADATA_TRANSCODING_STAT_INFO        = 0x03000191,
-	METADATA_DV_RPU                       = 0x03000192,
-};
-enum meta_interlace_info {
-	META_INTERLACE_INFO_NONE                            = 0x00000000,
-	META_INTERLACE_FRAME_PROGRESSIVE                    = 0x00000001,
-	META_INTERLACE_FRAME_MBAFF                          = 0x00000002,
-	META_INTERLACE_FRAME_INTERLEAVE_TOPFIELD_FIRST      = 0x00000004,
-	META_INTERLACE_FRAME_INTERLEAVE_BOTTOMFIELD_FIRST   = 0x00000008,
-	META_INTERLACE_FRAME_INTERLACE_TOPFIELD_FIRST       = 0x00000010,
-	META_INTERLACE_FRAME_INTERLACE_BOTTOMFIELD_FIRST    = 0x00000020,
-};
-
-/*
- * enum meta_picture_type - specifies input picture type
- * @META_PICTURE_TYPE_NEW: start of new frame or first slice in a frame
- */
-enum meta_picture_type {
-	META_PICTURE_TYPE_IDR                            = 0x00000001,
-	META_PICTURE_TYPE_P                              = 0x00000002,
-	META_PICTURE_TYPE_B                              = 0x00000004,
-	META_PICTURE_TYPE_I                              = 0x00000008,
-	META_PICTURE_TYPE_CRA                            = 0x00000010,
-	META_PICTURE_TYPE_BLA                            = 0x00000020,
-	META_PICTURE_TYPE_NOSHOW                         = 0x00000040,
-	META_PICTURE_TYPE_NEW                            = 0x00000080,
-};
-
 /* vendor controls end */
 
 /* vendor events start */
@@ -384,11 +291,5 @@ enum meta_picture_type {
  */
 
 /* vendor events end */
-
-/* Default metadata size (align to 4KB) */
-#define MSM_VIDC_METADATA_SIZE           (4 * 4096) /* 16 KB */
-#define ENCODE_INPUT_METADATA_SIZE       (512 * 4096) /* 2 MB */
-#define DECODE_INPUT_METADATA_SIZE       MSM_VIDC_METADATA_SIZE
-#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE  (41 * 1024) /* 41 KB */
 
 #endif
