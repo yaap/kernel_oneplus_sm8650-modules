@@ -2632,6 +2632,83 @@ int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+int msm_vidc_adjust_dec_outbuf_fence_type(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value, meta_outbuf_fence = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_core *core;
+
+	if (!inst || !inst->capabilities || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+	core = inst->core;
+	if (!core->capabilities) {
+		d_vpr_e("%s: invalid core caps\n", __func__);
+		return -EINVAL;
+	}
+
+	adjusted_value = ctrl ? ctrl->val :
+		capability->cap[OUTBUF_FENCE_TYPE].value;
+
+	if (msm_vidc_get_parent_value(inst, OUTBUF_FENCE_TYPE,
+		META_OUTBUF_FENCE, &meta_outbuf_fence, __func__))
+		return -EINVAL;
+
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+		if (core->capabilities[SUPPORTS_SYNX_FENCE].value)
+			adjusted_value = MSM_VIDC_SYNX_V2_FENCE;
+		else
+			adjusted_value = MSM_VIDC_SW_FENCE;
+	} else {
+		adjusted_value = MSM_VIDC_FENCE_NONE;
+	}
+
+	msm_vidc_update_cap_value(inst, OUTBUF_FENCE_TYPE,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	s32 adjusted_value, meta_outbuf_fence = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_core *core;
+
+	if (!inst || !inst->capabilities || !inst->core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+	core = inst->core;
+	if (!core->capabilities) {
+		d_vpr_e("%s: invalid core caps\n", __func__);
+		return -EINVAL;
+	}
+
+	adjusted_value = ctrl ? ctrl->val :
+		capability->cap[OUTBUF_FENCE_DIRECTION].value;
+
+	if (msm_vidc_get_parent_value(inst, OUTBUF_FENCE_DIRECTION,
+		META_OUTBUF_FENCE, &meta_outbuf_fence, __func__))
+		return -EINVAL;
+
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+		adjusted_value = MSM_VIDC_FENCE_DIR_TX;
+	} else {
+		adjusted_value = MSM_VIDC_FENCE_DIR_NONE;
+	}
+
+	msm_vidc_update_cap_value(inst, OUTBUF_FENCE_DIRECTION,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
 int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst_capability *capability;
@@ -4088,6 +4165,58 @@ int msm_vidc_set_vui_timing_info(void *instance,
 		hfi_value = 1;
 
 	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32,
+		&hfi_value, sizeof(u32), __func__);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vidc_set_outbuf_fence_type(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
+	u32 hfi_value;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (inst->capabilities->cap[OUTBUF_FENCE_TYPE].value ==
+		MSM_VIDC_FENCE_NONE)
+		return 0;
+
+	hfi_value = inst->capabilities->cap[cap_id].value;
+
+	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32_ENUM,
+		&hfi_value, sizeof(u32), __func__);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vidc_set_outbuf_fence_direction(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
+	u32 hfi_value;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (inst->capabilities->cap[OUTBUF_FENCE_DIRECTION].value ==
+		MSM_VIDC_FENCE_DIR_NONE)
+		return 0;
+
+	hfi_value = inst->capabilities->cap[cap_id].value;
+
+	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32_ENUM,
 		&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;

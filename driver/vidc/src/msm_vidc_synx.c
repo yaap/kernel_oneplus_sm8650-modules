@@ -145,6 +145,7 @@ static int msm_vidc_synx_fence_register(struct msm_vidc_core *core)
 		"video synx fence");
 	params.name = synx_session_name;
 	params.ptr = &queue_desc;
+	params.flags = SYNX_INIT_MAX; /* unused */
 
 	session =
 		(struct synx_session *)synx_hwfence_initialize(&params);
@@ -155,6 +156,7 @@ static int msm_vidc_synx_fence_register(struct msm_vidc_core *core)
 
 	/* fill core synx fence data */
 	core->synx_fence_data.client_id = (u32)params.id;
+	core->synx_fence_data.client_flags = (u32)params.flags;
 	core->synx_fence_data.session = (void *)session;
 	core->synx_fence_data.queue.size = (u32)queue_desc.size;
 	core->synx_fence_data.queue.kvaddr = queue_desc.vaddr;

@@ -401,8 +401,9 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	u32 payload = 0;
+	u32 synx_client_data[2];
 
-	if (!core || !pkt) {
+	if (!core || !pkt || !core->capabilities) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -527,6 +528,24 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 				   sizeof(u32));
 	if (rc)
 		goto err_sys_init;
+
+	/* HFI_PROP_FENCE_CLIENT_DATA */
+	if (core->capabilities[SUPPORTS_SYNX_FENCE].value) {
+		synx_client_data[0] = core->synx_fence_data.client_id;
+		synx_client_data[1] = core->synx_fence_data.client_flags;
+		d_vpr_h("%s: synx fence client id: %u client flags: %u\n",
+			__func__, synx_client_data[0], synx_client_data[1]);
+		rc = hfi_create_packet(pkt, pkt_size,
+					HFI_PROP_FENCE_CLIENT_DATA,
+					HFI_HOST_FLAGS_NONE,
+					HFI_PAYLOAD_U32_ARRAY,
+					HFI_PORT_NONE,
+					core->packet_id++,
+					synx_client_data,
+					sizeof(u32) * 2);
+		if (rc)
+			goto err_sys_init;
+	}
 
 	d_vpr_h("System init packet created\n");
 	return rc;

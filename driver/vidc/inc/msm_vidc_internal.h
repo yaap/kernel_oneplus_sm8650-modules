@@ -258,6 +258,10 @@ enum msm_vidc_metadata_bits {
 	CAP(DELIVERY_MODE)                        \
 	CAP(VUI_TIMING_INFO)                      \
 	CAP(SLICE_DECODE)                         \
+	CAP(INBUF_FENCE_TYPE)                     \
+	CAP(OUTBUF_FENCE_TYPE)                    \
+	CAP(INBUF_FENCE_DIRECTION)                \
+	CAP(OUTBUF_FENCE_DIRECTION)               \
 	CAP(PROFILE)                              \
 	CAP(ENH_LAYER_COUNT)                      \
 	CAP(BIT_RATE)                             \
@@ -299,6 +303,7 @@ enum msm_vidc_metadata_bits {
 	CAP(SECURE_MODE)                          \
 	CAP(FENCE_ID)                             \
 	CAP(FENCE_FD)                             \
+	CAP(FENCE_ERROR_DATA_CORRUPT)             \
 	CAP(TS_REORDER)                           \
 	CAP(HFLIP)                                \
 	CAP(VFLIP)                                \
@@ -794,6 +799,7 @@ struct msm_vidc_hfi_frame_info {
 	u32                    data_corrupt;
 	u32                    overflow;
 	u32                    fence_id;
+	u32                    fence_error;
 };
 
 struct msm_vidc_decode_vpp_delay {
@@ -851,6 +857,18 @@ struct msm_vidc_power {
 	u32                    dcvs_flags;
 	u32                    fw_cr;
 	u32                    fw_cf;
+};
+
+enum msm_vidc_fence_type {
+	MSM_VIDC_FENCE_NONE         = 0,
+	MSM_VIDC_SW_FENCE           = 1,
+	MSM_VIDC_SYNX_V2_FENCE      = 2,
+};
+
+enum msm_vidc_fence_direction {
+	MSM_VIDC_FENCE_DIR_NONE    = 0,
+	MSM_VIDC_FENCE_DIR_TX      = 1,
+	MSM_VIDC_FENCE_DIR_RX      = 2,
 };
 
 struct msm_vidc_fence_context {
