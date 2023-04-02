@@ -19,6 +19,32 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d);
 static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d);
 static u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size);
 
+
+static int msm_vidc_get_hier_layer_val(struct msm_vidc_inst *inst)
+{
+	int hierachical_layer = CODEC_GOP_IPP;
+
+	if (inst->domain == MSM_VIDC_ENCODER) {
+		if (inst->capabilities->cap[ALL_INTRA].value) {
+			/* no P and B frames case */
+			hierachical_layer = CODEC_GOP_IONLY;
+		} else if (inst->capabilities->cap[B_FRAME].value == 0) {
+			/* no B frames case */
+			hierachical_layer = CODEC_GOP_IPP;
+		} else { /* P and B frames enabled case */
+			if (inst->capabilities->cap[ENH_LAYER_COUNT].value == 0 ||
+				inst->capabilities->cap[ENH_LAYER_COUNT].value == 1)
+				hierachical_layer = CODEC_GOP_IbP;
+			else if (inst->capabilities->cap[ENH_LAYER_COUNT].value == 2)
+				hierachical_layer = CODEC_GOP_I1B2b1P;
+			else
+				hierachical_layer = CODEC_GOP_I3B4b1P;
+		}
+	}
+
+	return hierachical_layer;
+}
+
 static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_size,
 		struct api_calculation_input *codec_input)
 {
@@ -83,15 +109,8 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	else
 		codec_input->bitdepth = CODEC_BITDEPTH_10;
 
-	/*
-	 * Used for calculating Encoder GOP Complexity
-	 * hierachical_layer=0..7 used as Array Index
-	 * inst->capabilities->cap[B_FRAME].value=[ 0 1 2 ]
-	 * TODO how to map?
-	 */
-
-	/* set as IPP */
-	codec_input->hierachical_layer = 0;
+	codec_input->hierachical_layer =
+		msm_vidc_get_hier_layer_val(inst);
 
 	if (inst->domain == MSM_VIDC_DECODER)
 		color_fmt = v4l2_colorformat_to_driver(inst,
@@ -177,12 +196,8 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		return -EINVAL;
 	}
 
-	/*
-	 * Used for calculating Encoder GOP Complexity
-	 * hierachical_layer=0..7 used as Array Index
-	 * TODO how to map?
-	 */
-	codec_input->hierachical_layer = 0; /* set as IPP */
+	codec_input->hierachical_layer =
+		msm_vidc_get_hier_layer_val(inst);
 
 	/*
 	 * If the calculated motion_vector_complexity is > 2 then set the

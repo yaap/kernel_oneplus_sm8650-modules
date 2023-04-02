@@ -244,7 +244,7 @@ static u32 av1_num_tiles_pineapple[7][3] =
 */
 
 /* 1000x */
-static u32 pineapple_en_readfactor[7] = {1000, 1500, 1750, 1875, 1000, 2000, 2000};
+static u32 pineapple_en_readfactor[8] = {1000, 1500, 1750, 1875, 1000, 2000, 2000, 1000};
 /* 1000x */
-static u32 pineapple_en_writefactor[7] = {1000, 500, 500, 500, 1000, 0, 1000};
+static u32 pineapple_en_writefactor[8] = {1000, 500, 500, 500, 1000, 0, 1000, 1000};
 static u32 pineapple_en_frame_num_parallel = 1;
