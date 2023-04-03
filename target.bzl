@@ -6,7 +6,7 @@ def define_pineapple():
         target = "pineapple",
         registry = mmrm_driver_modules,
         modules = [
-            "msm_mmrm",
-            "msm_test",
+            "msm-mmrm",
+            "mmrm_test_module",
         ],
 )
