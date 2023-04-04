@@ -434,16 +434,19 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 		codec_output.vsp_min_freq, codec_output.tensilica_min_freq,
 		codec_output.hw_min_freq, fps, mbpf);
 
-	if (inst->codec == MSM_VIDC_AV1 ||
-		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
+	if (inst->codec == MSM_VIDC_AV1 || (inst->iframe && is_hevc_10bit_decode_session(inst)) ||
+			(!is_realtime_session(inst))) {
 		/*
-		 * for AV1 or HEVC 10bit and iframe case only allow TURBO and
+		 * TURBO is only allowed for:
+		 *     1. AV1 decoding session
+		 *     2. 10-bit I-Frame decoding session
+		 *     3. NRT decoding/encoding session
 		 * limit to NOM for all other cases
 		 */
 	} else {
 		/* limit to NOM, index 0 is TURBO, index 1 is NOM clock rate */
 		if (core->resource->freq_set.count >= 2 &&
-			freq > core->resource->freq_set.freq_tbl[1].freq)
+				freq > core->resource->freq_set.freq_tbl[1].freq)
 			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
 
@@ -720,16 +723,19 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 		__func__, data_size, freq,
 		vpp_cycles, vsp_cycles, fw_cycles, fps, mbpf);
 
-	if (inst->codec == MSM_VIDC_AV1 ||
-		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
+	if (inst->codec == MSM_VIDC_AV1 || (inst->iframe && is_hevc_10bit_decode_session(inst)) ||
+			(!is_realtime_session(inst))) {
 		/*
-		 * for AV1 or HEVC 10bit and iframe case only allow TURBO and
+		 * TURBO is only allowed for:
+		 *     1. AV1 decoding session
+		 *     2. 10-bit I-Frame decoding session
+		 *     3. NRT decoding/encoding session
 		 * limit to NOM for all other cases
 		 */
 	} else {
 		/* limit to NOM, index 0 is TURBO, index 1 is NOM clock rate */
 		if (core->resource->freq_set.count >= 2 &&
-		    freq > core->resource->freq_set.freq_tbl[1].freq)
+				freq > core->resource->freq_set.freq_tbl[1].freq)
 			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
 
