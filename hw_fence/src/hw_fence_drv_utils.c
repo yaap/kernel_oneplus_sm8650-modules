@@ -10,6 +10,7 @@
 #include <linux/gunyah/gh_dbl.h>
 #include <linux/qcom_scm.h>
 #include <linux/version.h>
+#include <linux/gh_cpusys_vm_mem_access.h>
 #include <soc/qcom/secure_buffer.h>
 
 #include "hw_fence_drv_priv.h"
@@ -346,8 +347,10 @@ static int hw_fence_rm_cb(struct notifier_block *nb, unsigned long cmd, void *da
 {
 	struct gh_rm_notif_vm_status_payload *vm_status_payload;
 	struct hw_fence_driver_data *drv_data;
+	struct resource res;
 	gh_vmid_t peer_vmid;
 	gh_vmid_t self_vmid;
+	int ret;
 
 	drv_data = container_of(nb, struct hw_fence_driver_data, rm_nb);
 
@@ -380,11 +383,25 @@ static int hw_fence_rm_cb(struct notifier_block *nb, unsigned long cmd, void *da
 
 	switch (vm_status_payload->vm_status) {
 	case GH_RM_VM_STATUS_READY:
-		HWFNC_DBG_INIT("init mem\n");
-		if (hw_fence_gunyah_share_mem(drv_data, self_vmid, peer_vmid))
-			HWFNC_ERR("failed to share memory\n");
-		else
-			drv_data->vm_ready = true;
+		ret = gh_cpusys_vm_get_share_mem_info(&res);
+		if (ret) {
+			HWFNC_DBG_INIT("mem not shared ret:%d, attempt share\n", ret);
+			if (hw_fence_gunyah_share_mem(drv_data, self_vmid, peer_vmid))
+				HWFNC_ERR("failed to share memory\n");
+			else
+				drv_data->vm_ready = true;
+		} else {
+			if (drv_data->res.start == res.start &&
+					resource_size(&drv_data->res) == resource_size(&res)) {
+				drv_data->vm_ready = true;
+				HWFNC_DBG_INIT("mem_ready: add:0x%x size:%d ret:%d\n", res.start,
+					resource_size(&res), ret);
+			} else {
+				HWFNC_ERR("mem-shared mismatch:[0x%x,%d] expected:[0x%x,%d]\n",
+					res.start, resource_size(&res), drv_data->res.start,
+					resource_size(&drv_data->res));
+			}
+		}
 		break;
 	case GH_RM_VM_STATUS_RESET:
 		HWFNC_DBG_INIT("reset\n");
