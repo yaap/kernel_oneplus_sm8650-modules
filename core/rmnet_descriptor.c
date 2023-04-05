@@ -35,6 +35,9 @@
 #define RMNET_DL_IND_TRL_SIZE (sizeof(struct rmnet_map_dl_ind_trl) + \
 			       sizeof(struct rmnet_map_header) + \
 			       sizeof(struct rmnet_map_control_command_header))
+#define RMNET_PB_IND_HDR_SIZE (sizeof(struct rmnet_map_pb_ind_hdr) + \
+			       sizeof(struct rmnet_map_header) + \
+			       sizeof(struct rmnet_map_control_command_header))
 
 #define rmnet_descriptor_for_each_frag(p, desc) \
 	list_for_each_entry(p, &desc->frags, list)
@@ -445,6 +448,36 @@ static void rmnet_frag_send_ack(struct rmnet_map_header *qmap,
 }
 
 static void
+rmnet_frag_process_pb_ind(struct rmnet_frag_descriptor *frag_desc,
+			  struct rmnet_map_control_command_header *cmd,
+			  struct rmnet_port *port,
+			  u16 cmd_len)
+{
+	struct rmnet_map_pb_ind_hdr *pbhdr, __pbhdr;
+	u32 offset = sizeof(struct rmnet_map_header);
+	u32 data_format;
+	bool is_dl_mark_v2;
+
+	if (cmd_len + offset < RMNET_PB_IND_HDR_SIZE)
+		return;
+
+	data_format = port->data_format;
+	is_dl_mark_v2 = data_format & RMNET_INGRESS_FORMAT_DL_MARKER_V2;
+	pbhdr = rmnet_frag_header_ptr(frag_desc, offset + sizeof(*cmd),
+				      sizeof(*pbhdr), &__pbhdr);
+	if (!pbhdr)
+		return;
+
+	port->stats.pb_marker_count++;
+
+	/* If a target is taking frag path, we can assume DL marker v2 is in
+	 * play
+	 */
+	if (is_dl_mark_v2)
+		rmnet_map_pb_ind_notify(port, pbhdr);
+}
+
+static void
 rmnet_frag_process_flow_start(struct rmnet_frag_descriptor *frag_desc,
 			      struct rmnet_map_control_command_header *cmd,
 			      struct rmnet_port *port,
@@ -570,6 +603,9 @@ int rmnet_frag_flow_command(struct rmnet_frag_descriptor *frag_desc,
 		rmnet_frag_process_flow_end(frag_desc, cmd, port, pkt_len);
 		break;
 
+	case RMNET_MAP_COMMAND_PB_BYTES:
+		rmnet_frag_process_pb_ind(frag_desc, cmd, port, pkt_len);
+		break;
 	default:
 		return 1;
 	}
