@@ -3513,10 +3513,6 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 		return -EINVAL;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		d_vpr_e("%s: invalid core capabilities\n", __func__);
-		return -EINVAL;
-	}
 
 	src_vq->supports_requests = core->capabilities[SUPPORTS_REQUESTS].value;
 	src_vq->lock = &inst->request_lock;
@@ -3661,11 +3657,6 @@ int msm_vidc_add_session(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 	core = inst->core;
-
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core_lock(core, __func__);
 	if (core->state != MSM_VIDC_CORE_INIT) {
@@ -4006,22 +3997,6 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_vidc_deinit_core_caps(struct msm_vidc_core *core)
-{
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	msm_vidc_vmem_free((void **)&core->capabilities);
-	core->capabilities = NULL;
-	d_vpr_h("%s: Core capabilities freed\n", __func__);
-
-	return rc;
-}
-
 int msm_vidc_init_core_caps(struct msm_vidc_core *core)
 {
 	int rc = 0;
@@ -4041,11 +4016,6 @@ int msm_vidc_init_core_caps(struct msm_vidc_core *core)
 			rc = -EINVAL;
 			goto exit;
 	}
-
-	rc = msm_vidc_vmem_alloc((sizeof(struct msm_vidc_core_capability) *
-		(CORE_CAP_MAX + 1)), (void **)&core->capabilities, __func__);
-	if (rc)
-		goto exit;
 
 	num_platform_caps = core->platform->data.core_data_size;
 
@@ -4138,7 +4108,7 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 	struct msm_platform_inst_capability *platform_cap_data = NULL;
 	struct msm_platform_inst_cap_dependency *platform_cap_dependency_data = NULL;
 
-	if (!core || !core->platform || !core->capabilities) {
+	if (!core || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		rc = -EINVAL;
 		goto error;
@@ -4321,7 +4291,7 @@ int msm_vidc_core_init_wait(struct msm_vidc_core *core)
 	const int interval = 10;
 	int max_tries, count = 0, rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -4383,7 +4353,7 @@ int msm_vidc_core_init(struct msm_vidc_core *core)
 	enum msm_vidc_allow allow;
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -4621,7 +4591,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 {
 	struct msm_vidc_core *core = data;
 
-	if (!domain || !core || !core->capabilities) {
+	if (!domain || !core) {
 		d_vpr_e("%s: invalid params %pK %pK\n",
 			__func__, domain, core);
 		return -EINVAL;
@@ -5898,11 +5868,6 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 	core = inst->core;
-
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core_lock(core, __func__);
 	list_for_each_entry(i, &core->instances, list) {

@@ -88,7 +88,7 @@ static bool __valdiate_session(struct msm_vidc_core *core,
 
 static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -108,7 +108,7 @@ static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 
 static void __cancel_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -1006,7 +1006,7 @@ int venus_hfi_noc_error_info(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: Invalid parameters: %pK\n",
 			__func__, core);
 		return -EINVAL;

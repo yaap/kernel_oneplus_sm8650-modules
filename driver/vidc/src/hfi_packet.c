@@ -403,7 +403,7 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	u32 payload = 0;
 	u32 synx_client_data[2];
 
-	if (!core || !pkt || !core->capabilities) {
+	if (!core || !pkt) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}

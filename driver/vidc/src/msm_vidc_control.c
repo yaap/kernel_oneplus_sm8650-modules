@@ -699,11 +699,6 @@ static int msm_vidc_allow_secure_session(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core_lock(core, __func__);
 	list_for_each_entry(i, &core->instances, list) {
 		if (i->capabilities[SECURE_MODE].value)

@@ -539,7 +539,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 
 	d_vpr_h("%s()\n", __func__);
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_h("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}

@@ -2579,10 +2579,6 @@ int msm_vidc_adjust_dec_outbuf_fence_type(void *instance, struct v4l2_ctrl *ctrl
 	}
 	capability = inst->capabilities;
 	core = inst->core;
-	if (!core->capabilities) {
-		d_vpr_e("%s: invalid core caps\n", __func__);
-		return -EINVAL;
-	}
 
 	adjusted_value = ctrl ? ctrl->val :
 		capability[OUTBUF_FENCE_TYPE].value;
@@ -2619,10 +2615,6 @@ int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl 
 	}
 	capability = inst->capabilities;
 	core = inst->core;
-	if (!core->capabilities) {
-		d_vpr_e("%s: invalid core caps\n", __func__);
-		return -EINVAL;
-	}
 
 	adjusted_value = ctrl ? ctrl->val :
 		capability[OUTBUF_FENCE_DIRECTION].value;
