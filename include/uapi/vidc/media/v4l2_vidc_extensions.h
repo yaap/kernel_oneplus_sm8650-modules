@@ -13,8 +13,6 @@
 /* 32  RGBA-8-8-8-8 compressed */
 #define V4L2_PIX_FMT_VIDC_ARGB32C               v4l2_fourcc('Q', '2', '4', 'C')
 #define V4L2_META_FMT_VIDC                      v4l2_fourcc('Q', 'M', 'E', 'T')
-/* HEIC encoder and decoder */
-#define V4L2_PIX_FMT_HEIC                       v4l2_fourcc('H', 'E', 'I', 'C')
 /* AV1 */
 #define V4L2_PIX_FMT_AV1                        v4l2_fourcc('A', 'V', '1', '0')
 

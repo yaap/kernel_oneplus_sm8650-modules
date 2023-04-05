@@ -8,6 +8,9 @@
 
 #include "msm_vidc_control.h"
 
+/* HEIC encoder and decoder */
+#define V4L2_PIX_FMT_VIDC_HEIC                  v4l2_fourcc('H', 'E', 'I', 'C')
+
 int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl);
