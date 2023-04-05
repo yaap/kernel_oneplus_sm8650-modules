@@ -1,5 +1,5 @@
 /* Copyright (c) 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -87,7 +87,10 @@ static void rmnet_ll_ipa_rx(void *arg, void *rx_data)
 	while (tmp) {
 		/* Mark the SKB as low latency */
 		tmp->priority = 0xda1a;
-		tmp = skb_shinfo(tmp)->frag_list;
+		if (tmp == skb)
+			tmp = skb_shinfo(tmp)->frag_list;
+		else
+			tmp = tmp->next;
 	}
 
 	stats->rx_pkts++;
