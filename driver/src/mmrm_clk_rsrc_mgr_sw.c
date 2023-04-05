@@ -1077,29 +1077,29 @@ static int mmrm_sw_clk_client_setval(struct mmrm_clk_mgr *sw_clk_mgr,
 
 set_clk_rate:
 	if (!tbl_entry->is_crm_client || client_data->drv_type == MMRM_CRM_SW_DRV) {
-		d_mpr_h("%s: csid(0x%x) setting clk rate %llu\n",
-			__func__, tbl_entry->clk_src_id, clk_val);
+		d_mpr_h("%s: csid(0x%x) setting rounded clk rate %llu\n",
+			__func__, tbl_entry->clk_src_id, clk_round_val);
 
-		rc = clk_set_rate(tbl_entry->clk, clk_val);
+		rc = clk_set_rate(tbl_entry->clk, clk_round_val);
 		if (rc) {
-			d_mpr_e("%s: csid(0x%x) failed to set clk rate %llu\n",
-				__func__, tbl_entry->clk_src_id, clk_val);
+			d_mpr_e("%s: csid(0x%x) failed to set rounded clk rate %llu\n",
+				__func__, tbl_entry->clk_src_id, clk_round_val);
 			rc = -EINVAL;
 			/* TBD: incase of failure clk_rate is invalid */
 			goto err_clk_set_fail;
 		}
 	} else {
-		d_mpr_h("%s: csid(0x%x) setting clk rate %llu drv_type %u, crm_drv_idx %u, pwr_st %u\n",
-				__func__, tbl_entry->clk_src_id, clk_val,
+		d_mpr_h("%s: csid(0x%x) setting rounded clk rate %llu drv_type %u, crm_drv_idx %u, pwr_st %u\n",
+				__func__, tbl_entry->clk_src_id, clk_round_val,
 				CRM_HW_DRV, client_data->crm_drv_idx,
 				client_data->pwr_st);
 
 		rc = qcom_clk_crm_set_rate(tbl_entry->clk, CRM_HW_DRV,
 				client_data->crm_drv_idx,
-				client_data->pwr_st, clk_val);
+				client_data->pwr_st, clk_round_val);
 		if (rc) {
-			d_mpr_e("%s: csid(0x%x) failed to set clk rate %llu\n",
-				__func__, tbl_entry->clk_src_id, clk_val);
+			d_mpr_e("%s: csid(0x%x) failed to set rounded clk rate %llu\n",
+				__func__, tbl_entry->clk_src_id, clk_round_val);
 			rc = -EINVAL;
 			/* TBD: incase of failure clk_rate is invalid */
 			goto err_clk_set_fail;
@@ -1107,8 +1107,8 @@ set_clk_rate:
 	}
 
 exit_no_err:
-	d_mpr_h("%s: clk rate %lu set successfully for %s\n",
-			__func__, clk_val, tbl_entry->name);
+	d_mpr_h("%s: clk rate (round) %lu set successfully for %s\n",
+			__func__, clk_round_val, tbl_entry->name);
 	return rc;
 
 err_invalid_client:
