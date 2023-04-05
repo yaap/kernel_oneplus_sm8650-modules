@@ -17,37 +17,7 @@
 #define V4L2_PIX_FMT_HEIC                       v4l2_fourcc('H', 'E', 'I', 'C')
 /* AV1 */
 #define V4L2_PIX_FMT_AV1                        v4l2_fourcc('A', 'V', '1', '0')
-/* start of vidc specific colorspace definitions */
-/*
- * V4L2_COLORSPACE_VIDC_START, V4L2_XFER_FUNC_VIDC_START
- * and V4L2_YCBCR_VIDC_START are introduced because
- * V4L2_COLORSPACE_LAST, V4L2_XFER_FUNC_LAST, and
- * V4L2_YCBCR_ENC_LAST respectively are not accessible
- * in userspace. These values are needed in userspace
- * to check if the colorspace info is private.
- */
-#define V4L2_COLORSPACE_VIDC_START           100
-#define V4L2_COLORSPACE_VIDC_GENERIC_FILM    101
-#define V4L2_COLORSPACE_VIDC_EG431           102
-#define V4L2_COLORSPACE_VIDC_EBU_TECH        103
 
-#define V4L2_XFER_FUNC_VIDC_START            200
-#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M   201
-#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG  202
-#define V4L2_XFER_FUNC_VIDC_BT601_525_OR_625 203
-#define V4L2_XFER_FUNC_VIDC_LINEAR           204
-#define V4L2_XFER_FUNC_VIDC_XVYCC            205
-#define V4L2_XFER_FUNC_VIDC_BT1361           206
-#define V4L2_XFER_FUNC_VIDC_BT2020           207
-#define V4L2_XFER_FUNC_VIDC_ST428            208
-#define V4L2_XFER_FUNC_VIDC_HLG              209
-
-/* should be 255 or below due to u8 limitation */
-#define V4L2_YCBCR_VIDC_START                240
-#define V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428  241
-#define V4L2_YCBCR_VIDC_FCC47_73_682         242
-
-/* end of vidc specific colorspace definitions */
 #ifndef V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE
 #define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
 #endif
