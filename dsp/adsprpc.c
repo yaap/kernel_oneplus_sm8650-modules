@@ -4038,6 +4038,8 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 
 			VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
 						sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
+			if (err)
+				goto bail;
 			for (i = 0; i < rhvm->vmcount; i++) {
 				dst_perms[i].vmid = rhvm->vmid[i];
 				dst_perms[i].perm = rhvm->vmperm[i];
@@ -4676,7 +4678,8 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 
 		VERIFY(err, NULL != (dst_perms = kcalloc(rhvm->vmcount,
 					sizeof(struct qcom_scm_vmperm), GFP_KERNEL)));
-
+		if (err)
+			goto bail;
 		for (i = 0; i < rhvm->vmcount; i++) {
 			dst_perms[i].vmid = rhvm->vmid[i];
 			dst_perms[i].perm = rhvm->vmperm[i];
