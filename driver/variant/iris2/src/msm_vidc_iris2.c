@@ -815,7 +815,7 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst* inst)
 	u32 width, height;
 	bool res_ok = false;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -833,9 +833,9 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst* inst)
 		height = inp_f->fmt.pix_mp.height;
 		width = inp_f->fmt.pix_mp.width;
 		res_ok = res_is_less_than(width, height, 1280, 720);
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE ||
-			inst->capabilities->cap[LOWLATENCY_MODE].value ||
+			inst->capabilities[LOWLATENCY_MODE].value ||
 			res_ok) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
@@ -844,13 +844,13 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst* inst)
 		width = inst->crop.width;
 		res_ok = !res_is_greater_than(width, height, 4096, 2160);
 		if (res_ok &&
-			(inst->capabilities->cap[LOWLATENCY_MODE].value)) {
+			(inst->capabilities[LOWLATENCY_MODE].value)) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
-		if (inst->capabilities->cap[LOSSLESS].value)
+		if (inst->capabilities[LOSSLESS].value)
 			work_mode = MSM_VIDC_STAGE_2;
 
-		if (!inst->capabilities->cap[GOP_SIZE].value)
+		if (!inst->capabilities[GOP_SIZE].value)
 			work_mode = MSM_VIDC_STAGE_2;
 	} else {
 		i_vpr_e(inst, "%s: invalid session type\n", __func__);
@@ -859,8 +859,8 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst* inst)
 
 exit:
 	i_vpr_h(inst, "Configuring work mode = %u low latency = %u, gop size = %u\n",
-		work_mode, inst->capabilities->cap[LOWLATENCY_MODE].value,
-		inst->capabilities->cap[GOP_SIZE].value);
+		work_mode, inst->capabilities[LOWLATENCY_MODE].value,
+		inst->capabilities[GOP_SIZE].value);
 	msm_vidc_update_cap_value(inst, STAGE, work_mode, __func__);
 
 	return 0;
@@ -883,13 +883,13 @@ int msm_vidc_decide_work_route_iris2(struct msm_vidc_inst* inst)
 		goto exit;
 
 	if (is_decode_session(inst)) {
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE)
 			work_route = MSM_VIDC_PIPE_1;
 	} else if (is_encode_session(inst)) {
 		u32 slice_mode;
 
-		slice_mode = inst->capabilities->cap[SLICE_MODE].value;
+		slice_mode = inst->capabilities[SLICE_MODE].value;
 
 		/*TODO Pipe=1 for legacy CBR*/
 		if (slice_mode == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES)
@@ -909,21 +909,18 @@ exit:
 
 int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	s32 rc_type = -1, cac = -1;
 	s32 pix_fmts = -1, min_quality = -1;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	capability = inst->capabilities;
-
 	adjusted_value = ctrl ? ctrl->val :
-		capability->cap[BLUR_TYPES].value;
+		inst->capabilities[BLUR_TYPES].value;
 
 	if (adjusted_value == MSM_VIDC_BLUR_NONE)
 		return 0;
@@ -959,17 +956,14 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_decide_quality_mode_iris2(struct msm_vidc_inst* inst)
 {
-	struct msm_vidc_inst_capability* capability = NULL;
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	capability = inst->capabilities;
 
 	if (!is_encode_session(inst))
 		return 0;
@@ -989,13 +983,13 @@ int msm_vidc_decide_quality_mode_iris2(struct msm_vidc_inst* inst)
 	/* NRT session to have max quality unless client configures lesser complexity */
 	if (!is_realtime_session(inst) && mbpf <= max_hq_mbpf) {
 		mode = MSM_VIDC_MAX_QUALITY_MODE;
-		if (capability->cap[COMPLEXITY].value < DEFAULT_COMPLEXITY)
+		if (inst->capabilities[COMPLEXITY].value < DEFAULT_COMPLEXITY)
 			mode = MSM_VIDC_POWER_SAVE_MODE;
 		goto exit;
 	}
 
 	/* Power saving always disabled for CQ and LOSSLESS RC modes. */
-	if (capability->cap[LOSSLESS].value ||
+	if (inst->capabilities[LOSSLESS].value ||
 		(mbpf <= max_hq_mbpf && mbps <= max_hq_mbps))
 		mode = MSM_VIDC_MAX_QUALITY_MODE;
 

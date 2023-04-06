@@ -827,7 +827,7 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		/* disallow */
 		if (is_decode_session(inst)) {
 			/* check dynamic allowed if master port is streaming */
-			if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+			if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 				i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 					__func__, cap_id, state_name(inst->state));
 				return -EINVAL;
@@ -1029,7 +1029,7 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 		/* disallow */
 		if (is_encode_session(inst)) {
 			/* check dynamic allowed if master port is streaming */
-			if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+			if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 				i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 					__func__, cap_id, state_name(inst->state));
 				return -EINVAL;
@@ -1183,7 +1183,7 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+		if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 			i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 				__func__, cap_id, state_name(inst->state));
 			return -EINVAL;

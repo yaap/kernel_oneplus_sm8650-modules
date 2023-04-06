@@ -862,7 +862,7 @@ int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
 	u32 width, height;
 	bool res_ok = false;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -880,9 +880,9 @@ int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
 		height = inp_f->fmt.pix_mp.height;
 		width = inp_f->fmt.pix_mp.width;
 		res_ok = res_is_less_than(width, height, 1280, 720);
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE ||
-			inst->capabilities->cap[LOWLATENCY_MODE].value ||
+			inst->capabilities[LOWLATENCY_MODE].value ||
 			res_ok) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
@@ -891,17 +891,17 @@ int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
 		width = inst->crop.width;
 		res_ok = !res_is_greater_than(width, height, 4096, 2160);
 		if (res_ok &&
-			(inst->capabilities->cap[LOWLATENCY_MODE].value)) {
+			(inst->capabilities[LOWLATENCY_MODE].value)) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
-		if (inst->capabilities->cap[SLICE_MODE].value ==
+		if (inst->capabilities[SLICE_MODE].value ==
 			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
-		if (inst->capabilities->cap[LOSSLESS].value)
+		if (inst->capabilities[LOSSLESS].value)
 			work_mode = MSM_VIDC_STAGE_2;
 
-		if (!inst->capabilities->cap[GOP_SIZE].value)
+		if (!inst->capabilities[GOP_SIZE].value)
 			work_mode = MSM_VIDC_STAGE_2;
 	} else {
 		i_vpr_e(inst, "%s: invalid session type\n", __func__);
@@ -910,8 +910,8 @@ int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
 
 exit:
 	i_vpr_h(inst, "Configuring work mode = %u low latency = %u, gop size = %u\n",
-		work_mode, inst->capabilities->cap[LOWLATENCY_MODE].value,
-		inst->capabilities->cap[GOP_SIZE].value);
+		work_mode, inst->capabilities[LOWLATENCY_MODE].value,
+		inst->capabilities[GOP_SIZE].value);
 	msm_vidc_update_cap_value(inst, STAGE, work_mode, __func__);
 
 	return 0;
@@ -934,13 +934,13 @@ int msm_vidc_decide_work_route_iris3(struct msm_vidc_inst* inst)
 		goto exit;
 
 	if (is_decode_session(inst)) {
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE)
 			work_route = MSM_VIDC_PIPE_1;
 	} else if (is_encode_session(inst)) {
 		u32 slice_mode;
 
-		slice_mode = inst->capabilities->cap[SLICE_MODE].value;
+		slice_mode = inst->capabilities[SLICE_MODE].value;
 
 		/*TODO Pipe=1 for legacy CBR*/
 		if (slice_mode == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES)
@@ -960,30 +960,27 @@ exit:
 
 int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst* inst)
 {
-	struct msm_vidc_inst_capability* capability = NULL;
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	capability = inst->capabilities;
 
 	if (!is_encode_session(inst))
 		return 0;
 
 	/* image or lossless or all intra runs at quality mode */
-	if (is_image_session(inst) || capability->cap[LOSSLESS].value ||
-		capability->cap[ALL_INTRA].value) {
+	if (is_image_session(inst) || inst->capabilities[LOSSLESS].value ||
+		inst->capabilities[ALL_INTRA].value) {
 		mode = MSM_VIDC_MAX_QUALITY_MODE;
 		goto decision_done;
 	}
 
 	/* for lesser complexity, make LP for all resolution */
-	if (capability->cap[COMPLEXITY].value < DEFAULT_COMPLEXITY) {
+	if (inst->capabilities[COMPLEXITY].value < DEFAULT_COMPLEXITY) {
 		mode = MSM_VIDC_POWER_SAVE_MODE;
 		goto decision_done;
 	}
@@ -995,8 +992,8 @@ int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst* inst)
 	max_hq_mbps = core->capabilities[MAX_MBPS_HQ].value;;
 
 	if (!is_realtime_session(inst)) {
-		if (((capability->cap[COMPLEXITY].flags & CAP_FLAG_CLIENT_SET) &&
-			(capability->cap[COMPLEXITY].value >= DEFAULT_COMPLEXITY)) ||
+		if (((inst->capabilities[COMPLEXITY].flags & CAP_FLAG_CLIENT_SET) &&
+			(inst->capabilities[COMPLEXITY].value >= DEFAULT_COMPLEXITY)) ||
 			mbpf <= max_hq_mbpf) {
 			mode = MSM_VIDC_MAX_QUALITY_MODE;
 			goto decision_done;
@@ -1014,7 +1011,6 @@ decision_done:
 
 int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability* capability = NULL;
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	s32 rc_type = -1;
@@ -1022,15 +1018,13 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 	struct v4l2_format *f;
 	u32 max_bitrate = 0, bitrate = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	capability = inst->capabilities;
-
 	adjusted_value = ctrl ? ctrl->val :
-		capability->cap[BITRATE_BOOST].value;
+		inst->capabilities[BITRATE_BOOST].value;
 
 	if (inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
@@ -1048,7 +1042,7 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 		goto adjust;
 	}
 
-	frame_rate = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
 	f= &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
@@ -1058,7 +1052,7 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 	 * if client did not set, keep max bitrate boost upto 4k@60fps
 	 * and remove bitrate boost after 4k@60fps
 	*/
-	if (capability->cap[BITRATE_BOOST].flags & CAP_FLAG_CLIENT_SET) {
+	if (inst->capabilities[BITRATE_BOOST].flags & CAP_FLAG_CLIENT_SET) {
 		/* accept client set bitrate boost value as is */
 	} else {
 		if (res_is_less_than_or_equal_to(width, height, 4096, 2176) &&
@@ -1069,7 +1063,7 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 	}
 
 	max_bitrate = msm_vidc_get_max_bitrate(inst);
-	bitrate = inst->capabilities->cap[BIT_RATE].value;
+	bitrate = inst->capabilities[BIT_RATE].value;
 	if (adjusted_value) {
 		if ((bitrate + bitrate / (100 / adjusted_value)) > max_bitrate) {
 			i_vpr_h(inst,

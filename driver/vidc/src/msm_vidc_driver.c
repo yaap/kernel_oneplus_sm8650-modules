@@ -952,7 +952,7 @@ bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst, u32 cap_id
 {
 	bool is_allowed = true;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return false;
 	}
@@ -973,7 +973,7 @@ bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst, u32 cap_id
 			}
 			break;
 		case META_DPB_TAG_LIST:
-			if (!is_ubwc_colorformat(inst->capabilities->cap[PIX_FMTS].value)) {
+			if (!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
 				i_vpr_h(inst,
 					"%s: cap: %24s not allowed for split mode\n",
 					__func__, cap_name(cap_id));
@@ -998,7 +998,7 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 {
 	bool is_allowed = true;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return false;
 	}
@@ -1010,7 +1010,7 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 		is_allowed = true;
 		break;
 	case HFI_PROP_DPB_LIST:
-		if (!is_ubwc_colorformat(inst->capabilities->cap[PIX_FMTS].value)) {
+		if (!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
 			i_vpr_h(inst,
 				"%s: cap: %24s not allowed for split mode\n",
 				__func__, cap_name(DPB_LIST));
@@ -1038,7 +1038,7 @@ int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
 {
 	int rc = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1518,7 +1518,7 @@ int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct v4l2_event event = {0};
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1528,7 +1528,7 @@ int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst)
 		return rc;
 
 	if (is_decode_session(inst) &&
-		!inst->capabilities->cap[LAST_FLAG_EVENT_ENABLE].value) {
+		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
 		i_vpr_h(inst, "%s: last flag event not enabled\n", __func__);
 		return 0;
 	}
@@ -1544,7 +1544,7 @@ int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct v4l2_event event = {0};
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1554,7 +1554,7 @@ int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst)
 		return rc;
 
 	if (is_decode_session(inst) &&
-		!inst->capabilities->cap[LAST_FLAG_EVENT_ENABLE].value) {
+		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
 		i_vpr_h(inst, "%s: last flag event not enabled\n", __func__);
 		return 0;
 	}
@@ -1638,7 +1638,7 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 
 	*fence_fd = INVALID_FD;
 
-	if (!inst || !inst->capabilities || !inst->core) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1646,7 +1646,7 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
 		if (fence->fence_id ==
-			(u64)inst->capabilities->cap[FENCE_ID].value) {
+			(u64)inst->capabilities[FENCE_ID].value) {
 			found = true;
 			break;
 		}
@@ -1654,7 +1654,7 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 
 	if (!found) {
 		i_vpr_h(inst, "%s: could not find matching fence for fence id: %d\n",
-			__func__, inst->capabilities->cap[FENCE_ID].value);
+			__func__, inst->capabilities[FENCE_ID].value);
 		goto exit;
 	}
 
@@ -1699,7 +1699,7 @@ int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		i_vpr_h(inst, "g_min: input buffers %d\n", ctrl->val);
 		break;
 	case FILM_GRAIN:
-		ctrl->val = inst->capabilities->cap[FILM_GRAIN].value;
+		ctrl->val = inst->capabilities[FILM_GRAIN].value;
 		i_vpr_h(inst, "%s: film grain present: %d\n",
 			 __func__, ctrl->val);
 		break;
@@ -1740,7 +1740,7 @@ int msm_vidc_get_fps(struct msm_vidc_inst *inst)
 	int fps;
 	u32 frame_rate, operating_rate;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1887,7 +1887,7 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	u64 time_us = 0;
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1895,7 +1895,7 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	core = inst->core;
 	if (!core->capabilities[ENC_AUTO_FRAMERATE].value ||
 			is_image_session(inst) || msm_vidc_is_super_buffer(inst) ||
-			!inst->capabilities->cap[TIME_DELTA_BASED_RC].value)
+			!inst->capabilities[TIME_DELTA_BASED_RC].value)
 		goto exit;
 
 	rc = msm_vidc_update_timestamp_rate(inst, timestamp);
@@ -1908,8 +1908,8 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 			prev_fr = curr_fr;
 			curr_fr = time_us ? DIV64_U64_ROUND_CLOSEST(USEC_PER_SEC, time_us) << 16 :
 					inst->auto_framerate;
-			if (curr_fr > inst->capabilities->cap[FRAME_RATE].max)
-				curr_fr = inst->capabilities->cap[FRAME_RATE].max;
+			if (curr_fr > inst->capabilities[FRAME_RATE].max)
+				curr_fr = inst->capabilities[FRAME_RATE].max;
 		}
 		prev = ts;
 		counter++;
@@ -1948,7 +1948,7 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 	u64 counter = 0;
 	u64 input_timer_sum_us = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1970,7 +1970,7 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 	}
 
 	if (input_timer_sum_us && counter >= INPUT_TIMER_LIST_SIZE)
-		inst->capabilities->cap[INPUT_RATE].value =
+		inst->capabilities[INPUT_RATE].value =
 			(s32)(DIV64_U64_ROUND_CLOSEST(counter * 1000000,
 				input_timer_sum_us) << 16);
 
@@ -2006,42 +2006,42 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 
 int msm_vidc_get_input_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return 0;
 	}
 
-	return inst->capabilities->cap[INPUT_RATE].value >> 16;
+	return inst->capabilities[INPUT_RATE].value >> 16;
 }
 
 int msm_vidc_get_timestamp_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return 0;
 	}
 
-	return inst->capabilities->cap[TIMESTAMP_RATE].value >> 16;
+	return inst->capabilities[TIMESTAMP_RATE].value >> 16;
 }
 
 int msm_vidc_get_frame_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return 0;
 	}
 
-	return inst->capabilities->cap[FRAME_RATE].value >> 16;
+	return inst->capabilities[FRAME_RATE].value >> 16;
 }
 
 int msm_vidc_get_operating_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return 0;
 	}
 
-	return inst->capabilities->cap[OPERATING_RATE].value >> 16;
+	return inst->capabilities[OPERATING_RATE].value >> 16;
 }
 
 static int msm_vidc_insert_sort(struct list_head *head,
@@ -2108,7 +2108,7 @@ int msm_vidc_flush_ts(struct msm_vidc_inst *inst)
 	struct msm_vidc_timestamp *temp, *ts = NULL;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core ) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -2477,16 +2477,12 @@ struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
 
 bool msm_vidc_is_super_buffer(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_inst_capability *capability = NULL;
-
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return false;
 	}
 
-	capability = inst->capabilities;
-
-	return !!capability->cap[SUPER_FRAME].value;
+	return !!inst->capabilities[SUPER_FRAME].value;
 }
 
 static bool is_single_session(struct msm_vidc_inst *inst)
@@ -2514,7 +2510,7 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 fps;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: Invalid args: %pK\n", __func__, inst);
 		return;
 	}
@@ -2570,7 +2566,7 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 
 	fps =  msm_vidc_get_fps(inst);
 	if (is_decode_session(inst) &&
-			fps >= inst->capabilities->cap[FRAME_RATE].max) {
+			fps >= inst->capabilities[FRAME_RATE].max) {
 		allow = false;
 		i_vpr_h(inst, "%s: unsupported fps %d\n", __func__, fps);
 		goto exit;
@@ -2585,17 +2581,17 @@ exit:
 
 bool msm_vidc_allow_decode_batch(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	struct msm_vidc_core *core;
 	bool allow = false;
 	u32 value = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return false;
 	}
 	core = inst->core;
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	allow = inst->decode_batch.enable;
 	if (!allow) {
@@ -2646,18 +2642,18 @@ bool msm_vidc_allow_decode_batch(struct msm_vidc_inst *inst)
 	}
 
 	value = msm_vidc_get_fps(inst);
-	allow = value < capability->cap[BATCH_FPS].value;
+	allow = value < cap[BATCH_FPS].value;
 	if (!allow) {
 		i_vpr_h(inst, "%s: unsupported fps %u, max %u\n", __func__,
-			value, capability->cap[BATCH_FPS].value);
+			value, cap[BATCH_FPS].value);
 		goto exit;
 	}
 
 	value = msm_vidc_get_mbs_per_frame(inst);
-	allow = value < capability->cap[BATCH_MBPF].value;
+	allow = value < cap[BATCH_MBPF].value;
 	if (!allow) {
 		i_vpr_h(inst, "%s: unsupported mbpf %u, max %u\n", __func__,
-			value, capability->cap[BATCH_MBPF].value);
+			value, cap[BATCH_MBPF].value);
 		goto exit;
 	}
 
@@ -2693,7 +2689,7 @@ static void msm_vidc_update_input_cr(struct msm_vidc_inst *inst, u32 idx, u32 cr
 void msm_vidc_update_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, enum msm_vidc_debugfs_event etype)
 {
-	if (!inst || !buf || !inst->capabilities) {
+	if (!inst || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -2710,7 +2706,7 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 	u32 frame_rate, operating_rate, achieved_fps, priority, etb, ebd, ftb, fbd, dt_ms;
 	u64 bitrate_kbps = 0, time_ms = ktime_get_ns() / 1000 / 1000;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -2719,9 +2715,9 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 	ebd = inst->debug_count.ebd - inst->stats.count.ebd;
 	ftb = inst->debug_count.ftb - inst->stats.count.ftb;
 	fbd = inst->debug_count.fbd - inst->stats.count.fbd;
-	frame_rate = inst->capabilities->cap[FRAME_RATE].value >> 16;
-	operating_rate = inst->capabilities->cap[OPERATING_RATE].value >> 16;
-	priority =  inst->capabilities->cap[PRIORITY].value;
+	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
+	operating_rate = inst->capabilities[OPERATING_RATE].value >> 16;
+	priority =  inst->capabilities[PRIORITY].value;
 
 	dt_ms = time_ms - inst->stats.time_ms;
 	achieved_fps = (fbd * 1000) / dt_ms;
@@ -2862,19 +2858,19 @@ static int msm_vidc_queue_buffer(struct msm_vidc_inst *inst, struct msm_vidc_buf
 	int rc = 0;
 	u32 cr = 0;
 
-	if (!inst || !buf || !inst->capabilities) {
+	if (!inst || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
 	if (is_encode_session(inst) && is_input_buffer(buf->type)) {
-		cr = inst->capabilities->cap[ENC_IP_CR].value;
+		cr = inst->capabilities[ENC_IP_CR].value;
 		msm_vidc_update_input_cr(inst, buf->index, cr);
 		msm_vidc_update_cap_value(inst, ENC_IP_CR, 0, __func__);
 	}
 
 	if (is_decode_session(inst) && is_input_buffer(buf->type) &&
-		inst->capabilities->cap[CODEC_CONFIG].value) {
+		inst->capabilities[CODEC_CONFIG].value) {
 		buf->flags |= MSM_VIDC_BUF_FLAG_CODECCONFIG;
 		msm_vidc_update_cap_value(inst, CODEC_CONFIG, 0, __func__);
 	}
@@ -3012,7 +3008,7 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 	struct msm_vidc_fence *fence = NULL;
 	struct msm_vidc_core *core = NULL;
 
-	if (!inst || !vb2 || !inst->capabilities || !inst->core) {
+	if (!inst || !vb2 || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -3374,7 +3370,7 @@ int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
 	struct vb2_v4l2_buffer *vbuf;
 	bool found;
 
-	if (!inst || !inst->capabilities || !buf) {
+	if (!inst || !buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -3822,7 +3818,7 @@ int msm_vidc_session_set_default_header(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	default_header = inst->capabilities->cap[DEFAULT_HEADER].value;
+	default_header = inst->capabilities[DEFAULT_HEADER].value;
 	i_vpr_h(inst, "%s: default header: %d", __func__, default_header);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_DEC_DEFAULT_HEADER,
@@ -3990,7 +3986,7 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 	int i;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -4002,8 +3998,8 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 			i_vpr_h(inst,
 				"%s: copied capabilities with %#x codec, %#x domain\n",
 				__func__, inst->codec, inst->domain);
-			memcpy(inst->capabilities, &core->inst_caps[i],
-				sizeof(struct msm_vidc_inst_capability));
+			memcpy(&inst->capabilities[0], &core->inst_caps[i].cap[0],
+			(INST_CAP_MAX + 1) * sizeof(struct msm_vidc_inst_cap));
 		}
 	}
 
@@ -4540,7 +4536,7 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 	long ref_count = -1;
 	int i = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		i_vpr_e(inst, "%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -4550,9 +4546,9 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 	port = is_decode ? INPUT_PORT : OUTPUT_PORT;
 	width = inst->fmts[port].fmt.pix_mp.width;
 	height = inst->fmts[port].fmt.pix_mp.height;
-	bit_depth = inst->capabilities->cap[BIT_DEPTH].value & 0xFFFF;
-	bit_rate = inst->capabilities->cap[BIT_RATE].value;
-	frame_rate = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	bit_depth = inst->capabilities[BIT_DEPTH].value & 0xFFFF;
+	bit_rate = inst->capabilities[BIT_RATE].value;
+	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
 
 	i_vpr_e(inst, "%s %s session, HxW: %d x %d, fps: %d, bitrate: %d, bit-depth: %d\n",
 		is_secure ? "Secure" : "Non-Secure",
@@ -5144,7 +5140,6 @@ static void msm_vidc_close_helper(struct kref *kref)
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->request_lock);
 	mutex_destroy(&inst->lock);
-	msm_vidc_vmem_free((void **)&inst->capabilities);
 	msm_vidc_vmem_free((void **)&inst);
 	/* try suspending video hardware */
 	msm_vidc_try_suspend(core);
@@ -5438,8 +5433,8 @@ int msm_vidc_update_debug_str(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	if (inst->capabilities)
-		client_id = inst->capabilities->cap[CLIENT_ID].value;
+
+	client_id = inst->capabilities[CLIENT_ID].value;
 
 	sid = inst->session_id;
 	codec = get_codec_str(inst->codec);
@@ -5461,7 +5456,7 @@ static int msm_vidc_print_insts_info(struct msm_vidc_core *core)
 {
 	struct msm_vidc_inst *inst;
 	u32 height, width, fps, orate;
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	struct v4l2_format *out_f;
 	struct v4l2_format *inp_f;
 	char prop[64];
@@ -5473,13 +5468,13 @@ static int msm_vidc_print_insts_info(struct msm_vidc_core *core)
 	list_for_each_entry(inst, &core->instances, list) {
 		out_f = &inst->fmts[OUTPUT_PORT];
 		inp_f = &inst->fmts[INPUT_PORT];
-		capability = inst->capabilities;
+		cap = &inst->capabilities[0];
 		memset(&prop, 0, sizeof(prop));
 
 		width = max(out_f->fmt.pix_mp.width, inp_f->fmt.pix_mp.width);
 		height = max(out_f->fmt.pix_mp.height, inp_f->fmt.pix_mp.height);
-		fps = capability->cap[FRAME_RATE].value >> 16;
-		orate = capability->cap[OPERATING_RATE].value >> 16;
+		fps = cap[FRAME_RATE].value >> 16;
+		orate = cap[OPERATING_RATE].value >> 16;
 
 		if (is_realtime_session(inst))
 			strlcat(prop, "RT ", sizeof(prop));
@@ -5520,7 +5515,7 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -5675,20 +5670,20 @@ int msm_vidc_check_core_mbpf(struct msm_vidc_inst *inst)
 static int msm_vidc_check_inst_mbpf(struct msm_vidc_inst *inst)
 {
 	u32 mbpf = 0, max_mbpf = 0;
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	if (is_secure_session(inst))
-		max_mbpf = capability->cap[SECURE_MBPF].max;
-	else if (is_encode_session(inst) && capability->cap[LOSSLESS].value)
-		max_mbpf = capability->cap[LOSSLESS_MBPF].max;
+		max_mbpf = cap[SECURE_MBPF].max;
+	else if (is_encode_session(inst) && cap[LOSSLESS].value)
+		max_mbpf = cap[LOSSLESS_MBPF].max;
 	else
-		max_mbpf = capability->cap[MBPF].max;
+		max_mbpf = cap[MBPF].max;
 
 	/* check current session mbpf */
 	mbpf = msm_vidc_get_mbs_per_frame(inst);
@@ -5705,63 +5700,63 @@ u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst* inst)
 {
 	u32 max_bitrate = 0x7fffffff;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	if (inst->capabilities->cap[LOWLATENCY_MODE].value)
+	if (inst->capabilities[LOWLATENCY_MODE].value)
 		max_bitrate = min(max_bitrate,
-			(u32)inst->capabilities->cap[LOWLATENCY_MAX_BITRATE].max);
+			(u32)inst->capabilities[LOWLATENCY_MAX_BITRATE].max);
 
-	if (inst->capabilities->cap[ALL_INTRA].value)
+	if (inst->capabilities[ALL_INTRA].value)
 		max_bitrate = min(max_bitrate,
-			(u32)inst->capabilities->cap[ALLINTRA_MAX_BITRATE].max);
+			(u32)inst->capabilities[ALLINTRA_MAX_BITRATE].max);
 
 	if (inst->codec == MSM_VIDC_HEVC) {
 		max_bitrate = min(max_bitrate,
-			(u32)inst->capabilities->cap[CABAC_MAX_BITRATE].max);
+			(u32)inst->capabilities[CABAC_MAX_BITRATE].max);
 	} else if (inst->codec == MSM_VIDC_H264) {
-		if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC)
 			max_bitrate = min(max_bitrate,
-				(u32)inst->capabilities->cap[CAVLC_MAX_BITRATE].max);
+				(u32)inst->capabilities[CAVLC_MAX_BITRATE].max);
 		else
 			max_bitrate = min(max_bitrate,
-				(u32)inst->capabilities->cap[CABAC_MAX_BITRATE].max);
+				(u32)inst->capabilities[CABAC_MAX_BITRATE].max);
 	}
 	if (max_bitrate == 0x7fffffff || !max_bitrate)
-		max_bitrate = min(max_bitrate, (u32)inst->capabilities->cap[BIT_RATE].max);
+		max_bitrate = min(max_bitrate, (u32)inst->capabilities[BIT_RATE].max);
 
 	return max_bitrate;
 }
 
 static bool msm_vidc_allow_image_encode_session(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	struct v4l2_format *fmt;
 	u32 min_width, min_height, max_width, max_height, pix_fmt, profile;
 	bool allow = false;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return false;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	if (!is_image_encode_session(inst)) {
 		i_vpr_e(inst, "%s: not an image encode session\n", __func__);
 		return false;
 	}
 
-	pix_fmt = capability->cap[PIX_FMTS].value;
-	profile = capability->cap[PROFILE].value;
+	pix_fmt = cap[PIX_FMTS].value;
+	profile = cap[PROFILE].value;
 
 	/* is input with & height is in allowed range */
-	min_width = capability->cap[FRAME_WIDTH].min;
-	max_width = capability->cap[FRAME_WIDTH].max;
-	min_height = capability->cap[FRAME_HEIGHT].min;
-	max_height = capability->cap[FRAME_HEIGHT].max;
+	min_width = cap[FRAME_WIDTH].min;
+	max_width = cap[FRAME_WIDTH].max;
+	min_height = cap[FRAME_HEIGHT].min;
+	max_height = cap[FRAME_HEIGHT].max;
 	fmt = &inst->fmts[INPUT_PORT];
 	if (!in_range(fmt->fmt.pix_mp.width, min_width, max_width) ||
 		!in_range(fmt->fmt.pix_mp.height, min_height, max_height)) {
@@ -5790,35 +5785,35 @@ static bool msm_vidc_allow_image_encode_session(struct msm_vidc_inst *inst)
 	}
 
 	/* is bitrate mode CQ */
-	allow = capability->cap[BITRATE_MODE].value == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ;
+	allow = cap[BITRATE_MODE].value == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ;
 	if (!allow) {
 		i_vpr_e(inst, "%s: bitrate mode is not CQ: %#x\n", __func__,
-			capability->cap[BITRATE_MODE].value);
+			cap[BITRATE_MODE].value);
 		goto exit;
 	}
 
 	/* is all intra */
-	allow = !capability->cap[GOP_SIZE].value;
-	allow &= !capability->cap[B_FRAME].value;
+	allow = !cap[GOP_SIZE].value;
+	allow &= !cap[B_FRAME].value;
 	if (!allow) {
 		i_vpr_e(inst, "%s: not all intra: gop: %u, bframe: %u\n", __func__,
-			capability->cap[GOP_SIZE].value, capability->cap[B_FRAME].value);
+			cap[GOP_SIZE].value, cap[B_FRAME].value);
 		goto exit;
 	}
 
 	/* is time delta based rc disabled */
-	allow = !capability->cap[TIME_DELTA_BASED_RC].value;
+	allow = !cap[TIME_DELTA_BASED_RC].value;
 	if (!allow) {
 		i_vpr_e(inst, "%s: time delta based rc not disabled: %#x\n", __func__,
-			capability->cap[TIME_DELTA_BASED_RC].value);
+			cap[TIME_DELTA_BASED_RC].value);
 		goto exit;
 	}
 
 	/* is frame skip mode disabled */
-	allow = !capability->cap[FRAME_SKIP_MODE].value;
+	allow = !cap[FRAME_SKIP_MODE].value;
 	if (!allow) {
 		i_vpr_e(inst, "%s: frame skip mode not disabled: %#x\n", __func__,
-			capability->cap[FRAME_SKIP_MODE].value);
+			cap[FRAME_SKIP_MODE].value);
 		goto exit;
 	}
 
@@ -5831,16 +5826,16 @@ exit:
 
 static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	u32 width = 0, height = 0, min_width, min_height,
 		max_width, max_height;
 	bool is_interlaced = false;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	if (is_decode_session(inst)) {
 		width = inst->fmts[INPUT_PORT].fmt.pix_mp.width;
@@ -5851,20 +5846,20 @@ static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 	}
 
 	if (is_secure_session(inst)) {
-		min_width = capability->cap[SECURE_FRAME_WIDTH].min;
-		max_width = capability->cap[SECURE_FRAME_WIDTH].max;
-		min_height = capability->cap[SECURE_FRAME_HEIGHT].min;
-		max_height = capability->cap[SECURE_FRAME_HEIGHT].max;
-	} else if (is_encode_session(inst) && capability->cap[LOSSLESS].value) {
-		min_width = capability->cap[LOSSLESS_FRAME_WIDTH].min;
-		max_width = capability->cap[LOSSLESS_FRAME_WIDTH].max;
-		min_height = capability->cap[LOSSLESS_FRAME_HEIGHT].min;
-		max_height = capability->cap[LOSSLESS_FRAME_HEIGHT].max;
+		min_width = cap[SECURE_FRAME_WIDTH].min;
+		max_width = cap[SECURE_FRAME_WIDTH].max;
+		min_height = cap[SECURE_FRAME_HEIGHT].min;
+		max_height = cap[SECURE_FRAME_HEIGHT].max;
+	} else if (is_encode_session(inst) && cap[LOSSLESS].value) {
+		min_width = cap[LOSSLESS_FRAME_WIDTH].min;
+		max_width = cap[LOSSLESS_FRAME_WIDTH].max;
+		min_height = cap[LOSSLESS_FRAME_HEIGHT].min;
+		max_height = cap[LOSSLESS_FRAME_HEIGHT].max;
 	} else {
-		min_width = capability->cap[FRAME_WIDTH].min;
-		max_width = capability->cap[FRAME_WIDTH].max;
-		min_height = capability->cap[FRAME_HEIGHT].min;
-		max_height = capability->cap[FRAME_HEIGHT].max;
+		min_width = cap[FRAME_WIDTH].min;
+		max_width = cap[FRAME_WIDTH].max;
+		min_height = cap[FRAME_HEIGHT].min;
+		max_height = cap[FRAME_HEIGHT].max;
 	}
 
 	/* check if input width and height is in supported range */
@@ -5880,7 +5875,7 @@ static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 	}
 
 	/* check interlace supported resolution */
-	is_interlaced = capability->cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE;
+	is_interlaced = cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE;
 	if (is_interlaced && (width > INTERLACE_WIDTH_MAX || height > INTERLACE_HEIGHT_MAX ||
 		NUM_MBS_PER_FRAME(width, height) > INTERLACE_MB_PER_FRAME_MAX)) {
 		i_vpr_e(inst, "%s: unsupported interlace wxh [%u x %u], max [%u x %u]\n",
@@ -6032,7 +6027,7 @@ int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst)
 {
 	u32 iwidth, owidth, iheight, oheight, ds_factor;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -6051,7 +6046,7 @@ int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst)
 	iheight = inst->crop.height;
 	owidth = inst->compose.width;
 	oheight = inst->compose.height;
-	ds_factor = inst->capabilities->cap[SCALE_FACTOR].value;
+	ds_factor = inst->capabilities[SCALE_FACTOR].value;
 
 	/* upscaling: encoder doesnot support upscaling */
 	if (owidth > iwidth || oheight > iheight) {
@@ -6087,7 +6082,7 @@ int msm_vidc_get_properties(struct msm_vidc_inst *inst)
 		{HFI_PROP_QUALITY_MODE, HFI_PORT_BITSTREAM}
 	};
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}

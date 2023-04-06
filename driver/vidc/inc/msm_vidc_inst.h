@@ -132,7 +132,7 @@ struct msm_vidc_inst {
 	struct msm_vidc_debug              debug;
 	struct debug_buf_count             debug_count;
 	struct msm_vidc_statistics         stats;
-	struct msm_vidc_inst_capability   *capabilities;
+	struct msm_vidc_inst_cap           capabilities[INST_CAP_MAX+1];
 	struct completion                  completions[MAX_SIGNAL];
 	struct msm_vidc_fence_context      fence_context;
 	bool                               active;

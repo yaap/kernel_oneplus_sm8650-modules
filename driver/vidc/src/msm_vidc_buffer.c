@@ -18,7 +18,7 @@ u32 msm_vidc_input_min_count(struct msm_vidc_inst* inst)
 	u32 input_min_count = 0;
 	u32 hb_enh_layer = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
@@ -29,9 +29,9 @@ u32 msm_vidc_input_min_count(struct msm_vidc_inst* inst)
 		input_min_count = MIN_ENC_INPUT_BUFFERS;
 		if (is_hierb_type_requested(inst)) {
 			hb_enh_layer =
-				inst->capabilities->cap[ENH_LAYER_COUNT].value;
+				inst->capabilities[ENH_LAYER_COUNT].value;
 			if (inst->codec == MSM_VIDC_H264 &&
-				!inst->capabilities->cap[LAYER_ENABLE].value) {
+				!inst->capabilities[LAYER_ENABLE].value) {
 				hb_enh_layer = 0;
 			}
 			if (hb_enh_layer)
@@ -215,13 +215,13 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	u32 bitstream_size_overwrite = 0;
 	enum msm_vidc_codec_type codec;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
 
 	bitstream_size_overwrite =
-		inst->capabilities->cap[BITSTREAM_SIZE_OVERWRITE].value;
+		inst->capabilities[BITSTREAM_SIZE_OVERWRITE].value;
 	if (bitstream_size_overwrite) {
 		frame_size = bitstream_size_overwrite;
 		i_vpr_h(inst, "client configured bitstream buffer size %d\n",
@@ -241,7 +241,7 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	num_mbs = msm_vidc_get_mbs_per_frame(inst);
 	if (num_mbs > NUM_MBS_4k) {
 		div_factor = 4;
-		base_res_mbs = inst->capabilities->cap[MBPF].value;
+		base_res_mbs = inst->capabilities[MBPF].value;
 	} else {
 		base_res_mbs = NUM_MBS_4k;
 		if (codec == MSM_VIDC_VP9)
@@ -294,7 +294,7 @@ u32 msm_vidc_decoder_output_meta_size(struct msm_vidc_inst *inst)
 {
 	u32 size = MSM_VIDC_METADATA_SIZE;
 
-	if (inst->capabilities->cap[META_DOLBY_RPU].value)
+	if (inst->capabilities[META_DOLBY_RPU].value)
 		size += MSM_VIDC_METADATA_DOLBY_RPU_SIZE;
 
 	return ALIGN(size, SZ_4K);
@@ -329,7 +329,7 @@ u32 msm_vidc_enc_delivery_mode_based_output_buf_size(struct msm_vidc_inst *inst,
 	u32 total_mb_count;
 	struct v4l2_format *f;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return frame_size;
 	}
@@ -340,7 +340,7 @@ u32 msm_vidc_enc_delivery_mode_based_output_buf_size(struct msm_vidc_inst *inst,
 		f->fmt.pix_mp.pixelformat != V4L2_PIX_FMT_H264)
 		return frame_size;
 
-	if (inst->capabilities->cap[SLICE_MODE].value != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB)
+	if (inst->capabilities[SLICE_MODE].value != V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB)
 		return frame_size;
 
 	if (!is_enc_slice_delivery_mode(inst))
@@ -353,7 +353,7 @@ u32 msm_vidc_enc_delivery_mode_based_output_buf_size(struct msm_vidc_inst *inst,
 	height_in_lcus = (height + lcu_size - 1) / lcu_size;
 	total_mb_count = width_in_lcus * height_in_lcus;
 
-	slice_size = ((frame_size * inst->capabilities->cap[SLICE_MAX_MB].value) \
+	slice_size = ((frame_size * inst->capabilities[SLICE_MAX_MB].value)
 					+ total_mb_count - 1) / total_mb_count;
 
 	slice_size = ALIGN(slice_size, SZ_4K);
@@ -368,7 +368,7 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	enum msm_vidc_codec_type codec;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
@@ -391,7 +391,7 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 
 	/* Image session: 2 x yuv size */
 	if (is_image_session(inst) ||
-		inst->capabilities->cap[BITRATE_MODE].value == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ)
+		inst->capabilities[BITRATE_MODE].value == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ)
 		goto skip_calc;
 
 	if (mbs_per_frame <= NUM_MBS_360P)
@@ -442,14 +442,14 @@ u32 msm_vidc_encoder_input_meta_size(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	u32 width, height;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return 0;
 	}
 
 	size = MSM_VIDC_METADATA_SIZE;
 
-	if (inst->capabilities->cap[META_ROI_INFO].value) {
+	if (inst->capabilities[META_ROI_INFO].value) {
 		lcu_size = 16;
 
 		f = &inst->fmts[OUTPUT_PORT];
@@ -467,7 +467,7 @@ u32 msm_vidc_encoder_input_meta_size(struct msm_vidc_inst *inst)
 		size = ALIGN(size, SZ_4K);
 	}
 
-	if (inst->capabilities->cap[META_DOLBY_RPU].value) {
+	if (inst->capabilities[META_DOLBY_RPU].value) {
 		size += MSM_VIDC_METADATA_DOLBY_RPU_SIZE;
 		size = ALIGN(size, SZ_4K);
 	}

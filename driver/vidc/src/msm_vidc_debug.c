@@ -503,8 +503,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	ssize_t len = 0;
 	struct v4l2_format *f;
 
-	if (!idata || !idata->core || !idata->inst ||
-		!idata->inst->capabilities) {
+	if (!idata || !idata->core || !idata->inst) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, idata);
 		return 0;
 	}
@@ -534,7 +533,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	cur += write_str(cur, end - cur, "height: %d\n", f->fmt.pix_mp.height);
 	cur += write_str(cur, end - cur, "width: %d\n", f->fmt.pix_mp.width);
 	cur += write_str(cur, end - cur, "fps: %d\n",
-			inst->capabilities->cap[FRAME_RATE].value >> 16);
+			inst->capabilities[FRAME_RATE].value >> 16);
 	cur += write_str(cur, end - cur, "state: %d\n", inst->state);
 	cur += write_str(cur, end - cur, "secure: %d\n",
 		is_secure_session(inst));
