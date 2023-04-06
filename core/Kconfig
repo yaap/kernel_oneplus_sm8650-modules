@@ -4,6 +4,7 @@
 
 config RMNET_CORE
 	default m
+	depends on RMNET_MEM
 	select GRO_CELLS
 	help
 	  If you select this, you will enable the RMNET module which is used

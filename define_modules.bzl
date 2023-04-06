@@ -61,8 +61,10 @@ def define_modules(target, variant):
             ":rmnet_core_headers",
             ":{}_rmnet_ctl".format(kernel_build_variant),
             "//vendor/qcom/opensource/dataipa:{}_ipam".format(kernel_build_variant),
+            "//vendor/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
             "//msm-kernel:all_headers",
             "//vendor/qcom/opensource/dataipa:include_headers",
+            "//vendor/qcom/opensource/datarmnet-ext/mem:rmnet_mem_headers",
         ],
     )
 
