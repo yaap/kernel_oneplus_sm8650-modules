@@ -118,6 +118,18 @@ typedef enum
  */
 #define VCODEC_SS_IDLE_STATUSn           (VCODEC_BASE_OFFS_IRIS33 + 0x70)
 
+/*
+ * --------------------------------------------------------------------------
+ * MODULE: VCODEC_NOC
+ * --------------------------------------------------------------------------
+ */
+#define NOC_BASE_OFFS   0x00010000
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW   (NOC_BASE_OFFS + 0xA008)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW   (NOC_BASE_OFFS + 0xA018)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW   (NOC_BASE_OFFS + 0xA030)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW   (NOC_BASE_OFFS + 0xA038)
+#define NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW (NOC_BASE_OFFS + 0x7040)
+
 static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
 {
 	struct msm_vidc_core *core = vidc_core;
@@ -748,18 +760,38 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 
 	__set_registers(core);
 
+	/* Programm NOC error registers before releasing xo reset */
+	rc = __write_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW, 0x3);
+	if (rc) {
+		d_vpr_e(
+			"%s: failed to set NOC_ERL_MAIN_ERRORLOGGER_MAINCTL_LOW\n",
+			__func__);
+		goto fail_program_noc_regs;
+	}
+	rc = __write_register(core,
+			NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW, 0x1);
+	if (rc) {
+		d_vpr_e(
+			"%s: failed to set NOC_SIDEBANDMANAGER_FAULTINEN0_LOW\n",
+			__func__);
+		goto fail_program_noc_regs;
+	}
+
 	/* release reset control for other consumers */
 	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
 	if (rc) {
 		d_vpr_e("%s: failed to release video_xo_reset reset\n", __func__);
 		goto fail_deassert_xo_reset;
 	}
+
 	__interrupt_init_iris33(core);
 	core->intr_status = 0;
 	enable_irq(core->resource->irq);
 
 	return rc;
 
+fail_program_noc_regs:
 fail_deassert_xo_reset:
 fail_assert_xo_reset:
 fail_power_on_substate:
@@ -770,6 +802,7 @@ fail_power_on_controller:
 	call_res_op(core, set_bw, core, 0, 0);
 fail_vote_buses:
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE, 0, __func__);
+
 	return rc;
 }
 
@@ -875,9 +908,10 @@ static int __watchdog_iris33(struct msm_vidc_core *vidc_core, u32 intr_status)
 	return rc;
 }
 
-static int __noc_error_info_iris33(struct msm_vidc_core *vidc_core)
+static int __noc_error_info_iris33(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
+	u32 value, count = 0;
+	int rc = 0;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -920,7 +954,62 @@ static int __noc_error_info_iris33(struct msm_vidc_core *vidc_core)
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH:     %#x\n", val);
 	*/
 
-	return 0;
+	if (is_iris33_hw_power_collapsed(core)) {
+		d_vpr_e("%s: video hardware already power collapsed\n", __func__);
+		return rc;
+	}
+
+	/*
+	 * Acquire video_xo_reset to ensure EVA module is
+	 * not doing assert or de-assert on video_xo_reset
+	 * while reading noc registers
+	 */
+	d_vpr_e("%s: read NOC ERR LOG registers\n", __func__);
+	do {
+		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+		if (!rc) {
+			break;
+		} else {
+			d_vpr_e(
+				"%s: failed to acquire video_xo_reset control, count %d\n",
+				__func__, count);
+			count++;
+			usleep_range(1000, 1000);
+		}
+	} while (count < 100);
+
+	if (count >= 100) {
+		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+		goto fail_assert_xo_reset;
+	}
+
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW:  %#x\n",
+			__func__, value);
+
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
+			__func__, value);
+
+	rc = __write_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW, 0x1);
+	if (rc)
+		d_vpr_e("%s: error clearing NOC reg\n", __func__);
+
+	/* release reset control for other consumers */
+	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to release video_xo_reset reset\n", __func__);
+		goto fail_deassert_xo_reset;
+	}
+
+fail_deassert_xo_reset:
+fail_assert_xo_reset:
+	return rc;
 }
 
 static int __clear_interrupt_iris33(struct msm_vidc_core *vidc_core)
