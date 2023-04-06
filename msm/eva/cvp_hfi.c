@@ -4190,8 +4190,6 @@ static int __power_on_controller(struct iris_hfi_device *device)
 {
 	int rc = 0;
 
-	struct clock_info *cl = NULL;
-
 	rc = __enable_regulator(device, "cvp");
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to enable ctrler: %d\n", rc);
@@ -4231,14 +4229,6 @@ static int __power_on_controller(struct iris_hfi_device *device)
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to enable cvp_clk: %d\n", rc);
 		goto fail_enable_clk;
-	}
-
-	iris_hfi_for_each_clock(device, cl) {
-		if (strcmp(cl->name, "cvp_clk")) {
-			qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_PERIPH);
-			qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_MEM);
-			break;
-		}
 	}
 
 	dprintk(CVP_PWR, "EVA controller powered on\n");
