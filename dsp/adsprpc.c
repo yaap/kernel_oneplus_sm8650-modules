@@ -1196,7 +1196,10 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 			err = -EBADFD;
 			goto bail;
 		}
+
+#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
 		map->secure = (mem_buf_dma_buf_exclusive_owner(map->buf)) ? 0 : 1;
+#endif
 		map->va = 0;
 		map->phys = 0;
 
@@ -1261,7 +1264,10 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				goto bail;
 			}
 		}
+
+#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
 		map->secure = (mem_buf_dma_buf_exclusive_owner(map->buf)) ? 0 : 1;
+#endif
 		if (map->secure) {
 			if (!fl->secsctx)
 				err = fastrpc_session_alloc(chan, 1, me->share_securecb,
