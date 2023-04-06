@@ -575,6 +575,8 @@ enum hfi_saliency_type {
 
 #define HFI_PROP_SLICE_DECODE                                   0x03000196
 
+#define HFI_PROP_AV1_UNIFORM_TILE_SPACING                       0x03000197
+
 #define HFI_PROP_ENC_RING_BIN_BUF                               0x0300019C
 
 /* u32 */

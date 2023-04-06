@@ -1007,8 +1007,14 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 	case HFI_PROP_WORST_COMPRESSION_RATIO:
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 	case HFI_PROP_PICTURE_TYPE:
-	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 		is_allowed = true;
+		break;
+	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
+	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
+		if (inst->codec == MSM_VIDC_AV1)
+			is_allowed = true;
+		else
+			is_allowed = false;
 		break;
 	case HFI_PROP_DPB_LIST:
 		if (!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
@@ -1049,6 +1055,7 @@ int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 	case HFI_PROP_PICTURE_TYPE:
 	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
+	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
 		break;
 	case HFI_PROP_DPB_LIST:
 		if (!allow)

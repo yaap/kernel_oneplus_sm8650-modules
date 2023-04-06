@@ -154,8 +154,8 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		codec_input->av1d_commer_tile_enable = 0;
 	}
 
-	/* set as sanity mode */
-	codec_input->regression_mode = 1;
+	/* set as sanity mode, this regression mode has no effect on power calculations */
+	codec_input->regression_mode = REGRESSION_MODE_SANITY;
 
 	return 0;
 }
@@ -163,7 +163,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d,
 		struct api_calculation_input *codec_input)
 {
-	u32 complexity_factor_int = 0, complexity_factor_frac = 0;
+	u32 complexity_factor_int = 0, complexity_factor_frac = 0, tile_rows_columns = 0;
 	bool opb_compression_enabled = false;
 
 	if (!d)
@@ -292,11 +292,34 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 
 	/* disable by default, only enable for aurora depth map session */
 	codec_input->lumaonly_decode = 0;
-	/* TODO: disable av1d commercial tile */
-	codec_input->av1d_commer_tile_enable = 0;
+
 	/* set as custom regression mode, as are using cr,cf values from FW */
 	codec_input->regression_mode = REGRESSION_MODE_CUSTOM;
 
+	/* av1d commercial tile */
+	if (inst->codec == MSM_VIDC_AV1 && codec_input->lcu_size == 128) {
+		tile_rows_columns = inst->power.fw_av1_tile_rows *
+			inst->power.fw_av1_tile_columns;
+
+		/* check resolution and tile info */
+		codec_input->av1d_commer_tile_enable = 1;
+
+		if (res_is_less_than_or_equal_to(1920, 1088, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 2)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(4096, 2172, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 4)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(8192, 4320, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 16)
+				codec_input->av1d_commer_tile_enable = 0;
+		}
+	} else {
+		codec_input->av1d_commer_tile_enable = 0;
+	}
 
 	/* Dump all the variables for easier debugging */
 	if (msm_vidc_debug & VIDC_BUS) {

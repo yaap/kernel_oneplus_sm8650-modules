@@ -842,6 +842,10 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 			inst->hfi_frame_info.av1_tile_rows_columns >> 16;
 		inst->power.fw_av1_tile_columns =
 			inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
+
+		if (inst->hfi_frame_info.av1_non_uniform_tile_spacing)
+			i_vpr_l(inst, "%s: av1_non_uniform_tile_spacing %d\n",
+				__func__, inst->hfi_frame_info.av1_non_uniform_tile_spacing);
 	}
 
 	buf->data_size = buffer->data_size;
@@ -1758,6 +1762,10 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 		inst->hfi_frame_info.av1_tile_rows_columns =
 			payload_ptr[0];
+		break;
+	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
+		if (!payload_ptr[0])
+			inst->hfi_frame_info.av1_non_uniform_tile_spacing = true;
 		break;
 	case HFI_PROP_CABAC_SESSION:
 		if (payload_ptr[0] == 1)

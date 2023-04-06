@@ -2836,6 +2836,7 @@ static const u32 pineapple_vdec_input_properties[] = {
 	HFI_PROP_SUBFRAME_INPUT,
 	HFI_PROP_DPB_LIST,
 	HFI_PROP_AV1_TILE_ROWS_COLUMNS,
+	HFI_PROP_AV1_UNIFORM_TILE_SPACING,
 };
 
 static const u32 pineapple_vdec_output_properties[] = {
