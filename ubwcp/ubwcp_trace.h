@@ -103,14 +103,14 @@ DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_init_buffer_end,
 	TP_ARGS(dbuf_addr)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_add_memory_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_memremap_pages_start,
 
 	TP_PROTO(size_t size),
 
 	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_add_memory_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_memremap_pages_end,
 
 	TP_PROTO(size_t size),
 
@@ -215,14 +215,14 @@ DEFINE_EVENT(ubwcp_size_event, ubwcp_hw_flush_end,
 	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_and_remove_memory_start,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_memunmap_pages_start,
 
 	TP_PROTO(size_t size),
 
 	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_and_remove_memory_end,
+DEFINE_EVENT(ubwcp_size_event, ubwcp_memunmap_pages_end,
 
 	TP_PROTO(size_t size),
 

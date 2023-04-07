@@ -27,6 +27,7 @@
 #include <linux/clk.h>
 #include <linux/iommu.h>
 #include <linux/set_memory.h>
+#include <linux/range.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
@@ -165,6 +166,8 @@ struct ubwcp_driver {
 	struct mutex hw_range_ck_lock; /* range ck */
 	struct list_head err_handler_list; /* error handler list */
 	spinlock_t err_handler_list_lock;  /* err_handler_list lock */
+
+	struct dev_pagemap pgmap;
 };
 
 struct ubwcp_buf {
@@ -432,23 +435,29 @@ EXPORT_SYMBOL(ubwcp_get_hw_version);
 
 static int add_ula_pa_memory(struct ubwcp_driver *ubwcp)
 {
-	int ret;
+	int ret = 0;
 	int nid;
+	void *ptr;
 
 	nid = memory_add_physaddr_to_nid(ubwcp->ula_pool_base);
-	DBG("calling add_memory()...");
-	trace_ubwcp_add_memory_start(ubwcp->ula_pool_size);
-	ret = add_memory(nid, ubwcp->ula_pool_base, ubwcp->ula_pool_size, MHP_NONE);
-	trace_ubwcp_add_memory_end(ubwcp->ula_pool_size);
+	DBG("calling memremap_pages()...");
+	ubwcp->pgmap.type = MEMORY_DEVICE_GENERIC;
+	ubwcp->pgmap.nr_range = 1;
+	ubwcp->pgmap.range.start = ubwcp->ula_pool_base;
+	ubwcp->pgmap.range.end = ubwcp->ula_pool_base + ubwcp->ula_pool_size - 1;
+	trace_ubwcp_memremap_pages_start(ubwcp->ula_pool_size);
+	ptr = memremap_pages(&ubwcp->pgmap, nid);
+	trace_ubwcp_memremap_pages_end(ubwcp->ula_pool_size);
 
-	if (ret) {
-		ERR("add_memory() failed st:0x%lx sz:0x%lx err: %d",
+	if (IS_ERR(ptr)) {
+		ret = IS_ERR(ptr);
+		ERR("memremap_pages() failed st:0x%lx sz:0x%lx err: %d",
 			ubwcp->ula_pool_base,
 			ubwcp->ula_pool_size,
 			ret);
 		/* Fix to put driver in invalid state */
 	} else {
-		DBG("add_memory() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
+		DBG("memremap_pages() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
 			ubwcp->ula_pool_base,
 			ubwcp->ula_pool_size,
 			page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
@@ -541,20 +550,10 @@ static int dec_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
 				trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
 				DBG("Cancel memory offlining");
 
-				DBG("Calling offline_and_remove_memory() for ULA PA pool");
-				trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
-				ret = offline_and_remove_memory(ubwcp->ula_pool_base,
-						ubwcp->ula_pool_size);
-				trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
-				if (ret) {
-					ERR("remove memory failed st:0x%lx sz:0x%lx err: %d",
-						ubwcp->ula_pool_base,
-						ubwcp->ula_pool_size, ret);
-					goto err_remove_mem;
-				} else {
-					DBG("DONE: calling remove memory for ULA PA pool");
-				}
-
+				DBG("Calling memunmap_pages() for ULA PA pool");
+				trace_ubwcp_memunmap_pages_start(ubwcp->ula_pool_size);
+				memunmap_pages(&ubwcp->pgmap);
+				trace_ubwcp_memunmap_pages_end(ubwcp->ula_pool_size);
 				ret = add_ula_pa_memory(ubwcp);
 				if (ret) {
 					ERR("Bad state: failed to add back memory");
@@ -581,20 +580,11 @@ static int dec_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
 			sync_offset += sync_size;
 		}
 		trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
+		DBG("Calling memunmap_pages() for ULA PA pool");
+		trace_ubwcp_memunmap_pages_start(ubwcp->ula_pool_size);
+		memunmap_pages(&ubwcp->pgmap);
+		trace_ubwcp_memunmap_pages_end(ubwcp->ula_pool_size);
 
-		DBG("Calling offline_and_remove_memory() for ULA PA pool");
-		trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
-		ret = offline_and_remove_memory(ubwcp->ula_pool_base, ubwcp->ula_pool_size);
-		trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
-		if (ret) {
-			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size, ret);
-			/* Fix to put driver in invalid state */
-			goto err_remove_mem;
-		} else {
-			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
-		}
 		DBG("Calling power OFF ...");
 		ubwcp_power(ubwcp, false);
 		ubwcp->mem_online = false;
