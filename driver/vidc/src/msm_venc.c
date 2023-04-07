@@ -1019,10 +1019,6 @@ int msm_venc_streamoff_output(struct msm_vidc_inst *inst)
 	}
 
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: core capabilities is NULL\n", __func__);
-		return -EINVAL;
-	}
 
 	/* restore LAYER_COUNT max allowed value */
 	inst->capabilities[ENH_LAYER_COUNT].max =

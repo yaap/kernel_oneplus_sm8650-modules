@@ -128,7 +128,7 @@ static int msm_vidc_synx_fence_register(struct msm_vidc_core *core)
 	char synx_session_name[MAX_SYNX_FENCE_SESSION_NAME];
 	struct synx_queue_desc queue_desc;
 
-	if (!core && !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -174,7 +174,7 @@ static int msm_vidc_synx_fence_deregister(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -239,10 +239,6 @@ static struct msm_vidc_fence *msm_vidc_synx_fence_create(struct msm_vidc_inst *i
 		return NULL;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		d_vpr_e("%s: invalid core caps\n", __func__);
-		return NULL;
-	}
 
 	/* return if synx fence is not supported */
 	if (!core->capabilities[SUPPORTS_SYNX_FENCE].value)
@@ -338,10 +334,6 @@ static int msm_vidc_synx_fence_signal(struct msm_vidc_inst *inst, u64 fence_id)
 	}
 
 	core = inst->core;
-	if (!core->capabilities) {
-		d_vpr_e("%s: invalid core caps\n", __func__);
-		return -EINVAL;
-	}
 
 	fence = msm_vidc_get_synx_fence_from_id(inst, fence_id);
 	if (!fence) {

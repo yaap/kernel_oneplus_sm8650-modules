@@ -174,7 +174,7 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 
 	d_vpr_h("%s: domain %d\n", __func__, type);
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -675,7 +675,6 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 
 	msm_vidc_deinit_instance_caps(core);
-	msm_vidc_deinit_core_caps(core);
 
 	msm_vidc_deinit_platform(pdev);
 	msm_vidc_deinitialize_core(core);
@@ -842,7 +841,6 @@ sub_dev_failed:
 init_group_failed:
 	msm_vidc_deinit_instance_caps(core);
 init_inst_caps_fail:
-	msm_vidc_deinit_core_caps(core);
 init_res_failed:
 	msm_vidc_deinit_platform(pdev);
 init_plat_failed:

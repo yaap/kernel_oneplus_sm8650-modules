@@ -45,7 +45,7 @@ static int debug_level_set(const char *val,
 
 	core = *(struct msm_vidc_core **)kp->arg;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
 		return 0;
 	}

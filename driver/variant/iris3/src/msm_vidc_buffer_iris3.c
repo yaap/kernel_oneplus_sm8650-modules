@@ -30,10 +30,6 @@ static u32 msm_vidc_decoder_bin_size_iris3(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid capabilities\n", __func__);
-		return size;
-	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 	if (inst->decode_vpp_delay.enable)
 		vpp_delay = inst->decode_vpp_delay.size;
@@ -133,10 +129,7 @@ static u32 msm_vidc_decoder_non_comv_size_iris3(struct msm_vidc_inst* inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid core capabilities\n", __func__);
-		return size;
-	}
+
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 
 	f = &inst->fmts[INPUT_PORT];
@@ -166,10 +159,6 @@ static u32 msm_vidc_decoder_line_size_iris3(struct msm_vidc_inst *inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid capabilities\n", __func__);
-		return size;
-	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 
 	color_fmt = v4l2_colorformat_to_driver(inst,
@@ -346,10 +335,7 @@ static u32 msm_vidc_encoder_bin_size_iris3(struct msm_vidc_inst *inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid core capabilities\n", __func__);
-		return size;
-	}
+
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 	stage = inst->capabilities[STAGE].value;
 	f = &inst->fmts[OUTPUT_PORT];
@@ -434,10 +420,7 @@ static u32 msm_vidc_encoder_non_comv_size_iris3(struct msm_vidc_inst* inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid core capabilities\n", __func__);
-		return size;
-	}
+
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
@@ -465,10 +448,6 @@ static u32 msm_vidc_encoder_line_size_iris3(struct msm_vidc_inst *inst)
 		return size;
 	}
 	core = inst->core;
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid capabilities\n", __func__);
-		return size;
-	}
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
 	pixfmt = inst->capabilities[PIX_FMTS].value;
 
