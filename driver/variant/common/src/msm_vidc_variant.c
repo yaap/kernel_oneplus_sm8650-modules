@@ -176,8 +176,8 @@ int __set_registers(struct msm_vidc_core *core)
 		return 0;
 
 	for (cnt = 0; cnt < prst_count; cnt++) {
-		rc = __write_register_masked(core, reg_prst->reg,
-					reg_prst->value, reg_prst->mask);
+		rc = __write_register_masked(core, reg_prst[cnt].reg,
+				reg_prst[cnt].value, reg_prst[cnt].mask);
 		if (rc)
 			return rc;
 	}
