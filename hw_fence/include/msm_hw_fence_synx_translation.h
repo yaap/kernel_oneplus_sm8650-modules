@@ -8,11 +8,12 @@
 
 #include <synx_api.h>
 
+extern bool hw_fence_driver_enable;
+
+#ifndef SYNX_HW_FENCE_CLIENT_START
 #define SYNX_HW_FENCE_CLIENT_START 1024
 #define SYNX_HW_FENCE_CLIENT_END 4096
 #define SYNX_MAX_SIGNAL_PER_CLIENT 64
-
-extern bool hw_fence_driver_enable;
 
 /**
  * enum synx_client_id : Unique identifier of the supported clients
@@ -80,6 +81,7 @@ enum synx_hwfence_client_id {
 		SYNX_MAX_SIGNAL_PER_CLIENT,
 	SYNX_CLIENT_HW_FENCE_MAX = SYNX_HW_FENCE_CLIENT_END,
 };
+#endif
 
 #if IS_ENABLED(CONFIG_QTI_HW_FENCE)
 /**
