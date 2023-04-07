@@ -1143,7 +1143,7 @@ enum msm_vidc_allow msm_vidc_allow_pm_suspend(struct msm_vidc_core *core)
 
 	/* check if power is enabled */
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
-		d_vpr_e("%s: Power already disabled\n", __func__);
+		d_vpr_h("%s: Power already disabled\n", __func__);
 		return MSM_VIDC_IGNORE;
 	}
 
