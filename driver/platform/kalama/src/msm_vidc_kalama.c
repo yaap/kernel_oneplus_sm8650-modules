@@ -73,7 +73,7 @@ static struct codec_info codec_data_kalama[] = {
 		.pixfmt_name = "AV1",
 	},
 	{
-		.v4l2_codec  = V4L2_PIX_FMT_HEIC,
+		.v4l2_codec  = V4L2_PIX_FMT_VIDC_HEIC,
 		.vidc_codec  = MSM_VIDC_HEIC,
 		.pixfmt_name = "HEIC",
 	},
