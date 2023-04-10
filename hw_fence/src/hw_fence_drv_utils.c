@@ -10,7 +10,9 @@
 #include <linux/gunyah/gh_dbl.h>
 #include <linux/qcom_scm.h>
 #include <linux/version.h>
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 #include <linux/gh_cpusys_vm_mem_access.h>
+#endif
 #include <soc/qcom/secure_buffer.h>
 
 #include "hw_fence_drv_priv.h"
@@ -343,6 +345,15 @@ static int hw_fence_gunyah_share_mem(struct hw_fence_driver_data *drv_data,
 	return ret;
 }
 
+static int _is_mem_shared(struct resource *res)
+{
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	return gh_cpusys_vm_get_share_mem_info(res);
+#else
+	return -EINVAL;
+#endif
+}
+
 static int hw_fence_rm_cb(struct notifier_block *nb, unsigned long cmd, void *data)
 {
 	struct gh_rm_notif_vm_status_payload *vm_status_payload;
@@ -383,7 +394,7 @@ static int hw_fence_rm_cb(struct notifier_block *nb, unsigned long cmd, void *da
 
 	switch (vm_status_payload->vm_status) {
 	case GH_RM_VM_STATUS_READY:
-		ret = gh_cpusys_vm_get_share_mem_info(&res);
+		ret = _is_mem_shared(&res);
 		if (ret) {
 			HWFNC_DBG_INIT("mem not shared ret:%d, attempt share\n", ret);
 			if (hw_fence_gunyah_share_mem(drv_data, self_vmid, peer_vmid))
