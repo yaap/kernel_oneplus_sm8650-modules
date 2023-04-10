@@ -5,7 +5,6 @@
 
 #include <linux/hwspinlock.h>
 #include <linux/string.h>
-
 #include "synx_debugfs.h"
 #include "synx_global.h"
 
@@ -76,6 +75,33 @@ static void synx_global_print_data(
 		if (synx_g_obj->parents[i])
 			dprintk(SYNX_VERB, "%s: parents %u:%u",
 				func, i, synx_g_obj->parents[i]);
+}
+
+bool synx_fetch_global_shared_memory_handle_details(u32 synx_handle,
+		struct synx_global_coredata *synx_global_entry)
+{
+	int rc = SYNX_SUCCESS;
+	u32 idx;
+	unsigned long flags;
+	struct synx_global_coredata *entry;
+
+	if (!synx_gmem.table) {
+		dprintk(SYNX_VERB, "synx_gmem is NULL\n");
+		return false;
+	}
+	idx = synx_handle & SYNX_HANDLE_INDEX_MASK;
+	if (!synx_is_valid_idx(idx))
+		return false;
+	rc = synx_gmem_lock(idx, &flags);
+	if (rc) {
+		dprintk(SYNX_VERB, "Failed to lock entry %d\n", idx);
+		return false;
+	}
+	entry = &synx_gmem.table[idx];
+	memcpy(synx_global_entry, entry, sizeof(struct synx_global_coredata));
+	synx_gmem_unlock(idx, &flags);
+
+	return true;
 }
 
 int synx_global_dump_shared_memory(void)
@@ -805,14 +831,13 @@ int synx_global_recover(enum synx_core_id core_id)
 	const u32 size = SYNX_GLOBAL_MAX_OBJS;
 	unsigned long flags;
 	struct synx_global_coredata *synx_g_obj;
-
 	bool update;
 	int *clear_idx = NULL;
+
 	if (!synx_gmem.table)
 		return -SYNX_NOMEM;
 
 	clear_idx = kzalloc(sizeof(int)*SYNX_GLOBAL_MAX_OBJS, GFP_KERNEL);
-
 	if (!clear_idx)
 		return -SYNX_NOMEM;
 

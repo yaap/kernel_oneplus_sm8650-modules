@@ -10,9 +10,9 @@
 
 #include "synx_debugfs.h"
 #include "synx_util.h"
+#include "synx_private.h"
 
 extern void synx_external_callback(s32 sync_obj, int status, void *data);
-static u32 __fence_state(struct dma_fence *fence, bool locked);
 
 int synx_util_init_coredata(struct synx_coredata *synx_obj,
 	struct synx_create_params *params,
@@ -224,7 +224,7 @@ int synx_util_init_group_coredata(struct synx_coredata *synx_obj,
 	return rc;
 }
 
-static void synx_util_destroy_coredata(struct kref *kref)
+void synx_util_destroy_coredata(struct kref *kref)
 {
 	int rc;
 	struct synx_coredata *synx_obj =
@@ -697,7 +697,7 @@ error:
 	return -SYNX_INVALID;
 }
 
-static u32 __fence_state(struct dma_fence *fence, bool locked)
+u32 __fence_state(struct dma_fence *fence, bool locked)
 {
 	s32 status;
 	u32 state = SYNX_STATE_INVALID;
@@ -1003,7 +1003,7 @@ static void synx_util_destroy_map_entry_worker(
 	kfree(map_entry);
 }
 
-static void synx_util_destroy_map_entry(struct kref *kref)
+void synx_util_destroy_map_entry(struct kref *kref)
 {
 	struct synx_map_entry *map_entry =
 		container_of(kref, struct synx_map_entry, refcount);
@@ -1046,7 +1046,7 @@ static void synx_util_destroy_handle_worker(
 	kfree(synx_data);
 }
 
-static void synx_util_destroy_handle(struct kref *kref)
+void synx_util_destroy_handle(struct kref *kref)
 {
 	struct synx_handle_coredata *synx_data =
 		container_of(kref, struct synx_handle_coredata,
@@ -1442,7 +1442,7 @@ static void synx_client_cleanup(struct work_struct *dispatch)
 	vfree(client);
 }
 
-static void synx_client_destroy(struct kref *kref)
+void synx_client_destroy(struct kref *kref)
 {
 	struct synx_client *client =
 		container_of(kref, struct synx_client, refcount);
@@ -1571,7 +1571,7 @@ struct synx_entry_64 *synx_util_retrieve_data(void *fence,
 	return entry;
 }
 
-static void synx_util_destroy_data(struct kref *kref)
+void synx_util_destroy_data(struct kref *kref)
 {
 	struct synx_entry_64 *entry =
 		container_of(kref, struct synx_entry_64, refcount);

@@ -10,7 +10,6 @@
 #include "ipclite_client.h"
 
 #include <synx_header.h>
-
 /**
  * enum synx_core_id - Synx core IDs
  *
@@ -298,5 +297,9 @@ int synx_global_dump_shared_memory(void);
  * @return SYNX_SUCCESS on success. Negative error on failure.
  */
 int synx_global_fetch_handle_details(u32 idx, u32 *h_synx);
+
+/* Function to fetch global shared memory entry */
+bool synx_fetch_global_shared_memory_handle_details(u32 synx_handle,
+	struct synx_global_coredata *synx_global_entry);
 
 #endif /* __SYNX_SHARED_MEM_H__ */
