@@ -1367,18 +1367,28 @@ static int handle_release_internal_buffer(struct msm_vidc_inst *inst,
 			break;
 		}
 	}
+	if (!found) {
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
+			__func__, buffer->index, buffer->base_address);
+		return -EINVAL;
+	}
 
 	if (!is_internal_buffer(buf->type))
 		return 0;
 
-	if (found) {
+	/* remove QUEUED attribute */
+	buf->attr &= ~MSM_VIDC_ATTR_QUEUED;
+
+	/*
+	 * firmware will return/release internal buffer in two cases
+	 * - driver sent release cmd in which case driver should destroy the buffer
+	 * - as part stop cmd in which case driver can reuse the buffer, so skip
+	 *   destroying the buffer
+	 */
+	if (buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE) {
 		rc = msm_vidc_destroy_internal_buffer(inst, buf);
 		if (rc)
 			return rc;
-	} else {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
-			__func__, buffer->index, buffer->base_address);
-		return -EINVAL;
 	}
 	return rc;
 }

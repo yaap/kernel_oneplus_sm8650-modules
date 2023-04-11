@@ -3096,9 +3096,6 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 		}
 	}
 
-	buffers->size = 0;
-	buffers->min_count = buffers->extra_count = buffers->actual_count = 0;
-
 	return 0;
 }
 
@@ -3126,8 +3123,7 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	if (!buffers)
 		return -EINVAL;
 
-	if (buf_size <= buffers->size &&
-		buf_count <= buffers->min_count) {
+	if (buf_size <= buffers->size && buf_count <= buffers->min_count) {
 		buffers->reuse = true;
 	} else {
 		buffers->reuse = false;
@@ -3263,15 +3259,9 @@ int msm_vidc_queue_internal_buffers(struct msm_vidc_inst *inst,
 	if (!buffers)
 		return -EINVAL;
 
-	if (buffers->reuse) {
-		i_vpr_l(inst, "%s: reuse enabled for %s buf\n",
-			__func__, buf_name(buffer_type));
-		return 0;
-	}
-
 	list_for_each_entry_safe(buffer, dummy, &buffers->list, list) {
 		/* do not queue pending release buffers */
-		if (buffer->flags & MSM_VIDC_ATTR_PENDING_RELEASE)
+		if (buffer->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
 			continue;
 		/* do not queue already queued buffers */
 		if (buffer->attr & MSM_VIDC_ATTR_QUEUED)
@@ -4493,10 +4483,10 @@ int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst)
 		if (!buffers)
 			continue;
 
-		i_vpr_h(inst, "buf: type: %11s, count %2d, extra %2d, actual %2d, size %9u\n",
+		i_vpr_h(inst, "buf: type: %15s, min %2d, extra %2d, actual %2d, size %9u, reuse %d\n",
 			buf_name(i), buffers->min_count,
 			buffers->extra_count, buffers->actual_count,
-			buffers->size);
+			buffers->size, buffers->reuse);
 	}
 
 	return 0;

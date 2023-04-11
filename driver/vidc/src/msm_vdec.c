@@ -32,6 +32,10 @@ static const u32 msm_vdec_internal_buffer_type[] = {
 	MSM_VIDC_BUF_PARTIAL_DATA,
 };
 
+static const u32 msm_vdec_output_internal_buffer_type[] = {
+	MSM_VIDC_BUF_DPB,
+};
+
 struct msm_vdec_prop_type_handle {
 	u32 type;
 	int (*handle)(struct msm_vidc_inst *inst, enum msm_vidc_port_type port);
@@ -730,6 +734,49 @@ static int msm_vdec_get_output_internal_buffers(struct msm_vidc_inst *inst)
 		return rc;
 
 	return rc;
+}
+
+static int msm_vdec_destroy_internal_buffers(struct msm_vidc_inst *inst,
+		enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	struct msm_vidc_buffers *buffers;
+	struct msm_vidc_buffer *buf, *dummy;
+	const u32 *internal_buf_type;
+	u32 i, len;
+
+	if (port == INPUT_PORT) {
+		internal_buf_type = msm_vdec_internal_buffer_type;
+		len = ARRAY_SIZE(msm_vdec_internal_buffer_type);
+	} else {
+		internal_buf_type = msm_vdec_output_internal_buffer_type;
+		len = ARRAY_SIZE(msm_vdec_output_internal_buffer_type);
+	}
+
+	for (i = 0; i < len; i++) {
+		buffers = msm_vidc_get_buffers(inst, internal_buf_type[i], __func__);
+		if (!buffers)
+			return -EINVAL;
+
+		if (buffers->reuse) {
+			i_vpr_l(inst, "%s: reuse enabled for %s\n", __func__,
+				buf_name(internal_buf_type[i]));
+			continue;
+		}
+
+		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+			i_vpr_h(inst,
+				"%s: destroying internal buffer: type %d idx %d fd %d addr %#llx size %d\n",
+				__func__, buf->type, buf->index, buf->fd,
+				buf->device_addr, buf->buffer_size);
+
+			rc = msm_vidc_destroy_internal_buffer(inst, buf);
+			if (rc)
+				return rc;
+		}
+	}
+
+	return 0;
 }
 
 int msm_vdec_create_input_internal_buffers(struct msm_vidc_inst *inst)
@@ -1460,6 +1507,10 @@ int msm_vdec_streamon_input(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_vdec_destroy_internal_buffers(inst, INPUT_PORT);
+	if (rc)
+		goto error;
+
 	rc = msm_vdec_create_input_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1817,6 +1868,10 @@ int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 		goto error;
 
 	rc = msm_vdec_get_output_internal_buffers(inst);
+	if (rc)
+		goto error;
+
+	rc = msm_vdec_destroy_internal_buffers(inst, OUTPUT_PORT);
 	if (rc)
 		goto error;
 
