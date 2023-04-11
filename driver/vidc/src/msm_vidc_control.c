@@ -766,9 +766,9 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 	}
 
 	if (cap_id == DRV_VERSION) {
-		i_vpr_e(inst, "%s: driver version update not allowed\n",
+		i_vpr_h(inst, "%s: driver version update not allowed\n",
 			__func__);
-		return -EINVAL;
+		return 0;
 	}
 
 	/* update value to db */
