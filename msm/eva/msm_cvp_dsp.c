@@ -248,7 +248,7 @@ static int delete_dsp_session(struct msm_cvp_inst *inst,
 					frpc_node->cvp_fastrpc_device,
 					buf);
 			if (rc)
-				dprintk(CVP_WARN,
+				dprintk_rl(CVP_WARN,
 					"%s Failed to unmap buffer 0x%x\n",
 					__func__, rc);
 
@@ -1952,7 +1952,7 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 
 			rc = eva_fastrpc_dev_unmap_dma(frpc_device, buf);
 			if (rc) {
-				dprintk(CVP_ERR,
+				dprintk_rl(CVP_ERR,
 					"%s Failed to unmap buffer 0x%x\n",
 					__func__, rc);
 				cmd->ret = -1;

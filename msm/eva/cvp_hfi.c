@@ -258,9 +258,11 @@ static int __dsp_suspend(struct iris_hfi_device *device, bool force)
 	dprintk(CVP_DSP, "%s: suspend dsp\n", __func__);
 	rc = cvp_dsp_suspend(force);
 	if (rc) {
-		dprintk(CVP_ERR, "%s: dsp suspend failed with error %d\n",
-			__func__, rc);
-		return -EINVAL;
+		if (rc != -EBUSY)
+			dprintk(CVP_ERR,
+				"%s: dsp suspend failed with error %d\n",
+				__func__, rc);
+		return rc;
 	}
 
 	dprintk(CVP_DSP, "%s: dsp suspended\n", __func__);
