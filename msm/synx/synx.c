@@ -599,15 +599,14 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 				goto fail;
 			}
 		}
-		else {
+		else
 			rc = synx_native_signal_fence(synx_obj, status);
-			if (rc == SYNX_SUCCESS)
-				rc = synx_native_signal_core(synx_obj, status,
-						(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
-						true : false, signal_cb->ext_sync_id);
-		}
 	}
 
+	if (rc == SYNX_SUCCESS && !synx_util_is_merged_object(synx_obj))
+		rc = synx_native_signal_core(synx_obj, status,
+			(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
+			true : false, signal_cb->ext_sync_id);
 	mutex_unlock(&synx_obj->obj_lock);
 
 	if (rc != SYNX_SUCCESS)
