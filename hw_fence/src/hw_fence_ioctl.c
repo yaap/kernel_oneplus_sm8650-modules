@@ -213,8 +213,13 @@ static long hw_sync_ioctl_unreg_client(struct hw_sync_obj *obj, unsigned long ar
 {
 	int client_id = _get_client_id(obj, arg);
 
-	if (IS_ERR(&client_id))
+	if (IS_ERR(&client_id)) {
 		return client_id;
+	} else if (client_id != obj->client_id) {
+		HWFNC_ERR("deregistering hw-fence client %d with invalid client_id arg:%d\n",
+			obj->client_id, client_id);
+		return -EINVAL;
+	}
 
 	return msm_hw_fence_deregister(obj->client_handle);
 }
