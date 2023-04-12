@@ -23,6 +23,7 @@ int smmu_proxy_get_csf_version(struct csf_version *csf_version)
 	struct Object client_env = {0};
 	struct Object sc_object;
 
+	/* Assumption is that cached_csf_version.arch_ver !=0 ==> other vals are set */
 	if (cached_csf_version.arch_ver != 0) {
 		csf_version->arch_ver = cached_csf_version.arch_ver;
 		csf_version->max_ver = cached_csf_version.max_ver;
@@ -51,6 +52,14 @@ int smmu_proxy_get_csf_version(struct csf_version *csf_version)
 
 	Object_release(sc_object);
 	Object_release(client_env);
+
+	/*
+	 * Once we set cached_csf_version.arch_ver, concurrent callers will get
+	 * the cached value.
+	 */
+	cached_csf_version.min_ver = csf_version->min_ver;
+	cached_csf_version.max_ver = csf_version->max_ver;
+	cached_csf_version.arch_ver = csf_version->arch_ver;
 
 	return ret;
 }
