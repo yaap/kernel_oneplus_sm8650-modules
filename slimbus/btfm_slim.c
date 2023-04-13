@@ -242,7 +242,10 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 		chipset_ver == QCA_HSP_SOC_ID_1211 ||
 		chipset_ver == QCA_HAMILTON_SOC_ID_0100 ||
 		chipset_ver == QCA_HAMILTON_SOC_ID_0101 ||
-		chipset_ver == QCA_HAMILTON_SOC_ID_0200 )) {
+		chipset_ver == QCA_HAMILTON_SOC_ID_0200 ||
+		chipset_ver == QCA_APACHE_SOC_ID_0100 ||
+		chipset_ver == QCA_APACHE_SOC_ID_0110 ||
+		chipset_ver == QCA_APACHE_SOC_ID_0121)) {
 		BTFMSLIM_INFO("SB reset needed after all ports disabled, sleeping");
 		msleep(DELAY_FOR_PORT_OPEN_MS);
 	}
