@@ -671,10 +671,18 @@ free_msgq:
 	return ret;
 }
 
+static int proxy_fault_handler(struct iommu_domain *domain, struct device *dev,
+			       unsigned long iova, int flags, void *token)
+{
+	dev_err(dev, "Context fault with IOVA %llx and fault flags %d\n", iova, flags);
+	return -EINVAL;
+}
+
 static int cb_probe_handler(struct device *dev)
 {
 	int ret;
 	unsigned int context_bank_id;
+	struct iommu_domain *domain;
 
 	ret = of_property_read_u32(dev->of_node, "qti,cb-id", &context_bank_id);
 	if (ret) {
@@ -704,6 +712,13 @@ static int cb_probe_handler(struct device *dev)
 		return ret;
 	}
 
+	domain = iommu_get_domain_for_dev(dev);
+	if (IS_ERR_OR_NULL(domain)) {
+		dev_err(dev, "%s: Failed to get iommu domain\n", __func__);
+		return -EINVAL;
+	}
+
+	iommu_set_fault_handler(domain, proxy_fault_handler, NULL);
 	cb_devices[context_bank_id] = dev;
 
 	return 0;
