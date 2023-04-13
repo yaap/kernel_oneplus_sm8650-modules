@@ -34,6 +34,37 @@ struct device *cb_devices[QTI_SMMU_PROXY_CB_IDS_LEN] = { 0 };
 
 struct task_struct *receiver_msgq_handler_thread;
 
+static int zero_dma_buf(struct dma_buf *dmabuf)
+{
+	int ret;
+	struct iosys_map vmap_struct = {0};
+
+	ret = dma_buf_vmap(dmabuf, &vmap_struct);
+	if (ret) {
+		pr_err("%s: dma_buf_vmap() failed with %d\n", __func__, ret);
+		return ret;
+	}
+
+	/* Use DMA_TO_DEVICE since we are not reading anything */
+	ret = dma_buf_begin_cpu_access(dmabuf, DMA_TO_DEVICE);
+	if (ret) {
+		pr_err("%s: dma_buf_begin_cpu_access() failed with %d\n", __func__, ret);
+		goto unmap;
+	}
+
+	memset(vmap_struct.vaddr, 0, dmabuf->size);
+	ret = dma_buf_end_cpu_access(dmabuf, DMA_TO_DEVICE);
+	if (ret)
+		pr_err("%s: dma_buf_end_cpu_access() failed with %d\n", __func__, ret);
+unmap:
+	dma_buf_vunmap(dmabuf, &vmap_struct);
+
+	if (ret)
+		pr_err("%s: Failed to properly zero the DMA-BUF\n", __func__);
+
+	return ret;
+}
+
 static int iommu_unmap_and_relinquish(u32 hdl)
 {
 	int cb_id, ret = 0;
@@ -75,8 +106,11 @@ static int iommu_unmap_and_relinquish(u32 hdl)
 		}
 	}
 
-	dma_buf_put(buf_state->dmabuf);
-	flush_delayed_fput();
+	ret = zero_dma_buf(buf_state->dmabuf);
+	if (!ret) {
+		dma_buf_put(buf_state->dmabuf);
+		flush_delayed_fput();
+	}
 
 	xa_erase(&buffer_state_arr, hdl);
 	kfree(buf_state);
@@ -158,6 +192,12 @@ struct sg_table *retrieve_and_iommu_map(struct mem_buf_retrieve_kernel_arg *retr
 			ret = PTR_ERR(dmabuf);
 			pr_err("%s: Failed to retrieve DMA-BUF rc: %d\n", __func__, ret);
 			goto unlock_err;
+		}
+
+		ret = zero_dma_buf(dmabuf);
+		if (ret) {
+			pr_err("%s: Failed to zero the DMA-BUF rc: %d\n", __func__, ret);
+			goto free_buf;
 		}
 
 		buf_state = kzalloc(sizeof(*buf_state), GFP_KERNEL);
@@ -448,7 +488,6 @@ int smmu_proxy_clear_all_buffers(void __user *context_bank_id_array,
 {
 	unsigned long handle;
 	struct smmu_proxy_buffer_state *buf_state;
-	struct iosys_map vmap_struct = {0};
 	__u32 cb_ids[QTI_SMMU_PROXY_CB_IDS_LEN];
 	int i, ret = 0;
 	bool found_mapped_cb;
@@ -485,30 +524,13 @@ int smmu_proxy_clear_all_buffers(void __user *context_bank_id_array,
 		if (!found_mapped_cb)
 			continue;
 
-		ret = dma_buf_vmap(buf_state->dmabuf, &vmap_struct);
+		ret = zero_dma_buf(buf_state->dmabuf);
 		if (ret) {
 			pr_err("%s: dma_buf_vmap() failed with %d\n", __func__, ret);
-			goto unlock;
-		}
-
-		/* Use DMA_TO_DEVICE since we are not reading anything */
-		ret = dma_buf_begin_cpu_access(buf_state->dmabuf, DMA_TO_DEVICE);
-		if (ret) {
-			pr_err("%s: dma_buf_begin_cpu_access() failed with %d\n", __func__, ret);
-			goto unmap;
-		}
-
-		memset(vmap_struct.vaddr, 0, buf_state->dmabuf->size);
-		ret = dma_buf_end_cpu_access(buf_state->dmabuf, DMA_TO_DEVICE);
-		if (ret)
-			pr_err("%s: dma_buf_end_cpu_access() failed with %d\n", __func__, ret);
-unmap:
-		dma_buf_vunmap(buf_state->dmabuf, &vmap_struct);
-		if (ret)
 			break;
+		}
 	}
 
-unlock:
 	mutex_unlock(&buffer_state_lock);
 	return ret;
 }
