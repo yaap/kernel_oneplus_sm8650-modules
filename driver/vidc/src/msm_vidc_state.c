@@ -85,13 +85,40 @@ static int msm_vidc_core_deinit_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_event_type type,
 	struct msm_vidc_event_data *data)
 {
+	int rc = 0;
+
 	if (!core || !data) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	d_vpr_e("%s: unexpected core event type %u\n", __func__, type);
-	return -EINVAL;
+	switch (type) {
+	case CORE_EVENT_UPDATE_SUB_STATE:
+	{
+		u32 req_sub_state;
+		u32 allow_mask = -1;
+
+		req_sub_state = data->edata.uval;
+
+		/* none of the requested substate supported */
+		if (!(req_sub_state & allow_mask)) {
+			d_vpr_e("%s: invalid substate update request %#x\n",
+				__func__, req_sub_state);
+			return -EINVAL;
+		}
+
+		/* update core substate */
+		core->sub_state |= req_sub_state & allow_mask;
+		return rc;
+	}
+	default: {
+		d_vpr_e("%s: unexpected core event type %u\n",
+			__func__, type);
+		return -EINVAL;
+	}
+	}
+
+	return rc;
 }
 
 static int msm_vidc_core_init_wait_state(struct msm_vidc_core *core,
