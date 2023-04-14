@@ -929,9 +929,6 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 				inst->subcr_params[port].dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on input port", __func__);
 			}
-
-			msm_vidc_update_property_cap(inst,
-				subcribe_prop[i], allow);
 		}
 	} else if (port == OUTPUT_PORT) {
 		subscribe_prop_size = core->platform->data.dec_output_prop_size;
@@ -948,9 +945,6 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 				inst->subcr_params[port].dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on output port", __func__);
 			}
-
-			msm_vidc_update_property_cap(inst,
-				subcribe_prop[i], allow);
 		}
 	} else {
 		i_vpr_e(inst, "%s: invalid port: %d\n", __func__, port);
@@ -2021,11 +2015,9 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 		return rc;
 
 	if (vb2->type == OUTPUT_MPLANE) {
-		if (inst->capabilities[DPB_LIST].value) {
-			rc = msm_vdec_release_nonref_buffers(inst);
-			if (rc)
-				return rc;
-		}
+		rc = msm_vdec_release_nonref_buffers(inst);
+		if (rc)
+			return rc;
 	}
 
 	return rc;

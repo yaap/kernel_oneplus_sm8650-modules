@@ -401,7 +401,6 @@ enum msm_vidc_metadata_bits {
 	CAP(FIRMWARE_PRIORITY_OFFSET)             \
 	CAP(CRITICAL_PRIORITY)                    \
 	CAP(RESERVE_DURATION)                     \
-	CAP(DPB_LIST)                             \
 	CAP(FILM_GRAIN)                           \
 	CAP(SUPER_BLOCK)                          \
 	CAP(DRAP)                                 \

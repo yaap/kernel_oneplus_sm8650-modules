@@ -1729,12 +1729,6 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		V4L2_CID_MPEG_VIDC_ENC_INPUT_COMPRESSION_RATIO,
 		0, CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{DPB_LIST, DEC, CODECS_ALL,
-		0, 1, 1, 0,
-		0,
-		HFI_PROP_DPB_LIST,
-		CAP_FLAG_INPUT_PORT},
-
 	{FILM_GRAIN, DEC, AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_AV1D_FILM_GRAIN_PRESENT,
@@ -2614,11 +2608,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		{0},
 		NULL,
 		msm_vidc_set_reserve_duration},
-
-	{DPB_LIST, DEC, CODECS_ALL,
-		{0},
-		NULL,
-		NULL},
 
 	{DRAP, DEC, AV1,
 		{0},

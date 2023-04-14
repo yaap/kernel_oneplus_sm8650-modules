@@ -1778,16 +1778,15 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 				__func__);
 		break;
 	case HFI_PROP_DPB_LIST:
-		if (is_decode_session(inst) &&
-			inst->capabilities[DPB_LIST].value) {
+		if (is_decode_session(inst)) {
 			rc = handle_dpb_list_property(inst, pkt);
 			if (rc)
 				break;
 		} else {
 			i_vpr_e(inst,
-				"%s: invalid property %#x for %s port %d dpb cap value %d\n",
+				"%s: invalid dpb property %#x for %s port %d\n",
 				__func__, pkt->type, is_decode_session(inst) ? "decode" : "encode",
-				port, inst->capabilities[DPB_LIST].value);
+				port);
 		}
 		break;
 	case HFI_PROP_QUALITY_MODE:

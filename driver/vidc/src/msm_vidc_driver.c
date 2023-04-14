@@ -1004,25 +1004,12 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 	}
 
 	switch (hfi_id) {
-	case HFI_PROP_WORST_COMPRESSION_RATIO:
-	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
-	case HFI_PROP_PICTURE_TYPE:
-		is_allowed = true;
-		break;
 	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
 		if (inst->codec == MSM_VIDC_AV1)
 			is_allowed = true;
 		else
 			is_allowed = false;
-		break;
-	case HFI_PROP_DPB_LIST:
-		if (!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
-			i_vpr_h(inst,
-				"%s: cap: %24s not allowed for split mode\n",
-				__func__, cap_name(DPB_LIST));
-			is_allowed = false;
-		}
 		break;
 	case HFI_PROP_FENCE:
 		if (!is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
@@ -1038,35 +1025,6 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 	}
 
 	return is_allowed;
-}
-
-int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
-	bool allow)
-{
-	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	switch (hfi_id) {
-	case HFI_PROP_WORST_COMPRESSION_RATIO:
-	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
-	case HFI_PROP_PICTURE_TYPE:
-	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
-	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
-		break;
-	case HFI_PROP_DPB_LIST:
-		if (!allow)
-			memset(inst->dpb_list_payload, 0, MAX_DPB_LIST_ARRAY_SIZE);
-		msm_vidc_update_cap_value(inst, DPB_LIST, allow, __func__);
-		break;
-	default:
-		break;
-	}
-
-	return rc;
 }
 
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
