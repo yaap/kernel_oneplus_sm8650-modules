@@ -11,6 +11,7 @@
 #include "msm_cvp_clocks.h"
 #include "msm_cvp_debug.h"
 #include "msm_cvp_dsp.h"
+#include "eva_shared_def.h"
 
 static inline bool is_buf_param_valid(u32 buf_num, u32 offset)
 {

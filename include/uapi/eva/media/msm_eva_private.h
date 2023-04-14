@@ -119,72 +119,6 @@ struct eva_kmd_client_data {
 	__u32 client_data1;
 	__u32 client_data2;
 };
-struct cvp_buf_type {
-	__s32 fd;
-	__u32 size;
-	__u32 offset;
-	__u32 flags;
-	__u32 reserved1;
-	__u32 reserved2;
-	__u32 fence_type;
-	__u32 input_handle;
-	__u32 output_handle;
-	__u32 debug_flags;
-	__u32 crc;
-};
-
-/**
- * Structures and macros for Out-of-Band (OOB) buffer
- * that may accompany HFI packet data
- */
-
-#define EVA_KMD_WNCC_MAX_LAYERS               4
-#define EVA_KMD_WNCC_MAX_ADDRESSES            4095
-#define EVA_KMD_WNCC_MAX_SRC_BUFS             2400
-#define EVA_KMD_WNCC_SRC_BUF_ID_OFFSET        1
-
-/**
- * Macro to get Meta Data Buffer Offset from the HFI Packet
- * The number 15 denotes the position of the first Meta Data Buffer with respect to other fields
- * If the WARPNCC HFI Frame Packet changes, this macro definition also has to be revised
- */
-
-#define EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET (15 + sizeof(struct cvp_buf_type) / sizeof(__u32) * 5)
-
-struct eva_kmd_wncc_metadata {
-	__u64 loc_x_dec   : 12;
-	__u64 loc_x_frac  : 9;
-	__u64 loc_y_dec   : 12;
-	__u64 loc_y_frac  : 9;
-	__u64 iova_lsb    : 22; /* Populated in KMD */
-	__u64 iova_msb    : 10; /* Populated in KMD */
-	__u64 scale_idx   : 2;
-	__s64 aff_coeff_3 : 13;
-	__s64 aff_coeff_2 : 13;
-	__s64 aff_coeff_1 : 13;
-	__s64 aff_coeff_0 : 13;
-};
-
-struct eva_kmd_oob_wncc {
-	__u32 num_layers;
-	struct eva_kmd_wncc_layer {
-		__u32 num_addrs;
-		struct eva_kmd_wncc_addr {
-			__u32 buffer_id;
-			__u32 offset;
-		} addrs[EVA_KMD_WNCC_MAX_ADDRESSES];
-	} layers[EVA_KMD_WNCC_MAX_LAYERS];
-};
-
-#define EVA_KMD_OOB_INVALID 0
-#define EVA_KMD_OOB_WNCC    1
-
-struct eva_kmd_oob_buf {
-	__u32 oob_type;
-	union {
-		struct eva_kmd_oob_wncc wncc;
-	};
-};
 
 /**
  * Structures and macros for KMD arg data
@@ -194,7 +128,7 @@ struct eva_kmd_oob_buf {
 
 struct eva_kmd_hfi_packet {
 	__u32 pkt_data[MAX_HFI_PKT_SIZE];
-	struct eva_kmd_oob_buf *oob_buf;
+	void *oob_buf;
 };
 
 #define EVA_KMD_PROP_HFI_VERSION	1
