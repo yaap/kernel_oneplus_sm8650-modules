@@ -47,6 +47,16 @@ ddk_headers(
     includes = [".", "crypto-qti"]
 )
 
+ddk_headers(
+    name = "smmu_proxy_headers",
+    hdrs = glob([
+        "smmu-proxy/*.h",
+        "smmu-proxy/linux/*.h",
+        "smmu-proxy/uapi/linux/*.h"
+    ]),
+    includes = [".", "smmu-proxy"],
+)
+
 load("pineapple.bzl", "define_pineapple")
 
 define_pineapple()
