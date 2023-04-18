@@ -101,7 +101,10 @@ struct synx_kernel_payload {
 struct synx_cb_data {
 	struct synx_session *session;
 	u32 idx;
+	u32 h_synx;
 	u32 status;
+	struct timer_list synx_timer;
+	u64 timeout;
 	struct work_struct cb_dispatch;
 	struct list_head node;
 };

@@ -301,6 +301,12 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 			"dipatching un-released callbacks of session %pK\n",
 			synx_cb->session);
 		synx_cb->status = SYNX_STATE_SIGNALED_CANCEL;
+		if (synx_cb->timeout != SYNX_NO_TIMEOUT) {
+			dprintk(SYNX_VERB,
+				"Deleting timer synx_cb 0x%x, timeout 0x%llx\n",
+				synx_cb, synx_cb->timeout);
+			del_timer(&synx_cb->synx_timer);
+		}
 		list_del_init(&synx_cb->node);
 		queue_work(synx_dev->wq_cb,
 			&synx_cb->cb_dispatch);
@@ -1175,6 +1181,12 @@ void synx_util_callback_dispatch(struct synx_coredata *synx_obj, u32 status)
 	list_for_each_entry_safe(synx_cb,
 		synx_cb_temp, &synx_obj->reg_cbs_list, node) {
 		synx_cb->status = status;
+		if (synx_cb->timeout != SYNX_NO_TIMEOUT) {
+			dprintk(SYNX_VERB,
+				"Deleting timer synx_cb 0x%x, timeout 0x%llx\n",
+				synx_cb, synx_cb->timeout);
+			del_timer(&synx_cb->synx_timer);
+		}
 		list_del_init(&synx_cb->node);
 		queue_work(synx_dev->wq_cb,
 			&synx_cb->cb_dispatch);
