@@ -433,12 +433,17 @@ static int __write_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 	}
 
 	cmd_pkt = (struct cvp_hfi_cmd_session_hdr *)packet;
-	dprintk(CVP_CMD, "%s: "
-		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
-		__func__, cmd_pkt->packet_type,
-		cmd_pkt->session_id,
-		cmd_pkt->client_data.transaction_id,
-		cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
+
+	if (cmd_pkt->size >= sizeof(struct cvp_hfi_cmd_session_hdr)) 
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+			__func__, cmd_pkt->packet_type,
+			cmd_pkt->session_id,
+			cmd_pkt->client_data.transaction_id,
+			cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
+	else 
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x", __func__, cmd_pkt->packet_type);
 
 	if (msm_cvp_debug & CVP_PKT) {
 		dprintk(CVP_PKT, "%s: %pK\n", __func__, qinfo);
