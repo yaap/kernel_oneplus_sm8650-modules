@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
 
 include $(CLEAR_VARS)
 # For incremental compilation
