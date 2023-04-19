@@ -40,6 +40,9 @@ endif
 ifeq ($(CONFIG_ARCH_KONA), y)
         include $(KGSL_PATH)/config/gki_kona.conf
 endif
+ifeq ($(CONFIG_ARCH_TRINKET), y)
+	include $(KGSL_PATH)/config/gki_trinket.conf
+endif
 
 ccflags-y += -I$(KGSL_PATH) -I$(KGSL_PATH)/include/linux -I$(KGSL_PATH)/include -I$(KERNEL_SRC)/drivers/devfreq -I$(KERNEL_SRC)/drivers/iommu -I$(KERNEL_SRC)/include/linux
 
