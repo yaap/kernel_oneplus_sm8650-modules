@@ -1,5 +1,5 @@
 /* Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -66,11 +66,11 @@ qmi_rmnet_ps_ind_deregister(DATARMNETecc0627c70.port,&DATARMNETecc0627c70.
 rmnet_idl_ind_cb);rmnet_map_dl_ind_deregister(DATARMNETecc0627c70.port,&
 DATARMNETecc0627c70.DATARMNET08dbb5ab35);DATARMNETeacad8334e();
 DATARMNET90fe3a4b56();DATARMNET9f4bc49c6f=DATARMNET02cdd9b125();
-DATARMNETf7dcab9a9e();DATARMNET9297340f58(DATARMNET9f4bc49c6f);
-trace_rmnet_shs_high(DATARMNET1790979ccf,DATARMNET443dab7031,(0x16e8+787-0xc0c),
-(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),NULL,NULL);}break;case 
-NETDEV_REGISTER:DATARMNET2cb9ae589c++;if(DATARMNET2cb9ae589c&&!
-DATARMNETecc0627c70.DATARMNETfc89d842ae){pr_info(
+DATARMNET7fcf8c178f();DATARMNETf7dcab9a9e();DATARMNET9297340f58(
+DATARMNET9f4bc49c6f);trace_rmnet_shs_high(DATARMNET1790979ccf,
+DATARMNET443dab7031,(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),
+(0x16e8+787-0xc0c),NULL,NULL);}break;case NETDEV_REGISTER:DATARMNET2cb9ae589c++;
+if(DATARMNET2cb9ae589c&&!DATARMNETecc0627c70.DATARMNETfc89d842ae){pr_info(
 "\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x20\x69\x6e\x69\x74\x69\x61\x6c\x69\x7a\x69\x6e\x67\x20\x25\x73"
 ,dev->name);priv=netdev_priv(dev);port=rmnet_get_port(priv->real_dev);if(!port){
 pr_err(
@@ -97,7 +97,7 @@ rmnet_idl_ind_cb);if(ret)pr_err(
 DATARMNETe46c480d71();DATARMNETecc0627c70.DATARMNET9c869c1ec2=(0xd26+209-0xdf6);
 trace_rmnet_shs_high(DATARMNET1790979ccf,DATARMNET443dab7031,(0x16e8+787-0xc0c),
 (0x16e8+787-0xc0c),(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),NULL,NULL);
-DATARMNETcd6e26f0ad();DATARMNETa871eeb7e7();DATARMNET7520667b38();
-rmnet_module_hook_register(&DATARMNETf6217b20b8,(0xd26+209-0xdf6));break;}
-DATARMNET7492293980(dev);break;default:break;}return NOTIFY_DONE;}module_init(
-DATARMNET163e93649e);module_exit(DATARMNETf3298dab6f);
+DATARMNETa871eeb7e7();DATARMNET7520667b38();rmnet_module_hook_register(&
+DATARMNETf6217b20b8,(0xd26+209-0xdf6));break;}DATARMNET7492293980(dev);break;
+default:break;}return NOTIFY_DONE;}module_init(DATARMNET163e93649e);module_exit(
+DATARMNETf3298dab6f);
