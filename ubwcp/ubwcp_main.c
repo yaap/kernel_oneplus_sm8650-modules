@@ -26,12 +26,15 @@
 #include <linux/debugfs.h>
 #include <linux/clk.h>
 #include <linux/iommu.h>
+#include <linux/set_memory.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
 #include "include/kernel/ubwcp.h"
 #include "ubwcp_hw.h"
 #include "include/uapi/ubwcp_ioctl.h"
+#define CREATE_TRACE_POINTS
+#include "ubwcp_trace.h"
 
 #define UBWCP_NUM_DEVICES 1
 #define UBWCP_DEVICE_NAME "ubwcp"
@@ -62,6 +65,8 @@ MODULE_IMPORT_NS(DMA_BUF);
 #define META_DATA_HEIGHT_ALIGN   16
 #define META_DATA_SIZE_ALIGN  4096
 #define PIXEL_DATA_SIZE_ALIGN 4096
+
+#define UBWCP_SYNC_GRANULE 0x4000000L /* 64 MB */
 
 struct ubwcp_desc {
 	int idx;
@@ -135,10 +140,11 @@ struct ubwcp_driver {
 	u32 hw_ver_major;
 	u32 hw_ver_minor;
 
-	/* keep track of all buffers. hash table index'ed using dma_buf ptr.
-	 * 2**8 = 256 hash values
+	/* keep track of all potential buffers.
+	 * hash table index'ed using dma_buf ptr.
+	 * 2**13 = 8192 hash values
 	 */
-	DECLARE_HASHTABLE(buf_table, 8);
+	DECLARE_HASHTABLE(buf_table, 13);
 
 	/* buffer descriptor */
 	void       *buffer_desc_base;      /* CPU address */
@@ -147,6 +153,9 @@ struct ubwcp_driver {
 	struct ubwcp_desc desc_list[UBWCP_BUFFER_DESC_COUNT];
 
 	struct ubwcp_image_format_info format_info[INFO_FORMAT_LIST_SIZE];
+
+	atomic_t num_non_lin_buffers;
+	bool mem_online;
 
 	struct mutex desc_lock;        /* allocate/free descriptors */
 	spinlock_t buf_table_lock;     /* add/remove dma_buf into list of managed bufffers */
@@ -202,19 +211,19 @@ static void image_format_init(struct ubwcp_driver *ubwcp)
 					{1, {{4, 1,  {16, 4}, {64, 16}}}};
 	ubwcp->format_info[NV12]   = (struct ubwcp_image_format_info)
 					{2, {{1,  1, {32, 8}, {128, 32}},
-					{2,  1, {16, 8}, { 64, 32}}}};
+					     {2,  1, {16, 8}, { 64, 32}}}};
 	ubwcp->format_info[NV124R] = (struct ubwcp_image_format_info)
 					{2, {{1,  1, {64, 4}, {256, 16}},
-					{2,  1, {32, 4}, {128, 16}}}};
+					     {2,  1, {32, 4}, {128, 16}}}};
 	ubwcp->format_info[P010]   = (struct ubwcp_image_format_info)
 					{2, {{2,  1, {32, 4}, {128, 16}},
-					{4,  1, {16, 4}, { 64, 16}}}};
+					     {4,  1, {16, 4}, { 64, 16}}}};
 	ubwcp->format_info[TP10]   = (struct ubwcp_image_format_info)
 					{2, {{4,  3, {48, 4}, {192, 16}},
-					{8,  3, {24, 4}, { 96, 16}}}};
+					     {8,  3, {24, 4}, { 96, 16}}}};
 	ubwcp->format_info[P016]   = (struct ubwcp_image_format_info)
 					{2, {{2,  1, {32, 4}, {128, 16}},
-					{4,  1, {16, 4}, { 64, 16}}}};
+					     {4,  1, {16, 4}, { 64, 16}}}};
 }
 
 static void ubwcp_buf_desc_list_init(struct ubwcp_driver *ubwcp)
@@ -421,6 +430,186 @@ int ubwcp_get_hw_version(struct ubwcp_ioctl_hw_version *ver)
 }
 EXPORT_SYMBOL(ubwcp_get_hw_version);
 
+static int add_ula_pa_memory(struct ubwcp_driver *ubwcp)
+{
+	int ret;
+	int nid;
+
+	nid = memory_add_physaddr_to_nid(ubwcp->ula_pool_base);
+	DBG("calling add_memory()...");
+	trace_ubwcp_add_memory_start(ubwcp->ula_pool_size);
+	ret = add_memory(nid, ubwcp->ula_pool_base, ubwcp->ula_pool_size, MHP_NONE);
+	trace_ubwcp_add_memory_end(ubwcp->ula_pool_size);
+
+	if (ret) {
+		ERR("add_memory() failed st:0x%lx sz:0x%lx err: %d",
+			ubwcp->ula_pool_base,
+			ubwcp->ula_pool_size,
+			ret);
+		/* Fix to put driver in invalid state */
+	} else {
+		DBG("add_memory() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
+			ubwcp->ula_pool_base,
+			ubwcp->ula_pool_size,
+			page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
+	}
+
+	return ret;
+}
+
+static int inc_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
+{
+	int ret = 0;
+
+	atomic_inc(&ubwcp->num_non_lin_buffers);
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+	if (!ubwcp->mem_online) {
+		if (atomic_read(&ubwcp->num_non_lin_buffers) == 0) {
+			ret = -EINVAL;
+			ERR("Bad state: num_non_lin_buffers should not be 0");
+			/* Fix to put driver in invalid state */
+			goto err_power_on;
+		}
+
+		ret = ubwcp_power(ubwcp, true);
+		if (ret)
+			goto err_power_on;
+
+		ret = add_ula_pa_memory(ubwcp);
+		if (ret)
+			goto err_add_memory;
+
+		ubwcp->mem_online = true;
+	}
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+	return 0;
+
+err_add_memory:
+	ubwcp_power(ubwcp, false);
+err_power_on:
+	atomic_dec(&ubwcp->num_non_lin_buffers);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+
+	return ret;
+}
+
+static int dec_num_non_lin_buffers(struct ubwcp_driver *ubwcp)
+{
+	int ret = 0;
+
+	atomic_dec(&ubwcp->num_non_lin_buffers);
+	mutex_lock(&ubwcp->mem_hotplug_lock);
+
+	/* If this is the last buffer being freed, power off ubwcp */
+	if (atomic_read(&ubwcp->num_non_lin_buffers) == 0) {
+		unsigned long sync_remain = 0;
+		unsigned long sync_offset = 0;
+		unsigned long sync_size = 0;
+		unsigned long sync_granule = UBWCP_SYNC_GRANULE;
+
+		DBG("last buffer: ~~~~~~~~~~~");
+		if (!ubwcp->mem_online) {
+			ret = -EINVAL;
+			ERR("Bad state: mem_online should not be false");
+			/* Fix to put driver in invalid state */
+			goto err_remove_mem;
+		}
+
+		DBG("set_direct_map_range_uncached() for ULA PA pool st:0x%lx num pages:%lu",
+				ubwcp->ula_pool_base, ubwcp->ula_pool_size >> PAGE_SHIFT);
+		trace_ubwcp_set_direct_map_range_uncached_start(ubwcp->ula_pool_size);
+		ret = set_direct_map_range_uncached((unsigned long)phys_to_virt(
+				ubwcp->ula_pool_base), ubwcp->ula_pool_size >> PAGE_SHIFT);
+		trace_ubwcp_set_direct_map_range_uncached_end(ubwcp->ula_pool_size);
+		if (ret) {
+			ERR("set_direct_map_range_uncached failed st:0x%lx num pages:%lu err: %d",
+				ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size >> PAGE_SHIFT, ret);
+			goto err_remove_mem;
+		} else {
+			DBG("DONE: calling set_direct_map_range_uncached() for ULA PA pool");
+		}
+
+		DBG("Calling dma_sync_single_for_cpu() for ULA PA pool");
+		trace_ubwcp_offline_sync_start(ubwcp->ula_pool_size);
+
+		sync_remain = ubwcp->ula_pool_size;
+		sync_offset = 0;
+		while (sync_remain > 0) {
+			if (atomic_read(&ubwcp->num_non_lin_buffers) > 0) {
+
+				trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
+				DBG("Cancel memory offlining");
+
+				DBG("Calling offline_and_remove_memory() for ULA PA pool");
+				trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
+				ret = offline_and_remove_memory(ubwcp->ula_pool_base,
+						ubwcp->ula_pool_size);
+				trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
+				if (ret) {
+					ERR("remove memory failed st:0x%lx sz:0x%lx err: %d",
+						ubwcp->ula_pool_base,
+						ubwcp->ula_pool_size, ret);
+					goto err_remove_mem;
+				} else {
+					DBG("DONE: calling remove memory for ULA PA pool");
+				}
+
+				ret = add_ula_pa_memory(ubwcp);
+				if (ret) {
+					ERR("Bad state: failed to add back memory");
+					/* Fix to put driver in invalid state */
+					ubwcp->mem_online = false;
+				}
+				mutex_unlock(&ubwcp->mem_hotplug_lock);
+				return ret;
+			}
+
+			if (sync_granule > sync_remain) {
+				sync_size = sync_remain;
+				sync_remain = 0;
+			} else {
+				sync_size = sync_granule;
+				sync_remain -= sync_granule;
+			}
+
+			DBG("Partial sync offset:0x%lx size:0x%lx", sync_offset, sync_size);
+			trace_ubwcp_dma_sync_single_for_cpu_start(sync_size);
+			dma_sync_single_for_cpu(ubwcp->dev, ubwcp->ula_pool_base + sync_offset,
+					sync_size, DMA_BIDIRECTIONAL);
+			trace_ubwcp_dma_sync_single_for_cpu_end(sync_size);
+			sync_offset += sync_size;
+		}
+		trace_ubwcp_offline_sync_end(ubwcp->ula_pool_size);
+
+		DBG("Calling offline_and_remove_memory() for ULA PA pool");
+		trace_ubwcp_offline_and_remove_memory_start(ubwcp->ula_pool_size);
+		ret = offline_and_remove_memory(ubwcp->ula_pool_base, ubwcp->ula_pool_size);
+		trace_ubwcp_offline_and_remove_memory_end(ubwcp->ula_pool_size);
+		if (ret) {
+			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
+				ubwcp->ula_pool_base,
+				ubwcp->ula_pool_size, ret);
+			/* Fix to put driver in invalid state */
+			goto err_remove_mem;
+		} else {
+			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
+		}
+		DBG("Calling power OFF ...");
+		ubwcp_power(ubwcp, false);
+		ubwcp->mem_online = false;
+	}
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+	return 0;
+
+err_remove_mem:
+	atomic_inc(&ubwcp->num_non_lin_buffers);
+	mutex_unlock(&ubwcp->mem_hotplug_lock);
+
+	DBG("returning error: %d", ret);
+	return ret;
+}
+
 /**
  *
  * Initialize ubwcp buffer for the given dma_buf. This
@@ -433,77 +622,48 @@ EXPORT_SYMBOL(ubwcp_get_hw_version);
  */
 static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 {
-	int ret = 0;
-	int nid;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	unsigned long flags;
-	bool table_empty;
 
 	FENTRY();
+	trace_ubwcp_init_buffer_start(dmabuf);
 
-	if (!ubwcp)
+	if (!ubwcp) {
+		trace_ubwcp_init_buffer_end(dmabuf);
 		return -1;
+	}
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
+		trace_ubwcp_init_buffer_end(dmabuf);
 		return -EINVAL;
 	}
 
 	if (dma_buf_to_ubwcp_buf(dmabuf)) {
 		ERR("dma_buf already initialized for ubwcp");
+		trace_ubwcp_init_buffer_end(dmabuf);
 		return -EEXIST;
 	}
 
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 	if (!buf) {
 		ERR("failed to alloc for new ubwcp_buf");
+		trace_ubwcp_init_buffer_end(dmabuf);
 		return -ENOMEM;
 	}
 
 	mutex_init(&buf->lock);
 	buf->dma_buf = dmabuf;
 	buf->ubwcp   = ubwcp;
+	buf->buf_attr.image_format = UBWCP_LINEAR;
 
-	mutex_lock(&ubwcp->mem_hotplug_lock);
-	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
-	table_empty = hash_empty(ubwcp->buf_table);
-	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
-	if (table_empty) {
-		ret = ubwcp_power(ubwcp, true);
-		if (ret)
-			goto err_power_on;
-
-		nid = memory_add_physaddr_to_nid(ubwcp->ula_pool_base);
-		DBG("calling add_memory()...");
-		ret = add_memory(nid, ubwcp->ula_pool_base, ubwcp->ula_pool_size, MHP_NONE);
-		if (ret) {
-			ERR("add_memory() failed st:0x%lx sz:0x%lx err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size,
-				ret);
-			goto err_add_memory;
-		} else {
-			DBG("add_memory() ula_pool_base:0x%llx, size:0x%zx, kernel addr:0x%p",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size,
-				page_to_virt(pfn_to_page(PFN_DOWN(ubwcp->ula_pool_base))));
-		}
-	}
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_add(ubwcp->buf_table, &buf->hnode, (u64)buf->dma_buf);
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	return ret;
 
-err_add_memory:
-	ubwcp_power(ubwcp, false);
-err_power_on:
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	kfree(buf);
-	if (!ret)
-		ret = -1;
-	return ret;
+	trace_ubwcp_init_buffer_end(dmabuf);
+	return 0;
 }
 
 static void dump_attributes(struct ubwcp_buffer_attrs *attr)
@@ -526,12 +686,111 @@ static void dump_attributes(struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("");
 }
 
-/* validate buffer attributes */
-static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
+static enum ubwcp_std_image_format to_std_format(u16 ioctl_image_format)
 {
-	bool valid_format;
+	switch (ioctl_image_format) {
+	case UBWCP_RGBA8888:
+		return RGBA;
+	case UBWCP_NV12:
+	case UBWCP_NV12_Y:
+	case UBWCP_NV12_UV:
+		return NV12;
+	case UBWCP_NV124R:
+	case UBWCP_NV124R_Y:
+	case UBWCP_NV124R_UV:
+		return NV124R;
+	case UBWCP_TP10:
+	case UBWCP_TP10_Y:
+	case UBWCP_TP10_UV:
+		return TP10;
+	case UBWCP_P010:
+	case UBWCP_P010_Y:
+	case UBWCP_P010_UV:
+		return P010;
+	case UBWCP_P016:
+	case UBWCP_P016_Y:
+	case UBWCP_P016_UV:
+		return P016;
+	default:
+		WARN(1, "Fix this!!!");
+		return STD_IMAGE_FORMAT_INVALID;
+	}
+}
 
-	switch (attr->image_format) {
+static int get_stride_alignment(enum ubwcp_std_image_format format, u16 *align)
+{
+	switch (format) {
+	case TP10:
+		*align = 64;
+		return 0;
+	case NV12:
+		*align = 128;
+		return 0;
+	case RGBA:
+	case NV124R:
+	case P010:
+	case P016:
+		*align = 256;
+		return 0;
+	default:
+		return -1;
+	}
+}
+
+/* returns stride of compressed image */
+static u32 get_compressed_stride(struct ubwcp_driver *ubwcp,
+					enum ubwcp_std_image_format format, u32 width)
+{
+	struct ubwcp_plane_info p_info;
+	u16 macro_tile_width_p;
+	u16 pixel_bytes;
+	u16 per_pixel;
+
+	p_info = ubwcp->format_info[format].p_info[0];
+	macro_tile_width_p = p_info.macrotilesize_p.width;
+	pixel_bytes = p_info.pixel_bytes;
+	per_pixel = p_info.per_pixel;
+
+	return UBWCP_ALIGN(width, macro_tile_width_p)*pixel_bytes/per_pixel;
+}
+
+/* check if linear stride conforms to hw limitations
+ * always returns false for linear image
+ */
+static bool stride_is_valid(struct ubwcp_driver *ubwcp,
+				u16 ioctl_img_fmt, u32 width, u32 lin_stride)
+{
+	u32 compressed_stride;
+	enum ubwcp_std_image_format format = to_std_format(ioctl_img_fmt);
+
+	if (format == STD_IMAGE_FORMAT_INVALID)
+		return false;
+
+	if ((lin_stride < width) || (lin_stride > 64*1024)) {
+		ERR("stride is not valid (width <= stride <= 64K): %d", lin_stride);
+		return false;
+	}
+
+	if (format == TP10) {
+		if(!IS_ALIGNED(lin_stride, 64)) {
+			ERR("stride must be aligned to 64: %d", lin_stride);
+			return false;
+		}
+	} else {
+		compressed_stride = get_compressed_stride(ubwcp, format, width);
+		if (lin_stride != compressed_stride) {
+			ERR("linear stride: %d must be same as compressed stride: %d",
+				lin_stride, compressed_stride);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool ioctl_format_is_valid(u16 ioctl_image_format)
+{
+	switch (ioctl_image_format) {
 	case UBWCP_LINEAR:
 	case UBWCP_RGBA8888:
 	case UBWCP_NV12:
@@ -549,13 +808,16 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
 	case UBWCP_P016:
 	case UBWCP_P016_Y:
 	case UBWCP_P016_UV:
-		valid_format = true;
-		break;
+		return true;
 	default:
-		valid_format = false;
+		return false;
 	}
+}
 
-	if (!valid_format) {
+/* validate buffer attributes */
+static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffer_attrs *attr)
+{
+	if (!ioctl_format_is_valid(attr->image_format)) {
 		ERR("invalid image format: %d", attr->image_format);
 		goto err;
 	}
@@ -589,19 +851,14 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_buffer_attrs *attr)
 		goto err;
 	}
 
+	if (attr->image_format != UBWCP_LINEAR)
+		if(!stride_is_valid(ubwcp, attr->image_format, attr->width, attr->stride)) {
+			ERR("stride is invalid: %d", attr->stride);
+			goto err;
+		}
 
-	/* TBD: what's the upper limit for stride? 8K is likely too high. */
-	if (!IS_ALIGNED(attr->stride, 64) ||
-	    (attr->stride < attr->width) ||
-	    (attr->stride > 4*8192)) {
-		ERR("stride is not valid (aligned to 64 and <= 8192): %d",
-			attr->stride);
-		goto err;
-	}
-
-	/* TBD: currently assume height + 10. Replace 10 with right num from camera. */
 	if ((attr->scanlines < attr->height) ||
-	    (attr->scanlines > attr->height + 10)) {
+	    (attr->scanlines > attr->height + 32*1024)) {
 		ERR("scanlines is not valid - height: %d scanlines: %d",
 			attr->height, attr->scanlines);
 		goto err;
@@ -892,37 +1149,6 @@ int planes_in_format(enum ubwcp_std_image_format format)
 		return 1;
 	else
 		return 2;
-}
-
-enum ubwcp_std_image_format to_std_format(u16 ioctl_image_format)
-{
-	switch (ioctl_image_format) {
-	case UBWCP_RGBA8888:
-		return RGBA;
-	case UBWCP_NV12:
-	case UBWCP_NV12_Y:
-	case UBWCP_NV12_UV:
-		return NV12;
-	case UBWCP_NV124R:
-	case UBWCP_NV124R_Y:
-	case UBWCP_NV124R_UV:
-		return NV124R;
-	case UBWCP_TP10:
-	case UBWCP_TP10_Y:
-	case UBWCP_TP10_UV:
-		return TP10;
-	case UBWCP_P010:
-	case UBWCP_P010_Y:
-	case UBWCP_P010_UV:
-		return P010;
-	case UBWCP_P016:
-	case UBWCP_P016_Y:
-	case UBWCP_P016_UV:
-		return P016;
-	default:
-		WARN(1, "Fix this!!!");
-		return STD_IMAGE_FORMAT_INVALID;
-	}
 }
 
 unsigned int ubwcp_get_hw_image_format_value(u16 ioctl_image_format)
@@ -1292,6 +1518,7 @@ static void reset_buf_attrs(struct ubwcp_buf *buf)
 	/* reset ubwcp params */
 	memset(mmdata, 0, sizeof(*mmdata));
 	buf->buf_attr_set = false;
+	buf->buf_attr.image_format = UBWCP_LINEAR;
 }
 
 static void print_mmdata_desc(struct ubwcp_hw_meta_metadata *mmdata)
@@ -1351,22 +1578,27 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	u32 width_b;
 	u32 height_b;
 	enum ubwcp_std_image_format std_image_format;
+	bool is_non_lin_buf;
 
 	FENTRY();
+	trace_ubwcp_set_buf_attrs_start(dmabuf);
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
+		trace_ubwcp_set_buf_attrs_end(dmabuf);
 		return -EINVAL;
 	}
 
 	if (!attr) {
 		ERR("NULL attr ptr");
+		trace_ubwcp_set_buf_attrs_end(dmabuf);
 		return -EINVAL;
 	}
 
 	buf = dma_buf_to_ubwcp_buf(dmabuf);
 	if (!buf) {
 		ERR("No corresponding ubwcp_buf for the passed in dma_buf");
+		trace_ubwcp_set_buf_attrs_end(dmabuf);
 		return -EINVAL;
 	}
 
@@ -1375,11 +1607,12 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	if (buf->locked) {
 		ERR("Cannot set attr when buffer is locked");
 		ret = -EBUSY;
-		goto err;
+		goto unlock;
 	}
 
 	ubwcp  = buf->ubwcp;
 	mmdata = &buf->mmdata;
+	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
 	//TBD: now that we have single exit point for all errors,
 	//we can limit this call to error only?
@@ -1389,18 +1622,18 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	ret = ubwcp->mmap_config_fptr(buf->dma_buf, true, 0, 0);
 	if (ret) {
 		ERR("dma_buf_mmap_config() failed: %d", ret);
-		goto err;
+		goto unlock;
 	}
 
-	if (!ubwcp_buf_attrs_valid(attr)) {
+	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
 		ERR("Invalid buf attrs");
 		goto err;
 	}
 
-	DBG_BUF_ATTR("valid buf attrs");
-
 	if (attr->image_format == UBWCP_LINEAR) {
 		DBG_BUF_ATTR("Linear format requested");
+
+
 		/* linear format request with permanent range xlation doesn't
 		 * make sense. need to define behavior if this happens.
 		 * note: with perm set, desc is allocated to this buffer.
@@ -1410,8 +1643,17 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		if (buf->buf_attr_set)
 			reset_buf_attrs(buf);
 
+		if (is_non_lin_buf) {
+			/*
+			 * Changing buffer from ubwc to linear so decrement
+			 * number of ubwc buffers
+			 */
+			ret = dec_num_non_lin_buffers(ubwcp);
+		}
+
 		mutex_unlock(&buf->lock);
-		return 0;
+		trace_ubwcp_set_buf_attrs_end(dmabuf);
+		return ret;
 	}
 
 	std_image_format = to_std_format(attr->image_format);
@@ -1554,18 +1796,39 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		mmdata->width_height = width_b << 16 | attr->height;
 
 	print_mmdata_desc(mmdata);
+	if (!is_non_lin_buf) {
+		/*
+		 * Changing buffer from linear to ubwc so increment
+		 * number of ubwc buffers
+		 */
+		ret = inc_num_non_lin_buffers(ubwcp);
+	}
+	if (ret) {
+		ERR("inc_num_non_lin_buffers failed: %d", ret);
+		goto err;
+	}
 
 	buf->buf_attr = *attr;
 	buf->buf_attr_set = true;
 	//TBD: UBWCP_ASSERT(!buf->perm);
 	mutex_unlock(&buf->lock);
+	trace_ubwcp_set_buf_attrs_end(dmabuf);
 	return 0;
 
 err:
 	reset_buf_attrs(buf);
+	if (is_non_lin_buf) {
+		/*
+		 * Changing buffer from ubwc to linear so decrement
+		 * number of ubwc buffers
+		 */
+		dec_num_non_lin_buffers(ubwcp);
+	}
+unlock:
 	mutex_unlock(&buf->lock);
 	if (!ret)
 		ret = -1;
+	trace_ubwcp_set_buf_attrs_end(dmabuf);
 	return ret;
 }
 EXPORT_SYMBOL(ubwcp_set_buf_attrs);
@@ -1638,20 +1901,25 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	struct ubwcp_driver *ubwcp;
 
 	FENTRY();
+	trace_ubwcp_lock_start(dmabuf);
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
+		trace_ubwcp_lock_end(dmabuf);
 		return -EINVAL;
 	}
 
+
 	if (!valid_dma_direction(dir)) {
 		ERR("invalid direction: %d", dir);
+		trace_ubwcp_lock_end(dmabuf);
 		return -EINVAL;
 	}
 
 	buf = dma_buf_to_ubwcp_buf(dmabuf);
 	if (!buf) {
 		ERR("ubwcp_buf ptr not found");
+		trace_ubwcp_lock_end(dmabuf);
 		return -1;
 	}
 
@@ -1722,13 +1990,17 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		 * we force completion of that and then we also cpu invalidate which
 		 * will get rid of that line.
 		 */
+		trace_ubwcp_hw_flush_start(buf->ula_size);
 		ubwcp_flush(ubwcp);
+		trace_ubwcp_hw_flush_end(buf->ula_size);
 
 		/* Flush/invalidate ULA PA from CPU caches
 		 * TBD: if (dir == READ or BIDIRECTION) //NOT for write
 		 * -- Confirm with Chris if this can be skipped for write
 		 */
+		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size);
 		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
+		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size);
 		buf->lock_dir = dir;
 		buf->locked = true;
 	} else {
@@ -1740,12 +2012,14 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	buf->lock_count++;
 	DBG("new lock_count: %d", buf->lock_count);
 	mutex_unlock(&buf->lock);
+	trace_ubwcp_lock_end(dmabuf);
 	return ret;
 
 err:
 	mutex_unlock(&buf->lock);
 	if (!ret)
 		ret = -1;
+	trace_ubwcp_lock_end(dmabuf);
 	return ret;
 }
 
@@ -1774,14 +2048,18 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 
 	/* Flush/invalidate ULA PA from CPU caches */
 	//TBD: if (dir == WRITE or BIDIRECTION)
+	trace_ubwcp_dma_sync_single_for_device_start(buf->ula_size);
 	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
+	trace_ubwcp_dma_sync_single_for_device_end(buf->ula_size);
 
 	/* disable range check with ubwcp flush */
 	DBG("disabling range check");
 	//TBD: could combine these 2 locks into a single lock to make it simpler
 	mutex_lock(&ubwcp->ubwcp_flush_lock);
 	mutex_lock(&ubwcp->hw_range_ck_lock);
+	trace_ubwcp_hw_flush_start(buf->ula_size);
 	ret = ubwcp_hw_disable_range_check_with_flush(ubwcp->base, buf->desc->idx);
+	trace_ubwcp_hw_flush_end(buf->ula_size);
 	if (ret)
 		ERR("disable_range_check_with_flush() failed: %d", ret);
 	mutex_unlock(&ubwcp->hw_range_ck_lock);
@@ -1815,25 +2093,29 @@ static int ubwcp_unlock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	int ret;
 
 	FENTRY();
-
+	trace_ubwcp_unlock_start(dmabuf);
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
+		trace_ubwcp_unlock_end(dmabuf);
 		return -EINVAL;
 	}
 
 	if (!valid_dma_direction(dir)) {
 		ERR("invalid direction: %d", dir);
+		trace_ubwcp_unlock_end(dmabuf);
 		return -EINVAL;
 	}
 
 	buf = dma_buf_to_ubwcp_buf(dmabuf);
 	if (!buf) {
 		ERR("ubwcp_buf not found");
+		trace_ubwcp_unlock_end(dmabuf);
 		return -1;
 	}
 
 	if (!buf->locked) {
 		ERR("unlock() called on buffer which not in locked state");
+		trace_ubwcp_unlock_end(dmabuf);
 		return -1;
 	}
 
@@ -1841,6 +2123,7 @@ static int ubwcp_unlock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	mutex_lock(&buf->lock);
 	ret = unlock_internal(buf, dir, false);
 	mutex_unlock(&buf->lock);
+	trace_ubwcp_unlock_end(dmabuf);
 	return ret;
 }
 
@@ -1948,24 +2231,28 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	int ret = 0;
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp;
-	bool table_empty;
 	unsigned long flags;
+	bool is_non_lin_buf;
 
 	FENTRY();
+	trace_ubwcp_free_buffer_start(dmabuf);
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
+		trace_ubwcp_free_buffer_end(dmabuf);
 		return -EINVAL;
 	}
 
 	buf = dma_buf_to_ubwcp_buf(dmabuf);
 	if (!buf) {
 		ERR("ubwcp_buf ptr not found");
+		trace_ubwcp_free_buffer_end(dmabuf);
 		return -1;
 	}
 
 	mutex_lock(&buf->lock);
 	ubwcp = buf->ubwcp;
+	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
 	if (buf->locked) {
 		DBG("free() called without unlock. unlock()'ing first...");
@@ -1984,44 +2271,17 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	if (buf->buf_attr_set)
 		reset_buf_attrs(buf);
 
-	mutex_lock(&ubwcp->mem_hotplug_lock);
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_del(&buf->hnode);
-	table_empty = hash_empty(ubwcp->buf_table);
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
 
 	kfree(buf);
 
-	/* If this is the last buffer being freed, power off ubwcp */
-	if (table_empty) {
-		DBG("last buffer: ~~~~~~~~~~~");
-		/* TBD: If everything is working fine, ubwcp_flush() should not
-		 * be needed here. Each buffer free logic should be taking
-		 * care of flush. Just a note for now. Might need to add the
-		 * flush here for debug purpose.
-		 */
-		DBG("Calling offline_and_remove_memory() for ULA PA pool");
-		ret = offline_and_remove_memory(ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size);
-		if (ret) {
-			ERR("offline_and_remove_memory failed st:0x%lx sz:0x%lx err: %d",
-				ubwcp->ula_pool_base,
-				ubwcp->ula_pool_size, ret);
-			goto err_remove_mem;
-		} else {
-			DBG("DONE: calling offline_and_remove_memory() for ULA PA pool");
-		}
-		DBG("Don't Call power OFF ...");
-	}
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	return ret;
+	if (is_non_lin_buf)
+		dec_num_non_lin_buffers(ubwcp);
 
-err_remove_mem:
-	mutex_unlock(&ubwcp->mem_hotplug_lock);
-	if (!ret)
-		ret = -1;
-	DBG("returning error: %d", ret);
-	return ret;
+	trace_ubwcp_free_buffer_end(dmabuf);
+	return 0;
 }
 
 
@@ -2038,12 +2298,15 @@ static int ubwcp_close(struct inode *i, struct file *f)
 	return 0;
 }
 
-
 /* handle IOCTLs */
 static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
 {
 	struct ubwcp_ioctl_buffer_attrs buf_attr_ioctl;
 	struct ubwcp_ioctl_hw_version hw_ver;
+	struct ubwcp_ioctl_validate_stride validate_stride_ioctl;
+	struct ubwcp_ioctl_stride_align stride_align_ioctl;
+	enum ubwcp_std_image_format format;
+	struct ubwcp_driver *ubwcp;
 
 	switch (ioctl_num) {
 	case UBWCP_IOCTL_SET_BUF_ATTR:
@@ -2059,6 +2322,68 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 		DBG("IOCTL : GET_HW_VER");
 		ubwcp_get_hw_version(&hw_ver);
 		if (copy_to_user((void __user *)ioctl_param, &hw_ver, sizeof(hw_ver))) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+		break;
+
+	case UBWCP_IOCTL_GET_STRIDE_ALIGN:
+		DBG("IOCTL : GET_STRIDE_ALIGN");
+		if (copy_from_user(&stride_align_ioctl, (const void __user *) ioctl_param,
+				   sizeof(stride_align_ioctl))) {
+			ERR("ERROR: copy_from_user() failed");
+			return -EFAULT;
+		}
+
+		format = to_std_format(stride_align_ioctl.image_format);
+		if (format == STD_IMAGE_FORMAT_INVALID)
+			return -EINVAL;
+
+		if (stride_align_ioctl.unused != 0)
+			return -EINVAL;
+
+		if (get_stride_alignment(format, &stride_align_ioctl.stride_align)) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+
+		if (copy_to_user((void __user *)ioctl_param, &stride_align_ioctl,
+				sizeof(stride_align_ioctl))) {
+			ERR("ERROR: copy_to_user() failed");
+			return -EFAULT;
+		}
+		break;
+
+	case UBWCP_IOCTL_VALIDATE_STRIDE:
+		DBG("IOCTL : VALIDATE_STRIDE");
+		ubwcp = ubwcp_get_driver();
+		if (!ubwcp)
+			return -EINVAL;
+
+		if (copy_from_user(&validate_stride_ioctl, (const void __user *) ioctl_param,
+				   sizeof(validate_stride_ioctl))) {
+			ERR("ERROR: copy_from_user() failed");
+			return -EFAULT;
+		}
+
+		format = to_std_format(validate_stride_ioctl.image_format);
+		if (format == STD_IMAGE_FORMAT_INVALID) {
+			ERR("ERROR: invalid format: %d", validate_stride_ioctl.image_format);
+			return -EINVAL;
+		}
+
+		if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
+			ERR("ERROR: unused values must be set to 0");
+			return -EINVAL;
+		}
+
+		validate_stride_ioctl.valid = stride_is_valid(ubwcp,
+						validate_stride_ioctl.image_format,
+						validate_stride_ioctl.width,
+						validate_stride_ioctl.stride);
+
+		if (copy_to_user((void __user *)ioctl_param, &validate_stride_ioctl,
+			sizeof(validate_stride_ioctl))) {
 			ERR("ERROR: copy_to_user() failed");
 			return -EFAULT;
 		}
@@ -2198,7 +2523,7 @@ int ubwcp_register_error_handler(u32 client_id, ubwcp_error_handler_t handler,
 }
 EXPORT_SYMBOL(ubwcp_register_error_handler);
 
-static void ubwcp_notify_error_handlers(struct unwcp_err_info *err)
+static void ubwcp_notify_error_handlers(struct ubwcp_err_info *err)
 {
 	struct handler_node *node;
 	unsigned long flags;
@@ -2276,8 +2601,14 @@ static struct dma_buf *get_dma_buf_from_iova(unsigned long addr)
 
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	hash_for_each(ubwcp->buf_table, i, buf, hnode) {
-		unsigned long iova_base = sg_dma_address(buf->sgt->sgl);
-		unsigned int iova_size = sg_dma_len(buf->sgt->sgl);
+		unsigned long iova_base;
+		unsigned int iova_size;
+
+		if (!buf->sgt)
+			continue;
+
+		iova_base = sg_dma_address(buf->sgt->sgl);
+		iova_size = sg_dma_len(buf->sgt->sgl);
 
 		if (iova_base <= addr && addr < iova_base + iova_size) {
 			ret_buf = buf->dma_buf;
@@ -2296,7 +2627,7 @@ int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
 		unsigned long iova, int flags, void *data)
 {
 	int ret = 0;
-	struct unwcp_err_info err;
+	struct ubwcp_err_info err;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	struct device *cb_dev = (struct device *)data;
 
@@ -2335,7 +2666,7 @@ irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 	void __iomem *base;
 	u64 src;
 	phys_addr_t addr;
-	struct unwcp_err_info err;
+	struct ubwcp_err_info err;
 
 	error_print_count++;
 
@@ -2505,10 +2836,10 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	}
 	DBG("ubwcp: ula_range: size = 0x%lx", ubwcp->ula_pool_size);
 
-	/*TBD: remove later. reducing size for quick testing...*/
-	ubwcp->ula_pool_size = 0x20000000; //500MB instead of 8GB
-
 	INIT_LIST_HEAD(&ubwcp->err_handler_list);
+
+	atomic_set(&ubwcp->num_non_lin_buffers, 0);
+	ubwcp->mem_online = false;
 
 	mutex_init(&ubwcp->desc_lock);
 	spin_lock_init(&ubwcp->buf_table_lock);
@@ -2809,6 +3140,7 @@ static int ubwcp_probe(struct platform_device *pdev)
 	const char *compatible = "";
 
 	FENTRY();
+	trace_ubwcp_probe(pdev);
 
 	if (of_device_is_compatible(pdev->dev.of_node, "qcom,ubwcp"))
 		return qcom_ubwcp_probe(pdev);
@@ -2830,6 +3162,7 @@ static int ubwcp_remove(struct platform_device *pdev)
 	const char *compatible = "";
 
 	FENTRY();
+	trace_ubwcp_remove(pdev);
 
 	/* TBD: what if buffers are still allocated? locked? etc.
 	 *  also should turn off power?

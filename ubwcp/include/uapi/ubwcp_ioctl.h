@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UBWCP_IOCTL_H_
@@ -11,6 +11,8 @@
 
 #define UBWCP_IOCTL_SET_BUF_ATTR _IOW('U', 1, struct ubwcp_ioctl_buffer_attrs)
 #define UBWCP_IOCTL_GET_HW_VER   _IOR('U', 2, struct ubwcp_ioctl_hw_version)
+#define UBWCP_IOCTL_GET_STRIDE_ALIGN  _IOWR('U', 3, struct ubwcp_ioctl_stride_align)
+#define UBWCP_IOCTL_VALIDATE_STRIDE _IOWR('U', 4, struct ubwcp_ioctl_validate_stride)
 
 
 enum ubwcp_image_format {
@@ -113,6 +115,37 @@ struct ubwcp_ioctl_buffer_attrs {
 struct ubwcp_ioctl_hw_version {
 	__u32 major;
 	__u32 minor;
+};
+
+/**
+ * Stride alignment for given format
+ *  @image_format: image format
+ *  @stride_align: stride alignment
+ *  @unused: must be set to 0
+ *  IOCTL will fail for linear image format
+ */
+struct ubwcp_ioctl_stride_align {
+	__u16 image_format;
+	__u16 stride_align;
+	__u32 unused;
+};
+
+/**
+ * validate stride
+ *  @image_format: image format
+ *  @width: image width in pixels
+ *  @stride: image stride in bytes
+ *  @valid: returns 0 (not valid), 1 (valid)
+ *  @unusedX: must be set to 0
+ *  IOCTL will fail for linear image format
+ */
+struct ubwcp_ioctl_validate_stride {
+	__u16 image_format;
+	__u32 width;
+	__u32 stride;
+	__u16 valid;
+	__u16 unused1;
+	__u16 unused2;
 };
 
 #endif /* __UBWCP_IOCTL_H_ */

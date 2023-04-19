@@ -99,7 +99,7 @@ struct ubwcp_smmu_fault_err_info {
 	int iommu_fault_flags;
 };
 
-struct unwcp_err_info {
+struct ubwcp_err_info {
 	enum ubwcp_error err_code;
 	union {
 		struct ubwcp_enc_err_info enc_err;
@@ -109,7 +109,7 @@ struct unwcp_err_info {
 	};
 };
 
-typedef void (*ubwcp_error_handler_t)(struct unwcp_err_info *err, void *data);
+typedef void (*ubwcp_error_handler_t)(struct ubwcp_err_info *err, void *data);
 
 /*
  * Register an error handler
