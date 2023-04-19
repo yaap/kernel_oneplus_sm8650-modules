@@ -860,8 +860,6 @@ int cvp_read_platform_resources_from_drv_data(
 			"qcom,enable-thermal-mitigation");
 	res->msm_cvp_pwr_collapse_delay = find_key_value(platform_data,
 			"qcom,power-collapse-delay");
-	res->msm_cvp_firmware_unload_delay = find_key_value(platform_data,
-			"qcom,fw-unload-delay");
 	res->msm_cvp_hw_rsp_timeout = find_key_value(platform_data,
 			"qcom,hw-resp-timeout");
 	res->msm_cvp_dsp_rsp_timeout = find_key_value(platform_data,
@@ -1050,7 +1048,7 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 	hdev = core->device->hfi_device_data;
 	if (hdev) {
 		hdev->error = CVP_ERR_NOC_ERROR;
-		/* call_hfi_op(core->device, debug_hook, hdev); */
+		call_hfi_op(core->device, debug_hook, hdev);
 	}
 	mutex_unlock(&core->lock);
 	/*

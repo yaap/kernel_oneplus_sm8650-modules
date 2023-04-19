@@ -1246,6 +1246,8 @@ static struct msm_cvp_smem *msm_cvp_session_get_smem(struct msm_cvp_inst *inst,
 		smem->bitmap_index = MAX_DMABUF_NUMS;
 		smem->pkt_type = pkt_type;
 		smem->fd = buf->fd;
+		if (is_params_pkt(pkt_type))
+			smem->flags |= SMEM_PERSIST;
 		rc = msm_cvp_map_smem(inst, smem, "map cpu");
 		if (rc)
 			goto exit;
@@ -1447,6 +1449,24 @@ static void msm_cvp_unmap_frame_buf(struct msm_cvp_inst *inst,
 	cvp_kmem_cache_free(&cvp_driver->frame_cache, frame);
 }
 
+static void backup_frame_buffers(struct msm_cvp_inst *inst,
+			struct msm_cvp_frame *frame)
+{
+	/* Save frame buffers before unmap them */
+	int i = frame->nr;
+
+	if (i == 0 || i > MAX_FRAME_BUFFER_NUMS)
+		return;
+
+	inst->last_frame.ktid = frame->ktid;
+	inst->last_frame.nr = frame->nr;
+
+	do {
+		i--;
+		inst->last_frame.smem[i] = *(frame->bufs[i].smem);
+	} while (i);
+}
+
 void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 {
 	struct msm_cvp_frame *frame, *dummy1;
@@ -1472,8 +1492,16 @@ void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 	}
 	mutex_unlock(&inst->frames.lock);
 
-	if (found)
+	if (found) {
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x sess_id %08x trans_id <> ktid %llu\n",
+			__func__, frame->pkt_type,
+			hash32_ptr(inst->session),
+			frame->ktid);
+		/* Save the previous frame mappings for debug */
+		backup_frame_buffers(inst, frame);
 		msm_cvp_unmap_frame_buf(inst, frame);
+	}
 	else
 		dprintk(CVP_WARN, "%s frame %llu not found!\n", __func__, ktid);
 }
@@ -1540,11 +1568,17 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 	if (!offset || !buf_num)
 		return 0;
 
-
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	ktid = atomic64_inc_return(&inst->core->kernel_trans_id);
 	ktid &= (FENCE_BIT - 1);
 	cmd_hdr->client_data.kdata = ktid;
+
+	dprintk(CVP_CMD, "%s:   "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, cmd_hdr->packet_type,
+		cmd_hdr->session_id,
+		cmd_hdr->client_data.transaction_id,
+		cmd_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	frame = cvp_kmem_cache_zalloc(&cvp_driver->frame_cache, GFP_KERNEL);
 	if (!frame)
@@ -1774,6 +1808,10 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	list_for_each_entry(buf, &inst->persistbufs.list, list)
 		_log_buf(snap, SMEM_PERSIST, inst, buf, log);
 	mutex_unlock(&inst->persistbufs.lock);
+
+	dprintk(CVP_ERR, "last frame ktid %llx\n", inst->last_frame.ktid);
+	for (i = 0; i < inst->last_frame.nr; i++)
+		_log_smem(snap, inst, &inst->last_frame.smem[i], log);
 }
 
 struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
@@ -1879,7 +1917,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 				__func__, rc);
 			mutex_lock(&inst->persistbufs.lock);
 		} else {
-			dprintk(CVP_WARN, "Fail to send Rel prst buf\n");
+			dprintk_rl(CVP_WARN, "Fail to send Rel prst buf\n");
 		}
 	}
 

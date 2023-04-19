@@ -9,7 +9,7 @@
 #include "msm_cvp_buf.h"
 #include "cvp_comm_def.h"
 #include "cvp_power.h"
-
+#include "cvp_hfi_api.h"
 static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int in_offset,
@@ -94,6 +94,9 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 	if (wait_event_timeout(sq->wq,
 		cvp_msg_pending(sq, &msg, ktid), timeout) == 0) {
 		dprintk(CVP_WARN, "session queue wait timeout\n");
+		if(inst && inst->core && inst->core->device){
+			print_hfi_queue_info(inst->core->device);
+		}
 		rc = -ETIMEDOUT;
 		goto exit;
 	}
@@ -146,7 +149,8 @@ static int msm_cvp_session_receive_hfi(struct msm_cvp_inst *inst,
 	if (!s)
 		return -ECONNRESET;
 
-	wait_time = msecs_to_jiffies(CVP_MAX_WAIT_TIME);
+	wait_time = msecs_to_jiffies(
+		inst->core->resources.msm_cvp_hw_rsp_timeout);
 	sq = &inst->session_queue;
 
 	rc = cvp_wait_process_message(inst, sq, NULL, wait_time, out_pkt);
@@ -184,6 +188,13 @@ static int msm_cvp_session_process_hfi(
 	if (!s)
 		return -ECONNRESET;
 
+	pkt_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
+	dprintk(CVP_CMD, "%s: "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, pkt_hdr->packet_type,
+		pkt_hdr->session_id,
+		pkt_hdr->client_data.transaction_id,
+		pkt_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	pkt_idx = get_pkt_index((struct cvp_hal_session_cmd_pkt *)in_pkt);
 	if (pkt_idx < 0) {
@@ -239,7 +250,6 @@ static int msm_cvp_session_process_hfi(
 
 	rc = cvp_enqueue_pkt(inst, in_pkt, offset, buf_num);
 	if (rc) {
-		pkt_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 		dprintk(CVP_ERR, "Failed to enqueue pkt, inst %pK "
 			"pkt_type %08x ktid %llu transaction_id %u\n",
 			inst, pkt_hdr->packet_type,
@@ -323,7 +333,8 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 		goto exit;
 	}
 
-	timeout = msecs_to_jiffies(CVP_MAX_WAIT_TIME);
+	timeout = msecs_to_jiffies(
+			inst->core->resources.msm_cvp_hw_rsp_timeout);
 	rc = cvp_wait_process_message(inst, sq, &ktid, timeout,
 				(struct eva_kmd_hfi_packet *)&hdr);
 
@@ -585,15 +596,21 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int offset, unsigned int num, struct msm_cvp_inst *inst)
 {
 #ifdef CVP_CONFIG_SYNX_V2
-	u32 i, buf_offset;
+	u32 i, buf_offset, fence_cnt;
 	struct eva_kmd_fence fences[MAX_HFI_FENCE_SIZE];
 	struct cvp_fence_command *f;
 	struct cvp_hfi_cmd_session_hdr *cmd_hdr;
 	struct cvp_fence_queue *q;
 	enum op_mode mode;
 	struct cvp_buf_type *buf;
+	bool override;
 
 	int rc = 0;
+
+	override = get_pkt_fenceoverride((struct cvp_hal_session_cmd_pkt*)in_pkt);
+
+	dprintk(CVP_SYNX, "%s:Fence Override is %d\n",__func__, override);
+	dprintk(CVP_SYNX, "%s:Kernel Fence is %d\n", __func__, cvp_kernel_fence_enabled);
 
 	q = &inst->fence_cmd_queue;
 
@@ -621,24 +638,53 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	f->output_index = 0;
 	buf_offset = offset;
 
-	if (!cvp_kernel_fence_enabled) {
-		for (i = 0; i < num; i++) {
-			buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];
-			buf_offset += sizeof(*buf) >> 2;
-
-			if (buf->input_handle || buf->output_handle) {
-				f->num_fences++;
-				if (buf->input_handle)
-					f->output_index++;
-			}
+	if (cvp_kernel_fence_enabled == 0)
+	{
+		goto soc_fence;
+	}
+	else if (cvp_kernel_fence_enabled == 1)
+	{
+		goto kernel_fence;
+	}
+	else if (cvp_kernel_fence_enabled == 2)
+	{
+		if (override == true)
+			goto kernel_fence;
+		else if (override == false)
+			goto soc_fence;
+		else
+		{
+			dprintk(CVP_ERR, "%s: invalid params", __func__);
+			rc = -EINVAL;
+			goto exit;
 		}
-		f->signature = 0xB0BABABE;
-		if (f->num_fences)
-			goto fence_cmd_queue;
-
-		goto free_exit;
+	}
+	else
+	{
+		dprintk(CVP_ERR, "%s: invalid params", __func__);
+		rc = -EINVAL;
+		goto exit;
 	}
 
+soc_fence:
+	for (i = 0; i < num; i++) {
+		buf = (struct cvp_buf_type*)&in_pkt->pkt_data[buf_offset];
+		buf_offset += sizeof(*buf) >> 2;
+
+		if (buf->input_handle || buf->output_handle) {
+			f->num_fences++;
+			if (buf->input_handle)
+				f->output_index++;
+		}
+	}
+	f->signature = 0xB0BABABE;
+	if (f->num_fences)
+		goto fence_cmd_queue;
+
+	goto free_exit;
+
+
+kernel_fence:
 	/* First pass to find INPUT synx handles */
 	for (i = 0; i < num; i++) {
 		buf = (struct cvp_buf_type *)&in_pkt->pkt_data[buf_offset];
@@ -687,6 +733,7 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	}
 
 fence_cmd_queue:
+	fence_cnt = f->num_fences;
 	memcpy(f->pkt, cmd_hdr, cmd_hdr->size);
 	f->pkt->client_data.kdata |= FENCE_BIT;
 
@@ -696,7 +743,7 @@ fence_cmd_queue:
 
 	wake_up(&inst->fence_cmd_queue.wq);
 
-	return f->num_fences;
+	return fence_cnt;
 
 free_exit:
 	cvp_free_fence_data(f);
@@ -724,6 +771,12 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	cmd_hdr = (struct cvp_hfi_cmd_session_hdr *)in_pkt;
 	/* The kdata will be overriden by transaction ID if the cmd has buf */
 	cmd_hdr->client_data.kdata = 0;
+	dprintk(CVP_CMD, "%s: "
+		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+		__func__, cmd_hdr->packet_type,
+		cmd_hdr->session_id,
+		cmd_hdr->client_data.transaction_id,
+		cmd_hdr->client_data.kdata & (FENCE_BIT - 1));
 
 	if (map_type == MAP_PERSIST)
 		rc = msm_cvp_map_user_persist(inst, in_pkt, in_offset, in_buf_num);
@@ -1391,7 +1444,8 @@ static int cvp_drain_fence_sched_list(struct msm_cvp_inst *inst)
 		++count;
 	}
 	mutex_unlock(&q->lock);
-	wait_time = count * CVP_MAX_WAIT_TIME * 1000;
+	wait_time = count * 1000;
+	wait_time *= inst->core->resources.msm_cvp_hw_rsp_timeout;
 
 	dprintk(CVP_SYNX, "%s: wait %d us for %d fence command\n",
 			__func__, wait_time, count);

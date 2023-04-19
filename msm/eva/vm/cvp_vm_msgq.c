@@ -187,10 +187,10 @@ static int cvp_msgq_cb(struct notifier_block *nb,
 	if (vm_status_payload->vm_status != GH_RM_VM_STATUS_READY)
 		return -12;
 
-	if (gh_rm_get_vmid(msgq_config->peer_id, &peer_vmid))
+	if (ghd_rm_get_vmid(msgq_config->peer_id, &peer_vmid))
 		return -13;
 
-	if (gh_rm_get_vmid(GH_PRIMARY_VM, &self_vmid))
+	if (ghd_rm_get_vmid(GH_PRIMARY_VM, &self_vmid))
 		return -14;
 
 	if (peer_vmid != vm_status_payload->vmid)

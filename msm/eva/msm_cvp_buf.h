@@ -140,6 +140,12 @@ struct msm_cvp_frame {
 	u32 pkt_type;
 };
 
+struct cvp_frame_bufs {
+	u64 ktid;
+	u32 nr;
+	struct msm_cvp_smem smem[MAX_FRAME_BUFFER_NUMS];
+};
+
 void print_cvp_buffer(u32 tag, const char *str,
 		struct msm_cvp_inst *inst,
 		struct cvp_internal_buf *cbuf);

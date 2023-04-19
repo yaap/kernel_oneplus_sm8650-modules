@@ -199,7 +199,6 @@ enum msm_cvp_modes {
 };
 
 #define MAX_NUM_MSGS_PER_SESSION	128
-#define CVP_MAX_WAIT_TIME	10000
 
 struct cvp_session_msg {
 	struct list_head node;
@@ -385,6 +384,7 @@ struct msm_cvp_inst {
 	struct msm_cvp_list cvpdspbufs;
 	struct msm_cvp_list cvpwnccbufs;
 	struct msm_cvp_list frames;
+	struct cvp_frame_bufs last_frame;
 	u32 cvpwnccbufs_num;
 	struct msm_cvp_wncc_buffer* cvpwnccbufs_table;
 	struct completion completions[SESSION_MSG_END - SESSION_MSG_START + 1];
@@ -412,7 +412,6 @@ int msm_cvp_trigger_ssr(struct msm_cvp_core *core,
 int msm_cvp_noc_error_info(struct msm_cvp_core *core);
 void msm_cvp_comm_handle_thermal_event(void);
 
-void msm_cvp_fw_unload_handler(struct work_struct *work);
 void msm_cvp_ssr_handler(struct work_struct *work);
 /*
  * XXX: normally should be in msm_cvp_core.h, but that's meant for public APIs,

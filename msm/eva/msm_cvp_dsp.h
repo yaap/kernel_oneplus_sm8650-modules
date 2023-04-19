@@ -251,29 +251,20 @@ extern struct cvp_dsp_apps gfa_cv;
 /*
  * API for CVP driver to suspend CVP session during
  * power collapse
- *
- * @param session_flag
- * Flag to share details of session.
  */
-int cvp_dsp_suspend(uint32_t session_flag);
+int cvp_dsp_suspend(bool force);
 
 /*
  * API for CVP driver to resume CVP session during
  * power collapse
- *
- * @param session_flag
- * Flag to share details of session.
  */
-int cvp_dsp_resume(uint32_t session_flag);
+int cvp_dsp_resume(void);
 
 /*
  * API for CVP driver to shutdown CVP session during
  * cvp subsystem error.
- *
- * @param session_flag
- * Flag to share details of session.
  */
-int cvp_dsp_shutdown(uint32_t session_flag);
+int cvp_dsp_shutdown(void);
 
 /*
  * API to register iova buffer address with CDSP

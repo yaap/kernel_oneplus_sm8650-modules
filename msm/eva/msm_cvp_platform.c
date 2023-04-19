@@ -359,6 +359,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DFS_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_SGM_OF_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -375,6 +376,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "SGM_OF_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_WARP_NCC_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -391,6 +393,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "WARP_NCC_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_WARP_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -415,6 +418,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "WARP_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_DMM_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -439,6 +443,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DMM_FRAME",
+			.force_kernel_fence = true,
 		},
 	[HFI_CMD_SESSION_CVP_SET_PERSIST_BUFFERS - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -487,6 +492,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "TME_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_CV_ODT_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -535,6 +541,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "NCC_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_ICA_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -551,6 +558,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "ICA_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_HCD_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -567,6 +575,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "HCD_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_DC_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -583,6 +592,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DC_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_DCM_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -599,6 +609,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DCM_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_PYS_HCD_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -615,6 +626,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "PYS_HCD_FRAME",
+			.force_kernel_fence = true,
 		},
 	[HFI_CMD_SESSION_CVP_SET_MODEL_BUFFERS - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -711,6 +723,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "XRA_PATCH_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_XRA_PATCH_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -727,6 +740,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "XRA_MATCH_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_CVP_XRA_MATCH_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -743,6 +757,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "RGE_FRAME",
+			.force_kernel_fence = true,
 		},
 	[HFI_CMD_SESSION_CVP_RGE_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -759,6 +774,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "ITOF_FRAME",
+			.force_kernel_fence = true,
 		},
 	[HFI_CMD_SESSION_EVA_ITOF_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -791,6 +807,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DLFL_FRAME",
+			.force_kernel_fence = false,
 		},
 	[HFI_CMD_SESSION_EVA_DLFL_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{
@@ -823,6 +840,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "DME_FRAME",
+			.force_kernel_fence = true,
 		},
 
 };
@@ -838,6 +856,13 @@ int get_pkt_index(struct cvp_hal_session_cmd_pkt *hdr)
 
 	return -EINVAL;
 }
+
+int get_pkt_fenceoverride(struct cvp_hal_session_cmd_pkt* hdr)
+{
+	return cvp_hfi_defs[hdr->packet_type - HFI_CMD_SESSION_CVP_START].force_kernel_fence;
+}
+
+
 
 int get_pkt_index_from_type(u32 pkt_type)
 {

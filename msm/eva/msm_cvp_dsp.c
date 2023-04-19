@@ -6,6 +6,7 @@
 #include <linux/rpmsg.h>
 #include <linux/of_platform.h>
 #include <linux/of_fdt.h>
+#include <linux/qcom_scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include "msm_cvp_core.h"
 #include "msm_cvp.h"
@@ -14,11 +15,6 @@
 
 static atomic_t nr_maps;
 struct cvp_dsp_apps gfa_cv;
-static int hlosVM[HLOS_VM_NUM] = {VMID_HLOS};
-static int dspVM[DSP_VM_NUM] = {VMID_HLOS, VMID_CDSP_Q6};
-static int dspVMperm[DSP_VM_NUM] = { PERM_READ | PERM_WRITE | PERM_EXEC,
-				PERM_READ | PERM_WRITE | PERM_EXEC };
-static int hlosVMperm[HLOS_VM_NUM] = { PERM_READ | PERM_WRITE | PERM_EXEC };
 
 static int cvp_reinit_dsp(void);
 
@@ -141,9 +137,14 @@ static int cvp_hyp_assign_to_dsp(uint64_t addr, uint32_t size)
 	int rc = 0;
 	struct cvp_dsp_apps *me = &gfa_cv;
 
+	uint64_t hlosVMid = BIT(VMID_HLOS);
+	struct qcom_scm_vmperm dspVM[DSP_VM_NUM] = {
+		{VMID_HLOS, PERM_READ | PERM_WRITE | PERM_EXEC},
+		{VMID_CDSP_Q6, PERM_READ | PERM_WRITE | PERM_EXEC}
+	};
+
 	if (!me->hyp_assigned) {
-		rc = hyp_assign_phys(addr, size, hlosVM, HLOS_VM_NUM, dspVM,
-			dspVMperm, DSP_VM_NUM);
+		rc = qcom_scm_assign_mem(addr, size, &hlosVMid, dspVM, DSP_VM_NUM);
 		if (rc) {
 			dprintk(CVP_ERR, "%s failed. rc=%d\n", __func__, rc);
 			return rc;
@@ -161,9 +162,13 @@ static int cvp_hyp_assign_from_dsp(void)
 	int rc = 0;
 	struct cvp_dsp_apps *me = &gfa_cv;
 
+	uint64_t dspVMids = BIT(VMID_HLOS) | BIT(VMID_CDSP_Q6);
+	struct qcom_scm_vmperm hlosVM[HLOS_VM_NUM] = {
+		{VMID_HLOS, PERM_READ | PERM_WRITE | PERM_EXEC},
+	};
+
 	if (me->hyp_assigned) {
-		rc = hyp_assign_phys(me->addr, me->size, dspVM, DSP_VM_NUM,
-				hlosVM, hlosVMperm, HLOS_VM_NUM);
+		rc = qcom_scm_assign_mem(me->addr, me->size, &dspVMids, hlosVM, HLOS_VM_NUM);
 		if (rc) {
 			dprintk(CVP_ERR, "%s failed. rc=%d\n", __func__, rc);
 			return rc;
@@ -243,7 +248,7 @@ static int delete_dsp_session(struct msm_cvp_inst *inst,
 					frpc_node->cvp_fastrpc_device,
 					buf);
 			if (rc)
-				dprintk(CVP_WARN,
+				dprintk_rl(CVP_WARN,
 					"%s Failed to unmap buffer 0x%x\n",
 					__func__, rc);
 
@@ -482,13 +487,40 @@ exit:
 	return 0;
 }
 
-int cvp_dsp_suspend(uint32_t session_flag)
+static bool dsp_session_exist(void)
+{
+	struct msm_cvp_core *core;
+	struct msm_cvp_inst *inst = NULL;
+
+	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	if (core) {
+		mutex_lock(&core->lock);
+		list_for_each_entry(inst, &core->instances, list) {
+			if (inst->session_type == MSM_CVP_DSP) {
+				mutex_unlock(&core->lock);
+				return true;
+			}
+		}
+		mutex_unlock(&core->lock);
+	}
+
+	return false;
+}
+
+int cvp_dsp_suspend(bool force)
 {
 	int rc = 0;
 	struct cvp_dsp_cmd_msg cmd;
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct cvp_dsp_rsp_msg rsp;
 	bool retried = false;
+
+
+	/* If not forced to suspend, check if DSP requested PC earlier */
+	if (force == false)
+		if (dsp_session_exist())
+			if (me->state != DSP_SUSPEND)
+				return -EBUSY;
 
 	cmd.type = CPU2DSP_SUSPEND;
 
@@ -541,7 +573,7 @@ exit:
 	return rc;
 }
 
-int cvp_dsp_resume(uint32_t session_flag)
+int cvp_dsp_resume(void)
 {
 	int rc = 0;
 	struct cvp_dsp_cmd_msg cmd;
@@ -568,6 +600,8 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
+		if (!s)
+			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
 			if (!s || !next_s)
@@ -603,7 +637,7 @@ static void cvp_remove_dsp_sessions(void)
 	dprintk(CVP_WARN, "%s: EVA SSR handled for CDSP\n", __func__);
 }
 
-int cvp_dsp_shutdown(uint32_t session_flag)
+int cvp_dsp_shutdown(void)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	int rc = 0;
@@ -853,7 +887,6 @@ void cvp_dsp_init_hfi_queue_hdr(struct iris_hfi_device *device)
 static int __reinit_dsp(void)
 {
 	int rc;
-	uint32_t flag = 0;
 	uint64_t addr;
 	uint32_t size;
 	struct cvp_dsp_apps *me = &gfa_cv;
@@ -873,7 +906,7 @@ static int __reinit_dsp(void)
 	}
 
 	/* Force shutdown DSP */
-	rc = cvp_dsp_shutdown(flag);
+	rc = cvp_dsp_shutdown();
 	if (rc)
 		return rc;
 	/*
@@ -1919,7 +1952,7 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 
 			rc = eva_fastrpc_dev_unmap_dma(frpc_device, buf);
 			if (rc) {
-				dprintk(CVP_ERR,
+				dprintk_rl(CVP_ERR,
 					"%s Failed to unmap buffer 0x%x\n",
 					__func__, rc);
 				cmd->ret = -1;
