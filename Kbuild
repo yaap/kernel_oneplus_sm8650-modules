@@ -6,25 +6,30 @@ ifeq ($(CONFIG_ARCH_WAIPIO), y)
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_waipiotouchconf.h
 endif
 
-#ifeq ($(CONFIG_ARCH_KALAMA), y)
+ifeq ($(CONFIG_ARCH_KALAMA), y)
 	include $(TOUCH_ROOT)/config/gki_kalamatouch.conf
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_kalamatouchconf.h
-#endif
+endif
 
-#ifeq ($(CONFIG_ARCH_KHAJE), y)
+ifeq ($(CONFIG_ARCH_KHAJE), y)
 	include $(TOUCH_ROOT)/config/gki_khajetouch.conf
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_khajetouchconf.h
-#endif
+endif
 
-#ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
+ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 	include $(TOUCH_ROOT)/config/gki_pineappletouch.conf
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_pineappletouchconf.h
-#endif
+endif
 
-#ifeq ($(CONFIG_ARCH_MONACO), y)
+ifeq ($(CONFIG_ARCH_MONACO), y)
 	include $(TOUCH_ROOT)/config/gki_monacotouch.conf
 	LINUX_INC += -include $(TOUCH_ROOT)/config/gki_monacotouchconf.h
-#endif
+endif
+
+ifeq ($(CONFIG_ARCH_KONA), y)
+        include $(TOUCH_ROOT)/config/gki_konatouch.conf
+        LINUX_INC += -include $(TOUCH_ROOT)/config/gki_konatouchconf.h
+endif
 
 LINUX_INC +=	-Iinclude/linux \
 		-Iinclude/linux/drm \

@@ -253,106 +253,106 @@ int self_test_save_test_raw_data_to_file(int i32_ng_type)
 		memset(write_string, 0, strlen(write_string));
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_SYSFS_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "System NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_I2C_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "I2C NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_INT_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "INT NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_RESET_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "RESET NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_PRAM_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "PRAM NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_NORMAL_FW_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "NORMAL_FW_NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_OPEN_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "OPEN NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_SHORT_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "SHORT NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_BURN_CC_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "BURN CC NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_GET_DATA_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "GET DATA NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_FLASH_ID_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "FLASH ID NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_NORMAL_FW_VER_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "NORMAL FW VER NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_TEST_FW_VER_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "TEST FW VER NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_TEST_INIT_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "TEST INIT NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_LOAD_TESTFW_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "LOAD TESTFW NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_BURN_FW_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "BURN FW NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_SINGLE_CC_OPEN_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "Open NG (Single Pin CC) ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_SINGLE_CC_SHORT_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "Short NG (Single Pin CC) ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_UB_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "Uniformity Baseline NG ");
 		}
 
 		if (i32_ng_type & WEARABLE_FT_TEST_RESULT_UC_NG) {
-			snprintf(write_string + strlen(write_string),
+			snprintf(write_string,
 				RM_SELF_TEST_MAX_STR_LENGTH, "Uniformity CC NG ");
 		}
 
-		snprintf(write_string + strlen(write_string), RM_SELF_TEST_MAX_STR_LENGTH, "\n");
+		snprintf(write_string, RM_SELF_TEST_MAX_STR_LENGTH, "\n");
 		self_test_save_to_file(RM_SELF_TEST_LOGFILE, write_string, strlen(write_string));
 	}
 

@@ -998,15 +998,14 @@ static int fts_ts_vm_mem_lend(struct fts_ts_data *fts_data)
 	acl_desc = fts_ts_vm_get_acl(GH_TRUSTED_VM);
 	if (IS_ERR(acl_desc)) {
 		pr_err("Failed to get acl of IO memories for Trusted touch\n");
-		PTR_ERR(acl_desc);
-		return -EINVAL;
+		rc = PTR_ERR(acl_desc);
+		return rc;
 	}
 
 	sgl_desc = fts_ts_vm_get_sgl(fts_data->vm_info);
 	if (IS_ERR(sgl_desc)) {
 		pr_err("Failed to get sgl of IO memories for Trusted touch\n");
-		PTR_ERR(sgl_desc);
-		rc = -EINVAL;
+		rc = PTR_ERR(sgl_desc);
 		goto sgl_error;
 	}
 
@@ -2866,7 +2865,11 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 	if (ts_data->ts_workqueue)
 		INIT_WORK(&ts_data->resume_work, fts_resume_work);
 
+#ifdef CONFIG_FTS_TRUSTED_TOUCH
 	if (!strcmp(fts_data->touch_environment, "pvm"))
+#else
+	if (active_panel)
+#endif
 		fts_ts_register_for_panel_events(ts_data->dev->of_node, ts_data);
 #elif defined(CONFIG_FB)
 	if (ts_data->ts_workqueue) {
