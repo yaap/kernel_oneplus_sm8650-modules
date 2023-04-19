@@ -12,6 +12,7 @@ def define_modules(target, variant):
             "ubwcp_main.c",
             "ubwcp_hw.c",
             "ubwcp_hw.h",
+            "ubwcp_trace.h",
         ],
         hdrs=["include/uapi/ubwcp_ioctl.h", "include/kernel/ubwcp.h"],
         deps = ["//msm-kernel:all_headers"],
