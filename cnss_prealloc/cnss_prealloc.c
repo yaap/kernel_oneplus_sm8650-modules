@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012,2014-2017,2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -15,6 +15,17 @@
 #include "cnss_prealloc.h"
 #else
 #include <net/cnss_prealloc.h>
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
+/* Ideally header should be from standard include path. So this is not an
+ * ideal way of header inclusion but use of slab struct to derive cache
+ * from a mem ptr helps in avoiding additional tracking and/or adding headroom
+ * of 8 bytes for cache in the beginning of buffer and wasting extra memory,
+ * particulary in the case when size of memory requested falls around the edge
+ * of a page boundary. We also have precedence of minidump_memory.c which
+ * includes mm/slab.h using this style.
+ */
+#include "../mm/slab.h"
 #endif
 
 MODULE_LICENSE("GPL v2");
@@ -146,49 +157,6 @@ static void cnss_pool_deinit(void)
 	}
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
-/* In kernel 5.17, slab_cache is removed from page struct, so
- * store cache in the beginning of memory buffer.
- */
-static inline void cnss_pool_put_cache_in_mem(void *mem, struct kmem_cache *cache)
-{
-	/* put cache at the beginnging of mem */
-	(*(struct kmem_cache **)mem) = cache;
-}
-
-static inline struct kmem_cache *cnss_pool_get_cache_from_mem(void *mem)
-{
-	struct kmem_cache *cache;
-
-	/* read cache from the beginnging of mem */
-	cache = (struct kmem_cache *)(*(struct kmem_cache **)mem);
-
-	return cache;
-}
-#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
-/* for older kernel < 5.17, we use page->slab_cache. In such case
- * we do not reserve headroom in memory buffer to store cache.
- */
-static inline void cnss_pool_put_cache_in_mem(void *mem, struct kmem_cache *cache)
-{
-}
-
-static inline struct kmem_cache *cnss_pool_get_cache_from_mem(void *mem)
-{
-	struct page *page;
-
-	if (!virt_addr_valid(mem))
-		return NULL;
-
-	/* mem -> page -> cache */
-	page = virt_to_head_page(mem);
-	if (!page)
-		return NULL;
-
-	return page->slab_cache;
-}
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
-
 /**
  * cnss_pool_get_index() - Get the index of memory pool
  * @mem: Allocated memory
@@ -198,12 +166,22 @@ static inline struct kmem_cache *cnss_pool_get_cache_from_mem(void *mem)
  * value with error code in case of failure.
  *
  */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
 static int cnss_pool_get_index(void *mem)
 {
+	struct slab *slab;
 	struct kmem_cache *cache;
 	int i;
 
-	cache = cnss_pool_get_cache_from_mem(mem);
+	if (!virt_addr_valid(mem))
+		return -EINVAL;
+
+	/* mem -> slab -> cache */
+	slab = virt_to_slab(mem);
+	if (!slab)
+		return -ENOENT;
+
+	cache = slab->slab_cache;
 	if (!cache)
 		return -ENOENT;
 
@@ -215,6 +193,34 @@ static int cnss_pool_get_index(void *mem)
 
 	return -ENOENT;
 }
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
+static int cnss_pool_get_index(void *mem)
+{
+	struct page *page;
+	struct kmem_cache *cache;
+	int i;
+
+	if (!virt_addr_valid(mem))
+		return -EINVAL;
+
+	/* mem -> page -> cache */
+	page = virt_to_head_page(mem);
+	if (!page)
+		return -ENOENT;
+
+	cache = page->slab_cache;
+	if (!cache)
+		return -ENOENT;
+
+	/* Check if memory belongs to a pool */
+	for (i = 0; i < ARRAY_SIZE(cnss_pools); i++) {
+		if (cnss_pools[i].cache == cache)
+			return i;
+	}
+
+	return -ENOENT;
+}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
 
 /**
  * wcnss_prealloc_get() - Get preallocated memory from a pool
@@ -242,10 +248,8 @@ void *wcnss_prealloc_get(size_t size)
 		for (i = 0; i < ARRAY_SIZE(cnss_pools); i++) {
 			if (cnss_pools[i].size >= size && cnss_pools[i].mp) {
 				mem = mempool_alloc(cnss_pools[i].mp, gfp_mask);
-				if (mem) {
-					cnss_pool_put_cache_in_mem(mem, cnss_pools[i].cache);
+				if (mem)
 					break;
-				}
 			}
 		}
 	}

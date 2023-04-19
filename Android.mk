@@ -31,7 +31,9 @@ CNSS_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/*) \
 	$(wildcard $(LOCAL_PATH)/*/*) \
 
+ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
 KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(PWD)/$(call intermediates-dir-for,DLKM,sec-module-symvers)/Module.symvers
+endif
 
 # Module.symvers needs to be generated as a intermediate module so that
 # other modules which depend on WLAN platform modules can set local

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "pci_platform.h"
 #include "debug.h"
@@ -159,7 +159,7 @@ static int cnss_pci_set_link_down(struct cnss_pci_data *pci_priv)
 	return ret;
 }
 
-bool cnss_pci_is_drv_supported(struct cnss_pci_data *pci_priv)
+void cnss_pci_update_drv_supported(struct cnss_pci_data *pci_priv)
 {
 	struct pci_dev *root_port = pcie_find_root_port(pci_priv->pci_dev);
 	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
@@ -169,7 +169,7 @@ bool cnss_pci_is_drv_supported(struct cnss_pci_data *pci_priv)
 	if (!root_port) {
 		cnss_pr_err("PCIe DRV is not supported as root port is null\n");
 		pci_priv->drv_supported = false;
-		return drv_supported;
+		return;
 	}
 
 	root_of_node = root_port->dev.of_node;
@@ -189,8 +189,6 @@ bool cnss_pci_is_drv_supported(struct cnss_pci_data *pci_priv)
 		plat_priv->cap.cap_flag |= CNSS_HAS_DRV_SUPPORT;
 		cnss_set_feature_list(plat_priv, CNSS_DRV_SUPPORT_V01);
 	}
-
-	return drv_supported;
 }
 
 static void cnss_pci_event_cb(struct msm_pcie_notify *notify)
@@ -268,7 +266,7 @@ int cnss_reg_pci_event(struct cnss_pci_data *pci_priv)
 			    MSM_PCIE_EVENT_LINKDOWN |
 			    MSM_PCIE_EVENT_WAKEUP;
 
-	if (cnss_pci_is_drv_supported(pci_priv))
+	if (cnss_pci_get_drv_supported(pci_priv))
 		pci_event->events = pci_event->events |
 			MSM_PCIE_EVENT_DRV_CONNECT |
 			MSM_PCIE_EVENT_DRV_DISCONNECT;
@@ -298,6 +296,9 @@ int cnss_wlan_adsp_pc_enable(struct cnss_pci_data *pci_priv,
 	int ret = 0;
 	u32 pm_options = PM_OPTIONS_DEFAULT;
 	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+
+	if (!cnss_pci_get_drv_supported(pci_priv))
+		return 0;
 
 	if (plat_priv->adsp_pc_enabled == control) {
 		cnss_pr_dbg("ADSP power collapse already %s\n",

@@ -150,6 +150,20 @@ struct cnss_plat_data *cnss_get_plat_priv(struct platform_device
 	return NULL;
 }
 
+struct cnss_plat_data *cnss_get_first_plat_priv(struct platform_device
+						 *plat_dev)
+{
+	int i;
+
+	if (!plat_dev) {
+		for (i = 0; i < plat_env_count; i++) {
+			if (plat_env[i])
+				return plat_env[i];
+		}
+	}
+	return NULL;
+}
+
 static void cnss_clear_plat_priv(struct cnss_plat_data *plat_priv)
 {
 	cnss_pr_dbg("Clear plat_priv at %d", plat_priv->plat_idx);
@@ -273,6 +287,12 @@ cnss_get_pld_bus_ops_name(struct cnss_plat_data *plat_priv)
 	return 0;
 }
 #endif
+
+void cnss_get_bwscal_info(struct cnss_plat_data *plat_priv)
+{
+	plat_priv->no_bwscale = of_property_read_bool(plat_priv->dev_node,
+						      "qcom,no-bwscale");
+}
 
 static inline int
 cnss_get_rc_num(struct cnss_plat_data *plat_priv)
@@ -3049,8 +3069,11 @@ int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
 		}
 
 		seg = kcalloc(1, sizeof(*seg), GFP_KERNEL);
-		if (!seg)
+		if (!seg) {
+			cnss_pr_err("%s: Failed to allocate mem for seg %d\n",
+				    __func__, i);
 			continue;
+		}
 
 		if (meta_info.entry[dump_seg->type].entry_start == 0) {
 			meta_info.entry[dump_seg->type].type = dump_seg->type;
@@ -3065,8 +3088,11 @@ int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
 	}
 
 	seg = kcalloc(1, sizeof(*seg), GFP_KERNEL);
-	if (!seg)
-		goto do_elf_dump;
+	if (!seg) {
+		cnss_pr_err("%s: Failed to allocate mem for elf ramdump seg\n",
+			    __func__);
+		goto skip_elf_dump;
+	}
 
 	meta_info.magic = CNSS_RAMDUMP_MAGIC;
 	meta_info.version = CNSS_RAMDUMP_VERSION;
@@ -3076,9 +3102,9 @@ int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
 	seg->size = sizeof(meta_info);
 	list_add(&seg->node, &head);
 
-do_elf_dump:
 	ret = qcom_elf_dump(&head, info_v2->ramdump_dev, ELF_CLASS);
 
+skip_elf_dump:
 	while (!list_empty(&head)) {
 		seg = list_first_entry(&head, struct qcom_dump_segment, node);
 		list_del(&seg->node);
@@ -3119,8 +3145,9 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		[CNSS_HOST_WMI_EVENT_LOG_IDX] = "wmi_event_log_idx",
 		[CNSS_HOST_WMI_RX_EVENT_IDX] = "wmi_rx_event_idx"
 	};
-	int i, j;
+	int i;
 	int ret = 0;
+	enum cnss_host_dump_type j;
 
 	if (!dump_enabled()) {
 		cnss_pr_info("Dump collection is not enabled\n");
@@ -3153,7 +3180,7 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		seg->da = (dma_addr_t)ssr_entry[i].buffer_pointer;
 		seg->size = ssr_entry[i].buffer_size;
 
-		for (j = 0; j < ARRAY_SIZE(wlan_str); j++) {
+		for (j = 0; j < CNSS_HOST_DUMP_TYPE_MAX; j++) {
 			if (strncmp(ssr_entry[i].region_name, wlan_str[j],
 				    strlen(wlan_str[j])) == 0) {
 				meta_info.entry[i].type = j;
@@ -3166,6 +3193,13 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 	}
 
 	seg = kcalloc(1, sizeof(*seg), GFP_KERNEL);
+
+	if (!seg) {
+		cnss_pr_err("%s: Failed to allocate mem for host dump seg\n",
+			    __func__);
+		goto skip_host_dump;
+	}
+
 	meta_info.magic = CNSS_RAMDUMP_MAGIC;
 	meta_info.version = CNSS_RAMDUMP_VERSION;
 	meta_info.chipset = plat_priv->device_id;
@@ -3174,7 +3208,10 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 	seg->da = (dma_addr_t)&meta_info;
 	seg->size = sizeof(meta_info);
 	list_add(&seg->node, &head);
+
 	ret = qcom_elf_dump(&head, new_device, ELF_CLASS);
+
+skip_host_dump:
 	while (!list_empty(&head)) {
 		seg = list_first_entry(&head, struct qcom_dump_segment, node);
 		list_del(&seg->node);
@@ -4218,6 +4255,19 @@ int cnss_wlan_hw_disable_check(struct cnss_plat_data *plat_priv)
 }
 #endif
 
+#ifdef CONFIG_DISABLE_CNSS_SRAM_DUMP
+static void cnss_sram_dump_init(struct cnss_plat_data *plat_priv)
+{
+}
+#else
+static void cnss_sram_dump_init(struct cnss_plat_data *plat_priv)
+{
+	if (plat_priv->device_id == QCA6490_DEVICE_ID &&
+	    cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
+		plat_priv->sram_dump = kcalloc(SRAM_DUMP_SIZE, 1, GFP_KERNEL);
+}
+#endif
+
 static int cnss_misc_init(struct cnss_plat_data *plat_priv)
 {
 	int ret;
@@ -4261,9 +4311,7 @@ static int cnss_misc_init(struct cnss_plat_data *plat_priv)
 		cnss_pr_err("QMI IPC connection call back register failed, err = %d\n",
 			    ret);
 
-	if (plat_priv->device_id == QCA6490_DEVICE_ID &&
-	    cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
-		plat_priv->sram_dump = kcalloc(SRAM_DUMP_SIZE, 1, GFP_KERNEL);
+	cnss_sram_dump_init(plat_priv);
 
 	if (of_property_read_bool(plat_priv->plat_dev->dev.of_node,
 				  "qcom,rc-ep-short-channel"))
@@ -4271,6 +4319,19 @@ static int cnss_misc_init(struct cnss_plat_data *plat_priv)
 
 	return 0;
 }
+
+#ifdef CONFIG_DISABLE_CNSS_SRAM_DUMP
+static void cnss_sram_dump_deinit(struct cnss_plat_data *plat_priv)
+{
+}
+#else
+static void cnss_sram_dump_deinit(struct cnss_plat_data *plat_priv)
+{
+	if (plat_priv->device_id == QCA6490_DEVICE_ID &&
+	    cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
+		kfree(plat_priv->sram_dump);
+}
+#endif
 
 static void cnss_misc_deinit(struct cnss_plat_data *plat_priv)
 {
@@ -4286,7 +4347,7 @@ static void cnss_misc_deinit(struct cnss_plat_data *plat_priv)
 	del_timer(&plat_priv->fw_boot_timer);
 	wakeup_source_unregister(plat_priv->recovery_ws);
 	cnss_deinit_sol_gpio(plat_priv);
-	kfree(plat_priv->sram_dump);
+	cnss_sram_dump_deinit(plat_priv);
 	kfree(plat_priv->on_chip_pmic_board_ids);
 }
 
@@ -4504,8 +4565,16 @@ end:
 
 int cnss_wlan_hw_enable(void)
 {
-	struct cnss_plat_data *plat_priv = cnss_get_plat_priv(NULL);
+	struct cnss_plat_data *plat_priv;
 	int ret = 0;
+
+	if (cnss_is_dual_wlan_enabled())
+		plat_priv = cnss_get_first_plat_priv(NULL);
+	else
+		plat_priv = cnss_get_plat_priv(NULL);
+
+	if (!plat_priv)
+		return -ENODEV;
 
 	clear_bit(CNSS_WLAN_HW_DISABLED, &plat_priv->driver_state);
 

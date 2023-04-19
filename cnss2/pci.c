@@ -35,7 +35,7 @@
 
 #define PCI_DMA_MASK_32_BIT		DMA_BIT_MASK(32)
 #define PCI_DMA_MASK_36_BIT		DMA_BIT_MASK(36)
-#define PCI_DMA_MASK_64_BIT		~0ULL
+#define PCI_DMA_MASK_64_BIT		DMA_BIT_MASK(64)
 
 #define MHI_NODE_NAME			"qcom,mhi"
 #define MHI_MSI_NAME			"MHI"
@@ -1611,6 +1611,7 @@ EXPORT_SYMBOL(cnss_get_pci_slot);
  */
 static void cnss_pci_dump_bl_sram_mem(struct cnss_pci_data *pci_priv)
 {
+	enum mhi_ee_type ee;
 	u32 mem_addr, val, pbl_log_max_size, sbl_log_max_size;
 	u32 pbl_log_sram_start;
 	u32 pbl_stage, sbl_log_start, sbl_log_size;
@@ -1667,6 +1668,12 @@ static void cnss_pci_dump_bl_sram_mem(struct cnss_pci_data *pci_priv)
 	cnss_pr_dbg("PBL_WLAN_BOOT_CFG: 0x%08x PBL_BOOTSTRAP_STATUS: 0x%08x\n",
 		    pbl_wlan_boot_cfg, pbl_bootstrap_status);
 
+	ee = mhi_get_exec_env(pci_priv->mhi_ctrl);
+	if (CNSS_MHI_IN_MISSION_MODE(ee)) {
+		cnss_pr_dbg("Avoid Dumping PBL log data in Mission mode\n");
+		return;
+	}
+
 	cnss_pr_dbg("Dumping PBL log data\n");
 	for (i = 0; i < pbl_log_max_size; i += sizeof(val)) {
 		mem_addr = pbl_log_sram_start + i;
@@ -1684,6 +1691,12 @@ static void cnss_pci_dump_bl_sram_mem(struct cnss_pci_data *pci_priv)
 		return;
 	}
 
+	ee = mhi_get_exec_env(pci_priv->mhi_ctrl);
+	if (CNSS_MHI_IN_MISSION_MODE(ee)) {
+		cnss_pr_dbg("Avoid Dumping SBL log data in Mission mode\n");
+		return;
+	}
+
 	cnss_pr_dbg("Dumping SBL log data\n");
 	for (i = 0; i < sbl_log_size; i += sizeof(val)) {
 		mem_addr = sbl_log_start + i;
@@ -1693,6 +1706,11 @@ static void cnss_pci_dump_bl_sram_mem(struct cnss_pci_data *pci_priv)
 	}
 }
 
+#ifdef CONFIG_DISABLE_CNSS_SRAM_DUMP
+static void cnss_pci_dump_sram(struct cnss_pci_data *pci_priv)
+{
+}
+#else
 static void cnss_pci_dump_sram(struct cnss_pci_data *pci_priv)
 {
 	struct cnss_plat_data *plat_priv;
@@ -1727,6 +1745,7 @@ static void cnss_pci_dump_sram(struct cnss_pci_data *pci_priv)
 			cond_resched();
 	}
 }
+#endif
 
 static int cnss_pci_handle_mhi_poweron_timeout(struct cnss_pci_data *pci_priv)
 {
@@ -3620,10 +3639,12 @@ static int cnss_pci_suspend_driver(struct cnss_pci_data *pci_priv)
 	struct pci_dev *pci_dev = pci_priv->pci_dev;
 	struct cnss_wlan_driver *driver_ops = pci_priv->driver_ops;
 	int ret = 0;
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
 
 	pm_message_t state = { .event = PM_EVENT_SUSPEND };
 
-	if (driver_ops && driver_ops->suspend) {
+	if (test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state) &&
+	    driver_ops && driver_ops->suspend) {
 		ret = driver_ops->suspend(pci_dev, state);
 		if (ret) {
 			cnss_pr_err("Failed to suspend host driver, err = %d\n",
@@ -3640,8 +3661,10 @@ static int cnss_pci_resume_driver(struct cnss_pci_data *pci_priv)
 	struct pci_dev *pci_dev = pci_priv->pci_dev;
 	struct cnss_wlan_driver *driver_ops = pci_priv->driver_ops;
 	int ret = 0;
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
 
-	if (driver_ops && driver_ops->resume) {
+	if (test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state) &&
+	    driver_ops && driver_ops->resume) {
 		ret = driver_ops->resume(pci_dev);
 		if (ret)
 			cnss_pr_err("Failed to resume host driver, err = %d\n",
@@ -3849,6 +3872,7 @@ static int cnss_pci_suspend_noirq(struct device *dev)
 	struct pci_dev *pci_dev = to_pci_dev(dev);
 	struct cnss_pci_data *pci_priv = cnss_get_pci_priv(pci_dev);
 	struct cnss_wlan_driver *driver_ops;
+	struct cnss_plat_data *plat_priv;
 
 	if (!pci_priv)
 		goto out;
@@ -3857,7 +3881,9 @@ static int cnss_pci_suspend_noirq(struct device *dev)
 		goto out;
 
 	driver_ops = pci_priv->driver_ops;
-	if (driver_ops && driver_ops->suspend_noirq)
+	plat_priv = pci_priv->plat_priv;
+	if (test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state) &&
+	    driver_ops && driver_ops->suspend_noirq)
 		ret = driver_ops->suspend_noirq(pci_dev);
 
 	if (pci_priv->disable_pc && !pci_dev->state_saved &&
@@ -3874,6 +3900,7 @@ static int cnss_pci_resume_noirq(struct device *dev)
 	struct pci_dev *pci_dev = to_pci_dev(dev);
 	struct cnss_pci_data *pci_priv = cnss_get_pci_priv(pci_dev);
 	struct cnss_wlan_driver *driver_ops;
+	struct cnss_plat_data *plat_priv;
 
 	if (!pci_priv)
 		goto out;
@@ -3881,8 +3908,10 @@ static int cnss_pci_resume_noirq(struct device *dev)
 	if (!cnss_is_device_powered_on(pci_priv->plat_priv))
 		goto out;
 
+	plat_priv = pci_priv->plat_priv;
 	driver_ops = pci_priv->driver_ops;
-	if (driver_ops && driver_ops->resume_noirq &&
+	if (test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state) &&
+	    driver_ops && driver_ops->resume_noirq &&
 	    !pci_priv->pci_link_down_ind)
 		ret = driver_ops->resume_noirq(pci_dev);
 
@@ -5187,6 +5216,7 @@ static int cnss_pci_enable_bus(struct cnss_pci_data *pci_priv)
 
 	switch (device_id) {
 	case QCA6174_DEVICE_ID:
+	case QCN7605_DEVICE_ID:
 		pci_priv->dma_bit_mask = PCI_DMA_MASK_32_BIT;
 		break;
 	case QCA6390_DEVICE_ID:
@@ -5195,9 +5225,6 @@ static int cnss_pci_enable_bus(struct cnss_pci_data *pci_priv)
 	case MANGO_DEVICE_ID:
 	case PEACH_DEVICE_ID:
 		pci_priv->dma_bit_mask = PCI_DMA_MASK_36_BIT;
-		break;
-	case QCN7605_DEVICE_ID:
-		pci_priv->dma_bit_mask = PCI_DMA_MASK_64_BIT;
 		break;
 	default:
 		pci_priv->dma_bit_mask = PCI_DMA_MASK_32_BIT;
@@ -6359,11 +6386,16 @@ static int cnss_pci_register_mhi(struct cnss_pci_data *pci_priv)
 	}
 
 	/* MHI satellite driver only needs to connect when DRV is supported */
-	if (cnss_pci_is_drv_supported(pci_priv))
+	if (cnss_pci_get_drv_supported(pci_priv))
 		cnss_mhi_controller_set_base(pci_priv, bar_start);
 
+	cnss_get_bwscal_info(plat_priv);
+	cnss_pr_dbg("no_bwscale: %d\n", plat_priv->no_bwscale);
+
 	/* BW scale CB needs to be set after registering MHI per requirement */
-	cnss_mhi_controller_set_bw_scale_cb(pci_priv, cnss_mhi_bw_scale);
+	if (!plat_priv->no_bwscale)
+		cnss_mhi_controller_set_bw_scale_cb(pci_priv,
+						    cnss_mhi_bw_scale);
 
 	ret = cnss_pci_update_fw_name(pci_priv);
 	if (ret)
@@ -6747,6 +6779,9 @@ static int cnss_pci_probe(struct pci_dev *pci_dev,
 	ret = cnss_pci_init_smmu(pci_priv);
 	if (ret)
 		goto unregister_ramdump;
+
+	/* update drv support flag */
+	cnss_pci_update_drv_supported(pci_priv);
 
 	ret = cnss_reg_pci_event(pci_priv);
 	if (ret) {

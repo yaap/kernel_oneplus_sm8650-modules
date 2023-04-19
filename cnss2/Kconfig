@@ -117,3 +117,12 @@ config CNSS2_CONDITIONAL_POWEROFF
 	  for the first time to avoid potential subsequent failures during
 	  device re-probe(after wlan function driver loaded) under very bad
 	  thermal conditions.
+
+config DISABLE_CNSS_SRAM_DUMP
+	bool "Disable sram_dump"
+	depends on CNSS2
+	depends on CNSS2_DEBUG
+	help
+	  If enabled, CNSS plafrom driver will not dump sram when MHI power on
+	  timeout for CNSS QCA6490 chipset only. Since this feature about
+	  sram dump costs 4M memory.

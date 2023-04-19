@@ -33,6 +33,10 @@
 #define LINK_TRAINING_RETRY_DELAY_MS		500
 #define MSI_USERS			4
 
+#define CNSS_MHI_IN_MISSION_MODE(ee) (ee == MHI_EE_AMSS || \
+				      ee == MHI_EE_WFW || \
+				      ee == MHI_EE_FP)
+
 enum cnss_mhi_state {
 	CNSS_MHI_INIT,
 	CNSS_MHI_DEINIT,
