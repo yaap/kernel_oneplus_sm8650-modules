@@ -87,17 +87,17 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	}
 
 	hw_fence_client->update_rxq = hw_fence_ipcc_needs_rxq_update(hw_fence_drv_data, client_id);
-	if (hw_fence_client->update_rxq &&
-			hw_fence_drv_data->hw_fence_client_queue_size[client_id].queues_num <
-			HW_FENCE_CLIENT_QUEUES) {
-		HWFNC_ERR("Cannot update rx queue for tx queue-only client:%d\n", client_id);
+	hw_fence_client->send_ipc = hw_fence_ipcc_needs_ipc_irq(hw_fence_drv_data, client_id);
+
+	hw_fence_client->queues_num = hw_fence_utils_get_queues_num(hw_fence_drv_data, client_id);
+	if (!hw_fence_client->queues_num || (hw_fence_client->update_rxq &&
+			hw_fence_client->queues_num < HW_FENCE_CLIENT_QUEUES)) {
+		HWFNC_ERR("client:%d invalid q_num:%lu for updates_rxq:%s\n", client_id,
+			hw_fence_client->queues_num,
+			hw_fence_client->update_rxq ? "true" : "false");
 		ret = -EINVAL;
 		goto error;
 	}
-
-	hw_fence_client->send_ipc = hw_fence_ipcc_needs_ipc_irq(hw_fence_drv_data, client_id);
-	hw_fence_client->skip_txq_wr_idx = hw_fence_utils_skips_txq_wr_idx(hw_fence_drv_data,
-		client_id);
 
 	/* Alloc Client HFI Headers and Queues */
 	ret = hw_fence_alloc_client_resources(hw_fence_drv_data,
@@ -105,7 +105,7 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	if (ret)
 		goto error;
 
-	/* Initialize signal for communication withe FenceCTL */
+	/* Initialize signal for communication with FenceCTL */
 	ret = hw_fence_init_controller_signal(hw_fence_drv_data, hw_fence_client);
 	if (ret)
 		goto error;
@@ -118,9 +118,10 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	if (ret)
 		goto error;
 
-	HWFNC_DBG_INIT("-- Initialized ptr:0x%p client_id:%d ipc_signal_id:%d ipc vid:%d pid:%d\n",
-		hw_fence_client, hw_fence_client->client_id, hw_fence_client->ipc_signal_id,
-		hw_fence_client->ipc_client_vid, hw_fence_client->ipc_client_pid);
+	HWFNC_DBG_INIT("Initialized ptr:0x%p client_id:%d q_num:%d ipc signal:%d vid:%d pid:%d\n",
+		hw_fence_client, hw_fence_client->client_id, hw_fence_client->queues_num,
+		hw_fence_client->ipc_signal_id, hw_fence_client->ipc_client_vid,
+		hw_fence_client->ipc_client_pid);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	init_waitqueue_head(&hw_fence_client->wait_queue);

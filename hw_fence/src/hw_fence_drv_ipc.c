@@ -33,37 +33,6 @@ struct hw_fence_client_ipc_map {
 };
 
 /**
- * struct hw_fence_clients_ipc_map_no_dpu - Table makes the 'client to signal' mapping, which
- *		is used by the hw fence driver to trigger ipc signal when the hw fence is already
- *		signaled.
- *		This no_dpu version is for targets that do not support dpu client id
- *
- * Notes:
- * The index of this struct must match the enum hw_fence_client_id.
- * To change to a loopback signal instead of GMU, change ctx0 row to use:
- *   {HW_FENCE_IPC_CLIENT_ID_APPS, 20}.
- */
-struct hw_fence_client_ipc_map hw_fence_clients_ipc_map_no_dpu[HW_FENCE_IPC_MAP_MAX] = {
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 1, true, true},/* ctrlq*/
-	{HW_FENCE_IPC_CLIENT_ID_GPU_VID, HW_FENCE_IPC_CLIENT_ID_GPU_VID, 0, false, false},/* ctx0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 14, false, true},/*ctl0*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 15, false, true},/*ctl1*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 16, false, true},/*ctl2*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 17, false, true},/*ctl3*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 18, false, true},/*ctl4*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 19, false, true},/*ctl5*/
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 21, true, false},/*val0*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 22, true, false},/*val1*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 23, true, false},/*val2*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 24, true, false},/*val3*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 25, true, false},/*val4*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 26, true, false},/*val5*/
-	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 27, true, false},/*val6*/
-#endif /* CONFIG_DEBUG_FS */
-};
-
-/**
  * struct hw_fence_clients_ipc_map - Table makes the 'client to signal' mapping, which is
  *		used by the hw fence driver to trigger ipc signal when hw fence is already
  *		signaled.
@@ -337,20 +306,6 @@ static int _hw_fence_ipcc_hwrev_init(struct hw_fence_driver_data *drv_data, u32 
 	int ret = 0;
 
 	switch (hwrev) {
-	case HW_FENCE_IPCC_HW_REV_100:
-		drv_data->ipcc_client_vid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
-		drv_data->ipcc_client_pid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
-		drv_data->protocol_id = HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_LAHAINA;
-		drv_data->ipc_clients_table = hw_fence_clients_ipc_map_no_dpu;
-		HWFNC_DBG_INIT("ipcc protocol_id: Lahaina\n");
-		break;
-	case HW_FENCE_IPCC_HW_REV_110:
-		drv_data->ipcc_client_vid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
-		drv_data->ipcc_client_pid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
-		drv_data->protocol_id = HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_WAIPIO;
-		drv_data->ipc_clients_table = hw_fence_clients_ipc_map_no_dpu;
-		HWFNC_DBG_INIT("ipcc protocol_id: Waipio\n");
-		break;
 	case HW_FENCE_IPCC_HW_REV_170:
 		drv_data->ipcc_client_vid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
 		drv_data->ipcc_client_pid = HW_FENCE_IPC_CLIENT_ID_APPS_VID;
@@ -381,20 +336,10 @@ int hw_fence_ipcc_enable_signaling(struct hw_fence_driver_data *drv_data)
 
 	HWFNC_DBG_H("enable ipc +\n");
 
-	/**
-	 * Attempt to read the ipc version from dt, if not available, then attempt
-	 * to read from the registers.
-	 */
 	ret = of_property_read_u32(drv_data->dev->of_node, "qcom,hw-fence-ipc-ver", &val);
 	if (ret || !val) {
-		/* if no device tree prop, attempt to get the version from the registers*/
-		HWFNC_DBG_H("missing hw fences ipc-ver entry or invalid ret:%d val:%d\n", ret, val);
-
-		/* Read IPC Version from Client=0x8 (apps) for protocol=2 (compute_l1) */
-		val = readl_relaxed(IPC_PROTOCOLp_CLIENTc_VERSION(drv_data->ipcc_io_mem,
-			HW_FENCE_IPC_COMPUTE_L1_PROTOCOL_ID_LAHAINA,
-			HW_FENCE_IPC_CLIENT_ID_APPS_VID));
-		HWFNC_DBG_INIT("ipcc version:0x%x\n", val);
+		HWFNC_ERR("missing hw fences ipc-ver entry or invalid ret:%d val:%d\n", ret, val);
+		return -EINVAL;
 	}
 
 	if (_hw_fence_ipcc_hwrev_init(drv_data, val)) {
@@ -421,7 +366,6 @@ int hw_fence_ipcc_enable_signaling(struct hw_fence_driver_data *drv_data)
 	return 0;
 }
 
-#ifdef HW_DPU_IPCC
 int hw_fence_ipcc_enable_dpu_signaling(struct hw_fence_driver_data *drv_data)
 {
 	struct hw_fence_client_ipc_map *hw_fence_client;
@@ -482,4 +426,3 @@ int hw_fence_ipcc_enable_dpu_signaling(struct hw_fence_driver_data *drv_data)
 
 	return 0;
 }
-#endif /* HW_DPU_IPCC */

@@ -30,39 +30,14 @@
  * HW_FENCE_MEM_RESERVE_LOCKS_REGION: Reserve memory for the per-client locks memory region.
  * HW_FENCE_MEM_RESERVE_TABLE: Reserve memory for the hw-fences global table.
  * HW_FENCE_MEM_RESERVE_CLIENT_QUEUE: Reserve memory per-client for the rx/tx queues.
+ * HW_FENCE_MEM_RESERVE_EVENTS_BUFF: Reserve memory for the debug events
  */
 enum hw_fence_mem_reserve {
 	HW_FENCE_MEM_RESERVE_CTRL_QUEUE,
 	HW_FENCE_MEM_RESERVE_LOCKS_REGION,
 	HW_FENCE_MEM_RESERVE_TABLE,
-	HW_FENCE_MEM_RESERVE_CLIENT_QUEUE
-};
-
-/**
- * struct hw_fence_client_type_desc - Structure holding client type properties, including static
- *                                    properties and client queue properties read from device-tree.
- *
- * @name: name of client type, used to parse properties from device-tree
- * @init_id: initial client_id for given client type within the 'hw_fence_client_id' enum, e.g.
- *           HW_FENCE_CLIENT_ID_CTL0 for DPU clients
- * @max_clients_num: maximum number of clients of given client type
- * @clients_num: number of clients of given client type
- * @queues_num: number of queues per client of given client type; either one (for only Tx Queue) or
- *              two (for both Tx and Rx Queues)
- * @queue_entries: number of entries per client queue of given client type
- * @mem_size: size of memory allocated for client queue(s) per client
- * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
- *                   driver and hfi_header->tx_wm is updated instead
- */
-struct hw_fence_client_type_desc {
-	char *name;
-	enum hw_fence_client_id init_id;
-	u32 max_clients_num;
-	u32 clients_num;
-	u32 queues_num;
-	u32 queue_entries;
-	u32 mem_size;
-	bool skip_txq_wr_idx;
+	HW_FENCE_MEM_RESERVE_CLIENT_QUEUE,
+	HW_FENCE_MEM_RESERVE_EVENTS_BUFF
 };
 
 /**
@@ -134,15 +109,6 @@ int hw_fence_utils_map_ipcc(struct hw_fence_driver_data *drv_data);
 int hw_fence_utils_map_qtime(struct hw_fence_driver_data *drv_data);
 
 /**
- * hw_fence_utils_map_ctl_start() -  Maps ctl_start registers from dpu hw
- * @drv_data: hw fence driver data
- *
- * Returns zero if success, otherwise returns negative error code. This API is only used
- * for simulation purposes in platforms where dpu does not support ipc signal.
- */
-int hw_fence_utils_map_ctl_start(struct hw_fence_driver_data *drv_data);
-
-/**
  * hw_fence_utils_cleanup_fence() -  Cleanup the hw-fence from a specified client
  * @drv_data: hw fence driver data
  * @hw_fence_client: client, for which the fence must be cleared
@@ -174,16 +140,13 @@ enum hw_fence_client_id hw_fence_utils_get_client_id_priv(struct hw_fence_driver
 	enum hw_fence_client_id client_id);
 
 /**
- * hw_fence_utils_skips_txq_wr_index() - Returns bool to indicate if client Tx Queue write_index
- *                                       is not updated in hw fence driver. Instead,
- *                                       hfi_header->tx_wm tracks where payload is written within
- *                                       the queue.
+ * hw_fence_utils_get_queues_num() - Returns number of client queues for the client_id.
  *
  * @drv_data: driver data
  * @client_id: hw fence driver client id
  *
- * Returns: true if hw fence driver skips update to client tx queue write_index, false otherwise
+ * Returns: number of client queues
  */
-bool hw_fence_utils_skips_txq_wr_idx(struct hw_fence_driver_data *drv_data, int client_id);
+int hw_fence_utils_get_queues_num(struct hw_fence_driver_data *drv_data, int client_id);
 
 #endif /* __HW_FENCE_DRV_UTILS_H */

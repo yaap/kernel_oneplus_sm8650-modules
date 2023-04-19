@@ -14,9 +14,6 @@
 #include <linux/dma-fence-array.h>
 #include <linux/slab.h>
 
-/* Add define only for platforms that support IPCC in dpu-hw */
-#define HW_DPU_IPCC 1
-
 /* max u64 to indicate invalid fence */
 #define HW_FENCE_INVALID_PARENT_FENCE (~0ULL)
 
@@ -75,51 +72,18 @@
  */
 #define HW_FENCE_PAYLOAD_REV(major, minor) (major << 8 | (minor & 0xFF))
 
+/**
+ * HW_FENCE_EVENT_MAX_DATA:
+ * Maximum data that can be added to the debug event
+ */
+#define HW_FENCE_EVENT_MAX_DATA 12
+
 enum hw_fence_lookup_ops {
 	HW_FENCE_LOOKUP_OP_CREATE = 0x1,
 	HW_FENCE_LOOKUP_OP_DESTROY,
 	HW_FENCE_LOOKUP_OP_CREATE_JOIN,
 	HW_FENCE_LOOKUP_OP_FIND_FENCE
 };
-
-/**
- * enum hw_fence_loopback_id - Enum with the clients having a loopback signal (i.e AP to AP signal).
- * HW_FENCE_LOOPBACK_DPU_CTL_0: dpu client 0. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_1: dpu client 1. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_2: dpu client 2. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_3: dpu client 3. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_4: dpu client 4. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTL_5: dpu client 5. Used in platforms with no dpu-ipc.
- * HW_FENCE_LOOPBACK_DPU_CTX_0: gfx client 0. Used in platforms with no gmu support.
- * HW_FENCE_LOOPBACK_VAL_0: debug validation client 0.
- * HW_FENCE_LOOPBACK_VAL_1: debug validation client 1.
- * HW_FENCE_LOOPBACK_VAL_2: debug validation client 2.
- * HW_FENCE_LOOPBACK_VAL_3: debug validation client 3.
- * HW_FENCE_LOOPBACK_VAL_4: debug validation client 4.
- * HW_FENCE_LOOPBACK_VAL_5: debug validation client 5.
- * HW_FENCE_LOOPBACK_VAL_6: debug validation client 6.
- */
-enum hw_fence_loopback_id {
-	HW_FENCE_LOOPBACK_DPU_CTL_0,
-	HW_FENCE_LOOPBACK_DPU_CTL_1,
-	HW_FENCE_LOOPBACK_DPU_CTL_2,
-	HW_FENCE_LOOPBACK_DPU_CTL_3,
-	HW_FENCE_LOOPBACK_DPU_CTL_4,
-	HW_FENCE_LOOPBACK_DPU_CTL_5,
-	HW_FENCE_LOOPBACK_GFX_CTX_0,
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	HW_FENCE_LOOPBACK_VAL_0 = HW_FENCE_CLIENT_ID_VAL0,
-	HW_FENCE_LOOPBACK_VAL_1,
-	HW_FENCE_LOOPBACK_VAL_2,
-	HW_FENCE_LOOPBACK_VAL_3,
-	HW_FENCE_LOOPBACK_VAL_4,
-	HW_FENCE_LOOPBACK_VAL_5,
-	HW_FENCE_LOOPBACK_VAL_6,
-#endif /* CONFIG_DEBUG_FS */
-	HW_FENCE_LOOPBACK_MAX,
-};
-
-#define HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS (HW_FENCE_LOOPBACK_DPU_CTL_5 + 1)
 
 /**
  * enum hw_fence_client_data_id - Enum with the clients having client_data, an optional
@@ -150,12 +114,19 @@ enum hw_fence_client_data_id {
  * @q_size_bytes: size of the queue
  * @va_header: pointer to the hfi header virtual address
  * @pa_queue: physical address of the queue
+ * @rd_wr_idx_start: start read and write indexes for client queue (zero by default)
+ * @rd_wr_idx_factor: factor to multiply custom index to get index in dwords (one by default)
+ * @skip_wr_idx: bool to indicate if update to write_index is skipped within hw fence driver and
+ *               hfi_header->tx_wm is updated instead
  */
 struct msm_hw_fence_queue {
 	void *va_queue;
 	u32 q_size_bytes;
 	void *va_header;
 	phys_addr_t pa_queue;
+	u32 rd_wr_idx_start;
+	u32 rd_wr_idx_factor;
+	bool skip_wr_idx;
 };
 
 /**
@@ -172,13 +143,12 @@ enum payload_type {
  *                 number of sub-clients (e.g. ife clients)
  * @mem_descriptor: hfi header memory descriptor
  * @queues: queues descriptor
+ * @queues_num: number of client queues
  * @ipc_signal_id: id of the signal to be triggered for this client
  * @ipc_client_vid: virtual id of the ipc client for this hw fence driver client
  * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
  * @update_rxq: bool to indicate if client uses rx-queue
  * @send_ipc: bool to indicate if client requires ipc interrupt for already signaled fences
- * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
- *                   driver and hfi_header->tx_wm is updated instead
  * @wait_queue: wait queue for the validation clients
  * @val_signal: doorbell flag to signal the validation clients in the wait queue
  */
@@ -187,12 +157,12 @@ struct msm_hw_fence_client {
 	enum hw_fence_client_id client_id_ext;
 	struct msm_hw_fence_mem_addr mem_descriptor;
 	struct msm_hw_fence_queue queues[HW_FENCE_CLIENT_QUEUES];
+	int queues_num;
 	int ipc_signal_id;
 	int ipc_client_vid;
 	int ipc_client_pid;
 	bool update_rxq;
 	bool send_ipc;
-	bool skip_txq_wr_idx;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	wait_queue_head_t wait_queue;
 	atomic_t val_signal;
@@ -239,22 +209,50 @@ struct msm_hw_fence_dbg_data {
 };
 
 /**
- * struct hw_fence_client_queue_size_desc - Structure holding client queue properties for a client.
+ * struct hw_fence_client_type_desc - Structure holding client type properties, including static
+ *                                    properties and client queue properties read from device-tree.
  *
- * @queues_num: number of client queues
- * @queue_entries: number of queue entries per client queue
- * @mem_size: size of memory allocated for client queues
- * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
- *                allocation for hw fence driver
+ * @name: name of client type, used to parse properties from device-tree
+ * @init_id: initial client_id for given client type within the 'hw_fence_client_id' enum, e.g.
+ *           HW_FENCE_CLIENT_ID_CTL0 for DPU clients
+ * @max_clients_num: maximum number of clients of given client type
+ * @clients_num: number of clients of given client type
+ * @queues_num: number of queues per client of given client type; either one (for only Tx Queue) or
+ *              two (for both Tx and Rx Queues)
+ * @queue_entries: number of entries per client queue of given client type
+ * @start_padding: size of padding between queue table header and first queue header in bytes
+ * @end_padding: size of padding between queue header(s) and first queue payload in bytes
+ * @mem_size: size of memory allocated for client queue(s) per client in bytes
+ * @txq_idx_start: start read and write indexes for client tx queue (zero by default)
+ * @txq_idx_factor: factor to multiply custom TxQ idx to get index in dwords (one by default)
  * @skip_txq_wr_idx: bool to indicate if update to tx queue write_index is skipped within hw fence
  *                   driver and hfi_header->tx_wm is updated instead
  */
-struct hw_fence_client_queue_size_desc {
+struct hw_fence_client_type_desc {
+	char *name;
+	enum hw_fence_client_id init_id;
+	u32 max_clients_num;
+	u32 clients_num;
 	u32 queues_num;
 	u32 queue_entries;
+	u32 start_padding;
+	u32 end_padding;
 	u32 mem_size;
-	u32 start_offset;
+	u32 txq_idx_start;
+	u32 txq_idx_factor;
 	bool skip_txq_wr_idx;
+};
+
+/**
+ * struct hw_fence_client_queue_desc - Structure holding client queue properties for a client.
+ *
+ * @type: pointer to client queue properties of client type
+ * @start_offset: start offset of client queue memory region, from beginning of carved-out memory
+ *                allocation for hw fence driver
+ */
+struct hw_fence_client_queue_desc {
+	struct hw_fence_client_type_desc *type;
+	u32 start_offset;
 };
 
 /**
@@ -268,10 +266,13 @@ struct hw_fence_client_queue_size_desc {
  * @hw_fence_ctrl_queue_size: size of the ctrl queue for the payload
  * @hw_fence_mem_ctrl_queues_size: total size of ctrl queues, including: header + rxq + txq
  * @hw_fence_client_queue_size: descriptors of client queue properties for each hw fence client
+ * @hw_fence_client_types: descriptors of properties for each hw fence client type
  * @rxq_clients_num: number of supported hw fence clients with rxq (configured based on device-tree)
  * @clients_num: number of supported hw fence clients (configured based on device-tree)
  * @hw_fences_tbl: pointer to the hw-fences table
  * @hw_fences_tbl_cnt: number of elements in the hw-fence table
+ * @events: start address of hw fence debug events
+ * @total_events: total number of hw fence debug events supported
  * @client_lock_tbl: pointer to the per-client locks table
  * @client_lock_tbl_cnt: number of elements in the locks table
  * @hw_fences_mem_desc: memory descriptor for the hw-fence table
@@ -299,8 +300,6 @@ struct hw_fence_client_queue_size_desc {
  * @qtime_reg_base: qtimer register base address
  * @qtime_io_mem: qtimer io mem map
  * @qtime_size: qtimer io mem map size
- * @ctl_start_ptr: pointer to the ctl_start registers of the display hw (platforms with no dpu-ipc)
- * @ctl_start_size: size of the ctl_start registers of the display hw (platforms with no dpu-ipc)
  * @client_id_mask: bitmask for tracking registered client_ids
  * @clients_register_lock: lock to synchronize clients registration and deregistration
  * @clients: table with the handles of the registered clients; size is equal to clients_num
@@ -320,7 +319,7 @@ struct hw_fence_driver_data {
 	u32 hw_fence_ctrl_queue_size;
 	u32 hw_fence_mem_ctrl_queues_size;
 	/* client queues */
-	struct hw_fence_client_queue_size_desc *hw_fence_client_queue_size;
+	struct hw_fence_client_queue_desc *hw_fence_client_queue_size;
 	struct hw_fence_client_type_desc *hw_fence_client_types;
 	u32 rxq_clients_num;
 	u32 clients_num;
@@ -328,6 +327,10 @@ struct hw_fence_driver_data {
 	/* HW Fences Table VA */
 	struct msm_hw_fence *hw_fences_tbl;
 	u32 hw_fences_tbl_cnt;
+
+	/* events */
+	struct msm_hw_fence_event *events;
+	u32 total_events;
 
 	/* Table with a Per-Client Lock */
 	u64 *client_lock_tbl;
@@ -374,10 +377,6 @@ struct hw_fence_driver_data {
 	void __iomem *qtime_io_mem;
 	uint32_t qtime_size;
 
-	/* base address for dpu ctl start regs */
-	void *ctl_start_ptr[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
-	uint32_t ctl_start_size[HW_FENCE_MAX_DPU_LOOPBACK_CLIENTS];
-
 	/* synchronize client_ids registration and deregistration */
 	struct mutex clients_register_lock;
 
@@ -385,10 +384,8 @@ struct hw_fence_driver_data {
 	struct msm_hw_fence_client **clients;
 
 	bool vm_ready;
-#ifdef HW_DPU_IPCC
 	/* state variables */
 	bool ipcc_dpu_initialized;
-#endif /* HW_DPU_IPCC */
 };
 
 /**
@@ -421,6 +418,20 @@ struct msm_hw_fence_queue_payload {
 	u32 timestamp_lo;
 	u32 timestamp_hi;
 	u32 reserve;
+};
+
+/**
+ * struct msm_hw_fence_event - hardware fence ctl debug event
+ * time: qtime when the event is logged
+ * cpu: cpu id where the event is logged
+ * data_cnt: count of valid data available in the data field
+ * data: debug data logged by the event
+ */
+struct msm_hw_fence_event {
+	u64 time;
+	u32 cpu;
+	u32 data_cnt;
+	u32 data[HW_FENCE_EVENT_MAX_DATA];
 };
 
 /**
