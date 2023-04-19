@@ -33,6 +33,8 @@ struct hfi_pending_packet {
 	void                  *data;
 };
 
+int __strict_check(struct msm_vidc_core *core,
+	const char *function);
 int venus_hfi_session_property(struct msm_vidc_inst *inst,
 	u32 pkt_type, u32 flags, u32 port,
 	u32 payload_type, void *payload, u32 payload_size);

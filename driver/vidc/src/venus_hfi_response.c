@@ -342,6 +342,10 @@ static int handle_session_info(struct msm_vidc_inst *inst,
 		info = "buffer overflow";
 		inst->hfi_frame_info.overflow = 1;
 		break;
+	case HFI_INFO_FENCE_SIGNAL_ERROR:
+		info = "synx v2 fence error";
+		inst->hfi_frame_info.fence_error = 1;
+		break;
 	case HFI_INFO_HFI_FLAG_DRAIN_LAST:
 		info = "drain last flag";
 		rc = handle_session_last_flag_info(inst, pkt);
@@ -625,13 +629,13 @@ static int get_driver_buffer_flags(struct msm_vidc_inst *inst, u32 hfi_flags)
 		driver_flags |= MSM_VIDC_BUF_FLAG_ERROR;
 
 	if (inst->hfi_frame_info.no_output) {
-		if (inst->capabilities->cap[META_BUF_TAG].value &&
+		if (inst->capabilities[META_BUF_TAG].value &&
 			!(hfi_flags & HFI_BUF_FW_FLAG_CODEC_CONFIG))
 			driver_flags |= MSM_VIDC_BUF_FLAG_ERROR;
 	}
 
 	if (inst->hfi_frame_info.subframe_input)
-		if (inst->capabilities->cap[META_BUF_TAG].value)
+		if (inst->capabilities[META_BUF_TAG].value)
 			driver_flags |= MSM_VIDC_BUF_FLAG_ERROR;
 
 	if (hfi_flags & HFI_BUF_FW_FLAG_CODEC_CONFIG)
@@ -646,7 +650,7 @@ static int get_driver_buffer_flags(struct msm_vidc_inst *inst, u32 hfi_flags)
 	if ((is_encode_session(inst) &&
 		(hfi_flags & HFI_BUF_FW_FLAG_LAST)) ||
 		(is_decode_session(inst) &&
-		!inst->capabilities->cap[LAST_FLAG_EVENT_ENABLE].value &&
+		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
 		((hfi_flags & HFI_BUF_FW_FLAG_LAST) ||
 		(hfi_flags & HFI_BUF_FW_FLAG_PSC_LAST))))
 		driver_flags |= MSM_VIDC_BUF_FLAG_LAST;
@@ -787,7 +791,7 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	u32 frame_size, batch_size;
 	bool found;
 
-	if (!inst || !buffer || !inst->capabilities || !inst->core) {
+	if (!inst || !buffer || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -813,7 +817,7 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	/* attach dequeued flag for, only last frame in the batch */
 	if (msm_vidc_is_super_buffer(inst)) {
 		frame_size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
-		batch_size = inst->capabilities->cap[SUPER_FRAME].value;
+		batch_size = inst->capabilities[SUPER_FRAME].value;
 		if (!frame_size || !batch_size) {
 			i_vpr_e(inst, "%s: invalid size: frame %u, batch %u\n",
 				__func__, frame_size, batch_size);
@@ -831,6 +835,13 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	if (!(buf->attr & MSM_VIDC_ATTR_QUEUED)) {
 		print_vidc_buffer(VIDC_ERR, "err ", "not queued", inst, buf);
 		return 0;
+	}
+
+	if (is_decode_session(inst) && inst->codec == MSM_VIDC_AV1) {
+		inst->power.fw_av1_tile_rows =
+			inst->hfi_frame_info.av1_tile_rows_columns >> 16;
+		inst->power.fw_av1_tile_columns =
+			inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
 	}
 
 	buf->data_size = buffer->data_size;
@@ -856,6 +867,76 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	return rc;
 }
 
+static int msm_vidc_handle_fence_signal(struct msm_vidc_inst *inst,
+	struct msm_vidc_buffer *buf)
+{
+	int rc = 0;
+	bool signal_error = false;
+	struct msm_vidc_core *core = inst->core;
+
+	if (!buf) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (inst->capabilities[OUTBUF_FENCE_TYPE].value ==
+		MSM_VIDC_FENCE_NONE)
+		return 0;
+
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+		if (!inst->hfi_frame_info.fence_id) {
+			i_vpr_e(inst,
+				"%s: fence id is not received although fencing is enabled\n",
+				__func__);
+			return -EINVAL;
+		}
+	} else {
+		if (inst->hfi_frame_info.fence_id)
+			i_vpr_e(inst,
+				"%s: fence id is received although fencing is not enabled\n",
+				__func__);
+		return 0;
+	}
+
+	if (inst->capabilities[OUTBUF_FENCE_TYPE].value ==
+		MSM_VIDC_SYNX_V2_FENCE) {
+		if (inst->hfi_frame_info.fence_error)
+			signal_error = true;
+	} else if (inst->capabilities[OUTBUF_FENCE_TYPE].value ==
+		MSM_VIDC_SW_FENCE) {
+		if (!buf->data_size)
+			signal_error = true;
+
+		if (inst->hfi_frame_info.fence_error)
+			i_vpr_e(inst,
+				"%s: fence error info recieved for SW fence\n",
+				__func__);
+	} else {
+		i_vpr_e(inst, "%s: invalid fence type\n", __func__);
+		return -EINVAL;
+	}
+
+	/* fence signalling */
+	if (signal_error) {
+		/* signal fence error */
+		i_vpr_l(inst,
+			"%s: signalling fence error for buf idx %d daddr %#llx\n",
+			__func__, buf->index, buf->device_addr);
+		call_fence_op(core, fence_destroy, inst,
+			inst->hfi_frame_info.fence_id);
+	} else {
+		/* signal fence success*/
+		rc = call_fence_op(core, fence_signal, inst,
+			inst->hfi_frame_info.fence_id);
+		if (rc) {
+			i_vpr_e(inst, "%s: failed to signal fence\n", __func__);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int handle_output_buffer(struct msm_vidc_inst *inst,
 	struct hfi_buffer *buffer)
 {
@@ -865,7 +946,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	bool found, fatal = false;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -972,7 +1053,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 
 	if (is_decode_session(inst)) {
 		/* RO flag is not expected for linear colorformat */
-		if (is_linear_colorformat(inst->capabilities->cap[PIX_FMTS].value) &&
+		if (is_linear_colorformat(inst->capabilities[PIX_FMTS].value) &&
 			(buffer->flags & HFI_BUF_FW_FLAG_READONLY)) {
 			buffer->flags &= ~HFI_BUF_FW_FLAG_READONLY;
 			print_vidc_buffer(
@@ -997,18 +1078,9 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	buf->flags = 0;
 	buf->flags = get_driver_buffer_flags(inst, buffer->flags);
 
-	/* fence signalling */
-	if (inst->hfi_frame_info.fence_id) {
-		if (buf->data_size) {
-			/* signal fence */
-			msm_vidc_fence_signal(inst,
-				inst->hfi_frame_info.fence_id);
-		} else {
-			/* destroy fence */
-			msm_vidc_fence_destroy(inst,
-				inst->hfi_frame_info.fence_id);
-		}
-	}
+	rc = msm_vidc_handle_fence_signal(inst, buf);
+	if (rc)
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
 
 	if (is_decode_session(inst)) {
 		inst->power.fw_cr = inst->hfi_frame_info.cr;
@@ -1043,7 +1115,7 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 	u32 frame_size, batch_size;
 	bool found;
 
-	if (!inst || !buffer || !inst->capabilities || !inst->core) {
+	if (!inst || !buffer || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1068,7 +1140,7 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 	/* attach dequeued flag for, only last frame in the batch */
 	if (msm_vidc_is_super_buffer(inst)) {
 		frame_size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT_META);
-		batch_size = inst->capabilities->cap[SUPER_FRAME].value;
+		batch_size = inst->capabilities[SUPER_FRAME].value;
 		if (!frame_size || !batch_size) {
 			i_vpr_e(inst, "%s: invalid size: frame %u, batch %u\n",
 				__func__, frame_size, batch_size);
@@ -1093,7 +1165,7 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 	if ((is_encode_session(inst) &&
 		(buffer->flags & HFI_BUF_FW_FLAG_LAST)) ||
 		(is_decode_session(inst) &&
-		!inst->capabilities->cap[LAST_FLAG_EVENT_ENABLE].value &&
+		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
 		((buffer->flags & HFI_BUF_FW_FLAG_LAST) ||
 		(buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST))))
 		buf->flags |= MSM_VIDC_BUF_FLAG_LAST;
@@ -1110,7 +1182,7 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf;
 	bool found;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1145,7 +1217,7 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 	if ((is_encode_session(inst) &&
 		(buffer->flags & HFI_BUF_FW_FLAG_LAST)) ||
 		(is_decode_session(inst) &&
-		!inst->capabilities->cap[LAST_FLAG_EVENT_ENABLE].value &&
+		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
 		((buffer->flags & HFI_BUF_FW_FLAG_LAST) ||
 		(buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST))))
 		buf->flags |= MSM_VIDC_BUF_FLAG_LAST;
@@ -1683,6 +1755,10 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 	case HFI_PROP_WORST_COMPLEXITY_FACTOR:
 		inst->hfi_frame_info.cf = payload_ptr[0];
 		break;
+	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
+		inst->hfi_frame_info.av1_tile_rows_columns =
+			payload_ptr[0];
+		break;
 	case HFI_PROP_CABAC_SESSION:
 		if (payload_ptr[0] == 1)
 			msm_vidc_update_cap_value(inst, ENTROPY_MODE,
@@ -1695,7 +1771,7 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 		break;
 	case HFI_PROP_DPB_LIST:
 		if (is_decode_session(inst) &&
-			inst->capabilities->cap[DPB_LIST].value) {
+			inst->capabilities[DPB_LIST].value) {
 			rc = handle_dpb_list_property(inst, pkt);
 			if (rc)
 				break;
@@ -1703,27 +1779,27 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 			i_vpr_e(inst,
 				"%s: invalid property %#x for %s port %d dpb cap value %d\n",
 				__func__, pkt->type, is_decode_session(inst) ? "decode" : "encode",
-				port, inst->capabilities->cap[DPB_LIST].value);
+				port, inst->capabilities[DPB_LIST].value);
 		}
 		break;
 	case HFI_PROP_QUALITY_MODE:
-		if (inst->capabilities->cap[QUALITY_MODE].value !=  payload_ptr[0])
+		if (inst->capabilities[QUALITY_MODE].value !=  payload_ptr[0])
 			i_vpr_e(inst,
 				"%s: fw quality mode(%d) not matching the capability value(%d)\n",
 				__func__,  payload_ptr[0],
-				inst->capabilities->cap[QUALITY_MODE].value);
+				inst->capabilities[QUALITY_MODE].value);
 		break;
 	case HFI_PROP_STAGE:
-		if (inst->capabilities->cap[STAGE].value !=  payload_ptr[0])
+		if (inst->capabilities[STAGE].value !=  payload_ptr[0])
 			i_vpr_e(inst,
 				"%s: fw stage mode(%d) not matching the capability value(%d)\n",
-				__func__,  payload_ptr[0], inst->capabilities->cap[STAGE].value);
+				__func__,  payload_ptr[0], inst->capabilities[STAGE].value);
 		break;
 	case HFI_PROP_PIPE:
-		if (inst->capabilities->cap[PIPE].value !=  payload_ptr[0])
+		if (inst->capabilities[PIPE].value !=  payload_ptr[0])
 			i_vpr_e(inst,
 				"%s: fw pipe mode(%d) not matching the capability value(%d)\n",
-				__func__,  payload_ptr[0], inst->capabilities->cap[PIPE].value);
+				__func__,  payload_ptr[0], inst->capabilities[PIPE].value);
 		break;
 	case HFI_PROP_FENCE:
 		inst->hfi_frame_info.fence_id = payload_ptr[0];
@@ -1766,7 +1842,7 @@ static int handle_session_property(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 port;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}

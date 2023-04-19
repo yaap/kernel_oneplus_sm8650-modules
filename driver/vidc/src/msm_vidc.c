@@ -228,9 +228,6 @@ int msm_vidc_try_fmt(void *instance, struct v4l2_format *f)
 		return -EINVAL;
 	}
 
-	if (!msm_vidc_allow_s_fmt(inst, f->type))
-		return -EBUSY;
-
 	if (inst->domain == MSM_VIDC_DECODER)
 		rc = msm_vdec_try_fmt(inst, f);
 	if (inst->domain == MSM_VIDC_ENCODER)
@@ -701,7 +698,6 @@ EXPORT_SYMBOL(msm_vidc_stop_cmd);
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 {
 	struct msm_vidc_inst *inst = instance;
-	struct msm_vidc_inst_capability *capability;
 	enum msm_vidc_colorformat_type colorfmt;
 	enum msm_vidc_codec_type codec;
 	u32 meta_fmt;
@@ -711,11 +707,6 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 				__func__, inst, fsize);
 		return -EINVAL;
 	}
-	if (!inst->capabilities) {
-		i_vpr_e(inst, "%s: capabilities not available\n", __func__);
-		return -EINVAL;
-	}
-	capability = inst->capabilities;
 
 	/* only index 0 allowed as per v4l2 spec */
 	if (fsize->index)
@@ -737,14 +728,14 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 	}
 
 	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	fsize->stepwise.min_width = capability->cap[FRAME_WIDTH].min;
-	fsize->stepwise.max_width = capability->cap[FRAME_WIDTH].max;
+	fsize->stepwise.min_width = inst->capabilities[FRAME_WIDTH].min;
+	fsize->stepwise.max_width = inst->capabilities[FRAME_WIDTH].max;
 	fsize->stepwise.step_width =
-		capability->cap[FRAME_WIDTH].step_or_mask;
-	fsize->stepwise.min_height = capability->cap[FRAME_HEIGHT].min;
-	fsize->stepwise.max_height = capability->cap[FRAME_HEIGHT].max;
+		inst->capabilities[FRAME_WIDTH].step_or_mask;
+	fsize->stepwise.min_height = inst->capabilities[FRAME_HEIGHT].min;
+	fsize->stepwise.max_height = inst->capabilities[FRAME_HEIGHT].max;
 	fsize->stepwise.step_height =
-		capability->cap[FRAME_HEIGHT].step_or_mask;
+		inst->capabilities[FRAME_HEIGHT].step_or_mask;
 
 	return 0;
 }
@@ -754,7 +745,6 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 {
 	struct msm_vidc_inst *inst = instance;
 	struct msm_vidc_core *core;
-	struct msm_vidc_inst_capability *capability;
 	enum msm_vidc_colorformat_type colorfmt;
 	u32 fps, mbpf;
 	u32 meta_fmt;
@@ -772,11 +762,6 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 
 	core = inst->core;
 
-	if (!inst->capabilities || !core->capabilities) {
-		i_vpr_e(inst, "%s: capabilities not available\n", __func__);
-		return -EINVAL;
-	}
-	capability = inst->capabilities;
 
 	/* only index 0 allowed as per v4l2 spec */
 	if (fival->index)
@@ -794,10 +779,10 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 	}
 
 	/* validate resolution */
-	if (fival->width > capability->cap[FRAME_WIDTH].max ||
-		fival->width < capability->cap[FRAME_WIDTH].min ||
-		fival->height > capability->cap[FRAME_HEIGHT].max ||
-		fival->height < capability->cap[FRAME_HEIGHT].min) {
+	if (fival->width > inst->capabilities[FRAME_WIDTH].max ||
+		fival->width < inst->capabilities[FRAME_WIDTH].min ||
+		fival->height > inst->capabilities[FRAME_HEIGHT].max ||
+		fival->height < inst->capabilities[FRAME_HEIGHT].min) {
 		i_vpr_e(inst, "%s: unsupported resolution %u x %u\n", __func__,
 			fival->width, fival->height);
 		return -EINVAL;
@@ -810,11 +795,11 @@ int msm_vidc_enum_frameintervals(void *instance, struct v4l2_frmivalenum *fival)
 	fival->type = V4L2_FRMIVAL_TYPE_STEPWISE;
 	fival->stepwise.min.numerator = 1;
 	fival->stepwise.min.denominator =
-			min_t(u32, fps, capability->cap[FRAME_RATE].max);
+			min_t(u32, fps, inst->capabilities[FRAME_RATE].max);
 	fival->stepwise.max.numerator = 1;
 	fival->stepwise.max.denominator = 1;
 	fival->stepwise.step.numerator = 1;
-	fival->stepwise.step.denominator = capability->cap[FRAME_RATE].max;
+	fival->stepwise.step.denominator = inst->capabilities[FRAME_RATE].max;
 
 	return 0;
 }
@@ -910,11 +895,6 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	if (rc)
 		return NULL;
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct msm_vidc_inst_capability),
-		(void **)&inst->capabilities, "inst capability");
-	if (rc)
-		goto fail_alloc_inst_caps;
-
 	inst->core = core;
 	inst->domain = session_type;
 	inst->session_id = hash32_ptr(inst);
@@ -925,6 +905,7 @@ void *msm_vidc_open(void *vidc_core, u32 session_type)
 	inst->request = false;
 	inst->ipsc_properties_set = false;
 	inst->opsc_properties_set = false;
+	inst->caps_list_prepared = false;
 	inst->has_bframe = false;
 	inst->iframe = false;
 	inst->auto_framerate = DEFAULT_FPS << 16;
@@ -1052,8 +1033,6 @@ fail_add_session:
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->request_lock);
 	mutex_destroy(&inst->lock);
-	msm_vidc_vmem_free((void **)&inst->capabilities);
-fail_alloc_inst_caps:
 	msm_vidc_vmem_free((void **)&inst);
 	return NULL;
 }
@@ -1077,6 +1056,8 @@ int msm_vidc_close(void *instance)
 	inst_lock(inst, __func__);
 	/* print final stats */
 	msm_vidc_print_stats(inst);
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
 	msm_vidc_print_residency_stats(core);
 	msm_vidc_session_close(inst);
 	msm_vidc_change_state(inst, MSM_VIDC_CLOSE, __func__);

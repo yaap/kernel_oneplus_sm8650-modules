@@ -19,11 +19,37 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d);
 static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d);
 static u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size);
 
+
+static int msm_vidc_get_hier_layer_val(struct msm_vidc_inst *inst)
+{
+	int hierachical_layer = CODEC_GOP_IPP;
+
+	if (inst->domain == MSM_VIDC_ENCODER) {
+		if (inst->capabilities[ALL_INTRA].value) {
+			/* no P and B frames case */
+			hierachical_layer = CODEC_GOP_IONLY;
+		} else if (inst->capabilities[B_FRAME].value == 0) {
+			/* no B frames case */
+			hierachical_layer = CODEC_GOP_IPP;
+		} else { /* P and B frames enabled case */
+			if (inst->capabilities[ENH_LAYER_COUNT].value == 0 ||
+				inst->capabilities[ENH_LAYER_COUNT].value == 1)
+				hierachical_layer = CODEC_GOP_IbP;
+			else if (inst->capabilities[ENH_LAYER_COUNT].value == 2)
+				hierachical_layer = CODEC_GOP_I1B2b1P;
+			else
+				hierachical_layer = CODEC_GOP_I3B4b1P;
+		}
+	}
+
+	return hierachical_layer;
+}
+
 static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_size,
 		struct api_calculation_input *codec_input)
 {
 	enum msm_vidc_port_type port;
-	u32 color_fmt;
+	u32 color_fmt, tile_rows_columns = 0;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
 		codec_input->decoder_or_encoder = CODEC_ENCODER;
@@ -39,7 +65,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	if (inst->codec == MSM_VIDC_H264) {
 		codec_input->codec    = CODEC_H264;
 		codec_input->lcu_size = 16;
-		if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		if (inst->capabilities[ENTROPY_MODE].value ==
 				V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CABAC;
 			codec_input->codec = CODEC_H264;
@@ -52,46 +78,40 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		codec_input->lcu_size = 32;
 	} else if (inst->codec == MSM_VIDC_VP9) {
 		codec_input->codec    = CODEC_VP9;
-		codec_input->lcu_size = 16;
+		codec_input->lcu_size = 32;
 	} else if (inst->codec == MSM_VIDC_AV1) {
 		codec_input->codec    = CODEC_AV1;
-		codec_input->lcu_size = 32;
+		codec_input->lcu_size =
+			inst->capabilities[SUPER_BLOCK].value ? 128 : 64;
 	} else {
 		d_vpr_e("%s: invalid codec %d\n", __func__, inst->codec);
 		return -EINVAL;
 	}
 
-	codec_input->pipe_num = inst->capabilities->cap[PIPE].value;
+	codec_input->pipe_num = inst->capabilities[PIPE].value;
 	codec_input->frame_rate = inst->max_rate;
 
 	port = inst->domain == MSM_VIDC_DECODER ? INPUT_PORT : OUTPUT_PORT;
 	codec_input->frame_width = inst->fmts[port].fmt.pix_mp.width;
 	codec_input->frame_height = inst->fmts[port].fmt.pix_mp.height;
 
-	if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_1) {
+	if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_1) {
 		codec_input->vsp_vpp_mode = CODEC_VSPVPP_MODE_1S;
-	} else if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_2) {
+	} else if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_2) {
 		codec_input->vsp_vpp_mode = CODEC_VSPVPP_MODE_2S;
 	} else {
 		d_vpr_e("%s: invalid stage %d\n", __func__,
-				inst->capabilities->cap[STAGE].value);
+				inst->capabilities[STAGE].value);
 		return -EINVAL;
 	}
 
-	if (inst->capabilities->cap[BIT_DEPTH].value == BIT_DEPTH_8)
+	if (inst->capabilities[BIT_DEPTH].value == BIT_DEPTH_8)
 		codec_input->bitdepth = CODEC_BITDEPTH_8;
 	else
 		codec_input->bitdepth = CODEC_BITDEPTH_10;
 
-	/*
-	 * Used for calculating Encoder GOP Complexity
-	 * hierachical_layer=0..7 used as Array Index
-	 * inst->capabilities->cap[B_FRAME].value=[ 0 1 2 ]
-	 * TODO how to map?
-	 */
-
-	/* set as IPP */
-	codec_input->hierachical_layer = 0;
+	codec_input->hierachical_layer =
+		msm_vidc_get_hier_layer_val(inst);
 
 	if (inst->domain == MSM_VIDC_DECODER)
 		color_fmt = v4l2_colorformat_to_driver(inst,
@@ -107,10 +127,33 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 			(codec_input->frame_rate * data_size * 8) / 1000000;
 	else
 		codec_input->bitrate_mbps =
-			inst->capabilities->cap[BIT_RATE].value / 1000000;
+			inst->capabilities[BIT_RATE].value / 1000000;
 
-	/* disable av1d commercial tile */
-	codec_input->av1d_commer_tile_enable = 0;
+	/* av1d commercial tile */
+	if (inst->codec == MSM_VIDC_AV1 && codec_input->lcu_size == 128) {
+		tile_rows_columns = inst->power.fw_av1_tile_rows *
+			inst->power.fw_av1_tile_columns;
+
+		/* check resolution and tile info */
+		codec_input->av1d_commer_tile_enable = 1;
+
+		if (res_is_less_than_or_equal_to(1920, 1088, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 2)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(4096, 2172, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 4)
+				codec_input->av1d_commer_tile_enable = 0;
+		} else if (res_is_less_than_or_equal_to(8192, 4320, codec_input->frame_width,
+				codec_input->frame_height)) {
+			if (tile_rows_columns <= 16)
+				codec_input->av1d_commer_tile_enable = 0;
+		}
+	} else {
+		codec_input->av1d_commer_tile_enable = 0;
+	}
+
 	/* set as sanity mode */
 	codec_input->regression_mode = 1;
 
@@ -138,17 +181,17 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 	codec_input->chipset_gen = MSM_PINEAPPLE;
 
 	if (d->codec == MSM_VIDC_H264) {
-		if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CABAC;
 			codec_input->codec = CODEC_H264;
-		} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		} else if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC) {
 			codec_input->entropy_coding_mode = CODEC_ENTROPY_CODING_CAVLC;
 			codec_input->codec = CODEC_H264_CAVLC;
 		} else {
 			d_vpr_e("%s: invalid entropy %d\n", __func__,
-				inst->capabilities->cap[ENTROPY_MODE].value);
+				inst->capabilities[ENTROPY_MODE].value);
 			return -EINVAL;
 		}
 	} else if (d->codec == MSM_VIDC_HEVC) {
@@ -177,12 +220,8 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		return -EINVAL;
 	}
 
-	/*
-	 * Used for calculating Encoder GOP Complexity
-	 * hierachical_layer=0..7 used as Array Index
-	 * TODO how to map?
-	 */
-	codec_input->hierachical_layer = 0; /* set as IPP */
+	codec_input->hierachical_layer =
+		msm_vidc_get_hier_layer_val(inst);
 
 	/*
 	 * If the calculated motion_vector_complexity is > 2 then set the
@@ -351,7 +390,7 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 	struct api_calculation_freq_output codec_output;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
@@ -371,7 +410,7 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 		return freq;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
-		if (!inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value &&
+		if (!inst->capabilities[ENC_RING_BUFFER_COUNT].value &&
 			is_vpp_cycles_close_to_freq_corner(core,
 				codec_output.vpp_min_freq)) {
 			/*
@@ -395,16 +434,19 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 		codec_output.vsp_min_freq, codec_output.tensilica_min_freq,
 		codec_output.hw_min_freq, fps, mbpf);
 
-	if (inst->codec == MSM_VIDC_AV1 ||
-		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
+	if (inst->codec == MSM_VIDC_AV1 || (inst->iframe && is_hevc_10bit_decode_session(inst)) ||
+			(!is_realtime_session(inst))) {
 		/*
-		 * for AV1 or HEVC 10bit and iframe case only allow TURBO and
+		 * TURBO is only allowed for:
+		 *     1. AV1 decoding session
+		 *     2. 10-bit I-Frame decoding session
+		 *     3. NRT decoding/encoding session
 		 * limit to NOM for all other cases
 		 */
 	} else {
 		/* limit to NOM, index 0 is TURBO, index 1 is NOM clock rate */
 		if (core->resource->freq_set.count >= 2 &&
-			freq > core->resource->freq_set.freq_tbl[1].freq)
+				freq > core->resource->freq_set.freq_tbl[1].freq)
 			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
 
@@ -441,7 +483,7 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
@@ -466,7 +508,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	u32 base_cycles = 0;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
@@ -487,26 +529,26 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	 * Even though, most part is common now, in future it may change
 	 * between them.
 	 */
-	fw_cycles = fps * inst->capabilities->cap[MB_CYCLES_FW].value;
-	fw_vpp_cycles = fps * inst->capabilities->cap[MB_CYCLES_FW_VPP].value;
+	fw_cycles = fps * inst->capabilities[MB_CYCLES_FW].value;
+	fw_vpp_cycles = fps * inst->capabilities[MB_CYCLES_FW_VPP].value;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
 		vpp_cycles_per_mb = is_low_power_session(inst) ?
-			inst->capabilities->cap[MB_CYCLES_LP].value :
-			inst->capabilities->cap[MB_CYCLES_VPP].value;
+			inst->capabilities[MB_CYCLES_LP].value :
+			inst->capabilities[MB_CYCLES_VPP].value;
 
 		vpp_cycles = mbs_per_second * vpp_cycles_per_mb /
-			inst->capabilities->cap[PIPE].value;
+			inst->capabilities[PIPE].value;
 
 		/* Factor 1.25 for IbP and 1.375 for I1B2b1P GOP structure */
-		if (inst->capabilities->cap[B_FRAME].value > 1)
+		if (inst->capabilities[B_FRAME].value > 1)
 			vpp_cycles += (vpp_cycles / 4) + (vpp_cycles / 8);
-		else if (inst->capabilities->cap[B_FRAME].value)
+		else if (inst->capabilities[B_FRAME].value)
 			vpp_cycles += vpp_cycles / 4;
 		/* 21 / 20 is minimum overhead factor */
 		vpp_cycles += max(div_u64(vpp_cycles, 20), fw_vpp_cycles);
 		/* 1.01 is multi-pipe overhead */
-		if (inst->capabilities->cap[PIPE].value > 1)
+		if (inst->capabilities[PIPE].value > 1)
 			vpp_cycles += div_u64(vpp_cycles, 100);
 		/*
 		 * 1080p@480fps usecase needs exactly 338MHz
@@ -524,25 +566,25 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 			vpp_cycles += div_u64(vpp_cycles * 5, 100);
 
 		/* increase vpp_cycles by 50% for preprocessing */
-		if (inst->capabilities->cap[REQUEST_PREPROCESS].value)
+		if (inst->capabilities[REQUEST_PREPROCESS].value)
 			vpp_cycles = vpp_cycles + vpp_cycles / 2;
 
 		/* VSP */
 		/* bitrate is based on fps, scale it using operating rate */
-		operating_rate = inst->capabilities->cap[OPERATING_RATE].value >> 16;
+		operating_rate = inst->capabilities[OPERATING_RATE].value >> 16;
 		if (operating_rate >
-			(inst->capabilities->cap[FRAME_RATE].value >> 16) &&
-			(inst->capabilities->cap[FRAME_RATE].value >> 16)) {
+			(inst->capabilities[FRAME_RATE].value >> 16) &&
+			(inst->capabilities[FRAME_RATE].value >> 16)) {
 			vsp_factor_num = operating_rate;
-			vsp_factor_den = inst->capabilities->cap[FRAME_RATE].value >> 16;
+			vsp_factor_den = inst->capabilities[FRAME_RATE].value >> 16;
 		}
-		vsp_cycles = div_u64(((u64)inst->capabilities->cap[BIT_RATE].value *
+		vsp_cycles = div_u64(((u64)inst->capabilities[BIT_RATE].value *
 					vsp_factor_num), vsp_factor_den);
 
-		base_cycles = inst->capabilities->cap[MB_CYCLES_VSP].value;
+		base_cycles = inst->capabilities[MB_CYCLES_VSP].value;
 		if (inst->codec == MSM_VIDC_VP9) {
 			vsp_cycles = div_u64(vsp_cycles * 170, 100);
-		} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		} else if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			vsp_cycles = div_u64(vsp_cycles * 135, 100);
 		} else {
@@ -552,18 +594,18 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 		/* VSP FW Overhead 1.05 */
 		vsp_cycles = div_u64(vsp_cycles * 21, 20);
 
-		if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_1)
+		if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_1)
 			vsp_cycles = vsp_cycles * 3;
 
 		vsp_cycles += mbs_per_second * base_cycles;
 
 	} else if (inst->domain == MSM_VIDC_DECODER) {
 		/* VPP */
-		vpp_cycles = mbs_per_second * inst->capabilities->cap[MB_CYCLES_VPP].value /
-			inst->capabilities->cap[PIPE].value;
+		vpp_cycles = mbs_per_second * inst->capabilities[MB_CYCLES_VPP].value /
+			inst->capabilities[PIPE].value;
 		/* 21 / 20 is minimum overhead factor */
 		vpp_cycles += max(vpp_cycles / 20, fw_vpp_cycles);
-		if (inst->capabilities->cap[PIPE].value > 1) {
+		if (inst->capabilities[PIPE].value > 1) {
 			if (inst->codec == MSM_VIDC_AV1) {
 				/*
 				 * Additional vpp_cycles are required for bitstreams with
@@ -572,7 +614,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 				 * non-recommended tiles: 1080P_V4XH2_V4X1, UHD_V8X4_V8X1,
 				 * 8KUHD_V8X8_V8X1
 				 */
-				if (inst->capabilities->cap[SUPER_BLOCK].value)
+				if (inst->capabilities[SUPER_BLOCK].value)
 					vpp_cycles += div_u64(vpp_cycles * 1464, 1000);
 				else
 					vpp_cycles += div_u64(vpp_cycles * 410, 1000);
@@ -615,7 +657,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 			input_bitrate_mbps = fps * data_size * 8 / (1024 * 1024);
 			vsp_hw_min_frequency = freq_tbl_value * 1000 * input_bitrate_mbps;
 
-			if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_2) {
+			if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_2) {
 				vsp_hw_min_frequency +=
 					(bitrate_2stage[bitrate_entry] * fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = div_u64(vsp_hw_min_frequency,
@@ -632,13 +674,13 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 			vsp_cycles = vsp_hw_min_frequency * 1000000;
 		} else {
 			base_cycles = inst->has_bframe ?
-					80 : inst->capabilities->cap[MB_CYCLES_VSP].value;
+					80 : inst->capabilities[MB_CYCLES_VSP].value;
 			bitrate = fps * data_size * 8;
 			vsp_cycles = bitrate;
 
 			if (inst->codec == MSM_VIDC_VP9) {
 				vsp_cycles = div_u64(vsp_cycles * 170, 100);
-			} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+			} else if (inst->capabilities[ENTROPY_MODE].value ==
 				V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 				vsp_cycles = div_u64(vsp_cycles * 135, 100);
 			} else {
@@ -648,7 +690,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 			/* VSP FW overhead 1.05 */
 			vsp_cycles = div_u64(vsp_cycles * 21, 20);
 
-			if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_1)
+			if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_1)
 				vsp_cycles = vsp_cycles * 3;
 
 			vsp_cycles += mbs_per_second * base_cycles;
@@ -663,9 +705,9 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 			}
 
 			if (inst->codec == MSM_VIDC_VP9 &&
-					inst->capabilities->cap[STAGE].value ==
+					inst->capabilities[STAGE].value ==
 						MSM_VIDC_STAGE_2 &&
-					inst->capabilities->cap[PIPE].value == 4 &&
+					inst->capabilities[PIPE].value == 4 &&
 					bitrate > 90000000)
 				vsp_cycles = msm_vidc_max_freq(inst);
 		}
@@ -681,16 +723,19 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 		__func__, data_size, freq,
 		vpp_cycles, vsp_cycles, fw_cycles, fps, mbpf);
 
-	if (inst->codec == MSM_VIDC_AV1 ||
-		(inst->iframe && is_hevc_10bit_decode_session(inst))) {
+	if (inst->codec == MSM_VIDC_AV1 || (inst->iframe && is_hevc_10bit_decode_session(inst)) ||
+			(!is_realtime_session(inst))) {
 		/*
-		 * for AV1 or HEVC 10bit and iframe case only allow TURBO and
+		 * TURBO is only allowed for:
+		 *     1. AV1 decoding session
+		 *     2. 10-bit I-Frame decoding session
+		 *     3. NRT decoding/encoding session
 		 * limit to NOM for all other cases
 		 */
 	} else {
 		/* limit to NOM, index 0 is TURBO, index 1 is NOM clock rate */
 		if (core->resource->freq_set.count >= 2 &&
-		    freq > core->resource->freq_set.freq_tbl[1].freq)
+				freq > core->resource->freq_set.freq_tbl[1].freq)
 			freq = core->resource->freq_set.freq_tbl[1].freq;
 	}
 
@@ -1262,7 +1307,7 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 	struct api_calculation_input codec_input;
 	struct api_calculation_freq_output codec_output;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1290,10 +1335,10 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 	if (is_vpp_cycles_close_to_freq_corner(core,
 		codec_output.vpp_min_freq))
 		/* enables ring buffer */
-		inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value =
+		inst->capabilities[ENC_RING_BUFFER_COUNT].value =
 			MAX_ENC_RING_BUF_COUNT;
 	else
-		inst->capabilities->cap[ENC_RING_BUFFER_COUNT].value = 0;
+		inst->capabilities[ENC_RING_BUFFER_COUNT].value = 0;
 
 	return 0;
 }

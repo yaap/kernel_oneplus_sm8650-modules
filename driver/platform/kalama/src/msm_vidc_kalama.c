@@ -22,6 +22,8 @@
 #include "hfi_property.h"
 #include "hfi_command.h"
 
+/* version: major[24:31], minor[16:23], revision[0:15] */
+#define DRIVER_VERSION          0x04000000
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_OP_POINT            31
@@ -71,7 +73,7 @@ static struct codec_info codec_data_kalama[] = {
 		.pixfmt_name = "AV1",
 	},
 	{
-		.v4l2_codec  = V4L2_PIX_FMT_HEIC,
+		.v4l2_codec  = V4L2_PIX_FMT_VIDC_HEIC,
 		.vidc_codec  = MSM_VIDC_HEIC,
 		.pixfmt_name = "HEIC",
 	},
@@ -89,12 +91,12 @@ static struct color_format_info color_format_data_kalama[] = {
 		.pixfmt_name       = "NV21",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_NV12C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC08C,
 		.vidc_color_format = MSM_VIDC_FMT_NV12C,
 		.pixfmt_name       = "NV12C",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_TP10C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC10C,
 		.vidc_color_format = MSM_VIDC_FMT_TP10C,
 		.pixfmt_name       = "TP10C",
 	},
@@ -109,7 +111,7 @@ static struct color_format_info color_format_data_kalama[] = {
 		.pixfmt_name       = "RGBAC",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_P010,
+		.v4l2_color_format = V4L2_PIX_FMT_P010,
 		.vidc_color_format = MSM_VIDC_FMT_P010,
 		.pixfmt_name       = "P010",
 	},
@@ -322,6 +324,7 @@ static struct msm_platform_core_capability core_data_kalama[] = {
 	{ENC_AUTO_FRAMERATE, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
+	{SUPPORTS_SYNX_FENCE, 0},
 	{SUPPORTS_REQUESTS, 1},
 };
 
@@ -332,6 +335,9 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	 *      hfi_id,
 	 *      flags}
 	 */
+	{DRV_VERSION, DEC|ENC, CODECS_ALL,
+		0, INT_MAX, 1, DRIVER_VERSION,
+		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
 	{FRAME_WIDTH, DEC, CODECS_ALL, 96, 8192, 1, 1920},
 
@@ -832,18 +838,18 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_OUTPUT_PORT},
 
 	{IR_TYPE, ENC, H264|HEVC,
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM,
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC,
-		BIT(V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM) |
-		BIT(V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC),
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM,
-		V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC,
+		BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM) |
+		BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC),
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE,
 		0,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
 	{IR_PERIOD, ENC, H264|HEVC,
 		0, INT_MAX, 1, 0,
-		V4L2_CID_MPEG_VIDC_INTRA_REFRESH_PERIOD,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD,
 		0,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_OUTPUT_PORT |
 		CAP_FLAG_DYNAMIC_ALLOWED},

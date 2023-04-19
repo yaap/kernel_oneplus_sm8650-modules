@@ -117,7 +117,7 @@ int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 	u32 mbpf, fps;
 	u32 frame_rate, operating_rate, input_rate, timestamp_rate;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -251,7 +251,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	struct v4l2_format *inp_f;
 	u32 operating_rate, frame_rate;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params: %pK\n", __func__, inst);
 		return -EINVAL;
 	}
@@ -281,15 +281,15 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			inst->codec == MSM_VIDC_VP9) ? 32 : 16;
 	if (inst->codec == MSM_VIDC_AV1)
 		vote_data->lcu_size =
-			inst->capabilities->cap[SUPER_BLOCK].value ? 128 : 64;
+			inst->capabilities[SUPER_BLOCK].value ? 128 : 64;
 	vote_data->fps = inst->max_rate;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
 		vote_data->domain = MSM_VIDC_ENCODER;
-		vote_data->bitrate = inst->capabilities->cap[BIT_RATE].value;
-		vote_data->rotation = inst->capabilities->cap[ROTATION].value;
+		vote_data->bitrate = inst->capabilities[BIT_RATE].value;
+		vote_data->rotation = inst->capabilities[ROTATION].value;
 		vote_data->b_frames_enabled =
-			inst->capabilities->cap[B_FRAME].value > 0;
+			inst->capabilities[B_FRAME].value > 0;
 
 		/* scale bitrate if operating rate is larger than frame rate */
 		frame_rate = msm_vidc_get_frame_rate(inst);
@@ -301,7 +301,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 		vote_data->color_formats[0] = v4l2_colorformat_to_driver(inst,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 		vote_data->vpss_preprocessing_enabled =
-			inst->capabilities->cap[REQUEST_PREPROCESS].value;
+			inst->capabilities[REQUEST_PREPROCESS].value;
 	} else if (inst->domain == MSM_VIDC_DECODER) {
 		u32 color_format;
 
@@ -322,7 +322,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			}
 			vote_data->color_formats[1] = color_format;
 		} else if (inst->codec == MSM_VIDC_AV1 &&
-			inst->capabilities->cap[FILM_GRAIN].value) {
+			inst->capabilities[FILM_GRAIN].value) {
 			/*
 			 * UBWC formats with AV1 film grain requires dpb-opb
 			 * split mode
@@ -335,7 +335,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			vote_data->color_formats[0] = color_format;
 		}
 	}
-	vote_data->work_mode = inst->capabilities->cap[STAGE].value;
+	vote_data->work_mode = inst->capabilities[STAGE].value;
 	if (core->resource->subcache_set.set_to_fw)
 		vote_data->use_sys_cache = true;
 	vote_data->num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -699,6 +699,8 @@ void msm_vidc_power_data_reset(struct msm_vidc_inst *inst)
 	inst->power.buffer_counter = 0;
 	inst->power.fw_cr = 0;
 	inst->power.fw_cf = INT_MAX;
+	inst->power.fw_av1_tile_rows = 1;
+	inst->power.fw_av1_tile_columns = 1;
 
 	rc = msm_vidc_scale_power(inst, true);
 	if (rc)

@@ -16,7 +16,8 @@ int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl);
 int msm_v4l2_op_g_volatile_ctrl(struct v4l2_ctrl *ctrl);
 int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl);
 int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst);
-int msm_vidc_adjust_set_v4l2_properties(struct msm_vidc_inst *inst);
+int msm_vidc_adjust_v4l2_properties(struct msm_vidc_inst *inst);
+int msm_vidc_set_v4l2_properties(struct msm_vidc_inst *inst);
 bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id);
 bool is_valid_cap(struct msm_vidc_inst *inst,
 		enum msm_vidc_inst_capability_type cap_id);

@@ -16,18 +16,16 @@
 
 int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value, all_intra = 0, roi_enable = 0,
 		pix_fmts = MSM_VIDC_FMT_NONE;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
-	adjusted_value = ctrl ? ctrl->val : capability->cap[IR_PERIOD].value;
+	adjusted_value = ctrl ? ctrl->val : inst->capabilities[IR_PERIOD].value;
 
 	if (msm_vidc_get_parent_value(inst, IR_PERIOD, ALL_INTRA,
 		&all_intra, __func__) ||
@@ -82,11 +80,10 @@ exit:
 
 int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	u32 adjusted_value = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -96,8 +93,7 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 	}
 
-	capability = inst->capabilities;
-	adjusted_value = ctrl ? ctrl->val : capability->cap[FRAME_RATE].value;
+	adjusted_value = ctrl ? ctrl->val : inst->capabilities[FRAME_RATE].value;
 	msm_vidc_update_cap_value(inst, FRAME_RATE, adjusted_value, __func__);
 
 	return 0;
@@ -105,11 +101,10 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	u32 adjusted_value = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -119,8 +114,7 @@ int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 	}
 
-	capability = inst->capabilities;
-	adjusted_value = ctrl ? ctrl->val : capability->cap[OPERATING_RATE].value;
+	adjusted_value = ctrl ? ctrl->val : inst->capabilities[OPERATING_RATE].value;
 	msm_vidc_update_cap_value(inst, OPERATING_RATE, adjusted_value, __func__);
 
 	return 0;
@@ -128,12 +122,11 @@ int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value;
 	s32 slice_mode = -1;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -141,9 +134,8 @@ int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 	if (is_decode_session(inst))
 		return 0;
 
-	capability = inst->capabilities;
 
-	adjusted_value = ctrl ? ctrl->val : capability->cap[DELIVERY_MODE].value;
+	adjusted_value = ctrl ? ctrl->val : inst->capabilities[DELIVERY_MODE].value;
 
 	if (msm_vidc_get_parent_value(inst, DELIVERY_MODE, SLICE_MODE,
 		&slice_mode, __func__))
@@ -167,34 +159,34 @@ int msm_vidc_set_ir_period(void *instance,
 	u32 ir_type = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
 	core = inst->core;
 
-	if (inst->capabilities->cap[IR_TYPE].value ==
-	    V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM) {
+	if (inst->capabilities[IR_TYPE].value ==
+	    V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM) {
 		if (inst->bufq[OUTPUT_PORT].vb2q->streaming) {
 			i_vpr_h(inst, "%s: dynamic random intra refresh not allowed\n",
 				__func__);
 			return 0;
 		}
 		ir_type = HFI_PROP_IR_RANDOM_PERIOD;
-	} else if (inst->capabilities->cap[IR_TYPE].value ==
-		   V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC) {
+	} else if (inst->capabilities[IR_TYPE].value ==
+		   V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC) {
 		ir_type = HFI_PROP_IR_CYCLIC_PERIOD;
 	} else {
 		i_vpr_e(inst, "%s: invalid ir_type %d\n",
-			__func__, inst->capabilities->cap[IR_TYPE]);
+			__func__, inst->capabilities[IR_TYPE]);
 		return -EINVAL;
 	}
 
 	rc = venus_hfi_set_ir_period(inst, ir_type, cap_id);
 	if (rc) {
 		i_vpr_e(inst, "%s: failed to set ir period %d\n",
-			__func__, inst->capabilities->cap[IR_PERIOD].value);
+			__func__, inst->capabilities[IR_PERIOD].value);
 		return rc;
 	}
 
@@ -206,7 +198,6 @@ int msm_vidc_set_signal_color_info(void *instance,
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
-	struct msm_vidc_inst_capability *capability;
 	u32 color_info, matrix_coeff, transfer_char, primaries, range;
 	u32 full_range = 0;
 	u32 colour_description_present_flag = 0;
@@ -216,18 +207,17 @@ int msm_vidc_set_signal_color_info(void *instance,
 	/* Unspecified video format */
 	u32 video_format = 5;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
-	if (!(capability->cap[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
+	if (!(inst->capabilities[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
 		i_vpr_h(inst, "%s: colorspace not configured via control\n", __func__);
 		return 0;
 	}
 
-	color_info = capability->cap[cap_id].value;
+	color_info = inst->capabilities[cap_id].value;
 	matrix_coeff = color_info & 0xFF;
 	transfer_char = (color_info & 0xFF00) >> 8;
 	primaries = (color_info & 0xFF0000) >> 16;
@@ -279,21 +269,19 @@ int msm_vidc_set_signal_color_info(void *instance,
 
 int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability *capability;
 	s32 adjusted_value;
 	s32 pix_fmt = -1;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	if (is_decode_session(inst))
 		return 0;
 
-	adjusted_value = ctrl ? ctrl->val : capability->cap[CSC].value;
+	adjusted_value = ctrl ? ctrl->val : inst->capabilities[CSC].value;
 
 	if (msm_vidc_get_parent_value(inst, CSC, PIX_FMTS,
 		&pix_fmt, __func__))

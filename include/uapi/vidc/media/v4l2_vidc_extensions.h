@@ -10,56 +10,12 @@
 #include <linux/types.h>
 #include <linux/v4l2-controls.h>
 
-/*
- * supported standard color formats
- * V4L2_PIX_FMT_NV12   Y/CbCr 4:2:0
- * V4L2_PIX_FMT_RGBA32  RGBA-8-8-8-8
- */
- /* Below are additional color formats */
-/* 12  Y/CbCr 4:2:0  compressed */
-#define V4L2_PIX_FMT_VIDC_NV12C                 v4l2_fourcc('Q', '1', '2', 'C')
-/* Y/CbCr 4:2:0, 10 bits per channel compressed */
-#define V4L2_PIX_FMT_VIDC_TP10C                 v4l2_fourcc('Q', '1', '0', 'C')
-/* Y/CbCr 4:2:0, 10 bits per channel */
-#define V4L2_PIX_FMT_VIDC_P010                  v4l2_fourcc('P', '0', '1', '0')
 /* 32  RGBA-8-8-8-8 compressed */
 #define V4L2_PIX_FMT_VIDC_ARGB32C               v4l2_fourcc('Q', '2', '4', 'C')
 #define V4L2_META_FMT_VIDC                      v4l2_fourcc('Q', 'M', 'E', 'T')
-/* HEIC encoder and decoder */
-#define V4L2_PIX_FMT_HEIC                       v4l2_fourcc('H', 'E', 'I', 'C')
 /* AV1 */
 #define V4L2_PIX_FMT_AV1                        v4l2_fourcc('A', 'V', '1', '0')
-/* start of vidc specific colorspace definitions */
-/*
- * V4L2_COLORSPACE_VIDC_START, V4L2_XFER_FUNC_VIDC_START
- * and V4L2_YCBCR_VIDC_START are introduced because
- * V4L2_COLORSPACE_LAST, V4L2_XFER_FUNC_LAST, and
- * V4L2_YCBCR_ENC_LAST respectively are not accessible
- * in userspace. These values are needed in userspace
- * to check if the colorspace info is private.
- */
-#define V4L2_COLORSPACE_VIDC_START           100
-#define V4L2_COLORSPACE_VIDC_GENERIC_FILM    101
-#define V4L2_COLORSPACE_VIDC_EG431           102
-#define V4L2_COLORSPACE_VIDC_EBU_TECH        103
 
-#define V4L2_XFER_FUNC_VIDC_START            200
-#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M   201
-#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG  202
-#define V4L2_XFER_FUNC_VIDC_BT601_525_OR_625 203
-#define V4L2_XFER_FUNC_VIDC_LINEAR           204
-#define V4L2_XFER_FUNC_VIDC_XVYCC            205
-#define V4L2_XFER_FUNC_VIDC_BT1361           206
-#define V4L2_XFER_FUNC_VIDC_BT2020           207
-#define V4L2_XFER_FUNC_VIDC_ST428            208
-#define V4L2_XFER_FUNC_VIDC_HLG              209
-
-/* should be 255 or below due to u8 limitation */
-#define V4L2_YCBCR_VIDC_START                240
-#define V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428  241
-#define V4L2_YCBCR_VIDC_FCC47_73_682         242
-
-/* end of vidc specific colorspace definitions */
 #ifndef V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE
 #define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
 #endif
@@ -81,16 +37,6 @@
 #define V4L2_CID_MPEG_VIDC_FRAME_RATE           (V4L2_CID_MPEG_VIDC_BASE + 0x5)
 #define V4L2_CID_MPEG_VIDC_OPERATING_RATE       (V4L2_CID_MPEG_VIDC_BASE + 0x6)
 
-/* Encoder Intra refresh period */
-#define V4L2_CID_MPEG_VIDC_INTRA_REFRESH_PERIOD (V4L2_CID_MPEG_VIDC_BASE + 0xB)
-/* Encoder Intra refresh type */
-#define V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE                           \
-	(V4L2_CID_MPEG_VIDC_BASE + 0xC)
-enum v4l2_mpeg_vidc_ir_type {
-	V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM = 0x0,
-	V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC = 0x1,
-};
-
 #define V4L2_CID_MPEG_VIDC_TIME_DELTA_BASED_RC  (V4L2_CID_MPEG_VIDC_BASE + 0xD)
 /* Encoder quality controls */
 #define V4L2_CID_MPEG_VIDC_CONTENT_ADAPTIVE_CODING                            \
@@ -110,18 +56,6 @@ enum v4l2_mpeg_vidc_blur_types {
 /* TODO: jdas: compound control for matrix */
 #define V4L2_CID_MPEG_VIDC_VIDEO_VPE_CSC_CUSTOM_MATRIX                        \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x12)
-
-/* various Metadata - encoder & decoder */
-enum v4l2_mpeg_vidc_metadata_bits {
-	V4L2_MPEG_VIDC_META_DISABLE          = 0x0,
-	V4L2_MPEG_VIDC_META_ENABLE           = 0x1,
-	V4L2_MPEG_VIDC_META_TX_INPUT         = 0x2,
-	V4L2_MPEG_VIDC_META_TX_OUTPUT        = 0x4,
-	V4L2_MPEG_VIDC_META_RX_INPUT         = 0x8,
-	V4L2_MPEG_VIDC_META_RX_OUTPUT        = 0x10,
-	V4L2_MPEG_VIDC_META_MAX              = 0x20,
-};
-
 #define V4L2_CID_MPEG_VIDC_METADATA_LTR_MARK_USE_DETAILS                      \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x13)
 #define V4L2_CID_MPEG_VIDC_METADATA_SEQ_HEADER_NAL                            \
@@ -302,176 +236,8 @@ enum v4l2_mpeg_video_av1_tier {
 #define V4L2_CID_MPEG_VIDC_CSC                                                \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x47)
 
-/* add new controls above this line */
-/* Deprecate below controls once availble in gki and gsi bionic header */
-#ifndef V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID
-#define V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID                            \
-	(V4L2_CID_MPEG_BASE + 230)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_AU_DELIMITER
-#define V4L2_CID_MPEG_VIDEO_AU_DELIMITER                                     \
-	(V4L2_CID_MPEG_BASE + 231)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_LTR_COUNT
-#define V4L2_CID_MPEG_VIDEO_LTR_COUNT                                        \
-	(V4L2_CID_MPEG_BASE + 232)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX
-#define V4L2_CID_MPEG_VIDEO_FRAME_LTR_INDEX                                  \
-	(V4L2_CID_MPEG_BASE + 233)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES
-#define V4L2_CID_MPEG_VIDEO_USE_LTR_FRAMES                                   \
-	(V4L2_CID_MPEG_BASE + 234)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 389)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 390)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L0_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L0_BR                           \
-	(V4L2_CID_MPEG_BASE + 391)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L1_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L1_BR                           \
-	(V4L2_CID_MPEG_BASE + 392)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L2_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L2_BR                           \
-	(V4L2_CID_MPEG_BASE + 393)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L3_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L3_BR                           \
-	(V4L2_CID_MPEG_BASE + 394)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L4_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L4_BR                           \
-	(V4L2_CID_MPEG_BASE + 395)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L5_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L5_BR                           \
-	(V4L2_CID_MPEG_BASE + 396)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L6_BR
-#define V4L2_CID_MPEG_VIDEO_H264_HIER_CODING_L6_BR                           \
-	(V4L2_CID_MPEG_BASE + 397)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 647)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 648)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 649)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 650)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MIN_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MIN_QP                              \
-	(V4L2_CID_MPEG_BASE + 651)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MAX_QP
-#define V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MAX_QP                              \
-	(V4L2_CID_MPEG_BASE + 652)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY
-#define V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY                                \
-	(V4L2_CID_MPEG_BASE + 653)
-#endif
-#ifndef V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE
-#define V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE                         \
-	(V4L2_CID_MPEG_BASE + 654)
-#endif
-
-enum v4l2_mpeg_vidc_metapayload_header_flags {
-	METADATA_FLAGS_NONE             = 0,
-	METADATA_FLAGS_TOP_FIELD        = (1 << 0),
-	METADATA_FLAGS_BOTTOM_FIELD     = (1 << 1),
-	METADATA_FLAGS_BITSTREAM        = (1 << 2),
-	METADATA_FLAGS_RAW              = (1 << 3),
-};
-
-enum saliency_roi_info {
-	METADATA_SALIENCY_NONE,
-	METADATA_SALIENCY_TYPE0,
-};
-
-struct msm_vidc_metabuf_header {
-	__u32 count;
-	__u32 size;
-	__u32 version;
-	__u32 reserved[5];
-};
-struct msm_vidc_metapayload_header {
-	__u32 type;
-	__u32 size;
-	__u32 version;
-	__u32 offset;
-	__u32 flags;
-	__u32 reserved[3];
-};
-enum v4l2_mpeg_vidc_metadata {
-	METADATA_BITSTREAM_RESOLUTION         = 0x03000103,
-	METADATA_CROP_OFFSETS                 = 0x03000105,
-	METADATA_LTR_MARK_USE_DETAILS         = 0x03000137,
-	METADATA_SEQ_HEADER_NAL               = 0x0300014a,
-	METADATA_DPB_LUMA_CHROMA_MISR         = 0x03000153,
-	METADATA_OPB_LUMA_CHROMA_MISR         = 0x03000154,
-	METADATA_INTERLACE                    = 0x03000156,
-	METADATA_TIMESTAMP                    = 0x0300015c,
-	METADATA_CONCEALED_MB_COUNT           = 0x0300015f,
-	METADATA_HISTOGRAM_INFO               = 0x03000161,
-	METADATA_PICTURE_TYPE                 = 0x03000162,
-	METADATA_SEI_MASTERING_DISPLAY_COLOUR = 0x03000163,
-	METADATA_SEI_CONTENT_LIGHT_LEVEL      = 0x03000164,
-	METADATA_HDR10PLUS                    = 0x03000165,
-	METADATA_EVA_STATS                    = 0x03000167,
-	METADATA_BUFFER_TAG                   = 0x0300016b,
-	METADATA_SUBFRAME_OUTPUT              = 0x0300016d,
-	METADATA_ENC_QP_METADATA              = 0x0300016e,
-	METADATA_DEC_QP_METADATA              = 0x0300016f,
-	METADATA_ROI_INFO                     = 0x03000173,
-	METADATA_DPB_TAG_LIST                 = 0x03000179,
-	METADATA_MAX_NUM_REORDER_FRAMES       = 0x03000127,
-	METADATA_SALIENCY_INFO                = 0x0300018A,
-	METADATA_FENCE                        = 0x0300018B,
-	METADATA_TRANSCODING_STAT_INFO        = 0x03000191,
-	METADATA_DV_RPU                       = 0x03000192,
-};
-enum meta_interlace_info {
-	META_INTERLACE_INFO_NONE                            = 0x00000000,
-	META_INTERLACE_FRAME_PROGRESSIVE                    = 0x00000001,
-	META_INTERLACE_FRAME_MBAFF                          = 0x00000002,
-	META_INTERLACE_FRAME_INTERLEAVE_TOPFIELD_FIRST      = 0x00000004,
-	META_INTERLACE_FRAME_INTERLEAVE_BOTTOMFIELD_FIRST   = 0x00000008,
-	META_INTERLACE_FRAME_INTERLACE_TOPFIELD_FIRST       = 0x00000010,
-	META_INTERLACE_FRAME_INTERLACE_BOTTOMFIELD_FIRST    = 0x00000020,
-};
-
-/*
- * enum meta_picture_type - specifies input picture type
- * @META_PICTURE_TYPE_NEW: start of new frame or first slice in a frame
- */
-enum meta_picture_type {
-	META_PICTURE_TYPE_IDR                            = 0x00000001,
-	META_PICTURE_TYPE_P                              = 0x00000002,
-	META_PICTURE_TYPE_B                              = 0x00000004,
-	META_PICTURE_TYPE_I                              = 0x00000008,
-	META_PICTURE_TYPE_CRA                            = 0x00000010,
-	META_PICTURE_TYPE_BLA                            = 0x00000020,
-	META_PICTURE_TYPE_NOSHOW                         = 0x00000040,
-	META_PICTURE_TYPE_NEW                            = 0x00000080,
-};
+#define V4L2_CID_MPEG_VIDC_DRIVER_VERSION                                     \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x48)
 
 /* vendor controls end */
 
@@ -493,11 +259,5 @@ enum meta_picture_type {
  */
 
 /* vendor events end */
-
-/* Default metadata size (align to 4KB) */
-#define MSM_VIDC_METADATA_SIZE           (4 * 4096) /* 16 KB */
-#define ENCODE_INPUT_METADATA_SIZE       (512 * 4096) /* 2 MB */
-#define DECODE_INPUT_METADATA_SIZE       MSM_VIDC_METADATA_SIZE
-#define MSM_VIDC_METADATA_DOLBY_RPU_SIZE  (41 * 1024) /* 41 KB */
 
 #endif

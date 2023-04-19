@@ -571,7 +571,7 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -677,6 +677,7 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	struct frequency_table *freq_tbl;
 	u32 freq = 0;
 	int rc = 0;
+	int count = 0;
 
 	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
@@ -722,15 +723,45 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	/*
 	 * Re-program all of the registers that get reset as a result of
 	 * regulator_disable() and _enable()
+	 * When video module writing to QOS registers EVA module is not
+	 * supposed to do video_xo_reset operations else we will see register
+	 * access failure, so acquire video_xo_reset to ensure EVA module is
+	 * not doing assert or de-assert on video_xo_reset.
 	 */
+	do {
+		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+		if (!rc) {
+			break;
+		} else {
+			d_vpr_e(
+				"%s: failed to acquire video_xo_reset control, count %d\n",
+				__func__, count);
+			count++;
+			usleep_range(1000, 1000);
+		}
+	} while (count < 100);
+
+	if (count >= 100) {
+		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+		goto fail_assert_xo_reset;
+	}
+
 	__set_registers(core);
 
+	/* release reset control for other consumers */
+	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to release video_xo_reset reset\n", __func__);
+		goto fail_deassert_xo_reset;
+	}
 	__interrupt_init_iris33(core);
 	core->intr_status = 0;
 	enable_irq(core->resource->irq);
 
 	return rc;
 
+fail_deassert_xo_reset:
+fail_assert_xo_reset:
 fail_power_on_substate:
 	__power_off_iris33_hardware(core);
 fail_power_on_hardware:
@@ -954,7 +985,8 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 			return rc;
 
 		if ((ctrl_status & HFI_CTRL_ERROR_FATAL) ||
-			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET)) {
+			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET) ||
+			(ctrl_status & HFI_CTRL_ERROR_HW_FENCE_QUEUE)) {
 			d_vpr_e("%s: boot firmware failed, ctrl status %#x\n",
 				__func__, ctrl_status);
 			return -EINVAL;
@@ -992,7 +1024,7 @@ int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst* inst)
 	u32 width, height;
 	bool res_ok = false;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1010,9 +1042,9 @@ int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst* inst)
 		height = inp_f->fmt.pix_mp.height;
 		width = inp_f->fmt.pix_mp.width;
 		res_ok = res_is_less_than(width, height, 1280, 720);
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE ||
-			inst->capabilities->cap[LOWLATENCY_MODE].value ||
+			inst->capabilities[LOWLATENCY_MODE].value ||
 			res_ok) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
@@ -1021,17 +1053,17 @@ int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst* inst)
 		width = inst->crop.width;
 		res_ok = !res_is_greater_than(width, height, 4096, 2160);
 		if (res_ok &&
-			(inst->capabilities->cap[LOWLATENCY_MODE].value)) {
+			(inst->capabilities[LOWLATENCY_MODE].value)) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
-		if (inst->capabilities->cap[SLICE_MODE].value ==
+		if (inst->capabilities[SLICE_MODE].value ==
 			V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES) {
 			work_mode = MSM_VIDC_STAGE_1;
 		}
-		if (inst->capabilities->cap[LOSSLESS].value)
+		if (inst->capabilities[LOSSLESS].value)
 			work_mode = MSM_VIDC_STAGE_2;
 
-		if (!inst->capabilities->cap[GOP_SIZE].value)
+		if (!inst->capabilities[GOP_SIZE].value)
 			work_mode = MSM_VIDC_STAGE_2;
 	} else {
 		i_vpr_e(inst, "%s: invalid session type\n", __func__);
@@ -1040,8 +1072,8 @@ int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst* inst)
 
 exit:
 	i_vpr_h(inst, "Configuring work mode = %u low latency = %u, gop size = %u\n",
-		work_mode, inst->capabilities->cap[LOWLATENCY_MODE].value,
-		inst->capabilities->cap[GOP_SIZE].value);
+		work_mode, inst->capabilities[LOWLATENCY_MODE].value,
+		inst->capabilities[GOP_SIZE].value);
 	msm_vidc_update_cap_value(inst, STAGE, work_mode, __func__);
 
 	return 0;
@@ -1064,13 +1096,13 @@ int msm_vidc_decide_work_route_iris33(struct msm_vidc_inst* inst)
 		goto exit;
 
 	if (is_decode_session(inst)) {
-		if (inst->capabilities->cap[CODED_FRAMES].value ==
+		if (inst->capabilities[CODED_FRAMES].value ==
 				CODED_FRAMES_INTERLACE)
 			work_route = MSM_VIDC_PIPE_1;
 	} else if (is_encode_session(inst)) {
 		u32 slice_mode;
 
-		slice_mode = inst->capabilities->cap[SLICE_MODE].value;
+		slice_mode = inst->capabilities[SLICE_MODE].value;
 
 		/*TODO Pipe=1 for legacy CBR*/
 		if (slice_mode == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES)
@@ -1090,30 +1122,27 @@ exit:
 
 int msm_vidc_decide_quality_mode_iris33(struct msm_vidc_inst* inst)
 {
-	struct msm_vidc_inst_capability* capability = NULL;
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	capability = inst->capabilities;
 
 	if (!is_encode_session(inst))
 		return 0;
 
 	/* image or lossless or all intra runs at quality mode */
-	if (is_image_session(inst) || capability->cap[LOSSLESS].value ||
-		capability->cap[ALL_INTRA].value) {
+	if (is_image_session(inst) || inst->capabilities[LOSSLESS].value ||
+		inst->capabilities[ALL_INTRA].value) {
 		mode = MSM_VIDC_MAX_QUALITY_MODE;
 		goto decision_done;
 	}
 
 	/* for lesser complexity, make LP for all resolution */
-	if (capability->cap[COMPLEXITY].value < DEFAULT_COMPLEXITY) {
+	if (inst->capabilities[COMPLEXITY].value < DEFAULT_COMPLEXITY) {
 		mode = MSM_VIDC_POWER_SAVE_MODE;
 		goto decision_done;
 	}
@@ -1125,8 +1154,8 @@ int msm_vidc_decide_quality_mode_iris33(struct msm_vidc_inst* inst)
 	max_hq_mbps = core->capabilities[MAX_MBPS_HQ].value;;
 
 	if (!is_realtime_session(inst)) {
-		if (((capability->cap[COMPLEXITY].flags & CAP_FLAG_CLIENT_SET) &&
-			(capability->cap[COMPLEXITY].value >= DEFAULT_COMPLEXITY)) ||
+		if (((inst->capabilities[COMPLEXITY].flags & CAP_FLAG_CLIENT_SET) &&
+			(inst->capabilities[COMPLEXITY].value >= DEFAULT_COMPLEXITY)) ||
 			mbpf <= max_hq_mbpf) {
 			mode = MSM_VIDC_MAX_QUALITY_MODE;
 			goto decision_done;
@@ -1144,7 +1173,6 @@ decision_done:
 
 int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst_capability* capability = NULL;
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	s32 rc_type = -1;
@@ -1152,15 +1180,13 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 	struct v4l2_format *f;
 	u32 max_bitrate = 0, bitrate = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	capability = inst->capabilities;
-
 	adjusted_value = ctrl ? ctrl->val :
-		capability->cap[BITRATE_BOOST].value;
+		inst->capabilities[BITRATE_BOOST].value;
 
 	if (inst->bufq[OUTPUT_PORT].vb2q->streaming)
 		return 0;
@@ -1178,7 +1204,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 		goto adjust;
 	}
 
-	frame_rate = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
 	f= &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
@@ -1188,7 +1214,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 	 * if client did not set, keep max bitrate boost upto 4k@60fps
 	 * and remove bitrate boost after 4k@60fps
 	*/
-	if (capability->cap[BITRATE_BOOST].flags & CAP_FLAG_CLIENT_SET) {
+	if (inst->capabilities[BITRATE_BOOST].flags & CAP_FLAG_CLIENT_SET) {
 		/* accept client set bitrate boost value as is */
 	} else {
 		if (res_is_less_than_or_equal_to(width, height, 4096, 2176) &&
@@ -1199,7 +1225,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 	}
 
 	max_bitrate = msm_vidc_get_max_bitrate(inst);
-	bitrate = inst->capabilities->cap[BIT_RATE].value;
+	bitrate = inst->capabilities[BIT_RATE].value;
 	if (adjusted_value) {
 		if ((bitrate + bitrate / (100 / adjusted_value)) > max_bitrate) {
 			i_vpr_h(inst,

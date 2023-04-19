@@ -13,6 +13,7 @@
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
 #include <linux/version.h>
+#include <linux/stringify.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
 #endif
@@ -24,18 +25,18 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_state.h"
+#include "msm_vidc_fence.h"
 #include "msm_vidc_platform.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_memory.h"
 #include "venus_hfi.h"
-#include "video_generated_h"
 
 #define BASE_DEVICE_NUMBER 32
 
 struct msm_vidc_core *g_core;
 
-const char video_banner[] = "Video-Banner: (" VIDEO_COMPILE_BY "@"
-	VIDEO_COMPILE_HOST ") (" VIDEO_COMPILE_TIME ")";
+const char video_banner[] = "Video-Banner: (" __stringify(VIDEO_COMPILE_BY) "@"
+	__stringify(VIDEO_COMPILE_HOST) ") (" __stringify(VIDEO_COMPILE_TIME) ")";
 
 static inline bool is_video_device(struct device *dev)
 {
@@ -173,7 +174,7 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 
 	d_vpr_h("%s: domain %d\n", __func__, type);
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -567,6 +568,27 @@ static int msm_vidc_component_master_bind(struct device *dev)
 		return rc;
 	}
 
+	if (core->capabilities[SUPPORTS_SYNX_FENCE].value) {
+		if (msm_vidc_synx_fence_enable) {
+			/* register for synx fence */
+			rc = call_fence_op(core, fence_register, core);
+			if (rc) {
+				d_vpr_e("%s: failed to register synx fence\n",
+					__func__);
+				core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+				return rc;
+			}
+		} else {
+			/* override synx fence ops with dma fence ops */
+			core->fence_ops = get_dma_fence_ops();
+			if (!core->fence_ops) {
+				d_vpr_e("%s: invalid dma fence ops\n", __func__);
+				return -EINVAL;
+			}
+			core->capabilities[SUPPORTS_SYNX_FENCE].value = 0;
+		}
+	}
+
 	rc = msm_vidc_initialize_media(core);
 	if (rc) {
 		d_vpr_e("%s: media initialization failed\n", __func__);
@@ -607,6 +629,7 @@ static void msm_vidc_component_master_unbind(struct device *dev)
 	msm_vidc_core_deinit(core, true);
 	venus_hfi_queue_deinit(core);
 	msm_vidc_deinitialize_media(core);
+	call_fence_op(core, fence_deregister, core);
 	component_unbind_all(dev, core);
 
 	d_vpr_h("%s(): succssful\n", __func__);
@@ -652,7 +675,6 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 
 	msm_vidc_deinit_instance_caps(core);
-	msm_vidc_deinit_core_caps(core);
 
 	msm_vidc_deinit_platform(pdev);
 	msm_vidc_deinitialize_core(core);
@@ -819,7 +841,6 @@ sub_dev_failed:
 init_group_failed:
 	msm_vidc_deinit_instance_caps(core);
 init_inst_caps_fail:
-	msm_vidc_deinit_core_caps(core);
 init_res_failed:
 	msm_vidc_deinit_platform(pdev);
 init_plat_failed:

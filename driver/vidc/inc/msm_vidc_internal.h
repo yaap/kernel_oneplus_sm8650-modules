@@ -24,6 +24,37 @@
 
 struct msm_vidc_inst;
 
+/* start of vidc specific colorspace definitions */
+/*
+ * V4L2_COLORSPACE_VIDC_START, V4L2_XFER_FUNC_VIDC_START
+ * and V4L2_YCBCR_VIDC_START are introduced because
+ * V4L2_COLORSPACE_LAST, V4L2_XFER_FUNC_LAST, and
+ * V4L2_YCBCR_ENC_LAST respectively are not accessible
+ * in userspace. These values are needed in userspace
+ * to check if the colorspace info is private.
+ */
+#define V4L2_COLORSPACE_VIDC_START           100
+#define V4L2_COLORSPACE_VIDC_GENERIC_FILM    101
+#define V4L2_COLORSPACE_VIDC_EG431           102
+#define V4L2_COLORSPACE_VIDC_EBU_TECH        103
+
+#define V4L2_XFER_FUNC_VIDC_START            200
+#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_M   201
+#define V4L2_XFER_FUNC_VIDC_BT470_SYSTEM_BG  202
+#define V4L2_XFER_FUNC_VIDC_BT601_525_OR_625 203
+#define V4L2_XFER_FUNC_VIDC_LINEAR           204
+#define V4L2_XFER_FUNC_VIDC_XVYCC            205
+#define V4L2_XFER_FUNC_VIDC_BT1361           206
+#define V4L2_XFER_FUNC_VIDC_BT2020           207
+#define V4L2_XFER_FUNC_VIDC_ST428            208
+#define V4L2_XFER_FUNC_VIDC_HLG              209
+
+/* should be 255 or below due to u8 limitation */
+#define V4L2_YCBCR_VIDC_START                240
+#define V4L2_YCBCR_VIDC_SRGB_OR_SMPTE_ST428  241
+#define V4L2_YCBCR_VIDC_FCC47_73_682         242
+/* end of vidc specific colorspace definitions */
+
 /* TODO : remove once available in mainline kernel */
 #ifndef V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE
 #define V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE    (3)
@@ -43,7 +74,8 @@ enum msm_vidc_metadata_bits {
 	MSM_VIDC_META_TX_OUTPUT        = 0x4,
 	MSM_VIDC_META_RX_INPUT         = 0x8,
 	MSM_VIDC_META_RX_OUTPUT        = 0x10,
-	MSM_VIDC_META_MAX              = 0x20,
+	MSM_VIDC_META_DYN_ENABLE       = 0x20,
+	MSM_VIDC_META_MAX              = 0x40,
 };
 
 #define MSM_VIDC_METADATA_SIZE             (4 * 4096) /* 16 KB */
@@ -102,6 +134,9 @@ enum msm_vidc_metadata_bits {
 #define MAX_LTR_FRAME_COUNT_5                 5
 #define MAX_LTR_FRAME_COUNT_2                 2
 #define MAX_ENC_RING_BUF_COUNT                5 /* to be tuned */
+#define MAX_TRANSCODING_STATS_FRAME_RATE     60
+#define MAX_TRANSCODING_STATS_WIDTH        4096
+#define MAX_TRANSCODING_STATS_HEIGHT       2304
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -231,6 +266,7 @@ enum msm_vidc_metadata_bits {
 	CAP(META_SALIENCY_INFO)                   \
 	CAP(META_TRANSCODING_STAT_INFO)           \
 	CAP(META_DOLBY_RPU)                       \
+	CAP(DRV_VERSION)                          \
 	CAP(MIN_FRAME_QP)                         \
 	CAP(MAX_FRAME_QP)                         \
 	CAP(I_FRAME_QP)                           \
@@ -253,6 +289,10 @@ enum msm_vidc_metadata_bits {
 	CAP(DELIVERY_MODE)                        \
 	CAP(VUI_TIMING_INFO)                      \
 	CAP(SLICE_DECODE)                         \
+	CAP(INBUF_FENCE_TYPE)                     \
+	CAP(OUTBUF_FENCE_TYPE)                    \
+	CAP(INBUF_FENCE_DIRECTION)                \
+	CAP(OUTBUF_FENCE_DIRECTION)               \
 	CAP(PROFILE)                              \
 	CAP(ENH_LAYER_COUNT)                      \
 	CAP(BIT_RATE)                             \
@@ -294,6 +334,7 @@ enum msm_vidc_metadata_bits {
 	CAP(SECURE_MODE)                          \
 	CAP(FENCE_ID)                             \
 	CAP(FENCE_FD)                             \
+	CAP(FENCE_ERROR_DATA_CORRUPT)             \
 	CAP(TS_REORDER)                           \
 	CAP(HFLIP)                                \
 	CAP(VFLIP)                                \
@@ -464,7 +505,9 @@ enum msm_vidc_buffer_region {
 
 enum msm_vidc_device_region {
 	MSM_VIDC_DEVICE_REGION_NONE = 0,
-	MSM_VIDC_AON_REGISTERS,
+	MSM_VIDC_AON,
+	MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU,
+	MSM_VIDC_QTIMER,
 	MSM_VIDC_DEVICE_REGION_MAX,
 };
 
@@ -598,6 +641,7 @@ enum msm_vidc_core_capability_type {
 	ENC_AUTO_FRAMERATE,
 	DEVICE_CAPS,
 	SUPPORTS_REQUESTS,
+	SUPPORTS_SYNX_FENCE,
 	CORE_CAP_MAX,
 };
 
@@ -786,6 +830,8 @@ struct msm_vidc_hfi_frame_info {
 	u32                    data_corrupt;
 	u32                    overflow;
 	u32                    fence_id;
+	u32                    fence_error;
+	u32                    av1_tile_rows_columns;
 };
 
 struct msm_vidc_decode_vpp_delay {
@@ -843,6 +889,20 @@ struct msm_vidc_power {
 	u32                    dcvs_flags;
 	u32                    fw_cr;
 	u32                    fw_cf;
+	u32                    fw_av1_tile_rows;
+	u32                    fw_av1_tile_columns;
+};
+
+enum msm_vidc_fence_type {
+	MSM_VIDC_FENCE_NONE         = 0,
+	MSM_VIDC_SW_FENCE           = 1,
+	MSM_VIDC_SYNX_V2_FENCE      = 2,
+};
+
+enum msm_vidc_fence_direction {
+	MSM_VIDC_FENCE_DIR_NONE    = 0,
+	MSM_VIDC_FENCE_DIR_TX      = 1,
+	MSM_VIDC_FENCE_DIR_RX      = 2,
 };
 
 struct msm_vidc_fence_context {
@@ -858,6 +918,8 @@ struct msm_vidc_fence {
 	spinlock_t                  lock;
 	struct sync_file            *sync_file;
 	int                         fd;
+	u64                         fence_id;
+	void                        *session;
 };
 
 struct msm_vidc_mem {
@@ -884,6 +946,7 @@ struct msm_vidc_mem {
 	struct sg_table            *table;
 	struct dma_buf_attachment  *attach;
 	phys_addr_t                 phys_addr;
+	enum dma_data_direction     direction;
 };
 
 struct msm_vidc_mem_list {

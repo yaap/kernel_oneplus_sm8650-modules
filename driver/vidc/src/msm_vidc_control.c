@@ -155,12 +155,12 @@ bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
 bool is_valid_cap(struct msm_vidc_inst *inst,
 		enum msm_vidc_inst_capability_type cap_id)
 {
-	if (!inst || !inst->capabilities)
+	if (!inst)
 		return false;
 	if (cap_id <= INST_CAP_NONE || cap_id >= INST_CAP_MAX)
 		return false;
 
-	return !!inst->capabilities->cap[cap_id].cap_id;
+	return !!inst->capabilities[cap_id].cap_id;
 }
 
 static inline bool is_all_childrens_visited(
@@ -244,7 +244,7 @@ static int msm_vidc_add_children(struct msm_vidc_inst *inst,
 	struct msm_vidc_inst_cap *cap;
 	int i, rc = 0;
 
-	cap = &inst->capabilities->cap[cap_id];
+	cap = &inst->capabilities[cap_id];
 
 	for (i = 0; i < MAX_CAP_CHILDREN; i++) {
 		if (!cap->children[i])
@@ -273,7 +273,7 @@ static int msm_vidc_adjust_cap(struct msm_vidc_inst *inst,
 		return 0;
 
 	/* validate cap */
-	cap = &inst->capabilities->cap[cap_id];
+	cap = &inst->capabilities[cap_id];
 	if (!is_valid_cap(inst, cap->cap_id))
 		return 0;
 
@@ -306,7 +306,7 @@ static int msm_vidc_set_cap(struct msm_vidc_inst *inst,
 		return 0;
 
 	/* validate cap */
-	cap = &inst->capabilities->cap[cap_id];
+	cap = &inst->capabilities[cap_id];
 	if (!is_valid_cap(inst, cap->cap_id))
 		return 0;
 
@@ -328,15 +328,15 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	s32 prev_value;
 	int rc = 0;
 
-	if (!inst || !inst->capabilities || !ctrl) {
+	if (!inst || !ctrl) {
 		d_vpr_e("%s: invalid param\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	/* sanitize cap_id */
 	if (!is_valid_cap_id(cap_id)) {
@@ -344,7 +344,7 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	if (!(capability->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+	if (!(cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 		i_vpr_h(inst,
 			"%s: dynamic setting of cap[%d] %s is not allowed\n",
 			__func__, cap_id, cap_name(cap_id));
@@ -352,12 +352,12 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 	}
 	i_vpr_h(inst, "%s: cap[%d] %s\n", __func__, cap_id, cap_name(cap_id));
 
-	prev_value = capability->cap[cap_id].value;
+	prev_value = cap[cap_id].value;
 	rc = msm_vidc_adjust_cap(inst, cap_id, ctrl, __func__);
 	if (rc)
 		return rc;
 
-	if (capability->cap[cap_id].value == prev_value && cap_id == GOP_SIZE) {
+	if (cap[cap_id].value == prev_value && cap_id == GOP_SIZE) {
 		/*
 		 * Ignore setting same GOP size value to firmware to avoid
 		 * unnecessary generation of IDR frame.
@@ -371,7 +371,7 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 		goto error;
 
 	/* add children only if cap value modified */
-	if (capability->cap[cap_id].value == prev_value)
+	if (cap[cap_id].value == prev_value)
 		return 0;
 
 	rc = msm_vidc_add_children(inst, cap_id);
@@ -384,20 +384,20 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 			goto error;
 		}
 
-		if (!capability->cap[entry->cap_id].adjust) {
+		if (!cap[entry->cap_id].adjust) {
 			i_vpr_e(inst, "%s: child cap must have ajdust function %s\n",
 				__func__, cap_name(entry->cap_id));
 			rc = -EINVAL;
 			goto error;
 		}
 
-		prev_value = capability->cap[entry->cap_id].value;
+		prev_value = cap[entry->cap_id].value;
 		rc = msm_vidc_adjust_cap(inst, entry->cap_id, NULL, __func__);
 		if (rc)
 			goto error;
 
 		/* add children if cap value modified */
-		if (capability->cap[entry->cap_id].value != prev_value) {
+		if (cap[entry->cap_id].value != prev_value) {
 			/* add cap_id to firmware list always */
 			rc = msm_vidc_add_capid_to_fw_list(inst, entry->cap_id);
 			if (rc)
@@ -484,18 +484,18 @@ int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
 int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	struct msm_vidc_core *core;
 	int idx = 0;
 	struct v4l2_ctrl_config ctrl_cfg = {0};
 	int num_ctrls = 0, ctrl_idx = 0;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	core = inst->core;
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	if (!core->v4l2_ctrl_ops) {
 		i_vpr_e(inst, "%s: no control ops\n", __func__);
@@ -503,7 +503,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 	}
 
 	for (idx = 0; idx < INST_CAP_MAX; idx++) {
-		if (capability->cap[idx].v4l2_id)
+		if (cap[idx].v4l2_id)
 			num_ctrls++;
 	}
 	if (!num_ctrls) {
@@ -526,13 +526,13 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 	for (idx = 0; idx < INST_CAP_MAX; idx++) {
 		struct v4l2_ctrl *ctrl;
 
-		if (!capability->cap[idx].v4l2_id)
+		if (!cap[idx].v4l2_id)
 			continue;
 
 		if (ctrl_idx >= num_ctrls) {
 			i_vpr_e(inst,
 				"%s: invalid ctrl %#x, max allowed %d\n",
-				__func__, capability->cap[idx].v4l2_id,
+				__func__, cap[idx].v4l2_id,
 				num_ctrls);
 			rc = -EINVAL;
 			goto error;
@@ -540,27 +540,27 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 		i_vpr_l(inst,
 			"%s: cap[%d] %24s, value %d min %d max %d step_or_mask %#x flags %#x v4l2_id %#x hfi_id %#x\n",
 			__func__, idx, cap_name(idx),
-			capability->cap[idx].value,
-			capability->cap[idx].min,
-			capability->cap[idx].max,
-			capability->cap[idx].step_or_mask,
-			capability->cap[idx].flags,
-			capability->cap[idx].v4l2_id,
-			capability->cap[idx].hfi_id);
+			cap[idx].value,
+			cap[idx].min,
+			cap[idx].max,
+			cap[idx].step_or_mask,
+			cap[idx].flags,
+			cap[idx].v4l2_id,
+			cap[idx].hfi_id);
 
 		memset(&ctrl_cfg, 0, sizeof(struct v4l2_ctrl_config));
 
-		if (is_priv_ctrl(capability->cap[idx].v4l2_id)) {
+		if (is_priv_ctrl(cap[idx].v4l2_id)) {
 			/* add private control */
-			ctrl_cfg.def = capability->cap[idx].value;
+			ctrl_cfg.def = cap[idx].value;
 			ctrl_cfg.flags = 0;
-			ctrl_cfg.id = capability->cap[idx].v4l2_id;
-			ctrl_cfg.max = capability->cap[idx].max;
-			ctrl_cfg.min = capability->cap[idx].min;
+			ctrl_cfg.id = cap[idx].v4l2_id;
+			ctrl_cfg.max = cap[idx].max;
+			ctrl_cfg.min = cap[idx].min;
 			ctrl_cfg.ops = core->v4l2_ctrl_ops;
-			if (capability->cap[idx].flags & CAP_FLAG_MENU)
+			if (cap[idx].flags & CAP_FLAG_MENU)
 				ctrl_cfg.type = V4L2_CTRL_TYPE_MENU;
-			else if (capability->cap[idx].flags & CAP_FLAG_BITMASK)
+			else if (cap[idx].flags & CAP_FLAG_BITMASK)
 				ctrl_cfg.type = V4L2_CTRL_TYPE_BITMASK;
 			else
 				ctrl_cfg.type = V4L2_CTRL_TYPE_INTEGER;
@@ -576,14 +576,14 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			}
 			if (ctrl_cfg.type == V4L2_CTRL_TYPE_MENU) {
 				ctrl_cfg.menu_skip_mask =
-					~(capability->cap[idx].step_or_mask);
+					~(cap[idx].step_or_mask);
 				ctrl_cfg.qmenu = msm_vidc_get_qmenu_type(inst,
-					capability->cap[idx].cap_id);
+					cap[idx].cap_id);
 			} else {
 				ctrl_cfg.step =
-					capability->cap[idx].step_or_mask;
+					cap[idx].step_or_mask;
 			}
-			ctrl_cfg.name = cap_name(capability->cap[idx].cap_id);
+			ctrl_cfg.name = cap_name(cap[idx].cap_id);
 			if (!ctrl_cfg.name) {
 				i_vpr_e(inst, "%s: %#x ctrl name is null\n",
 					__func__, ctrl_cfg.id);
@@ -593,27 +593,27 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler,
 					&ctrl_cfg, NULL);
 		} else {
-			if (capability->cap[idx].flags & CAP_FLAG_MENU) {
+			if (cap[idx].flags & CAP_FLAG_MENU) {
 				ctrl = v4l2_ctrl_new_std_menu(
 					&inst->ctrl_handler,
 					core->v4l2_ctrl_ops,
-					capability->cap[idx].v4l2_id,
-					capability->cap[idx].max,
-					~(capability->cap[idx].step_or_mask),
-					capability->cap[idx].value);
+					cap[idx].v4l2_id,
+					cap[idx].max,
+					~(cap[idx].step_or_mask),
+					cap[idx].value);
 			} else {
 				ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler,
 					core->v4l2_ctrl_ops,
-					capability->cap[idx].v4l2_id,
-					capability->cap[idx].min,
-					capability->cap[idx].max,
-					capability->cap[idx].step_or_mask,
-					capability->cap[idx].value);
+					cap[idx].v4l2_id,
+					cap[idx].min,
+					cap[idx].max,
+					cap[idx].step_or_mask,
+					cap[idx].value);
 			}
 		}
 		if (!ctrl) {
 			i_vpr_e(inst, "%s: invalid ctrl %#x cap %24s\n", __func__,
-				capability->cap[idx].v4l2_id, cap_name(idx));
+				cap[idx].v4l2_id, cap_name(idx));
 			rc = -EINVAL;
 			goto error;
 		}
@@ -622,12 +622,12 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 		if (rc) {
 			i_vpr_e(inst,
 				"error adding ctrl (%#x) to ctrl handle, %d\n",
-				capability->cap[idx].v4l2_id,
+				cap[idx].v4l2_id,
 				inst->ctrl_handler.error);
 			goto error;
 		}
 
-		if (capability->cap[idx].flags & CAP_FLAG_VOLATILE)
+		if (cap[idx].flags & CAP_FLAG_VOLATILE)
 			ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 		ctrl->flags |= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
@@ -699,17 +699,10 @@ static int msm_vidc_allow_secure_session(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	if (!core->capabilities) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core_lock(core, __func__);
 	list_for_each_entry(i, &core->instances, list) {
-		if (i->capabilities) {
-			if (i->capabilities->cap[SECURE_MODE].value)
-				count++;
-		}
+		if (i->capabilities[SECURE_MODE].value)
+			count++;
 	}
 
 	if (count > core->capabilities[MAX_SECURE_SESSION_COUNT].value) {
@@ -770,6 +763,12 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 	if (!inst || !ctrl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
+	}
+
+	if (cap_id == DRV_VERSION) {
+		i_vpr_h(inst, "%s: driver version update not allowed\n",
+			__func__);
+		return 0;
 	}
 
 	/* update value to db */
@@ -850,15 +849,15 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 {
 	enum msm_vidc_inst_capability_type cap_id;
-	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst_cap *cap;
 	int rc = 0;
 	u32 port;
 
-	if (!inst || !inst->capabilities || !ctrl) {
+	if (!inst || !ctrl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	i_vpr_h(inst, FMT_STRING_SET_CTRL,
 		__func__, state_name(inst->state), ctrl->name, ctrl->id, ctrl->val);
@@ -870,7 +869,7 @@ int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	}
 
 	/* mark client set flag */
-	capability->cap[cap_id].flags |= CAP_FLAG_CLIENT_SET;
+	cap[cap_id].flags |= CAP_FLAG_CLIENT_SET;
 
 	port = is_encode_session(inst) ? OUTPUT_PORT : INPUT_PORT;
 	if (!inst->bufq[port].vb2q->streaming) {
@@ -925,19 +924,18 @@ unlock:
 int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 {
 	struct list_head leaf_list, opt_list;
-	struct msm_vidc_inst_capability *capability;
-	struct msm_vidc_inst_cap *cap, *lcap;
+	struct msm_vidc_inst_cap *cap, *lcap, *temp_cap;
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	bool leaf_visited[INST_CAP_MAX];
 	bool opt_visited[INST_CAP_MAX];
 	int tmp_count_total, tmp_count, num_nodes = 0;
 	int i, rc = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
+	cap = &inst->capabilities[0];
 
 	if (!list_empty(&inst->caps_list)) {
 		i_vpr_h(inst, "%s: dependency list already prepared\n", __func__);
@@ -952,7 +950,7 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 
 	/* populate leaf nodes first */
 	for (i = 1; i < INST_CAP_MAX; i++) {
-		lcap = &capability->cap[i];
+		lcap = &cap[i];
 		if (!is_valid_cap(inst, lcap->cap_id))
 			continue;
 
@@ -990,13 +988,13 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 		list_del_init(&entry->list);
 		opt_visited[entry->cap_id] = false;
 		tmp_count--;
-		cap = &capability->cap[entry->cap_id];
+		temp_cap = &cap[entry->cap_id];
 
 		/**
 		 * if all child are visited then add this entry to
 		 * leaf list else add it to the end of optional list.
 		 */
-		if (is_all_childrens_visited(cap, leaf_visited)) {
+		if (is_all_childrens_visited(temp_cap, leaf_visited)) {
 			list_add(&entry->list, &leaf_list);
 			leaf_visited[entry->cap_id] = true;
 			tmp_count_total--;
@@ -1043,16 +1041,12 @@ error:
 	return rc;
 }
 
-/*
- * Loop over instance capabilities from caps_list
- * and call adjust and set function
- */
-int msm_vidc_adjust_set_v4l2_properties(struct msm_vidc_inst *inst)
+int msm_vidc_adjust_v4l2_properties(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	int rc = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1067,6 +1061,20 @@ int msm_vidc_adjust_set_v4l2_properties(struct msm_vidc_inst *inst)
 		if (rc)
 			return rc;
 	}
+
+	return rc;
+}
+
+int msm_vidc_set_v4l2_properties(struct msm_vidc_inst *inst)
+{
+	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
+	int rc = 0;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	i_vpr_h(inst, "%s()\n", __func__);
 
 	/* set all caps from caps_list */
 	list_for_each_entry_safe(entry, temp, &inst->caps_list, list) {

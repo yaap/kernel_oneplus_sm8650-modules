@@ -48,7 +48,7 @@ static void __fatal_error(bool fatal)
 	WARN_ON(fatal);
 }
 
-static int __strict_check(struct msm_vidc_core *core, const char *function)
+int __strict_check(struct msm_vidc_core *core, const char *function)
 {
 	bool fatal = !mutex_is_locked(&core->lock);
 
@@ -88,7 +88,7 @@ static bool __valdiate_session(struct msm_vidc_core *core,
 
 static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -108,7 +108,7 @@ static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 
 static void __cancel_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -1006,7 +1006,7 @@ int venus_hfi_noc_error_info(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core) {
 		d_vpr_e("%s: Invalid parameters: %pK\n",
 			__func__, core);
 		return -EINVAL;
@@ -1319,7 +1319,7 @@ int venus_hfi_session_set_secure_mode(struct msm_vidc_inst *inst)
 	if (rc)
 		goto unlock;
 
-	secure_mode = inst->capabilities->cap[SECURE_MODE].value;
+	secure_mode = inst->capabilities[SECURE_MODE].value;
 	rc = hfi_create_packet(inst->packet, inst->packet_size,
 			HFI_PROP_SECURE,
 			HFI_HOST_FLAGS_NONE,
@@ -1738,16 +1738,14 @@ int venus_hfi_queue_super_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	struct hfi_buffer hfi_buffer;
 	struct hfi_buffer hfi_meta_buffer;
-	struct msm_vidc_inst_capability *capability;
 	u32 frame_size, meta_size, batch_size, cnt = 0;
 	u64 ts_delta_us;
 
-	if (!inst || !inst->core || !inst->capabilities || !inst->packet) {
+	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	core = inst->core;
-	capability = inst->capabilities;
 	core_lock(core, __func__);
 
 	if (!__valdiate_session(core, inst, __func__)) {
@@ -1767,10 +1765,10 @@ int venus_hfi_queue_super_buffer(struct msm_vidc_inst *inst,
 			goto unlock;
 	}
 
-	batch_size = capability->cap[SUPER_FRAME].value;
+	batch_size = inst->capabilities[SUPER_FRAME].value;
 	frame_size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
 	meta_size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT_META);
-	ts_delta_us = 1000000 / (capability->cap[FRAME_RATE].value >> 16);
+	ts_delta_us = 1000000 / (inst->capabilities[FRAME_RATE].value >> 16);
 
 	/* Sanitize super yuv buffer */
 	if (frame_size * batch_size != buffer->buffer_size) {
@@ -1905,7 +1903,7 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	struct hfi_buffer hfi_buffer, hfi_meta_buffer;
 
-	if (!inst || !inst->core || !inst->packet || !inst->capabilities) {
+	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -2113,7 +2111,7 @@ int venus_hfi_set_ir_period(struct msm_vidc_inst *inst, u32 ir_type,
 
 	core_lock(core, __func__);
 
-	ir_period = inst->capabilities->cap[cap_id].value;
+	ir_period = inst->capabilities[cap_id].value;
 
 	rc = hfi_create_header(inst->packet, inst->packet_size,
 			       inst->session_id, core->header_id++);
@@ -2151,7 +2149,7 @@ int venus_hfi_set_ir_period(struct msm_vidc_inst *inst, u32 ir_type,
 
 	rc = __cmdq_write(inst->core, inst->packet);
 	if (rc) {
-		i_vpr_e(inst, "%s: failed to set cap[%d] %s to fw\n",
+		i_vpr_e(inst, "%s: failed to set inst->capabilities[%d] %s to fw\n",
 			__func__, cap_id, cap_name(cap_id));
 		goto exit;
 	}

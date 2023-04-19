@@ -22,6 +22,8 @@ extern struct msm_vidc_core *g_core;
 #define MSM_VIDC_MAX_STATS_DELAY_MS     10000
 
 unsigned int msm_vidc_debug = (DRV_LOG | FW_LOG);
+/* disabled synx fence by default temporarily */
+bool msm_vidc_synx_fence_enable = false;
 
 static int debug_level_set(const char *val,
 	const struct kernel_param *kp)
@@ -34,18 +36,19 @@ static int debug_level_set(const char *val,
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = *(struct msm_vidc_core **)kp->arg;
-
-	if (!core || !core->capabilities) {
-		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
-		return -EINVAL;
-	}
 
 	ret = kstrtouint(val, 0, &dvalue);
 	if (ret)
 		return ret;
 
 	msm_vidc_debug = dvalue;
+
+	core = *(struct msm_vidc_core **)kp->arg;
+
+	if (!core) {
+		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
+		return 0;
+	}
 
 	/* check if driver or FW logmask is more than default level */
 	if (((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) ||
@@ -82,18 +85,11 @@ static const struct kernel_param_ops msm_vidc_debug_fops = {
 static int fw_dump_set(const char *val,
 	const struct kernel_param *kp)
 {
-	struct msm_vidc_core *core = NULL;
 	unsigned int dvalue;
 	int ret;
 
 	if (!kp || !kp->arg || !val) {
 		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-	core = *(struct msm_vidc_core **) kp->arg;
-
-	if (!core || !core->capabilities) {
-		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
 		return -EINVAL;
 	}
 
@@ -118,8 +114,40 @@ static const struct kernel_param_ops msm_vidc_fw_dump_fops = {
 	.get = fw_dump_get,
 };
 
+static int synx_fence_set(const char *val,
+	const struct kernel_param *kp)
+{
+	unsigned int dvalue;
+	int ret;
+
+	if (!kp || !kp->arg || !val) {
+		d_vpr_e("%s: Invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = kstrtouint(val, 0, &dvalue);
+	if (ret)
+		return ret;
+
+	msm_vidc_synx_fence_enable = dvalue;
+
+	return 0;
+}
+
+static int synx_fence_get(char *buffer, const struct kernel_param *kp)
+{
+	return scnprintf(buffer, PAGE_SIZE, "%#x", msm_vidc_synx_fence_enable);
+}
+
+static const struct kernel_param_ops msm_vidc_synx_fence_debug_fops = {
+	.set = synx_fence_set,
+	.get = synx_fence_get,
+};
+
 module_param_cb(msm_vidc_debug, &msm_vidc_debug_fops, &g_core, 0644);
 module_param_cb(msm_vidc_fw_dump, &msm_vidc_fw_dump_fops, &g_core, 0644);
+module_param_cb(msm_vidc_synx_fence_enable,
+	&msm_vidc_synx_fence_debug_fops, &g_core, 0644);
 
 bool msm_vidc_lossless_encode = !true;
 EXPORT_SYMBOL(msm_vidc_lossless_encode);
@@ -475,8 +503,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	ssize_t len = 0;
 	struct v4l2_format *f;
 
-	if (!idata || !idata->core || !idata->inst ||
-		!idata->inst->capabilities) {
+	if (!idata || !idata->core || !idata->inst) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, idata);
 		return 0;
 	}
@@ -506,7 +533,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	cur += write_str(cur, end - cur, "height: %d\n", f->fmt.pix_mp.height);
 	cur += write_str(cur, end - cur, "width: %d\n", f->fmt.pix_mp.width);
 	cur += write_str(cur, end - cur, "fps: %d\n",
-			inst->capabilities->cap[FRAME_RATE].value >> 16);
+			inst->capabilities[FRAME_RATE].value >> 16);
 	cur += write_str(cur, end - cur, "state: %d\n", inst->state);
 	cur += write_str(cur, end - cur, "secure: %d\n",
 		is_secure_session(inst));

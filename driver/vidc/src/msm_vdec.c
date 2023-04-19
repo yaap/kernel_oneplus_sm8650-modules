@@ -291,7 +291,7 @@ static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	cabac = inst->capabilities->cap[ENTROPY_MODE].value;
+	cabac = inst->capabilities[ENTROPY_MODE].value;
 	inst->subcr_params[port].cabac = cabac;
 	i_vpr_h(inst, "%s: entropy mode: %d", __func__, cabac);
 	rc = venus_hfi_session_property(inst,
@@ -318,7 +318,7 @@ static int msm_vdec_set_coded_frames(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	if (inst->capabilities->cap[CODED_FRAMES].value ==
+	if (inst->capabilities[CODED_FRAMES].value ==
 			CODED_FRAMES_PROGRESSIVE)
 		coded_frames = HFI_BITMASK_FRAME_MBS_ONLY_FLAG;
 	inst->subcr_params[port].coded_frames = coded_frames;
@@ -472,7 +472,7 @@ static int msm_vdec_set_profile(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	profile = inst->capabilities->cap[PROFILE].value;
+	profile = inst->capabilities[PROFILE].value;
 	inst->subcr_params[port].profile = profile;
 	i_vpr_h(inst, "%s: profile: %d", __func__, profile);
 	rc = venus_hfi_session_property(inst,
@@ -501,7 +501,7 @@ static int msm_vdec_set_level(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	level = inst->capabilities->cap[LEVEL].value;
+	level = inst->capabilities[LEVEL].value;
 	inst->subcr_params[port].level = level;
 	i_vpr_h(inst, "%s: level: %d", __func__, level);
 	rc = venus_hfi_session_property(inst,
@@ -530,7 +530,7 @@ static int msm_vdec_set_tier(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	tier = inst->capabilities->cap[HEVC_TIER].value;
+	tier = inst->capabilities[HEVC_TIER].value;
 	inst->subcr_params[port].tier = tier;
 	i_vpr_h(inst, "%s: tier: %d", __func__, tier);
 	rc = venus_hfi_session_property(inst,
@@ -560,7 +560,7 @@ static int msm_vdec_set_av1_film_grain_present(struct msm_vidc_inst *inst,
 	}
 
 	inst->subcr_params[port].av1_film_grain_present =
-		inst->capabilities->cap[FILM_GRAIN].value;
+		inst->capabilities[FILM_GRAIN].value;
 	fg_present = inst->subcr_params[port].av1_film_grain_present;
 	i_vpr_h(inst, "%s: film grain present: %d", __func__, fg_present);
 	rc = venus_hfi_session_property(inst,
@@ -590,7 +590,7 @@ static int msm_vdec_set_av1_superblock_enabled(struct msm_vidc_inst *inst,
 	}
 
 	inst->subcr_params[port].av1_super_block_enabled =
-		inst->capabilities->cap[SUPER_BLOCK].value;
+		inst->capabilities[SUPER_BLOCK].value;
 	sb_enabled = inst->subcr_params[port].av1_super_block_enabled;
 	i_vpr_h(inst, "%s: super block enabled: %d", __func__, sb_enabled);
 	rc = venus_hfi_session_property(inst,
@@ -617,9 +617,9 @@ static int msm_vdec_set_opb_enable(struct msm_vidc_inst *inst)
 	if (inst->codec != MSM_VIDC_AV1)
 		return 0;
 
-	color_fmt = inst->capabilities->cap[PIX_FMTS].value;
+	color_fmt = inst->capabilities[PIX_FMTS].value;
 	if (is_linear_colorformat(color_fmt) ||
-		inst->capabilities->cap[FILM_GRAIN].value)
+		inst->capabilities[FILM_GRAIN].value)
 		opb_enable = 1;
 
 	i_vpr_h(inst, "%s: OPB enable: %d",  __func__, opb_enable);
@@ -975,15 +975,13 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_METADATA;
 	if (port == INPUT_PORT) {
 		for (i = INST_CAP_NONE + 1; i < INST_CAP_MAX; i++) {
@@ -996,7 +994,7 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -1011,7 +1009,7 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -1038,15 +1036,13 @@ static int msm_vdec_set_delivery_mode_metadata(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_METADATA;
 
 	if (port == INPUT_PORT) {
@@ -1058,7 +1054,7 @@ static int msm_vdec_set_delivery_mode_metadata(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -1073,7 +1069,7 @@ static int msm_vdec_set_delivery_mode_metadata(struct msm_vidc_inst *inst,
 						__func__, count, sizeof(payload) / sizeof(u32));
 					return -EINVAL;
 				}
-				payload[count + 1] = capability->cap[i].hfi_id;
+				payload[count + 1] = inst->capabilities[i].hfi_id;
 				count++;
 			}
 		}
@@ -1100,26 +1096,24 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
-	struct msm_vidc_inst_capability *capability;
 	static const u32 property_output_list[] = {
 		META_OUTBUF_FENCE,
 	};
 	static const u32 property_input_list[] = {};
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
-	capability = inst->capabilities;
 	payload[0] = HFI_MODE_PROPERTY;
 
 	if (port == INPUT_PORT) {
 		for (i = 0; i < ARRAY_SIZE(property_input_list); i++) {
-			if (capability->cap[property_input_list[i]].value) {
+			if (inst->capabilities[property_input_list[i]].value) {
 				payload[count + 1] =
-					capability->cap[property_input_list[i]].hfi_id;
+					inst->capabilities[property_input_list[i]].hfi_id;
 				count++;
 			}
 		}
@@ -1135,13 +1129,13 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 				 * delivery mode property.
 				 */
 				payload[count + 1] =
-					capability->cap[property_output_list[i]].hfi_id;
+					inst->capabilities[property_output_list[i]].hfi_id;
 				count++;
 				continue;
 			}
-			if (capability->cap[property_output_list[i]].value) {
+			if (inst->capabilities[property_output_list[i]].value) {
 				payload[count + 1] =
-					capability->cap[property_output_list[i]].hfi_id;
+					inst->capabilities[property_output_list[i]].hfi_id;
 				count++;
 			}
 		}
@@ -1171,7 +1165,7 @@ int msm_vdec_init_input_subcr_params(struct msm_vidc_inst *inst)
 	u32 colour_description_present_flag = 0;
 	u32 video_signal_type_present_flag = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1211,12 +1205,12 @@ int msm_vdec_init_input_subcr_params(struct msm_vidc_inst *inst)
 		((video_format << 26) & 0x1C000000) |
 		((video_signal_type_present_flag << 29) & 0x20000000);
 
-	subsc_params->profile = inst->capabilities->cap[PROFILE].value;
-	subsc_params->level = inst->capabilities->cap[LEVEL].value;
-	subsc_params->tier = inst->capabilities->cap[HEVC_TIER].value;
-	subsc_params->pic_order_cnt = inst->capabilities->cap[POC].value;
-	subsc_params->bit_depth = inst->capabilities->cap[BIT_DEPTH].value;
-	if (inst->capabilities->cap[CODED_FRAMES].value ==
+	subsc_params->profile = inst->capabilities[PROFILE].value;
+	subsc_params->level = inst->capabilities[LEVEL].value;
+	subsc_params->tier = inst->capabilities[HEVC_TIER].value;
+	subsc_params->pic_order_cnt = inst->capabilities[POC].value;
+	subsc_params->bit_depth = inst->capabilities[BIT_DEPTH].value;
+	if (inst->capabilities[CODED_FRAMES].value ==
 			CODED_FRAMES_PROGRESSIVE)
 		subsc_params->coded_frames = HFI_BITMASK_FRAME_MBS_ONLY_FLAG;
 	else
@@ -1230,12 +1224,12 @@ int msm_vdec_set_num_comv(struct msm_vidc_inst *inst)
 	int rc = 0;
 	u32 num_comv = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	num_comv = inst->capabilities->cap[NUM_COMV].value;
+	num_comv = inst->capabilities[NUM_COMV].value;
 	i_vpr_h(inst, "%s: num COMV: %d", __func__, num_comv);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_COMV_BUFFER_COUNT,
@@ -1263,7 +1257,7 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	u32 video_signal_type_present_flag = 0;
 	enum msm_vidc_colorformat_type output_fmt;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1338,8 +1332,11 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 		inst->fmts[OUTPUT_PORT].fmt.pix_mp.quantization;
 
 	inst->buffers.output.min_count = subsc_params.fw_min_count;
+	inst->fw_min_count = subsc_params.fw_min_count;
 	inst->buffers.output.extra_count = call_session_op(core,
 		extra_count, inst, MSM_VIDC_BUF_OUTPUT);
+	inst->buffers.output_meta.min_count = inst->buffers.output.min_count;
+	inst->buffers.output_meta.extra_count = inst->buffers.output.extra_count;
 	if (is_thumbnail_session(inst) && inst->codec != MSM_VIDC_VP9) {
 		if (inst->buffers.output.min_count != 1) {
 			i_vpr_e(inst, "%s: invalid min count %d in thumbnail case\n",
@@ -1374,7 +1371,7 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	}
 
 	/* disable META_OUTBUF_FENCE if session is Interlace type */
-	if (inst->capabilities->cap[CODED_FRAMES].value ==
+	if (inst->capabilities[CODED_FRAMES].value ==
 		CODED_FRAMES_INTERLACE) {
 		msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
 			MSM_VIDC_META_RX_INPUT |
@@ -1448,7 +1445,7 @@ int msm_vdec_streamon_input(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
-	rc = msm_vidc_adjust_set_v4l2_properties(inst);
+	rc = msm_vidc_set_v4l2_properties(inst);
 	if (rc)
 		goto error;
 
@@ -1759,13 +1756,11 @@ static int msm_vdec_update_max_map_output_count(struct msm_vidc_inst *inst)
 int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_inst_capability *capability;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	if (is_output_meta_enabled(inst) &&
 		!inst->bufq[OUTPUT_META_PORT].vb2q->streaming) {
@@ -1775,8 +1770,8 @@ int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-	if (capability->cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
-		!is_ubwc_colorformat(capability->cap[PIX_FMTS].value)) {
+	if (inst->capabilities[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
+		!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
 		i_vpr_e(inst,
 			"%s: interlace with non-ubwc color format is unsupported\n",
 			__func__);
@@ -2003,13 +1998,13 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 {
 	int rc = 0;
 
-	if (!inst || !vb2 || !inst->capabilities) {
+	if (!inst || !vb2) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
 	if (inst->adjust_priority) {
-		s32 priority = inst->capabilities->cap[PRIORITY].value;
+		s32 priority = inst->capabilities[PRIORITY].value;
 
 		priority += inst->adjust_priority;
 		inst->adjust_priority = 0;
@@ -2026,7 +2021,7 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 		return rc;
 
 	if (vb2->type == OUTPUT_MPLANE) {
-		if (inst->capabilities->cap[DPB_LIST].value) {
+		if (inst->capabilities[DPB_LIST].value) {
 			rc = msm_vdec_release_nonref_buffers(inst);
 			if (rc)
 				return rc;
@@ -2096,21 +2091,19 @@ int msm_vdec_stop_cmd(struct msm_vidc_inst *inst)
 
 int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_inst_capability *capability;
 	int rc = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	capability = inst->capabilities;
 
 	i_vpr_h(inst, "received cmd: resume\n");
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_META_PORT].vb2q);
 	vb2_clear_last_buffer_dequeued(inst->bufq[OUTPUT_PORT].vb2q);
 
-	if (capability->cap[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
-		!is_ubwc_colorformat(capability->cap[PIX_FMTS].value)) {
+	if (inst->capabilities[CODED_FRAMES].value == CODED_FRAMES_INTERLACE &&
+		!is_ubwc_colorformat(inst->capabilities[PIX_FMTS].value)) {
 		i_vpr_e(inst,
 			"%s: interlace with non-ubwc color format is unsupported\n",
 			__func__);
@@ -2155,6 +2148,9 @@ int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 
 	/* print final buffer counts & size details */
 	msm_vidc_print_buffer_info(inst);
+
+	/* print internal buffer memory usage stats */
+	msm_vidc_print_memory_stats(inst);
 
 	rc = msm_vidc_process_resume(inst);
 	if (rc)
@@ -2521,13 +2517,13 @@ static int msm_vdec_check_colorformat_supported(struct msm_vidc_inst* inst,
 	 * bit_depth 10 bit supports 10 bit colorformats only
 	 * interlace supports ubwc colorformats only
 	 */
-	if (inst->capabilities->cap[BIT_DEPTH].value == BIT_DEPTH_8 &&
+	if (inst->capabilities[BIT_DEPTH].value == BIT_DEPTH_8 &&
 		!is_8bit_colorformat(colorformat))
 		supported = false;
-	if (inst->capabilities->cap[BIT_DEPTH].value == BIT_DEPTH_10 &&
+	if (inst->capabilities[BIT_DEPTH].value == BIT_DEPTH_10 &&
 		!is_10bit_colorformat(colorformat))
 		supported = false;
-	if (inst->capabilities->cap[CODED_FRAMES].value ==
+	if (inst->capabilities[CODED_FRAMES].value ==
 		CODED_FRAMES_INTERLACE &&
 		!is_ubwc_colorformat(colorformat))
 		supported = false;
@@ -2542,7 +2538,7 @@ int msm_vdec_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 	u32 array[32] = {0};
 	u32 i = 0;
 
-	if (!inst || !inst->core || !inst->capabilities || !f ||
+	if (!inst || !inst->core || !f ||
 		f->index >= ARRAY_SIZE(array)) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
@@ -2570,7 +2566,7 @@ int msm_vdec_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 		f->flags = V4L2_FMT_FLAG_COMPRESSED;
 		strlcpy(f->description, "codec", sizeof(f->description));
 	} else if (f->type == OUTPUT_MPLANE) {
-		u32 formats = inst->capabilities->cap[PIX_FMTS].step_or_mask;
+		u32 formats = inst->capabilities[PIX_FMTS].step_or_mask;
 		u32 idx = 0;
 
 		for (i = 0; i <= 31; i++) {
@@ -2689,6 +2685,7 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 			inst->buffers.output.extra_count;
 	inst->buffers.output.size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
 	inst->max_map_output_count = MAX_MAP_OUTPUT_COUNT;
+	inst->fw_min_count = 0;
 
 	f = &inst->fmts[OUTPUT_META_PORT];
 	f->type = OUTPUT_META_PLANE;

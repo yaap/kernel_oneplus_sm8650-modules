@@ -148,6 +148,7 @@ enum hfi_property_mode_type {
 	HFI_MODE_PORT_SETTINGS_CHANGE = 0x00000001,
 	HFI_MODE_PROPERTY             = 0x00000002,
 	HFI_MODE_METADATA             = 0x00000004,
+	HFI_MODE_DYNAMIC_METADATA     = 0x00000005,
 };
 
 enum hfi_reserve_type {

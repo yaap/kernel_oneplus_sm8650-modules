@@ -449,7 +449,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	int rc = 0;
 
 	/* not registered */
-	if (!core || !cl || !core->capabilities) {
+	if (!core || !cl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}

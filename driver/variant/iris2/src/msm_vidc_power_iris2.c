@@ -22,7 +22,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 	u32 base_cycles = 0;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core || !inst->capabilities) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return freq;
 	}
@@ -42,26 +42,26 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 	 * Even though, most part is common now, in future it may change
 	 * between them.
 	 */
-	fw_cycles = fps * inst->capabilities->cap[MB_CYCLES_FW].value;
-	fw_vpp_cycles = fps * inst->capabilities->cap[MB_CYCLES_FW_VPP].value;
+	fw_cycles = fps * inst->capabilities[MB_CYCLES_FW].value;
+	fw_vpp_cycles = fps * inst->capabilities[MB_CYCLES_FW_VPP].value;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
 		vpp_cycles_per_mb = is_low_power_session(inst) ?
-			inst->capabilities->cap[MB_CYCLES_LP].value :
-			inst->capabilities->cap[MB_CYCLES_VPP].value;
+			inst->capabilities[MB_CYCLES_LP].value :
+			inst->capabilities[MB_CYCLES_VPP].value;
 
 		vpp_cycles = mbs_per_second * vpp_cycles_per_mb /
-			inst->capabilities->cap[PIPE].value;
+			inst->capabilities[PIPE].value;
 
 		/* Factor 1.25 for IbP and 1.375 for I1B2b1P GOP structure */
-		if (inst->capabilities->cap[B_FRAME].value > 1)
+		if (inst->capabilities[B_FRAME].value > 1)
 			vpp_cycles += (vpp_cycles / 4) + (vpp_cycles / 8);
-		else if (inst->capabilities->cap[B_FRAME].value)
+		else if (inst->capabilities[B_FRAME].value)
 			vpp_cycles += vpp_cycles / 4;
 		/* 21 / 20 is minimum overhead factor */
 		vpp_cycles += max(div_u64(vpp_cycles, 20), fw_vpp_cycles);
 		/* 1.01 is multi-pipe overhead */
-		if (inst->capabilities->cap[PIPE].value > 1)
+		if (inst->capabilities[PIPE].value > 1)
 			vpp_cycles += div_u64(vpp_cycles, 100);
 		/*
 		 * 1080p@480fps usecase needs exactly 338MHz
@@ -80,20 +80,20 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 
 		/* VSP */
 		/* bitrate is based on fps, scale it using operating rate */
-		operating_rate = inst->capabilities->cap[OPERATING_RATE].value >> 16;
+		operating_rate = inst->capabilities[OPERATING_RATE].value >> 16;
 		if (operating_rate >
-			(inst->capabilities->cap[FRAME_RATE].value >> 16) &&
-			(inst->capabilities->cap[FRAME_RATE].value >> 16)) {
+			(inst->capabilities[FRAME_RATE].value >> 16) &&
+			(inst->capabilities[FRAME_RATE].value >> 16)) {
 			vsp_factor_num = operating_rate;
-			vsp_factor_den = inst->capabilities->cap[FRAME_RATE].value >> 16;
+			vsp_factor_den = inst->capabilities[FRAME_RATE].value >> 16;
 		}
-		vsp_cycles = div_u64(((u64)inst->capabilities->cap[BIT_RATE].value *
+		vsp_cycles = div_u64(((u64)inst->capabilities[BIT_RATE].value *
 					vsp_factor_num), vsp_factor_den);
 
-		base_cycles = inst->capabilities->cap[MB_CYCLES_VSP].value;
+		base_cycles = inst->capabilities[MB_CYCLES_VSP].value;
 		if (inst->codec == MSM_VIDC_VP9) {
 			vsp_cycles = div_u64(vsp_cycles * 170, 100);
-		} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		} else if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			vsp_cycles = div_u64(vsp_cycles * 135, 100);
 		} else {
@@ -103,30 +103,30 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 		/* VSP FW Overhead 1.05 */
 		vsp_cycles = div_u64(vsp_cycles * 21, 20);
 
-		if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_1)
+		if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_1)
 			vsp_cycles = vsp_cycles * 3;
 
 		vsp_cycles += mbs_per_second * base_cycles;
 
 	} else if (inst->domain == MSM_VIDC_DECODER) {
 		/* VPP */
-		vpp_cycles = mbs_per_second * inst->capabilities->cap[MB_CYCLES_VPP].value /
-			inst->capabilities->cap[PIPE].value;
+		vpp_cycles = mbs_per_second * inst->capabilities[MB_CYCLES_VPP].value /
+			inst->capabilities[PIPE].value;
 		/* 21 / 20 is minimum overhead factor */
 		vpp_cycles += max(vpp_cycles / 20, fw_vpp_cycles);
 		/* 1.059 is multi-pipe overhead */
-		if (inst->capabilities->cap[PIPE].value > 1)
+		if (inst->capabilities[PIPE].value > 1)
 			vpp_cycles += div_u64(vpp_cycles * 59, 1000);
 
 		/* VSP */
 		base_cycles = inst->has_bframe ?
-				80 : inst->capabilities->cap[MB_CYCLES_VSP].value;
+				80 : inst->capabilities[MB_CYCLES_VSP].value;
 		bitrate = fps * data_size * 8;
 		vsp_cycles = bitrate;
 
 		if (inst->codec == MSM_VIDC_VP9) {
 			vsp_cycles = div_u64(vsp_cycles * 170, 100);
-		} else if (inst->capabilities->cap[ENTROPY_MODE].value ==
+		} else if (inst->capabilities[ENTROPY_MODE].value ==
 			V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC) {
 			vsp_cycles = div_u64(vsp_cycles * 135, 100);
 		} else {
@@ -136,7 +136,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 		/* VSP FW overhead 1.05 */
 		vsp_cycles = div_u64(vsp_cycles * 21, 20);
 
-		if (inst->capabilities->cap[STAGE].value == MSM_VIDC_STAGE_1)
+		if (inst->capabilities[STAGE].value == MSM_VIDC_STAGE_1)
 			vsp_cycles = vsp_cycles * 3;
 
 		vsp_cycles += mbs_per_second * base_cycles;
@@ -146,9 +146,9 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 			vsp_cycles += div_u64(vpp_cycles * 25, 100);
 
 		if (inst->codec == MSM_VIDC_VP9 &&
-				inst->capabilities->cap[STAGE].value ==
+				inst->capabilities[STAGE].value ==
 					MSM_VIDC_STAGE_2 &&
-				inst->capabilities->cap[PIPE].value == 4 &&
+				inst->capabilities[PIPE].value == 4 &&
 				bitrate > 90000000)
 			vsp_cycles = msm_vidc_max_freq(inst);
 	} else {

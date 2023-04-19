@@ -12,6 +12,7 @@
 #include "msm_vidc_vb2.h"
 #include "msm_vidc.h"
 #include "msm_vidc_events.h"
+#include "venus_hfi.h"
 
 bool core_in_valid_state(struct msm_vidc_core *core)
 {
@@ -66,18 +67,6 @@ static const char *event_name(enum msm_vidc_event event)
 
 exit:
 	return name;
-}
-
-static int __strict_check(struct msm_vidc_core *core, const char *function)
-{
-	bool fatal = !mutex_is_locked(&core->lock);
-
-	WARN_ON(fatal);
-
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
-	return fatal ? -EINVAL : 0;
 }
 
 static int __strict_inst_check(struct msm_vidc_inst *inst, const char *function)
@@ -656,6 +645,16 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 	}
 
 	switch (event) {
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* allow try_fmt request in open state */
+		rc = msm_vidc_try_fmt(inst, f);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
@@ -783,6 +782,22 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 			return rc;
 		break;
 	}
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == INPUT_MPLANE || f->type == INPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
+		rc = msm_vidc_try_fmt(inst, f);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
@@ -812,7 +827,7 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		/* disallow */
 		if (is_decode_session(inst)) {
 			/* check dynamic allowed if master port is streaming */
-			if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+			if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 				i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 					__func__, cap_id, state_name(inst->state));
 				return -EINVAL;
@@ -969,6 +984,22 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 			return rc;
 		break;
 	}
+	case MSM_VIDC_TRY_FMT:
+	{
+		struct v4l2_format *f = (struct v4l2_format *)data;
+
+		/* disallow */
+		if (f->type == OUTPUT_MPLANE || f->type == OUTPUT_META_PLANE) {
+			i_vpr_e(inst, "%s: (%s) not allowed for (%s) port\n",
+				__func__, event_name(event), v4l2_type_name(f->type));
+			return -EBUSY;
+		}
+
+		rc = msm_vidc_try_fmt(inst, f);
+		if (rc)
+			return rc;
+		break;
+	}
 	case MSM_VIDC_S_FMT:
 	{
 		struct v4l2_format *f = (struct v4l2_format *)data;
@@ -998,7 +1029,7 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 		/* disallow */
 		if (is_encode_session(inst)) {
 			/* check dynamic allowed if master port is streaming */
-			if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+			if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 				i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 					__func__, cap_id, state_name(inst->state));
 				return -EINVAL;
@@ -1152,7 +1183,7 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
+		if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
 			i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
 				__func__, cap_id, state_name(inst->state));
 			return -EINVAL;
@@ -1240,9 +1271,23 @@ static int msm_vidc_close_state(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
+	switch (event) {
+	case MSM_VIDC_STREAMOFF:
+	{
+		struct vb2_queue *q = (struct vb2_queue *)data;
 
-	return -EINVAL;
+		rc = msm_vidc_stop_streaming(inst, q);
+		if (rc)
+			return rc;
+		break;
+	}
+	default: {
+		i_vpr_e(inst, "%s: unexpected event %s\n", __func__, event_name(event));
+		return -EINVAL;
+	}
+	}
+
+	return rc;
 }
 
 static int msm_vidc_error_state(struct msm_vidc_inst *inst,

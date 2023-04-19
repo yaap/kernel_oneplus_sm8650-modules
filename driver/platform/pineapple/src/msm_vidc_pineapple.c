@@ -17,12 +17,15 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_platform_ext.h"
 #include "msm_vidc_memory_ext.h"
+#include "msm_vidc_synx.h"
 #include "resources_ext.h"
 #include "msm_vidc_iris33.h"
 #include "hfi_property.h"
 #include "hfi_command.h"
 #include "venus_hfi.h"
 
+/* version: major[24:31], minor[16:23], revision[0:15] */
+#define DRIVER_VERSION          0x04000000
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_OP_POINT            31
@@ -72,7 +75,7 @@ static struct codec_info codec_data_pineapple[] = {
 		.pixfmt_name = "AV1",
 	},
 	{
-		.v4l2_codec  = V4L2_PIX_FMT_HEIC,
+		.v4l2_codec  = V4L2_PIX_FMT_VIDC_HEIC,
 		.vidc_codec  = MSM_VIDC_HEIC,
 		.pixfmt_name = "HEIC",
 	},
@@ -90,12 +93,12 @@ static struct color_format_info color_format_data_pineapple[] = {
 		.pixfmt_name       = "NV21",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_NV12C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC08C,
 		.vidc_color_format = MSM_VIDC_FMT_NV12C,
 		.pixfmt_name       = "NV12C",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_TP10C,
+		.v4l2_color_format = V4L2_PIX_FMT_QC10C,
 		.vidc_color_format = MSM_VIDC_FMT_TP10C,
 		.pixfmt_name       = "TP10C",
 	},
@@ -110,7 +113,7 @@ static struct color_format_info color_format_data_pineapple[] = {
 		.pixfmt_name       = "RGBAC",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_P010,
+		.v4l2_color_format = V4L2_PIX_FMT_P010,
 		.vidc_color_format = MSM_VIDC_FMT_P010,
 		.pixfmt_name       = "P010",
 	},
@@ -323,6 +326,7 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{ENC_AUTO_FRAMERATE, 1},
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
+	{SUPPORTS_SYNX_FENCE, 1},
 	{SUPPORTS_REQUESTS, 1},
 };
 
@@ -335,7 +339,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	struct msm_vidc_core* core;
 	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
 
-	if (!inst || !inst->capabilities) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -343,7 +347,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	output_fmt = &inst->fmts[OUTPUT_PORT];
 	input_fmt = &inst->fmts[INPUT_PORT];
 
-	fps = inst->capabilities->cap[FRAME_RATE].value >> 16;
+	fps = inst->capabilities[FRAME_RATE].value >> 16;
 	pixel_count = output_fmt->fmt.pix_mp.width *
 		output_fmt->fmt.pix_mp.height;
 
@@ -356,7 +360,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 			"%s: session %ux%u@%u fps does not support ring buffer\n",
 			__func__, output_fmt->fmt.pix_mp.width,
 			output_fmt->fmt.pix_mp.height, fps);
-		inst->capabilities->cap[cap_id].value = 0;
+		inst->capabilities[cap_id].value = 0;
 	} else {
 		data_size = input_fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
 		rc = call_session_op(core, ring_buf_count, inst, data_size);
@@ -365,11 +369,11 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 				__func__);
 			/* ignore error */
 			rc = 0;
-			inst->capabilities->cap[cap_id].value = 0;
+			inst->capabilities[cap_id].value = 0;
 		}
 	}
 
-	count = inst->capabilities->cap[cap_id].value;
+	count = inst->capabilities[cap_id].value;
 	i_vpr_h(inst, "%s: ring buffer count: %u\n", __func__, count);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_ENC_RING_BIN_BUF,
@@ -391,6 +395,9 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	 *      hfi_id,
 	 *      flags}
 	 */
+	{DRV_VERSION, DEC|ENC, CODECS_ALL,
+		0, INT_MAX, 1, DRIVER_VERSION,
+		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
 	{FRAME_WIDTH, DEC, CODECS_ALL, 96, 8192, 1, 1920},
 
@@ -625,6 +632,47 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		V4L2_CID_MPEG_VIDC_SW_FENCE_FD,
 		0,
 		CAP_FLAG_VOLATILE},
+
+	/* Fence type for input buffer. Currently unsed */
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
+		BIT(MSM_VIDC_FENCE_NONE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
+		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE) |
+			BIT(MSM_VIDC_SYNX_V2_FENCE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	/* Fence direction for input buffer. Currently unsed */
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
+		BIT(MSM_VIDC_FENCE_DIR_NONE),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
+		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX) |
+			BIT(MSM_VIDC_FENCE_DIR_RX),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264|HEVC|VP9|AV1,
+		0, 1, 1, 0,
+		0,
+		HFI_PROP_FENCE_ERROR_DATA_CORRUPT},
 
 	{TS_REORDER, DEC, H264|HEVC,
 		0, 1, 1, 0,
@@ -902,18 +950,18 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		CAP_FLAG_OUTPUT_PORT},
 
 	{IR_TYPE, ENC, H264|HEVC,
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM,
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC,
-		BIT(V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM) |
-		BIT(V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_CYCLIC),
-		V4L2_MPEG_VIDEO_VIDC_INTRA_REFRESH_RANDOM,
-		V4L2_CID_MPEG_VIDEO_VIDC_INTRA_REFRESH_TYPE,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC,
+		BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM) |
+		BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC),
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE,
 		0,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
 	{IR_PERIOD, ENC, H264|HEVC,
 		0, INT_MAX, 1, 0,
-		V4L2_CID_MPEG_VIDC_INTRA_REFRESH_PERIOD,
+		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD,
 		0,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_OUTPUT_PORT |
 		CAP_FLAG_DYNAMIC_ALLOWED},
@@ -1806,7 +1854,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_TRANSCODING_STAT_INFO, ENC, HEVC|H264,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_TRANSCODE_STAT_INFO,
 		HFI_PROP_TRANSCODING_STAT_INFO,
@@ -1822,7 +1870,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_SEI_MASTERING_DISPLAY_COLOUR,
 		HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR,
@@ -1839,7 +1888,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_SEI_CLL, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_SEI_CONTENT_LIGHT_LEVEL,
 		HFI_PROP_SEI_CONTENT_LIGHT_LEVEL,
@@ -1856,7 +1906,8 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 
 	{META_HDR10PLUS, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_HDR10PLUS,
 		HFI_PROP_SEI_HDR10PLUS_USERDATA,
@@ -1887,9 +1938,10 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_DOLBY_RPU_METADATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_EVA_STATS, ENC, CODECS_ALL,
+	{META_EVA_STATS, ENC, H264|HEVC,
 		MSM_VIDC_META_DISABLE,
-		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
+		MSM_VIDC_META_ENABLE |
+		MSM_VIDC_META_DYN_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS,
 		HFI_PROP_EVA_STAT_INFO,
@@ -2049,14 +2101,40 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_set_u32},
 
 	{META_OUTBUF_FENCE, DEC, H264|HEVC|AV1,
-		{LOWLATENCY_MODE, SLICE_DECODE},
+		{LOWLATENCY_MODE, SLICE_DECODE,
+			OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
 		msm_vidc_adjust_dec_outbuf_fence,
 		NULL},
 
 	{META_OUTBUF_FENCE, DEC, VP9,
-		{LOWLATENCY_MODE},
+		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
 		msm_vidc_adjust_dec_outbuf_fence,
 		NULL},
+
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_type,
+		msm_vidc_set_outbuf_fence_type},
+
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_direction,
+		msm_vidc_set_outbuf_fence_direction},
+
+	{FENCE_ERROR_DATA_CORRUPT, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		NULL,
+		msm_vidc_set_u32},
 
 	{HFLIP, ENC, CODECS_ALL,
 		{0},
@@ -2118,7 +2196,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 			P_FRAME_QP, B_FRAME_QP, ENH_LAYER_COUNT, BIT_RATE,
 			META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE},
+			BLUR_TYPES, LOWLATENCY_MODE, META_TRANSCODING_STAT_INFO},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -2127,7 +2205,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 			P_FRAME_QP, B_FRAME_QP, CONSTANT_QUALITY, ENH_LAYER_COUNT,
 			BIT_RATE, META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
 			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
-			BLUR_TYPES, LOWLATENCY_MODE},
+			BLUR_TYPES, LOWLATENCY_MODE, META_EVA_STATS, META_TRANSCODING_STAT_INFO},
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
@@ -2372,7 +2450,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_u32_enum},
 
-	{PROFILE, ENC|DEC, HEVC|HEIC,
+	{PROFILE, ENC, HEVC|HEIC,
+		{META_SEI_MASTERING_DISP, META_SEI_CLL, META_HDR10PLUS},
+		msm_vidc_adjust_profile,
+		msm_vidc_set_u32_enum},
+
+	{PROFILE, DEC, HEVC|HEIC,
 		{0},
 		msm_vidc_adjust_profile,
 		msm_vidc_set_u32_enum},
@@ -2547,11 +2630,10 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_all_intra,
 		NULL},
 
-	{META_EVA_STATS, ENC, H264|HEVC,
-		{ENH_LAYER_COUNT, REQUEST_PREPROCESS}},
-
-	{META_EVA_STATS, ENC, HEIC,
-		{0}},
+	{META_EVA_STATS, ENC, HEVC,
+		{0},
+		msm_vidc_adjust_eva_stats,
+		NULL},
 
 	{META_ROI_INFO, ENC, H264|HEVC,
 		{MIN_QUALITY, IR_PERIOD, BLUR_TYPES},
@@ -2577,6 +2659,26 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		{0},
 		NULL,
 		msm_vidc_set_signal_color_info},
+
+	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_sei_mastering_disp,
+		NULL},
+
+	{META_SEI_CLL, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_sei_cll,
+		NULL},
+
+	{META_HDR10PLUS, ENC, HEVC|HEIC,
+		{0},
+		msm_vidc_adjust_hdr10plus,
+		NULL},
+
+	{META_TRANSCODING_STAT_INFO, ENC, HEVC|H264,
+		{0},
+		msm_vidc_adjust_transcoding_stats,
+		NULL},
 };
 
 /* Default UBWC config for LPDDR5 */
@@ -2651,12 +2753,37 @@ static struct freq_table pineapple_freq_table_v2[] = {
 
 /* register, value, mask */
 static const struct reg_preset_table pineapple_reg_preset_table[] = {
-	{ 0xB0088, 0x0, 0x11 },
+	{ 0xB0088, 0x0,        0x11      },
+	{ 0x13030, 0x33332222, 0xFFFFFFFF},
+	{ 0x13034, 0x44444444, 0xFFFFFFFF},
+	{ 0x13038, 0x1022,     0xFFFFFFFF},
+	{ 0x13040, 0x0,        0xFFFFFFFF},
+	{ 0x13048, 0xFFFF,     0xFFFFFFFF},
+	{ 0x13430, 0x33332222, 0xFFFFFFFF},
+	{ 0x13434, 0x44444444, 0xFFFFFFFF},
+	{ 0x13438, 0x1022,     0xFFFFFFFF},
+	{ 0x13440, 0x0,        0xFFFFFFFF},
+	{ 0x13448, 0xFFFF,     0xFFFFFFFF},
+	{ 0xA013C, 0x99,       0xFFFFFFFF},
 };
 
 /* name, phys_addr, size, device_addr, device region type */
 static const struct device_region_table pineapple_device_region_table[] = {
-	{ "aon-registers", 0x0AAE0000, 0x1000, 0xFFAE0000, MSM_VIDC_AON_REGISTERS },
+	{
+		"aon-registers",
+		0x0AAE0000, 0x1000, 0xFFAE0000,
+		MSM_VIDC_AON
+	},
+	{
+		"ipc_protocol4_client8_version-registers",
+		0x00508000, 0x1000, 0xFFADF000,
+		MSM_VIDC_PROTOCOL_FENCE_CLIENT_VPU
+	},
+	{
+		"qtimer_f0v1_qtmr_v1_cntpct_lo",
+		0x17421000, 0x1000, 0xFFADE000,
+		MSM_VIDC_QTIMER
+	},
 };
 
 /* decoder properties */
@@ -2708,6 +2835,7 @@ static const u32 pineapple_vdec_input_properties[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
 	HFI_PROP_DPB_LIST,
+	HFI_PROP_AV1_TILE_ROWS_COLUMNS,
 };
 
 static const u32 pineapple_vdec_output_properties[] = {
@@ -2819,6 +2947,12 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 		d_vpr_e("%s: invalid resource ext ops\n", __func__);
 		return -EINVAL;
 	}
+	core->fence_ops = get_synx_fence_ops();
+	if (!core->fence_ops) {
+		d_vpr_e("%s: invalid synx fence ops\n", __func__);
+		return -EINVAL;
+	}
+
 	rc = msm_vidc_pineapple_check_ddr_type();
 	if (rc)
 		return rc;
