@@ -796,6 +796,12 @@ typedef enum {
     HTT_STATS_TX_PDEV_MLO_TXOP_ABORT_TAG           = 178, /* htt_tx_pdev_stats_mlo_txop_abort_tlv_v */
     HTT_STATS_UMAC_SSR_TAG                         = 179, /* htt_umac_ssr_stats_tlv */
     HTT_STATS_PEER_BE_OFDMA_STATS_TAG              = 180, /* htt_peer_be_ofdma_stats_tlv */
+    HTT_STATS_MLO_UMAC_SSR_TRIGGER_TAG             = 181, /* htt_mlo_umac_ssr_trigger_stats_tlv */
+    HTT_STATS_MLO_UMAC_SSR_CMN_TAG                 = 182, /* htt_mlo_umac_ssr_common_stats_tlv */
+    HTT_STATS_MLO_UMAC_SSR_KPI_TSTMP_TAG           = 183, /* htt_mlo_umac_ssr_kpi_tstamp_stats_tlv */
+    HTT_STATS_MLO_UMAC_SSR_DBG_TAG                 = 184, /* htt_mlo_umac_ssr_dbg_tlv */
+    HTT_STATS_MLO_UMAC_SSR_HANDSHAKE_TAG           = 185, /* htt_mlo_umac_htt_handshake_stats_tlv */
+    HTT_STATS_MLO_UMAC_SSR_MLO_TAG                 = 186, /* htt_mlo_umac_ssr_mlo_stats_tlv */
 
 
     HTT_STATS_MAX_TAG,
@@ -7184,7 +7190,7 @@ PREPACK struct htt_tx_monitor_cfg_t {
              rsvd4:                                 10;
     A_UINT32 tx_queue_ext_v2_word_mask:             12,
              tx_peer_entry_v2_word_mask:            12,
-             rsvd5:                                 10;
+             rsvd5:                                  8;
     A_UINT32 fes_status_end_word_mask:              16,
              response_end_status_word_mask:         16;
     A_UINT32 fes_status_prot_word_mask:             11,
@@ -10571,14 +10577,16 @@ enum htt_h2t_primary_link_peer_status_type {
  *
  *    The message would appear as follows:
  *
- *    |31                        16|15      12|11      8|7            0|
+ *    |31        25|24|23        16|15      12|11      8|7            0|
  *    |----------------------------+----------+---------+--------------|
  *    |            vdev ID         | pdev ID  | chip ID |   msg type   |
  *    |----------------------------+----------+---------+--------------|
  *    |            ML peer ID      |               SW peer ID          |
- *    |----------------------------+--------------------+--------------|
- *    |                   reserved                      |    status    |
- *    |-------------------------------------------------+--------------|
+ *    |------------+--+------------+--------------------+--------------|
+ *    |   reserved |SV|             src_info            |    status    |
+ *    |------------+--+---------------------------------+--------------|
+ * Where:
+ * SV = src_info_valid flag
  *
  * The message is interpreted as follows:
  * dword0 - b'0:7   - msg_type: This will be set to 0x24
@@ -10593,6 +10601,10 @@ enum htt_h2t_primary_link_peer_status_type {
  *                    chosen as primary
  *          b'16:31 - ml_peer_id: Indicate the ml_peer_id to which the
  *                    primary peer belongs.
+ * dword2 - b'0:7   - status: Indicates the status of Rx/TCL migration
+ *          b'8:23  - src_info: Indicates New Virtual port number through
+ *                    which Rx Pipe connects to the correct PPE.
+ *          b'24    - src_info_valid: Indicates src_info is valid.
  */
 
 typedef struct {
@@ -10602,8 +10614,10 @@ typedef struct {
              vdev_id:            16; /* bits 31:16 */
     A_UINT32 sw_link_peer_id:    16, /* bits 15:0  */
              ml_peer_id:         16; /* bits 31:16 */
-    A_UINT32 status:             8,  /* bits 7:0   */
-             reserved:           24; /* bits 31:8  */
+    A_UINT32 status:              8, /* bits 7:0   */
+             src_info:           16, /* bits 23:8  */
+             src_info_valid:      1, /* bit  24    */
+             reserved:            7; /* bits 31:25  */
 } htt_h2t_primary_link_peer_migrate_resp_t;
 
 #define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_M 0x00000F00
@@ -10670,6 +10684,28 @@ typedef struct {
         do { \
             HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_STATUS, _val); \
             ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_STATUS_S));\
+        } while (0)
+
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_M 0x00FFFF00
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_S 8
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_GET(_var) \
+        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_M) >> \
+        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_S)
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_SET(_var, _val) \
+        do { \
+            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO, _val); \
+            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_S));\
+        } while (0)
+
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_M 0x01000000
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_S 24
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_GET(_var) \
+        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_M) >> \
+        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_S)
+#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_SET(_var, _val) \
+        do { \
+            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID, _val); \
+            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SRC_INFO_VALID_S));\
         } while (0)
 
 
@@ -15407,7 +15443,7 @@ struct htt_t2h_tx_rate_stats_info { /* 2 words */
          *  dot11ba This field is the rate:
          *      0: LDR
          *      1: HDR
-         *      2: Q2Q proprietary rate
+         *      2: Exclusive rate
          */
         transmit_mcs             :  4, /* [15:12] */
         /* ofdma_transmission:
@@ -17783,12 +17819,12 @@ enum htt_dbg_ext_stats_status {
  * to host ppdu stats indication message.
  *
  *
- * |31                         16|15   12|11   10|9      8|7            0 |
- * |----------------------------------------------------------------------|
+ * |31         24|23           16|15   12|11   10|9      8|7            0 |
+ * |-----------------------------+-------+-------+--------+---------------|
  * |    payload_size             | rsvd  |pdev_id|mac_id  |    msg type   |
- * |----------------------------------------------------------------------|
- * |                          ppdu_id                                     |
- * |----------------------------------------------------------------------|
+ * |-------------+---------------+-------+-------+--------+---------------|
+ * | tgt_private |                     ppdu_id                            |
+ * |-------------+--------------------------------------------------------|
  * |                        Timestamp in us                               |
  * |----------------------------------------------------------------------|
  * |                          reserved                                    |
@@ -17828,8 +17864,9 @@ enum htt_dbg_ext_stats_status {
 #define HTT_T2H_PPDU_STATS_PAYLOAD_SIZE_M     0xFFFF0000
 #define HTT_T2H_PPDU_STATS_PAYLOAD_SIZE_S     16
 
-#define HTT_T2H_PPDU_STATS_PPDU_ID_M          0xFFFFFFFF
+#define HTT_T2H_PPDU_STATS_PPDU_ID_M          0x00FFFFFF
 #define HTT_T2H_PPDU_STATS_PPDU_ID_S          0
+/* bits 31:24 are used by the target for internal purposes */
 
 #define HTT_T2H_PPDU_STATS_MAC_ID_SET(word, value)             \
     do {                                                         \
@@ -17860,7 +17897,7 @@ enum htt_dbg_ext_stats_status {
 
 #define HTT_T2H_PPDU_STATS_PPDU_ID_SET(word, value)             \
     do {                                                         \
-        HTT_CHECK_SET_VAL(HTT_T2H_PPDU_STATS_PPDU_ID, value);   \
+        /*HTT_CHECK_SET_VAL(HTT_T2H_PPDU_STATS_PPDU_ID, value);*/   \
         (word) |= (value)  << HTT_T2H_PPDU_STATS_PPDU_ID_S;     \
     } while (0)
 #define HTT_T2H_PPDU_STATS_PPDU_ID_GET(word) \
@@ -19064,9 +19101,9 @@ struct htt_ul_ofdma_user_info_v0_bitmap_w1 {
 
 #define HTT_UL_OFDMA_USER_INFO_V1_BITMAP_W0 \
     A_UINT32 w0_fw_rsvd:27; \
-    A_UINT32 w0_sub_version:3;  /* set to a value of “0” on WKK/Beryllium targets (future expansion) */ \
+    A_UINT32 w0_sub_version:3;  /* set to a value of "0" on WKK/Beryllium targets (future expansion) */ \
     A_UINT32 w0_valid:1; /* field aligns with V0 definition */ \
-    A_UINT32 w0_version:1;  /* set to a value of “1” to indicate picking htt_ul_ofdma_user_info_v1_bitmap (field aligns with V0 definition) */
+    A_UINT32 w0_version:1;  /* set to a value of "1" to indicate picking htt_ul_ofdma_user_info_v1_bitmap (field aligns with V0 definition) */
 
 struct htt_ul_ofdma_user_info_v1_bitmap_w0 {
     HTT_UL_OFDMA_USER_INFO_V1_BITMAP_W0
@@ -21552,59 +21589,59 @@ typedef struct {
              ml_peer_id:         16; /* bits 31:16 */
 } htt_t2h_primary_link_peer_migrate_ind_t;
 
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_M 0x00000F00
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S 8
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_GET(_var) \
-        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_M) >> \
-        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S)
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_SET(_var, _val) \
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_M 0x00000F00
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S 8
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_GET(_var) \
+        (((_var) & HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_M) >> \
+        HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S)
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_SET(_var, _val) \
         do { \
-            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID, _val); \
-            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S));\
+            HTT_CHECK_SET_VAL(HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID, _val); \
+            ((_var) |= ((_val) << HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_CHIP_ID_S));\
         } while (0)
 
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_M 0x0000F000
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S 12
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_GET(_var) \
-        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_M) >> \
-        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S)
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_SET(_var, _val) \
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_M 0x0000F000
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S 12
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_GET(_var) \
+        (((_var) & HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_M) >> \
+        HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S)
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_SET(_var, _val) \
         do { \
-            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID, _val); \
-            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S));\
+            HTT_CHECK_SET_VAL(HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID, _val); \
+            ((_var) |= ((_val) << HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_PDEV_ID_S));\
         } while (0)
 
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_M 0xFFFF0000
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S 16
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_GET(_var) \
-        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_M) >> \
-        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S)
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_SET(_var, _val) \
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_M 0xFFFF0000
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S 16
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_GET(_var) \
+        (((_var) & HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_M) >> \
+        HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S)
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_SET(_var, _val) \
         do { \
-            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID, _val); \
-            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S));\
+            HTT_CHECK_SET_VAL(HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID, _val); \
+            ((_var) |= ((_val) << HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_VDEV_ID_S));\
         } while (0)
 
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_M 0x0000FFFF
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S 0
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_GET(_var) \
-        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_M) >> \
-        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S)
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_SET(_var, _val) \
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_M 0x0000FFFF
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S 0
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_GET(_var) \
+        (((_var) & HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_M) >> \
+        HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S)
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_SET(_var, _val) \
         do { \
-            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID, _val); \
-            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S));\
+            HTT_CHECK_SET_VAL(HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID, _val); \
+            ((_var) |= ((_val) << HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_SW_LINK_PEER_ID_S));\
         } while (0)
 
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_M 0xFFFF0000
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S 16
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_GET(_var) \
-        (((_var) & HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_M) >> \
-        HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S)
-#define HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_SET(_var, _val) \
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_M 0xFFFF0000
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S 16
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_GET(_var) \
+        (((_var) & HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_M) >> \
+        HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S)
+#define HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_SET(_var, _val) \
         do { \
-            HTT_CHECK_SET_VAL(HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID, _val); \
-            ((_var) |= ((_val) << HTT_H2T_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S));\
+            HTT_CHECK_SET_VAL(HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID, _val); \
+            ((_var) |= ((_val) << HTT_T2H_PRIMARY_LINK_PEER_MIGRATE_ML_PEER_ID_S));\
         } while (0)
 
 /**
