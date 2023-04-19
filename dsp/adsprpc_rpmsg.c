@@ -21,7 +21,7 @@ struct frpc_transport_session_control {
 
 static struct frpc_transport_session_control rpmsg_session_control[NUM_CHANNELS];
 
-inline int verify_transport_device(int cid, bool trusted_vm)
+inline int verify_transport_device(int cid, int tvm_remote_domain)
 {
 	int err = 0;
 	struct frpc_transport_session_control *rpmsg_session = &rpmsg_session_control[cid];
@@ -197,7 +197,7 @@ int fastrpc_wait_for_transport_interrupt(int cid,
 	return err;
 }
 
-int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, bool trusted_vm)
+int fastrpc_transport_send(int cid, void *rpc_msg, uint32_t rpc_msg_size, int tvm_remote_domain)
 {
 	int err = 0;
 	struct frpc_transport_session_control *rpmsg_session = &rpmsg_session_control[cid];
@@ -254,6 +254,12 @@ inline void fastrpc_transport_session_init(int cid, char *subsys)
 inline void fastrpc_transport_session_deinit(int cid)
 {
 	mutex_destroy(&rpmsg_session_control[cid].rpmsg_mutex);
+}
+
+int fastrpc_set_tvm_remote_domain(struct fastrpc_file *fl, struct fastrpc_ioctl_init *init)
+{
+	fl->tvm_remote_domain = -1;
+	return 0;
 }
 
 int fastrpc_transport_init(void)
