@@ -1016,8 +1016,6 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 {
 	int i = 0;
 	struct smcinvoke_cb_txn *cb_txn = NULL;
-	struct smcinvoke_mem_obj *mem_obj = NULL;
-	int32_t tzhandle = 0;
 
 	/*
 	 * Since HASH_BITS() does not work on pointers, we can't select hash
@@ -1027,12 +1025,6 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 		/* pick up 1st req */
 		hash_for_each(server->reqs_table, i, cb_txn, hash) {
 			kref_get(&cb_txn->ref_cnt);
-			tzhandle = (cb_txn->cb_req)->hdr.tzhandle;
-			if(TZHANDLE_IS_MEM_OBJ(tzhandle)) {
-				mem_obj= find_mem_obj_locked(TZHANDLE_GET_OBJID(tzhandle),
-								SMCINVOKE_MEM_RGN_OBJ);
-				kref_get(&mem_obj->mem_regn_ref_cnt);
-			}
 			hash_del(&cb_txn->hash);
 			return cb_txn;
 		}
@@ -1041,12 +1033,6 @@ static struct smcinvoke_cb_txn *find_cbtxn_locked(
 				server->responses_table, cb_txn, hash, txn_id) {
 			if (cb_txn->txn_id == txn_id) {
 				kref_get(&cb_txn->ref_cnt);
-				tzhandle = (cb_txn->cb_req)->hdr.tzhandle;
-				if(TZHANDLE_IS_MEM_OBJ(tzhandle)) {
-					mem_obj= find_mem_obj_locked(TZHANDLE_GET_OBJID(tzhandle),
-									SMCINVOKE_MEM_RGN_OBJ);
-					kref_get(&mem_obj->mem_regn_ref_cnt);
-				}
 				hash_del(&cb_txn->hash);
 				return cb_txn;
 			}
@@ -1793,12 +1779,6 @@ out:
 
 	memcpy(buf, cb_req, buf_len);
 
-	if (TZHANDLE_IS_MEM_RGN_OBJ(cb_req->hdr.tzhandle)) {
-		mutex_unlock(&g_smcinvoke_lock);
-		process_mem_obj(buf, buf_len);
-		pr_err("ppid : %x, mem obj deleted\n", current->pid);
-		mutex_lock(&g_smcinvoke_lock);
-	}
 	kref_put(&cb_txn->ref_cnt, delete_cb_txn_locked);
 	if (srvr_info)
 		kref_put(&srvr_info->ref_cnt, destroy_cb_server);
@@ -2196,7 +2176,16 @@ static int marshal_out_tzcb_req(const struct smcinvoke_accept *user_req,
 	size_t async_buf_size;
 	uint32_t offset = 0;
 
-	release_tzhandles(&cb_txn->cb_req->hdr.tzhandle, 1);
+	/* We assume 'marshal_in_tzcb_req' increases the ref-count of the CBOBJs.
+	 * It should be the case for mem-obj as well. However, it does not do that.
+	 * It is easier to filter out the 'release_tzhandles' for mem-obj here rather
+	 * than increases its ref-count on 'marshal_in_tzcb_req'. Because, there is no
+	 * reliable error handling and cleanup in 'marshal_in_tzcb_req'. So if it fails
+	 * mem-obj may not get released.  **/
+
+	if (!TZHANDLE_IS_MEM_OBJ(cb_txn->cb_req->hdr.tzhandle))
+		release_tzhandles(&cb_txn->cb_req->hdr.tzhandle, 1);
+
 	tzcb_req->result = user_req->result;
         /* Return without marshaling user args if destination callback invocation was
            unsuccessful. */
