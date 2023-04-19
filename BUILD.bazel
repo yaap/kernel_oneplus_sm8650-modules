@@ -1,5 +1,13 @@
-load(":bt_kernel.bzl", "define_bt_modules")
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 
-targets = ["pineapple"]
+ddk_headers(
+    name = "btfmcodec_headers",
+    hdrs = glob([
+        "btfmcodec/include/*.h"
+    ]),
+    includes = ["btfmcodec/include"]
+)
 
-define_bt_modules(targets)
+load(":target.bzl", "define_pineapple")
+
+define_pineapple()
