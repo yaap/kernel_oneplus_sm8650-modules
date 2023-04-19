@@ -11,6 +11,8 @@ ddk_headers(
     hdrs = glob([
         "include/linux/smcinvoke*.h",
         "include/linux/IClientE*.h",
+        "include/linux/ITrustedCameraDriver.h",
+        "include/linux/CTrustedCameraDriver.h",
         "linux/misc/qseecom_kernel.h",
         "linux/misc/qseecom_priv.h"
     ]),
@@ -24,6 +26,25 @@ ddk_headers(
         "linux/misc/qseecom_priv.h"
     ],
     includes = ["linux"]
+)
+ddk_headers(
+    name = "hdcp_qseecom_dlkm",
+    hdrs = glob([
+        "linux/*.h",
+        "linux/misc/qseecom_kernel.h",
+        "hdcp_qseecom/*.h",
+        "config/*.h"
+    ]),
+    includes = [".","linux","config"]
+)
+
+ddk_headers(
+    name = "qcedev_local_headers",
+    hdrs = glob([
+        "linux/*.h",
+        "crypto-qti/*.h"
+    ]),
+    includes = [".", "crypto-qti"]
 )
 
 load("pineapple.bzl", "define_pineapple")

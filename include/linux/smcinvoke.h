@@ -11,6 +11,7 @@
 
 #define SMCINVOKE_USERSPACE_OBJ_NULL	-1
 #define DEFAULT_CB_OBJ_THREAD_CNT	4
+#define SMCINVOKE_TZ_MIN_BUF_SIZE	4096
 
 struct smcinvoke_buf {
 	__u64 addr;

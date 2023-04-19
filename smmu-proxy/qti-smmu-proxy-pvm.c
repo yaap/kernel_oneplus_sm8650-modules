@@ -167,7 +167,7 @@ int smmu_proxy_map(struct device *client_dev, struct sg_table *proxy_iova,
 	resp = buf;
 
 	if (resp->hdr.ret) {
-		proxy_iova = ERR_PTR(resp->hdr.ret);
+		ret = resp->hdr.ret;
 		pr_err_ratelimited("%s: Map call failed on remote VM, rc: %d\n", __func__,
 				   resp->hdr.ret);
 		goto free_buf;

@@ -11,7 +11,7 @@
 #include <linux/interrupt.h>
 #include <linux/cdev.h>
 #include <crypto/hash.h>
-#include "linux/platform_data/qcom_crypto_device.h"
+#include "linux/qcom_crypto_device.h"
 #include "linux/fips_status.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
