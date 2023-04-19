@@ -381,7 +381,12 @@ TRACE_EVENT(fastrpc_msg,
 	TP_ARGS(message),
 	TP_STRUCT__entry(__string(buf, message)),
 	TP_fast_assign(
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+		memcpy(__get_str(buf), (message), (sizeof(message) - 1));
+		__get_str(buf)[sizeof(message) - 1] = '\0';
+#else
 		__assign_str(buf, message);
+#endif
 	),
 	TP_printk(" %s", __get_str(buf))
 );
