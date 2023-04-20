@@ -2691,13 +2691,16 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 	bitrate_kbps = (inst->stats.data_size * 8 * 1000) / (dt_ms * 1024);
 
 	i_vpr_hs(inst,
-		"counts (etb,ebd,ftb,fbd): %u %u %u %u (total %llu %llu %llu %llu), achieved bitrate %lldKbps fps %u/s, frame rate %u, operating rate %u, priority %u, dt %ums\n",
+		"counts (etb,ebd,ftb,fbd): %u %u %u %u (total %llu %llu %llu %llu), achieved bitrate %lldKbps fps %u/s, frame rate %u, operating rate %u, priority %u, avg bw llcc %ukhz, avb bw ddr %ukhz, dt %ums\n",
 		etb, ebd, ftb, fbd, inst->debug_count.etb, inst->debug_count.ebd,
-		inst->debug_count.ftb, inst->debug_count.fbd,
-		bitrate_kbps, achieved_fps, frame_rate, operating_rate, priority, dt_ms);
+		inst->debug_count.ftb, inst->debug_count.fbd, bitrate_kbps,
+		achieved_fps, frame_rate, operating_rate, priority,
+		inst->stats.avg_bw_llcc, inst->stats.avg_bw_ddr, dt_ms);
 
 	inst->stats.count = inst->debug_count;
 	inst->stats.data_size = 0;
+	inst->stats.avg_bw_llcc = 0;
+	inst->stats.avg_bw_ddr = 0;
 	inst->stats.time_ms = time_ms;
 }
 
