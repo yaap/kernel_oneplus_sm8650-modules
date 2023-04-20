@@ -41,6 +41,8 @@
 			inst->dma_cache.usage_bitmap); \
 	} while (0)
 
+struct cvp_oob_pool wncc_buf_pool;
+
 static void _wncc_print_cvpwnccbufs_table(struct msm_cvp_inst* inst);
 static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	unsigned int num_layers, unsigned int metadata_bufs_offset,
@@ -626,6 +628,15 @@ int msm_cvp_unmap_buf_wncc(struct msm_cvp_inst *inst,
 		mutex_unlock(&inst->cvpwnccbufs.lock);
 		return -EINVAL;
 	}
+	if (cbuf->smem->device_addr) {
+		u64 idx = inst->unused_wncc_bufs.ktid;
+		inst->unused_wncc_bufs.smem[idx] = *(cbuf->smem);
+		inst->unused_wncc_bufs.nr++;
+		inst->unused_wncc_bufs.nr =
+			(inst->unused_wncc_bufs.nr > MAX_FRAME_BUFFER_NUMS)?
+			MAX_FRAME_BUFFER_NUMS : inst->unused_wncc_bufs.nr;
+		inst->unused_wncc_bufs.ktid = ++idx % MAX_FRAME_BUFFER_NUMS;
+	}
 	mutex_unlock(&inst->cvpwnccbufs.lock);
 
 	if (cbuf->smem->device_addr) {
@@ -957,11 +968,89 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	return rc;
 }
 
+static int init_wncc_bufs(void)
+{
+	int i;
+
+	for (i = 0; i < NUM_WNCC_BUFS; i++) {
+		wncc_buf_pool.bufs[i] = (struct eva_kmd_oob_wncc*)kzalloc(
+				sizeof(struct eva_kmd_oob_wncc), GFP_KERNEL);
+		if (!wncc_buf_pool.bufs[i]) {
+			i--;
+			goto exit_fail;
+		}
+	}
+	wncc_buf_pool.used_bitmap = 0;
+	wncc_buf_pool.allocated = true;
+	return 0;
+
+exit_fail:
+	while (i >= 0) {
+		kfree(wncc_buf_pool.bufs[i]);
+		i--;
+	}
+	return -ENOMEM;
+}
+
+static int alloc_wncc_buf(struct wncc_oob_buf *wob)
+{
+	int rc, i;
+
+	mutex_lock(&wncc_buf_pool.lock);
+	if (!wncc_buf_pool.allocated) {
+		rc = init_wncc_bufs();
+		if (rc) {
+			mutex_unlock(&wncc_buf_pool.lock);
+			return rc;
+		}
+	}
+
+	for (i = 0; i < NUM_WNCC_BUFS; i++) {
+		if (!(wncc_buf_pool.used_bitmap & BIT(i))) {
+			wncc_buf_pool.used_bitmap |= BIT(i);
+			wob->bitmap_idx = i;
+			wob->buf = wncc_buf_pool.bufs[i];
+			mutex_unlock(&wncc_buf_pool.lock);
+			return 0;
+		}
+	}
+	mutex_unlock(&wncc_buf_pool.lock);
+	wob->bitmap_idx = 0xff;
+	wob->buf = (struct eva_kmd_oob_wncc*)kzalloc(
+			sizeof(struct eva_kmd_oob_wncc), GFP_KERNEL);
+	if (!wob->buf)
+		rc = -ENOMEM;
+	else
+		rc = 0;
+
+	return rc;
+}
+
+static void free_wncc_buf(struct wncc_oob_buf *wob)
+{
+	if (!wob)
+		return;
+
+	if (wob->bitmap_idx == 0xff) {
+		kfree(wob->buf);
+		return;
+	}
+
+	if (wob->bitmap_idx < NUM_WNCC_BUFS) {
+		mutex_lock(&wncc_buf_pool.lock);
+		wncc_buf_pool.used_bitmap &= ~BIT(wob->bitmap_idx);
+		memset(wob->buf, 0, sizeof(struct eva_kmd_oob_wncc));
+		wob->buf = NULL;
+		mutex_unlock(&wncc_buf_pool.lock);
+	}
+}
+
 static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 	struct eva_kmd_hfi_packet* in_pkt)
 {
 	int rc = 0;
 	struct eva_kmd_oob_wncc* wncc_oob;
+	struct wncc_oob_buf wob;
 	struct eva_kmd_wncc_metadata* wncc_metadata[EVA_KMD_WNCC_MAX_LAYERS];
 	unsigned int i, j;
 	bool empty = false;
@@ -972,12 +1061,11 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 		return -EINVAL;
 	}
 
-	wncc_oob = (struct eva_kmd_oob_wncc*)kzalloc(
-		sizeof(struct eva_kmd_oob_wncc), GFP_KERNEL);
-	if (!wncc_oob) {
-		dprintk(CVP_ERR, "%s: OOB buf allocation failed", __func__);
+	rc = alloc_wncc_buf(&wob);
+	if (rc)
 		return -ENOMEM;
-	}
+
+	wncc_oob = wob.buf;
 	rc = _wncc_copy_oob_from_user(in_pkt, wncc_oob);
 	if (rc) {
 		dprintk(CVP_ERR, "%s: OOB buf copying failed", __func__);
@@ -1062,7 +1150,7 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 	}
 
 exit:
-	kfree(wncc_oob);
+	free_wncc_buf(&wob);
 	return rc;
 }
 
@@ -1497,6 +1585,15 @@ static void backup_frame_buffers(struct msm_cvp_inst *inst,
 
 	do {
 		i--;
+		if (frame->bufs[i].smem->bitmap_index < MAX_DMABUF_NUMS) {
+			/*
+			 * Frame buffer info can be found in dma_cache table,
+			 * Skip saving
+			 */
+			inst->last_frame.nr = 0;
+			return;
+		}
+
 		inst->last_frame.smem[i] = *(frame->bufs[i].smem);
 	} while (i);
 }
@@ -1846,6 +1943,11 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	dprintk(CVP_ERR, "last frame ktid %llx\n", inst->last_frame.ktid);
 	for (i = 0; i < inst->last_frame.nr; i++)
 		_log_smem(snap, inst, &inst->last_frame.smem[i], log);
+
+	dprintk(CVP_ERR, "unmapped wncc bufs\n");
+	for (i = 0; i < inst->unused_wncc_bufs.nr; i++)
+		_log_smem(snap, inst, &inst->unused_wncc_bufs.smem[i], log);
+
 }
 
 struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
