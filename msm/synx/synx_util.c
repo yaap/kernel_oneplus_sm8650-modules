@@ -1363,6 +1363,8 @@ static void synx_client_cleanup(struct work_struct *dispatch)
 	struct synx_handle_coredata *curr;
 	struct hlist_node *tmp;
 
+	dprintk(SYNX_INFO, "[sess :%llu] session removed %s\n",
+		client->id, client->name);
 	/*
 	 * go over all the remaining synx obj handles
 	 * un-released from this session and remove them.
@@ -1390,8 +1392,6 @@ static void synx_client_destroy(struct kref *kref)
 		container_of(kref, struct synx_client, refcount);
 
 	hash_del(&client->node);
-	dprintk(SYNX_INFO, "[sess :%llu] session removed %s\n",
-		client->id, client->name);
 
 	INIT_WORK(&client->dispatch, synx_client_cleanup);
 	queue_work(synx_dev->wq_cleanup, &client->dispatch);
