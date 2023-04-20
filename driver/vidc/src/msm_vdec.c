@@ -962,8 +962,24 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 	payload[0] = HFI_MODE_PROPERTY;
 
 	if (port == INPUT_PORT) {
-		subscribe_prop_size = core->platform->data.dec_input_prop_size;
-		subcribe_prop = core->platform->data.dec_input_prop;
+		if (inst->codec == MSM_VIDC_H264) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_avc;
+			subcribe_prop = core->platform->data.dec_input_prop_avc;
+		} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_hevc;
+			subcribe_prop = core->platform->data.dec_input_prop_hevc;
+		} else if (inst->codec == MSM_VIDC_VP9) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_vp9;
+			subcribe_prop = core->platform->data.dec_input_prop_vp9;
+		} else if (inst->codec == MSM_VIDC_AV1) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_av1;
+			subcribe_prop = core->platform->data.dec_input_prop_av1;
+		} else {
+			i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
+			subcribe_prop = NULL;
+			return -EINVAL;
+		}
+
 		for (i = 0; i < subscribe_prop_size; i++) {
 			allow = msm_vidc_allow_property(inst,
 				subcribe_prop[i]);
@@ -978,8 +994,23 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 			}
 		}
 	} else if (port == OUTPUT_PORT) {
-		subscribe_prop_size = core->platform->data.dec_output_prop_size;
-		subcribe_prop = core->platform->data.dec_output_prop;
+		if (inst->codec == MSM_VIDC_H264) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_avc;
+			subcribe_prop = core->platform->data.dec_output_prop_avc;
+		} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_hevc;
+			subcribe_prop = core->platform->data.dec_output_prop_hevc;
+		} else if (inst->codec == MSM_VIDC_VP9) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_vp9;
+			subcribe_prop = core->platform->data.dec_output_prop_vp9;
+		} else if (inst->codec == MSM_VIDC_AV1) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_av1;
+			subcribe_prop = core->platform->data.dec_output_prop_av1;
+		} else {
+			i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
+			subcribe_prop = NULL;
+			return -EINVAL;
+		}
 		for (i = 0; i < subscribe_prop_size; i++) {
 			allow = msm_vidc_allow_property(inst,
 				subcribe_prop[i]);

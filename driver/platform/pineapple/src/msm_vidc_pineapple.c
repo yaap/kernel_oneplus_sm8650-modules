@@ -2820,7 +2820,25 @@ static const u32 pineapple_vdec_psc_av1[] = {
 	HFI_PROP_SIGNAL_COLOR_INFO,
 };
 
-static const u32 pineapple_vdec_input_properties[] = {
+static const u32 pineapple_vdec_input_properties_avc[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+	HFI_PROP_DPB_LIST,
+};
+
+static const u32 pineapple_vdec_input_properties_hevc[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+	HFI_PROP_DPB_LIST,
+};
+
+static const u32 pineapple_vdec_input_properties_vp9[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+	HFI_PROP_DPB_LIST,
+};
+
+static const u32 pineapple_vdec_input_properties_av1[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
 	HFI_PROP_DPB_LIST,
@@ -2828,11 +2846,32 @@ static const u32 pineapple_vdec_input_properties[] = {
 	HFI_PROP_AV1_UNIFORM_TILE_SPACING,
 };
 
-static const u32 pineapple_vdec_output_properties[] = {
+static const u32 pineapple_vdec_output_properties_avc[] = {
 	HFI_PROP_WORST_COMPRESSION_RATIO,
 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_CABAC_SESSION,
+	HFI_PROP_FENCE,
+};
+
+static const u32 pineapple_vdec_output_properties_hevc[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_FENCE,
+};
+
+static const u32 pineapple_vdec_output_properties_vp9[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_FENCE,
+};
+
+static const u32 pineapple_vdec_output_properties_av1[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_FENCE,
 };
 
@@ -2886,10 +2925,22 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.psc_vp9_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_vp9),
 	.psc_av1_tbl = pineapple_vdec_psc_av1,
 	.psc_av1_tbl_size = ARRAY_SIZE(pineapple_vdec_psc_av1),
-	.dec_input_prop = pineapple_vdec_input_properties,
-	.dec_input_prop_size = ARRAY_SIZE(pineapple_vdec_input_properties),
-	.dec_output_prop = pineapple_vdec_output_properties,
-	.dec_output_prop_size = ARRAY_SIZE(pineapple_vdec_output_properties),
+	.dec_input_prop_avc = pineapple_vdec_input_properties_avc,
+	.dec_input_prop_hevc = pineapple_vdec_input_properties_hevc,
+	.dec_input_prop_vp9 = pineapple_vdec_input_properties_vp9,
+	.dec_input_prop_av1 = pineapple_vdec_input_properties_av1,
+	.dec_input_prop_size_avc = ARRAY_SIZE(pineapple_vdec_input_properties_avc),
+	.dec_input_prop_size_hevc = ARRAY_SIZE(pineapple_vdec_input_properties_hevc),
+	.dec_input_prop_size_vp9 = ARRAY_SIZE(pineapple_vdec_input_properties_vp9),
+	.dec_input_prop_size_av1 = ARRAY_SIZE(pineapple_vdec_input_properties_av1),
+	.dec_output_prop_avc = pineapple_vdec_output_properties_avc,
+	.dec_output_prop_hevc = pineapple_vdec_output_properties_hevc,
+	.dec_output_prop_vp9 = pineapple_vdec_output_properties_vp9,
+	.dec_output_prop_av1 = pineapple_vdec_output_properties_av1,
+	.dec_output_prop_size_avc = ARRAY_SIZE(pineapple_vdec_output_properties_avc),
+	.dec_output_prop_size_hevc = ARRAY_SIZE(pineapple_vdec_output_properties_hevc),
+	.dec_output_prop_size_vp9 = ARRAY_SIZE(pineapple_vdec_output_properties_vp9),
+	.dec_output_prop_size_av1 = ARRAY_SIZE(pineapple_vdec_output_properties_av1),
 };
 
 int msm_vidc_pineapple_check_ddr_type(void)
