@@ -193,7 +193,6 @@ struct ubwcp_buf {
 	bool perm;
 	struct ubwcp_desc *desc;
 	bool buf_attr_set;
-	bool locked;
 	enum dma_data_direction lock_dir;
 	int lock_count;
 
@@ -1562,7 +1561,7 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 
 	mutex_lock(&buf->lock);
 
-	if (buf->locked) {
+	if (buf->lock_count) {
 		ERR("Cannot set attr when buffer is locked");
 		ret = -EBUSY;
 		goto unlock;
@@ -1918,7 +1917,7 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		goto err;
 	}
 
-	if (!buf->locked) {
+	if (!buf->lock_count) {
 		DBG("first lock on buffer");
 
 		/* buf->desc could already be allocated because of perm range xlation */
@@ -1985,7 +1984,6 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
 		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size);
 		buf->lock_dir = dir;
-		buf->locked = true;
 	} else {
 		DBG("buf already locked");
 		/* TBD: what if new buffer direction is not same as previous?
@@ -2052,7 +2050,6 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 		ubwcp_buf_desc_free(buf->ubwcp, buf->desc);
 		buf->desc = NULL;
 	}
-	buf->locked = false;
 	return ret;
 }
 
@@ -2101,13 +2098,13 @@ static int ubwcp_unlock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		return -EPERM;
 	}
 
-	if (!buf->locked) {
+	mutex_lock(&buf->lock);
+	if (!buf->lock_count) {
 		ERR("unlock() called on buffer which not in locked state");
 		trace_ubwcp_unlock_end(dmabuf);
+		mutex_unlock(&buf->lock);
 		return -1;
 	}
-
-	mutex_lock(&buf->lock);
 	ret = unlock_internal(buf, dir, false);
 	mutex_unlock(&buf->lock);
 	trace_ubwcp_unlock_end(dmabuf);
@@ -2204,7 +2201,7 @@ int ubwcp_set_perm_range_translation(struct dma_buf *dmabuf, bool enable)
 	/* if "disable" and we have allocated a desc and it is not being
 	 * used currently, release it
 	 */
-	if (!enable && buf->desc && !buf->locked) {
+	if (!enable && buf->desc && !buf->lock_count) {
 		ubwcp_buf_desc_free(buf->ubwcp, buf->desc);
 		buf->desc = NULL;
 
@@ -2257,7 +2254,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	mutex_lock(&buf->lock);
 	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
-	if (buf->locked) {
+	if (buf->lock_count) {
 		DBG("free() called without unlock. unlock()'ing first...");
 		ret = unlock_internal(buf, buf->lock_dir, true);
 		if (ret)
