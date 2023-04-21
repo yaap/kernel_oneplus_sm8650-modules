@@ -490,6 +490,7 @@ enum msm_vidc_buffer_attributes {
 	MSM_VIDC_ATTR_QUEUED                    = BIT(3),
 	MSM_VIDC_ATTR_DEQUEUED                  = BIT(4),
 	MSM_VIDC_ATTR_BUFFER_DONE               = BIT(5),
+	MSM_VIDC_ATTR_RELEASE_ELIGIBLE          = BIT(6),
 };
 
 enum msm_vidc_buffer_region {
@@ -817,7 +818,6 @@ struct msm_vidc_subscription_params {
 	u32                    tier;
 	u32                    av1_film_grain_present;
 	u32                    av1_super_block_enabled;
-	u32                    dpb_list_enabled;
 };
 
 struct msm_vidc_hfi_frame_info {

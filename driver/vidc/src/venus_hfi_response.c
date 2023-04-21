@@ -1669,6 +1669,9 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 	u32 payload_size, num_words_in_payload;
 	u8 *payload_start;
 	int i = 0;
+	struct msm_vidc_buffer *ro_buf;
+	bool found = false;
+	u64 device_addr;
 
 	payload_size = pkt->size - sizeof(struct hfi_packet);
 	num_words_in_payload = payload_size / 4;
@@ -1684,11 +1687,43 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 	}
 	memcpy(inst->dpb_list_payload, payload_start, payload_size);
 
+	/*
+	 * dpb_list_payload details:
+	 * payload[0-1]           : 64 bits base_address of DPB-1
+	 * payload[2]             : 32 bits addr_offset  of DPB-1
+	 * payload[3]             : 32 bits data_offset  of DPB-1
+	 */
 	for (i = 0; (i + 3) < num_words_in_payload; i = i + 4) {
 		i_vpr_l(inst,
 			"%s: base addr %#x %#x, addr offset %#x, data offset %#x\n",
 			__func__, inst->dpb_list_payload[i], inst->dpb_list_payload[i + 1],
 			inst->dpb_list_payload[i + 2], inst->dpb_list_payload[i + 3]);
+	}
+
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		found = false;
+		/* do not mark RELEASE_ELIGIBLE for non-read only buffers */
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
+			continue;
+		/* no need to mark RELEASE_ELIGIBLE again */
+		if (ro_buf->attr & MSM_VIDC_ATTR_RELEASE_ELIGIBLE)
+			continue;
+		/*
+		 * do not add RELEASE_ELIGIBLE to buffers for which driver
+		 * sent release cmd already
+		 */
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
+		for (i = 0; (i + 3) < num_words_in_payload; i = i + 4) {
+			device_addr = *((u64 *)(&inst->dpb_list_payload[i]));
+			if (ro_buf->device_addr == device_addr) {
+				found = true;
+				break;
+			}
+		}
+		/* mark a buffer as RELEASE_ELIGIBLE if not found in dpb list */
+		if (!found)
+			ro_buf->attr |= MSM_VIDC_ATTR_RELEASE_ELIGIBLE;
 	}
 
 	return 0;
