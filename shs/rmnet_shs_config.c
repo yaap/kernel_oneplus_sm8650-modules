@@ -98,6 +98,6 @@ DATARMNETe46c480d71();DATARMNETecc0627c70.DATARMNET9c869c1ec2=(0xd26+209-0xdf6);
 trace_rmnet_shs_high(DATARMNET1790979ccf,DATARMNET443dab7031,(0x16e8+787-0xc0c),
 (0x16e8+787-0xc0c),(0x16e8+787-0xc0c),(0x16e8+787-0xc0c),NULL,NULL);
 DATARMNETa871eeb7e7();DATARMNET7520667b38();rmnet_module_hook_register(&
-DATARMNETf6217b20b8,(0xd26+209-0xdf6));break;}DATARMNET7492293980(dev);break;
-default:break;}return NOTIFY_DONE;}module_init(DATARMNET163e93649e);module_exit(
-DATARMNETf3298dab6f);
+DATARMNETf6217b20b8,(0xd26+209-0xdf6));DATARMNETed3cac41ac();break;}
+DATARMNET7492293980(dev);break;default:break;}return NOTIFY_DONE;}module_init(
+DATARMNET163e93649e);module_exit(DATARMNETf3298dab6f);

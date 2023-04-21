@@ -18,7 +18,7 @@
 #include <trace/hooks/sched.h>
 #include <linux/tracepoint.h>
 #include <trace/hooks/vendor_hooks.h>
-#define DATARMNET94fa0a43a2 7829367
+#define DATARMNET94fa0a43a2 489335
 void DATARMNET4095253347(struct DATARMNET9b44b71ee9*ep);void DATARMNETf7d317ed55
 (struct DATARMNET9b44b71ee9*ep);void DATARMNET36e5e526fa(struct 
 DATARMNET6c78e47d24*DATARMNETd2a694d52a);void DATARMNET2fe780019f(struct 
@@ -55,7 +55,7 @@ sk_buff*skb,u32 offset,u32 DATARMNET567bdc7221,void*buf);u32 DATARMNET8532ab3089
 struct list_head DATARMNET9825511866;static inline void DATARMNET3e88a91b63(void
 *unused,struct wait_queue_head*DATARMNETa08427f746,int*done,struct sock*sk){if((
 sk->sk_protocol==IPPROTO_TCP||sk->sk_protocol==IPPROTO_UDP)&&(sk->sk_rxhash&
-65535)==DATARMNET94fa0a43a2){(*done)=(0xd26+209-0xdf6);
+1048575)==DATARMNET94fa0a43a2){(*done)=(0xd26+209-0xdf6);
 wake_up_interruptible_poll(DATARMNETa08427f746,EPOLLIN|EPOLLPRI|EPOLLRDNORM|
 EPOLLRDBAND);}}static inline int DATARMNETed3cac41ac(void){int rc=
 (0xd2d+202-0xdf7);rc=register_trace_android_vh_do_wake_up_sync(
