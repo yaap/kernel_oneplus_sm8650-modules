@@ -1031,6 +1031,8 @@ struct fastrpc_mmap {
 	/* Mapping for fastrpc shell */
 	bool is_filemap;
 	char *servloc_name;			/* Indicate which daemon mapped this */
+	/* Indicates map is being used by a pending RPC call */
+	unsigned int ctx_refs;
 };
 
 enum fastrpc_perfkeys {
