@@ -24,7 +24,6 @@
 #include "ipclite_client.h"
 #include "ipclite.h"
 
-#define VMID_CDSP       30
 #define GLOBAL_ATOMICS_ENABLED	1
 #define GLOBAL_ATOMICS_DISABLED	0
 #define FIFO_FULL_RESERVE 8
@@ -997,26 +996,6 @@ static void ipcmem_init(struct ipclite_mem *ipcmem)
 	IPCLITE_OS_LOG(IPCLITE_DBG, "Ipcmem init completed\n");
 }
 
-
-/*Add VMIDs corresponding to EVA, CDSP and VPU to set IPCMEM access control*/
-static int set_ipcmem_access_control(struct ipclite_info *ipclite)
-{
-	int ret = 0;
-	u64 srcVM = BIT(QCOM_SCM_VMID_HLOS);
-	struct qcom_scm_vmperm destVM[2];
-
-	destVM[0].vmid = QCOM_SCM_VMID_HLOS;
-	destVM[0].perm = QCOM_SCM_PERM_RW;
-
-	destVM[1].vmid = VMID_CDSP;
-	destVM[1].perm = QCOM_SCM_PERM_RW;
-
-	ret = qcom_scm_assign_mem(ipclite->ipcmem.mem.aux_base,
-				ipclite->ipcmem.mem.size, &srcVM,
-				destVM, ARRAY_SIZE(destVM));
-	return ret;
-}
-
 static int ipclite_channel_irq_init(struct device *parent, struct device_node *node,
 								struct ipclite_channel *channel)
 {
@@ -1461,7 +1440,7 @@ static int ipclite_probe(struct platform_device *pdev)
 		if (hwlock_id != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "failed to retrieve hwlock\n");
 		ret = hwlock_id;
-		goto error;
+		goto release;
 	}
 	IPCLITE_OS_LOG(IPCLITE_DBG, "Hwlock id retrieved, hwlock_id=%d\n", hwlock_id);
 
@@ -1469,7 +1448,7 @@ static int ipclite_probe(struct platform_device *pdev)
 	if (!ipclite->hwlock) {
 		IPCLITE_OS_LOG(IPCLITE_ERR, "Failed to assign hwlock_id\n");
 		ret = -ENXIO;
-		goto error;
+		goto release;
 	}
 	IPCLITE_OS_LOG(IPCLITE_DBG, "Hwlock id assigned successfully, hwlock=%p\n",
 									ipclite->hwlock);
@@ -1484,12 +1463,6 @@ static int ipclite_probe(struct platform_device *pdev)
 	}
 	mem = &(ipclite->ipcmem.mem);
 	memset(mem->virt_base, 0, mem->size);
-
-	ret = set_ipcmem_access_control(ipclite);
-	if (ret) {
-		IPCLITE_OS_LOG(IPCLITE_ERR, "failed to set access control policy\n");
-		goto release;
-	}
 
 	ipcmem_init(&ipclite->ipcmem);
 
@@ -1558,6 +1531,7 @@ mem_release:
 	 */
 release:
 	kfree(ipclite);
+	ipclite = NULL;
 error:
 	IPCLITE_OS_LOG(IPCLITE_ERR, "IPCLite probe failed\n");
 	return ret;
