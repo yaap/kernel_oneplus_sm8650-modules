@@ -589,16 +589,8 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 	mutex_lock(&synx_obj->obj_lock);
 
 	if (signal_cb->flag & SYNX_SIGNAL_FROM_IPC) {
-		if (synx_util_is_merged_object(synx_obj)) {
+		if (synx_util_is_merged_object(synx_obj))
 			rc = synx_native_signal_merged_fence(synx_obj, status);
-			if (rc != SYNX_SUCCESS) {
-				mutex_unlock(&synx_obj->obj_lock);
-				dprintk(SYNX_ERR,
-					"failed to signal merged fence for %u failed=%d\n",
-					h_synx, rc);
-				goto fail;
-			}
-		}
 		else
 			rc = synx_native_signal_fence(synx_obj, status);
 	}
@@ -723,12 +715,15 @@ int synx_signal(struct synx_session *session, u32 h_synx, u32 status)
 		goto fail;
 	}
 
+	mutex_lock(&synx_obj->obj_lock);
+
 	if (synx_util_is_global_handle(h_synx) ||
 			synx_util_is_global_object(synx_obj))
 		rc = synx_global_update_status(
 				synx_obj->global_idx, status);
 
 	if (rc != SYNX_SUCCESS) {
+		mutex_unlock(&synx_obj->obj_lock);
 		dprintk(SYNX_ERR,
 			"[sess :%llu] status update %d failed=%d\n",
 			client->id, h_synx, rc);
@@ -744,7 +739,6 @@ int synx_signal(struct synx_session *session, u32 h_synx, u32 status)
 		rc = synx_signal_offload_job(client, synx_obj,
 				h_synx, status);
 
-	mutex_lock(&synx_obj->obj_lock);
 	rc = synx_native_signal_fence(synx_obj, status);
 	if (rc != SYNX_SUCCESS)
 		dprintk(SYNX_ERR,
@@ -1204,7 +1198,7 @@ int synx_wait(struct synx_session *session,
 			else
 				synx_native_signal_fence(synx_obj, rc);
 			mutex_unlock(&synx_obj->obj_lock);
-			goto fail;
+			goto status;
 		}
 	}
 
@@ -1218,6 +1212,7 @@ int synx_wait(struct synx_session *session,
 		goto fail;
 	}
 
+status:
 	mutex_lock(&synx_obj->obj_lock);
 	rc = synx_util_get_object_status(synx_obj);
 	mutex_unlock(&synx_obj->obj_lock);
@@ -1437,6 +1432,7 @@ static struct synx_map_entry *synx_handle_conversion(
 			}
 		}
 	} else {
+		synx_obj->map_count++;
 		rc = synx_alloc_global_handle(h_synx);
 		if (rc == SYNX_SUCCESS) {
 			synx_obj->global_idx =

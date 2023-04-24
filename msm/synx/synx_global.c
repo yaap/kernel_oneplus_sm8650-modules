@@ -328,6 +328,28 @@ int synx_global_get_subscribed_cores(u32 idx, bool *cores)
 	return SYNX_SUCCESS;
 }
 
+int synx_global_fetch_handle_details(u32 idx, u32 *h_synx)
+{
+	int rc;
+	unsigned long flags;
+	struct synx_global_coredata *synx_g_obj;
+
+	if (!synx_gmem.table)
+		return -SYNX_NOMEM;
+
+	if (IS_ERR_OR_NULL(h_synx) || !synx_is_valid_idx(idx))
+		return -SYNX_INVALID;
+
+	rc = synx_gmem_lock(idx, &flags);
+	if (rc)
+		return rc;
+	synx_g_obj = &synx_gmem.table[idx];
+	*h_synx = synx_g_obj->handle;
+	synx_gmem_unlock(idx, &flags);
+
+	return SYNX_SUCCESS;
+}
+
 int synx_global_set_subscribed_core(u32 idx, enum synx_core_id id)
 {
 	int rc;
@@ -709,6 +731,9 @@ int synx_global_merge(u32 *idx_list, u32 num_list, u32 p_idx)
 
 	if (!synx_is_valid_idx(p_idx))
 		return -SYNX_INVALID;
+
+	if (num_list == 0)
+		return SYNX_SUCCESS;
 
 	while (j < num_list) {
 		idx = idx_list[j];

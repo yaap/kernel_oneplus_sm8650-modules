@@ -293,4 +293,14 @@ int synx_global_clean_cdsp_mem(void);
 
 int synx_global_dump_shared_memory(void);
 
+/**
+ * synx_global_fetch_handle_details - Fetches the synx handle from
+ * global shared memory.
+ *
+ * @param idx :  Global entry index whose handle is requested.
+ *
+ * @return SYNX_SUCCESS on success. Negative error on failure.
+ */
+int synx_global_fetch_handle_details(u32 idx, u32 *h_synx);
+
 #endif /* __SYNX_SHARED_MEM_H__ */
