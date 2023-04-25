@@ -973,7 +973,7 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 			}
 
 			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
-				inst->subcr_params[port].dpb_list_enabled = true;
+				inst->input_dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on input port", __func__);
 			}
 		}
@@ -989,7 +989,7 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 			}
 
 			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
-				inst->subcr_params[port].dpb_list_enabled = true;
+				inst->output_dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on output port", __func__);
 			}
 		}
@@ -1951,6 +1951,34 @@ static int msm_vdec_qbuf_batch(struct msm_vidc_inst *inst,
 	return rc;
 }
 
+static int msm_vdec_release_eligible_buffers(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct msm_vidc_buffer *ro_buf;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		/* release only release eligible read-only buffers */
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_RELEASE_ELIGIBLE))
+			continue;
+		/* skip releasing buffers for which release cmd was already sent */
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
+		rc = venus_hfi_release_buffer(inst, ro_buf);
+		if (rc)
+			return rc;
+		ro_buf->attr |= MSM_VIDC_ATTR_PENDING_RELEASE;
+		ro_buf->attr &= ~MSM_VIDC_ATTR_RELEASE_ELIGIBLE;
+		print_vidc_buffer(VIDC_LOW, "low ", "release buf", inst, ro_buf);
+	}
+
+	return rc;
+}
+
 static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -1968,7 +1996,7 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	 * if DPB_LIST subscribed on output port then driver need to
 	 * hold MAX_BPB_COUNT of read only buffer at least.
 	 */
-	if (!inst->subcr_params[OUTPUT_PORT].dpb_list_enabled)
+	if (!inst->output_dpb_list_enabled)
 		goto release_buffers;
 
 	/* count read_only buffers which are not pending release in read_only list */
@@ -2069,8 +2097,17 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 	if (rc)
 		return rc;
 
+	/*
+	 * if DPB_LIST property is subscribed on output port, then
+	 * driver needs to hold at least MAX_BPB_COUNT of read only
+	 * buffers. So call msm_vdec_release_nonref_buffers() to handle
+	 * the same.
+	 */
 	if (vb2->type == OUTPUT_MPLANE) {
-		rc = msm_vdec_release_nonref_buffers(inst);
+		if (inst->input_dpb_list_enabled)
+			rc = msm_vdec_release_eligible_buffers(inst);
+		else if (inst->output_dpb_list_enabled)
+			rc = msm_vdec_release_nonref_buffers(inst);
 		if (rc)
 			return rc;
 	}
@@ -2743,8 +2780,8 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 	inst->buffers.output_meta.extra_count = 0;
 	inst->buffers.output_meta.actual_count = 0;
 	inst->buffers.output_meta.size = 0;
-	inst->subcr_params[INPUT_PORT].dpb_list_enabled = 0;
-	inst->subcr_params[OUTPUT_PORT].dpb_list_enabled = 0;
+	inst->input_dpb_list_enabled = false;
+	inst->output_dpb_list_enabled = false;
 
 	rc = msm_vdec_codec_change(inst,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat);
