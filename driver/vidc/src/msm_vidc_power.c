@@ -112,36 +112,6 @@ u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 	return freq;
 }
 
-int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
-{
-	u32 mbpf, fps;
-	u32 frame_rate, operating_rate, input_rate, timestamp_rate;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	/* return zero load for thumbnail and NRT session */
-	if (is_thumbnail_session(inst) || !is_realtime_session(inst))
-		return 0;
-
-	/* calculate load for RT session */
-	mbpf = msm_vidc_get_mbs_per_frame(inst);
-	frame_rate = msm_vidc_get_frame_rate(inst);
-	operating_rate = msm_vidc_get_operating_rate(inst);
-	fps = max(frame_rate, operating_rate);
-
-	if (is_decode_session(inst)) {
-		input_rate = msm_vidc_get_input_rate(inst);
-		timestamp_rate = msm_vidc_get_timestamp_rate(inst);
-		fps = max(fps, input_rate);
-		fps = max(fps, timestamp_rate);
-	}
-
-	return mbpf * fps;
-}
-
 static int fill_dynamic_stats(struct msm_vidc_inst *inst,
 	struct vidc_bus_vote_data *vote_data)
 {
