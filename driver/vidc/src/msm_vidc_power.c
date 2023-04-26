@@ -346,6 +346,18 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	inst->power.ddr_bw = vote_data->calc_bw_ddr;
 	inst->power.sys_cache_bw = vote_data->calc_bw_llcc;
 
+	if (!inst->stats.avg_bw_llcc)
+		inst->stats.avg_bw_llcc = inst->power.sys_cache_bw;
+	else
+		inst->stats.avg_bw_llcc =
+			(inst->stats.avg_bw_llcc + inst->power.sys_cache_bw) / 2;
+
+	if (!inst->stats.avg_bw_ddr)
+		inst->stats.avg_bw_ddr = inst->power.ddr_bw;
+	else
+		inst->stats.avg_bw_ddr =
+			(inst->stats.avg_bw_ddr + inst->power.ddr_bw) / 2;
+
 set_buses:
 	inst->power.power_mode = vote_data->power_mode;
 	rc = msm_vidc_set_buses(inst);

@@ -714,6 +714,8 @@ struct msm_vidc_statistics {
 	struct debug_buf_count             count;
 	u64                                data_size;
 	u64                                time_ms;
+	u32                                avg_bw_llcc;
+	u32                                avg_bw_ddr;
 };
 
 enum efuse_purpose {
