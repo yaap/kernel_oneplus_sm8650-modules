@@ -435,6 +435,8 @@ static void cvp_dsp_rpmsg_remove(struct rpmsg_device *rpdev)
 	mutex_unlock(&me->tx_lock);
 	mutex_unlock(&me->rx_lock);
 
+	/* Wait HW finish current frame processing */
+	usleep_range(20000, 50000);
 	cvp_remove_dsp_sessions();
 
 	dprintk(CVP_WARN, "%s: CDSP SSR handled nr_maps %d\n", __func__,
