@@ -3973,6 +3973,7 @@ bail:
 	spin_lock(&fl->hlock);
 	locked = 1;
 	if (err) {
+		ADSPRPC_ERR("failed with err %d\n", err);
 		fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
 		if (!IS_ERR_OR_NULL(fl->init_mem)) {
 			init_mem = fl->init_mem;
