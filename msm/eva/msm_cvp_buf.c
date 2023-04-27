@@ -15,6 +15,7 @@
 #include "msm_cvp_debug.h"
 #include "msm_cvp_core.h"
 #include "msm_cvp_dsp.h"
+#include "eva_shared_def.h"
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #define eva_buf_map dma_buf_map
@@ -42,7 +43,8 @@
 
 static void _wncc_print_cvpwnccbufs_table(struct msm_cvp_inst* inst);
 static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata);
+	unsigned int num_layers, unsigned int metadata_bufs_offset,
+	struct eva_kmd_wncc_metadata** wncc_metadata);
 
 void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log);
 
@@ -750,6 +752,7 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 {
 	int rc = 0;
 	u32 oob_type;
+	struct eva_kmd_oob_buf* oob_buf_u;
 	struct eva_kmd_oob_wncc* wncc_oob_u;
 	struct eva_kmd_oob_wncc* wncc_oob_k;
 	unsigned int i;
@@ -760,12 +763,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 
-	if (!access_ok(in_pkt->oob_buf, sizeof(*in_pkt->oob_buf))) {
+	oob_buf_u = in_pkt->oob_buf;
+	if (!access_ok(oob_buf_u, sizeof(*oob_buf_u))) {
 		dprintk(CVP_ERR, "%s: invalid OOB buf pointer", __func__);
 		return -EINVAL;
 	}
 
-	rc = get_user(oob_type, &in_pkt->oob_buf->oob_type);
+	rc = get_user(oob_type, &oob_buf_u->oob_type);
 	if (rc)
 		return rc;
 	if (oob_type != EVA_KMD_OOB_WNCC) {
@@ -774,8 +778,19 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 
-	wncc_oob_u = &in_pkt->oob_buf->wncc;
+	wncc_oob_u = &oob_buf_u->wncc;
 	wncc_oob_k = wncc_oob;
+
+	rc = get_user(wncc_oob_k->metadata_bufs_offset,
+		&wncc_oob_u->metadata_bufs_offset);
+	if (rc)
+		return rc;
+	if (wncc_oob_k->metadata_bufs_offset > ((sizeof(in_pkt->pkt_data)
+		- sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
+		dprintk(CVP_ERR, "%s: invalid wncc metadata bufs offset",
+			__func__);
+		return -EINVAL;
+	}
 
 	rc = get_user(wncc_oob_k->num_layers, &wncc_oob_u->num_layers);
 	if (rc)
@@ -817,7 +832,8 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 }
 
 static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata)
+	unsigned int num_layers, unsigned int metadata_bufs_offset,
+	struct eva_kmd_wncc_metadata** wncc_metadata)
 {
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
@@ -829,9 +845,15 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
 		return -EINVAL;
 	}
+	if (metadata_bufs_offset > ((sizeof(in_pkt->pkt_data)
+		- sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
+		dprintk(CVP_ERR, "%s: invalid wncc metadata bufs offset",
+			__func__);
+		return -EINVAL;
+	}
 
 	wncc_metadata_bufs = (struct cvp_buf_type*)
-		&in_pkt->pkt_data[EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET];
+		&in_pkt->pkt_data[metadata_bufs_offset];
 	for (i = 0; i < num_layers; i++) {
 		dmabuf = dma_buf_get(wncc_metadata_bufs[i].fd);
 		if (IS_ERR(dmabuf)) {
@@ -872,13 +894,15 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	}
 
 	if (rc)
-		_wncc_unmap_metadata_bufs(in_pkt, i, wncc_metadata);
+		_wncc_unmap_metadata_bufs(in_pkt, i, metadata_bufs_offset,
+			wncc_metadata);
 
 	return rc;
 }
 
 static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
-	unsigned int num_layers, struct eva_kmd_wncc_metadata** wncc_metadata)
+	unsigned int num_layers, unsigned int metadata_bufs_offset,
+	struct eva_kmd_wncc_metadata** wncc_metadata)
 {
 	int rc = 0, i;
 	struct cvp_buf_type* wncc_metadata_bufs;
@@ -890,9 +914,15 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
 		return -EINVAL;
 	}
+	if (metadata_bufs_offset > ((sizeof(in_pkt->pkt_data)
+		- sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
+		dprintk(CVP_ERR, "%s: invalid wncc metadata bufs offset",
+			__func__);
+		return -EINVAL;
+	}
 
 	wncc_metadata_bufs = (struct cvp_buf_type*)
-		&in_pkt->pkt_data[EVA_KMD_WNCC_HFI_METADATA_BUFS_OFFSET];
+		&in_pkt->pkt_data[metadata_bufs_offset];
 	for (i = 0; i < num_layers; i++) {
 		if (!wncc_metadata[i]) {
 			rc = -EINVAL;
@@ -944,8 +974,10 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 
 	wncc_oob = (struct eva_kmd_oob_wncc*)kzalloc(
 		sizeof(struct eva_kmd_oob_wncc), GFP_KERNEL);
-	if (!wncc_oob)
+	if (!wncc_oob) {
+		dprintk(CVP_ERR, "%s: OOB buf allocation failed", __func__);
 		return -ENOMEM;
+	}
 	rc = _wncc_copy_oob_from_user(in_pkt, wncc_oob);
 	if (rc) {
 		dprintk(CVP_ERR, "%s: OOB buf copying failed", __func__);
@@ -953,7 +985,8 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 	}
 
 	rc = _wncc_map_metadata_bufs(in_pkt,
-		wncc_oob->num_layers, wncc_metadata);
+		wncc_oob->num_layers, wncc_oob->metadata_bufs_offset,
+		wncc_metadata);
 	if (rc) {
 		dprintk(CVP_ERR, "%s: failed to map wncc metadata bufs",
 			__func__);
@@ -1022,7 +1055,8 @@ static int msm_cvp_proc_oob_wncc(struct msm_cvp_inst* inst,
 			wncc_oob->layers[0].num_addrs, wncc_metadata);
 
 	if (_wncc_unmap_metadata_bufs(in_pkt,
-		wncc_oob->num_layers, wncc_metadata)) {
+		wncc_oob->num_layers, wncc_oob->metadata_bufs_offset,
+		wncc_metadata)) {
 		dprintk(CVP_ERR, "%s: failed to unmap wncc metadata bufs",
 			__func__);
 	}
