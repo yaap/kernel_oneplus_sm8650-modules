@@ -2410,6 +2410,23 @@ static void delete_pending_async_list_locked(struct list_head *l_pending_mem_obj
 	}
 }
 
+
+/*
+ * Unmap/release the mapped objects from  pending async list.
+ */
+static void release_map_obj_pending_async_list_locked(struct list_head *l_pending_mem_obj)
+{
+	struct smcinvoke_mem_obj_pending_async *mem_obj_pending = NULL;
+	struct smcinvoke_mem_obj_pending_async *temp = NULL;
+
+	if (list_empty(l_pending_mem_obj))
+		return;
+
+	list_for_each_entry_safe(mem_obj_pending, temp, l_pending_mem_obj, list) {
+		kref_put(&mem_obj_pending->mem_obj->mem_map_obj_ref_cnt, del_mem_map_obj_locked);
+	}
+}
+
 static long process_ack_local_obj(struct file *filp, unsigned int cmd,
 						unsigned long arg)
 {
@@ -2826,8 +2843,10 @@ out:
 			req.op, req.counts);
 
 	release_filp(filp_to_release, OBJECT_COUNTS_MAX_OO);
-	if (ret)
+	if (ret) {
+		release_map_obj_pending_async_list_locked(&l_mem_objs_pending_async);
 		release_tzhandles(tzhandles_to_release, OBJECT_COUNTS_MAX_OO);
+	}
 	qtee_shmbridge_free_shm(&in_shm);
 	qtee_shmbridge_free_shm(&out_shm);
 	kfree(args_buf);
