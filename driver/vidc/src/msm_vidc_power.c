@@ -588,8 +588,11 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 	 */
 	if (inst->decode_batch.enable) {
 		list_for_each_entry(vbuf, &inst->buffers.input.list, list) {
-			data_size += vbuf->data_size;
-			cnt++;
+			if (vbuf->attr & MSM_VIDC_ATTR_DEFERRED ||
+				vbuf->attr & MSM_VIDC_ATTR_QUEUED) {
+				data_size += vbuf->data_size;
+				cnt++;
+			}
 		}
 		if (cnt)
 			data_size /= cnt;
