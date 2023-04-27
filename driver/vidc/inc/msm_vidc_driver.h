@@ -14,7 +14,6 @@
 #include "msm_vidc_inst.h"
 
 #define MSM_VIDC_SESSION_INACTIVE_THRESHOLD_MS 1000
-#define HEIC_GRID_DIMENSION 512
 
 enum msm_vidc_debugfs_event;
 
