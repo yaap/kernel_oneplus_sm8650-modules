@@ -1414,6 +1414,7 @@ int handle_release_output_buffer(struct msm_vidc_inst *inst,
 	}
 
 	buf->attr &= ~MSM_VIDC_ATTR_READ_ONLY;
+	buf->attr &= ~MSM_VIDC_ATTR_PENDING_RELEASE;
 	print_vidc_buffer(VIDC_LOW, "low ", "release done", inst, buf);
 
 	return rc;
