@@ -263,10 +263,13 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 	list_for_each_entry_safe(synx_cb,
 		synx_cb_temp, &synx_obj->reg_cbs_list, node) {
 		dprintk(SYNX_ERR,
-			"cleaning up callback of session %pK\n",
+			"dipatching un-released callbacks of session %pK\n",
 			synx_cb->session);
+		synx_cb->status = SYNX_STATE_SIGNALED_CANCEL;
 		list_del_init(&synx_cb->node);
-		kfree(synx_cb);
+		queue_work(synx_dev->wq_cb,
+			&synx_cb->cb_dispatch);
+		dprintk(SYNX_VERB, "dispatched callback for fence %pKn", synx_obj->fence);
 	}
 
 	for (i = 0; i < synx_obj->num_bound_synxs; i++) {
