@@ -259,25 +259,6 @@ int msm_vidc_suspend_locked(struct msm_vidc_core *core)
 	return rc;
 }
 
-static int msm_vidc_try_suspend(struct msm_vidc_core *core)
-{
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	core_lock(core, __func__);
-	if (list_empty(&core->instances) && list_empty(&core->dangling_instances)) {
-		d_vpr_h("%s: closed last open session. suspend video core\n", __func__);
-		msm_vidc_suspend_locked(core);
-	}
-	core_unlock(core, __func__);
-
-	return rc;
-}
-
 int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, u64 timestamp)
 {
@@ -5075,8 +5056,6 @@ static void msm_vidc_close_helper(struct kref *kref)
 	mutex_destroy(&inst->request_lock);
 	mutex_destroy(&inst->lock);
 	msm_vidc_vmem_free((void **)&inst);
-	/* try suspending video hardware */
-	msm_vidc_try_suspend(core);
 }
 
 struct msm_vidc_inst *get_inst_ref(struct msm_vidc_core *core,
