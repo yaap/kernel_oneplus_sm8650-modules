@@ -1174,10 +1174,7 @@ err:
 	return ret;
 }
 
-/* calculate ULA buffer parms
- * TBD: how do we make sure uv_start address (not the offset)
- * is aligned per requirement: cache line
- */
+/* calculate ULA buffer parms */
 static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 					struct ubwcp_buffer_attrs *attr,
 					size_t *ula_size,
@@ -1211,6 +1208,7 @@ static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 	 */
 	missing_plane = missing_plane_from_format(attr->image_format);
 
+	DBG_BUF_ATTR("ula params -->");
 	DBG_BUF_ATTR("ioctl_image_format : %d, std_format: %d", attr->image_format, format);
 	DBG_BUF_ATTR("planes_in_format   : %d", planes);
 	DBG_BUF_ATTR("missing_plane      : %d", missing_plane);
@@ -1246,13 +1244,8 @@ static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 		}
 	}
 
-	//TBD: cleanup
-	*ula_size = size;
-	DBG_BUF_ATTR("Before page align: Total ULA_Size: %d (0x%x) (planes + planar padding)",
-									*ula_size, *ula_size);
 	*ula_size = UBWCP_ALIGN(size, 4096);
-	DBG_BUF_ATTR("After page align : Total ULA_Size: %d (0x%x) (planes + planar padding)",
-									*ula_size, *ula_size);
+	DBG_BUF_ATTR("ULA_Size: %zu (0x%x) (before 4K align: %zu)", *ula_size, *ula_size, size);
 	return 0;
 }
 
@@ -1274,11 +1267,18 @@ static int ubwcp_calc_ubwcp_buf_params(struct ubwcp_driver *ubwcp,
 	/* convert ioctl image format to standard image format */
 	format = to_std_format(attr->image_format);
 	missing_plane = missing_plane_from_format(attr->image_format);
-	planes = planes_in_format(format); //pass in 0 (RGB) should return 1
+	planes = planes_in_format(format);
 
+	DBG_BUF_ATTR("ubwcp params -->");
 	DBG_BUF_ATTR("ioctl_image_format : %d, std_format: %d", attr->image_format, format);
 	DBG_BUF_ATTR("planes_in_format   : %d", planes);
 	DBG_BUF_ATTR("missing_plane      : %d", missing_plane);
+
+	*md_p0 = 0;
+	*pd_p0 = 0;
+	*md_p1 = 0;
+	*pd_p1 = 0;
+	*stride_tp10_b = 0;
 
 	if (!missing_plane) {
 		*md_p0 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
@@ -1289,23 +1289,17 @@ static int ubwcp_calc_ubwcp_buf_params(struct ubwcp_driver *ubwcp,
 		}
 	} else {
 		if (missing_plane == 1) {
-			*md_p0 = 0;
-			*pd_p0 = 0;
 			*md_p1 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
 			*pd_p1 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
 		} else {
 			*md_p0 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
 			*pd_p0 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
-			*md_p1 = 0;
-			*pd_p1 = 0;
 		}
 	}
 
 	if (format == TP10) {
 		stride_tp10_p = UBWCP_ALIGN(attr->width, 192);
 		*stride_tp10_b = (stride_tp10_p/3) + stride_tp10_p;
-	} else {
-		*stride_tp10_b = 0;
 	}
 
 	return 0;
@@ -1372,18 +1366,27 @@ static void ubwcp_dma_unmap(struct ubwcp_buf *buf)
 	}
 }
 
+static bool verify_dma_buf_size(struct ubwcp_buf *buf, size_t min_size)
+{
+	size_t dma_len;
+
+	dma_len = sg_dma_len(buf->sgt->sgl);
+	if (dma_len < min_size) {
+		ERR("dma len: %zu is less than min ubwcp buffer size: %zu", dma_len, min_size);
+		return false;
+	} else
+		return true;
+}
 
 /* dma map ubwcp buffer */
 static int ubwcp_dma_map(struct ubwcp_buf *buf,
 				struct device *dev,
-				size_t iova_min_size,
 				dma_addr_t *iova)
 {
 	int ret = 0;
 	struct dma_buf *dma_buf = buf->dma_buf;
 	struct dma_buf_attachment *attachment;
 	struct sg_table *sgt;
-	size_t dma_len;
 
 	/* Map buffer to SMMU and get IOVA */
 	attachment = dma_buf_attach(dma_buf, dev);
@@ -1405,14 +1408,6 @@ static int ubwcp_dma_map(struct ubwcp_buf *buf,
 
 	if (sgt->nents != 1) {
 		ERR("nents = %d", sgt->nents);
-		goto err_unmap;
-	}
-
-	/* ensure that dma_buf is big enough for the new attrs */
-	dma_len = sg_dma_len(sgt->sgl);
-	if (dma_len < iova_min_size) {
-		ERR("dma len: %d is less than min ubwcp buffer size: %d",
-							dma_len, iova_min_size);
 		goto err_unmap;
 	}
 
@@ -1500,13 +1495,9 @@ static void print_mmdata_desc(struct ubwcp_hw_meta_metadata *mmdata)
 
 /* set buffer attributes:
  * Failure:
- * If a call to ubwcp_set_buf_attrs() fails, any attributes set from a previously
- * successful ubwcp_set_buf_attrs() will be also removed. Thus,
- * ubwcp_set_buf_attrs() implicitly does "unset previous attributes" and
- * then "try to set these new attributes".
- *
- * The result of a failed call to ubwcp_set_buf_attrs() will leave the buffer
- * in a linear mode, NOT with attributes from earlier successful call.
+ * This call may fail for multiple reasons and it will leave the buffer in an undefined state.
+ * In some situations it may leave the buffer in linear mapped state, and in other situations it
+ * may leave the buffer in previously set attributes state.
  */
 int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 {
@@ -1570,31 +1561,20 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	mmdata = &buf->mmdata;
 	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
-	//TBD: now that we have single exit point for all errors,
-	//we can limit this call to error only?
-	//also see if this can be part of reset_buf_attrs()
-	DBG_BUF_ATTR("resetting mmap to linear");
-	/* remove any earlier dma buf mmap configuration */
-	ret = ubwcp->mmap_config_fptr(buf->dma_buf, true, 0, 0);
-	if (ret) {
-		ERR("dma_buf_mmap_config() failed: %d", ret);
+	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
+		ERR("Invalid buf attrs");
 		goto unlock;
 	}
 
-	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
-		ERR("Invalid buf attrs");
-		goto err;
+	/* note: this also checks if buf is mmap'ed */
+	ret = ubwcp->mmap_config_fptr(buf->dma_buf, true, 0, 0);
+	if (ret) {
+		ERR("dma_buf_mmap_config(0,0) failed: %d", ret);
+		goto unlock;
 	}
 
 	if (attr->image_format == UBWCP_LINEAR) {
 		DBG_BUF_ATTR("Linear format requested");
-
-
-		/* linear format request with permanent range xlation doesn't
-		 * make sense. need to define behavior if this happens.
-		 * note: with perm set, desc is allocated to this buffer.
-		 */
-		//TBD: UBWCP_ASSERT(!buf->perm);
 
 		if (buf->buf_attr_set)
 			reset_buf_attrs(buf);
@@ -1615,35 +1595,27 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	std_image_format = to_std_format(attr->image_format);
 	if (std_image_format == STD_IMAGE_FORMAT_INVALID) {
 		ERR("Unable to map ioctl image format to std image format");
-		goto err;
+		goto unlock;
 	}
 
 	/* Calculate uncompressed-buffer size. */
-	DBG_BUF_ATTR("");
-	DBG_BUF_ATTR("");
-	DBG_BUF_ATTR("Calculating ula params -->");
 	ret = ubwcp_calc_ula_params(ubwcp, attr, &ula_size, &ula_y_plane_size, &uv_start_offset);
 	if (ret) {
 		ERR("ubwcp_calc_ula_params() failed: %d", ret);
-		goto err;
+		goto unlock;
 	}
 
 	ret = ubwcp_validate_uv_align(ubwcp, attr, ula_y_plane_size, uv_start_offset);
 	if (ret) {
 		ERR("ubwcp_validate_uv_align() failed: %d", ret);
-		goto err;
+		goto unlock;
 	}
 
-	DBG_BUF_ATTR("");
-	DBG_BUF_ATTR("");
-	DBG_BUF_ATTR("Calculating ubwcp params -->");
-	ret = ubwcp_calc_ubwcp_buf_params(ubwcp, attr,
-						&metadata_p0, &pixeldata_p0,
-						&metadata_p1, &pixeldata_p1,
-						&stride_tp10_b);
+	ret = ubwcp_calc_ubwcp_buf_params(ubwcp, attr, &metadata_p0, &pixeldata_p0, &metadata_p1,
+						&pixeldata_p1, &stride_tp10_b);
 	if (ret) {
 		ERR("ubwcp_calc_buf_params() failed: %d", ret);
-		goto err;
+		goto unlock;
 	}
 
 	iova_min_size = metadata_p0 + pixeldata_p0 + metadata_p1 + pixeldata_p1;
@@ -1674,19 +1646,10 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("Allocated ULA_PA: 0x%p of size: 0x%zx", ula_pa, ula_size);
 	DBG_BUF_ATTR("");
 
-	/* inform ULA-PA to dma-heap: needed for dma-heap to do CMOs later on */
-	DBG_BUF_ATTR("Calling mmap_config(): ULA_PA: 0x%p size: 0x%zx", ula_pa, ula_size);
-	ret = ubwcp->mmap_config_fptr(buf->dma_buf, false, buf->ula_pa,
-								buf->ula_size);
-	if (ret) {
-		ERR("dma_buf_mmap_config() failed: %d", ret);
-		goto err;
-	}
-
 	/* dma map only the first time attribute is set */
 	if (!buf->buf_attr_set) {
 		/* linear -> ubwcp. map ubwcp buffer */
-		ret = ubwcp_dma_map(buf, ubwcp->dev_buf_cb, iova_min_size, &iova_base);
+		ret = ubwcp_dma_map(buf, ubwcp->dev_buf_cb, &iova_base);
 		if (ret) {
 			ERR("ubwcp_dma_map() failed: %d", ret);
 			goto err;
@@ -1694,6 +1657,9 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		DBG_BUF_ATTR("dma_buf IOVA range: 0x%llx + min_size (0x%zx): 0x%llx",
 					iova_base, iova_min_size, iova_base + iova_min_size);
 	}
+
+	if(!verify_dma_buf_size(buf, iova_min_size))
+		goto err;
 
 	uv_start = ula_pa + uv_start_offset;
 	if (!IS_ALIGNED(uv_start, 64)) {
@@ -1751,9 +1717,18 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		goto err;
 	}
 
+	/* inform ULA-PA to dma-heap */
+	DBG_BUF_ATTR("Calling mmap_config(): ULA_PA: 0x%p size: 0x%zx", ula_pa, ula_size);
+	ret = ubwcp->mmap_config_fptr(buf->dma_buf, false, buf->ula_pa, buf->ula_size);
+	if (ret) {
+		ERR("dma_buf_mmap_config() failed: %d", ret);
+		if (!is_non_lin_buf)
+			dec_num_non_lin_buffers(ubwcp);
+		goto err;
+	}
+
 	buf->buf_attr = *attr;
 	buf->buf_attr_set = true;
-	//TBD: UBWCP_ASSERT(!buf->perm);
 	mutex_unlock(&buf->lock);
 	trace_ubwcp_set_buf_attrs_end(dmabuf);
 	return 0;
@@ -2325,6 +2300,16 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 			return -EFAULT;
 		}
 		DBG("IOCTL : SET_BUF_ATTR: fd = %d", buf_attr_ioctl.fd);
+
+		if (buf_attr_ioctl.attr.unused1 || buf_attr_ioctl.attr.unused2
+		    || buf_attr_ioctl.attr.unused3 || buf_attr_ioctl.attr.unused4
+		    || buf_attr_ioctl.attr.unused5 || buf_attr_ioctl.attr.unused6
+		    || buf_attr_ioctl.attr.unused7 || buf_attr_ioctl.attr.unused8
+		    || buf_attr_ioctl.attr.unused9) {
+			ERR("ERROR: buf attr unused values must be set to 0");
+			return -EINVAL;
+		}
+
 		return ubwcp_set_buf_attrs_ioctl(&buf_attr_ioctl);
 
 	case UBWCP_IOCTL_GET_HW_VER:

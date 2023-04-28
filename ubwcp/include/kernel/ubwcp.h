@@ -31,6 +31,11 @@ int ubwcp_get_hw_version(struct ubwcp_ioctl_hw_version *ver);
  * ubwcp_lock(). Attributes can be configured multiple times,
  * but only during unlocked state.
  *
+ * Upon error, buffer will be in undefined state.
+ * There is no guarantee that previously set attributes will be retained.
+ * Caller could retry set attributes, but must not reuse buffer
+ * until a successful set attribute call is done.
+ *
  * @param dmabuf : ptr to the dma buf
  * @param attr   : buffer attributes to set
  *
