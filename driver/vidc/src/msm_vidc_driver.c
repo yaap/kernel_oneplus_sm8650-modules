@@ -3935,6 +3935,7 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	int i;
+	u32 codecs_count = 0;
 	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core) {
@@ -3943,7 +3944,9 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	for (i = 0; i < core->codecs_count; i++) {
+	codecs_count = core->enc_codecs_count + core->dec_codecs_count;
+
+	for (i = 0; i < codecs_count; i++) {
 		if (core->inst_caps[i].domain == inst->domain &&
 			core->inst_caps[i].codec == inst->codec) {
 			i_vpr_h(inst,
@@ -4061,8 +4064,8 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	u8 enc_valid_codecs, dec_valid_codecs;
-	u8 count_bits, enc_codec_count;
-	u8 codecs_count = 0;
+	u8 count_bits, codecs_count = 0;
+	u8 enc_codecs_count = 0, dec_codecs_count = 0;
 	int i, j, check_bit;
 	int num_platform_cap_data, num_platform_cap_dependency_data;
 	struct msm_platform_inst_capability *platform_cap_data = NULL;
@@ -4092,14 +4095,15 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 
 	enc_valid_codecs = core->capabilities[ENC_CODECS].value;
 	count_bits = enc_valid_codecs;
-	COUNT_BITS(count_bits, codecs_count);
-	enc_codec_count = codecs_count;
+	COUNT_BITS(count_bits, enc_codecs_count);
+	core->enc_codecs_count = enc_codecs_count;
 
 	dec_valid_codecs = core->capabilities[DEC_CODECS].value;
 	count_bits = dec_valid_codecs;
-	COUNT_BITS(count_bits, codecs_count);
+	COUNT_BITS(count_bits, dec_codecs_count);
+	core->dec_codecs_count = dec_codecs_count;
 
-	core->codecs_count = codecs_count;
+	codecs_count = enc_codecs_count + dec_codecs_count;
 	rc = msm_vidc_vmem_alloc(codecs_count * sizeof(struct msm_vidc_inst_capability),
 		(void **)&core->inst_caps, __func__);
 	if (rc)
@@ -4107,7 +4111,7 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 
 	check_bit = 0;
 	/* determine codecs for enc domain */
-	for (i = 0; i < enc_codec_count; i++) {
+	for (i = 0; i < enc_codecs_count; i++) {
 		while (check_bit < (sizeof(enc_valid_codecs) * 8)) {
 			if (enc_valid_codecs & BIT(check_bit)) {
 				core->inst_caps[i].domain = MSM_VIDC_ENCODER;

@@ -87,7 +87,6 @@ struct msm_vidc_inst {
 	struct v4l2_fh                     event_handler;
 	struct v4l2_m2m_dev               *m2m_dev;
 	struct v4l2_m2m_ctx               *m2m_ctx;
-	struct v4l2_ctrl                 **ctrls;
 	u32                                num_ctrls;
 	enum hfi_rate_control              hfi_rc_type;
 	enum hfi_layer_encoding_type       hfi_layer_type;
