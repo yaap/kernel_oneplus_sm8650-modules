@@ -137,6 +137,7 @@ enum msm_vidc_metadata_bits {
 #define MAX_TRANSCODING_STATS_FRAME_RATE     60
 #define MAX_TRANSCODING_STATS_WIDTH        4096
 #define MAX_TRANSCODING_STATS_HEIGHT       2304
+#define HEIC_GRID_WIDTH                     512
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -357,7 +358,8 @@ enum msm_vidc_metadata_bits {
 	CAP(BASELAYER_PRIORITY)                   \
 	CAP(IR_TYPE)                              \
 	CAP(AU_DELIMITER)                         \
-	CAP(GRID)                                 \
+	CAP(GRID_ENABLE)                          \
+	CAP(GRID_SIZE)                            \
 	CAP(I_FRAME_MIN_QP)                       \
 	CAP(P_FRAME_MIN_QP)                       \
 	CAP(B_FRAME_MIN_QP)                       \

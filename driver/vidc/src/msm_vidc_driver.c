@@ -5710,8 +5710,8 @@ static bool msm_vidc_allow_image_encode_session(struct msm_vidc_inst *inst)
 
 	/* is output grid dimension */
 	fmt = &inst->fmts[OUTPUT_PORT];
-	allow = fmt->fmt.pix_mp.width == HEIC_GRID_DIMENSION;
-	allow &= fmt->fmt.pix_mp.height == HEIC_GRID_DIMENSION;
+	allow = fmt->fmt.pix_mp.width == cap[GRID_SIZE].value;
+	allow &= fmt->fmt.pix_mp.height == cap[GRID_SIZE].value;
 	if (!allow) {
 		i_vpr_e(inst, "%s: output is not a grid dimension: %u x %u\n", __func__,
 			fmt->fmt.pix_mp.width, fmt->fmt.pix_mp.height);

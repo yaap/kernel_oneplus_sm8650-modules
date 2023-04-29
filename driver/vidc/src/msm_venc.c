@@ -150,6 +150,7 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	u32 color_format, stride_y, scanline_y;
 	u32 stride_uv = 0, scanline_uv = 0;
 	u32 payload[2];
+	u32 grid_size;
 
 	if (port != INPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
@@ -165,8 +166,9 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	}
 
 	if (is_image_session(inst)) {
-		stride_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.width, HEIC_GRID_DIMENSION);
-		scanline_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.height, HEIC_GRID_DIMENSION);
+		grid_size = inst->capabilities[GRID_SIZE].value;
+		stride_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.width, grid_size);
+		scanline_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.height, grid_size);
 	} else if (is_rgba_colorformat(color_format)) {
 		stride_y = video_rgb_stride_pix(color_format,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.width);
@@ -1232,7 +1234,8 @@ int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	fmt->fmt.pix_mp.height = ALIGN(height, codec_align);
 	/* use grid dimension for image session */
 	if (is_image_session(inst))
-		fmt->fmt.pix_mp.width = fmt->fmt.pix_mp.height = HEIC_GRID_DIMENSION;
+		fmt->fmt.pix_mp.width = fmt->fmt.pix_mp.height =
+			inst->capabilities[GRID_SIZE].value;
 	fmt->fmt.pix_mp.num_planes = 1;
 	fmt->fmt.pix_mp.plane_fmt[0].bytesperline = 0;
 	fmt->fmt.pix_mp.plane_fmt[0].sizeimage = call_session_op(core,
@@ -1332,7 +1335,8 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	height = f->fmt.pix_mp.height;
 
 	if (is_image_session(inst)) {
-		bytesperline = ALIGN(f->fmt.pix_mp.width, HEIC_GRID_DIMENSION) *
+		bytesperline = ALIGN(f->fmt.pix_mp.width,
+			inst->capabilities[GRID_SIZE].value) *
 			(is_10bit_colorformat(pix_fmt) ? 2 : 1);
 	} else if (is_rgba_colorformat(pix_fmt)) {
 		bytesperline = video_rgb_stride_bytes(pix_fmt, f->fmt.pix_mp.width);
@@ -1347,10 +1351,7 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	fmt->fmt.pix_mp.num_planes = 1;
 	fmt->fmt.pix_mp.pixelformat = f->fmt.pix_mp.pixelformat;
 	fmt->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
-	if (is_image_session(inst))
-		size = bytesperline * height * 3 / 2;
-	else
-		size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
+	size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
 	fmt->fmt.pix_mp.plane_fmt[0].sizeimage = size;
 	/* update input port colorspace info */
 	fmt->fmt.pix_mp.colorspace = f->fmt.pix_mp.colorspace;

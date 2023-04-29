@@ -24,7 +24,6 @@
 #include "hfi_command.h"
 #include "venus_hfi.h"
 
-
 /* version: major[24:31], minor[16:23], revision[0:15] */
 #define DRIVER_VERSION          0x04000000
 #define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8020010
@@ -2021,11 +2020,16 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_DEC_QP_METADATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{GRID, ENC, HEIC,
+	{GRID_ENABLE, ENC, HEIC,
 		0, 1, 1, 1,
 		0,
 		HFI_PROP_HEIC_GRID_ENABLE,
 		CAP_FLAG_OUTPUT_PORT},
+
+	{GRID_SIZE, ENC, HEIC,
+		HEIC_GRID_WIDTH, HEIC_GRID_WIDTH * 2,
+		HEIC_GRID_WIDTH, HEIC_GRID_WIDTH,
+		V4L2_CID_MPEG_VIDC_GRID_WIDTH},
 
 	{COMPLEXITY, ENC, H264|HEVC,
 		0, 100,
@@ -2630,7 +2634,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_adjust_roi_info,
 		NULL},
 
-	{GRID, ENC, HEIC,
+	{GRID_ENABLE, ENC, HEIC,
 		{0},
 		NULL,
 		msm_vidc_set_u32},
