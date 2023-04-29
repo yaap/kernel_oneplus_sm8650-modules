@@ -390,6 +390,7 @@ enum msm_vidc_metadata_bits {
 	CAP(CHROMA_QP_INDEX_OFFSET)               \
 	CAP(PIPE)                                 \
 	CAP(POC)                                  \
+	CAP(MAX_NUM_REORDER_FRAMES)               \
 	CAP(CODED_FRAMES)                         \
 	CAP(BIT_DEPTH)                            \
 	CAP(CODEC_CONFIG)                         \
@@ -822,6 +823,7 @@ struct msm_vidc_subscription_params {
 	u32                    tier;
 	u32                    av1_film_grain_present;
 	u32                    av1_super_block_enabled;
+	u32                    max_num_reorder_frames;
 };
 
 struct msm_vidc_hfi_frame_info {

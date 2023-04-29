@@ -607,7 +607,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE,
 		HFI_PROP_FENCE,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
+		CAP_FLAG_BITMASK | CAP_FLAG_META | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	/*
 	 * Client to do set_ctrl with FENCE_ID to set fence_id
@@ -626,7 +626,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0,
 		CAP_FLAG_VOLATILE},
 
-	/* Fence type for input buffer. Currently unsed */
+	/* Fence type for input buffer. Currently unused */
 	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
 		BIT(MSM_VIDC_FENCE_NONE),
@@ -644,7 +644,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_FENCE_TYPE,
 		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
-	/* Fence direction for input buffer. Currently unsed */
+	/* Fence direction for input buffer. Currently unused */
 	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
 		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
 		BIT(MSM_VIDC_FENCE_DIR_NONE),
@@ -1649,9 +1649,17 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0,
 		HFI_PROP_PIPE},
 
-	{POC, DEC, H264, 0, 2, 1, 1,
+	{POC, DEC, H264,
+		0, 2, 1, 1,
 		0,
-		HFI_PROP_PIC_ORDER_CNT_TYPE},
+		HFI_PROP_PIC_ORDER_CNT_TYPE,
+		CAP_FLAG_VOLATILE},
+
+	{MAX_NUM_REORDER_FRAMES, DEC, H264 | HEVC,
+		0, 16, 1, 0,
+		V4L2_CID_MPEG_VIDC_MAX_NUM_REORDER_FRAMES,
+		HFI_PROP_MAX_NUM_REORDER_FRAMES,
+		CAP_FLAG_VOLATILE},
 
 	{QUALITY_MODE, ENC, CODECS_ALL,
 		MSM_VIDC_MAX_QUALITY_MODE,
@@ -1661,8 +1669,9 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	{CODED_FRAMES, DEC, H264|HEVC|HEIC,
 		CODED_FRAMES_PROGRESSIVE, CODED_FRAMES_INTERLACE,
 		1, CODED_FRAMES_PROGRESSIVE,
-		0,
-		HFI_PROP_CODED_FRAMES},
+		V4L2_CID_MPEG_VIDC_INTERLACE,
+		HFI_PROP_CODED_FRAMES,
+		CAP_FLAG_VOLATILE},
 
 	{BIT_DEPTH, DEC, CODECS_ALL, BIT_DEPTH_8, BIT_DEPTH_10, 1, BIT_DEPTH_8,
 		0,
@@ -1853,7 +1862,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_PICTURE_TYPE,
 		HFI_PROP_PICTURE_TYPE,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
+		CAP_FLAG_BITMASK | CAP_FLAG_META | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
 		MSM_VIDC_META_DISABLE,
@@ -1955,7 +1964,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG,
 		HFI_PROP_BUFFER_TAG,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
+		CAP_FLAG_BITMASK | CAP_FLAG_META | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{META_DPB_TAG_LIST, DEC, CODECS_ALL,
 		MSM_VIDC_META_DISABLE,
@@ -2092,15 +2101,9 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_u32},
 
-	{META_OUTBUF_FENCE, DEC, H264|HEVC|AV1,
-		{LOWLATENCY_MODE, SLICE_DECODE,
-			OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
-		msm_vidc_adjust_dec_outbuf_fence,
-		NULL},
-
-	{META_OUTBUF_FENCE, DEC, VP9,
+	{META_OUTBUF_FENCE, DEC, H264|HEVC|AV1|VP9,
 		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
-		msm_vidc_adjust_dec_outbuf_fence,
+		NULL,
 		NULL},
 
 	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
@@ -2257,7 +2260,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL},
 
 	{LOWLATENCY_MODE, DEC, H264|HEVC|AV1,
-		{STAGE, SLICE_DECODE},
+		{STAGE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
@@ -2512,13 +2515,8 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		NULL},
 
-	{OUTPUT_ORDER, DEC, H264|HEVC|AV1,
-		{META_OUTBUF_FENCE, SLICE_DECODE},
-		msm_vidc_adjust_output_order,
-		msm_vidc_set_u32},
-
-	{OUTPUT_ORDER, DEC, VP9,
-		{META_OUTBUF_FENCE},
+	{OUTPUT_ORDER, DEC, H264|HEVC|AV1|VP9,
+		{0},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 
@@ -2794,6 +2792,7 @@ static const u32 pineapple_vdec_psc_hevc[] = {
 	HFI_PROP_LEVEL,
 	HFI_PROP_TIER,
 	HFI_PROP_SIGNAL_COLOR_INFO,
+	HFI_PROP_MAX_NUM_REORDER_FRAMES,
 };
 
 static const u32 pineapple_vdec_psc_vp9[] = {

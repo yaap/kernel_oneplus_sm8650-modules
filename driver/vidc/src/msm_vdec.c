@@ -399,6 +399,34 @@ static int msm_vdec_set_picture_order_count(struct msm_vidc_inst *inst,
 	return rc;
 }
 
+static int msm_vdec_set_max_num_reorder_frames(struct msm_vidc_inst *inst,
+	enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	u32 reorder_frames = 0;
+
+	if (port != INPUT_PORT && port != OUTPUT_PORT) {
+		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
+		return -EINVAL;
+	}
+
+	reorder_frames = inst->subcr_params[port].max_num_reorder_frames;
+	i_vpr_h(inst, "%s: max reorder frames count: %d", __func__, reorder_frames);
+	rc = venus_hfi_session_property(inst,
+			HFI_PROP_MAX_NUM_REORDER_FRAMES,
+			HFI_HOST_FLAGS_NONE,
+			get_hfi_port(inst, port),
+			HFI_PAYLOAD_U32,
+			&reorder_frames,
+			sizeof(u32));
+	if (rc) {
+		i_vpr_e(inst, "%s: set property failed\n", __func__);
+		return rc;
+	}
+
+	return rc;
+}
+
 static int msm_vdec_set_colorspace(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
@@ -693,6 +721,26 @@ static int msm_vdec_set_output_properties(struct msm_vidc_inst *inst)
 	return rc;
 }
 
+static bool msm_vdec_check_outbuf_fence_allowed(struct msm_vidc_inst *inst)
+{
+	/* no need of checking for reordering/interlace for vp9/av1 */
+	if (inst->codec == MSM_VIDC_VP9 || inst->codec == MSM_VIDC_AV1)
+		return true;
+
+	if (inst->capabilities[CODED_FRAMES].value == CODED_FRAMES_INTERLACE ||
+		(!inst->capabilities[OUTPUT_ORDER].value &&
+		inst->capabilities[MAX_NUM_REORDER_FRAMES].value)) {
+		i_vpr_e(inst,
+			"%s: outbuf tx fence is unsupported for coded frames %d or output order %d and max num reorder frames %d\n",
+			__func__, inst->capabilities[CODED_FRAMES].value,
+			inst->capabilities[OUTPUT_ORDER].value,
+			inst->capabilities[MAX_NUM_REORDER_FRAMES].value);
+		return false;
+	}
+
+	return true;
+}
+
 int msm_vdec_get_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -843,6 +891,7 @@ static int msm_vdec_subscribe_input_port_settings_change(struct msm_vidc_inst *i
 		{HFI_PROP_CODED_FRAMES,                  msm_vdec_set_coded_frames           },
 		{HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,    msm_vdec_set_min_output_count       },
 		{HFI_PROP_PIC_ORDER_CNT_TYPE,            msm_vdec_set_picture_order_count    },
+		{HFI_PROP_MAX_NUM_REORDER_FRAMES,        msm_vdec_set_max_num_reorder_frames },
 		{HFI_PROP_SIGNAL_COLOR_INFO,             msm_vdec_set_colorspace             },
 		{HFI_PROP_PROFILE,                       msm_vdec_set_profile                },
 		{HFI_PROP_LEVEL,                         msm_vdec_set_level                  },
@@ -1015,14 +1064,14 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
+int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 
-	i_vpr_h(inst, "%s()\n", __func__);
+	i_vpr_h(inst, "%s() port %d\n", __func__, port);
 
 	payload[0] = HFI_MODE_METADATA;
 	if (port == INPUT_PORT) {
@@ -1139,7 +1188,7 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 	};
 	static const u32 property_input_list[] = {};
 
-	i_vpr_h(inst, "%s()\n", __func__);
+	i_vpr_h(inst, "%s() port %d\n", __func__, port);
 
 	payload[0] = HFI_MODE_PROPERTY;
 
@@ -1153,18 +1202,19 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 		}
 	} else if (port == OUTPUT_PORT) {
 		for (i = 0; i < ARRAY_SIZE(property_output_list); i++) {
-			if (property_output_list[i] == META_OUTBUF_FENCE &&
-				is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
-				/*
-				 * if output buffer fence enabled via
-				 * META_OUTBUF_FENCE, then driver will send
-				 * fence id via HFI_PROP_FENCE to firmware.
-				 * So enable HFI_PROP_FENCE property as
-				 * delivery mode property.
-				 */
-				payload[count + 1] =
-					inst->capabilities[property_output_list[i]].hfi_id;
-				count++;
+			if (property_output_list[i] == META_OUTBUF_FENCE) {
+				if (is_meta_rx_inp_enabled(inst,
+					META_OUTBUF_FENCE)) {
+					/*
+					* if output buffer fence enabled via
+					* META_OUTBUF_FENCE, then driver will send
+					* fence id via HFI_PROP_FENCE to firmware.
+					* So enable HFI_PROP_FENCE property as
+					* delivery mode property.
+					*/
+					payload[++count] =
+						inst->capabilities[property_output_list[i]].hfi_id;
+				}
 				continue;
 			}
 			if (inst->capabilities[property_output_list[i]].value) {
@@ -1239,6 +1289,7 @@ int msm_vdec_init_input_subcr_params(struct msm_vidc_inst *inst)
 	subsc_params->level = inst->capabilities[LEVEL].value;
 	subsc_params->tier = inst->capabilities[HEVC_TIER].value;
 	subsc_params->pic_order_cnt = inst->capabilities[POC].value;
+	subsc_params->max_num_reorder_frames = inst->capabilities[MAX_NUM_REORDER_FRAMES].value;
 	subsc_params->bit_depth = inst->capabilities[BIT_DEPTH].value;
 	if (inst->capabilities[CODED_FRAMES].value ==
 			CODED_FRAMES_PROGRESSIVE)
@@ -1363,6 +1414,8 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	msm_vidc_update_cap_value(inst, LEVEL, subsc_params.level, __func__);
 	msm_vidc_update_cap_value(inst, HEVC_TIER, subsc_params.tier, __func__);
 	msm_vidc_update_cap_value(inst, POC, subsc_params.pic_order_cnt, __func__);
+	msm_vidc_update_cap_value(inst, MAX_NUM_REORDER_FRAMES,
+		subsc_params.max_num_reorder_frames, __func__);
 	if (subsc_params.bit_depth == BIT_DEPTH_8)
 		msm_vidc_update_cap_value(inst, BIT_DEPTH, BIT_DEPTH_8, __func__);
 	else
@@ -1376,14 +1429,6 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 			subsc_params.av1_film_grain_present, __func__);
 		msm_vidc_update_cap_value(inst, SUPER_BLOCK,
 			subsc_params.av1_super_block_enabled, __func__);
-	}
-
-	/* disable META_OUTBUF_FENCE if session is Interlace type */
-	if (inst->capabilities[CODED_FRAMES].value ==
-		CODED_FRAMES_INTERLACE) {
-		msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
-			MSM_VIDC_META_RX_INPUT |
-			MSM_VIDC_META_DISABLE, __func__);
 	}
 
 	inst->fw_min_count = subsc_params.fw_min_count;
@@ -1700,6 +1745,11 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 			payload_size = sizeof(u32);
 			payload_type = HFI_PAYLOAD_U32;
 			break;
+		case HFI_PROP_MAX_NUM_REORDER_FRAMES:
+			payload[0] = subsc_params.max_num_reorder_frames;
+			payload_size = sizeof(u32);
+			payload_type = HFI_PAYLOAD_U32;
+			break;
 		default:
 			i_vpr_e(inst, "%s: unknown property %#x\n", __func__,
 				prop_type);
@@ -1787,6 +1837,13 @@ int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 	rc = msm_vdec_set_output_properties(inst);
 	if (rc)
 		goto error;
+
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+		if (!msm_vdec_check_outbuf_fence_allowed(inst)) {
+			rc = -EINVAL;
+			goto error;
+		}
+	}
 
 	if (!inst->opsc_properties_set) {
 		memcpy(&inst->subcr_params[OUTPUT_PORT],
@@ -2130,6 +2187,8 @@ int msm_vdec_start_cmd(struct msm_vidc_inst *inst)
 	if (is_sub_state(inst, MSM_VIDC_DRC) &&
 		is_sub_state(inst, MSM_VIDC_DRC_LAST_BUFFER) &&
 		is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
+		i_vpr_h(inst, "%s: alloc and queue input internal buffers\n",
+			__func__);
 		rc = msm_vidc_alloc_and_queue_input_internal_buffers(inst);
 		if (rc)
 			return rc;

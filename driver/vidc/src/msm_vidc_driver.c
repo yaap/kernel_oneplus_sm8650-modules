@@ -1225,6 +1225,19 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 		rc = msm_vidc_set_pipe(inst, PIPE);
 		if (rc)
 			return rc;
+		/*
+		 * Input port subscription for metadata may be changed.
+		 * For eg: due to IPSC, driver may have disabled tx
+		 * type output fence, hence fence related metadatas
+		 * to recieve on input port will be disabled by HAL.
+		 * Hence, update metadata subscription properties
+		 * on INPUT port before sending RESUME command to FW.
+		 */
+		i_vpr_l(inst, "%s: reset input port subscribe metadata\n",
+			__func__);
+		rc = msm_vdec_subscribe_metadata(inst, INPUT_PORT);
+		if (rc)
+			return rc;
 	}
 
 	/*
@@ -1236,6 +1249,7 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 		is_sub_state(inst, MSM_VIDC_DRAIN_LAST_BUFFER);
 	if (!drain_pending && is_state(inst, MSM_VIDC_INPUT_STREAMING)) {
 		if (is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
+			i_vpr_h(inst, "%s: resume input port\n", __func__);
 			rc = venus_hfi_session_resume(inst, INPUT_PORT,
 					HFI_CMD_SETTINGS_CHANGE);
 			if (rc)
@@ -1479,6 +1493,15 @@ int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		if (!rc)
 			i_vpr_l(inst, "%s: fence fd: %d\n",
 				__func__, ctrl->val);
+		break;
+	case MAX_NUM_REORDER_FRAMES:
+		ctrl->val = inst->capabilities[MAX_NUM_REORDER_FRAMES].value;
+		i_vpr_h(inst, "%s: max num reorder frames: %d\n",
+			__func__, ctrl->val);
+		break;
+	case CODED_FRAMES:
+		ctrl->val = inst->capabilities[CODED_FRAMES].value;
+		i_vpr_h(inst, "%s: coded frames: %d\n", __func__, ctrl->val);
 		break;
 	default:
 		i_vpr_e(inst, "invalid ctrl %s id %d\n",
