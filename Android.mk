@@ -13,6 +13,8 @@ LOCAL_PATH := $(call my-dir)
 
 DSP_BLD_DIR := $(abspath .)/vendor/qcom/opensource/dsp-kernel
 
+LOCAL_MODULE_DDK_BUILD := true
+
 include $(CLEAR_VARS)
 $(info DLKM_DIR = $(DLKM_DIR))
 LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
