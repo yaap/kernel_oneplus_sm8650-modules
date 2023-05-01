@@ -1038,13 +1038,13 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 		return -EINVAL;
 	}
 
+	mutex_lock(&core->lock);
 	core->smmu_fault_count++;
 	if (!core->last_fault_addr)
 		core->last_fault_addr = iova;
 	dprintk(CVP_ERR, "%s - faulting address: %lx, %d\n",
 		__func__, iova, core->smmu_fault_count);
 
-	mutex_lock(&core->lock);
 	log = (core->log.snapshot_index > 0)? false : true;
 	list_for_each_entry(inst, &core->instances, list) {
 		cvp_print_inst(CVP_ERR, inst);

@@ -22,11 +22,6 @@
 
 static void handle_session_error(enum hal_command_response cmd, void *data);
 
-static void msm_cvp_comm_generate_session_error(struct msm_cvp_inst *inst)
-{
-	dprintk(CVP_WARN, "%s function is deprecated\n", __func__);
-}
-
 static void dump_hfi_queue(struct iris_hfi_device *device)
 {
 	struct cvp_hfi_queue_header *queue;
@@ -567,28 +562,6 @@ static void handle_session_error(enum hal_command_response cmd, void *data)
 	cvp_put_inst(inst);
 }
 
-static void msm_comm_clean_notify_client(struct msm_cvp_core *core)
-{
-	struct msm_cvp_inst *inst = NULL;
-
-	if (!core) {
-		dprintk(CVP_ERR, "%s: Invalid params\n", __func__);
-		return;
-	}
-
-	dprintk(CVP_WARN, "%s: Core %pK\n", __func__, core);
-	mutex_lock(&core->lock);
-
-	list_for_each_entry(inst, &core->instances, list) {
-		mutex_lock(&inst->lock);
-		inst->state = MSM_CVP_CORE_INVALID;
-		mutex_unlock(&inst->lock);
-		dprintk(CVP_WARN,
-			"%s Send sys error for inst %pK\n", __func__, inst);
-	}
-	mutex_unlock(&core->lock);
-}
-
 void handle_sys_error(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
@@ -848,11 +821,18 @@ static int msm_comm_session_abort(struct msm_cvp_inst *inst)
 	int rc = 0, abort_completion = 0;
 	struct cvp_hfi_device *hdev;
 
+
 	if (!inst || !inst->core || !inst->core->device) {
 		dprintk(CVP_ERR, "%s invalid params\n", __func__);
 		return -EINVAL;
 	}
+
 	hdev = inst->core->device;
+	print_hfi_queue_info(hdev);
+	if (1)
+		return 0;
+
+	/* Activate code below for Watchdog timeout testing */
 	abort_completion = SESSION_MSG_INDEX(HAL_SESSION_ABORT_DONE);
 
 	dprintk(CVP_WARN, "%s: inst %pK session %x\n", __func__,
@@ -882,44 +862,7 @@ exit:
 
 static void handle_thermal_event(struct msm_cvp_core *core)
 {
-	int rc = 0;
-	struct msm_cvp_inst *inst;
-
-	if (!core || !core->device) {
-		dprintk(CVP_ERR, "%s Invalid params\n", __func__);
-		return;
-	}
-	mutex_lock(&core->lock);
-	list_for_each_entry(inst, &core->instances, list) {
-		if (!inst->session)
-			continue;
-
-		mutex_unlock(&core->lock);
-		if (inst->state >= MSM_CVP_OPEN_DONE &&
-			inst->state < MSM_CVP_CLOSE_DONE) {
-			dprintk(CVP_WARN, "%s: abort inst %pK\n",
-				__func__, inst);
-			rc = msm_comm_session_abort(inst);
-			if (rc) {
-				dprintk(CVP_ERR,
-					"%s session_abort failed rc: %d\n",
-					__func__, rc);
-				goto err_sess_abort;
-			}
-			change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
-			dprintk(CVP_WARN,
-				"%s Send sys error for inst %pK\n",
-				__func__, inst);
-		} else {
-			msm_cvp_comm_generate_session_error(inst);
-		}
-		mutex_lock(&core->lock);
-	}
-	mutex_unlock(&core->lock);
-	return;
-
-err_sess_abort:
-	msm_comm_clean_notify_client(core);
+	dprintk(CVP_WARN, "Deprecated thermal_event handler\n");
 }
 
 void msm_cvp_comm_handle_thermal_event(void)
