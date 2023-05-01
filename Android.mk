@@ -11,6 +11,9 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
        TOUCH_SELECT := CONFIG_MSM_TOUCH=m
 
        LOCAL_PATH := $(call my-dir)
+       ifeq ($(TARGET_BOARD_PLATFORM), pineapple)
+              LOCAL_MODULE_DDK_BUILD := true
+       endif
        include $(CLEAR_VARS)
 
        # This makefile is only for DLKM
