@@ -2606,17 +2606,58 @@ static const u32 kalama_vdec_psc_av1[] = {
 	HFI_PROP_SIGNAL_COLOR_INFO,
 };
 
-static const u32 kalama_vdec_input_properties[] = {
+static const u32 kalama_vdec_input_properties_avc[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
 };
 
-static const u32 kalama_vdec_output_properties[] = {
+static const u32 kalama_vdec_input_properties_hevc[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+};
+
+static const u32 kalama_vdec_input_properties_vp9[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+};
+
+static const u32 kalama_vdec_input_properties_av1[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+	HFI_PROP_AV1_TILE_ROWS_COLUMNS,
+	HFI_PROP_AV1_UNIFORM_TILE_SPACING,
+};
+
+static const u32 kalama_vdec_output_properties_avc[] = {
 	HFI_PROP_WORST_COMPRESSION_RATIO,
 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_DPB_LIST,
 	HFI_PROP_CABAC_SESSION,
+	HFI_PROP_FENCE,
+};
+
+static const u32 kalama_vdec_output_properties_hevc[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
+	HFI_PROP_FENCE,
+};
+
+static const u32 kalama_vdec_output_properties_vp9[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
+	HFI_PROP_FENCE,
+};
+
+static const u32 kalama_vdec_output_properties_av1[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
 	HFI_PROP_FENCE,
 };
 
@@ -2668,10 +2709,22 @@ static const struct msm_vidc_platform_data kalama_data = {
 	.psc_vp9_tbl_size = ARRAY_SIZE(kalama_vdec_psc_vp9),
 	.psc_av1_tbl = kalama_vdec_psc_av1,
 	.psc_av1_tbl_size = ARRAY_SIZE(kalama_vdec_psc_av1),
-	.dec_input_prop = kalama_vdec_input_properties,
-	.dec_input_prop_size = ARRAY_SIZE(kalama_vdec_input_properties),
-	.dec_output_prop = kalama_vdec_output_properties,
-	.dec_output_prop_size = ARRAY_SIZE(kalama_vdec_output_properties),
+	.dec_input_prop_avc = kalama_vdec_input_properties_avc,
+	.dec_input_prop_hevc = kalama_vdec_input_properties_hevc,
+	.dec_input_prop_vp9 = kalama_vdec_input_properties_vp9,
+	.dec_input_prop_av1 = kalama_vdec_input_properties_av1,
+	.dec_input_prop_size_avc = ARRAY_SIZE(kalama_vdec_input_properties_avc),
+	.dec_input_prop_size_hevc = ARRAY_SIZE(kalama_vdec_input_properties_hevc),
+	.dec_input_prop_size_vp9 = ARRAY_SIZE(kalama_vdec_input_properties_vp9),
+	.dec_input_prop_size_av1 = ARRAY_SIZE(kalama_vdec_input_properties_av1),
+	.dec_output_prop_avc = kalama_vdec_output_properties_avc,
+	.dec_output_prop_hevc = kalama_vdec_output_properties_hevc,
+	.dec_output_prop_vp9 = kalama_vdec_output_properties_vp9,
+	.dec_output_prop_av1 = kalama_vdec_output_properties_av1,
+	.dec_output_prop_size_avc = ARRAY_SIZE(kalama_vdec_output_properties_avc),
+	.dec_output_prop_size_hevc = ARRAY_SIZE(kalama_vdec_output_properties_hevc),
+	.dec_output_prop_size_vp9 = ARRAY_SIZE(kalama_vdec_output_properties_vp9),
+	.dec_output_prop_size_av1 = ARRAY_SIZE(kalama_vdec_output_properties_av1),
 };
 
 static const struct msm_vidc_platform_data kalama_data_v2 = {

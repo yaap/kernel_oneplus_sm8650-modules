@@ -1728,17 +1728,43 @@ static const u32 waipio_vdec_psc_vp9[] = {
 	HFI_PROP_LEVEL,
 };
 
-static const u32 waipio_vdec_input_properties[] = {
+static const u32 waipio_vdec_input_properties_avc[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
 };
 
-static const u32 waipio_vdec_output_properties[] = {
+static const u32 waipio_vdec_input_properties_hevc[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+};
+
+static const u32 waipio_vdec_input_properties_vp9[] = {
+	HFI_PROP_NO_OUTPUT,
+	HFI_PROP_SUBFRAME_INPUT,
+};
+
+static const u32 waipio_vdec_output_properties_avc[] = {
 	HFI_PROP_WORST_COMPRESSION_RATIO,
 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
 	HFI_PROP_PICTURE_TYPE,
 	HFI_PROP_DPB_LIST,
 	HFI_PROP_CABAC_SESSION,
+	HFI_PROP_FENCE,
+};
+
+static const u32 waipio_vdec_output_properties_hevc[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
+	HFI_PROP_FENCE,
+};
+
+static const u32 waipio_vdec_output_properties_vp9[] = {
+	HFI_PROP_WORST_COMPRESSION_RATIO,
+	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+	HFI_PROP_PICTURE_TYPE,
+	HFI_PROP_DPB_LIST,
 	HFI_PROP_FENCE,
 };
 
@@ -1792,10 +1818,18 @@ static const struct msm_vidc_platform_data waipio_data = {
 	.psc_hevc_tbl_size = ARRAY_SIZE(waipio_vdec_psc_hevc),
 	.psc_vp9_tbl = waipio_vdec_psc_vp9,
 	.psc_vp9_tbl_size = ARRAY_SIZE(waipio_vdec_psc_vp9),
-	.dec_input_prop = waipio_vdec_input_properties,
-	.dec_input_prop_size = ARRAY_SIZE(waipio_vdec_input_properties),
-	.dec_output_prop = waipio_vdec_output_properties,
-	.dec_output_prop_size = ARRAY_SIZE(waipio_vdec_output_properties),
+	.dec_input_prop_avc = waipio_vdec_input_properties_avc,
+	.dec_input_prop_hevc = waipio_vdec_input_properties_hevc,
+	.dec_input_prop_vp9 = waipio_vdec_input_properties_vp9,
+	.dec_input_prop_size_avc = ARRAY_SIZE(waipio_vdec_input_properties_avc),
+	.dec_input_prop_size_hevc = ARRAY_SIZE(waipio_vdec_input_properties_hevc),
+	.dec_input_prop_size_vp9 = ARRAY_SIZE(waipio_vdec_input_properties_vp9),
+	.dec_output_prop_avc = waipio_vdec_output_properties_avc,
+	.dec_output_prop_hevc = waipio_vdec_output_properties_hevc,
+	.dec_output_prop_vp9 = waipio_vdec_output_properties_vp9,
+	.dec_output_prop_size_avc = ARRAY_SIZE(waipio_vdec_output_properties_avc),
+	.dec_output_prop_size_hevc = ARRAY_SIZE(waipio_vdec_output_properties_hevc),
+	.dec_output_prop_size_vp9 = ARRAY_SIZE(waipio_vdec_output_properties_vp9),
 };
 
 static int msm_vidc_init_data(struct msm_vidc_core *core)
