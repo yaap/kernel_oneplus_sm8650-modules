@@ -1667,8 +1667,8 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct v4l2_fract *timeperframe = NULL;
-	u32 q16_rate, max_rate, default_rate;
-	u64 us_per_frame = 0, input_rate = 0;
+	u32 input_rate_q16, max_rate_q16;
+	u32 input_rate, default_rate;
 	bool is_frame_rate = false;
 
 	if (!inst || !s_parm) {
@@ -1677,14 +1677,16 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	}
 
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		/* operating rate */
 		timeperframe = &s_parm->parm.output.timeperframe;
-		max_rate = inst->capabilities[OPERATING_RATE].max >> 16;
+		max_rate_q16 = inst->capabilities[OPERATING_RATE].max;
 		default_rate = inst->capabilities[OPERATING_RATE].value >> 16;
 		s_parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 	} else {
+		/* frame rate */
 		timeperframe = &s_parm->parm.capture.timeperframe;
 		is_frame_rate = true;
-		max_rate = inst->capabilities[FRAME_RATE].max >> 16;
+		max_rate_q16 = inst->capabilities[FRAME_RATE].max;
 		default_rate = inst->capabilities[FRAME_RATE].value >> 16;
 		s_parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	}
@@ -1698,38 +1700,32 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 			timeperframe->denominator = default_rate;
 	}
 
-	us_per_frame = timeperframe->numerator * (u64)USEC_PER_SEC;
-	do_div(us_per_frame, timeperframe->denominator);
+	input_rate = (timeperframe->denominator / timeperframe->numerator);
+	if (input_rate > (max_rate_q16 >> 16)) {
+		input_rate_q16 = max_rate_q16;
+		i_vpr_h(inst, "%s: type %s, %s value %u limited to %u\n",
+			__func__, v4l2_type_name(s_parm->type),
+			is_frame_rate ? "frame rate" : "operating rate",
+			input_rate_q16, max_rate_q16);
+	} else {
+		input_rate_q16 = input_rate << 16;
+		input_rate_q16 |=
+			(timeperframe->denominator % timeperframe->numerator);
 
-	if (!us_per_frame) {
-		i_vpr_e(inst, "%s: us_per_frame is zero\n", __func__);
-		rc = -EINVAL;
-		goto exit;
 	}
-
-	input_rate = (u64)USEC_PER_SEC;
-	do_div(input_rate, us_per_frame);
-
-	i_vpr_h(inst, "%s: type %s, %s value %llu\n",
+	i_vpr_h(inst, "%s: type %s, %s value %u\n",
 		__func__, v4l2_type_name(s_parm->type),
-		is_frame_rate ? "frame rate" : "operating rate", input_rate);
+		is_frame_rate ? "frame rate" : "operating rate",
+		input_rate_q16 >> 16);
 
-	q16_rate = (u32)input_rate << 16;
 	msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
-		q16_rate, __func__);
+		input_rate_q16, __func__);
 	if (is_realtime_session(inst) &&
 		((s_parm->type == INPUT_MPLANE && inst->bufq[INPUT_PORT].vb2q->streaming) ||
 		(s_parm->type == OUTPUT_MPLANE && inst->bufq[OUTPUT_PORT].vb2q->streaming))) {
 		rc = msm_vidc_check_core_mbps(inst);
 		if (rc) {
 			i_vpr_e(inst, "%s: unsupported load\n", __func__);
-			goto reset_rate;
-		}
-		rc = input_rate > max_rate;
-		if (rc) {
-			i_vpr_e(inst, "%s: unsupported rate %llu, max %u\n", __func__,
-				input_rate, max_rate);
-			rc = -ENOMEM;
 			goto reset_rate;
 		}
 	}
@@ -1750,22 +1746,22 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 			HFI_HOST_FLAGS_NONE,
 			HFI_PORT_BITSTREAM,
 			HFI_PAYLOAD_Q16,
-			&q16_rate,
+			&input_rate_q16,
 			sizeof(u32));
 		if (rc) {
 			i_vpr_e(inst,
 				"%s: failed to set frame rate to fw\n", __func__);
 			goto exit;
 		}
-		inst->auto_framerate = q16_rate;
+		inst->auto_framerate = input_rate_q16;
 	}
 
 	return 0;
 
 reset_rate:
 	if (rc) {
-		i_vpr_e(inst, "%s: setting rate %llu failed, reset to %u\n", __func__,
-			input_rate, default_rate);
+		i_vpr_e(inst, "%s: setting rate %u failed, reset to %u\n", __func__,
+			input_rate_q16 >> 16, default_rate);
 		msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
 			default_rate << 16, __func__);
 	}
