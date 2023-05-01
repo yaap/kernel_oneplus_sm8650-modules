@@ -54,6 +54,9 @@ enum synx_core_id {
 #define SYNX_STATE_SIGNALED_EXTERNAL   5
 #define SYNX_STATE_SIGNALED_SSR        6
 
+/* dma fence states */
+#define SYNX_DMA_FENCE_STATE_MAX             4096
+
 /**
  * struct synx_global_coredata - Synx global object, used for book keeping
  * of all metadata associated with each individual global entry

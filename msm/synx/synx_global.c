@@ -460,7 +460,7 @@ u32 synx_global_get_status(u32 idx)
 {
 	int rc;
 	unsigned long flags;
-	u32 status;
+	u32 status = SYNX_STATE_ACTIVE;
 	struct synx_global_coredata *synx_g_obj;
 
 	if (!synx_gmem.table)
@@ -473,7 +473,8 @@ u32 synx_global_get_status(u32 idx)
 	if (rc)
 		return rc;
 	synx_g_obj = &synx_gmem.table[idx];
-	status = synx_g_obj->status;
+	if (synx_g_obj->status != SYNX_STATE_ACTIVE && synx_g_obj->num_child == 0)
+		status = synx_g_obj->status;
 	synx_gmem_unlock(idx, &flags);
 
 	return status;
@@ -500,8 +501,10 @@ u32 synx_global_test_status_set_wait(u32 idx,
 	synx_global_print_data(synx_g_obj, __func__);
 	status = synx_g_obj->status;
 	/* if handle is still ACTIVE */
-	if (status == SYNX_STATE_ACTIVE)
+	if (status == SYNX_STATE_ACTIVE || synx_g_obj->num_child != 0) {
 		synx_g_obj->waiters |= (1UL << id);
+		status = SYNX_STATE_ACTIVE;
+	}
 	else
 		dprintk(SYNX_DBG, "handle %u already signaled %u",
 			synx_g_obj->handle, synx_g_obj->status);
@@ -533,21 +536,17 @@ static int synx_global_update_status_core(u32 idx,
 	if (synx_g_obj->num_child != 0) {
 		/* composite handle */
 		synx_g_obj->num_child--;
+		if (synx_g_obj->status == SYNX_STATE_ACTIVE ||
+			(status > SYNX_STATE_SIGNALED_SUCCESS &&
+			status <= SYNX_STATE_SIGNALED_MAX))
+			synx_g_obj->status = status;
+
 		if (synx_g_obj->num_child == 0) {
-			if (synx_g_obj->status == SYNX_STATE_ACTIVE) {
-				synx_g_obj->status =
-					(status == SYNX_STATE_SIGNALED_SUCCESS) ?
-					SYNX_STATE_SIGNALED_SUCCESS : SYNX_STATE_SIGNALED_ERROR;
-				data |= synx_g_obj->status;
-				synx_global_get_waiting_cores_locked(synx_g_obj,
-					wait_cores);
-				synx_global_get_parents_locked(synx_g_obj, h_parents);
-			} else {
-				data = 0;
-				dprintk(SYNX_WARN,
-					"merged handle %u already in state %u\n",
-					synx_g_obj->handle, synx_g_obj->status);
-			}
+			data |= synx_g_obj->status;
+			synx_global_get_waiting_cores_locked(synx_g_obj,
+				wait_cores);
+			synx_global_get_parents_locked(synx_g_obj, h_parents);
+
 			/* release ref held by constituting handles */
 			synx_g_obj->refcount--;
 			if (synx_g_obj->refcount == 0) {
@@ -555,15 +554,6 @@ static int synx_global_update_status_core(u32 idx,
 					sizeof(*synx_g_obj));
 				clear = true;
 			}
-		} else if (status != SYNX_STATE_SIGNALED_SUCCESS) {
-			synx_g_obj->status = SYNX_STATE_SIGNALED_ERROR;
-			data |= synx_g_obj->status;
-			synx_global_get_waiting_cores_locked(synx_g_obj,
-				wait_cores);
-			synx_global_get_parents_locked(synx_g_obj, h_parents);
-			dprintk(SYNX_WARN,
-				"merged handle %u signaled with error state\n",
-				synx_g_obj->handle);
 		} else {
 			/* pending notification from  handles */
 			data = 0;
@@ -723,8 +713,8 @@ int synx_global_merge(u32 *idx_list, u32 num_list, u32 p_idx)
 	struct synx_global_coredata *synx_g_obj;
 	u32 i, j = 0;
 	u32 idx;
-	bool sig_error = false;
 	u32 num_child = 0;
+	u32 parent_status = SYNX_STATE_ACTIVE;
 
 	if (!synx_gmem.table)
 		return -SYNX_NOMEM;
@@ -746,18 +736,26 @@ int synx_global_merge(u32 *idx_list, u32 num_list, u32 p_idx)
 			goto fail;
 
 		synx_g_obj = &synx_gmem.table[idx];
-		if (synx_g_obj->status == SYNX_STATE_ACTIVE) {
-			for (i = 0; i < SYNX_GLOBAL_MAX_PARENTS; i++) {
-				if (synx_g_obj->parents[i] == 0) {
-					synx_g_obj->parents[i] = p_idx;
-					break;
-				}
+		for (i = 0; i < SYNX_GLOBAL_MAX_PARENTS; i++) {
+			if (synx_g_obj->parents[i] == 0) {
+				synx_g_obj->parents[i] = p_idx;
+				break;
 			}
-			num_child++;
-		} else if (synx_g_obj->status >
-			SYNX_STATE_SIGNALED_SUCCESS) {
-			sig_error = true;
 		}
+		if (synx_g_obj->status == SYNX_STATE_ACTIVE)
+			num_child++;
+		else if (synx_g_obj->status >
+			SYNX_STATE_SIGNALED_SUCCESS &&
+			synx_g_obj->status <= SYNX_STATE_SIGNALED_MAX)
+			parent_status = synx_g_obj->status;
+		else if (parent_status == SYNX_STATE_ACTIVE)
+			parent_status = synx_g_obj->status;
+
+		if (synx_g_obj->status != SYNX_STATE_ACTIVE && synx_g_obj->num_child != 0)
+			num_child++;
+
+		dprintk(SYNX_MEM, "synx_obj->status %d parent status %d\n",
+			synx_g_obj->status, parent_status);
 		synx_gmem_unlock(idx, &flags);
 
 		if (i >= SYNX_GLOBAL_MAX_PARENTS) {
@@ -773,13 +771,9 @@ int synx_global_merge(u32 *idx_list, u32 num_list, u32 p_idx)
 		goto fail;
 	synx_g_obj = &synx_gmem.table[p_idx];
 	synx_g_obj->num_child += num_child;
-	if (sig_error)
-		synx_g_obj->status = SYNX_STATE_SIGNALED_ERROR;
-	else if (synx_g_obj->num_child != 0)
+	if (synx_g_obj->num_child != 0)
 		synx_g_obj->refcount++;
-	else if (synx_g_obj->num_child == 0 &&
-		synx_g_obj->status == SYNX_STATE_ACTIVE)
-		synx_g_obj->status = SYNX_STATE_SIGNALED_SUCCESS;
+	synx_g_obj->status = parent_status;
 	synx_global_print_data(synx_g_obj, __func__);
 	synx_gmem_unlock(p_idx, &flags);
 

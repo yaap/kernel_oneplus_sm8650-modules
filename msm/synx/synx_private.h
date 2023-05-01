@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __SYNX_PRIVATE_H__
@@ -149,6 +149,7 @@ struct synx_coredata {
 	struct mutex obj_lock;
 	struct kref refcount;
 	u32 type;
+	u32 status;
 	u32 num_bound_synxs;
 	struct synx_bind_desc bound_synxs[SYNX_MAX_NUM_BINDINGS];
 	struct list_head reg_cbs_list;
