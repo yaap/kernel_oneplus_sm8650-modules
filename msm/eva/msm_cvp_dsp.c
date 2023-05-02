@@ -602,7 +602,7 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
-		if (!s)
+		if (!s || !(s->next))
 			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
