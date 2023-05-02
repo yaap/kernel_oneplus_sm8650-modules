@@ -767,6 +767,8 @@ enum adreno_device_flags {
 	 * via sysfs/debugfs or when we are doing fault recovery
 	 */
 	ADRENO_DEVICE_FORCE_COLDBOOT = 16,
+	/** @ADRENO_DEVICE_CX_TIMER_INITIALIZED: Set if the CX timer is initialized */
+	ADRENO_DEVICE_CX_TIMER_INITIALIZED = 17,
 };
 
 /**

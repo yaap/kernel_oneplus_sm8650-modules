@@ -1289,6 +1289,8 @@
 /* GPU CX_MISC registers */
 #define GEN7_CX_MISC_BASE			0x27800
 #define GEN7_GPU_CX_MISC_TCM_RET_CNTL		0x39
+#define GEN7_GPU_CX_MISC_AO_COUNTER_LO		0x80
+#define GEN7_GPU_CX_MISC_AO_COUNTER_HI		0x81
 #define GEN7_GPU_CX_MISC_SW_FUSE_VALUE		0x400
 
 /* GPU SW Fuse Feature bit fields */
