@@ -15,7 +15,7 @@
 #include <linux/sched.h>
 
 #ifdef CVP_FASTRPC_ENABLED
-#include <linux/fastrpc.h>
+#include <fastrpc.h>
 #else
 struct fastrpc_device {
 	int handle;

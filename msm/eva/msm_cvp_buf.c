@@ -633,9 +633,9 @@ int msm_cvp_unmap_buf_wncc(struct msm_cvp_inst *inst,
 		inst->unused_wncc_bufs.smem[idx] = *(cbuf->smem);
 		inst->unused_wncc_bufs.nr++;
 		inst->unused_wncc_bufs.nr =
-			(inst->unused_wncc_bufs.nr > MAX_FRAME_BUFFER_NUMS)?
-			MAX_FRAME_BUFFER_NUMS : inst->unused_wncc_bufs.nr;
-		inst->unused_wncc_bufs.ktid = ++idx % MAX_FRAME_BUFFER_NUMS;
+			(inst->unused_wncc_bufs.nr > NUM_WNCC_BUFS)?
+			NUM_WNCC_BUFS : inst->unused_wncc_bufs.nr;
+		inst->unused_wncc_bufs.ktid = ++idx % NUM_WNCC_BUFS;
 	}
 	mutex_unlock(&inst->cvpwnccbufs.lock);
 
@@ -1880,6 +1880,7 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 	return rc;
 }
 
+#define MAX_NUM_FRAMES_DUMP 4
 void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 {
 	struct cvp_internal_buf *buf;
@@ -1916,10 +1917,18 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	dprintk(CVP_ERR, "frame buffer list\n");
 	mutex_lock(&inst->frames.lock);
 	list_for_each_entry(frame, &inst->frames.list, list) {
-		dprintk(CVP_ERR, "frame no %d tid %llx bufs\n", i++, frame->ktid);
-		for (c = 0; c < frame->nr; c++)
-			_log_smem(snap, inst, frame->bufs[c].smem, log);
+		i++;
+		if (i <= MAX_NUM_FRAMES_DUMP) {
+			dprintk(CVP_ERR, "frame no %d tid %llx bufs\n",
+					i, frame->ktid);
+			for (c = 0; c < frame->nr; c++)
+				_log_smem(snap, inst, frame->bufs[c].smem,
+						log);
+		}
 	}
+	if (i > MAX_NUM_FRAMES_DUMP)
+		dprintk(CVP_ERR, "Skipped %d frames' buffers\n",
+				(i - MAX_NUM_FRAMES_DUMP));
 	mutex_unlock(&inst->frames.lock);
 
 	mutex_lock(&inst->cvpdspbufs.lock);
