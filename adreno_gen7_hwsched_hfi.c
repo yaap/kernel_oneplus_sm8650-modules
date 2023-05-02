@@ -2860,8 +2860,8 @@ static void populate_kgsl_fence(struct hfi_syncobj *obj,
 	obj->flags |= BIT(GMU_SYNCOBJ_FLAG_KGSL_FENCE_BIT);
 
 	spin_lock_irqsave(&ktimeline->lock, flags);
-	/* This means that the context is going away. Mark the fence as triggered */
-	if (!ktimeline->context) {
+	/* If the context is going away or the dma fence is signaled, mark the fence as triggered */
+	if (!ktimeline->context || dma_fence_is_signaled_locked(fence)) {
 		obj->flags |= BIT(GMU_SYNCOBJ_FLAG_SIGNALED_BIT);
 		spin_unlock_irqrestore(&ktimeline->lock, flags);
 		return;
@@ -2916,6 +2916,17 @@ static int _submit_hw_fence(struct adreno_device *adreno_dev,
 		}
 
 		for (j = 0; j < num_fences; j++) {
+
+			/*
+			 * If this sync object has a software only fence, make sure that it is
+			 * already signaled so that we can skip sending this fence to the GMU.
+			 */
+			if (!test_bit(MSM_HW_FENCE_FLAG_ENABLED_BIT, &fences[j]->flags)) {
+				if (WARN(!dma_fence_is_signaled(fences[j]),
+					"sync object has unsignaled software fence"))
+					return -EINVAL;
+				continue;
+			}
 
 			if (is_kgsl_fence(fences[j])) {
 				populate_kgsl_fence(obj, fences[j]);
@@ -3307,8 +3318,10 @@ void gen7_hwsched_create_hw_fence(struct adreno_device *adreno_dev,
 	 * guaranteed to be retired. This way, we don't need the device mutex to check the device
 	 * state explicitly.
 	 */
-	if (timestamp_cmp(retired, kfence->timestamp) >= 0)
+	if (timestamp_cmp(retired, kfence->timestamp) >= 0) {
+		kgsl_sync_timeline_signal(ktimeline, kfence->timestamp);
 		goto done;
+	}
 
 	/*
 	 * If timestamp is not retired then GMU must already be powered up. This is because SLUMBER
