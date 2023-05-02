@@ -2192,13 +2192,11 @@ static int iris_hfi_core_init(void *device)
 		goto err_load_fw;
 	}
 
-#ifdef CVP_CONFIG_SYNX_V2
 	rc = cvp_synx_recover();
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to recover synx\n");
 		goto err_core_init;
 	}
-#endif
 
 	/* mmrm registration */
 	if (msm_cvp_mmrm_enabled) {
