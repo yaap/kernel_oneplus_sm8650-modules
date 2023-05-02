@@ -595,7 +595,6 @@ exit:
 static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 	unsigned int offset, unsigned int num, struct msm_cvp_inst *inst)
 {
-#ifdef CVP_CONFIG_SYNX_V2
 	u32 i, buf_offset, fence_cnt;
 	struct eva_kmd_fence fences[MAX_HFI_FENCE_SIZE];
 	struct cvp_fence_command *f;
@@ -748,7 +747,6 @@ fence_cmd_queue:
 free_exit:
 	cvp_free_fence_data(f);
 exit:
-#endif	/* CVP_CONFIG_SYNX_V2 */
 	return rc;
 }
 

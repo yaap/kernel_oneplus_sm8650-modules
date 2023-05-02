@@ -213,12 +213,7 @@ struct eva_kmd_hfi_fence_packet {
 };
 
 struct eva_kmd_fence {
-#ifdef CVP_CONFIG_SYNX_V2
 	__u32 h_synx;
-#else
-	__s32 h_synx;
-	__u32 secure_key;
-#endif
 };
 
 struct eva_kmd_fence_ctrl {
