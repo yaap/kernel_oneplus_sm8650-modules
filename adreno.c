@@ -3374,6 +3374,16 @@ static void adreno_create_hw_fence(struct kgsl_device *device, struct kgsl_sync_
 		adreno_dev->dispatch_ops->create_hw_fence(adreno_dev, kfence);
 }
 
+u64 adreno_read_cx_timer(struct adreno_device *adreno_dev)
+{
+	/* Check if the CX timer is initialized */
+	if (!test_bit(ADRENO_DEVICE_CX_TIMER_INITIALIZED, &adreno_dev->priv))
+		return 0;
+
+	/* Since the GPU CX and CPU timers are synchronized return the CPU timer */
+	return arch_timer_read_counter();
+}
+
 static const struct kgsl_functable adreno_functable = {
 	/* Mandatory functions */
 	.suspend_context = adreno_suspend_context,

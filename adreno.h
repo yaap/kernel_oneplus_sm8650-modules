@@ -1069,6 +1069,8 @@ void adreno_isense_regread(struct adreno_device *adreno_dev,
 		unsigned int offsetwords, unsigned int *value);
 bool adreno_gx_is_on(struct adreno_device *adreno_dev);
 
+u64 adreno_read_cx_timer(struct adreno_device *adreno_dev);
+
 /**
  * adreno_active_count_get - Wrapper for target specific active count get
  * @adreno_dev: pointer to the adreno device
