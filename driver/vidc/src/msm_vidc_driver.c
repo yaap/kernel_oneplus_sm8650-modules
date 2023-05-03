@@ -1479,8 +1479,7 @@ int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst)
 	if (rc)
 		return rc;
 
-	if (is_decode_session(inst) &&
-		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
+	if (!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
 		i_vpr_h(inst, "%s: last flag event not enabled\n", __func__);
 		return 0;
 	}
@@ -1505,8 +1504,7 @@ int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst)
 	if (rc)
 		return rc;
 
-	if (is_decode_session(inst) &&
-		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
+	if (!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value) {
 		i_vpr_h(inst, "%s: last flag event not enabled\n", __func__);
 		return 0;
 	}

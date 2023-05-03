@@ -641,19 +641,16 @@ static int get_driver_buffer_flags(struct msm_vidc_inst *inst, u32 hfi_flags)
 	if (hfi_flags & HFI_BUF_FW_FLAG_CODEC_CONFIG)
 		driver_flags |= MSM_VIDC_BUF_FLAG_CODECCONFIG;
 
-	/*
-	 * attach last flag to the buffer for encode session.
-	 * For decode session attach only if control(LAST_FLAG_EVENT_ENABLE)
-	 * is not set by client. If this control is enabled, last flag
-	 * info will be sent via event(V4L2_EVENT_EOS) to client.
-	 */
-	if ((is_encode_session(inst) &&
-		(hfi_flags & HFI_BUF_FW_FLAG_LAST)) ||
-		(is_decode_session(inst) &&
-		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
-		((hfi_flags & HFI_BUF_FW_FLAG_LAST) ||
-		(hfi_flags & HFI_BUF_FW_FLAG_PSC_LAST))))
+	if (hfi_flags & HFI_BUF_FW_FLAG_LAST ||
+	    hfi_flags & HFI_BUF_FW_FLAG_PSC_LAST)
 		driver_flags |= MSM_VIDC_BUF_FLAG_LAST;
+
+	/*
+	 * if last flag event is enabled then remove BUF_FLAG_LAST
+	 * because last flag information will be sent via V4L2_EVENT_EOS
+	 */
+	if (inst->capabilities[LAST_FLAG_EVENT_ENABLE].value)
+		driver_flags &= ~MSM_VIDC_BUF_FLAG_LAST;
 
 	return driver_flags;
 }
@@ -768,15 +765,9 @@ static int handle_drain_last_flag_buffer(struct msm_vidc_inst *inst,
 	if (!msm_vidc_allow_drain_last_flag(inst))
 		return -EINVAL;
 
-	if (is_decode_session(inst)) {
-		rc = msm_vidc_process_drain_last_flag(inst);
-		if (rc)
-			return rc;
-	} else if (is_encode_session(inst)) {
-		rc = msm_vidc_state_change_drain_last_flag(inst);
-		if (rc)
-			return rc;
-	}
+	rc = msm_vidc_process_drain_last_flag(inst);
+	if (rc)
+		return rc;
 
 	return rc;
 }
@@ -1166,13 +1157,16 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 	buf->attr &= ~MSM_VIDC_ATTR_QUEUED;
 	buf->attr |= MSM_VIDC_ATTR_DEQUEUED;
 	buf->flags = 0;
-	if ((is_encode_session(inst) &&
-		(buffer->flags & HFI_BUF_FW_FLAG_LAST)) ||
-		(is_decode_session(inst) &&
-		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
-		((buffer->flags & HFI_BUF_FW_FLAG_LAST) ||
-		(buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST))))
+	if (buffer->flags & HFI_BUF_FW_FLAG_LAST ||
+	    buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST)
 		buf->flags |= MSM_VIDC_BUF_FLAG_LAST;
+
+	/*
+	 * if last flag event is enabled then remove BUF_FLAG_LAST
+	 * because last flag information will be sent via V4L2_EVENT_EOS
+	 */
+	if (inst->capabilities[LAST_FLAG_EVENT_ENABLE].value)
+		buf->flags &= ~MSM_VIDC_BUF_FLAG_LAST;
 
 	print_vidc_buffer(VIDC_LOW, "low ", "dqbuf", inst, buf);
 	return rc;
@@ -1218,13 +1212,16 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 	buf->attr &= ~MSM_VIDC_ATTR_QUEUED;
 	buf->attr |= MSM_VIDC_ATTR_DEQUEUED;
 	buf->flags = 0;
-	if ((is_encode_session(inst) &&
-		(buffer->flags & HFI_BUF_FW_FLAG_LAST)) ||
-		(is_decode_session(inst) &&
-		!inst->capabilities[LAST_FLAG_EVENT_ENABLE].value &&
-		((buffer->flags & HFI_BUF_FW_FLAG_LAST) ||
-		(buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST))))
+	if (buffer->flags & HFI_BUF_FW_FLAG_LAST ||
+	    buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST)
 		buf->flags |= MSM_VIDC_BUF_FLAG_LAST;
+
+	/*
+	 * if last flag event is enabled then remove BUF_FLAG_LAST
+	 * because last flag information will be sent via V4L2_EVENT_EOS
+	 */
+	if (inst->capabilities[LAST_FLAG_EVENT_ENABLE].value)
+		buf->flags &= ~MSM_VIDC_BUF_FLAG_LAST;
 
 	print_vidc_buffer(VIDC_LOW, "low ", "dqbuf", inst, buf);
 	return rc;
