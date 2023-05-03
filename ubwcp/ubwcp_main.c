@@ -344,28 +344,6 @@ static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 	return ret;
 }
 
-
-/* get dma_buf ptr for the given dma_buf fd */
-static struct dma_buf *ubwcp_dma_buf_fd_to_dma_buf(int dma_buf_fd)
-{
-	struct dma_buf *dmabuf;
-
-	/* TBD: dma_buf_get() results in taking ref to buf and it won't ever get
-	 * free'ed until ref count goes to 0. So we must reduce the ref count
-	 * immediately after we find our corresponding ubwcp_buf.
-	 */
-	dmabuf = dma_buf_get(dma_buf_fd);
-	if (IS_ERR(dmabuf)) {
-		ERR("dmabuf ptr not found for dma_buf_fd = %d", dma_buf_fd);
-		return NULL;
-	}
-
-	dma_buf_put(dmabuf);
-
-	return dmabuf;
-}
-
-
 /* get ubwcp_buf corresponding to the given dma_buf */
 static struct ubwcp_buf *dma_buf_to_ubwcp_buf(struct dma_buf *dmabuf)
 {
@@ -1755,11 +1733,18 @@ EXPORT_SYMBOL(ubwcp_set_buf_attrs);
 /* Set buffer attributes ioctl */
 static int ubwcp_set_buf_attrs_ioctl(struct ubwcp_ioctl_buffer_attrs *attr_ioctl)
 {
+	int ret;
 	struct dma_buf *dmabuf;
 
-	dmabuf = ubwcp_dma_buf_fd_to_dma_buf(attr_ioctl->fd);
+	dmabuf = dma_buf_get(attr_ioctl->fd);
+	if (IS_ERR(dmabuf)) {
+		ERR("dmabuf ptr not found for dma_buf_fd = %d", dma_buf_fd);
+		return PTR_ERR(dmabuf);
+	}
 
-	return ubwcp_set_buf_attrs(dmabuf, &attr_ioctl->attr);
+	ret = ubwcp_set_buf_attrs(dmabuf, &attr_ioctl->attr);
+	dma_buf_put(dmabuf);
+	return ret;
 }
 
 
@@ -2230,7 +2215,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
 
 	if (buf->lock_count) {
-		DBG("free() called without unlock. unlock()'ing first...");
+		DBG("free before unlock (lock_count: %d). unlock()'ing first", buf->lock_count);
 		ret = unlock_internal(buf, buf->lock_dir, true);
 		if (ret)
 			ERR("unlock_internal(): failed : %d, but continuing free()", ret);
@@ -2238,7 +2223,10 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 
 	/* if we are still holding a desc, release it. this can happen only if perm == true */
 	if (buf->desc) {
-		WARN_ON(!buf->perm); /* TBD: change to BUG() later...*/
+		if (!buf->perm) {
+			ubwcp->state = UBWCP_STATE_FAULT;
+			WARN_ON(true);
+		}
 		ubwcp_buf_desc_free(buf->ubwcp, buf->desc);
 		buf->desc = NULL;
 	}
@@ -2250,6 +2238,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	hash_del(&buf->hnode);
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
 
+	mutex_unlock(&buf->lock);
 	kfree(buf);
 
 	if (is_non_lin_buf)
