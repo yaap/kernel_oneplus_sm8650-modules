@@ -10,8 +10,6 @@
 #include <linux/types.h>
 #include <linux/v4l2-controls.h>
 
-/* 32  RGBA-8-8-8-8 compressed */
-#define V4L2_PIX_FMT_VIDC_ARGB32C               v4l2_fourcc('Q', '2', '4', 'C')
 /* AV1 */
 #ifndef V4L2_PIX_FMT_AV1
 #define V4L2_PIX_FMT_AV1                        v4l2_fourcc('A', 'V', '1', '0')
