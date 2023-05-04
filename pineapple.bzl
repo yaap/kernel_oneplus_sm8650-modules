@@ -6,7 +6,7 @@ def define_pineapple():
         target = "pineapple",
         registry = synx_modules,
         modules = [
-            "synx",
+            "synx-driver",
             "ipclite",
         ],
         config_options = [
