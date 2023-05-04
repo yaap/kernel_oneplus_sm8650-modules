@@ -2303,7 +2303,10 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 
 	case UBWCP_IOCTL_GET_HW_VER:
 		DBG("IOCTL : GET_HW_VER");
-		ubwcp_get_hw_version(&hw_ver);
+
+		if (ubwcp_get_hw_version(&hw_ver))
+			return -EINVAL;
+
 		if (copy_to_user((void __user *)ioctl_param, &hw_ver, sizeof(hw_ver))) {
 			ERR("ERROR: copy_to_user() failed");
 			return -EFAULT;
@@ -2617,8 +2620,9 @@ static int ubwcp_cdev_init(struct ubwcp_driver *ubwcp)
 	/* create device class  (/sys/class/ubwcp_class) */
 	dev_class = class_create(THIS_MODULE, "ubwcp_class");
 	if (IS_ERR(dev_class)) {
-		ERR("class_create() failed");
-		return -1;
+		ret = PTR_ERR(dev_class);
+		ERR("class_create() failed, ret: %d", ret);
+		goto err;
 	}
 
 	/* Create device and register with sysfs
@@ -2627,8 +2631,9 @@ static int ubwcp_cdev_init(struct ubwcp_driver *ubwcp)
 	dev_sys = device_create(dev_class, NULL, devt, NULL,
 			UBWCP_DEVICE_NAME);
 	if (IS_ERR(dev_sys)) {
-		ERR("device_create() failed");
-		return -1;
+		ret = PTR_ERR(dev_sys);
+		ERR("device_create() failed, ret: %d", ret);
+		goto err_device_create;
 	}
 
 	/* register file operations and get cdev */
@@ -2639,14 +2644,22 @@ static int ubwcp_cdev_init(struct ubwcp_driver *ubwcp)
 	 */
 	ret = cdev_add(&ubwcp->cdev, devt, 1);
 	if (ret) {
-		ERR("cdev_add() failed");
-		return -1;
+		ERR("cdev_add() failed, ret: %d", ret);
+		goto err_cdev_add;
 	}
 
 	ubwcp->devt = devt;
 	ubwcp->dev_class = dev_class;
 	ubwcp->dev_sys = dev_sys;
 	return 0;
+
+err_cdev_add:
+	device_destroy(dev_class, devt);
+err_device_create:
+	class_destroy(dev_class);
+err:
+	unregister_chrdev_region(devt, UBWCP_NUM_DEVICES);
+	return ret;
 }
 
 static void ubwcp_cdev_deinit(struct ubwcp_driver *ubwcp)
@@ -2967,22 +2980,12 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	ret = dma_set_mask_and_coherent(ubwcp->dev, DMA_BIT_MASK(64));
 
-#ifdef UBWCP_USE_SMC
-	{
-		struct resource res;
-
-		of_address_to_resource(ubwcp_dev->of_node, 0, &res);
-		ubwcp->base = (void __iomem *) res.start;
-		DBG("Using SMC calls. base: %p", ubwcp->base);
-	}
-#else
 	ubwcp->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(ubwcp->base)) {
 		ERR("devm ioremap() failed: %d", PTR_ERR(ubwcp->base));
 		return PTR_ERR(ubwcp->base);
 	}
 	DBG("ubwcp->base: %p", ubwcp->base);
-#endif
 
 	ret = of_property_read_u64_index(ubwcp_dev->of_node, "ula_range", 0, &ubwcp->ula_pool_base);
 	if (ret) {
@@ -3018,7 +3021,7 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(ubwcp->vdd)) {
 		ret = PTR_ERR(ubwcp->vdd);
 		ERR("devm_regulator_get() failed: %d", ret);
-		return -1;
+		return ret;
 	}
 
 	ret = ubwcp_init_clocks(ubwcp, ubwcp_dev);
@@ -3107,13 +3110,17 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	return ret;
 
 err_power_off:
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, false);
+	if (!ubwcp_power(ubwcp, true)) {
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, false);
+		ubwcp_power(ubwcp, false);
+	}
 err_pool_add:
 	gen_pool_destroy(ubwcp->ula_pool);
 err_pool_create:
+	ubwcp_debugfs_deinit(ubwcp);
 	ubwcp_cdev_deinit(ubwcp);
 	return ret;
 }
@@ -3251,9 +3258,10 @@ static int ubwcp_remove_cb_desc(struct platform_device *pdev)
 		return -1;
 	}
 
-	ubwcp_power(ubwcp, true);
-	ubwcp_hw_set_buf_desc(ubwcp->base, 0x0, 0x0);
-	ubwcp_power(ubwcp, false);
+	if (!ubwcp_power(ubwcp, true)) {
+		ubwcp_hw_set_buf_desc(ubwcp->base, 0x0, 0x0);
+		ubwcp_power(ubwcp, false);
+	}
 
 	ubwcp->state = UBWCP_STATE_INVALID;
 	dma_free_coherent(ubwcp->dev_desc_cb,
@@ -3281,18 +3289,17 @@ static int qcom_ubwcp_remove(struct platform_device *pdev)
 		return -1;
 	}
 
-	ubwcp_power(ubwcp, true);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, false);
-	ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, false);
-	ubwcp_power(ubwcp, false);
+	if (!ubwcp_power(ubwcp, true)) {
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_READ_ERROR,   false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_WRITE_ERROR,  false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_ENCODE_ERROR, false);
+		ubwcp_hw_interrupt_enable(ubwcp->base, INTERRUPT_DECODE_ERROR, false);
+		ubwcp_power(ubwcp, false);
+	}
 
 	ubwcp->state = UBWCP_STATE_INVALID;
 
-	/* before destroying, make sure pool is empty. otherwise pool_destroy() panics.
-	 * TBD: remove this check for production code and let it panic
-	 */
+	/* before destroying, make sure pool is empty. otherwise pool_destroy() panics. */
 	avail = gen_pool_avail(ubwcp->ula_pool);
 	psize = gen_pool_size(ubwcp->ula_pool);
 	if (psize != avail) {

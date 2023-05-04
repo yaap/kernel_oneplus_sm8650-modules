@@ -64,25 +64,7 @@ MODULE_LICENSE("GPL");
 #define UBWCP_DEBUG_REG_RW
 
 /* read/write register */
-#if defined(UBWCP_USE_SMC)
-#define UBWCP_REG_READ(_base, _offset) \
-			({u32 _reg = 0; int _ret; \
-			_ret = qcom_scm_io_readl((phys_addr_t)(_base + _offset), &_reg); \
-			if (_ret) \
-				DBG("scm_read() failed: %d", _ret); \
-			else \
-				DBG("scm_read() : %p + 0x%x -> 0x%08x", _base, _offset, _reg); \
-			_reg; })
-
-#define UBWCP_REG_WRITE(_base, _offset, _value) \
-			{int _ret;\
-			_ret = qcom_scm_io_writel((phys_addr_t)(_base + _offset), _value); \
-			if (_ret) \
-				DBG("scm_write() failed: %d", _ret); \
-			else \
-				DBG("scm_write(): %p + 0x%x <- 0x%08x", _base, _offset, _value); \
-			}
-#elif defined(UBWCP_DEBUG_REG_RW)
+#if defined(UBWCP_DEBUG_REG_RW)
 #define UBWCP_REG_READ(_base, _offset) \
 			({u32 _reg; \
 			_reg = ioread32(_base + _offset); \
@@ -94,16 +76,9 @@ MODULE_LICENSE("GPL");
 			DBG("WRITE: 0x%x <- 0x%08x", _offset, _value); \
 			iowrite32(_value, _base + _offset); \
 			}
-#elif defined(UBWCP_DUMMY_REG_RW)
-/* do nothing */
-#define UBWCP_REG_READ(_base, _offset)           ((_base + _offset) ? 0x0 : 0x0)
-#define UBWCP_REG_WRITE(_base, _offset, _value)  ((_base + _offset + _value) ? 0x0 : 0x0)
-
 #else
-
 #define UBWCP_REG_READ(_base, _offset)           ioread32(_base + _offset)
 #define UBWCP_REG_WRITE(_base, _offset, _value)  iowrite32(_value, _base + _offset)
-
 #endif
 
 #define UBWCP_REG_READ_NO_DBG(_base, _offset)           ioread32(_base + _offset)
