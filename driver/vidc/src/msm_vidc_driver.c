@@ -1101,6 +1101,10 @@ bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
 	bool is10bit = false;
 	enum msm_vidc_colorformat_type colorformat;
 
+	/* in case of decoder session return false */
+	if (!is_decode_session(inst))
+              return false;
+
 	colorformat = v4l2_colorformat_to_driver(inst,
 		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 
