@@ -4570,6 +4570,9 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 	msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PAGE_FAULT, __func__);
 	core_unlock(core, __func__);
 
+	/* print noc error log registers */
+	venus_hfi_noc_error_info(core);
+
 	msm_vidc_print_core_info(core);
 	/*
 	 * Return -ENOSYS to elicit the default behaviour of smmu driver.
