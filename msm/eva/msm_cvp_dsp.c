@@ -611,11 +611,11 @@ static void cvp_remove_dsp_sessions(void)
 			inst = list_entry(s, struct msm_cvp_inst,
 					dsp_list);
 			if (inst) {
-				delete_dsp_session(inst, frpc_node);
 				mutex_lock(&frpc_node->dsp_sessions.lock);
 				list_del(&inst->dsp_list);
 				frpc_node->session_cnt--;
 				mutex_unlock(&frpc_node->dsp_sessions.lock);
+				delete_dsp_session(inst, frpc_node);
 			}
 		}
 
