@@ -23,7 +23,7 @@ unsigned int nfc_ioctl_nfcc_info(struct file *filp, unsigned long arg)
 	struct nfc_dev *nfc_dev = filp->private_data;
 
 	r = nfc_dev->nqx_info.i;
-	pr_debug("nfc : %s r = 0x%x\n", __func__, r);
+	pr_debug("NxpDrv: nfc : %s r = 0x%x\n", __func__, r);
 
 	return r;
 }
@@ -67,20 +67,20 @@ int nfc_ldo_vote(struct nfc_dev *nfc_dev)
 			nfc_dev->configs.ldo.vdd_levels[0],
 			nfc_dev->configs.ldo.vdd_levels[1]);
 	if (ret < 0) {
-		pr_err("%s: set voltage failed\n", __func__);
+		pr_err("NxpDrv: %s: set voltage failed\n", __func__);
 		return ret;
 	}
 
 	/* pass expected current from NFC in uA */
 	ret = regulator_set_load(nfc_dev->reg, nfc_dev->configs.ldo.max_current);
 	if (ret < 0) {
-		pr_err("%s: set load failed\n", __func__);
+		pr_err("NxpDrv: %s: set load failed\n", __func__);
 		return ret;
 	}
 
 	ret = regulator_enable(nfc_dev->reg);
 	if (ret < 0)
-		pr_err("%s: regulator_enable failed\n", __func__);
+		pr_err("NxpDrv: %s: regulator_enable failed\n", __func__);
 	else
 		nfc_dev->is_vreg_enabled = true;
 	return ret;
@@ -106,13 +106,13 @@ int nfc_ldo_config(struct device *dev, struct nfc_dev *nfc_dev)
 		if (IS_ERR(nfc_dev->reg)) {
 			ret = PTR_ERR(nfc_dev->reg);
 			nfc_dev->reg = NULL;
-			pr_err("%s: regulator_get failed, ret = %d\n",
+			pr_err("NxpDrv: %s: regulator_get failed, ret = %d\n",
 				__func__, ret);
 			return ret;
 		}
 	} else {
 		nfc_dev->reg = NULL;
-		pr_err("%s: regulator entry not present\n", __func__);
+		pr_err("NxpDrv: %s: regulator entry not present\n", __func__);
 		// return success as it's optional to configure LDO
 		return 0;
 	}
@@ -120,7 +120,7 @@ int nfc_ldo_config(struct device *dev, struct nfc_dev *nfc_dev)
 	// LDO config supported by platform DT
 	ret = nfc_ldo_vote(nfc_dev);
 	if (ret < 0) {
-		pr_err("%s: LDO voting failed, ret = %d\n", __func__, ret);
+		pr_err("NxpDrv: %s: LDO voting failed, ret = %d\n", __func__, ret);
 		regulator_put(nfc_dev->reg);
 	}
 	return ret;
@@ -139,26 +139,26 @@ int nfc_ldo_unvote(struct nfc_dev *nfc_dev)
 	int ret;
 
 	if (!nfc_dev->is_vreg_enabled) {
-		pr_err("%s: regulator already disabled\n", __func__);
+		pr_err("NxpDrv: %s: regulator already disabled\n", __func__);
 		return -EINVAL;
 	}
 
 	ret = regulator_disable(nfc_dev->reg);
 	if (ret < 0) {
-		pr_err("%s: regulator_disable failed\n", __func__);
+		pr_err("NxpDrv: %s: regulator_disable failed\n", __func__);
 		return ret;
 	}
 	nfc_dev->is_vreg_enabled = false;
 
 	ret =  regulator_set_voltage(nfc_dev->reg, 0, NFC_VDDIO_MAX);
 	if (ret < 0) {
-		pr_err("%s: set voltage failed\n", __func__);
+		pr_err("NxpDrv: %s: set voltage failed\n", __func__);
 		return ret;
 	}
 
 	ret = regulator_set_load(nfc_dev->reg, 0);
 	if (ret < 0)
-		pr_err("%s: set load failed\n", __func__);
+		pr_err("NxpDrv: %s: set load failed\n", __func__);
 	return ret;
 }
 
