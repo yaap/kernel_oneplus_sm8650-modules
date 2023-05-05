@@ -106,11 +106,6 @@ static struct color_format_info color_format_data_kalama[] = {
 		.pixfmt_name       = "RGBA",
 	},
 	{
-		.v4l2_color_format = V4L2_PIX_FMT_VIDC_ARGB32C,
-		.vidc_color_format = MSM_VIDC_FMT_RGBA8888C,
-		.pixfmt_name       = "RGBAC",
-	},
-	{
 		.v4l2_color_format = V4L2_PIX_FMT_P010,
 		.vidc_color_format = MSM_VIDC_FMT_P010,
 		.pixfmt_name       = "P010",
