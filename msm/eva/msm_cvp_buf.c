@@ -329,6 +329,7 @@ int msm_cvp_map_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 		goto exit;
 	}
 
+	atomic_inc(&smem->refcount);
 	cbuf->smem = smem;
 	cbuf->fd = buf->fd;
 	cbuf->size = buf->size;
@@ -383,18 +384,25 @@ int msm_cvp_unmap_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 			break;
 		}
 	}
-	mutex_unlock(&inst->cvpdspbufs.lock);
 	if (!found) {
+		mutex_unlock(&inst->cvpdspbufs.lock);
 		print_client_buffer(CVP_ERR, "invalid", inst, buf);
 		return -EINVAL;
 	}
 
 	if (cbuf->smem->device_addr) {
+		u64 idx = inst->unused_dsp_bufs.ktid;
+		inst->unused_dsp_bufs.smem[idx] = *(cbuf->smem);
+		inst->unused_dsp_bufs.nr++;
+		inst->unused_dsp_bufs.nr =
+			(inst->unused_dsp_bufs.nr > MAX_FRAME_BUFFER_NUMS)?
+			MAX_FRAME_BUFFER_NUMS : inst->unused_dsp_bufs.nr;
+		inst->unused_dsp_bufs.ktid = ++idx % MAX_FRAME_BUFFER_NUMS;
+
 		msm_cvp_unmap_smem(inst, cbuf->smem, "unmap dsp");
 		msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
+		atomic_dec(&cbuf->smem->refcount);
 	}
-
-	mutex_lock(&inst->cvpdspbufs.lock);
 	list_del(&cbuf->list);
 	mutex_unlock(&inst->cvpdspbufs.lock);
 
@@ -1956,6 +1964,10 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	dprintk(CVP_ERR, "unmapped wncc bufs\n");
 	for (i = 0; i < inst->unused_wncc_bufs.nr; i++)
 		_log_smem(snap, inst, &inst->unused_wncc_bufs.smem[i], log);
+
+	dprintk(CVP_ERR, "unmapped dsp bufs\n");
+	for (i = 0; i < inst->unused_dsp_bufs.nr; i++)
+		_log_smem(snap, inst, &inst->unused_dsp_bufs.smem[i], log);
 
 }
 

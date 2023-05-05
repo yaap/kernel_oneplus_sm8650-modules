@@ -385,6 +385,7 @@ struct msm_cvp_inst {
 	struct msm_cvp_list cvpwnccbufs;
 	struct msm_cvp_list frames;
 	struct cvp_frame_bufs last_frame;
+	struct cvp_frame_bufs unused_dsp_bufs;
 	struct cvp_frame_bufs unused_wncc_bufs;
 	u32 cvpwnccbufs_num;
 	struct msm_cvp_wncc_buffer* cvpwnccbufs_table;
