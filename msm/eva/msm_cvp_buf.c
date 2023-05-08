@@ -1853,7 +1853,7 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 			msm_cvp_unmap_smem(inst, cbuf->smem, "unmap dsp");
 			msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
 		} else if (cbuf->ownership == DSP) {
-			rc = cvp_dsp_fastrpc_unmap(inst->process_id, cbuf);
+			rc = cvp_dsp_fastrpc_unmap(inst->dsp_handle, cbuf);
 			if (rc)
 				dprintk(CVP_ERR,
 				"%s: failed to unmap buf from DSP\n",

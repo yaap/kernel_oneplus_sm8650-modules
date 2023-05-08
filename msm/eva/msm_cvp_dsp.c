@@ -1019,7 +1019,6 @@ static int cvp_fastrpc_probe(struct fastrpc_device *rpc_dev)
 	frpc_node = cvp_get_fastrpc_node_with_handle(rpc_dev->handle);
 	if (frpc_node) {
 		frpc_node->cvp_fastrpc_device = rpc_dev;
-		// static structure with signal and pid
 		complete(&frpc_node->fastrpc_probe_completion);
 		cvp_put_fastrpc_node(frpc_node);
 	}
@@ -1117,6 +1116,27 @@ static int eva_fastrpc_dev_unmap_dma(struct fastrpc_device *frpc_device,
 #endif	/* End of CVP_FASTRPC_ENABLED */
 }
 
+static int eva_fastrpc_dev_get_pid(struct fastrpc_device *frpc_device, int *pid)
+{
+#ifdef CVP_FASTRPC_ENABLED
+	struct fastrpc_dev_get_hlos_pid get_pid = {0};
+	int rc = 0;
+
+	rc = __fastrpc_driver_invoke(frpc_device, FASTRPC_DEV_GET_HLOS_PID,
+				(unsigned long)(&get_pid));
+	if (rc) {
+		dprintk(CVP_ERR, "%s Failed to get PID %x\n",
+				__func__, rc);
+		return rc;
+	}
+	*pid = get_pid.hlos_pid;
+
+	return rc;
+#else
+	return -ENODEV;
+#endif	/* End of CVP_FASTRPC_ENABLED */
+}
+
 static void eva_fastrpc_driver_add_sess(
 	struct cvp_dsp_fastrpc_driver_entry *frpc,
 	struct msm_cvp_inst *inst)
@@ -1131,16 +1151,16 @@ static void eva_fastrpc_driver_add_sess(
 	dprintk(CVP_DSP, "add dsp sess %pK fastrpc_driver %pK\n", inst, frpc);
 }
 
-int cvp_dsp_fastrpc_unmap(uint32_t process_id, struct cvp_internal_buf *buf)
+int cvp_dsp_fastrpc_unmap(uint32_t handle, struct cvp_internal_buf *buf)
 {
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct fastrpc_device *frpc_device = NULL;
 	int rc = 0;
 
-	frpc_node = cvp_get_fastrpc_node_with_handle(process_id);
+	frpc_node = cvp_get_fastrpc_node_with_handle(handle);
 	if (!frpc_node) {
-		dprintk(CVP_ERR, "%s no frpc node for process id %d\n",
-			__func__, process_id);
+		dprintk(CVP_ERR, "%s no frpc node for dsp handle %d\n",
+			__func__, handle);
 		return -EINVAL;
 	}
 	frpc_device = frpc_node->cvp_fastrpc_device;
@@ -1153,17 +1173,17 @@ int cvp_dsp_fastrpc_unmap(uint32_t process_id, struct cvp_internal_buf *buf)
 	return rc;
 }
 
-int cvp_dsp_del_sess(uint32_t process_id, struct msm_cvp_inst *inst)
+int cvp_dsp_del_sess(uint32_t handle, struct msm_cvp_inst *inst)
 {
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct list_head *ptr = NULL, *next = NULL;
 	struct msm_cvp_inst *sess;
 	bool found = false;
 
-	frpc_node = cvp_get_fastrpc_node_with_handle(process_id);
+	frpc_node = cvp_get_fastrpc_node_with_handle(handle);
 	if (!frpc_node) {
-		dprintk(CVP_ERR, "%s no frpc node for process id %d\n",
-				__func__, process_id);
+		dprintk(CVP_ERR, "%s no frpc node for dsp handle %d\n",
+				__func__, handle);
 		return -EINVAL;
 	}
 	mutex_lock(&frpc_node->dsp_sessions.lock);
@@ -1194,12 +1214,12 @@ static int eva_fastrpc_driver_register(uint32_t handle)
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	bool skip_deregister = true;
 
-	dprintk(CVP_DSP, "%s -> cvp_get_fastrpc_node_with_handle pid 0x%x\n",
+	dprintk(CVP_DSP, "%s -> cvp_get_fastrpc_node_with_handle hdl 0x%x\n",
 			__func__, handle);
 	frpc_node = cvp_get_fastrpc_node_with_handle(handle);
 
 	if (frpc_node == NULL) {
-		dprintk(CVP_DSP, "%s new fastrpc node pid 0x%x\n",
+		dprintk(CVP_DSP, "%s new fastrpc node hdl 0x%x\n",
 				__func__, handle);
 		frpc_node = kzalloc(sizeof(*frpc_node), GFP_KERNEL);
 		if (!frpc_node) {
@@ -1251,7 +1271,7 @@ static int eva_fastrpc_driver_register(uint32_t handle)
 			goto fail_fastrpc_driver_register;
 		}
 	} else {
-		dprintk(CVP_DSP, "%s fastrpc probe hndl %pK pid 0x%x\n",
+		dprintk(CVP_DSP, "%s fastrpc probe frpc_node %pK hdl 0x%x\n",
 			__func__, frpc_node, handle);
 		cvp_put_fastrpc_node(frpc_node);
 	}
@@ -1277,7 +1297,7 @@ static void eva_fastrpc_driver_unregister(uint32_t handle, bool force_exit)
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
-	dprintk(CVP_DSP, "%s Unregister fastrpc driver hdl %#x pid %#x, f %d\n",
+	dprintk(CVP_DSP, "%s Unregister fastrpc driver hdl %#x hdl %#x, f %d\n",
 		__func__, handle, dsp2cpu_cmd->pid, (uint32_t)force_exit);
 
 	if (handle != dsp2cpu_cmd->pid)
@@ -1492,45 +1512,57 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst = NULL;
 	uint64_t inst_handle = 0;
+	uint32_t pid;
 	int rc = 0;
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct pid *pid_s = NULL;
 	struct task_struct *task = NULL;
 	struct cvp_hfi_device *hdev;
+	struct fastrpc_device *frpc_device;
 
 	cmd->ret = 0;
 
 	dprintk(CVP_DSP,
-		"%s sess Type %d Mask %d Prio %d Sec %d pid 0x%x\n",
+		"%s sess Type %d Mask %d Prio %d Sec %d hdl 0x%x\n",
 		__func__, dsp2cpu_cmd->session_type,
 		dsp2cpu_cmd->kernel_mask,
 		dsp2cpu_cmd->session_prio,
 		dsp2cpu_cmd->is_secure,
 		dsp2cpu_cmd->pid);
 
-	pid_s = find_get_pid(dsp2cpu_cmd->pid);
-	if (pid_s == NULL) {
-		dprintk(CVP_WARN, "%s incorrect pid\n", __func__);
+	rc = eva_fastrpc_driver_register(dsp2cpu_cmd->pid);
+	if (rc) {
+		dprintk(CVP_ERR, "%s Register fastrpc driver fail\n", __func__);
 		cmd->ret = -1;
 		return;
 	}
-	dprintk(CVP_DSP, "%s get pid_s 0x%x from pidA 0x%x\n", __func__,
+	frpc_node = cvp_get_fastrpc_node_with_handle(dsp2cpu_cmd->pid);
+	if (!frpc_node || !frpc_node->cvp_fastrpc_device) {
+		dprintk(CVP_WARN, "%s cannot get fastrpc node from %x\n",
+				__func__, dsp2cpu_cmd->pid);
+		goto fail_lookup;
+	}
+	frpc_device = frpc_node->cvp_fastrpc_device;
+
+	rc = eva_fastrpc_dev_get_pid(frpc_device, &pid);
+	if (rc) {
+		dprintk(CVP_ERR,
+			"%s Failed to map buffer 0x%x\n", __func__, rc);
+		goto fail_lookup;
+	}
+	pid_s = find_get_pid(pid);
+	if (pid_s == NULL) {
+		dprintk(CVP_WARN, "%s incorrect pid %x\n", __func__, pid);
+		goto fail_lookup;
+	}
+	dprintk(CVP_DSP, "%s get pid_s 0x%x from hdl 0x%x\n", __func__,
 			pid_s, dsp2cpu_cmd->pid);
 
 	task = get_pid_task(pid_s, PIDTYPE_TGID);
 	if (!task) {
 		dprintk(CVP_WARN, "%s task doesn't exist\n", __func__);
-		cmd->ret = -1;
-		return;
-	}
-
-	rc = eva_fastrpc_driver_register(dsp2cpu_cmd->pid);
-	if (rc) {
-		dprintk(CVP_ERR, "%s Register fastrpc driver fail\n", __func__);
-		put_task_struct(task);
-		cmd->ret = -1;
-		return;
+		goto fail_lookup;
 	}
 
 	inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_DSP, task);
@@ -1539,7 +1571,7 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 		goto fail_msm_cvp_open;
 	}
 
-	inst->process_id = dsp2cpu_cmd->pid;
+	inst->dsp_handle = dsp2cpu_cmd->pid;
 	inst->prop.kernel_mask = dsp2cpu_cmd->kernel_mask;
 	inst->prop.type =  dsp2cpu_cmd->session_type;
 	inst->prop.priority = dsp2cpu_cmd->session_prio;
@@ -1565,11 +1597,8 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	cmd->session_cpu_high = (uint32_t)((inst_handle & HIGH32) >> 32);
 	cmd->session_cpu_low = (uint32_t)(inst_handle & LOW32);
 
-	frpc_node = cvp_get_fastrpc_node_with_handle(dsp2cpu_cmd->pid);
-	if (frpc_node) {
-		eva_fastrpc_driver_add_sess(frpc_node, inst);
-		cvp_put_fastrpc_node(frpc_node);
-	}
+	eva_fastrpc_driver_add_sess(frpc_node, inst);
+	cvp_put_fastrpc_node(frpc_node);
 
 	inst->task = task;
 	dprintk(CVP_DSP,
@@ -1589,9 +1618,10 @@ fail_get_session_info:
 fail_session_create:
 	msm_cvp_close(inst);
 fail_msm_cvp_open:
+	put_task_struct(task);
+fail_lookup:
 	/* unregister fastrpc driver */
 	eva_fastrpc_driver_unregister(dsp2cpu_cmd->pid, false);
-	put_task_struct(task);
 	cmd->ret = -1;
 }
 
@@ -1791,7 +1821,7 @@ static void __dsp_cvp_buf_deregister(struct cvp_dsp_cmd_msg *cmd)
 	cmd->ret = 0;
 
 	dprintk(CVP_DSP,
-		"%s : sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
+		"%s : sess id 0x%x, low 0x%x, high 0x%x, hdl 0x%x\n",
 		__func__, dsp2cpu_cmd->session_id,
 		dsp2cpu_cmd->session_cpu_low,
 		dsp2cpu_cmd->session_cpu_high,
@@ -1847,7 +1877,7 @@ static void __dsp_cvp_mem_alloc(struct cvp_dsp_cmd_msg *cmd)
 	cmd->ret = 0;
 
 	dprintk(CVP_DSP,
-		"%s sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
+		"%s sess id 0x%x, low 0x%x, high 0x%x, hdl 0x%x\n",
 		__func__, dsp2cpu_cmd->session_id,
 		dsp2cpu_cmd->session_cpu_low,
 		dsp2cpu_cmd->session_cpu_high,
@@ -1931,7 +1961,7 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 	cmd->ret = 0;
 
 	dprintk(CVP_DSP,
-		"%s sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
+		"%s sess id 0x%x, low 0x%x, high 0x%x, hnl 0x%x\n",
 		__func__, dsp2cpu_cmd->session_id,
 		dsp2cpu_cmd->session_cpu_low,
 		dsp2cpu_cmd->session_cpu_high,
