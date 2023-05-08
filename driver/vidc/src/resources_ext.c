@@ -357,7 +357,7 @@ static int update_residency_stats(
 	prev_residency = get_residency_stats(cl, cl->prev);
 	if (prev_residency) {
 		if (prev_residency->start_time_us)
-			prev_residency->total_time_us = cur_time_us - prev_residency->start_time_us;
+			prev_residency->total_time_us += cur_time_us - prev_residency->start_time_us;
 
 		/* reset start time us */
 		prev_residency->start_time_us = 0;
