@@ -219,14 +219,13 @@ void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
 
 	msm_cvp_session_init(inst);
 
+	__init_fence_queue(inst);
 	mutex_lock(&core->lock);
 	mutex_lock(&core->clk_lock);
 	list_add_tail(&inst->list, &core->instances);
 	atomic_inc(&nr_insts);
 	mutex_unlock(&core->clk_lock);
 	mutex_unlock(&core->lock);
-
-	__init_fence_queue(inst);
 
 	rc = __init_session_queue(inst);
 	if (rc)
