@@ -717,6 +717,27 @@ static u32 get_compressed_stride(struct ubwcp_driver *ubwcp,
 	return UBWCP_ALIGN(width, macro_tile_width_p)*pixel_bytes/per_pixel;
 }
 
+static void
+ubwcp_pixel_to_bytes(struct ubwcp_driver *ubwcp,
+			enum ubwcp_std_image_format format,
+			u32 width_p, u32 height_p,
+			u32 *width_b, u32 *height_b)
+{
+	u16 pixel_bytes;
+	u16 per_pixel;
+	struct ubwcp_image_format_info f_info;
+	struct ubwcp_plane_info p_info;
+
+	f_info = ubwcp->format_info[format];
+	p_info = f_info.p_info[0];
+
+	pixel_bytes = p_info.pixel_bytes;
+	per_pixel   = p_info.per_pixel;
+
+	*width_b  = (width_p*pixel_bytes)/per_pixel;
+	*height_b = (height_p*pixel_bytes)/per_pixel;
+}
+
 /* check if linear stride conforms to hw limitations
  * always returns false for linear image
  */
@@ -724,13 +745,17 @@ static bool stride_is_valid(struct ubwcp_driver *ubwcp,
 				u16 ioctl_img_fmt, u32 width, u32 lin_stride)
 {
 	u32 compressed_stride;
+	u32 width_b;
+	u32 height_b;
 	enum ubwcp_std_image_format format = to_std_format(ioctl_img_fmt);
 
 	if (format == STD_IMAGE_FORMAT_INVALID)
 		return false;
 
-	if ((lin_stride < width) || (lin_stride > 64*1024)) {
-		ERR("stride is not valid (width <= stride <= 64K): %d", lin_stride);
+	ubwcp_pixel_to_bytes(ubwcp, format, width, 0, &width_b, &height_b);
+
+	if ((lin_stride < width_b) || (lin_stride > 64*1024)) {
+		ERR("Invalid stride: %u width: %u width_b: %u", lin_stride, width, width_b);
 		return false;
 	}
 
@@ -1402,27 +1427,6 @@ err:
 	if (!ret)
 		ret = -1;
 	return ret;
-}
-
-static void
-ubwcp_pixel_to_bytes(struct ubwcp_driver *ubwcp,
-			enum ubwcp_std_image_format format,
-			u32 width_p, u32 height_p,
-			u32 *width_b, u32 *height_b)
-{
-	u16 pixel_bytes;
-	u16 per_pixel;
-	struct ubwcp_image_format_info f_info;
-	struct ubwcp_plane_info p_info;
-
-	f_info = ubwcp->format_info[format];
-	p_info = f_info.p_info[0];
-
-	pixel_bytes = p_info.pixel_bytes;
-	per_pixel   = p_info.per_pixel;
-
-	*width_b  = (width_p*pixel_bytes)/per_pixel;
-	*height_b = (height_p*pixel_bytes)/per_pixel;
 }
 
 static void reset_buf_attrs(struct ubwcp_buf *buf)
@@ -2348,14 +2352,14 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 			return -EFAULT;
 		}
 
-		format = to_std_format(validate_stride_ioctl.image_format);
-		if (format == STD_IMAGE_FORMAT_INVALID) {
-			ERR("ERROR: invalid format: %d", validate_stride_ioctl.image_format);
+		if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
+			ERR("ERROR: unused values must be set to 0");
 			return -EINVAL;
 		}
 
-		if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
-			ERR("ERROR: unused values must be set to 0");
+		format = to_std_format(validate_stride_ioctl.image_format);
+		if (format == STD_IMAGE_FORMAT_INVALID) {
+			ERR("ERROR: invalid format: %d", validate_stride_ioctl.image_format);
 			return -EINVAL;
 		}
 
