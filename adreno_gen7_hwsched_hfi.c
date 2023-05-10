@@ -2375,8 +2375,7 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
-	ret = gen7_hfi_send_generic_req(adreno_dev, &gmu->hfi.dcvs_table,
-			sizeof(gmu->hfi.dcvs_table));
+	ret = gen7_hfi_send_gpu_perf_table(adreno_dev);
 	if (ret)
 		goto err;
 
