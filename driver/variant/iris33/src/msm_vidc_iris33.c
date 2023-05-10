@@ -760,7 +760,19 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 
 	__set_registers(core);
 
-	/* Programm NOC error registers before releasing xo reset */
+	/*
+	 * Programm NOC error registers before releasing xo reset
+	 * Clear error logger registers and then enable StallEn
+	 */
+	rc = __write_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW, 0x1);
+	if (rc) {
+		d_vpr_e(
+			"%s: error clearing NOC_MAIN_ERRORLOGGER_ERRCLR_LOW\n",
+			__func__);
+		goto fail_program_noc_regs;
+	}
+
 	rc = __write_register(core,
 			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW, 0x3);
 	if (rc) {
@@ -994,11 +1006,6 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 	if (!rc)
 		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
 			__func__, value);
-
-	rc = __write_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW, 0x1);
-	if (rc)
-		d_vpr_e("%s: error clearing NOC reg\n", __func__);
 
 	/* release reset control for other consumers */
 	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
