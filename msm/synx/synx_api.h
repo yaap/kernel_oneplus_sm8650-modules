@@ -20,17 +20,27 @@
  */
 #define SYNX_INVALID_HANDLE 0
 
+/* synx object states */
+#define SYNX_STATE_INVALID             0    // Invalid synx object
+#define SYNX_STATE_ACTIVE              1    // Synx object has not been signaled
+#define SYNX_STATE_SIGNALED_ERROR      3    // Synx object signaled with error
+#define SYNX_STATE_SIGNALED_EXTERNAL   5    // Synx object was signaled by external dma client.
+#define SYNX_STATE_SIGNALED_SSR        6    // Synx object signaled with SSR
+#define SYNX_STATE_TIMEOUT             7    // Callback status for synx object in case of timeout
+
 /**
- * enum synx_create_flags - Flags passed during synx_create call
+ * enum synx_create_flags - Flags passed during synx_create call.
  *
- * SYNX_CREATE_LOCAL_FENCE  : Instructs the framework to create local synx object
+ * SYNX_CREATE_LOCAL_FENCE  : Instructs the framework to create local synx object,
+ *                            for local synchronization i.e. within same core.
  * SYNX_CREATE_GLOBAL_FENCE : Instructs the framework to create global synx object
+ *                            for global synchronization i.e. across supported core.
  * SYNX_CREATE_DMA_FENCE    : Create a synx object by wrapping the provided dma fence.
  *                            Need to pass the dma_fence ptr through fence variable
- *                            if this flag is set.
+ *                            if this flag is set. (NOT SUPPORTED)
  * SYNX_CREATE_CSL_FENCE    : Create a synx object with provided csl fence.
  *                            Establishes interop with the csl fence through
- *                            bind operations.
+ *                            bind operations. (NOT SUPPORTED)
  */
 enum synx_create_flags {
 	SYNX_CREATE_LOCAL_FENCE  = 0x01,
@@ -42,24 +52,41 @@ enum synx_create_flags {
 
 /**
  * enum synx_init_flags - Session initialization flag
+ * SYNX_INIT_DEFAULT   : Initialization flag to be passed
+ *                       when initializing session
+ * SYNX_INIT_MAX       : Used for internal checks
  */
 enum synx_init_flags {
-	SYNX_INIT_MAX = 0x01,
+	SYNX_INIT_DEFAULT = 0x00,
+	SYNX_INIT_MAX     = 0x01,
 };
 
 /**
  * enum synx_import_flags - Import flags
  *
- * SYNX_IMPORT_LOCAL_FENCE  : Instructs the framework to create local synx object
- * SYNX_IMPORT_GLOBAL_FENCE : Instructs the framework to create global synx object
- * SYNX_IMPORT_SYNX_FENCE   : Import native Synx handle for synchronization
+ * SYNX_IMPORT_LOCAL_FENCE  : Instructs the framework to create local synx object,
+ *                            for local synchronization i.e. within same core.
+ * SYNX_IMPORT_GLOBAL_FENCE : Instructs the framework to create global synx object,
+ *                            for global synchronization i.e. across supported core.
+ * SYNX_IMPORT_SYNX_FENCE   : Import native Synx handle for synchronization.
  *                            Need to pass the Synx handle ptr through fence variable
- *                            if this flag is set.
- * SYNX_IMPORT_DMA_FENCE    : Import dma fence.and crate Synx handle for interop
+ *                            if this flag is set. Client must pass:
+ *                            a. SYNX_IMPORT_SYNX_FENCE|SYNX_IMPORT_LOCAL_FENCE
+ *                               to import a synx handle as local synx handle.
+ *                            b. SYNX_IMPORT_SYNX_FENCE|SYNX_IMPORT_GLOBAL_FENCE
+ *                               to import a synx handle as global synx handle.
+ * SYNX_IMPORT_DMA_FENCE    : Import dma fence and create Synx handle for interop.
  *                            Need to pass the dma_fence ptr through fence variable
- *                            if this flag is set.
+ *                            if this flag is set. Client must pass:
+ *                            a. SYNX_IMPORT_DMA_FENCE|SYNX_IMPORT_LOCAL_FENCE
+ *                               to import a dma fence and create local synx handle
+ *                               for interop.
+ *                            b. SYNX_IMPORT_DMA_FENCE|SYNX_IMPORT_GLOBAL_FENCE
+ *                               to import a dma fence and create global synx handle
+ *                               for interop.
  * SYNX_IMPORT_EX_RELEASE   : Flag to inform relaxed invocation where release call
  *                            need not be called by client on this handle after import.
+ *                            (NOT SUPPORTED)
  */
 enum synx_import_flags {
 	SYNX_IMPORT_LOCAL_FENCE  = 0x01,
@@ -95,7 +122,7 @@ typedef void (*synx_callback)(s32 sync_obj, int status, void *data);
  * synx_user_callback - Callback function registered by clients
  *
  * User callback registered for non-blocking wait. Dispatched when
- * synx object is signaled or timeout has expired.
+ * synx object is signaled or timed-out with status of synx object.
  */
 typedef void (*synx_user_callback_t)(u32 h_synx, int status, void *data);
 
@@ -119,9 +146,10 @@ struct bind_operations {
 };
 
 /**
- * synx_bind_client_type : External fence supported for bind
+ * synx_bind_client_type : External fence supported for bind (NOT SUPPORTED)
  *
  * SYNX_TYPE_CSL : Camera CSL fence
+ * SYNX_MAX_BIND_TYPES : Used for internal checks
  */
 enum synx_bind_client_type {
 	SYNX_TYPE_CSL = 0,
@@ -129,7 +157,7 @@ enum synx_bind_client_type {
 };
 
 /**
- * struct synx_register_params - External registration parameters
+ * struct synx_register_params - External registration parameters  (NOT SUPPORTED)
  *
  * @ops  : Bind operations struct
  * @name : External client name
@@ -144,8 +172,10 @@ struct synx_register_params {
 
 /**
  * struct synx_queue_desc - Memory descriptor of the queue allocated by
- *                           the fence driver for each client during
- *                           register.
+ *                          the fence driver for each client during
+ *                          register. (Clients need not pass any pointer
+ *                          in synx_initialize_params. It is for future
+ *                          use).
  *
  * @vaddr    : CPU virtual address of the queue.
  * @dev_addr : Physical address of the memory object.
@@ -196,8 +226,10 @@ enum synx_client_id {
 /**
  * struct synx_session - Client session identifier
  *
- * @type   : Session type
+ * @type   : Session type.
+ *           Internal Member. (Do not access/modify)
  * @client : Pointer to client session
+ *           Internal Member. (Do not access/modify)
  */
 struct synx_session {
 	u32 type;
@@ -209,7 +241,8 @@ struct synx_session {
  *
  * @name  : Client session name
  *          Only first 64 bytes are accepted, rest will be ignored
- * @ptr   : Pointer to queue descriptor (filled by function)
+ * @ptr   : Memory descriptor of queue allocated by fence during
+ *          device register. (filled by function)
  * @id    : Client identifier
  * @flags : Synx initialization flags
  */
@@ -228,16 +261,8 @@ struct synx_initialization_params {
  *             Only first 64 bytes are accepted,
  *             rest will be ignored
  * @h_synx   : Pointer to synx object handle (filled by function)
- * @fence    : Pointer to external fence
- * @flags    : Synx flags for customization (mentioned below)
- *
- * SYNX_CREATE_GLOBAL_FENCE - Hints the framework to create global synx object
- *     If flag not set, hints framework to create a local synx object.
- * SYNX_CREATE_DMA_FENCE - Wrap synx object with dma fence.
- *     Need to pass the dma_fence ptr through 'fence' variable if this flag is set.
- * SYNX_CREATE_BIND_FENCE - Create a synx object with provided external fence.
- *     Establishes interop with supported external fence through bind operations.
- *     Need to fill synx_external_desc structure if this flag is set.
+ * @fence    : Pointer to external dma fence or csl fence. (NOT SUPPORTED)
+ * @flags    : Synx flags for customization
  */
 
 struct synx_create_params {
@@ -250,10 +275,19 @@ struct synx_create_params {
 /**
  * enum synx_merge_flags - Handle merge flags
  *
- * SYNX_MERGE_LOCAL_FENCE   : Create local composite object.
- * SYNX_MERGE_GLOBAL_FENCE  : Create global composite object.
- * SYNX_MERGE_NOTIFY_ON_ALL : Notify on signaling of ALL objects
- * SYNX_MERGE_NOTIFY_ON_ANY : Notify on signaling of ANY object
+ * SYNX_MERGE_LOCAL_FENCE   : Create local composite synx object. To be passed along
+ *                            with SYNX_MERGE_NOTIFY_ON_ALL.
+ * SYNX_MERGE_GLOBAL_FENCE  : Create global composite synx object. To be passed along
+ *                            with SYNX_MERGE_NOTIFY_ON_ALL.
+ * SYNX_MERGE_NOTIFY_ON_ALL : Notify on signaling of ALL objects.
+ *                            Clients must pass:
+ *                            a. SYNX_MERGE_LOCAL_FENCE|SYNX_MERGE_NOTIFY_ON_ALL
+ *                               to create local composite synx object and notify
+ *                               it when all child synx objects are signaled.
+ *                            b. SYNX_MERGE_GLOBAL_FENCE|SYNX_MERGE_NOTIFY_ON_ALL
+ *                               to create global composite synx object and notify
+ *                               it when all child synx objects are signaled.
+ * SYNX_MERGE_NOTIFY_ON_ANY : Notify on signaling of ANY object. (NOT SUPPORTED)
  */
 enum synx_merge_flags {
 	SYNX_MERGE_LOCAL_FENCE   = 0x01,
@@ -267,8 +301,8 @@ enum synx_merge_flags {
  *
  * @h_synxs      : Pointer to a array of synx handles to be merged
  * @flags        : Merge flags
- * @num_objs     : Number of synx objs in the block
- * @h_merged_obj : Merged synx object handle (filled by function)
+ * @num_objs     : Number of synx handles to be merged (in array h_synxs).
+ * @h_merged_obj : Merged synx handle (filled by function)
  */
 struct synx_merge_params {
 	u32 *h_synxs;
@@ -296,8 +330,8 @@ enum synx_import_type {
  *                The new handle/s should be used by importing
  *                process for all synx api operations and
  *                for sharing with FW cores.
- * @flags       : Synx flags
- * @fence       : Pointer to external fence
+ * @flags       : Synx import flags
+ * @fence       : Pointer to DMA fence fd or synx handle.
  */
 struct synx_import_indv_params {
 	u32 *new_h_synx;
@@ -308,8 +342,8 @@ struct synx_import_indv_params {
 /**
  * struct synx_import_arr_params - Synx import arr parameters
  *
- * @list        : Array of synx_import_indv_params pointers
- * @num_fences  : No of fences passed to framework
+ * @list        : List of synx_import_indv_params
+ * @num_fences  : Number of fences or synx handles to be imported
  */
 struct synx_import_arr_params {
 	struct synx_import_indv_params *list;
@@ -320,8 +354,8 @@ struct synx_import_arr_params {
  * struct synx_import_params - Synx import parameters
  *
  * @type : Import params type filled by client
- * @indv : Params to import an individual handle/fence
- * @arr  : Params to import an array of handles/fences
+ * @indv : Params to import an individual handle or fence
+ * @arr  : Params to import an array of handles or fences
  */
 struct synx_import_params {
 	enum synx_import_type type;
@@ -335,9 +369,9 @@ struct synx_import_params {
  * struct synx_callback_params - Synx callback parameters
  *
  * @h_synx         : Synx object handle
- * @cb_func        : Pointer to callback func to be invoked
- * @userdata       : Opaque pointer passed back with callback
- * @cancel_cb_func : Pointer to callback to ack cancellation (optional)
+ * @cb_func        : Pointer to callback func to be invoked.
+ * @userdata       : Opaque pointer passed back with callback as data
+ * @cancel_cb_func : Pointer to callback to ack cancellation
  * @timeout_ms     : Timeout in ms. SYNX_NO_TIMEOUT if no timeout.
  */
 struct synx_callback_params {
@@ -350,7 +384,7 @@ struct synx_callback_params {
 
 /* Kernel APIs */
 
-/* synx_register_ops - Register operations for external synchronization
+/* synx_register_ops - Register operations for external synchronization  (NOT SUPPORTED)
  *
  * Register with synx for enabling external synchronization through bind
  *
@@ -365,7 +399,7 @@ struct synx_callback_params {
 int synx_register_ops(const struct synx_register_params *params);
 
 /**
- * synx_deregister_ops - De-register external synchronization operations
+ * synx_deregister_ops - De-register external synchronization operations  (NOT SUPPORTED)
  *
  * @param params : Pointer to register params
  *
@@ -388,47 +422,48 @@ struct synx_session *synx_initialize(struct synx_initialization_params *params);
  *
  * @param session : Session ptr (returned from synx_initialize)
  *
- * @return Status of operation. SYNX_SUCCESS in case of success.
+ * @return Status of operation. Negative in case of error, SYNX_SUCCESS otherwise.
  */
 int synx_uninitialize(struct synx_session *session);
 
 /**
  * synx_create - Creates a synx object
  *
- *  Creates a new synx obj and returns the handle to client.
+ * Creates a new synx obj and returns the handle to client. There can be
+ * maximum of 4095 global synx handles or local synx handles across
+ * sessions.
  *
  * @param session : Session ptr (returned from synx_initialize)
  * @param params  : Pointer to create params
  *
- * @return Status of operation. SYNX_SUCCESS in case of success.
- * -SYNX_INVALID will be returned if params were invalid.
- * -SYNX_NOMEM will be returned if the kernel can't allocate space for
- * synx object.
+ * @return Status of operation. Negative in case of error, SYNX_SUCCESS otherwise.
  */
 int synx_create(struct synx_session *session, struct synx_create_params *params);
 
 /**
  * synx_async_wait - Registers a callback with a synx object
  *
- * @param session : Session ptr (returned from synx_initialize)
- * @param params  : Callback params
+ * Clients can register maximum of 64 callbacks functions per
+ * synx session. Clients should register callback functions with minimal computation.
  *
- * @return Status of operation. SYNX_SUCCESS in case of success.
- * -SYNX_INVALID will be returned if userdata is invalid.
- * -SYNX_NOMEM will be returned if cb_func is invalid.
+ * @param session : Session ptr (returned from synx_initialize)
+ * @param params  : Callback params.
+ *                  cancel_cb_func in callback params is optional with this API.
+ *
+ * @return Status of operation. Negative in case of error, SYNX_SUCCESS otherwise.
  */
 int synx_async_wait(struct synx_session *session, struct synx_callback_params *params);
 
 /**
  * synx_cancel_async_wait - De-registers a callback with a synx object
  *
+ * This API will cancel one instance of callback function (mapped
+ * with userdata and h_synx) provided in cb_func of callback params.
+ *
  * @param session : Session ptr (returned from synx_initialize)
  * @param params  : Callback params
  *
- * @return Status of operation. SYNX_SUCCESS in case of success.
- * -SYNX_ALREADY if object has already been signaled, and cannot be cancelled.
- * -SYNX_INVALID will be returned if userdata is invalid.
- * -SYNX_NOMEM will be returned if cb_func is invalid.
+ * @return Status of operation.Negative in case of error, SYNX_SUCCESS otherwise.
  */
 int synx_cancel_async_wait(struct synx_session *session,
 	struct synx_callback_params *params);
@@ -470,59 +505,57 @@ int synx_merge(struct synx_session *session, struct synx_merge_params *params);
  * Does a wait on the synx object identified by h_synx for a maximum
  * of timeout_ms milliseconds. Must not be called from interrupt context as
  * this API can sleep.
- * Will return status if handle was signaled. Status can be from pre-defined
- * states (enum synx_signal_status) or custom status sent by producer.
  *
  * @param session    : Session ptr (returned from synx_initialize)
  * @param h_synx     : Synx object handle to be waited upon
  * @param timeout_ms : Timeout in ms
  *
- * @return Signal status. -SYNX_INVAL if synx object is in bad state or arguments
- * are invalid, -SYNX_TIMEOUT if wait times out.
+ * @return Status of synx object if handle is signaled. -SYNX_INVAL if synx object
+ * is in bad state or arguments are invalid, -SYNX_TIMEOUT if wait times out.
  */
 int synx_wait(struct synx_session *session, u32 h_synx, u64 timeout_ms);
 
 /**
- * synx_get_status - Returns the status of the synx object
+ * synx_get_status - Returns the status of the synx object.
+ *
+ * This API should not be used in polling mode to know if the handle
+ * is signaled or not.
+ * Clients need to explicitly wait using synx_wait() or synx_async_wait()
  *
  * @param session : Session ptr (returned from synx_initialize)
  * @param h_synx  : Synx object handle
  *
- * @return Status of the synx object.
+ * @return Status of the synx object
  */
 int synx_get_status(struct synx_session *session, u32 h_synx);
 
 /**
- * synx_import - Imports (looks up) synx object from given handle/fence
- *
- * Import subscribes the client session for notification on signal
- * of handles/fences.
- *
+ * synx_import - Imports (looks up) synx object from given handle or fence
+ * *
  * @param session : Session ptr (returned from synx_initialize)
  * @param params  : Pointer to import params
  *
- * @return SYNX_SUCCESS upon success, -SYNX_INVAL if synx object is bad state
+ * @return Status of operation. Negative in case of failure, SYNX_SUCCESS otherwise.
  */
 int synx_import(struct synx_session *session, struct synx_import_params *params);
 
 /**
  * synx_get_fence - Get the native fence backing the synx object
  *
- * Function returns the native fence. Clients need to
- * acquire & release additional reference explicitly.
+ * Synx framework will take additional reference on dma fence and returns the native
+ * fence. Clients need to release additional reference explicitly by calling kref_put.
  *
  * @param session : Session ptr (returned from synx_initialize)
  * @param h_synx  : Synx object handle
  *
- * @return Fence pointer upon success, NULL or error in case of failure.
+ * @return Fence pointer in case of success and NULL in case of failure.
  */
 void *synx_get_fence(struct synx_session *session, u32 h_synx);
 
 /**
- * synx_release - Release the synx object
+ * synx_release - Release the synx object.
  *
- * Decrements refcount of a synx object by 1, and destroys it
- * if becomes 0.
+ * Every created, imported or merged synx object should be released.
  *
  * @param session : Session ptr (returned from synx_initialize)
  * @param h_synx  : Synx object handle to be destroyed
@@ -536,7 +569,7 @@ int synx_release(struct synx_session *session, u32 h_synx);
  *
  * Function should be called on HW hang/reset to
  * recover the Synx handles shared. This cleans up
- * Synx handles held by the rest HW, and avoids
+ * synx handles owned by subsystem under hang/reset, and avoids
  * potential resource leaks.
  *
  * Function does not destroy the session, but only
@@ -544,6 +577,9 @@ int synx_release(struct synx_session *session, u32 h_synx);
  * Synx session would still be active and clients
  * need to destroy the session explicitly through
  * synx_uninitialize API.
+ *
+ * All the unsignaled handles owned/imported by the core at the time of reset
+ * will be signaled by synx framework on behalf of hung core with SYNX_STATE_SIGNALED_SSR.
  *
  * @param id : Client ID of core to recover
  *
