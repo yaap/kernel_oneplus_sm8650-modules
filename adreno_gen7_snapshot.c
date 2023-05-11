@@ -1642,14 +1642,14 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 	/* Mempool debug data */
 	gen7_snapshot_mempool(device, snapshot);
 
-	/* Shader memory */
-	gen7_snapshot_shader(device, snapshot);
-
 	/* MVC register section */
 	gen7_snapshot_mvc_regs(device, snapshot);
 
 	/* registers dumped through DBG AHB */
 	gen7_snapshot_dbgahb_regs(device, snapshot);
+
+	/* Shader memory */
+	gen7_snapshot_shader(device, snapshot);
 
 	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_REGS_V2,
 		snapshot, adreno_snapshot_registers_v2,
