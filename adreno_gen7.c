@@ -99,6 +99,14 @@ static const u32 gen7_ifpc_pwrup_reglist[] = {
 	GEN7_CP_AHB_CNTL,
 };
 
+/* Gen7_9_x IFPC only static powerup restore list */
+static const u32 gen7_9_x_ifpc_pwrup_reglist[] = {
+	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_1,
+	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_2,
+	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_3,
+	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_4,
+};
+
 #define F_PWR_ACD_CALIBRATE 78
 
 static int acd_calibrate_set(void *data, u64 val)
@@ -375,27 +383,36 @@ static void gen7_hwcg_set(struct adreno_device *adreno_dev, bool on)
 
 static void gen7_patch_pwrup_reglist(struct adreno_device *adreno_dev)
 {
-	struct adreno_reglist_list reglist[2];
+	struct adreno_reglist_list reglist[3];
 	void *ptr = adreno_dev->pwrup_reglist->hostptr;
 	struct cpu_gpu_lock *lock = ptr;
-	int i, j;
+	u32 items = 0, i, j;
 	u32 *dest = ptr + sizeof(*lock);
 
 	/* Static IFPC-only registers */
-	reglist[0].regs = gen7_ifpc_pwrup_reglist;
-	reglist[0].count = ARRAY_SIZE(gen7_ifpc_pwrup_reglist);
-	lock->ifpc_list_len = reglist[0].count;
+	reglist[items].regs = gen7_ifpc_pwrup_reglist;
+	reglist[items].count = ARRAY_SIZE(gen7_ifpc_pwrup_reglist);
+	lock->ifpc_list_len = reglist[items].count;
+	items++;
+
+	if (adreno_is_gen7_9_x(adreno_dev)) {
+		reglist[items].regs = gen7_9_x_ifpc_pwrup_reglist;
+		reglist[items].count = ARRAY_SIZE(gen7_9_x_ifpc_pwrup_reglist);
+		lock->ifpc_list_len += reglist[items].count;
+		items++;
+	}
 
 	/* Static IFPC + preemption registers */
-	reglist[1].regs = gen7_pwrup_reglist;
-	reglist[1].count = ARRAY_SIZE(gen7_pwrup_reglist);
-	lock->preemption_list_len = reglist[1].count;
+	reglist[items].regs = gen7_pwrup_reglist;
+	reglist[items].count = ARRAY_SIZE(gen7_pwrup_reglist);
+	lock->preemption_list_len = reglist[items].count;
+	items++;
 
 	/*
 	 * For each entry in each of the lists, write the offset and the current
 	 * register value into the GPU buffer
 	 */
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < items; i++) {
 		const u32 *r = reglist[i].regs;
 
 		for (j = 0; j < reglist[i].count; j++) {
@@ -601,6 +618,14 @@ int gen7_start(struct adreno_device *adreno_dev)
 			((hbb_hi == 1) ? BIT(4) : 0) |
 			((mal == 64) ? BIT(3) : 0) |
 			FIELD_PREP(GENMASK(2, 1), hbb_lo));
+
+	/* Configure TP bicubic registers */
+	if (adreno_is_gen7_9_x(adreno_dev)) {
+		kgsl_regwrite(device, GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_1, 0x3fe05ff4);
+		kgsl_regwrite(device, GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_2, 0x3fa0ebee);
+		kgsl_regwrite(device, GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_3, 0x3f5193ed);
+		kgsl_regwrite(device, GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_4, 0x3f0243f0);
+	}
 
 	kgsl_regwrite(device, GEN7_SP_NC_MODE_CNTL,
 			FIELD_PREP(GENMASK(11, 10), hbb_hi) |
