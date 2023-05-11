@@ -936,6 +936,7 @@
 #define GEN7_SP_PERFCTR_SP_SEL_35           0xaea3
 
 /* TP registers */
+#define GEN7_TPL1_DBG_ECO_CNTL1             0xb602
 #define GEN7_TPL1_NC_MODE_CNTL              0xb604
 #define GEN7_TPL1_PERFCTR_TP_SEL_0          0xb610
 #define GEN7_TPL1_PERFCTR_TP_SEL_1          0xb611
