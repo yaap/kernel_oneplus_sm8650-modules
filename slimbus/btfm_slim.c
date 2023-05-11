@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -26,7 +26,7 @@
 #include "btfm_slim_hw_interface.h"
 #endif
 
-#define DELAY_FOR_PORT_OPEN_MS (200)
+#define DELAY_FOR_PORT_OPEN_MS (20)
 #define SLIM_MANF_ID_QCOM	0x217
 #define SLIM_PROD_CODE		0x221
 #define BT_CMD_SLIM_TEST	0xbfac
@@ -250,7 +250,8 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 		chipset_ver == QCA_APACHE_SOC_ID_0100 ||
 		chipset_ver == QCA_APACHE_SOC_ID_0110 ||
 		chipset_ver == QCA_APACHE_SOC_ID_0121)) {
-		BTFMSLIM_INFO("SB reset needed after all ports disabled, sleeping");
+		BTFMSLIM_INFO("SB reset needed after all ports disabled, send suspend and sleep");
+		slim_vote_for_suspend(btfmslim->slim_pgd);
 		msleep(DELAY_FOR_PORT_OPEN_MS);
 	}
 
