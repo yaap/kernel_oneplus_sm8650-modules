@@ -285,30 +285,21 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 	bool pwr_collapsed = false;
 
 	/*
-	 * Incase hw power control is enabled, for both CPU WD, video
-	 * hw unresponsive cases, check for power status to decide on
-	 * executing NOC reset sequence before disabling power. If there
+	 * Incase hw power control is enabled, for any error case
+	 * CPU WD, video hw unresponsive cases, NOC error case etc,
+	 * execute NOC reset sequence before disabling power. If there
 	 * is no CPU WD and hw power control is enabled, fw is expected
 	 * to power collapse video hw always.
 	 */
 	if (is_core_sub_state(core, CORE_SUBSTATE_FW_PWR_CTRL)) {
 		pwr_collapsed = is_iris33_hw_power_collapsed(core);
-		if (is_core_sub_state(core, CORE_SUBSTATE_CPU_WATCHDOG) ||
-			is_core_sub_state(core, CORE_SUBSTATE_VIDEO_UNRESPONSIVE)) {
-			if (pwr_collapsed) {
-				d_vpr_e("%s: video hw power collapsed %s\n",
-					__func__, core->sub_state_name);
-				goto disable_power;
-			} else {
-				d_vpr_e("%s: video hw is power ON %s\n",
-					__func__, core->sub_state_name);
-			}
-		} else {
-			if (!pwr_collapsed)
-				d_vpr_e("%s: video hw is not power collapsed\n", __func__);
-
-			d_vpr_h("%s: disabling hw power\n", __func__);
+		if (pwr_collapsed) {
+			d_vpr_h("%s: video hw power collapsed %s\n",
+				__func__, core->sub_state_name);
 			goto disable_power;
+		} else {
+			d_vpr_e("%s: video hw is power ON, try power collpase hw %s\n",
+				__func__, core->sub_state_name);
 		}
 	}
 
@@ -321,7 +312,7 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 		return rc;
 
 	if (value) {
-		d_vpr_h("%s: core clock config not enabled, enabling it to read vcodec registers\n",
+		d_vpr_e("%s: core clock config not enabled, enabling it to read vcodec registers\n",
 			__func__);
 		rc = __write_register(core, WRAPPER_CORE_CLOCK_CONFIG_IRIS33, 0);
 		if (rc)
@@ -336,7 +327,7 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 		rc = __read_register_with_poll_timeout(core, VCODEC_SS_IDLE_STATUSn + 4*i,
 				0x400000, 0x400000, 2000, 20000);
 		if (rc)
-			d_vpr_h("%s: VCODEC_SS_IDLE_STATUSn (%d) is not idle (%#x)\n",
+			d_vpr_e("%s: VCODEC_SS_IDLE_STATUSn (%d) is not idle (%#x)\n",
 				__func__, i, value);
 	}
 
@@ -349,7 +340,7 @@ static int __power_off_iris33_hardware(struct msm_vidc_core *core)
 	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_MVP_NOC_LPI_STATUS,
 					0x1, 0x1, 200, 2000);
 	if (rc)
-		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
+		d_vpr_e("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
 
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_LPI_CONTROL,
 					0x0, BIT(0));
