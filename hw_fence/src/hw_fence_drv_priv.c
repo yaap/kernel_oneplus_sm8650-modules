@@ -207,15 +207,7 @@ static void _translate_queue_indexes_custom_to_default(struct msm_hw_fence_queue
 int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 		 struct msm_hw_fence_queue_payload *payload, int queue_type)
 {
-	struct msm_hw_fence_hfi_queue_header *hfi_header;
 	struct msm_hw_fence_queue *queue;
-	u32 read_idx;
-	u32 write_idx;
-	u32 to_read_idx;
-	u32 *read_ptr;
-	u32 payload_size_u32;
-	u32 q_size_u32;
-	struct msm_hw_fence_queue_payload *read_ptr_payload;
 
 	if (queue_type >= HW_FENCE_CLIENT_QUEUES || !hw_fence_client || !payload) {
 		HWFNC_ERR("Invalid queue type:%s hw_fence_client:0x%pK payload:0x%pK\n", queue_type,
@@ -224,6 +216,20 @@ int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	}
 
 	queue = &hw_fence_client->queues[queue_type];
+	HWFNC_DBG_Q("read client:%lu queue:0x%pK\n", hw_fence_client->client_id, queue);
+
+	return hw_fence_read_queue_helper(queue, payload);
+}
+
+int hw_fence_read_queue_helper(struct msm_hw_fence_queue *queue,
+		 struct msm_hw_fence_queue_payload *payload)
+{
+	struct msm_hw_fence_hfi_queue_header *hfi_header;
+	u32 read_idx, write_idx, to_read_idx;
+	u32 *read_ptr;
+	u32 payload_size_u32, q_size_u32;
+	struct msm_hw_fence_queue_payload *read_ptr_payload;
+
 	hfi_header = queue->va_header;
 
 	q_size_u32 = (queue->q_size_bytes / sizeof(u32));
@@ -245,13 +251,12 @@ int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	/* translate read and write indexes from custom indexing to dwords with no offset */
 	_translate_queue_indexes_custom_to_default(queue, &read_idx, &write_idx);
 
-	HWFNC_DBG_Q("read client:%d rd_ptr:0x%pK wr_ptr:0x%pK rd_idx:%d wr_idx:%d queue:0x%pK\n",
-		hw_fence_client->client_id, &hfi_header->read_index, &hfi_header->write_index,
-		read_idx, write_idx, queue);
+	HWFNC_DBG_Q("read rd_ptr:0x%pK wr_ptr:0x%pK rd_idx:%d wr_idx:%d queue:0x%pK\n",
+		&hfi_header->read_index, &hfi_header->write_index, read_idx, write_idx, queue);
 
 	if (read_idx == write_idx) {
 		HWFNC_DBG_Q("Nothing to read!\n");
-		return 0;
+		return -EINVAL;
 	}
 
 	/* Move the pointer where we need to read and cast it */
@@ -279,12 +284,7 @@ int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	}
 
 	/* Read the Client Queue */
-	payload->ctxt_id = readq_relaxed(&read_ptr_payload->ctxt_id);
-	payload->seqno = readq_relaxed(&read_ptr_payload->seqno);
-	payload->hash = readq_relaxed(&read_ptr_payload->hash);
-	payload->flags = readq_relaxed(&read_ptr_payload->flags);
-	payload->client_data = readq_relaxed(&read_ptr_payload->client_data);
-	payload->error = readl_relaxed(&read_ptr_payload->error);
+	*payload = *read_ptr_payload;
 
 	/* update the read index */
 	writel_relaxed(to_read_idx, &hfi_header->read_index);
@@ -1316,15 +1316,22 @@ static void _fence_ctl_signal(struct hw_fence_driver_data *drv_data,
 
 	HWFNC_DBG_H("We must signal the client now! hfence hash:%llu\n", hash);
 
-	/* Write to Rx queue */
-	if (hw_fence_client->update_rxq)
-		hw_fence_update_queue(drv_data, hw_fence_client, hw_fence->ctx_id,
-			hw_fence->seq_id, hash, flags, client_data, error, HW_FENCE_RX_QUEUE - 1);
+	/* Call fence error callback */
+	if (error && hw_fence_client->fence_error_cb) {
+		hw_fence_utils_fence_error_cb(hw_fence_client, hw_fence->ctx_id, hw_fence->seq_id,
+			hash, flags, error);
+	} else {
+		/* Write to Rx queue */
+		if (hw_fence_client->update_rxq)
+			hw_fence_update_queue(drv_data, hw_fence_client, hw_fence->ctx_id,
+				hw_fence->seq_id, hash, flags, client_data, error,
+				HW_FENCE_RX_QUEUE - 1);
 
-	/* Signal the hw fence now */
-	if (hw_fence_client->send_ipc)
-		hw_fence_ipcc_trigger_signal(drv_data, tx_client_id, rx_client_id,
-			hw_fence_client->ipc_signal_id);
+		/* Signal the hw fence now */
+		if (hw_fence_client->send_ipc)
+			hw_fence_ipcc_trigger_signal(drv_data, tx_client_id, rx_client_id,
+				hw_fence_client->ipc_signal_id);
+	}
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (hw_fence_client->client_id >= HW_FENCE_CLIENT_ID_VAL0
@@ -1467,6 +1474,7 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 
 			/* child fence is already signaled */
 			GLOBAL_ATOMIC_STORE(drv_data, &join_fence->lock, 1); /* lock */
+			join_fence->error |= hw_fence_child->error;
 			if (--join_fence->pending_child_cnt == 0)
 				signal_join_fence = true;
 
@@ -1512,8 +1520,8 @@ int hw_fence_process_fence_array(struct hw_fence_driver_data *drv_data,
 	if (signal_join_fence) {
 
 		/* signal the join hw fence */
-		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, *hash_join_fence, 0, 0,
-			client_data);
+		_fence_ctl_signal(drv_data, hw_fence_client, join_fence, *hash_join_fence, 0,
+			client_data, join_fence->error);
 		set_bit(MSM_HW_FENCE_FLAG_SIGNALED_BIT, &array->base.flags);
 
 		/*

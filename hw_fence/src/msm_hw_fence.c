@@ -118,6 +118,8 @@ void *msm_hw_fence_register(enum hw_fence_client_id client_id_ext,
 	if (ret)
 		goto error;
 
+	mutex_init(&hw_fence_client->error_cb_lock);
+
 	HWFNC_DBG_INIT("Initialized ptr:0x%p client_id:%d q_num:%d ipc signal:%d vid:%d pid:%d\n",
 		hw_fence_client, hw_fence_client->client_id, hw_fence_client->queues_num,
 		hw_fence_client->ipc_signal_id, hw_fence_client->ipc_client_vid,
@@ -504,6 +506,73 @@ int msm_hw_fence_trigger_signal(void *client_handle,
 	return 0;
 }
 EXPORT_SYMBOL(msm_hw_fence_trigger_signal);
+
+int msm_hw_fence_register_error_cb(void *client_handle, msm_hw_fence_error_cb_t cb, void *data)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+
+	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
+		HWFNC_ERR("hw fence driver not ready\n");
+		return -EAGAIN;
+	} else if (IS_ERR_OR_NULL(client_handle) || IS_ERR_OR_NULL(cb) || IS_ERR_OR_NULL(data)) {
+		HWFNC_ERR("Invalid params client:0x%pK cb_func:0x%pK data:0x%pK\n", client_handle,
+			cb, data);
+		return -EINVAL;
+	}
+
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+	if (hw_fence_client->fence_error_cb) {
+		HWFNC_ERR("client_id:%d client_id_ext:%d already registered cb_func:%pK data:%pK\n",
+			hw_fence_client->client_id, hw_fence_client->client_id_ext,
+			hw_fence_client->fence_error_cb, hw_fence_client->fence_error_cb_userdata);
+		return -EINVAL;
+	}
+
+	hw_fence_client->fence_error_cb_userdata = data;
+	hw_fence_client->fence_error_cb = cb;
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_register_error_cb);
+
+int msm_hw_fence_deregister_error_cb(void *client_handle)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready) {
+		HWFNC_ERR("hw fence driver not ready\n");
+		return -EAGAIN;
+	} else if (IS_ERR_OR_NULL(client_handle)) {
+		HWFNC_ERR("Invalid client: 0x%pK\n", client_handle);
+		return -EINVAL;
+	}
+
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+	if (!mutex_trylock(&hw_fence_client->error_cb_lock)) {
+		HWFNC_ERR("client_id:%d is modifying or using fence_error_cb:0x%pK data:0x%pK\n",
+			hw_fence_client->client_id, hw_fence_client->fence_error_cb,
+			hw_fence_client->fence_error_cb_userdata);
+		return -EAGAIN;
+	}
+
+	if (!hw_fence_client->fence_error_cb) {
+		HWFNC_ERR("client_id:%d client_id_ext:%d did not register cb:%pK data:%pK\n",
+			hw_fence_client->client_id, hw_fence_client->client_id_ext,
+			hw_fence_client->fence_error_cb, hw_fence_client->fence_error_cb_userdata);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	hw_fence_client->fence_error_cb = NULL;
+	hw_fence_client->fence_error_cb_userdata = NULL;
+
+exit:
+	mutex_unlock(&hw_fence_client->error_cb_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_deregister_error_cb);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 int msm_hw_fence_dump_debug_data(void *client_handle, u32 dump_flags, u32 dump_clients_mask)
