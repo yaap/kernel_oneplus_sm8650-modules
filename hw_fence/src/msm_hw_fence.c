@@ -451,6 +451,35 @@ int msm_hw_fence_update_txq(void *client_handle, u64 handle, u64 flags, u32 erro
 }
 EXPORT_SYMBOL(msm_hw_fence_update_txq);
 
+
+int msm_hw_fence_update_txq_error(void *client_handle, u64 handle, u32 error, u32 update_flags)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+
+	if (IS_ERR_OR_NULL(hw_fence_drv_data) || !hw_fence_drv_data->resources_ready ||
+			!hw_fence_drv_data->vm_ready) {
+		HWFNC_ERR("hw fence driver or vm not ready\n");
+		return -EAGAIN;
+	} else if (IS_ERR_OR_NULL(client_handle) ||
+			(handle >= hw_fence_drv_data->hw_fences_tbl_cnt) || !error) {
+		HWFNC_ERR("Invalid client_handle:0x%pK or fence handle:%d max:%d or error:%d\n",
+			client_handle, handle, hw_fence_drv_data->hw_fences_tbl_cnt, error);
+		return -EINVAL;
+	} else if (update_flags != MSM_HW_FENCE_UPDATE_ERROR_WITH_MOVE) {
+		HWFNC_ERR("invalid flags:0x%x expected:0x%x no support of in-place error update\n",
+			update_flags, MSM_HW_FENCE_UPDATE_ERROR_WITH_MOVE);
+		return -EINVAL;
+	}
+	hw_fence_client = (struct msm_hw_fence_client *)client_handle;
+
+	/* Write to Tx queue */
+	hw_fence_update_existing_txq_payload(hw_fence_drv_data, hw_fence_client,
+		handle, error);
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_hw_fence_update_txq_error);
+
 /* tx client has to be the physical, rx client virtual id*/
 int msm_hw_fence_trigger_signal(void *client_handle,
 	u32 tx_client_pid, u32 rx_client_vid,
