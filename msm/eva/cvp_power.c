@@ -31,6 +31,9 @@ static bool is_subblock_profile_existed(struct msm_cvp_inst *inst)
 			inst->prop.cycles[HFI_HW_LSR]);
 }
 
+static char hw_names[HFI_MAX_HW_THREADS][8] = {{"FDU"}, {"OD"}, {"MPU"}, {"ICA"},
+				{"VADL"}, {"TOF"}, {"RGE"}, {"XRA"},
+				{"LSR"}};
 static void aggregate_power_update(struct msm_cvp_core *core,
 	struct cvp_power_level *nrt_pwr,
 	struct cvp_power_level *rt_pwr,
@@ -57,17 +60,18 @@ static void aggregate_power_update(struct msm_cvp_core *core,
 		} else {
 			i = 1;
 		}
-		dprintk(CVP_PROF, "pwrUpdate fdu od mpu ica vadl tof rge xra lsr\n");
 		for (j = 0; j < HFI_MAX_HW_THREADS; j++)
-			dprintk(CVP_PROF, "%u ", inst->prop.cycles[j]);
-		dprintk(CVP_PROF, "\n");
+			if (inst->prop.cycles[j])
+				dprintk(CVP_PWR, "pwrUpdate %s %u\n",
+					hw_names[j], inst->prop.cycles[j]);
 
-		dprintk(CVP_PROF, "pwrUpdate fdu_o od_o ica_o mpu_o vadl_o tof_o rge_o xra_o lsr_o\n");
 		for (j = 0; j < HFI_MAX_HW_THREADS; j++)
-			dprintk(CVP_PROF, "%u ", inst->prop.op_cycles[j]);
-		dprintk(CVP_PROF, "\n");
+			if (inst->prop.op_cycles[j])
+				dprintk(CVP_PWR, "pwrUpdate_OP %s %u\n",
+					hw_names[j], inst->prop.op_cycles[j]);
 
-		dprintk(CVP_PROF, " fw %u fw_o %u\n", inst->prop.fw_cycles, inst->prop.fw_op_cycles);
+		dprintk(CVP_PWR, " fw %u fw_o %u\n", inst->prop.fw_cycles,
+						inst->prop.fw_op_cycles);
 
 		for (j = 0; j < HFI_MAX_HW_THREADS; j++)
 			blocks_sum[i][j] += inst->prop.cycles[j];
@@ -89,20 +93,17 @@ static void aggregate_power_update(struct msm_cvp_core *core,
 			(op_bw_max[i] >= inst->prop.ddr_op_bw) ?
 			op_bw_max[i] : inst->prop.ddr_op_bw;
 
-		dprintk(CVP_PWR, "%s:%d - fps fdu mpu od ica vadl tof rge xra lsf\n",
-			__func__, __LINE__);
-
 		for (j = 0; j < HFI_MAX_HW_THREADS; j++) {
-			dprintk(CVP_PWR, " %d ", inst->prop.fps[j]);
+			if (inst->prop.fps[j])
+				dprintk(CVP_PWR, "fps %s %d ", hw_names[j],
+						inst->prop.fps[j]);
 			core->dyn_clk.sum_fps[j] += inst->prop.fps[j];
 		}
-		dprintk(CVP_PWR, "\n");
 
-		dprintk(CVP_PWR, "%s:%d - sum_fps fdu mpu od ica vadl tof rge xra lsf\n",
-			__func__, __LINE__);
 		for (j = 0; j < HFI_MAX_HW_THREADS; j++)
-			dprintk(CVP_PWR, " %d ", core->dyn_clk.sum_fps[j]);
-		dprintk(CVP_PWR, "\n");
+			if (core->dyn_clk.sum_fps[j])
+				dprintk(CVP_PWR, "sum_fps %s %d ", hw_names[j],
+						core->dyn_clk.sum_fps[j]);
 	}
 
 	for (i = 0; i < 2; i++) {
@@ -168,7 +169,7 @@ static int adjust_bw_freqs(void)
 	min_bw = max_bw/10;
 
 	aggregate_power_update(core, &nrt_pwr, &rt_pwr, cvp_max_rate);
-	dprintk(CVP_PROF, "PwrUpdate nrt %u %u rt %u %u\n",
+	dprintk(CVP_PWR, "PwrUpdate nrt %u %u rt %u %u\n",
 		nrt_pwr.core_sum, nrt_pwr.op_core_sum,
 		rt_pwr.core_sum, rt_pwr.op_core_sum);
 
@@ -201,7 +202,7 @@ static int adjust_bw_freqs(void)
 	bw_sum = (bw_sum > max_bw) ? max_bw : bw_sum;
 	bw_sum = (bw_sum < min_bw) ? min_bw : bw_sum;
 
-	dprintk(CVP_PROF, "%s %lld %lld\n", __func__,
+	dprintk(CVP_PWR, "%s %lld %lld\n", __func__,
 		core_sum, bw_sum);
 	if (!cl->has_scaling) {
 		dprintk(CVP_ERR, "Cannot scale CVP clock\n");

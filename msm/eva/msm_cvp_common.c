@@ -625,7 +625,7 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 		if (!core->trigger_ssr) {
 			cvp_print_inst(CVP_WARN, inst);
 			if (hfi_device->error != CVP_ERR_NOC_ERROR)
-			msm_cvp_print_inst_bufs(inst, false);
+				msm_cvp_print_inst_bufs(inst, false);
 		}
 	}
 
@@ -1298,8 +1298,8 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 send_again:
 	mutex_lock(&core->lock);
 	if (core->state == CVP_CORE_INIT_DONE) {
-		dprintk(CVP_WARN, "%s: ssr type %d\n", __func__,
-			core->ssr_type);
+		dprintk(CVP_WARN, "%s: ssr type %d at %llu\n", __func__,
+			core->ssr_type, get_aon_time());
 		/*
 		 * In current implementation user-initiated SSR triggers
 		 * a fatal error from hardware. However, there is no way

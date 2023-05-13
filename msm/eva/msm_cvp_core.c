@@ -325,9 +325,9 @@ wait_dsp:
 	mutex_unlock(&inst->cvpdspbufs.lock);
 
 	if (!empty)
-		dprintk(CVP_WARN, "Failed flush DSP frame retried %d\n",
-			(inst->core->resources.msm_cvp_hw_rsp_timeout >> 5)
-			- max_retries);
+		dprintk(CVP_WARN, "Failed sess %pK DSP frame retried %d\n",
+			inst,
+			(inst->core->resources.msm_cvp_hw_rsp_timeout >> 5));
 	max_retries =  inst->core->resources.msm_cvp_hw_rsp_timeout >> 1;
 wait_frame:
 	mutex_lock(&inst->frames.lock);
