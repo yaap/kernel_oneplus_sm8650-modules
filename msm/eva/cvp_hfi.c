@@ -162,6 +162,15 @@ static int cvp_synx_recover(void)
 
 #define ROW_SIZE 32
 
+unsigned long long get_aon_time(void)
+{
+        unsigned long long val;
+
+        asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+
+        return val;
+}
+
 int get_hfi_version(void)
 {
 	struct msm_cvp_core *core;
@@ -3561,7 +3570,7 @@ static DECLARE_WORK(iris_hfi_wd_work, iris_hfi_wd_work_handler);
 irqreturn_t iris_hfi_isr_wd(int irq, void *dev)
 {
 	struct iris_hfi_device *device = dev;
-	dprintk(CVP_ERR, "Got HW WDOG IRQ! \n");
+	dprintk(CVP_ERR, "Got HW WDOG IRQ at %llu! \n", get_aon_time());
 	disable_irq_nosync(irq);
 	queue_work(device->cvp_workq, &iris_hfi_wd_work);
 	return IRQ_HANDLED;
@@ -4910,7 +4919,6 @@ static inline int __resume(struct iris_hfi_device *device)
 	rc = __boot_firmware(device);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to reset cvp core\n");
-		msm_cvp_trigger_ssr(core, SSR_ERR_FATAL);
 		goto err_reset_core;
 	}
 
