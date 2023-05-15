@@ -1083,8 +1083,9 @@ bail:
 		kfree(map);
 }
 
-static int fastrpc_session_alloc(struct fastrpc_channel_ctx *chan, int secure,
-			int sharedcb, struct fastrpc_session_ctx **session);
+static int fastrpc_session_alloc_secure_memory(
+			struct fastrpc_channel_ctx *chan, int secure,
+			int sharedcb, int pd_type, struct fastrpc_session_ctx **session);
 
 static inline bool fastrpc_get_persistent_map(size_t len, struct fastrpc_mmap **pers_map)
 {
@@ -1276,11 +1277,11 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 #endif
 		if (map->secure) {
 			if (!fl->secsctx)
-				err = fastrpc_session_alloc(chan, 1, me->share_securecb,
-							&fl->secsctx);
+				err = fastrpc_session_alloc_secure_memory(chan, 1,
+					me->share_securecb, fl->pd_type, &fl->secsctx);
 			if (err) {
 				ADSPRPC_ERR(
-					"fastrpc_session_alloc failed for fd %d ret %d\n",
+					"fastrpc_session_alloc_secure_memory failed for fd %d ret %d\n",
 					fd, err);
 				err = -ENOSR;
 				goto bail;
@@ -3467,6 +3468,54 @@ bail:
 	return err;
 }
 
+static int fastrpc_set_session_info(
+		struct fastrpc_proc_sess_info *sess_info,
+			void *param, struct fastrpc_file *fl)
+{
+	int err = 0;
+	struct fastrpc_apps *me = &gfa;
+
+	/*
+	 * Third-party apps don't have permission to open the fastrpc device, so
+	 * it is opened on their behalf by DSP HAL. This is detected by
+	 * comparing current PID with the one stored during device open.
+	 */
+	if (current->tgid != fl->tgid_open)
+		fl->untrusted_process = true;
+	VERIFY(err, sess_info->pd_type > DEFAULT_UNUSED &&
+				sess_info->pd_type < MAX_PD_TYPE);
+	if (err) {
+		ADSPRPC_ERR(
+		"Session PD type %u is invalid for the process\n",
+							sess_info->pd_type);
+		err = -EBADR;
+		goto bail;
+	}
+	if (fl->untrusted_process && sess_info->pd_type != USERPD) {
+		ADSPRPC_ERR(
+		"Session PD type %u not allowed for untrusted process\n",
+						sess_info->pd_type);
+		err = -EBADR;
+		goto bail;
+	}
+	/*
+	 * If PD type is not configured for context banks,
+	 * ignore PD type passed by the user, leave pd_type set to DEFAULT_UNUSED(0)
+	 */
+	if (me->cb_pd_type)
+		fl->pd_type = sess_info->pd_type;
+	// Processes attaching to Sensor Static PD, share context bank.
+	if (sess_info->pd_type == SENSORS_STATICPD)
+		fl->sharedcb = 1;
+	VERIFY(err, 0 == (err = fastrpc_get_info(fl, &(sess_info->domain_id))));
+	if (err)
+		goto bail;
+	K_COPY_TO_USER(err, 0, param, sess_info,
+			sizeof(struct fastrpc_proc_sess_info));
+bail:
+	return err;
+}
+
 static int fastrpc_create_persistent_headers(struct fastrpc_file *fl,
 			uint32_t user_concurrency)
 {
@@ -3549,6 +3598,7 @@ int fastrpc_internal_invoke2(struct fastrpc_file *fl,
 		uint32_t user_concurrency;
 		struct fastrpc_ioctl_notif_rsp notif;
 		struct fastrpc_proc_sharedbuf_info buff_info;
+		struct fastrpc_proc_sess_info sess_info;
 	} p;
 	struct fastrpc_dsp_capabilities *dsp_cap_ptr = NULL;
 	uint32_t size = 0;
@@ -3642,6 +3692,20 @@ int fastrpc_internal_invoke2(struct fastrpc_file *fl,
 
 		fl->sharedbuf_info.buf_fd = p.buff_info.buf_fd;
 		fl->sharedbuf_info.buf_size = p.buff_info.buf_size;
+		break;
+	case FASTRPC_INVOKE2_SESS_INFO:
+		VERIFY(err,
+		sizeof(struct fastrpc_proc_sess_info) >= inv2->size);
+		if (err) {
+			err = -EBADE;
+			goto bail;
+		}
+		K_COPY_FROM_USER(err, fl->is_compat, &p.sess_info,
+					 (void *)inv2->invparam, inv2->size);
+		if (err)
+			goto bail;
+		err = fastrpc_set_session_info(&p.sess_info,
+						(void *)inv2->invparam, fl);
 		break;
 	default:
 		err = -ENOTTY;
@@ -5374,17 +5438,23 @@ int fastrpc_internal_mmap(struct fastrpc_file *fl,
 static void fastrpc_context_list_dtor(struct fastrpc_file *fl);
 
 static int fastrpc_session_alloc_locked(struct fastrpc_channel_ctx *chan,
-		int secure, int sharedcb, struct fastrpc_session_ctx **session)
+		int secure, int sharedcb, int pd_type, struct fastrpc_session_ctx **session)
 {
 	struct fastrpc_apps *me = &gfa;
 	uint64_t idx = 0;
 	int err = 0;
 
+	/*
+	 * PD type can be either unused(DEFAULT_UNUSED) (or) if PD type
+	 * is used, choose the context bank with matching PD type.
+	 */
 	if (chan->sesscount) {
 		for (idx = 0; idx < chan->sesscount; ++idx) {
 			if (!chan->session[idx].used &&
 				chan->session[idx].smmu.secure == secure &&
-				chan->session[idx].smmu.sharedcb == sharedcb) {
+				chan->session[idx].smmu.sharedcb == sharedcb &&
+				(pd_type == DEFAULT_UNUSED ||
+					chan->session[idx].smmu.pd_type == pd_type)) {
 				chan->session[idx].used = 1;
 				break;
 			}
@@ -5566,14 +5636,23 @@ bail:
 	return err;
 }
 
-static int fastrpc_session_alloc(struct fastrpc_channel_ctx *chan, int secure,
-			int sharedcb, struct fastrpc_session_ctx **session)
+static int fastrpc_session_alloc_secure_memory(
+			struct fastrpc_channel_ctx *chan, int secure,
+			int sharedcb, int pd_type, struct fastrpc_session_ctx **session)
 {
 	int err = 0;
+	struct fastrpc_apps *me = &gfa;
+
+	/*
+	 * If PD type is configured for context banks,
+	 * Use CPZ_USERPD, to allocate secure context bank type.
+	 */
+	if (pd_type != DEFAULT_UNUSED && me->cb_pd_type)
+		pd_type = CPZ_USERPD;
 
 	mutex_lock(&chan->smd_mutex);
 	if (!*session)
-		err = fastrpc_session_alloc_locked(chan, secure, sharedcb, session);
+		err = fastrpc_session_alloc_locked(chan, secure, sharedcb, pd_type, session);
 	mutex_unlock(&chan->smd_mutex);
 	if (err == -EUSERS) {
 		ADSPRPC_WARN(
@@ -6085,6 +6164,8 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	INIT_HLIST_NODE(&fl->hn);
 	fl->sessionid = 0;
 	fl->tgid_open = current->tgid;
+	/* PD type is not known, when device is opened */
+	fl->pd_type = DEFAULT_UNUSED;
 	fl->apps = me;
 	fl->mode = FASTRPC_MODE_SERIAL;
 	fl->cid = -1;
@@ -6251,7 +6332,7 @@ int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 		fl->ssrcount = fl->apps->channel[cid].ssrcount;
 		mutex_lock(&fl->apps->channel[cid].smd_mutex);
 		err = fastrpc_session_alloc_locked(&fl->apps->channel[cid],
-				0, fl->sharedcb, &fl->sctx);
+				0, fl->sharedcb, fl->pd_type, &fl->sctx);
 		mutex_unlock(&fl->apps->channel[cid].smd_mutex);
 		if (err == -EUSERS) {
 			ADSPRPC_WARN(
@@ -7617,6 +7698,14 @@ static int fastrpc_cb_probe(struct device *dev)
 	me->max_size_limit = (dma_addr_pool[1] == 0 ? 0x78000000 :
 			dma_addr_pool[1]);
 
+	if (of_get_property(dev->of_node, "pd-type", NULL) != NULL) {
+		err = of_property_read_u32(dev->of_node, "pd-type",
+				&(sess->smmu.pd_type));
+		if (err)
+			goto bail;
+		// Set cb_pd_type, if the process type is configured for context banks
+		me->cb_pd_type = true;
+	}
 	if (of_get_property(dev->of_node, "shared-cb", NULL) != NULL) {
 		sess->smmu.sharedcb = 1;
 		// Set share_securecb, if the secure context bank is shared
