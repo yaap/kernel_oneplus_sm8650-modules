@@ -452,18 +452,22 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 
 	freq = (u64)codec_output.hw_min_freq * 1000000; /* Convert to Hz */
 
-	i_vpr_p(inst, "%s: filled len %d, required freq %llu, vpp %u, vsp %u, tensilica %u, hw_freq %u, fps %u, mbpf %u\n",
+	i_vpr_p(inst,
+		"%s: filled len %d, required freq %llu, vpp %u, vsp %u, tensilica %u, hw_freq %u, fps %u, mbpf %u\n",
 		__func__, data_size, freq, codec_output.vpp_min_freq,
 		codec_output.vsp_min_freq, codec_output.tensilica_min_freq,
 		codec_output.hw_min_freq, fps, mbpf);
 
-	if (inst->codec == MSM_VIDC_AV1 || (inst->iframe && is_hevc_10bit_decode_session(inst)) ||
-			(!is_realtime_session(inst))) {
+	if (!is_realtime_session(inst) ||
+	    inst->codec == MSM_VIDC_AV1 ||
+	    is_lowlatency_session(inst) ||
+	    (inst->iframe && is_hevc_10bit_decode_session(inst))) {
 		/*
 		 * TURBO is only allowed for:
-		 *     1. AV1 decoding session
-		 *     2. 10-bit I-Frame decoding session
-		 *     3. NRT decoding/encoding session
+		 * - NRT decoding/encoding session
+		 * - AV1 decoding session
+		 * - Low latency session
+		 * - 10-bit I-Frame decoding session
 		 * limit to NOM for all other cases
 		 */
 	} else {

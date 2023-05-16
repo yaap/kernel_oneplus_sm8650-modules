@@ -5408,7 +5408,37 @@ static int msm_vidc_print_insts_info(struct msm_vidc_core *core)
 	return 0;
 }
 
-bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
+static int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
+{
+	u32 mbpf, fps;
+	u32 input_rate, timestamp_rate, operating_rate;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * Encoder: consider frame rate
+	 * Decoder: consider max(frame rate, operating rate,
+	 *          timestamp rate, input queue rate)
+	 */
+	mbpf = msm_vidc_get_mbs_per_frame(inst);
+	fps = msm_vidc_get_frame_rate(inst);
+
+	if (is_decode_session(inst)) {
+		input_rate = msm_vidc_get_input_rate(inst);
+		timestamp_rate = msm_vidc_get_timestamp_rate(inst);
+		operating_rate = msm_vidc_get_operating_rate(inst);
+		fps = max(fps, operating_rate);
+		fps = max(fps, input_rate);
+		fps = max(fps, timestamp_rate);
+	}
+
+	return mbpf * fps;
+}
+
+static bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -5416,7 +5446,7 @@ bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
 	}
 
 	if (!is_realtime_session(inst) || is_thumbnail_session(inst) ||
-			is_image_session(inst))
+		is_image_session(inst) || is_session_error(inst))
 		return true;
 
 	return false;
@@ -5424,8 +5454,7 @@ bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
 
 int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 {
-	u32 mbps = 0, total_mbps = 0, enc_mbps = 0;
-	u32 critical_mbps = 0;
+	u64 mbps = 0, total_mbps = 0, enc_mbps = 0, critical_mbps = 0;
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
 
@@ -5438,9 +5467,9 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 	/* skip mbps check for non-realtime, thumnail, image sessions */
 	if (msm_vidc_ignore_session_load(inst)) {
 		i_vpr_h(inst,
-			"%s: skip mbps check due to NRT %d, TH %d, IMG %d\n", __func__,
-			!is_realtime_session(inst), is_thumbnail_session(inst),
-			is_image_session(inst));
+			"%s: skip mbps check due to NRT %d, TH %d, IMG %d, error session %d\n",
+			__func__, !is_realtime_session(inst), is_thumbnail_session(inst),
+			is_image_session(inst), is_session_error(inst));
 		return 0;
 	}
 
@@ -5459,11 +5488,8 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 
 	core_lock(core, __func__);
 	list_for_each_entry(instance, &core->instances, list) {
-		/* ignore invalid/error session */
-		if (is_session_error(instance))
-			continue;
 
-		/* ignore thumbnail, image, and non realtime sessions */
+		/* ignore thumbnail, image, non realtime, error sessions */
 		if (msm_vidc_ignore_session_load(instance))
 			continue;
 
@@ -5498,6 +5524,10 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 			core_unlock(core, __func__);
 		}
 	} else if (is_decode_session(inst)){
+		/*
+		 * if total_mbps is greater than max_mbps then allow this
+		 * decoder by reducing its piority (moving it to NRT)
+		 */
 		if (total_mbps > core->capabilities[MAX_MBPS].value) {
 			inst->adjust_priority = RT_DEC_DOWN_PRORITY_OFFSET;
 			i_vpr_h(inst, "%s: pending adjust priority by %d\n",
