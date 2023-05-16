@@ -2085,7 +2085,7 @@ static int marshal_in_tzcb_req(const struct smcinvoke_cb_txn *cb_txn,
 
 	user_req->txn_id = cb_txn->txn_id;
 	if (get_uhandle_from_tzhandle(tzcb_req->hdr.tzhandle, srvr_id,
-			&user_req->cbobj_id, TAKE_LOCK,
+			(int32_t*)(&user_req->cbobj_id), TAKE_LOCK,
 			SMCINVOKE_OBJ_TYPE_TZ_OBJ)) {
 		ret = -EINVAL;
 		goto out;
