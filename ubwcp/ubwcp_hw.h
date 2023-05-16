@@ -66,7 +66,8 @@ void ubwcp_hw_interrupt_enable(void __iomem *base, u16 interrupt, bool enable);
 void ubwcp_hw_power_on(void __iomem *pwr_ctrl, bool power_on);
 void ubwcp_hw_one_time_init(void __iomem *base);
 int ubwcp_hw_flush(void __iomem *base);
-void ubwcp_hw_trace_set(bool value);
-void ubwcp_hw_trace_get(bool *value);
+
+//#define UBWCP_USE_SMC
+#define UBWCP_DEBUG_REG_RW
 
 #endif /* __UBWCP_HW_H_ */
