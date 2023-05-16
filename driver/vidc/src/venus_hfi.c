@@ -67,7 +67,7 @@ static bool __valdiate_session(struct msm_vidc_core *core,
 	struct msm_vidc_inst *temp;
 	int rc = 0;
 
-	if (!core || !inst)
+	if (!core)
 		return false;
 
 	rc = __strict_check(core, __func__);
@@ -1029,7 +1029,7 @@ int venus_hfi_trigger_stability(struct msm_vidc_inst *inst, u32 type,
 	u32 payload[2];
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1075,7 +1075,7 @@ int venus_hfi_reserve_hardware(struct msm_vidc_inst *inst, u32 duration)
 	enum hfi_reserve_type payload;
 	int rc = 0;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1121,7 +1121,7 @@ int venus_hfi_session_open(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1163,7 +1163,7 @@ int venus_hfi_session_set_codec(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 codec;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1207,7 +1207,7 @@ int venus_hfi_session_set_secure_mode(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 secure_mode;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1252,7 +1252,7 @@ static int venus_hfi_cache_packet(struct msm_vidc_inst *inst)
 	struct hfi_pending_packet *packet;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1291,7 +1291,7 @@ int venus_hfi_session_property(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1338,7 +1338,7 @@ int venus_hfi_session_close(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1377,7 +1377,7 @@ int venus_hfi_start(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1420,7 +1420,7 @@ int venus_hfi_stop(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1464,7 +1464,7 @@ int venus_hfi_session_pause(struct msm_vidc_inst *inst, enum msm_vidc_port_type 
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1508,7 +1508,7 @@ int venus_hfi_session_resume(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1551,7 +1551,7 @@ int venus_hfi_session_drain(struct msm_vidc_inst *inst, enum msm_vidc_port_type 
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1597,7 +1597,7 @@ int venus_hfi_session_command(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1646,7 +1646,7 @@ int venus_hfi_queue_super_buffer(struct msm_vidc_inst *inst,
 	u32 frame_size, meta_size, batch_size, cnt = 0;
 	u64 ts_delta_us;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1766,7 +1766,7 @@ static int venus_hfi_add_pending_packets(struct msm_vidc_inst *inst)
 	struct hfi_packet *src_pkt;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1808,7 +1808,7 @@ int venus_hfi_queue_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	struct hfi_buffer hfi_buffer, hfi_meta_buffer;
 
-	if (!inst || !inst->core || !inst->packet) {
+	if (!inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1901,7 +1901,7 @@ int venus_hfi_release_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	struct hfi_buffer hfi_buffer;
 
-	if (!inst || !inst->core || !inst->packet || !buffer) {
+	if (!inst->packet || !buffer) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1952,10 +1952,6 @@ int venus_hfi_scale_clocks(struct msm_vidc_inst *inst, u64 freq)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -1979,10 +1975,6 @@ int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -2008,10 +2000,6 @@ int venus_hfi_set_ir_period(struct msm_vidc_inst *inst, u32 ir_type,
 	struct msm_vidc_core *core;
 	u32 ir_period, sync_frame_req = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);

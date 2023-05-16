@@ -234,10 +234,6 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
 	u32 frame_rate = 0, operating_rate = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	output_fmt = &inst->fmts[OUTPUT_PORT];
 	input_fmt = &inst->fmts[INPUT_PORT];

@@ -25,9 +25,23 @@ static struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 
 unsigned int msm_v4l2_poll(struct file *filp, struct poll_table_struct *pt)
 {
+	int poll = 0;
 	struct msm_vidc_inst *inst = get_vidc_inst(filp, NULL);
 
-	return msm_vidc_poll((void *)inst, filp, pt);
+	inst = get_inst_ref(g_core, inst);
+	if (!inst) {
+		d_vpr_e("%s: invalid instance\n", __func__);
+		return POLLERR;
+	}
+
+	poll = msm_vidc_poll((void *)inst, filp, pt);
+	if (poll) {
+		goto exit;
+	}
+
+exit:
+	put_inst(inst);
+	return poll;
 }
 
 int msm_v4l2_open(struct file *filp)
@@ -57,6 +71,11 @@ int msm_v4l2_close(struct file *filp)
 	struct msm_vidc_inst *inst;
 
 	inst = get_vidc_inst(filp, NULL);
+	if (!inst) {
+		d_vpr_e("%s: invalid instance\n", __func__);
+		return -EINVAL;
+	}
+
 	trace_msm_v4l2_vidc_close("START", inst);
 
 	rc = msm_vidc_close(inst);
@@ -72,7 +91,7 @@ int msm_v4l2_querycap(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !cap) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -98,7 +117,7 @@ int msm_v4l2_enum_fmt(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !f) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -123,7 +142,7 @@ int msm_v4l2_try_fmt(struct file *filp, void *fh, struct v4l2_format *f)
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !f) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -154,7 +173,7 @@ int msm_v4l2_s_fmt(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !f) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -185,7 +204,7 @@ int msm_v4l2_g_fmt(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !f) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -211,7 +230,7 @@ int msm_v4l2_s_selection(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !s) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -242,7 +261,7 @@ int msm_v4l2_g_selection(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !s) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -268,7 +287,7 @@ int msm_v4l2_s_parm(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !a) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -299,7 +318,7 @@ int msm_v4l2_g_parm(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !a) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -325,7 +344,7 @@ int msm_v4l2_reqbufs(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -351,7 +370,7 @@ int msm_v4l2_querybuf(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -377,7 +396,7 @@ int msm_v4l2_create_bufs(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -404,7 +423,7 @@ int msm_v4l2_prepare_buf(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -431,7 +450,7 @@ int msm_v4l2_qbuf(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -461,7 +480,7 @@ int msm_v4l2_dqbuf(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !b) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -535,7 +554,7 @@ int msm_v4l2_subscribe_event(struct v4l2_fh *fh,
 
 	inst = container_of(fh, struct msm_vidc_inst, event_handler);
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !sub) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -567,7 +586,7 @@ int msm_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 
 	inst = container_of(fh, struct msm_vidc_inst, event_handler);
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !sub) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -593,7 +612,7 @@ int msm_v4l2_try_decoder_cmd(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !dec) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -668,7 +687,7 @@ int msm_v4l2_try_encoder_cmd(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !enc) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -743,8 +762,9 @@ int msm_v4l2_enum_framesizes(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
-		d_vpr_e("%s: invalid instance\n", __func__);
+	if (!inst || !fsize) {
+		d_vpr_e("%s: invalid params: %pK %pK\n",
+				__func__, inst, fsize);
 		return -EINVAL;
 	}
 
@@ -769,8 +789,9 @@ int msm_v4l2_enum_frameintervals(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
-		d_vpr_e("%s: invalid instance\n", __func__);
+	if (!inst || !fival) {
+		d_vpr_e("%s: invalid params: %pK %pK\n",
+			__func__, inst, fival);
 		return -EINVAL;
 	}
 
@@ -795,7 +816,7 @@ int msm_v4l2_queryctrl(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
+	if (!inst || !ctrl) {
 		d_vpr_e("%s: invalid instance\n", __func__);
 		return -EINVAL;
 	}
@@ -821,8 +842,9 @@ int msm_v4l2_querymenu(struct file *filp, void *fh,
 	int rc = 0;
 
 	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
-		d_vpr_e("%s: invalid instance\n", __func__);
+	if (!inst || !qmenu) {
+		d_vpr_e("%s: invalid params %pK %pK\n",
+			__func__, inst, qmenu);
 		return -EINVAL;
 	}
 

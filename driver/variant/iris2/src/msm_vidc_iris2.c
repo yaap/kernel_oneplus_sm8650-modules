@@ -815,11 +815,6 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst* inst)
 	u32 width, height;
 	bool res_ok = false;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	work_mode = MSM_VIDC_STAGE_2;
 	inp_f = &inst->fmts[INPUT_PORT];
 
@@ -871,11 +866,6 @@ int msm_vidc_decide_work_route_iris2(struct msm_vidc_inst* inst)
 	u32 work_route;
 	struct msm_vidc_core* core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	work_route = core->capabilities[NUM_VPP_PIPE].value;
 
@@ -913,11 +903,6 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	s32 rc_type = -1, cac = -1;
 	s32 pix_fmts = -1, min_quality = -1;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	adjusted_value = ctrl ? ctrl->val :
 		inst->capabilities[BLUR_TYPES].value;
@@ -959,11 +944,6 @@ int msm_vidc_decide_quality_mode_iris2(struct msm_vidc_inst* inst)
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!is_encode_session(inst))
 		return 0;

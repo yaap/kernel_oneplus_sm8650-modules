@@ -414,11 +414,6 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 	struct api_calculation_freq_output codec_output;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
-
 	core = inst->core;
 
 	mbpf = msm_vidc_get_mbs_per_frame(inst);
@@ -511,11 +506,6 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
-
 	if (ENABLE_LEGACY_POWER_CALCULATIONS)
 		freq = msm_vidc_calc_freq_iris33_legacy(inst, data_size);
 	else
@@ -536,10 +526,6 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	u32 base_cycles = 0;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||
@@ -1335,10 +1321,6 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 	struct api_calculation_input codec_input;
 	struct api_calculation_freq_output codec_output;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||

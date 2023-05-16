@@ -18,11 +18,6 @@ u32 msm_vidc_input_min_count(struct msm_vidc_inst* inst)
 	u32 input_min_count = 0;
 	u32 hb_enh_layer = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
-
 	if (is_decode_session(inst)) {
 		input_min_count = MIN_DEC_INPUT_BUFFERS;
 	} else if (is_encode_session(inst)) {
@@ -52,11 +47,6 @@ u32 msm_vidc_input_min_count(struct msm_vidc_inst* inst)
 u32 msm_vidc_output_min_count(struct msm_vidc_inst *inst)
 {
 	u32 output_min_count;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	if (!is_decode_session(inst) && !is_encode_session(inst))
 		return 0;
@@ -98,10 +88,6 @@ u32 msm_vidc_input_extra_count(struct msm_vidc_inst *inst)
 	u32 count = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return 0;
-	}
 	core = inst->core;
 
 	/*
@@ -137,10 +123,6 @@ u32 msm_vidc_output_extra_count(struct msm_vidc_inst *inst)
 	u32 count = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return 0;
-	}
 	core = inst->core;
 
 	/*
@@ -172,11 +154,6 @@ u32 msm_vidc_internal_buffer_count(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type)
 {
 	u32 count = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	if (is_encode_session(inst))
 		return 1;
@@ -214,11 +191,6 @@ u32 msm_vidc_decoder_input_size(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	u32 bitstream_size_overwrite = 0;
 	enum msm_vidc_codec_type codec;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	bitstream_size_overwrite =
 		inst->capabilities[BITSTREAM_SIZE_OVERWRITE].value;
@@ -329,11 +301,6 @@ u32 msm_vidc_enc_delivery_mode_based_output_buf_size(struct msm_vidc_inst *inst,
 	u32 total_mb_count;
 	struct v4l2_format *f;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return frame_size;
-	}
-
 	f = &inst->fmts[OUTPUT_PORT];
 
 	if (f->fmt.pix_mp.pixelformat != V4L2_PIX_FMT_HEVC &&
@@ -367,11 +334,6 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 	u32 width, height;
 	struct v4l2_format *f;
 	enum msm_vidc_codec_type codec;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	f = &inst->fmts[OUTPUT_PORT];
 	codec = v4l2_codec_to_driver(inst, f->fmt.pix_mp.pixelformat, __func__);
@@ -441,11 +403,6 @@ u32 msm_vidc_encoder_input_meta_size(struct msm_vidc_inst *inst)
 	u32 lcu_size = 0;
 	struct v4l2_format *f;
 	u32 width, height;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	size = MSM_VIDC_METADATA_SIZE;
 

@@ -118,11 +118,6 @@ const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixfmt)
 	const struct color_format_info *color_format_info;
 	u32 i, size;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		goto exit;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -156,7 +151,7 @@ void print_vidc_buffer(u32 tag, const char *tag_str, const char *str, struct msm
 	unsigned long inode_num = 0;
 	long ref_count = -1;
 
-	if (!inst || !vbuf || !tag_str || !str)
+	if (!vbuf || !tag_str || !str)
 		return;
 
 	dbuf = (struct dma_buf *)vbuf->dmabuf;
@@ -185,9 +180,6 @@ void print_vidc_buffer(u32 tag, const char *tag_str, const char *str, struct msm
 void print_vb2_buffer(const char *str, struct msm_vidc_inst *inst,
 		struct vb2_buffer *vb2)
 {
-	if (!inst || !vb2)
-		return;
-
 	if (vb2->type == INPUT_MPLANE || vb2->type == OUTPUT_MPLANE) {
 		i_vpr_e(inst,
 			"%s: %s: idx %2d fd %d off %d size %d filled %d\n",
@@ -208,7 +200,7 @@ void print_vb2_buffer(const char *str, struct msm_vidc_inst *inst,
 static void print_buffer_stats(u32 tag, const char *tag_str, struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer_stats *stats)
 {
-	if (!tag_str || !inst || !stats)
+	if (!tag_str || !stats)
 		return;
 
 	/* skip flushed buffer stats */
@@ -263,13 +255,6 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, u64 timestamp)
 {
 	struct msm_vidc_buffer_stats *stats = NULL;
-	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	core = inst->core;
 
 	if (!(msm_vidc_debug & VIDC_LOW))
 		return 0;
@@ -306,14 +291,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 {
 	struct msm_vidc_buffer_stats *stats = NULL, *dummy_stats = NULL;
 	struct msm_vidc_buffer_stats *prev_stats = NULL;
-	struct msm_vidc_core *core;
 	bool remove_stat = false, is_first_stat = false;;
-
-	if (!inst || !inst->core || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	core = inst->core;
 
 	if (!(msm_vidc_debug & VIDC_LOW))
 		return 0;
@@ -380,13 +358,6 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 int msm_vidc_flush_buffer_stats(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_buffer_stats *stats, *dummy_stats;
-	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-	core = inst->core;
 
 	i_vpr_l(inst, "%s: flush buffer_stats list\n", __func__);
 	list_for_each_entry_safe(stats, dummy_stats, &inst->buffer_stats_list, list) {
@@ -458,11 +429,6 @@ enum msm_vidc_codec_type v4l2_codec_to_driver(struct msm_vidc_inst *inst,
 	u32 i, size;
 	enum msm_vidc_codec_type codec = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -487,11 +453,6 @@ u32 v4l2_codec_from_driver(struct msm_vidc_inst *inst,
 	const struct codec_info *codec_info;
 	u32 i, size;
 	u32 v4l2_codec = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
@@ -519,11 +480,6 @@ enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(
 	u32 i, size;
 	enum msm_vidc_colorformat_type colorformat = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -550,11 +506,6 @@ u32 v4l2_colorformat_from_driver(struct msm_vidc_inst *inst,
 	u32 i, size;
 	u32 v4l2_colorformat = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -579,11 +530,6 @@ u32 v4l2_color_primaries_to_driver(struct msm_vidc_inst *inst,
 	const struct color_primaries_info *color_prim_info;
 	u32 i, size;
 	u32 vidc_color_primaries = MSM_VIDC_PRIMARIES_RESERVED;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
@@ -612,11 +558,6 @@ u32 v4l2_color_primaries_from_driver(struct msm_vidc_inst *inst,
 	u32 i, size;
 	u32 v4l2_primaries = V4L2_COLORSPACE_DEFAULT;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -643,11 +584,6 @@ u32 v4l2_transfer_char_to_driver(struct msm_vidc_inst *inst,
 	const struct transfer_char_info *transfer_char_info;
 	u32 i, size;
 	u32 vidc_transfer_char = MSM_VIDC_TRANSFER_RESERVED;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
@@ -676,11 +612,6 @@ u32 v4l2_transfer_char_from_driver(struct msm_vidc_inst *inst,
 	u32 i, size;
 	u32  v4l2_transfer_char = V4L2_XFER_FUNC_DEFAULT;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -708,11 +639,6 @@ u32 v4l2_matrix_coeff_to_driver(struct msm_vidc_inst *inst,
 	u32 i, size;
 	u32 vidc_matrix_coeff = MSM_VIDC_MATRIX_COEFF_RESERVED;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
 		d_vpr_e("%s: invalid core platform\n", __func__);
@@ -739,11 +665,6 @@ u32 v4l2_matrix_coeff_from_driver(struct msm_vidc_inst *inst,
 	const struct matrix_coeff_info *matrix_coeff_info;
 	u32 i, size;
 	u32 v4l2_matrix_coeff = V4L2_YCBCR_ENC_DEFAULT;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 	if (!core->platform || !core->platform->data.format_data) {
@@ -933,11 +854,6 @@ bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst, u32 cap_id
 {
 	bool is_allowed = true;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-
 	if (port == INPUT_PORT) {
 		switch (cap_id) {
 		case META_BUF_TAG:
@@ -979,11 +895,6 @@ bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id)
 {
 	bool is_allowed = true;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-
 	switch (hfi_id) {
 	case HFI_PROP_AV1_TILE_ROWS_COLUMNS:
 	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
@@ -1012,11 +923,6 @@ enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 {
 	enum msm_vidc_allow allow = MSM_VIDC_ALLOW;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return MSM_VIDC_DISALLOW;
-	}
-
 	/*
 	 * if drc sequence is not completed by client, fw is not
 	 * expected to raise another ipsc
@@ -1032,11 +938,6 @@ enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 
 bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-
 	/*
 	 * drain last flag is expected only when DRAIN, INPUT_PAUSE
 	 * is set and DRAIN_LAST_BUFFER is not set
@@ -1053,11 +954,6 @@ bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst)
 
 bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
-
 	/*
 	 * drc last flag is expected only when DRC, INPUT_PAUSE
 	 * is set and DRC_LAST_BUFFER is not set
@@ -1122,11 +1018,6 @@ int msm_vidc_state_change_streamon(struct msm_vidc_inst *inst,
 	int rc = 0;
 	enum msm_vidc_state new_state = MSM_VIDC_ERROR;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (port == INPUT_META_PORT || port == OUTPUT_META_PORT)
 		return 0;
 
@@ -1154,11 +1045,6 @@ int msm_vidc_state_change_streamoff(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	enum msm_vidc_state new_state = MSM_VIDC_ERROR;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (port == INPUT_META_PORT || port == OUTPUT_META_PORT)
 		return 0;
@@ -1188,11 +1074,6 @@ int msm_vidc_process_drain(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = venus_hfi_session_drain(inst, INPUT_PORT);
 	if (rc)
 		return rc;
@@ -1210,11 +1091,6 @@ int msm_vidc_process_resume(struct msm_vidc_inst *inst)
 	int rc = 0;
 	enum msm_vidc_sub_state clear_sub_state = MSM_VIDC_SUB_STATE_NONE;
 	bool drain_pending = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	msm_vidc_scale_power(inst, true);
 
@@ -1275,11 +1151,6 @@ int msm_vidc_process_streamon_input(struct msm_vidc_inst *inst)
 	enum msm_vidc_sub_state clear_sub_state = MSM_VIDC_SUB_STATE_NONE;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	msm_vidc_scale_power(inst, true);
 
 	rc = venus_hfi_start(inst, INPUT_PORT);
@@ -1326,11 +1197,6 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 	enum msm_vidc_sub_state clear_sub_state = MSM_VIDC_SUB_STATE_NONE;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
 	bool drain_pending = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	msm_vidc_scale_power(inst, true);
 
@@ -1406,11 +1272,6 @@ int msm_vidc_process_stop_done(struct msm_vidc_inst *inst,
 	int rc = 0;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (signal_type == SIGNAL_CMD_STOP_INPUT) {
 		set_sub_state = MSM_VIDC_INPUT_PAUSE;
 		/*
@@ -1449,11 +1310,6 @@ int msm_vidc_process_drain_done(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (is_sub_state(inst, MSM_VIDC_DRAIN)) {
 		rc = msm_vidc_change_sub_state(inst, 0, MSM_VIDC_INPUT_PAUSE, __func__);
 		if (rc)
@@ -1469,11 +1325,6 @@ int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct v4l2_event event = {0};
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = msm_vidc_state_change_drain_last_flag(inst);
 	if (rc)
@@ -1495,11 +1346,6 @@ int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct v4l2_event event = {0};
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = msm_vidc_state_change_psc_last_flag(inst);
 	if (rc)
 		return rc;
@@ -1519,11 +1365,6 @@ int msm_vidc_state_change_input_psc(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/*
 	 * if output port is not streaming, then do not set DRC substate
@@ -1548,11 +1389,6 @@ int msm_vidc_state_change_drain_last_flag(struct msm_vidc_inst *inst)
 	int rc = 0;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	set_sub_state = MSM_VIDC_DRAIN_LAST_BUFFER | MSM_VIDC_OUTPUT_PAUSE;
 	rc = msm_vidc_change_sub_state(inst, 0, set_sub_state, __func__);
 	if (rc)
@@ -1565,11 +1401,6 @@ int msm_vidc_state_change_psc_last_flag(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	enum msm_vidc_sub_state set_sub_state = MSM_VIDC_SUB_STATE_NONE;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	set_sub_state = MSM_VIDC_DRC_LAST_BUFFER | MSM_VIDC_OUTPUT_PAUSE;
 	rc = msm_vidc_change_sub_state(inst, 0, set_sub_state, __func__);
@@ -1587,11 +1418,6 @@ int msm_vidc_get_fence_fd(struct msm_vidc_inst *inst, int *fence_fd)
 	bool found = false;
 
 	*fence_fd = INVALID_FD;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
@@ -1624,11 +1450,6 @@ int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 	enum msm_vidc_inst_capability_type cap_id;
-
-	if (!inst || !ctrl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	cap_id = msm_vidc_get_cap_id(inst, ctrl->id);
 	if (!is_valid_cap_id(cap_id)) {
@@ -1690,11 +1511,6 @@ int msm_vidc_get_fps(struct msm_vidc_inst *inst)
 	int fps;
 	u32 frame_rate, operating_rate;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	frame_rate = msm_vidc_get_frame_rate(inst);
 	operating_rate = msm_vidc_get_operating_rate(inst);
 
@@ -1713,10 +1529,6 @@ int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *vbuf;
 	struct msm_vidc_buffers *buffers;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return count;
-	}
 	if (type == MSM_VIDC_BUF_OUTPUT) {
 		buffers = &inst->buffers.output;
 	} else if (type == MSM_VIDC_BUF_INPUT) {
@@ -1769,10 +1581,6 @@ int msm_vidc_process_readonly_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *ro_buf, *dummy;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!is_decode_session(inst) || !is_output_buffer(buf->type))
@@ -1837,11 +1645,6 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	u64 time_us = 0;
 	int rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 	if (!core->capabilities[ENC_AUTO_FRAMERATE].value ||
 			is_image_session(inst) || msm_vidc_is_super_buffer(inst) ||
@@ -1897,11 +1700,6 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 	struct msm_vidc_core *core;
 	u64 counter = 0;
 	u64 input_timer_sum_us = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	input_timer = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUF_TIMER);
@@ -1939,11 +1737,6 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_input_timer *input_timer, *dummy_timer;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	i_vpr_l(inst, "%s: flush input_timer list\n", __func__);
@@ -1956,41 +1749,21 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 
 int msm_vidc_get_input_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return 0;
-	}
-
 	return inst->capabilities[INPUT_RATE].value >> 16;
 }
 
 int msm_vidc_get_timestamp_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return 0;
-	}
-
 	return inst->capabilities[TIMESTAMP_RATE].value >> 16;
 }
 
 int msm_vidc_get_frame_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return 0;
-	}
-
 	return inst->capabilities[FRAME_RATE].value >> 16;
 }
 
 int msm_vidc_get_operating_rate(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return 0;
-	}
-
 	return inst->capabilities[OPERATING_RATE].value >> 16;
 }
 
@@ -2038,11 +1811,6 @@ static struct msm_vidc_timestamp *msm_vidc_get_least_rank_ts(struct msm_vidc_ins
 	struct msm_vidc_timestamp *ts, *final = NULL;
 	u64 least_rank = INT_MAX;
 
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return NULL;
-	}
-
 	list_for_each_entry(ts, &inst->timestamps.list, sort.list) {
 		if (ts->rank < least_rank) {
 			least_rank = ts->rank;
@@ -2057,11 +1825,6 @@ int msm_vidc_flush_ts(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_timestamp *temp, *ts = NULL;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	list_for_each_entry_safe(ts, temp, &inst->timestamps.list, sort.list) {
@@ -2085,11 +1848,6 @@ int msm_vidc_update_timestamp_rate(struct msm_vidc_inst *inst, u64 timestamp)
 	u32 timestamp_rate = 0;
 	u64 ts_ms = 0;
 	u32 counter = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	ts = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_TIMESTAMP);
@@ -2146,11 +1904,6 @@ int msm_vidc_ts_reorder_insert_timestamp(struct msm_vidc_inst *inst, u64 timesta
 	struct msm_vidc_timestamp *ts;
 	struct msm_vidc_core *core;
 	int rc = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* allocate ts from pool */
@@ -2175,11 +1928,6 @@ int msm_vidc_ts_reorder_remove_timestamp(struct msm_vidc_inst *inst, u64 timesta
 {
 	struct msm_vidc_timestamp *ts, *temp;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* remove matching node */
@@ -2200,10 +1948,6 @@ int msm_vidc_ts_reorder_get_first_timestamp(struct msm_vidc_inst *inst, u64 *tim
 	struct msm_vidc_timestamp *ts;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !timestamp) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* check if list empty */
@@ -2230,11 +1974,6 @@ int msm_vidc_ts_reorder_flush(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_timestamp *temp, *ts = NULL;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* flush all entries */
@@ -2255,10 +1994,6 @@ struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !vb2) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return NULL;
-	}
 	core = inst->core;
 
 	buf = msm_vidc_fetch_buffer(inst, vb2);
@@ -2295,11 +2030,6 @@ int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf = NULL;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
@@ -2332,11 +2062,6 @@ int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, *dummy;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
@@ -2362,11 +2087,6 @@ struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffers *buffers;
 	enum msm_vidc_buffer_type buf_type;
 	bool found = false;
-
-	if (!inst || !vb2) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
 
 	buf_type = v4l2_type_to_driver(vb2->type, __func__);
 	if (!buf_type)
@@ -2399,11 +2119,6 @@ struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffers *buffers;
 	bool found = false;
 
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
 	if (buf->type == MSM_VIDC_BUF_INPUT) {
 		buffers = &inst->buffers.input_meta;
 	} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
@@ -2427,11 +2142,6 @@ struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
 
 bool msm_vidc_is_super_buffer(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return false;
-	}
-
 	return !!inst->capabilities[SUPER_FRAME].value;
 }
 
@@ -2440,10 +2150,6 @@ static bool is_single_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 count = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return false;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -2460,10 +2166,6 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 fps;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: Invalid args: %pK\n", __func__, inst);
-		return;
-	}
 	core = inst->core;
 
 	allow = !msm_vidc_clock_voting;
@@ -2536,10 +2238,6 @@ bool msm_vidc_allow_decode_batch(struct msm_vidc_inst *inst)
 	bool allow = false;
 	u32 value = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
 	core = inst->core;
 	cap = &inst->capabilities[0];
 
@@ -2639,11 +2337,6 @@ static void msm_vidc_update_input_cr(struct msm_vidc_inst *inst, u32 idx, u32 cr
 void msm_vidc_update_stats(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, enum msm_vidc_debugfs_event etype)
 {
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
 	if ((is_decode_session(inst) && etype == MSM_VIDC_DEBUGFS_EVENT_ETB) ||
 		(is_encode_session(inst) && etype == MSM_VIDC_DEBUGFS_EVENT_FBD))
 		inst->stats.data_size += buf->data_size;
@@ -2655,11 +2348,6 @@ void msm_vidc_print_stats(struct msm_vidc_inst *inst)
 {
 	u32 frame_rate, operating_rate, achieved_fps, priority, etb, ebd, ftb, fbd, dt_ms;
 	u64 bitrate_kbps = 0, time_ms = ktime_get_ns() / 1000 / 1000;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	etb = inst->debug_count.etb - inst->stats.count.etb;
 	ebd = inst->debug_count.ebd - inst->stats.count.ebd;
@@ -2706,11 +2394,6 @@ void msm_vidc_print_memory_stats(struct msm_vidc_inst *inst)
 	u64 total_size = 0;
 	struct msm_vidc_buffers *buffers;
 	int cnt;
-
-	if (!inst) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return;
-	}
 
 	/* reset array values */
 	memset(&count_arr, 0, sizeof(count_arr));
@@ -2776,10 +2459,6 @@ int schedule_stats_work(struct msm_vidc_inst *inst)
 
 int cancel_stats_work_sync(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: Invalid arguments\n", __func__);
-		return -EINVAL;
-	}
 	cancel_delayed_work_sync(&inst->stats_work);
 
 	return 0;
@@ -2810,11 +2489,6 @@ static int msm_vidc_queue_buffer(struct msm_vidc_inst *inst, struct msm_vidc_buf
 	enum msm_vidc_debugfs_event etype;
 	int rc = 0;
 	u32 cr = 0;
-
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_encode_session(inst) && is_input_buffer(buf->type)) {
 		cr = inst->capabilities[ENC_IP_CR].value;
@@ -2884,11 +2558,6 @@ int msm_vidc_alloc_and_queue_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = msm_vdec_get_input_internal_buffers(inst);
 	if (rc)
 		return rc;
@@ -2914,11 +2583,6 @@ int msm_vidc_queue_deferred_buffers(struct msm_vidc_inst *inst, enum msm_vidc_bu
 	struct msm_vidc_buffer *buf;
 	int rc = 0;
 
-	if (!inst || !buf_type) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
 	if (!buffers)
 		return -EINVAL;
@@ -2940,11 +2604,6 @@ int msm_vidc_buf_queue(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf)
 {
 	int rc = 0;
 
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	msm_vidc_scale_power(inst, is_input_buffer(buf->type));
 
 	rc = msm_vidc_queue_buffer(inst, buf);
@@ -2961,10 +2620,6 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 	struct msm_vidc_fence *fence = NULL;
 	struct msm_vidc_core *core = NULL;
 
-	if (!inst || !vb2 || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	buf = msm_vidc_get_driver_buf(inst, vb2);
@@ -3000,11 +2655,6 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_mem *mem, *mem_dummy;
 	struct msm_vidc_buffer *buf, *dummy;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!is_internal_buffer(buffer->type)) {
@@ -3050,11 +2700,6 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	u32 buf_count;
 	struct msm_vidc_core *core;
 	struct msm_vidc_buffers *buffers;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	buf_size = call_session_op(core, buffer_size,
@@ -3086,11 +2731,6 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer;
 	struct msm_vidc_mem *mem;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	if (!is_internal_buffer(buffer_type)) {
 		i_vpr_e(inst, "%s: type %s is not internal\n",
@@ -3150,11 +2790,6 @@ int msm_vidc_create_internal_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffers *buffers;
 	int i;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	buffers = msm_vidc_get_buffers(inst, buffer_type, __func__);
 	if (!buffers)
 		return -EINVAL;
@@ -3179,11 +2814,6 @@ int msm_vidc_queue_internal_buffers(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buffer, *dummy;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (!is_internal_buffer(buffer_type)) {
 		i_vpr_e(inst, "%s: %s is not internal\n", __func__, buf_name(buffer_type));
 		return 0;
@@ -3228,11 +2858,6 @@ int msm_vidc_alloc_and_queue_session_internal_buffers(struct msm_vidc_inst *inst
 {
 	int rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (buffer_type != MSM_VIDC_BUF_ARP &&
 		buffer_type != MSM_VIDC_BUF_PERSIST) {
 		i_vpr_e(inst, "%s: invalid buffer type: %s\n",
@@ -3263,11 +2888,6 @@ int msm_vidc_release_internal_buffers(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buffer, *dummy;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (!is_internal_buffer(buffer_type)) {
 		i_vpr_e(inst, "%s: %s is not internal\n",
 			__func__, buf_name(buffer_type));
@@ -3313,10 +2933,6 @@ int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
 	struct vb2_v4l2_buffer *vbuf;
 	bool found;
 
-	if (!inst || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	type = v4l2_type_from_driver(buf->type, __func__);
 	if (!type)
 		return -EINVAL;
@@ -3368,11 +2984,6 @@ int msm_vidc_event_queue_init(struct msm_vidc_inst *inst)
 	int rc = 0;
 	int index;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* do not init, if already inited */
@@ -3399,11 +3010,6 @@ int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* do not deinit, if not already inited */
 	if (!inst->event_handler.vdev) {
 		i_vpr_h(inst, "%s: already not inited\n", __func__);
@@ -3423,10 +3029,6 @@ static int vb2q_init(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !q || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	q->type = type;
@@ -3483,11 +3085,6 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (inst->m2m_dev) {
@@ -3558,10 +3155,6 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (!inst->m2m_dev) {
 		i_vpr_h(inst, "%s: vb2q already deinited\n", __func__);
 		return 0;
@@ -3594,11 +3187,6 @@ int msm_vidc_add_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i;
 	struct msm_vidc_core *core;
 	u32 count = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3629,11 +3217,6 @@ int msm_vidc_remove_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
 	u32 count = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3657,11 +3240,6 @@ int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
 	u32 count = 0, dcount = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3688,11 +3266,6 @@ int msm_vidc_session_open(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	inst->packet_size = 4096;
 	rc = msm_vidc_vmem_alloc(inst->packet_size, (void **)&inst->packet, __func__);
 	if (rc)
@@ -3714,11 +3287,6 @@ int msm_vidc_session_set_codec(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = venus_hfi_session_set_codec(inst);
 	if (rc)
 		return rc;
@@ -3729,11 +3297,6 @@ int msm_vidc_session_set_codec(struct msm_vidc_inst *inst)
 int msm_vidc_session_set_secure_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = venus_hfi_session_set_secure_mode(inst);
 	if (rc)
@@ -3746,11 +3309,6 @@ int msm_vidc_session_set_default_header(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	u32 default_header = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	default_header = inst->capabilities[DEFAULT_HEADER].value;
 	i_vpr_h(inst, "%s: default header: %d", __func__, default_header);
@@ -3774,11 +3332,6 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	enum signal_session_response signal_type;
 	enum msm_vidc_buffer_type buffer_type;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (port == INPUT_PORT) {
 		signal_type = SIGNAL_CMD_STOP_INPUT;
@@ -3855,11 +3408,6 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 	bool wait_for_response;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	wait_for_response = true;
@@ -3898,10 +3446,6 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 
 int msm_vidc_kill_session(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (!inst->session_id) {
 		i_vpr_e(inst, "%s: already killed\n", __func__);
 		return 0;
@@ -3920,11 +3464,6 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 	int i;
 	u32 codecs_count = 0;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	codecs_count = core->enc_codecs_count + core->dec_codecs_count;
@@ -4375,11 +3914,6 @@ int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
 	bool found;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -4420,11 +3954,6 @@ int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst)
 	struct msm_vidc_buffers *buffers;
 	int i;
 
-	if (!inst) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* Print buffer details */
 	for (i = 1; i < ARRAY_SIZE(buf_type_name_arr); i++) {
 		buffers = msm_vidc_get_buffers(inst, i, __func__);
@@ -4452,11 +3981,6 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 	unsigned long inode_num = 0;
 	long ref_count = -1;
 	int i = 0;
-
-	if (!inst) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	is_secure = is_secure_session(inst);
 	is_decode = inst->domain == MSM_VIDC_DECODER;
@@ -4774,11 +4298,6 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, *dummy;
 	enum msm_vidc_buffer_type buffer_type[2];
 	int i;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (type == MSM_VIDC_BUF_INPUT) {
@@ -4825,11 +4344,6 @@ int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffer *ro_buf, *dummy;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!is_decode_session(inst) || !is_output_buffer(type))
@@ -4891,10 +4405,6 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 	};
 	int i;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	core = inst->core;
 
 	for (i = 0; i < ARRAY_SIZE(internal_buf_types); i++) {
@@ -5105,11 +4615,6 @@ struct msm_vidc_inst *get_inst(struct msm_vidc_core *core,
 
 void put_inst(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
 	kref_put(&inst->kref, msm_vidc_close_helper);
 }
 
@@ -5162,11 +4667,6 @@ int msm_vidc_update_bitstream_buffer_size(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	struct v4l2_format *fmt;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (is_decode_session(inst)) {
@@ -5182,11 +4682,6 @@ int msm_vidc_update_meta_port_settings(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	struct v4l2_format *fmt;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	fmt = &inst->fmts[INPUT_META_PORT];
@@ -5216,11 +4711,6 @@ int msm_vidc_update_meta_port_settings(struct msm_vidc_inst *inst)
 int msm_vidc_update_buffer_count(struct msm_vidc_inst *inst, u32 port)
 {
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	switch (port) {
@@ -5345,7 +4835,6 @@ int msm_vidc_update_debug_str(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
-
 	client_id = inst->capabilities[CLIENT_ID].value;
 
 	sid = inst->session_id;
@@ -5438,11 +4927,6 @@ static int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 
 static bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_realtime_session(inst) || is_thumbnail_session(inst) ||
 		is_image_session(inst) || is_session_error(inst))
 		return true;
@@ -5456,10 +4940,6 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* skip mbps check for non-realtime, thumnail, image sessions */
@@ -5545,11 +5025,6 @@ int msm_vidc_check_core_mbpf(struct msm_vidc_inst *inst)
 	u32 critical_mbpf = 0;
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -5614,10 +5089,6 @@ static int msm_vidc_check_inst_mbpf(struct msm_vidc_inst *inst)
 	u32 mbpf = 0, max_mbpf = 0;
 	struct msm_vidc_inst_cap *cap;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	cap = &inst->capabilities[0];
 
 	if (is_secure_session(inst))
@@ -5641,11 +5112,6 @@ static int msm_vidc_check_inst_mbpf(struct msm_vidc_inst *inst)
 u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst* inst)
 {
 	u32 max_bitrate = 0x7fffffff;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (inst->capabilities[LOWLATENCY_MODE].value)
 		max_bitrate = min(max_bitrate,
@@ -5680,10 +5146,6 @@ static bool msm_vidc_allow_image_encode_session(struct msm_vidc_inst *inst)
 	u32 min_width, min_height, max_width, max_height, pix_fmt, profile;
 	bool allow = false;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
 	cap = &inst->capabilities[0];
 
 	if (!is_image_encode_session(inst)) {
@@ -5773,10 +5235,6 @@ static int msm_vidc_check_resolution_supported(struct msm_vidc_inst *inst)
 		max_width, max_height;
 	bool is_interlaced = false;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	cap = &inst->capabilities[0];
 
 	if (is_decode_session(inst)) {
@@ -5834,11 +5292,6 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 	u32 num_1080p_sessions = 0, num_4k_sessions = 0, num_8k_sessions = 0;
 	struct msm_vidc_inst *i;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -5911,11 +5364,6 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 	bool allow = false;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (is_image_session(inst) && is_secure_session(inst)) {
 		i_vpr_e(inst, "%s: secure image session not supported\n", __func__);
 		rc = -EINVAL;
@@ -5963,11 +5411,6 @@ exit:
 int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst)
 {
 	u32 iwidth, owidth, iheight, oheight, ds_factor;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_image_session(inst) || is_decode_session(inst)) {
 		i_vpr_h(inst, "%s: Scaling is supported for encode session only\n", __func__);
@@ -6018,11 +5461,6 @@ int msm_vidc_get_properties(struct msm_vidc_inst *inst)
 		{HFI_PROP_PIPE, HFI_PORT_NONE},
 		{HFI_PROP_QUALITY_MODE, HFI_PORT_BITSTREAM}
 	};
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(fw_query_params); i++) {
 

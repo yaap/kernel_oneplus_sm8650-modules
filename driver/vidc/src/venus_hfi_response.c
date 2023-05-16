@@ -45,9 +45,6 @@ struct msm_vidc_hfi_packet_handle {
 void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 	struct msm_vidc_subscription_params subsc_params)
 {
-	if (!inst || !str)
-		return;
-
 	i_vpr_h(inst,
 		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d "
 		"fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d, fg present %d, sb enabled %d\n",
@@ -132,11 +129,6 @@ u32 vidc_port_from_hfi(struct msm_vidc_inst *inst,
 bool is_valid_hfi_port(struct msm_vidc_inst *inst, u32 port,
 	u32 buffer_type, const char *func)
 {
-	if (!inst) {
-		i_vpr_e(inst, "%s: invalid params\n", func);
-		return false;
-	}
-
 	if (port == HFI_PORT_NONE &&
 		buffer_type != HFI_BUFFER_ARP &&
 		buffer_type != HFI_BUFFER_PERSIST)
@@ -156,11 +148,6 @@ invalid:
 bool is_valid_hfi_buffer_type(struct msm_vidc_inst *inst,
 	u32 buffer_type, const char *func)
 {
-	if (!inst) {
-		i_vpr_e(inst, "%s: invalid params\n", func);
-		return false;
-	}
-
 	if (buffer_type != HFI_BUFFER_BITSTREAM &&
 	    buffer_type != HFI_BUFFER_RAW &&
 	    buffer_type != HFI_BUFFER_METADATA &&
@@ -254,11 +241,6 @@ static bool check_for_packet_payload(struct msm_vidc_inst *inst,
 	struct hfi_packet *pkt, const char *func)
 {
 	u32 payload_size = 0;
-
-	if (!inst || !pkt) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return false;
-	}
 
 	if (pkt->payload_info == HFI_PAYLOAD_NONE) {
 		i_vpr_h(inst, "%s: no playload available for packet %#x\n",
@@ -661,10 +643,6 @@ static int handle_read_only_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	bool found = false;
 
-	if (!inst || !inst->core || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!is_decode_session(inst) || !is_output_buffer(buf->type))
@@ -713,11 +691,6 @@ static int handle_non_read_only_buffer(struct msm_vidc_inst *inst,
 	struct hfi_buffer *buffer)
 {
 	struct msm_vidc_buffer *ro_buf;
-
-	if (!inst || !buffer) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!is_decode_session(inst) || buffer->type != HFI_BUFFER_RAW)
 		return 0;
@@ -781,10 +754,6 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	u32 frame_size, batch_size;
 	bool found;
 
-	if (!inst || !buffer || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_INPUT, __func__);
 	if (!buffers)
@@ -868,11 +837,6 @@ static int msm_vidc_handle_fence_signal(struct msm_vidc_inst *inst,
 	bool signal_error = false;
 	struct msm_vidc_core *core = inst->core;
 
-	if (!buf) {
-		i_vpr_e(inst, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (inst->capabilities[OUTBUF_FENCE_TYPE].value ==
 		MSM_VIDC_FENCE_NONE)
 		return 0;
@@ -940,10 +904,6 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_core *core;
 	bool found, fatal = false;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	/* handle drain last flag buffer */
@@ -1109,10 +1069,6 @@ static int handle_input_metadata_buffer(struct msm_vidc_inst *inst,
 	u32 frame_size, batch_size;
 	bool found;
 
-	if (!inst || !buffer || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_INPUT_META, __func__);
 	if (!buffers)
@@ -1178,11 +1134,6 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buf;
 	bool found;
-
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	buffers = msm_vidc_get_buffers(inst, MSM_VIDC_BUF_OUTPUT_META, __func__);
 	if (!buffers)
@@ -1891,11 +1842,6 @@ static int handle_session_property(struct msm_vidc_inst *inst,
 	int rc = 0;
 	u32 port;
 
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	i_vpr_l(inst, "%s: property type %#x\n", __func__, pkt->type);
 
 	port = vidc_port_from_hfi(inst, pkt->port);
@@ -2074,11 +2020,6 @@ static int handle_session_response(struct msm_vidc_core *core,
 	u8 *pkt;
 	int i, rc = 0;
 	bool found_ipsc = false;
-
-	if (!core || !hdr) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	inst = get_inst(core, hdr->session_id);
 	if (!inst) {

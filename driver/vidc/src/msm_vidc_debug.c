@@ -173,48 +173,42 @@ struct core_inst_pair {
 };
 
 /* debug fs support */
-static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
+static inline void tic(struct msm_vidc_inst *inst, enum profiling_points p,
 				 char *b)
 {
-	if (!i->debug.pdata[p].name[0])
-		memcpy(i->debug.pdata[p].name, b, 64);
-	if (i->debug.pdata[p].sampling) {
-		i->debug.pdata[p].start = ktime_get_ns() / 1000 / 1000;
-		i->debug.pdata[p].sampling = false;
+	if (!inst->debug.pdata[p].name[0])
+		memcpy(inst->debug.pdata[p].name, b, 64);
+	if (inst->debug.pdata[p].sampling) {
+		inst->debug.pdata[p].start = ktime_get_ns() / 1000 / 1000;
+		inst->debug.pdata[p].sampling = false;
 	}
 }
 
-static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
+static inline void toc(struct msm_vidc_inst *inst, enum profiling_points p)
 {
-	if (!i->debug.pdata[p].sampling) {
-		i->debug.pdata[p].stop = ktime_get_ns() / 1000 / 1000;
-		i->debug.pdata[p].cumulative += i->debug.pdata[p].stop -
-			i->debug.pdata[p].start;
-		i->debug.pdata[p].sampling = true;
+	if (!inst->debug.pdata[p].sampling) {
+		inst->debug.pdata[p].stop = ktime_get_ns() / 1000 / 1000;
+		inst->debug.pdata[p].cumulative += inst->debug.pdata[p].stop -
+			inst->debug.pdata[p].start;
+		inst->debug.pdata[p].sampling = true;
 	}
 }
 
-void msm_vidc_show_stats(void *inst)
+void msm_vidc_show_stats(struct msm_vidc_inst *inst)
 {
 	int x;
-	struct msm_vidc_inst *i = (struct msm_vidc_inst *) inst;
-
-	if (!i) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	for (x = 0; x < MAX_PROFILING_POINTS; x++) {
-		if (i->debug.pdata[x].name[0]) {
-			if (i->debug.samples) {
-				i_vpr_p(i, "%s averaged %llu ms/sample\n",
-						i->debug.pdata[x].name,
-						i->debug.pdata[x].cumulative /
-						i->debug.samples);
+		if (inst->debug.pdata[x].name[0]) {
+			if (inst->debug.samples) {
+				i_vpr_p(inst, "%s averaged %llu ms/sample\n",
+						inst->debug.pdata[x].name,
+						inst->debug.pdata[x].cumulative /
+						inst->debug.samples);
 			}
 
-			i_vpr_p(i, "%s Samples: %d\n",
-				i->debug.pdata[x].name, i->debug.samples);
+			i_vpr_p(inst, "%s Samples: %d\n",
+				inst->debug.pdata[x].name, inst->debug.samples);
 		}
 	}
 }
@@ -438,11 +432,10 @@ failed_create_dir:
 	return NULL;
 }
 
-struct dentry *msm_vidc_debugfs_init_core(void *core_in)
+struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core)
 {
 	struct dentry *dir = NULL;
 	char debugfs_name[MAX_DEBUGFS_NAME];
-	struct msm_vidc_core *core = (struct msm_vidc_core *) core_in;
 	struct dentry *parent;
 
 	if (!core || !core->debugfs_parent) {
@@ -592,17 +585,12 @@ static const struct file_operations inst_info_fops = {
 	.release = inst_info_release,
 };
 
-struct dentry *msm_vidc_debugfs_init_inst(void *instance, struct dentry *parent)
+struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst, struct dentry *parent)
 {
 	struct dentry *dir = NULL, *info = NULL;
 	char debugfs_name[MAX_DEBUGFS_NAME];
 	struct core_inst_pair *idata = NULL;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		goto exit;
-	}
 	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%d", inst->session_id);
 
 	if (msm_vidc_vmem_alloc(sizeof(struct core_inst_pair), (void **)&idata, __func__))
@@ -641,12 +629,11 @@ exit:
 	return dir;
 }
 
-void msm_vidc_debugfs_deinit_inst(void *instance)
+void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst)
 {
 	struct dentry *dentry = NULL;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst || !inst->debugfs_root)
+	if (!inst->debugfs_root)
 		return;
 
 	dentry = inst->debugfs_root;
@@ -660,17 +647,12 @@ void msm_vidc_debugfs_deinit_inst(void *instance)
 	inst->debugfs_root = NULL;
 }
 
-void msm_vidc_debugfs_update(void *instance,
+void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 	enum msm_vidc_debugfs_event e)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	struct msm_vidc_debug *d;
 	char a[64] = "Frame processing";
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	d = &inst->debug;
 
 	switch (e) {

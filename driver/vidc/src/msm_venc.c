@@ -471,11 +471,6 @@ static int msm_venc_set_input_properties(struct msm_vidc_inst *inst)
 		{HFI_PROP_SIGNAL_COLOR_INFO,          msm_venc_set_colorspace                  },
 	};
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	i_vpr_h(inst, "%s()\n", __func__);
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_set_prop); i++) {
 		/* set session input properties */
@@ -507,11 +502,6 @@ static int msm_venc_set_output_properties(struct msm_vidc_inst *inst)
 		{HFI_PROP_CSC,                        msm_venc_set_csc                     },
 	};
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	i_vpr_h(inst, "%s()\n", __func__);
 	for (i = 0; i < ARRAY_SIZE(msm_venc_output_set_prop); i++) {
 		/* set session output properties */
@@ -538,10 +528,6 @@ static int msm_venc_set_internal_properties(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	rc = msm_venc_set_quality_mode(inst);
@@ -621,11 +607,6 @@ static int msm_venc_create_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_create_internal_buffers(inst,
 			msm_venc_input_internal_buffer_type[i]);
@@ -639,11 +620,6 @@ static int msm_venc_create_input_internal_buffers(struct msm_vidc_inst *inst)
 static int msm_venc_queue_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_queue_internal_buffers(inst,
@@ -659,11 +635,6 @@ static int msm_venc_get_output_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < ARRAY_SIZE(msm_venc_output_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
 			msm_venc_output_internal_buffer_type[i]);
@@ -678,11 +649,6 @@ static int msm_venc_create_output_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < ARRAY_SIZE(msm_venc_output_internal_buffer_type); i++) {
 		rc = msm_vidc_create_internal_buffers(inst,
 			msm_venc_output_internal_buffer_type[i]);
@@ -696,11 +662,6 @@ static int msm_venc_create_output_internal_buffers(struct msm_vidc_inst *inst)
 static int msm_venc_queue_output_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(msm_venc_output_internal_buffer_type); i++) {
 		rc = msm_vidc_queue_internal_buffers(inst,
@@ -720,10 +681,6 @@ static int msm_venc_property_subscription(struct msm_vidc_inst *inst,
 	u32 i;
 	u32 payload_size = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_PROPERTY;
@@ -761,10 +718,6 @@ static int msm_venc_metadata_delivery(struct msm_vidc_inst *inst,
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_METADATA;
@@ -819,10 +772,6 @@ static int msm_venc_dynamic_metadata_delivery(struct msm_vidc_inst *inst,
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_DYNAMIC_METADATA;
@@ -864,10 +813,6 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_METADATA;
@@ -919,11 +864,6 @@ int msm_venc_streamoff_input(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = msm_vidc_session_streamoff(inst, INPUT_PORT);
 	if (rc)
 		return rc;
@@ -934,11 +874,6 @@ int msm_venc_streamoff_input(struct msm_vidc_inst *inst)
 int msm_venc_streamon_input(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_input_meta_enabled(inst) &&
 		!inst->bufq[INPUT_META_PORT].vb2q->streaming) {
@@ -1007,11 +942,6 @@ int msm_venc_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = msm_vidc_queue_buffer_single(inst, vb2);
 	if (rc)
 		return rc;
@@ -1062,11 +992,6 @@ int msm_venc_streamoff_output(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core = inst->core;
 
 	/* restore LAYER_COUNT max allowed value */
@@ -1083,11 +1008,6 @@ int msm_venc_streamoff_output(struct msm_vidc_inst *inst)
 int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_output_meta_enabled(inst) &&
 		!inst->bufq[OUTPUT_META_PORT].vb2q->streaming) {
@@ -1151,11 +1071,6 @@ int msm_venc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
 	u32 pix_fmt;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	memset(pixmp->reserved, 0, sizeof(pixmp->reserved));
 
 	if (f->type == INPUT_MPLANE) {
@@ -1203,10 +1118,6 @@ int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	u32 width, height;
 	enum msm_vidc_codec_type codec;
 
-	if (!inst || !inst->core || !f) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	msm_venc_try_fmt(inst, f);
 
@@ -1284,10 +1195,6 @@ static int msm_venc_s_fmt_output_meta(struct msm_vidc_inst *inst, struct v4l2_fo
 	struct v4l2_format *fmt;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	fmt = &inst->fmts[OUTPUT_META_PORT];
@@ -1321,10 +1228,6 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	struct msm_vidc_core *core;
 	u32 pix_fmt, width, height, size, bytesperline;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	msm_venc_try_fmt(inst, f);
 
@@ -1424,10 +1327,6 @@ static int msm_venc_s_fmt_input_meta(struct msm_vidc_inst *inst, struct v4l2_for
 	struct v4l2_format *fmt;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	fmt = &inst->fmts[INPUT_META_PORT];
@@ -1457,11 +1356,6 @@ static int msm_venc_s_fmt_input_meta(struct msm_vidc_inst *inst, struct v4l2_for
 int msm_venc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (f->type == INPUT_MPLANE) {
 		rc = msm_venc_s_fmt_input(inst, f);
@@ -1497,11 +1391,6 @@ int msm_venc_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	int rc = 0;
 	int port;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	port = v4l2_type_to_driver_port(inst, f->type, __func__);
 	if (port < 0)
 		return -EINVAL;
@@ -1516,10 +1405,6 @@ int msm_venc_s_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
 	int rc = 0;
 	struct v4l2_format *output_fmt;
 
-	if (!inst || !s) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (s->type != INPUT_MPLANE && s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		i_vpr_e(inst, "%s: invalid type %d\n", __func__, s->type);
 		return -EINVAL;
@@ -1622,10 +1507,6 @@ int msm_venc_g_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
 {
 	int rc = 0;
 
-	if (!inst || !s) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (s->type != INPUT_MPLANE && s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		i_vpr_e(inst, "%s: invalid type %d\n", __func__, s->type);
 		return -EINVAL;
@@ -1670,11 +1551,6 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	u32 input_rate_q16, max_rate_q16;
 	u32 input_rate, default_rate;
 	bool is_frame_rate = false;
-
-	if (!inst || !s_parm) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		/* operating rate */
@@ -1774,11 +1650,6 @@ int msm_venc_g_param(struct msm_vidc_inst *inst,
 {
 	struct v4l2_fract *timeperframe = NULL;
 
-	if (!inst || !s_parm) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		timeperframe = &s_parm->parm.output.timeperframe;
 		timeperframe->numerator = 1;
@@ -1834,8 +1705,7 @@ int msm_venc_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 	u32 array[32] = {0};
 	u32 i = 0;
 
-	if (!inst || !inst->core || !f ||
-	    f->index >= ARRAY_SIZE(array)) {
+	if (f->index >= ARRAY_SIZE(array)) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1907,10 +1777,6 @@ int msm_venc_inst_init(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	enum msm_vidc_colorformat_type colorformat;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	core = inst->core;
@@ -2011,10 +1877,6 @@ int msm_venc_inst_deinit(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	rc = msm_vidc_ctrl_handler_deinit(inst);
 	if (rc)
 		return rc;

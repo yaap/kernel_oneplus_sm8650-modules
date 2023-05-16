@@ -22,16 +22,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 	u32 base_cycles = 0;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
-
 	core = inst->core;
-	if (!core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
 
 	mbpf = msm_vidc_get_mbs_per_frame(inst);
 	fps = inst->max_rate;

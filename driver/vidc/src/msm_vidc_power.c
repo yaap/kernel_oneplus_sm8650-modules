@@ -94,10 +94,6 @@ u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 	struct frequency_table *freq_tbl;
 	u64 freq = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||
@@ -166,10 +162,6 @@ static int msm_vidc_set_buses(struct msm_vidc_inst* inst)
 	u64 total_bw_ddr = 0, total_bw_llcc = 0;
 	u64 curr_time_ns;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	mutex_lock(&core->lock);
@@ -221,10 +213,6 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	struct v4l2_format *inp_f;
 	u32 operating_rate, frame_rate;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params: %pK\n", __func__, inst);
-		return -EINVAL;
-	}
 	core = inst->core;
 	if (!core->resource) {
 		i_vpr_e(inst, "%s: invalid resource params\n", __func__);
@@ -348,10 +336,6 @@ int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
 	u64 curr_time_ns;
 	int i = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||
@@ -428,11 +412,6 @@ static int msm_vidc_apply_dcvs(struct msm_vidc_inst *inst)
 	int bufs_with_fw = 0;
 	struct msm_vidc_power *power;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return -EINVAL;
-	}
-
 	/* skip dcvs */
 	if (!inst->power.dcvs_mode)
 		return 0;
@@ -503,10 +482,6 @@ int msm_vidc_scale_clocks(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core* core;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (inst->power.buffer_counter < DCVS_WINDOW ||
@@ -539,10 +514,6 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 	u32 frame_rate, operating_rate;
 	u32 timestamp_rate = 0, input_rate = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!inst->active) {
@@ -637,11 +608,6 @@ void msm_vidc_dcvs_data_reset(struct msm_vidc_inst *inst)
 	struct msm_vidc_power *dcvs;
 	u32 min_count, actual_count, max_count;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
 	dcvs = &inst->power;
 	if (is_encode_session(inst)) {
 		min_count = inst->buffers.input.min_count;
@@ -673,10 +639,6 @@ void msm_vidc_power_data_reset(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	i_vpr_hp(inst, "%s\n", __func__);
 
 	msm_vidc_dcvs_data_reset(inst);

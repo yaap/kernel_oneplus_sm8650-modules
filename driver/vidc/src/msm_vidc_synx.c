@@ -78,11 +78,6 @@ static struct msm_vidc_fence *msm_vidc_get_synx_fence_from_id(
 	struct msm_vidc_fence *fence, *dummy_fence;
 	bool found = false;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
 		if (fence->fence_id == fence_id) {
 			found = true;
@@ -102,11 +97,6 @@ static struct msm_vidc_fence *msm_vidc_get_synx_fence_from_id(
 static void msm_vidc_synx_fence_destroy(struct msm_vidc_inst *inst, u64 fence_id)
 {
 	struct msm_vidc_fence *fence;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	fence = msm_vidc_get_synx_fence_from_id(inst, fence_id);
 	if (!fence) {
@@ -200,11 +190,6 @@ static struct msm_vidc_fence *msm_vidc_synx_dma_fence_create(struct msm_vidc_ins
 	struct msm_vidc_fence *fence = NULL;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
 	rc = msm_vidc_vmem_alloc(sizeof(*fence), (void **)&fence, __func__);
 	if (rc)
 		return NULL;
@@ -234,10 +219,6 @@ static struct msm_vidc_fence *msm_vidc_synx_fence_create(struct msm_vidc_inst *i
 	struct synx_create_params params;
 	u32 fence_id = 0;
 
-	if (!inst || !inst->core || !fence) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
 	core = inst->core;
 
 	/* return if synx fence is not supported */
@@ -291,11 +272,6 @@ int msm_vidc_synx_fence_create_fd(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst || !fence) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	fence->fd = get_unused_fd_flags(0);
 	if (fence->fd < 0) {
 		i_vpr_e(inst, "%s: getting fd (%d) failed\n", __func__,
@@ -327,11 +303,6 @@ static int msm_vidc_synx_fence_signal(struct msm_vidc_inst *inst, u64 fence_id)
 	int rc = 0;
 	struct msm_vidc_fence *fence;
 	struct msm_vidc_core *core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 

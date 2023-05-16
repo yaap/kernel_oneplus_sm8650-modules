@@ -14,6 +14,9 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 
+struct msm_vidc_core;
+struct msm_vidc_inst;
+
 #ifndef VIDC_DBG_LABEL
 #define VIDC_DBG_LABEL "msm_vidc"
 #endif
@@ -172,14 +175,14 @@ enum msm_vidc_bug_on_error {
 };
 
 struct dentry *msm_vidc_debugfs_init_drv(void);
-struct dentry *msm_vidc_debugfs_init_core(void *core);
-struct dentry *msm_vidc_debugfs_init_inst(void *inst,
+struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core);
+struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 		struct dentry *parent);
-void msm_vidc_debugfs_deinit_inst(void *inst);
-void msm_vidc_debugfs_update(void *inst,
+void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst);
+void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 		enum msm_vidc_debugfs_event e);
 int msm_vidc_check_ratelimit(void);
-void msm_vidc_show_stats(void *inst);
+void msm_vidc_show_stats(struct msm_vidc_inst *inst);
 
 static inline bool is_stats_enabled(void)
 {
