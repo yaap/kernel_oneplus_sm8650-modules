@@ -151,6 +151,12 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 	}
 
 	heap = dma_heap_find(heap_name);
+	if (IS_ERR_OR_NULL(heap)) {
+		d_vpr_e("%s: dma heap %s find failed\n", __func__, heap_name);
+		heap = NULL;
+		rc = -ENOMEM;
+		goto error;
+	}
 	mem->dmabuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(mem->dmabuf)) {
 		d_vpr_e("%s: dma heap %s alloc failed\n", __func__, heap_name);
