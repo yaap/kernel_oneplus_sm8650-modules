@@ -47,11 +47,12 @@ int nfc_ese_pwr(struct nfc_dev *nfc_dev, unsigned long arg)
 			pr_debug("keep ven high as NFC is enabled\n");
 		}
 		nfc_dev->is_ese_session_active = false;
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 		if (nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 			if(chk_eSE_pwr_off)
 			  up(&sem_eSE_pwr_off);
 		}
-
+#endif
 	} else if (arg == ESE_POWER_STATE) {
 		/* get VEN gpio state for eSE, as eSE also enabled through same GPIO */
 		ret = gpio_get_value(nfc_dev->configs.gpio.ven);

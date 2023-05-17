@@ -417,7 +417,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		pr_err("NxpDrv: LDO config failed\n");
 		goto err_ldo_config_failed;
 	}
-
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	if( nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 	    /*Check NFC Secure Zone status*/
 	    if(!nfc_hw_secure_check()) {
@@ -431,7 +431,10 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}else {
 		nfc_post_init(nfc_dev);
 	}
-
+#else
+	nfc_dev->secure_zone = false;
+	nfc_post_init(nfc_dev);
+#endif
 	device_init_wakeup(&client->dev, true);
 	i2c_set_clientdata(client, nfc_dev);
 	i2c_dev->irq_wake_up = false;

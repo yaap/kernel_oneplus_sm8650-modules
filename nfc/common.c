@@ -76,12 +76,13 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		   return -EINVAL;
         }
 
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	/* Read DTS_SZONE_STR to check secure zone support */
 	if (of_property_read_string(np, DTS_SZONE_STR, &nfc_configs->szone)) {
 		nfc_configs->CNSS_NFC_HW_SECURE_ENABLE = false;
 	}else
 		nfc_configs->CNSS_NFC_HW_SECURE_ENABLE = true;
-
+#endif
 	pr_info("NxpDrv: %s: irq %d, ven %d, dwl %d, clkreq %d \n", __func__, nfc_gpio->irq, nfc_gpio->ven,
 		nfc_gpio->dwl_req, nfc_gpio->clkreq);
 
@@ -134,6 +135,7 @@ void gpio_set_ven(struct nfc_dev *nfc_dev, int value)
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 	if (gpio_get_value(nfc_gpio->ven) != value) {
 		pr_debug("NxpDrv: %s: value %d\n", __func__, value);
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 		if(secure_peripheral_not_found)
 		{
 			/*secure peripheral feature is not enabled*/
@@ -145,6 +147,10 @@ void gpio_set_ven(struct nfc_dev *nfc_dev, int value)
 			if(!nfc_hw_secure_check())
 				gpio_set_value(nfc_gpio->ven, value);
 		}
+#else
+		gpio_set_value(nfc_gpio->ven, value);
+#endif
+
 		/* hardware dependent delay */
 		usleep_range(NFC_GPIO_SET_WAIT_TIME_US,
 				NFC_GPIO_SET_WAIT_TIME_US + 100);
@@ -495,11 +501,12 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 		return ret;
 	}
 
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	/*Initialising sempahore to disbale NFC Ven GPIO only after eSE is power off flag is set */
 	if (nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 		sema_init(&sem_eSE_pwr_off,0);
 	}
-
+#endif
 	post_init_success = 1;
 	pr_info("NxpDrv: %s success\n", __func__);
 	return 0;
@@ -507,6 +514,7 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 
 }
 
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 /**
  * nfc_hw_secure_check() - Checks the NFC secure zone status
  *
@@ -638,7 +646,7 @@ int nfc_dynamic_protection_ioctl(struct nfc_dev *nfc_dev, unsigned long sec_zone
 
 	return ret;
 }
-
+#endif
 
 /**
  * nfc_dev_ioctl - used to set or get data from upper layer.
@@ -660,6 +668,8 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 
 	if (!nfc_dev)
 		return -ENODEV;
+
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	if( nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 	    /*Avoiding ioctl call in secure zone*/
 	    if(nfc_dev->secure_zone) {
@@ -669,7 +679,7 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 		    }
 	    }
 	}
-
+#endif
 	pr_debug("NxpDrv: %s: cmd = %x arg = %zx\n", __func__, cmd, arg);
 	switch (cmd) {
 	case NFC_SET_PWR:
@@ -702,11 +712,13 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 		pr_debug("NxpDrv: nfc ese cold reset ioctl\n");
 		ret = ese_cold_reset_ioctl(nfc_dev, arg);
 		break;
+#ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	case NFC_SECURE_ZONE:
 		if( nfc_dev->configs.CNSS_NFC_HW_SECURE_ENABLE == true) {
 		  ret = nfc_dynamic_protection_ioctl(nfc_dev, arg);
 		}
 		break;
+#endif
 	default:
 		pr_err("NxpDrv: %s: bad cmd %lu\n", __func__, arg);
 		ret = -ENOIOCTLCMD;
