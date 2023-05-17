@@ -124,6 +124,9 @@ static void mmrm_sw_print_crm_table(struct mmrm_sw_clk_client_tbl_entry *tbl_ent
 		d_mpr_h("%s: csid(0x%x) client tbl idx %d val %llu\n",
 			__func__, tbl_entry->clk_src_id,
 			i, tbl_entry->crm_client_tbl[i]);
+	d_mpr_h("%s: csid(0x%x) client tbl max rate (idx %d) : %llu\n",
+			__func__, tbl_entry->clk_src_id, tbl_entry->max_rate_idx,
+			tbl_entry->clk_rate);
 }
 
 static u64 mmrm_sw_get_max_crm_rate(
@@ -166,7 +169,7 @@ static u64 mmrm_sw_get_max_crm_rate(
 
 			if (new_clk_val >= crm_max_rate) {
 				/* New value at old max index is still the maximum value */
-				crm_max_rate = tbl_entry->crm_client_tbl[tbl_entry->max_rate_idx];
+				crm_max_rate = new_clk_val;
 				*new_max_rate_idx = tbl_entry->max_rate_idx;
 			}
 		}
