@@ -825,7 +825,7 @@ int msm_cvp_session_delete(struct msm_cvp_inst *inst)
 
 int msm_cvp_session_create(struct msm_cvp_inst *inst)
 {
-	int rc = 0;
+	int rc = 0, rc1 = 0;
 	struct cvp_session_queue *sq;
 
 	if (!inst || !inst->core)
@@ -846,7 +846,7 @@ int msm_cvp_session_create(struct msm_cvp_inst *inst)
 	if (rc) {
 		dprintk(CVP_ERR,
 			"Failed to move instance to open done state\n");
-		goto fail_init;
+		goto fail_create;
 	}
 
 	rc = cvp_comm_set_arp_buffers(inst);
@@ -861,8 +861,13 @@ int msm_cvp_session_create(struct msm_cvp_inst *inst)
 	spin_lock(&sq->lock);
 	sq->state = QUEUE_ACTIVE;
 	spin_unlock(&sq->lock);
+	return rc;
 
 fail_init:
+	rc1 = msm_cvp_comm_try_state(inst, MSM_CVP_CLOSE_DONE);
+	if (rc1)
+		dprintk(CVP_ERR, "%s: close failed\n", __func__);
+fail_create:
 	return rc;
 }
 

@@ -1549,7 +1549,7 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	rc = msm_cvp_session_create(inst);
 	if (rc) {
 		dprintk(CVP_ERR, "Warning: send Session Create failed\n");
-		goto fail_session_create;
+		goto fail_msm_cvp_open;
 	} else {
 		dprintk(CVP_DSP, "%s DSP Session Create done\n", __func__);
 	}
@@ -1586,7 +1586,6 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	return;
 
 fail_get_session_info:
-fail_session_create:
 	msm_cvp_close(inst);
 fail_msm_cvp_open:
 	/* unregister fastrpc driver */
