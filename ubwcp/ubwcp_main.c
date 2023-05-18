@@ -193,7 +193,7 @@ struct ubwcp_buf {
 	bool perm;
 	struct ubwcp_desc *desc;
 	bool buf_attr_set;
-	enum dma_data_direction lock_dir;
+	enum dma_data_direction dma_dir;
 	int lock_count;
 
 	/* dma_buf info */
@@ -1941,18 +1941,23 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		}
 
 		/* Flush/invalidate ULA PA from CPU caches
-		 * TBD: if (dir == READ or BIDIRECTION) //NOT for write
-		 * -- Confirm with Chris if this can be skipped for write
+		 * Always invalidate cache, even when writing.
+		 * Upgrade direction to force invalidate.
 		 */
+		if (dir == DMA_TO_DEVICE)
+			dir = DMA_BIDIRECTIONAL;
 		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size);
 		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
 		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size);
-		buf->lock_dir = dir;
+		buf->dma_dir = dir;
 	} else {
 		DBG("buf already locked");
-		/* TBD: what if new buffer direction is not same as previous?
-		 * must update the dir.
+		/* For write locks, always upgrade direction to bi_directional.
+		 * A previous read lock will now become write lock.
+		 * This will ensure a flush when the last unlock comes in.
 		 */
+		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+			buf->dma_dir = DMA_BIDIRECTIONAL;
 	}
 	buf->lock_count++;
 	DBG("new lock_count: %d", buf->lock_count);
@@ -1985,6 +1990,9 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 		buf->lock_count = 0;
 		DBG("Forced lock_count: %d", buf->lock_count);
 	} else {
+		/* for write unlocks, remember the direction so we flush on last unlock */
+		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+			buf->dma_dir = DMA_BIDIRECTIONAL;
 		buf->lock_count--;
 		DBG("new lock_count: %d", buf->lock_count);
 		if (buf->lock_count) {
@@ -1996,9 +2004,8 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 	ubwcp = buf->ubwcp;
 
 	/* Flush/invalidate ULA PA from CPU caches */
-	//TBD: if (dir == WRITE or BIDIRECTION)
 	trace_ubwcp_dma_sync_single_for_device_start(buf->ula_size);
-	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
+	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, buf->dma_dir);
 	trace_ubwcp_dma_sync_single_for_device_end(buf->ula_size);
 
 	/* disable range check */
@@ -2220,7 +2227,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 
 	if (buf->lock_count) {
 		DBG("free before unlock (lock_count: %d). unlock()'ing first", buf->lock_count);
-		ret = unlock_internal(buf, buf->lock_dir, true);
+		ret = unlock_internal(buf, buf->dma_dir, true);
 		if (ret)
 			ERR("unlock_internal(): failed : %d, but continuing free()", ret);
 	}
