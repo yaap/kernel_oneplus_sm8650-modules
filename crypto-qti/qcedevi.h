@@ -3,6 +3,7 @@
  * QTI crypto Driver
  *
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CRYPTO_MSM_QCEDEVI_H
@@ -11,8 +12,8 @@
 #include <linux/interrupt.h>
 #include <linux/cdev.h>
 #include <crypto/hash.h>
-#include "linux/qcom_crypto_device.h"
-#include "linux/fips_status.h"
+#include "qcom_crypto_device.h"
+#include "fips_status.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
 

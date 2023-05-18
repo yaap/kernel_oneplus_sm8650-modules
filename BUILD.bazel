@@ -10,6 +10,7 @@ ddk_headers(
     name = "smcinvoke_kernel_headers",
     hdrs = glob([
         "include/linux/smcinvoke*.h",
+        "include/uapi/linux/smcinvoke*.h",
         "include/linux/IClientE*.h",
         "include/linux/ITrustedCameraDriver.h",
         "include/linux/CTrustedCameraDriver.h",
@@ -20,6 +21,7 @@ ddk_headers(
         "include",
         "include/linux",
         "linux",
+        "include/uapi/linux",
     ],
 )
 
@@ -54,10 +56,10 @@ ddk_headers(
 ddk_headers(
     name = "qcedev_local_headers",
     hdrs = glob([
-        "linux/*.h",
+        "include/uapi/linux/*.h",
         "crypto-qti/*.h"
     ]),
-    includes = [".", "crypto-qti"]
+    includes = ["include/uapi", "include/uapi/linux", "crypto-qti"]
 )
 
 ddk_headers(

@@ -23,16 +23,16 @@
 #include <linux/debugfs.h>
 #include <linux/scatterlist.h>
 #include <linux/crypto.h>
-#include "linux/qcom_crypto_device.h"
 #include "linux/qcedev.h"
 #include <linux/interconnect.h>
 #include <linux/delay.h>
+#include "linux/compat_qcedev.h"
 
 #include <crypto/hash.h>
 #include "qcedevi.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
-#include "compat_qcedev.h"
+#include "qcom_crypto_device.h"
 
 #include <linux/compat.h>
 

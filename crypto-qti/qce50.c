@@ -3,6 +3,7 @@
  * QTI Crypto Engine driver.
  *
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "QCE50: %s: " fmt, __func__
@@ -21,12 +22,12 @@
 #include <linux/delay.h>
 #include <linux/crypto.h>
 #include <linux/bitops.h>
-#include "linux/qcrypto.h"
 #include <crypto/hash.h>
 #include <crypto/sha1.h>
 #include <soc/qcom/socinfo.h>
 #include <linux/iommu.h>
 
+#include "qcrypto.h"
 #include "qce.h"
 #include "qce50.h"
 #include "qcryptohw_50.h"
