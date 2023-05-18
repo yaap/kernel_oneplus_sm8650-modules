@@ -900,6 +900,11 @@ int cvp_read_platform_resources_from_dt(
 	dprintk(CVP_CORE, "%s: res->irq:%d \n",
 		__func__, res->irq);
 
+	//Parsing for WD interrupt
+	res->irq_wd = platform_get_irq(pdev, 1);
+
+	dprintk(CVP_CORE, "%s: res->irq_wd:%d \n",
+		__func__, res->irq_wd);
 	rc = msm_cvp_load_subcache_info(res);
 	if (rc)
 		dprintk(CVP_WARN, "Failed to load subcache info: %d\n", rc);
@@ -1033,13 +1038,13 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 		return -EINVAL;
 	}
 
+	mutex_lock(&core->lock);
 	core->smmu_fault_count++;
 	if (!core->last_fault_addr)
 		core->last_fault_addr = iova;
 	dprintk(CVP_ERR, "%s - faulting address: %lx, %d\n",
 		__func__, iova, core->smmu_fault_count);
 
-	mutex_lock(&core->lock);
 	log = (core->log.snapshot_index > 0)? false : true;
 	list_for_each_entry(inst, &core->instances, list) {
 		cvp_print_inst(CVP_ERR, inst);

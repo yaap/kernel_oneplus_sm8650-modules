@@ -35,6 +35,7 @@
 
 // ysi - added for debug
 #include <linux/clk/qcom.h>
+#include "msm_cvp_common.h"
 
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
 #define QDSS_IOVA_START 0x80001000
@@ -47,7 +48,6 @@ struct cvp_tzbsp_memprot {
 	u32 cp_nonpixel_size;
 };
 
-#define TZBSP_PIL_SET_STATE 0xA
 #define TZBSP_CVP_PAS_ID    26
 
 /* Poll interval in uS */
@@ -55,8 +55,8 @@ struct cvp_tzbsp_memprot {
 
 enum tzbsp_subsys_state {
 	TZ_SUBSYS_STATE_SUSPEND = 0,
-	TZ_SUBSYS_STATE_RESUME = 1,
-	TZ_SUBSYS_STATE_RESTORE_THRESHOLD = 2,
+        TZ_SUBSYS_STATE_RESUME = 1,
+        TZ_SUBSYS_STATE_RESTORE_THRESHOLD = 2,
 };
 
 const struct msm_cvp_gov_data CVP_DEFAULT_BUS_VOTE = {
@@ -83,6 +83,7 @@ static bool __is_session_valid(struct iris_hfi_device *device,
 static int __iface_cmdq_write(struct iris_hfi_device *device,
 					void *pkt);
 static int __load_fw(struct iris_hfi_device *device);
+static int __power_on_init(struct iris_hfi_device *device);
 static void __unload_fw(struct iris_hfi_device *device);
 static int __tzbsp_set_cvp_state(enum tzbsp_subsys_state state);
 static int __enable_subcaches(struct iris_hfi_device *device);
@@ -432,12 +433,17 @@ static int __write_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 	}
 
 	cmd_pkt = (struct cvp_hfi_cmd_session_hdr *)packet;
-	dprintk(CVP_CMD, "%s: "
-		"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
-		__func__, cmd_pkt->packet_type,
-		cmd_pkt->session_id,
-		cmd_pkt->client_data.transaction_id,
-		cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
+
+	if (cmd_pkt->size >= sizeof(struct cvp_hfi_cmd_session_hdr)) 
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+			__func__, cmd_pkt->packet_type,
+			cmd_pkt->session_id,
+			cmd_pkt->client_data.transaction_id,
+			cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
+	else 
+		dprintk(CVP_CMD, "%s: "
+			"pkt_type %08x", __func__, cmd_pkt->packet_type);
 
 	if (msm_cvp_debug & CVP_PKT) {
 		dprintk(CVP_PKT, "%s: %pK\n", __func__, qinfo);
@@ -1069,6 +1075,70 @@ static inline void check_tensilica_in_reset(struct iris_hfi_device *device)
 		X2RPMh, wait_mode, fal10_veto);
 }
 
+static const char boot_states[0x40][32] = {
+	"NOT INIT",
+	"RST_START",
+	"INIT_MEMCTL",
+	"INTENABLE_RST",
+	"LITBASE_RST",
+	"PREFETCH_EN",
+	"MPU_INIT",
+	"CTRL_INIT_READ",
+	"MEMCTL_L1_FIX",
+	"RESTORE_EXTRA_NW",
+	"CORE_RESTORE",
+	"COLD_BOOT",
+	"DISABLE_CACHE",
+	"BEFORE_MPU_C",
+	"RET_MPU_C",
+	"IN_MPU_C",
+	"IN_MPU_DEFAULT",
+	"IN_MPU_SYNX",
+	"UCR_SIZE_FAIL",
+	"UCR_ADDR_FAIL",
+	"UCR1_SIZE_FAIL",
+	"UCR1_ADDR_FAIL",
+	"UCR_OVERLAPPED_UCR1",
+	"UCR1_OVERLAPPED_UCR",
+	"UCR_EQ_UCR1",
+	"MPU_CHECK_DONE",
+	"BEFORE_INT_LOCK",
+	"AFTER_INT_LOCK",
+	"BEFORE_INT_UNLOCK",
+	"AFTER_INT_UNLOCK",
+	"CALL_START",
+	"MAIN_ENTRY",
+	"VENUS_INIT_ENTRY",
+	"VSYS_INIT_ENTRY",
+	"BEFORE_XOS_CLK",
+	"AFTER_XOS_CLK",
+	"LOG_MUTEX_INIT",
+	"CREATE_FRAMEWORK_ENTRY",
+	"DTG_INIT",
+	"IDLE_TASK_INIT",
+	"VENUS_CORE_INIT",
+	"HW_CORES_INIT",
+	"RST_THREAD_INIT",
+	"HOST_THREAD_INIT",
+	"ALL_THREADS_INIT",
+	"TASK_MEMPOOL",
+	"SESSION_MUTEX",
+	"SIGNALS_INIT",
+	"RST_SIGNAL_INIT",
+	"INTR_EN_HOST",
+	"INTR_REG_HOST",
+	"INTR_EN_DSP",
+	"INTR_REG_DSP",
+	"X2HSOFTINTEN",
+	"H2XSOFTINTEN",
+	"CPU2DSPINTEN",
+	"DSP2CPUINT_SWRESET",
+	"THREADS_START",
+	"RST_THREAD_START",
+	"HST_THREAD_START",
+	"HST_THREAD_ENTRY"
+};
+
 static inline int __boot_firmware(struct iris_hfi_device *device)
 {
 	int rc = 0, loop = 10;
@@ -1102,8 +1172,9 @@ static inline int __boot_firmware(struct iris_hfi_device *device)
 
 skip_core_power_check:
 	ctrl_init_val = BIT(0);
+	/* RUMI: CVP_CTRL_INIT in MPTest has bit 0 and 3 set */
 	__write_register(device, CVP_CTRL_INIT, ctrl_init_val);
-	while (!ctrl_status && count < max_tries) {
+	while (!(ctrl_status & CVP_CTRL_INIT_STATUS__M) && count < max_tries) {
 		ctrl_status = __read_register(device, CVP_CTRL_STATUS);
 		if ((ctrl_status & CVP_CTRL_ERROR_STATUS__M) == 0x4) {
 			dprintk(CVP_ERR, "invalid setting for UC_REGION\n");
@@ -1119,8 +1190,9 @@ skip_core_power_check:
 	if (!(ctrl_status & CVP_CTRL_INIT_STATUS__M)) {
 		ctrl_init_val = __read_register(device, CVP_CTRL_INIT);
 		dprintk(CVP_ERR,
-			"Failed to boot FW status: %x %x\n",
-			ctrl_status, ctrl_init_val);
+			"Failed to boot FW status: %x %x %s\n",
+			ctrl_status, ctrl_init_val,
+			boot_states[(ctrl_status >> 9) & 0x3f]);
 		check_tensilica_in_reset(device);
 		rc = -ENODEV;
 	}
@@ -2114,19 +2186,17 @@ static int iris_hfi_core_init(void *device)
 
 	__hwfence_regs_map(dev);
 
-	rc = __load_fw(dev);
+	rc = __power_on_init(dev);
 	if (rc) {
-		dprintk(CVP_ERR, "Failed to load Iris FW\n");
+		dprintk(CVP_ERR, "Failed to power on init EVA\n");
 		goto err_load_fw;
 	}
 
-#ifdef CVP_CONFIG_SYNX_V2
 	rc = cvp_synx_recover();
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to recover synx\n");
 		goto err_core_init;
 	}
-#endif
 
 	/* mmrm registration */
 	if (msm_cvp_mmrm_enabled) {
@@ -2163,6 +2233,12 @@ static int iris_hfi_core_init(void *device)
 	if (!rc) {
 		dprintk(CVP_CORE, "IPCC iova 0x%x\n", ipcc_iova);
 		__write_register(dev, CVP_MMAP_ADDR, ipcc_iova);
+	}
+
+	rc = __load_fw(dev);
+	if (rc) {
+		dprintk(CVP_ERR, "Failed to load Iris FW\n");
+		goto err_core_init;
 	}
 
 	rc = __boot_firmware(dev);
@@ -3455,6 +3531,43 @@ irqreturn_t cvp_hfi_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static void iris_hfi_wd_work_handler(struct work_struct *work)
+{
+	struct msm_cvp_core *core;
+	struct iris_hfi_device *device;
+	struct msm_cvp_cb_cmd_done response  = {0};
+	enum hal_command_response cmd = HAL_SYS_WATCHDOG_TIMEOUT;
+	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	if (core)
+		device = core->device->hfi_device_data;
+	else
+		return;
+	if (msm_cvp_hw_wd_recovery) {
+		dprintk(CVP_ERR, "Cleaning up as HW WD recovery is enable %d\n",
+				msm_cvp_hw_wd_recovery);
+		response.device_id = device->device_id;
+		handle_sys_error(cmd, (void *) &response);
+		enable_irq(device->cvp_hal_data->irq_wd);
+	}
+	else {
+		dprintk(CVP_ERR, "Crashing the device as HW WD recovery is disable %d\n",
+				msm_cvp_hw_wd_recovery);
+		BUG_ON(1);
+	}
+}
+
+static DECLARE_WORK(iris_hfi_wd_work, iris_hfi_wd_work_handler);
+
+irqreturn_t iris_hfi_isr_wd(int irq, void *dev)
+{
+	struct iris_hfi_device *device = dev;
+	dprintk(CVP_ERR, "Got HW WDOG IRQ! \n");
+	disable_irq_nosync(irq);
+	queue_work(device->cvp_workq, &iris_hfi_wd_work);
+	return IRQ_HANDLED;
+
+}
+
 static int __init_reset_clk(struct msm_cvp_platform_resources *res,
 			int reset_index)
 {
@@ -4168,6 +4281,13 @@ static void interrupt_init_iris2(struct iris_hfi_device *device)
 	__write_register(device, CVP_WRAPPER_INTR_MASK, mask_val);
 	dprintk(CVP_REG, "Init irq: reg: %x, mask value %x\n",
 		CVP_WRAPPER_INTR_MASK, mask_val);
+
+	mask_val = 0;
+	mask_val = __read_register(device, CVP_SS_IRQ_MASK);
+	mask_val &= ~(CVP_SS_INTR_BMASK);
+	__write_register(device, CVP_SS_IRQ_MASK, mask_val);
+	dprintk(CVP_REG, "Init irq_wd: reg: %x, mask value %x\n",
+			CVP_SS_IRQ_MASK, mask_val);
 }
 
 static void setup_dsp_uc_memmap_vpu5(struct iris_hfi_device *device)
@@ -4775,14 +4895,16 @@ static inline int __resume(struct iris_hfi_device *device)
 		dprintk(CVP_ERR, "CVP power on failed gdsc %x cbcr %x\n",
 			reg_gdsc, reg_cbcr);
 
+	__setup_ucregion_memory_map(device);
+
+	/* RUMI: set CVP_CTRL_INIT register to disable synx in FW */
+
 	/* Reboot the firmware */
 	rc = __tzbsp_set_cvp_state(TZ_SUBSYS_STATE_RESUME);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to resume cvp core %d\n", rc);
 		goto err_set_cvp_state;
 	}
-
-	__setup_ucregion_memory_map(device);
 
 	/* Wait for boot completion */
 	rc = __boot_firmware(device);
@@ -4824,7 +4946,7 @@ err_iris_power_on:
 	return rc;
 }
 
-static int __load_fw(struct iris_hfi_device *device)
+static int __power_on_init(struct iris_hfi_device *device)
 {
 	int rc = 0;
 
@@ -4832,36 +4954,41 @@ static int __load_fw(struct iris_hfi_device *device)
 	rc = __init_resources(device, device->res);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to init resources: %d\n", rc);
-		goto fail_init_res;
+		return rc;
 	}
 
 	rc = __initialize_packetization(device);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to initialize packetization\n");
-		goto fail_init_pkt;
+		goto fail_iris_init;
 	}
 
 	rc = __iris_power_on(device);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to power on iris in in load_fw\n");
-		goto fail_iris_power_on;
+		goto fail_iris_init;
 	}
 
+	return rc;
+fail_iris_init:
+	__deinit_resources(device);
+	return rc;
+}
+
+static int __load_fw(struct iris_hfi_device *device)
+{
+	int rc = 0;
+
 	if ((!device->res->use_non_secure_pil && !device->res->firmware_base)
-			|| device->res->use_non_secure_pil) {
+		|| device->res->use_non_secure_pil) {
 		rc = load_cvp_fw_impl(device);
 		if (rc)
 			goto fail_load_fw;
 	}
-
 	return rc;
 
 fail_load_fw:
 	call_iris_op(device, power_off, device);
-fail_iris_power_on:
-fail_init_pkt:
-	__deinit_resources(device);
-fail_init_res:
 	return rc;
 }
 

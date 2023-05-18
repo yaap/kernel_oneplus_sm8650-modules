@@ -418,7 +418,7 @@ const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX] = {
 			.is_config_pkt = false,
 			.resp = HAL_NO_RESP,
 			.name = "WARP_FRAME",
-			.force_kernel_fence = false,
+			.force_kernel_fence = true,
 		},
 	[HFI_CMD_SESSION_CVP_DMM_CONFIG - HFI_CMD_SESSION_CVP_START] =
 		{

@@ -435,6 +435,8 @@ static void cvp_dsp_rpmsg_remove(struct rpmsg_device *rpdev)
 	mutex_unlock(&me->tx_lock);
 	mutex_unlock(&me->rx_lock);
 
+	/* Wait HW finish current frame processing */
+	usleep_range(20000, 50000);
 	cvp_remove_dsp_sessions();
 
 	dprintk(CVP_WARN, "%s: CDSP SSR handled nr_maps %d\n", __func__,
@@ -600,7 +602,7 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
-		if (!s)
+		if (!s || !(s->next))
 			return;
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
@@ -1428,8 +1430,10 @@ exit:
 	mutex_unlock(&device->lock);
 }
 /* 32 or 64 bit CPU Side Ptr <-> 2 32 bit DSP Pointers. Dirty Fix. */
-static void *ptr_dsp2cpu(uint32_t session_cpu_high, uint32_t session_cpu_low)
+static void *get_inst_from_dsp(uint32_t session_cpu_high, uint32_t session_cpu_low)
 {
+	struct msm_cvp_core *core;
+	struct msm_cvp_inst *sess_inst;
 	void *inst;
 
 	if ((session_cpu_high == 0) && (sizeof(void *) == BITPTRSIZE32)) {
@@ -1442,7 +1446,26 @@ static void *ptr_dsp2cpu(uint32_t session_cpu_high, uint32_t session_cpu_low)
 			"%s Invalid _cpu_high = 0x%x _cpu_low = 0x%x\n",
 				__func__, session_cpu_high, session_cpu_low);
 		inst = NULL;
+		return inst;
 	}
+
+	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	if (core) {
+		mutex_lock(&core->lock);
+		list_for_each_entry(sess_inst, &core->instances, list) {
+			if (sess_inst->session_type == MSM_CVP_DSP) {
+				if (sess_inst == (struct msm_cvp_inst *)inst) {
+					mutex_unlock(&core->lock);
+					return inst;
+				}
+			}
+		}
+		mutex_unlock(&core->lock);
+		inst = NULL;
+	} else {
+		return NULL;
+	}
+
 	return inst;
 }
 
@@ -1600,7 +1623,7 @@ static void __dsp_cvp_sess_delete(struct cvp_dsp_cmd_msg *cmd)
 	}
 
 	cvp_put_fastrpc_node(frpc_node);
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 	if (!inst || !is_cvp_inst_valid(inst)) {
@@ -1656,7 +1679,7 @@ static void __dsp_cvp_power_req(struct cvp_dsp_cmd_msg *cmd)
 		dsp2cpu_cmd->session_cpu_low,
 		dsp2cpu_cmd->session_cpu_high);
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 
@@ -1723,7 +1746,7 @@ static void __dsp_cvp_buf_register(struct cvp_dsp_cmd_msg *cmd)
 		return;
 	}
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 
@@ -1781,7 +1804,7 @@ static void __dsp_cvp_buf_deregister(struct cvp_dsp_cmd_msg *cmd)
 		return;
 	}
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 
@@ -1838,7 +1861,7 @@ static void __dsp_cvp_mem_alloc(struct cvp_dsp_cmd_msg *cmd)
 	}
 	frpc_device = frpc_node->cvp_fastrpc_device;
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 
@@ -1914,7 +1937,7 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 		dsp2cpu_cmd->session_cpu_high,
 		dsp2cpu_cmd->pid);
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 	if (!inst) {
@@ -1997,7 +2020,7 @@ static void __dsp_cvp_sess_start(struct cvp_dsp_cmd_msg *cmd)
 		dsp2cpu_cmd->session_cpu_high,
 		dsp2cpu_cmd->pid);
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 
@@ -2026,7 +2049,7 @@ static void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
 		dsp2cpu_cmd->session_cpu_high,
 		dsp2cpu_cmd->pid);
 
-	inst = (struct msm_cvp_inst *)ptr_dsp2cpu(
+	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
 

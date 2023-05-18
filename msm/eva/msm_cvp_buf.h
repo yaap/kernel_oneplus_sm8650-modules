@@ -146,6 +146,21 @@ struct cvp_frame_bufs {
 	struct msm_cvp_smem smem[MAX_FRAME_BUFFER_NUMS];
 };
 
+struct wncc_oob_buf {
+	u32 bitmap_idx;
+	struct eva_kmd_oob_wncc *buf;
+};
+
+#define NUM_WNCC_BUFS 8
+struct cvp_oob_pool {
+	struct mutex lock;
+	bool allocated;
+	u32 used_bitmap;
+	struct eva_kmd_oob_wncc *bufs[NUM_WNCC_BUFS];
+};
+
+extern struct cvp_oob_pool wncc_buf_pool;
+
 void print_cvp_buffer(u32 tag, const char *str,
 		struct msm_cvp_inst *inst,
 		struct cvp_internal_buf *cbuf);
