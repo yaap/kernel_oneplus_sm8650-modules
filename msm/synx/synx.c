@@ -550,11 +550,13 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 		idx = (IS_ERR_OR_NULL(synx_obj)) ?
 				synx_util_global_idx(h_synx) :
 				synx_obj->global_idx;
-		rc = synx_global_update_status(idx, status);
-		if (rc != SYNX_SUCCESS)
-			dprintk(SYNX_ERR,
-				"global status update of %u failed=%d\n",
-				h_synx, rc);
+		if (synx_global_get_status(idx) == SYNX_STATE_ACTIVE) {
+			rc = synx_global_update_status(idx, status);
+			if (rc != SYNX_SUCCESS)
+				dprintk(SYNX_ERR,
+					"global status update of %u failed=%d\n",
+					h_synx, rc);
+		}
 		/*
 		 * We are decrementing the reference here assuming this code will be
 		 * executed after handle is released. But in case if clients signal
@@ -562,7 +564,8 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 		 * one reference thus deleting the global idx. As of now clients cannot
 		 * signal dma fence.
 		 */
-		synx_global_put_ref(idx);
+		if (IS_ERR_OR_NULL(synx_obj))
+			synx_global_put_ref(idx);
 	}
 
 	/*
@@ -595,7 +598,15 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 			rc = synx_native_signal_fence(synx_obj, status);
 	}
 
-	if (rc == SYNX_SUCCESS && !synx_util_is_merged_object(synx_obj))
+	if (rc != SYNX_SUCCESS) {
+		mutex_unlock(&synx_obj->obj_lock);
+		dprintk(SYNX_ERR,
+			"failed to signal fence %u with err=%d\n",
+			h_synx, rc);
+		goto fail;
+	}
+
+	if (rc == SYNX_SUCCESS)
 		rc = synx_native_signal_core(synx_obj, status,
 			(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
 			true : false, signal_cb->ext_sync_id);
@@ -1039,6 +1050,10 @@ int synx_merge(struct synx_session *session,
 		rc = PTR_ERR(map_entry);
 		goto clean_up;
 	}
+
+	rc = synx_util_add_callback(synx_obj, *params->h_merged_obj);
+	if (rc != SYNX_SUCCESS)
+		goto clear;
 
 	rc = synx_util_init_handle(client, synx_obj,
 			params->h_merged_obj, map_entry);
