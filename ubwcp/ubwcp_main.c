@@ -68,6 +68,13 @@ MODULE_IMPORT_NS(DMA_BUF);
 
 #define UBWCP_SYNC_GRANULE 0x4000000L /* 64 MB */
 
+/* Max values for attributes */
+#define MAX_ATTR_WIDTH  (10*1024)
+#define MAX_ATTR_HEIGHT (10*1024)
+#define MAX_ATTR_STRIDE (64*1024)
+#define MAX_ATTR_PLANAR_PAD 4096
+#define MAX_ATTR_SCANLN_HT_DELTA (32*1024)
+
 enum ula_remove_mem_status {
 	ULA_REMOVE_MEM_SUCCESS = 0,
 	ULA_REMOVE_MEM_ABORTED = 1
@@ -78,8 +85,7 @@ struct ubwcp_desc {
 	void *ptr;
 };
 
-/* TBD: confirm size of width/height */
-struct ubwcp_dimension {
+struct tile_dimension {
 	u16 width;
 	u16 height;
 };
@@ -87,8 +93,8 @@ struct ubwcp_dimension {
 struct ubwcp_plane_info {
 	u16 pixel_bytes;
 	u16 per_pixel;
-	struct ubwcp_dimension tilesize_p;      /* pixels */
-	struct ubwcp_dimension macrotilesize_p; /* pixels */
+	struct tile_dimension tilesize_p;      /* pixels */
+	struct tile_dimension macrotilesize_p; /* pixels */
 };
 
 struct ubwcp_image_format_info {
@@ -445,7 +451,6 @@ static void ula_unmap(struct ubwcp_driver *ubwcp)
 
 static void ula_sync_for_cpu(struct device *dev, u64 addr, unsigned long size)
 {
-	DBG("Partial sync offset:0x%lx size:0x%lx", addr, size);
 	trace_ubwcp_dma_sync_single_for_cpu_start(size);
 	dma_sync_single_for_cpu(dev, addr, size, DMA_BIDIRECTIONAL);
 	trace_ubwcp_dma_sync_single_for_cpu_end(size);
@@ -754,7 +759,7 @@ static bool stride_is_valid(struct ubwcp_driver *ubwcp,
 
 	ubwcp_pixel_to_bytes(ubwcp, format, width, 0, &width_b, &height_b);
 
-	if ((lin_stride < width_b) || (lin_stride > 64*1024)) {
+	if ((lin_stride < width_b) || (lin_stride > MAX_ATTR_STRIDE)) {
 		ERR("Invalid stride: %u width: %u width_b: %u", lin_stride, width, width_b);
 		return false;
 	}
@@ -827,14 +832,12 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 		goto err;
 	}
 
-	//TBD: some upper limit for width?
-	if (attr->width > 10*1024) {
+	if (attr->width > MAX_ATTR_WIDTH) {
 		ERR("width is invalid (above upper limit): %d", attr->width);
 		goto err;
 	}
 
-	//TBD: some upper limit for height?
-	if (attr->height > 10*1024) {
+	if (attr->height > MAX_ATTR_HEIGHT) {
 		ERR("height is invalid (above upper limit): %d", attr->height);
 		goto err;
 	}
@@ -846,15 +849,14 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 		}
 
 	if ((attr->scanlines < attr->height) ||
-	    (attr->scanlines > attr->height + 32*1024)) {
+	    (attr->scanlines > attr->height + MAX_ATTR_SCANLN_HT_DELTA)) {
 		ERR("scanlines is not valid - height: %d scanlines: %d",
 			attr->height, attr->scanlines);
 		goto err;
 	}
 
-	if (attr->planar_padding > 4096) {
-		ERR("planar_padding is not valid. (<= 4096): %d",
-			attr->planar_padding);
+	if (attr->planar_padding > MAX_ATTR_PLANAR_PAD) {
+		ERR("planar_padding is not valid: %d", attr->planar_padding);
 		goto err;
 	}
 
@@ -1316,7 +1318,6 @@ static phys_addr_t ubwcp_ula_alloc(struct ubwcp_driver *ubwcp, size_t size)
 
 	mutex_lock(&ubwcp->ula_lock);
 	pa = gen_pool_alloc(ubwcp->ula_pool, size);
-	DBG("addr: %p, size: %zx", pa, size);
 	mutex_unlock(&ubwcp->ula_lock);
 	return pa;
 }
@@ -3059,7 +3060,7 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	ubwcp_debugfs_init(ubwcp);
 
 	/* create ULA pool */
-	ubwcp->ula_pool = gen_pool_create(12, -1);
+	ubwcp->ula_pool = gen_pool_create(PAGE_SHIFT, -1);
 	if (!ubwcp->ula_pool) {
 		ERR("failed gen_pool_create()");
 		ret = -1;

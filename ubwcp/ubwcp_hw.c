@@ -335,9 +335,6 @@ void ubwcp_hw_one_time_init(void __iomem *base)
 {
 	u32 reg;
 
-	/* hack: set dataless hazard override bit */
-	UBWCP_REG_WRITE(base, OVERRIDE, 0x2000);
-
 	/* Spare reg config: set bit-9: SCC & bit-1: padding */
 	reg = UBWCP_REG_READ(base, SPARE);
 	reg |= BIT(9) | BIT(1);
