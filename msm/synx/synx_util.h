@@ -60,6 +60,7 @@ static inline bool synx_util_is_external_object(
 	struct synx_coredata *synx_obj)
 {
 	if (synx_obj &&
+		!(synx_obj->type & SYNX_CREATE_MERGED_FENCE) &&
 		(synx_obj->type & SYNX_CREATE_DMA_FENCE))
 		return true;
 
