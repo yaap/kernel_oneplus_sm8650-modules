@@ -466,7 +466,7 @@ error:
 	return rc;
 }
 
-int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
+int msm_vidc_ctrl_handler_deinit(struct msm_vidc_inst *inst)
 {
 	if (!inst) {
 		d_vpr_e("%s: invalid parameters\n", __func__);
@@ -475,13 +475,11 @@ int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
 	i_vpr_h(inst, "%s(): num ctrls %d\n", __func__, inst->num_ctrls);
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 	memset(&inst->ctrl_handler, 0, sizeof(struct v4l2_ctrl_handler));
-	msm_vidc_vmem_free((void **)&inst->ctrls);
-	inst->ctrls = NULL;
 
 	return 0;
 }
 
-int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
+int msm_vidc_ctrl_handler_init(struct msm_vidc_inst *inst, bool init)
 {
 	int rc = 0;
 	struct msm_vidc_inst_cap *cap;
@@ -489,6 +487,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 	int idx = 0;
 	struct v4l2_ctrl_config ctrl_cfg = {0};
 	int num_ctrls = 0, ctrl_idx = 0;
+	u64 codecs_count, step_or_mask;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -511,16 +510,18 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			__func__);
 		return -EINVAL;
 	}
-	rc = msm_vidc_vmem_alloc(num_ctrls * sizeof(struct v4l2_ctrl *),
-			(void **)&inst->ctrls, __func__);
-	if (rc)
-		return rc;
 
-	rc = v4l2_ctrl_handler_init(&inst->ctrl_handler, num_ctrls);
-	if (rc) {
-		i_vpr_e(inst, "control handler init failed, %d\n",
-				inst->ctrl_handler.error);
-		goto error;
+	if (init) {
+		codecs_count = is_encode_session(inst) ?
+			core->enc_codecs_count :
+			core->dec_codecs_count;
+		rc = v4l2_ctrl_handler_init(&inst->ctrl_handler,
+			INST_CAP_MAX * codecs_count);
+		if (rc) {
+			i_vpr_e(inst, "control handler init failed, %d\n",
+					inst->ctrl_handler.error);
+			goto error;
+		}
 	}
 
 	for (idx = 0; idx < INST_CAP_MAX; idx++) {
@@ -549,6 +550,32 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			cap[idx].hfi_id);
 
 		memset(&ctrl_cfg, 0, sizeof(struct v4l2_ctrl_config));
+
+		/*
+		 * few controls might have been already initialized in instance initialization,
+		 * so modify the range values for them instead of initializing them again
+		 */
+		if (!init) {
+			struct msm_vidc_ctrl_data ctrl_priv_data;
+
+			ctrl = v4l2_ctrl_find(&inst->ctrl_handler, cap[idx].v4l2_id);
+			if (ctrl) {
+				step_or_mask = (cap[idx].flags & CAP_FLAG_MENU) ?
+					~(cap[idx].step_or_mask) :
+					cap[idx].step_or_mask;
+				memset(&ctrl_priv_data, 0, sizeof(struct msm_vidc_ctrl_data));
+				ctrl_priv_data.skip_s_ctrl = true;
+				ctrl->priv = &ctrl_priv_data;
+				v4l2_ctrl_modify_range(ctrl,
+					cap[idx].min,
+					cap[idx].max,
+					step_or_mask,
+					cap[idx].value);
+				/* reset private data to null to ensure s_ctrl not skipped */
+				ctrl->priv = NULL;
+				continue;
+			}
+		}
 
 		if (is_priv_ctrl(cap[idx].v4l2_id)) {
 			/* add private control */
@@ -631,7 +658,6 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 			ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 		ctrl->flags |= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
-		inst->ctrls[ctrl_idx] = ctrl;
 		ctrl_idx++;
 	}
 	inst->num_ctrls = num_ctrls;
@@ -639,7 +665,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 
 	return 0;
 error:
-	msm_vidc_ctrl_deinit(inst);
+	msm_vidc_ctrl_handler_deinit(inst);
 
 	return rc;
 }
@@ -894,11 +920,23 @@ int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst *inst;
+	struct msm_vidc_ctrl_data *priv_ctrl_data;
 	int rc = 0;
 
 	if (!ctrl) {
 		d_vpr_e("%s: invalid ctrl parameter\n", __func__);
 		return -EINVAL;
+	}
+
+	/*
+	 * v4l2_ctrl_modify_range may internally call s_ctrl
+	 * which will again try to acquire lock leading to deadlock,
+	 * Add check to avoid such scenario.
+	 */
+	priv_ctrl_data = ctrl->priv ? ctrl->priv : NULL;
+	if (priv_ctrl_data && priv_ctrl_data->skip_s_ctrl) {
+		d_vpr_l("%s: skip s_ctrl (%s)\n", __func__, ctrl->name);
+		return 0;
 	}
 
 	inst = container_of(ctrl->handler, struct msm_vidc_inst, ctrl_handler);

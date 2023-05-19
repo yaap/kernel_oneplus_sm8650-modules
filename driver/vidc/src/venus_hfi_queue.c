@@ -31,6 +31,8 @@ static void __dump_packet(u8 *packet, const char *function, void *qinfo)
 {
 	u32 c = 0, session_id, packet_size = *(u32 *)packet;
 	const int row_size = 32;
+	struct msm_vidc_iface_q_info *q;
+	struct hfi_queue_header *q_hdr;
 	/*
 	 * row must contain enough for 0xdeadbaad * 8 to be converted into
 	 * "de ad ba ab " * 8 + '\0'
@@ -38,7 +40,10 @@ static void __dump_packet(u8 *packet, const char *function, void *qinfo)
 	char row[3 * 32];
 	session_id = *((u32 *)packet + 1);
 
-	d_vpr_t("%08x: %s: %pK\n", session_id, function, qinfo);
+	q = (struct msm_vidc_iface_q_info *)qinfo;
+	q_hdr = (struct hfi_queue_header *)q->q_hdr;
+	d_vpr_t("%08x: %s: %pK: read_idx = %u, write_idx = %u\n",
+		session_id, function, qinfo, q_hdr->qhdr_read_idx, q_hdr->qhdr_write_idx);
 
 	for (c = 0; c * row_size < packet_size; ++c) {
 		int bytes_to_read = ((c + 1) * row_size > packet_size) ?

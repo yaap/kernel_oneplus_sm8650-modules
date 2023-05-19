@@ -1206,7 +1206,7 @@ static int print_residency_stats(struct msm_vidc_core *core, struct clock_info *
 	list_for_each_entry(residency, &cl->residency_list, list) {
 		d_vpr_hs("%s: %s clock rate [%d] total %lluus residency %u%%\n",
 			__func__, cl->name, residency->rate, residency->total_time_us,
-			(residency->total_time_us * 100 + total_time_us - 1) / total_time_us);
+			(residency->total_time_us * 100 + total_time_us / 2) / total_time_us);
 	}
 
 	return rc;
@@ -1284,7 +1284,7 @@ static int update_residency_stats(
 	prev_residency = get_residency_stats(cl, cl->prev);
 	if (prev_residency) {
 		if (prev_residency->start_time_us)
-			prev_residency->total_time_us = cur_time_us - prev_residency->start_time_us;
+			prev_residency->total_time_us += cur_time_us - prev_residency->start_time_us;
 
 		/* reset start time us */
 		prev_residency->start_time_us = 0;

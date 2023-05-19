@@ -32,6 +32,10 @@ static const u32 msm_vdec_internal_buffer_type[] = {
 	MSM_VIDC_BUF_PARTIAL_DATA,
 };
 
+static const u32 msm_vdec_output_internal_buffer_type[] = {
+	MSM_VIDC_BUF_DPB,
+};
+
 struct msm_vdec_prop_type_handle {
 	u32 type;
 	int (*handle)(struct msm_vidc_inst *inst, enum msm_vidc_port_type port);
@@ -40,6 +44,10 @@ struct msm_vdec_prop_type_handle {
 static int msm_vdec_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 {
 	int rc = 0;
+	bool session_init = false;
+
+	if (!inst->codec)
+		session_init = true;
 
 	if (inst->codec && inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat == v4l2_codec)
 		return 0;
@@ -64,11 +72,7 @@ static int msm_vdec_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 	if (rc)
 		goto exit;
 
-	rc = msm_vidc_ctrl_deinit(inst);
-	if (rc)
-		goto exit;
-
-	rc = msm_vidc_ctrl_init(inst);
+	rc = msm_vidc_ctrl_handler_init(inst, session_init);
 	if(rc)
 		goto exit;
 
@@ -732,6 +736,49 @@ static int msm_vdec_get_output_internal_buffers(struct msm_vidc_inst *inst)
 	return rc;
 }
 
+static int msm_vdec_destroy_internal_buffers(struct msm_vidc_inst *inst,
+		enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	struct msm_vidc_buffers *buffers;
+	struct msm_vidc_buffer *buf, *dummy;
+	const u32 *internal_buf_type;
+	u32 i, len;
+
+	if (port == INPUT_PORT) {
+		internal_buf_type = msm_vdec_internal_buffer_type;
+		len = ARRAY_SIZE(msm_vdec_internal_buffer_type);
+	} else {
+		internal_buf_type = msm_vdec_output_internal_buffer_type;
+		len = ARRAY_SIZE(msm_vdec_output_internal_buffer_type);
+	}
+
+	for (i = 0; i < len; i++) {
+		buffers = msm_vidc_get_buffers(inst, internal_buf_type[i], __func__);
+		if (!buffers)
+			return -EINVAL;
+
+		if (buffers->reuse) {
+			i_vpr_l(inst, "%s: reuse enabled for %s\n", __func__,
+				buf_name(internal_buf_type[i]));
+			continue;
+		}
+
+		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+			i_vpr_h(inst,
+				"%s: destroying internal buffer: type %d idx %d fd %d addr %#llx size %d\n",
+				__func__, buf->type, buf->index, buf->fd,
+				buf->device_addr, buf->buffer_size);
+
+			rc = msm_vidc_destroy_internal_buffer(inst, buf);
+			if (rc)
+				return rc;
+		}
+	}
+
+	return 0;
+}
+
 int msm_vdec_create_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -915,8 +962,24 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 	payload[0] = HFI_MODE_PROPERTY;
 
 	if (port == INPUT_PORT) {
-		subscribe_prop_size = core->platform->data.dec_input_prop_size;
-		subcribe_prop = core->platform->data.dec_input_prop;
+		if (inst->codec == MSM_VIDC_H264) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_avc;
+			subcribe_prop = core->platform->data.dec_input_prop_avc;
+		} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_hevc;
+			subcribe_prop = core->platform->data.dec_input_prop_hevc;
+		} else if (inst->codec == MSM_VIDC_VP9) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_vp9;
+			subcribe_prop = core->platform->data.dec_input_prop_vp9;
+		} else if (inst->codec == MSM_VIDC_AV1) {
+			subscribe_prop_size = core->platform->data.dec_input_prop_size_av1;
+			subcribe_prop = core->platform->data.dec_input_prop_av1;
+		} else {
+			i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
+			subcribe_prop = NULL;
+			return -EINVAL;
+		}
+
 		for (i = 0; i < subscribe_prop_size; i++) {
 			allow = msm_vidc_allow_property(inst,
 				subcribe_prop[i]);
@@ -926,16 +989,28 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 			}
 
 			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
-				inst->subcr_params[port].dpb_list_enabled = true;
+				inst->input_dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on input port", __func__);
 			}
-
-			msm_vidc_update_property_cap(inst,
-				subcribe_prop[i], allow);
 		}
 	} else if (port == OUTPUT_PORT) {
-		subscribe_prop_size = core->platform->data.dec_output_prop_size;
-		subcribe_prop = core->platform->data.dec_output_prop;
+		if (inst->codec == MSM_VIDC_H264) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_avc;
+			subcribe_prop = core->platform->data.dec_output_prop_avc;
+		} else if (inst->codec == MSM_VIDC_HEVC || inst->codec == MSM_VIDC_HEIC) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_hevc;
+			subcribe_prop = core->platform->data.dec_output_prop_hevc;
+		} else if (inst->codec == MSM_VIDC_VP9) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_vp9;
+			subcribe_prop = core->platform->data.dec_output_prop_vp9;
+		} else if (inst->codec == MSM_VIDC_AV1) {
+			subscribe_prop_size = core->platform->data.dec_output_prop_size_av1;
+			subcribe_prop = core->platform->data.dec_output_prop_av1;
+		} else {
+			i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
+			subcribe_prop = NULL;
+			return -EINVAL;
+		}
 		for (i = 0; i < subscribe_prop_size; i++) {
 			allow = msm_vidc_allow_property(inst,
 				subcribe_prop[i]);
@@ -945,12 +1020,9 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 			}
 
 			if (subcribe_prop[i] == HFI_PROP_DPB_LIST) {
-				inst->subcr_params[port].dpb_list_enabled = true;
+				inst->output_dpb_list_enabled = true;
 				i_vpr_h(inst, "%s: DPB_LIST suscribed on output port", __func__);
 			}
-
-			msm_vidc_update_property_cap(inst,
-				subcribe_prop[i], allow);
 		}
 	} else {
 		i_vpr_e(inst, "%s: invalid port: %d\n", __func__, port);
@@ -1460,6 +1532,10 @@ int msm_vdec_streamon_input(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_vdec_destroy_internal_buffers(inst, INPUT_PORT);
+	if (rc)
+		goto error;
+
 	rc = msm_vdec_create_input_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1820,6 +1896,10 @@ int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_vdec_destroy_internal_buffers(inst, OUTPUT_PORT);
+	if (rc)
+		goto error;
+
 	rc = msm_vdec_create_output_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1902,6 +1982,34 @@ static int msm_vdec_qbuf_batch(struct msm_vidc_inst *inst,
 	return rc;
 }
 
+static int msm_vdec_release_eligible_buffers(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct msm_vidc_buffer *ro_buf;
+
+	if (!inst) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		/* release only release eligible read-only buffers */
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_RELEASE_ELIGIBLE))
+			continue;
+		/* skip releasing buffers for which release cmd was already sent */
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
+		rc = venus_hfi_release_buffer(inst, ro_buf);
+		if (rc)
+			return rc;
+		ro_buf->attr |= MSM_VIDC_ATTR_PENDING_RELEASE;
+		ro_buf->attr &= ~MSM_VIDC_ATTR_RELEASE_ELIGIBLE;
+		print_vidc_buffer(VIDC_LOW, "low ", "release buf", inst, ro_buf);
+	}
+
+	return rc;
+}
+
 static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -1919,7 +2027,7 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	 * if DPB_LIST subscribed on output port then driver need to
 	 * hold MAX_BPB_COUNT of read only buffer at least.
 	 */
-	if (!inst->subcr_params[OUTPUT_PORT].dpb_list_enabled)
+	if (!inst->output_dpb_list_enabled)
 		goto release_buffers;
 
 	/* count read_only buffers which are not pending release in read_only list */
@@ -2020,12 +2128,19 @@ int msm_vdec_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb2)
 	if (rc)
 		return rc;
 
+	/*
+	 * if DPB_LIST property is subscribed on output port, then
+	 * driver needs to hold at least MAX_BPB_COUNT of read only
+	 * buffers. So call msm_vdec_release_nonref_buffers() to handle
+	 * the same.
+	 */
 	if (vb2->type == OUTPUT_MPLANE) {
-		if (inst->capabilities[DPB_LIST].value) {
+		if (inst->input_dpb_list_enabled)
+			rc = msm_vdec_release_eligible_buffers(inst);
+		else if (inst->output_dpb_list_enabled)
 			rc = msm_vdec_release_nonref_buffers(inst);
-			if (rc)
-				return rc;
-		}
+		if (rc)
+			return rc;
 	}
 
 	return rc;
@@ -2696,8 +2811,8 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 	inst->buffers.output_meta.extra_count = 0;
 	inst->buffers.output_meta.actual_count = 0;
 	inst->buffers.output_meta.size = 0;
-	inst->subcr_params[INPUT_PORT].dpb_list_enabled = 0;
-	inst->subcr_params[OUTPUT_PORT].dpb_list_enabled = 0;
+	inst->input_dpb_list_enabled = false;
+	inst->output_dpb_list_enabled = false;
 
 	rc = msm_vdec_codec_change(inst,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat);
@@ -2717,7 +2832,7 @@ int msm_vdec_inst_deinit(struct msm_vidc_inst *inst)
 	}
 	/* cancel pending batch work */
 	cancel_batch_work(inst);
-	rc = msm_vidc_ctrl_deinit(inst);
+	rc = msm_vidc_ctrl_handler_deinit(inst);
 	if (rc)
 		return rc;
 

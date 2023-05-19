@@ -137,6 +137,7 @@ enum msm_vidc_metadata_bits {
 #define MAX_TRANSCODING_STATS_FRAME_RATE     60
 #define MAX_TRANSCODING_STATS_WIDTH        4096
 #define MAX_TRANSCODING_STATS_HEIGHT       2304
+#define HEIC_GRID_WIDTH                     512
 
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
@@ -357,7 +358,8 @@ enum msm_vidc_metadata_bits {
 	CAP(BASELAYER_PRIORITY)                   \
 	CAP(IR_TYPE)                              \
 	CAP(AU_DELIMITER)                         \
-	CAP(GRID)                                 \
+	CAP(GRID_ENABLE)                          \
+	CAP(GRID_SIZE)                            \
 	CAP(I_FRAME_MIN_QP)                       \
 	CAP(P_FRAME_MIN_QP)                       \
 	CAP(B_FRAME_MIN_QP)                       \
@@ -401,7 +403,6 @@ enum msm_vidc_metadata_bits {
 	CAP(FIRMWARE_PRIORITY_OFFSET)             \
 	CAP(CRITICAL_PRIORITY)                    \
 	CAP(RESERVE_DURATION)                     \
-	CAP(DPB_LIST)                             \
 	CAP(FILM_GRAIN)                           \
 	CAP(SUPER_BLOCK)                          \
 	CAP(DRAP)                                 \
@@ -491,6 +492,7 @@ enum msm_vidc_buffer_attributes {
 	MSM_VIDC_ATTR_QUEUED                    = BIT(3),
 	MSM_VIDC_ATTR_DEQUEUED                  = BIT(4),
 	MSM_VIDC_ATTR_BUFFER_DONE               = BIT(5),
+	MSM_VIDC_ATTR_RELEASE_ELIGIBLE          = BIT(6),
 };
 
 enum msm_vidc_buffer_region {
@@ -714,6 +716,8 @@ struct msm_vidc_statistics {
 	struct debug_buf_count             count;
 	u64                                data_size;
 	u64                                time_ms;
+	u32                                avg_bw_llcc;
+	u32                                avg_bw_ddr;
 };
 
 enum efuse_purpose {
@@ -818,7 +822,6 @@ struct msm_vidc_subscription_params {
 	u32                    tier;
 	u32                    av1_film_grain_present;
 	u32                    av1_super_block_enabled;
-	u32                    dpb_list_enabled;
 };
 
 struct msm_vidc_hfi_frame_info {
@@ -832,6 +835,7 @@ struct msm_vidc_hfi_frame_info {
 	u32                    fence_id;
 	u32                    fence_error;
 	u32                    av1_tile_rows_columns;
+	bool                   av1_non_uniform_tile_spacing;
 };
 
 struct msm_vidc_decode_vpp_delay {
@@ -1043,6 +1047,10 @@ struct msm_vidc_stability {
 struct msm_vidc_sfr {
 	u32 bufSize;
 	u8 rg_data[1];
+};
+
+struct msm_vidc_ctrl_data {
+	bool skip_s_ctrl;
 };
 
 #endif // _MSM_VIDC_INTERNAL_H_

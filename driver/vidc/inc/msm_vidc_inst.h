@@ -87,7 +87,6 @@ struct msm_vidc_inst {
 	struct v4l2_fh                     event_handler;
 	struct v4l2_m2m_dev               *m2m_dev;
 	struct v4l2_m2m_ctx               *m2m_ctx;
-	struct v4l2_ctrl                 **ctrls;
 	u32                                num_ctrls;
 	enum hfi_rate_control              hfi_rc_type;
 	enum hfi_layer_encoding_type       hfi_layer_type;
@@ -102,10 +101,6 @@ struct msm_vidc_inst {
 	struct msm_vidc_mem_list_info      mem_info;
 	struct msm_vidc_timestamps         timestamps;
 	struct msm_vidc_timestamps         ts_reorder; /* list of struct msm_vidc_timestamp */
-	bool                               subscribed_input_psc;
-	bool                               subscribed_output_psc;
-	bool                               subscribed_input_prop;
-	bool                               subscribed_output_prop;
 	struct msm_vidc_subscription_params       subcr_params[MAX_PORT];
 	struct msm_vidc_hfi_frame_info     hfi_frame_info;
 	struct msm_vidc_decode_batch       decode_batch;
@@ -140,6 +135,8 @@ struct msm_vidc_inst {
 	u64                                initial_time_us;
 	u32                                max_input_data_size;
 	u32                                dpb_list_payload[MAX_DPB_LIST_ARRAY_SIZE];
+	bool                               input_dpb_list_enabled;
+	bool                               output_dpb_list_enabled;
 	u32                                max_map_output_count;
 	u32                                auto_framerate;
 	u32                                max_rate;

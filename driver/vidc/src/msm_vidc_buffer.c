@@ -313,8 +313,8 @@ u32 msm_vidc_encoder_input_size(struct msm_vidc_inst *inst)
 	colorformat = v4l2_colorformat_to_driver(inst, f->fmt.pix_mp.pixelformat,
 		__func__);
 	if (is_image_session(inst)) {
-		width = ALIGN(width, HEIC_GRID_DIMENSION);
-		height = ALIGN(height, HEIC_GRID_DIMENSION);
+		width = ALIGN(width, inst->capabilities[GRID_SIZE].value);
+		height = ALIGN(height, inst->capabilities[GRID_SIZE].value);
 	}
 	size = video_buffer_size(colorformat, width, height, true);
 	return size;
@@ -460,8 +460,8 @@ u32 msm_vidc_encoder_input_meta_size(struct msm_vidc_inst *inst)
 		width = f->fmt.pix_mp.width;
 		height = f->fmt.pix_mp.height;
 		if (is_image_session(inst)) {
-			width = ALIGN(width, HEIC_GRID_DIMENSION);
-			height = ALIGN(height, HEIC_GRID_DIMENSION);
+			width = ALIGN(width, inst->capabilities[GRID_SIZE].value);
+			height = ALIGN(height, inst->capabilities[GRID_SIZE].value);
 		}
 		size += ROI_METADATA_SIZE(width, height, lcu_size);
 		size = ALIGN(size, SZ_4K);

@@ -614,7 +614,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		0, MAX_BASE_LAYER_PRIORITY_ID, 1, 0,
 		V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID,
 		HFI_PROP_BASELAYER_PRIORITYID,
-		CAP_FLAG_OUTPUT_PORT},
+		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{AU_DELIMITER, ENC, H264|HEVC,
 		0, 1, 1, 0,
@@ -1269,12 +1269,6 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	{FIRMWARE_PRIORITY_OFFSET, DEC | ENC, CODECS_ALL,
 		1, 1, 1, 1},
 
-	{DPB_LIST, DEC, CODECS_ALL,
-		0, 1, 1, 0,
-		0,
-		HFI_PROP_DPB_LIST,
-		CAP_FLAG_OUTPUT_PORT},
-
 	{ALL_INTRA, ENC, H264|HEVC,
 		0, 1, 1, 0,
 		0,
@@ -1681,11 +1675,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		msm_vidc_set_u32},
 
 	{FIRMWARE_PRIORITY_OFFSET, DEC | ENC, CODECS_ALL,
-		{0},
-		NULL,
-		NULL},
-
-	{DPB_LIST, DEC, CODECS_ALL,
 		{0},
 		NULL,
 		NULL},

@@ -14,7 +14,6 @@
 #include "msm_vidc_inst.h"
 
 #define MSM_VIDC_SESSION_INACTIVE_THRESHOLD_MS 1000
-#define HEIC_GRID_DIMENSION 512
 
 enum msm_vidc_debugfs_event;
 
@@ -523,8 +522,6 @@ bool msm_vidc_allow_metadata_delivery(struct msm_vidc_inst *inst,
 bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst,
 	u32 cap_id, u32 port);
 bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id);
-int msm_vidc_update_property_cap(struct msm_vidc_inst *inst, u32 hfi_id,
-	bool allow);
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_psc_last_flag(struct msm_vidc_inst *inst);
@@ -570,7 +567,6 @@ int msm_vidc_update_debug_str(struct msm_vidc_inst *inst);
 void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_decode_batch(struct msm_vidc_inst *inst);
 int msm_vidc_check_session_supported(struct msm_vidc_inst *inst);
-bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst);
 int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst);
 int msm_vidc_check_core_mbpf(struct msm_vidc_inst *inst);
 int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst);

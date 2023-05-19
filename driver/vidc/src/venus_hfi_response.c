@@ -472,17 +472,17 @@ int handle_system_error(struct msm_vidc_core *core,
 
 	d_vpr_e("%s: system error received\n", __func__);
 	print_sfr_message(core);
-	venus_hfi_noc_error_info(core);
 
 	if (pkt) {
 		/* enable force bugon for requested type */
-		if (pkt->type == HFI_SYS_ERROR_FATAL)
+		if (pkt->type == HFI_SYS_ERROR_FATAL) {
 			bug_on = !!(msm_vidc_enable_bugon & MSM_VIDC_BUG_ON_FATAL);
-		else if (pkt->type == HFI_SYS_ERROR_NOC)
+		} else if (pkt->type == HFI_SYS_ERROR_NOC) {
 			bug_on = !!(msm_vidc_enable_bugon & MSM_VIDC_BUG_ON_NOC);
-		else if (pkt->type == HFI_SYS_ERROR_WD_TIMEOUT)
+			venus_hfi_noc_error_info(core);
+		} else if (pkt->type == HFI_SYS_ERROR_WD_TIMEOUT) {
 			bug_on = !!(msm_vidc_enable_bugon & MSM_VIDC_BUG_ON_WD_TIMEOUT);
-
+		}
 		if (bug_on) {
 			d_vpr_e("%s: force bugon for type %#x\n", __func__, pkt->type);
 			MSM_VIDC_FATAL(true);
@@ -842,6 +842,10 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 			inst->hfi_frame_info.av1_tile_rows_columns >> 16;
 		inst->power.fw_av1_tile_columns =
 			inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
+
+		if (inst->hfi_frame_info.av1_non_uniform_tile_spacing)
+			i_vpr_l(inst, "%s: av1_non_uniform_tile_spacing %d\n",
+				__func__, inst->hfi_frame_info.av1_non_uniform_tile_spacing);
 	}
 
 	buf->data_size = buffer->data_size;
@@ -1363,18 +1367,28 @@ static int handle_release_internal_buffer(struct msm_vidc_inst *inst,
 			break;
 		}
 	}
+	if (!found) {
+		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
+			__func__, buffer->index, buffer->base_address);
+		return -EINVAL;
+	}
 
 	if (!is_internal_buffer(buf->type))
 		return 0;
 
-	if (found) {
+	/* remove QUEUED attribute */
+	buf->attr &= ~MSM_VIDC_ATTR_QUEUED;
+
+	/*
+	 * firmware will return/release internal buffer in two cases
+	 * - driver sent release cmd in which case driver should destroy the buffer
+	 * - as part stop cmd in which case driver can reuse the buffer, so skip
+	 *   destroying the buffer
+	 */
+	if (buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE) {
 		rc = msm_vidc_destroy_internal_buffer(inst, buf);
 		if (rc)
 			return rc;
-	} else {
-		i_vpr_e(inst, "%s: invalid idx %d daddr %#llx\n",
-			__func__, buffer->index, buffer->base_address);
-		return -EINVAL;
 	}
 	return rc;
 }
@@ -1400,6 +1414,7 @@ int handle_release_output_buffer(struct msm_vidc_inst *inst,
 	}
 
 	buf->attr &= ~MSM_VIDC_ATTR_READ_ONLY;
+	buf->attr &= ~MSM_VIDC_ATTR_PENDING_RELEASE;
 	print_vidc_buffer(VIDC_LOW, "low ", "release done", inst, buf);
 
 	return rc;
@@ -1655,6 +1670,9 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 	u32 payload_size, num_words_in_payload;
 	u8 *payload_start;
 	int i = 0;
+	struct msm_vidc_buffer *ro_buf;
+	bool found = false;
+	u64 device_addr;
 
 	payload_size = pkt->size - sizeof(struct hfi_packet);
 	num_words_in_payload = payload_size / 4;
@@ -1670,11 +1688,43 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 	}
 	memcpy(inst->dpb_list_payload, payload_start, payload_size);
 
+	/*
+	 * dpb_list_payload details:
+	 * payload[0-1]           : 64 bits base_address of DPB-1
+	 * payload[2]             : 32 bits addr_offset  of DPB-1
+	 * payload[3]             : 32 bits data_offset  of DPB-1
+	 */
 	for (i = 0; (i + 3) < num_words_in_payload; i = i + 4) {
 		i_vpr_l(inst,
 			"%s: base addr %#x %#x, addr offset %#x, data offset %#x\n",
 			__func__, inst->dpb_list_payload[i], inst->dpb_list_payload[i + 1],
 			inst->dpb_list_payload[i + 2], inst->dpb_list_payload[i + 3]);
+	}
+
+	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
+		found = false;
+		/* do not mark RELEASE_ELIGIBLE for non-read only buffers */
+		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
+			continue;
+		/* no need to mark RELEASE_ELIGIBLE again */
+		if (ro_buf->attr & MSM_VIDC_ATTR_RELEASE_ELIGIBLE)
+			continue;
+		/*
+		 * do not add RELEASE_ELIGIBLE to buffers for which driver
+		 * sent release cmd already
+		 */
+		if (ro_buf->attr & MSM_VIDC_ATTR_PENDING_RELEASE)
+			continue;
+		for (i = 0; (i + 3) < num_words_in_payload; i = i + 4) {
+			device_addr = *((u64 *)(&inst->dpb_list_payload[i]));
+			if (ro_buf->device_addr == device_addr) {
+				found = true;
+				break;
+			}
+		}
+		/* mark a buffer as RELEASE_ELIGIBLE if not found in dpb list */
+		if (!found)
+			ro_buf->attr |= MSM_VIDC_ATTR_RELEASE_ELIGIBLE;
 	}
 
 	return 0;
@@ -1759,6 +1809,10 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 		inst->hfi_frame_info.av1_tile_rows_columns =
 			payload_ptr[0];
 		break;
+	case HFI_PROP_AV1_UNIFORM_TILE_SPACING:
+		if (!payload_ptr[0])
+			inst->hfi_frame_info.av1_non_uniform_tile_spacing = true;
+		break;
 	case HFI_PROP_CABAC_SESSION:
 		if (payload_ptr[0] == 1)
 			msm_vidc_update_cap_value(inst, ENTROPY_MODE,
@@ -1770,16 +1824,15 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 				__func__);
 		break;
 	case HFI_PROP_DPB_LIST:
-		if (is_decode_session(inst) &&
-			inst->capabilities[DPB_LIST].value) {
+		if (is_decode_session(inst)) {
 			rc = handle_dpb_list_property(inst, pkt);
 			if (rc)
 				break;
 		} else {
 			i_vpr_e(inst,
-				"%s: invalid property %#x for %s port %d dpb cap value %d\n",
+				"%s: invalid dpb property %#x for %s port %d\n",
 				__func__, pkt->type, is_decode_session(inst) ? "decode" : "encode",
-				port, inst->capabilities[DPB_LIST].value);
+				port);
 		}
 		break;
 	case HFI_PROP_QUALITY_MODE:

@@ -248,10 +248,22 @@ struct msm_vidc_platform_data {
 	unsigned int psc_vp9_tbl_size;
 	const u32 *psc_av1_tbl;
 	unsigned int psc_av1_tbl_size;
-	const u32 *dec_input_prop;
-	unsigned int dec_input_prop_size;
-	const u32 *dec_output_prop;
-	unsigned int dec_output_prop_size;
+	const u32 *dec_input_prop_avc;
+	unsigned int dec_input_prop_size_avc;
+	const u32 *dec_input_prop_hevc;
+	unsigned int dec_input_prop_size_hevc;
+	const u32 *dec_input_prop_vp9;
+	unsigned int dec_input_prop_size_vp9;
+	const u32 *dec_input_prop_av1;
+	unsigned int dec_input_prop_size_av1;
+	const u32 *dec_output_prop_avc;
+	unsigned int dec_output_prop_size_avc;
+	const u32 *dec_output_prop_hevc;
+	unsigned int dec_output_prop_size_hevc;
+	const u32 *dec_output_prop_vp9;
+	unsigned int dec_output_prop_size_vp9;
+	const u32 *dec_output_prop_av1;
+	unsigned int dec_output_prop_size_av1;
 };
 
 struct msm_vidc_platform {

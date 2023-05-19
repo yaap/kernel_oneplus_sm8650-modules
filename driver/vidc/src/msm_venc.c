@@ -62,6 +62,10 @@ struct msm_venc_prop_type_handle {
 static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 {
 	int rc = 0;
+	bool session_init = false;
+
+	if (!inst->codec)
+		session_init = true;
 
 	if (inst->codec && inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat == v4l2_codec)
 		return 0;
@@ -86,12 +90,8 @@ static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 	if (rc)
 		goto exit;
 
-	rc = msm_vidc_ctrl_deinit(inst);
-	if (rc)
-		goto exit;
-
-	rc = msm_vidc_ctrl_init(inst);
-	if (rc)
+	rc = msm_vidc_ctrl_handler_init(inst, session_init);
+	if(rc)
 		goto exit;
 
 	rc = msm_vidc_update_buffer_count(inst, INPUT_PORT);
@@ -150,6 +150,7 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	u32 color_format, stride_y, scanline_y;
 	u32 stride_uv = 0, scanline_uv = 0;
 	u32 payload[2];
+	u32 grid_size;
 
 	if (port != INPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
@@ -165,8 +166,9 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	}
 
 	if (is_image_session(inst)) {
-		stride_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.width, HEIC_GRID_DIMENSION);
-		scanline_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.height, HEIC_GRID_DIMENSION);
+		grid_size = inst->capabilities[GRID_SIZE].value;
+		stride_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.width, grid_size);
+		scanline_y = ALIGN(inst->fmts[INPUT_PORT].fmt.pix_mp.height, grid_size);
 	} else if (is_rgba_colorformat(color_format)) {
 		stride_y = video_rgb_stride_pix(color_format,
 			inst->fmts[INPUT_PORT].fmt.pix_mp.width);
@@ -572,6 +574,49 @@ static int msm_venc_get_input_internal_buffers(struct msm_vidc_inst *inst)
 	return rc;
 }
 
+static int msm_venc_destroy_internal_buffers(struct msm_vidc_inst *inst,
+		enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	struct msm_vidc_buffers *buffers;
+	struct msm_vidc_buffer *buf, *dummy;
+	const u32 *internal_buf_type;
+	u32 i, len;
+
+	if (port == INPUT_PORT) {
+		internal_buf_type = msm_venc_input_internal_buffer_type;
+		len = ARRAY_SIZE(msm_venc_input_internal_buffer_type);
+	} else {
+		internal_buf_type = msm_venc_output_internal_buffer_type;
+		len = ARRAY_SIZE(msm_venc_output_internal_buffer_type);
+	}
+
+	for (i = 0; i < len; i++) {
+		buffers = msm_vidc_get_buffers(inst, internal_buf_type[i], __func__);
+		if (!buffers)
+			return -EINVAL;
+
+		if (buffers->reuse) {
+			i_vpr_l(inst, "%s: reuse enabled for %s\n", __func__,
+				buf_name(internal_buf_type[i]));
+			continue;
+		}
+
+		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+			i_vpr_h(inst,
+				"%s: destroying internal buffer: type %d idx %d fd %d addr %#llx size %d\n",
+				__func__, buf->type, buf->index, buf->fd,
+				buf->device_addr, buf->buffer_size);
+
+			rc = msm_vidc_destroy_internal_buffer(inst, buf);
+			if (rc)
+				return rc;
+		}
+	}
+
+	return 0;
+}
+
 static int msm_venc_create_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
@@ -922,6 +967,10 @@ int msm_venc_streamon_input(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_venc_destroy_internal_buffers(inst, INPUT_PORT);
+	if (rc)
+		goto error;
+
 	rc = msm_venc_create_input_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1064,6 +1113,10 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_venc_destroy_internal_buffers(inst, OUTPUT_PORT);
+	if (rc)
+		goto error;
+
 	rc = msm_venc_create_output_internal_buffers(inst);
 	if (rc)
 		goto error;
@@ -1181,7 +1234,8 @@ int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	fmt->fmt.pix_mp.height = ALIGN(height, codec_align);
 	/* use grid dimension for image session */
 	if (is_image_session(inst))
-		fmt->fmt.pix_mp.width = fmt->fmt.pix_mp.height = HEIC_GRID_DIMENSION;
+		fmt->fmt.pix_mp.width = fmt->fmt.pix_mp.height =
+			inst->capabilities[GRID_SIZE].value;
 	fmt->fmt.pix_mp.num_planes = 1;
 	fmt->fmt.pix_mp.plane_fmt[0].bytesperline = 0;
 	fmt->fmt.pix_mp.plane_fmt[0].sizeimage = call_session_op(core,
@@ -1281,7 +1335,8 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	height = f->fmt.pix_mp.height;
 
 	if (is_image_session(inst)) {
-		bytesperline = ALIGN(f->fmt.pix_mp.width, HEIC_GRID_DIMENSION) *
+		bytesperline = ALIGN(f->fmt.pix_mp.width,
+			inst->capabilities[GRID_SIZE].value) *
 			(is_10bit_colorformat(pix_fmt) ? 2 : 1);
 	} else if (is_rgba_colorformat(pix_fmt)) {
 		bytesperline = video_rgb_stride_bytes(pix_fmt, f->fmt.pix_mp.width);
@@ -1296,10 +1351,7 @@ static int msm_venc_s_fmt_input(struct msm_vidc_inst *inst, struct v4l2_format *
 	fmt->fmt.pix_mp.num_planes = 1;
 	fmt->fmt.pix_mp.pixelformat = f->fmt.pix_mp.pixelformat;
 	fmt->fmt.pix_mp.plane_fmt[0].bytesperline = bytesperline;
-	if (is_image_session(inst))
-		size = bytesperline * height * 3 / 2;
-	else
-		size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
+	size = call_session_op(core, buffer_size, inst, MSM_VIDC_BUF_INPUT);
 	fmt->fmt.pix_mp.plane_fmt[0].sizeimage = size;
 	/* update input port colorspace info */
 	fmt->fmt.pix_mp.colorspace = f->fmt.pix_mp.colorspace;
@@ -1615,8 +1667,8 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 	struct v4l2_fract *timeperframe = NULL;
-	u32 q16_rate, max_rate, default_rate;
-	u64 us_per_frame = 0, input_rate = 0;
+	u32 input_rate_q16, max_rate_q16;
+	u32 input_rate, default_rate;
 	bool is_frame_rate = false;
 
 	if (!inst || !s_parm) {
@@ -1625,14 +1677,16 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	}
 
 	if (s_parm->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		/* operating rate */
 		timeperframe = &s_parm->parm.output.timeperframe;
-		max_rate = inst->capabilities[OPERATING_RATE].max >> 16;
+		max_rate_q16 = inst->capabilities[OPERATING_RATE].max;
 		default_rate = inst->capabilities[OPERATING_RATE].value >> 16;
 		s_parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 	} else {
+		/* frame rate */
 		timeperframe = &s_parm->parm.capture.timeperframe;
 		is_frame_rate = true;
-		max_rate = inst->capabilities[FRAME_RATE].max >> 16;
+		max_rate_q16 = inst->capabilities[FRAME_RATE].max;
 		default_rate = inst->capabilities[FRAME_RATE].value >> 16;
 		s_parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	}
@@ -1646,38 +1700,32 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 			timeperframe->denominator = default_rate;
 	}
 
-	us_per_frame = timeperframe->numerator * (u64)USEC_PER_SEC;
-	do_div(us_per_frame, timeperframe->denominator);
+	input_rate = (timeperframe->denominator / timeperframe->numerator);
+	if (input_rate > (max_rate_q16 >> 16)) {
+		input_rate_q16 = max_rate_q16;
+		i_vpr_h(inst, "%s: type %s, %s value %u limited to %u\n",
+			__func__, v4l2_type_name(s_parm->type),
+			is_frame_rate ? "frame rate" : "operating rate",
+			input_rate_q16, max_rate_q16);
+	} else {
+		input_rate_q16 = input_rate << 16;
+		input_rate_q16 |=
+			(timeperframe->denominator % timeperframe->numerator);
 
-	if (!us_per_frame) {
-		i_vpr_e(inst, "%s: us_per_frame is zero\n", __func__);
-		rc = -EINVAL;
-		goto exit;
 	}
-
-	input_rate = (u64)USEC_PER_SEC;
-	do_div(input_rate, us_per_frame);
-
-	i_vpr_h(inst, "%s: type %s, %s value %llu\n",
+	i_vpr_h(inst, "%s: type %s, %s value %u\n",
 		__func__, v4l2_type_name(s_parm->type),
-		is_frame_rate ? "frame rate" : "operating rate", input_rate);
+		is_frame_rate ? "frame rate" : "operating rate",
+		input_rate_q16 >> 16);
 
-	q16_rate = (u32)input_rate << 16;
 	msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
-		q16_rate, __func__);
+		input_rate_q16, __func__);
 	if (is_realtime_session(inst) &&
 		((s_parm->type == INPUT_MPLANE && inst->bufq[INPUT_PORT].vb2q->streaming) ||
 		(s_parm->type == OUTPUT_MPLANE && inst->bufq[OUTPUT_PORT].vb2q->streaming))) {
 		rc = msm_vidc_check_core_mbps(inst);
 		if (rc) {
 			i_vpr_e(inst, "%s: unsupported load\n", __func__);
-			goto reset_rate;
-		}
-		rc = input_rate > max_rate;
-		if (rc) {
-			i_vpr_e(inst, "%s: unsupported rate %llu, max %u\n", __func__,
-				input_rate, max_rate);
-			rc = -ENOMEM;
 			goto reset_rate;
 		}
 	}
@@ -1698,22 +1746,22 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 			HFI_HOST_FLAGS_NONE,
 			HFI_PORT_BITSTREAM,
 			HFI_PAYLOAD_Q16,
-			&q16_rate,
+			&input_rate_q16,
 			sizeof(u32));
 		if (rc) {
 			i_vpr_e(inst,
 				"%s: failed to set frame rate to fw\n", __func__);
 			goto exit;
 		}
-		inst->auto_framerate = q16_rate;
+		inst->auto_framerate = input_rate_q16;
 	}
 
 	return 0;
 
 reset_rate:
 	if (rc) {
-		i_vpr_e(inst, "%s: setting rate %llu failed, reset to %u\n", __func__,
-			input_rate, default_rate);
+		i_vpr_e(inst, "%s: setting rate %u failed, reset to %u\n", __func__,
+			input_rate_q16 >> 16, default_rate);
 		msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
 			default_rate << 16, __func__);
 	}
@@ -1967,7 +2015,7 @@ int msm_venc_inst_deinit(struct msm_vidc_inst *inst)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	rc = msm_vidc_ctrl_deinit(inst);
+	rc = msm_vidc_ctrl_handler_deinit(inst);
 	if (rc)
 		return rc;
 

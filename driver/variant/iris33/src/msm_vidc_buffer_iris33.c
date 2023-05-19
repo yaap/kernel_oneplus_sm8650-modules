@@ -266,6 +266,7 @@ static u32 msm_vidc_decoder_dpb_size_iris33(struct msm_vidc_inst *inst)
 	u32 size = 0;
 	u32 color_fmt;
 	u32 width, height;
+	u32 interlace = 0;
 	struct v4l2_format *f;
 
 	if (!inst) {
@@ -292,6 +293,11 @@ static u32 msm_vidc_decoder_dpb_size_iris33(struct msm_vidc_inst *inst)
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 
+
+	if (inst->codec == MSM_VIDC_H264 &&
+		res_is_less_than_or_equal_to(width, height, 1920, 1088))
+		interlace = 1;
+
 	if (color_fmt == MSM_VIDC_FMT_NV12 ||
 		color_fmt == MSM_VIDC_FMT_NV12C) {
 		color_fmt = MSM_VIDC_FMT_NV12C;
@@ -303,7 +309,8 @@ static u32 msm_vidc_decoder_dpb_size_iris33(struct msm_vidc_inst *inst)
 			video_y_meta_stride(color_fmt, width),
 			video_y_meta_scanlines(color_fmt, height),
 			video_uv_meta_stride(color_fmt, width),
-			video_uv_meta_scanlines(color_fmt, height));
+			video_uv_meta_scanlines(color_fmt, height),
+			interlace);
 	} else if (color_fmt == MSM_VIDC_FMT_P010 ||
 		color_fmt == MSM_VIDC_FMT_TP10C) {
 		color_fmt = MSM_VIDC_FMT_TP10C;
