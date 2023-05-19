@@ -3193,9 +3193,19 @@ static int fts_ts_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void fts_ts_i2c_remove(struct i2c_client *client)
+#else
 static int fts_ts_i2c_remove(struct i2c_client *client)
+#endif
 {
-	return fts_ts_remove_entry(i2c_get_clientdata(client));
+	int rc = 0;
+
+	rc = fts_ts_remove_entry(i2c_get_clientdata(client));
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return rc;
+#endif
 }
 
 static const struct i2c_device_id fts_ts_i2c_id[] = {
@@ -3292,9 +3302,20 @@ static int fts_ts_spi_probe(struct spi_device *spi)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void fts_ts_spi_remove(struct spi_device *spi)
+#else
 static int fts_ts_spi_remove(struct spi_device *spi)
+#endif
 {
-	return fts_ts_remove_entry(spi_get_drvdata(spi));
+	int rc = 0;
+
+	rc = fts_ts_remove_entry(spi_get_drvdata(spi));
+
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return rc;
+#endif
 }
 
 static const struct spi_device_id fts_ts_spi_id[] = {
