@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <linux/firmware.h>
 #include <linux/qtee_shmbridge.h>
+#include "smcinvoke.h"
 
 /*
  * Method bits are not modified by transport layers.  These describe the
@@ -190,7 +191,6 @@ static inline void Object_replace(struct Object *loc, struct Object objNew)
 int smcinvoke_release_from_kernel_client(int fd);
 
 int get_root_fd(int *root_fd);
-
 int process_invoke_request_from_kernel_client(
 		int fd, struct smcinvoke_cmd_req *req);
 

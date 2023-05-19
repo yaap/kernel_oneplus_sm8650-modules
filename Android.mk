@@ -23,7 +23,7 @@ SSG_SRC_FILES := \
  	$(wildcard $(LOCAL_PATH)/*/*) \
  	$(wildcard $(LOCAL_PATH)/*/*/*) \
  	$(wildcard $(LOCAL_PATH)/*/*/*/*)
-
+LOCAL_MODULE_DDK_BUILD := true
 # This is set once per LOCAL_PATH, not per (kernel) module
 KBUILD_OPTIONS := SSG_ROOT=$(SEC_KERNEL_DIR)
 KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
