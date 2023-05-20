@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2019-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _UAPI_SPSS_UTILS_H_
@@ -89,8 +90,14 @@ struct spss_ioc_is_signaled {
 
 /* ---------- set fw and apps cmac --------------------------------- */
 
-/* Asym , Crypt , Keym + 3rd party uefi apps */
-#define MAX_SPU_UEFI_APPS	8
+/* NVM, Asym , Crypt , Keym */
+#define NUM_SPU_UEFI_APPS 4
+
+/* Max number of 3rd party UEFI applications */
+#define MAX_3RD_PARTY_UEFI_APPS 3
+
+/* Max number of total UEFI applications */
+#define MAX_SPU_UEFI_APPS (NUM_SPU_UEFI_APPS + MAX_3RD_PARTY_UEFI_APPS)
 
 /** use variable-size-array for future growth */
 struct spss_ioc_set_fw_and_apps_cmac {
