@@ -914,6 +914,39 @@ static const struct file_operations cnss_dynamic_feature_fops = {
 	.llseek = seq_lseek,
 };
 
+static int cnss_smmu_fault_timestamp_show(struct seq_file *s, void *data)
+{
+	struct cnss_plat_data *plat_priv = s->private;
+	struct cnss_pci_data *pci_priv = plat_priv->bus_priv;
+
+	if (!pci_priv)
+		return -ENODEV;
+
+	seq_printf(s, "smmu irq cb entry timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_ENTRY]);
+	seq_printf(s, "smmu irq cb before doorbell ring timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_DOORBELL_RING]);
+	seq_printf(s, "smmu irq cb after doorbell ring timestamp : %llu ns\n",
+		   pci_priv->smmu_fault_timestamp[SMMU_CB_EXIT]);
+
+	return 0;
+}
+
+static int cnss_smmu_fault_timestamp_open(struct inode *inode,
+					  struct file *file)
+{
+	return single_open(file, cnss_smmu_fault_timestamp_show,
+			   inode->i_private);
+}
+
+static const struct file_operations cnss_smmu_fault_timestamp_fops = {
+	.read = seq_read,
+	.release = single_release,
+	.open = cnss_smmu_fault_timestamp_open,
+	.owner = THIS_MODULE,
+	.llseek = seq_lseek,
+};
+
 #ifdef CONFIG_DEBUG_FS
 #ifdef CONFIG_CNSS2_DEBUG
 static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
@@ -932,6 +965,8 @@ static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
 			    &cnss_control_params_debug_fops);
 	debugfs_create_file("dynamic_feature", 0600, root_dentry, plat_priv,
 			    &cnss_dynamic_feature_fops);
+	debugfs_create_file("cnss_smmu_fault_timestamp", 0600, root_dentry,
+			    plat_priv, &cnss_smmu_fault_timestamp_fops);
 
 	return 0;
 }

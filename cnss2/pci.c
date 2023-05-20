@@ -819,6 +819,13 @@ static int cnss_mhi_device_get_sync_atomic(struct cnss_pci_data *pci_priv,
 					  timeout_us, in_panic);
 }
 
+#ifdef CONFIG_CNSS2_SMMU_DB_SUPPORT
+static int cnss_mhi_host_notify_db_disable_trace(struct cnss_pci_data *pci_priv)
+{
+	return mhi_host_notify_db_disable_trace(pci_priv->mhi_ctrl);
+}
+#endif
+
 static void
 cnss_mhi_controller_set_bw_scale_cb(struct cnss_pci_data *pci_priv,
 				    int (*cb)(struct mhi_controller *mhi_ctrl,
@@ -875,6 +882,13 @@ static int cnss_mhi_device_get_sync_atomic(struct cnss_pci_data *pci_priv,
 	return -EOPNOTSUPP;
 }
 
+#ifdef CONFIG_CNSS2_SMMU_DB_SUPPORT
+static int cnss_mhi_host_notify_db_disable_trace(struct cnss_pci_data *pci_priv)
+{
+	return -EOPNOTSUPP;
+}
+#endif
+
 static void
 cnss_mhi_controller_set_bw_scale_cb(struct cnss_pci_data *pci_priv,
 				    int (*cb)(struct mhi_controller *mhi_ctrl,
@@ -892,6 +906,51 @@ void cnss_mhi_controller_set_base(struct cnss_pci_data *pci_priv,
 {
 }
 #endif /* CONFIG_MHI_BUS_MISC */
+
+#ifdef CONFIG_CNSS2_SMMU_DB_SUPPORT
+#define CNSS_MHI_WAKE_TIMEOUT		500000
+
+static void cnss_record_smmu_fault_timestamp(struct cnss_pci_data *pci_priv,
+					     enum cnss_smmu_fault_time id)
+{
+	if (id >= SMMU_CB_MAX)
+		return;
+
+	pci_priv->smmu_fault_timestamp[id] = sched_clock();
+}
+
+static void cnss_pci_smmu_fault_handler_irq(struct iommu_domain *domain,
+					    void *handler_token)
+{
+	struct cnss_pci_data *pci_priv = handler_token;
+	int ret = 0;
+
+	cnss_record_smmu_fault_timestamp(pci_priv, SMMU_CB_ENTRY);
+	ret = cnss_mhi_device_get_sync_atomic(pci_priv,
+					      CNSS_MHI_WAKE_TIMEOUT, true);
+	if (ret < 0) {
+		cnss_pr_err("Failed to bring mhi in M0 state, ret %d\n", ret);
+		return;
+	}
+
+	cnss_record_smmu_fault_timestamp(pci_priv, SMMU_CB_DOORBELL_RING);
+	ret = cnss_mhi_host_notify_db_disable_trace(pci_priv);
+	if (ret < 0)
+		cnss_pr_err("Fail to notify wlan fw to stop trace collection, ret %d\n", ret);
+
+	cnss_record_smmu_fault_timestamp(pci_priv, SMMU_CB_EXIT);
+}
+
+void cnss_register_iommu_fault_handler_irq(struct cnss_pci_data *pci_priv)
+{
+	qcom_iommu_set_fault_handler_irq(pci_priv->iommu_domain,
+					 cnss_pci_smmu_fault_handler_irq, pci_priv);
+}
+#else
+void cnss_register_iommu_fault_handler_irq(struct cnss_pci_data *pci_priv)
+{
+}
+#endif
 
 int cnss_pci_check_link_status(struct cnss_pci_data *pci_priv)
 {
@@ -2062,10 +2121,47 @@ out:
 	return ret;
 }
 
+static int cnss_pci_config_msi_addr(struct cnss_pci_data *pci_priv)
+{
+	int ret = 0;
+	struct pci_dev *pci_dev = pci_priv->pci_dev;
+	struct cnss_plat_data *plat_priv;
+
+	if (!pci_dev)
+		return -ENODEV;
+
+	if (!pci_dev->msix_enabled)
+		return ret;
+
+	plat_priv = pci_priv->plat_priv;
+	if (!plat_priv) {
+		cnss_pr_err("plat_priv is NULL\n");
+		return -ENODEV;
+	}
+
+	ret = of_property_read_u32(plat_priv->plat_dev->dev.of_node,
+				   "msix-match-addr",
+				   &pci_priv->msix_addr);
+	cnss_pr_dbg("MSI-X Match address is 0x%X\n",
+		    pci_priv->msix_addr);
+
+	return ret;
+}
+
 static int cnss_pci_config_msi_data(struct cnss_pci_data *pci_priv)
 {
 	struct msi_desc *msi_desc;
+	struct cnss_msi_config *msi_config;
 	struct pci_dev *pci_dev = pci_priv->pci_dev;
+
+	msi_config = pci_priv->msi_config;
+
+	if (pci_dev->msix_enabled) {
+		pci_priv->msi_ep_base_data = msi_config->users[0].base_vector;
+		cnss_pr_dbg("MSI-X base data is %d\n",
+			    pci_priv->msi_ep_base_data);
+		return 0;
+	}
 
 	msi_desc = irq_get_msi_desc(pci_dev->irq);
 	if (!msi_desc) {
@@ -4459,8 +4555,8 @@ int cnss_pci_qmi_send_put(struct cnss_pci_data *pci_priv)
 	return ret;
 }
 
-int cnss_send_buffer_to_afcmem(struct device *dev, char *afcdb, uint32_t len,
-			       uint8_t slotid)
+int cnss_send_buffer_to_afcmem(struct device *dev, const uint8_t *afcdb,
+			       uint32_t len, uint8_t slotid)
 {
 	struct cnss_plat_data *plat_priv = cnss_bus_dev_to_plat_priv(dev);
 	struct cnss_fw_mem *fw_mem;
@@ -5018,7 +5114,7 @@ static int cnss_pci_enable_msi(struct cnss_pci_data *pci_priv)
 	num_vectors = pci_alloc_irq_vectors(pci_dev,
 					    msi_config->total_vectors,
 					    msi_config->total_vectors,
-					    PCI_IRQ_MSI);
+					    PCI_IRQ_MSI | PCI_IRQ_MSIX);
 	if ((num_vectors != msi_config->total_vectors) &&
 	    !cnss_pci_fallback_one_msi(pci_priv, &num_vectors)) {
 		cnss_pr_err("Failed to get enough MSI vectors (%d), available vectors = %d",
@@ -5026,6 +5122,11 @@ static int cnss_pci_enable_msi(struct cnss_pci_data *pci_priv)
 		if (num_vectors >= 0)
 			ret = -EINVAL;
 		goto reset_msi_config;
+	}
+
+	if (cnss_pci_config_msi_addr(pci_priv)) {
+		ret = -EINVAL;
+		goto free_msi_vector;
 	}
 
 	if (cnss_pci_config_msi_data(pci_priv)) {
@@ -5119,7 +5220,24 @@ void cnss_get_msi_address(struct device *dev, u32 *msi_addr_low,
 			  u32 *msi_addr_high)
 {
 	struct pci_dev *pci_dev = to_pci_dev(dev);
+	struct cnss_pci_data *pci_priv;
 	u16 control;
+
+	if (!pci_dev)
+		return;
+
+	pci_priv = cnss_get_pci_priv(pci_dev);
+	if (!pci_priv)
+		return;
+
+	if (pci_dev->msix_enabled) {
+		*msi_addr_low = pci_priv->msix_addr;
+		*msi_addr_high = 0;
+		if (!print_optimize.msi_addr_chk++)
+			cnss_pr_dbg("Get MSI low addr = 0x%x, high addr = 0x%x\n",
+				    *msi_addr_low, *msi_addr_high);
+		return;
+	}
 
 	pci_read_config_word(pci_dev, pci_dev->msi_cap + PCI_MSI_FLAGS,
 			     &control);
@@ -5824,7 +5942,13 @@ void cnss_pci_device_crashed(struct cnss_pci_data *pci_priv)
 
 	if (plat_priv->recovery_enabled)
 		cnss_pci_collect_host_dump_info(pci_priv);
-	cnss_device_crashed(&pci_priv->pci_dev->dev);
+
+	/* Call recovery handler in the DRIVER_RECOVERY event context
+	 * instead of scheduling work. In that way complete recovery
+	 * will be done as part of DRIVER_RECOVERY event and get
+	 * serialized with other events.
+	 */
+	cnss_recovery_handler(plat_priv);
 }
 
 static int cnss_mhi_pm_runtime_get(struct mhi_controller *mhi_ctrl)
@@ -6761,6 +6885,8 @@ static int cnss_pci_probe(struct pci_dev *pci_dev,
 		cnss_pr_err("Failed to get device cfg node, err = %d\n", ret);
 		goto reset_ctx;
 	}
+
+	cnss_get_sleep_clk_supported(plat_priv);
 
 	ret = cnss_dev_specific_power_on(plat_priv);
 	if (ret < 0)

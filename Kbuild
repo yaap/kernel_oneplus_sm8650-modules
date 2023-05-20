@@ -22,6 +22,12 @@ ifeq ($(CONFIG_ICNSS2_QMI),y)
 KBUILD_CPPFLAGS += -DCONFIG_ICNSS2_QMI
 endif
 
+# CONFIG_WCNSS_MEM_PRE_ALLOC should never be "y" here since it
+# can be only compiled as a module from out-of-kernel-tree source.
+ifeq ($(CONFIG_WCNSS_MEM_PRE_ALLOC),m)
+KBUILD_CPPFLAGS += -DCONFIG_WCNSS_MEM_PRE_ALLOC
+endif
+
 # CONFIG_CNSS_PLAT_IPC_QMI_SVC should never be "y" here since it
 # can be only compiled as a module from out-of-kernel-tree source.
 ifeq ($(CONFIG_CNSS_PLAT_IPC_QMI_SVC),m)
@@ -58,6 +64,10 @@ endif
 
 ifeq ($(CONFIG_DISABLE_CNSS_SRAM_DUMP),y)
 KBUILD_CPPFLAGS += -DCONFIG_DISABLE_CNSS_SRAM_DUMP
+endif
+
+ifeq ($(CONFIG_CNSS2_SMMU_DB_SUPPORT),y)
+KBUILD_CPPFLAGS += -DCONFIG_CNSS2_SMMU_DB_SUPPORT
 endif
 
 obj-$(CONFIG_CNSS2) += cnss2/

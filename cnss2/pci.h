@@ -9,6 +9,7 @@
 
 #include <linux/cma.h>
 #include <linux/iommu.h>
+#include <linux/qcom-iommu-util.h>
 #include <linux/mhi.h>
 #if IS_ENABLED(CONFIG_MHI_BUS_MISC)
 #include <linux/mhi_misc.h>
@@ -18,6 +19,7 @@
 #endif
 #include <linux/of_reserved_mem.h>
 #include <linux/pci.h>
+#include <linux/sched_clock.h>
 
 #include "main.h"
 
@@ -69,6 +71,13 @@ enum cnss_pci_reg_dev_mask {
 	REG_MASK_KIWI,
 	REG_MASK_MANGO,
 	REG_MASK_PEACH,
+};
+
+enum cnss_smmu_fault_time {
+	SMMU_CB_ENTRY,
+	SMMU_CB_DOORBELL_RING,
+	SMMU_CB_EXIT,
+	SMMU_CB_MAX,
 };
 
 struct cnss_msi_user {
@@ -151,6 +160,7 @@ struct cnss_pci_data {
 	void __iomem *bar;
 	struct cnss_msi_config *msi_config;
 	u32 msi_ep_base_data;
+	u32 msix_addr;
 	struct mhi_controller *mhi_ctrl;
 	unsigned long mhi_state;
 	u32 remap_window;
@@ -168,6 +178,7 @@ struct cnss_pci_data {
 	u8 iommu_geometry;
 	bool drv_supported;
 	bool is_smmu_fault;
+	unsigned long long smmu_fault_timestamp[SMMU_CB_MAX];
 };
 
 static inline void cnss_set_pci_priv(struct pci_dev *pci_dev, void *data)
@@ -313,4 +324,5 @@ int cnss_pci_get_user_msi_assignment(struct cnss_pci_data *pci_priv,
 				     int *num_vectors,
 				     u32 *user_base_data,
 				     u32 *base_vector);
+void cnss_register_iommu_fault_handler_irq(struct cnss_pci_data *pci_priv);
 #endif /* _CNSS_PCI_H */

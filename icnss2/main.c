@@ -4503,6 +4503,24 @@ static void rproc_restart_level_notifier(void *data, struct rproc *rproc)
 	}
 }
 
+#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+static void icnss_initialize_mem_pool(unsigned long device_id)
+{
+	cnss_initialize_prealloc_pool(device_id);
+}
+static void icnss_deinitialize_mem_pool(void)
+{
+	cnss_deinitialize_prealloc_pool();
+}
+#else
+static void icnss_initialize_mem_pool(unsigned long device_id)
+{
+}
+static void icnss_deinitialize_mem_pool(void)
+{
+}
+#endif
+
 static int icnss_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -4540,6 +4558,8 @@ static int icnss_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&priv->vreg_list);
 	INIT_LIST_HEAD(&priv->clk_list);
 	icnss_allow_recursive_recovery(dev);
+
+	icnss_initialize_mem_pool(priv->device_id);
 
 	icnss_init_control_params(priv);
 
@@ -4656,6 +4676,7 @@ smmu_cleanup:
 out_free_resources:
 	icnss_put_resources(priv);
 out_reset_drvdata:
+	icnss_deinitialize_mem_pool();
 	dev_set_drvdata(dev, NULL);
 	return ret;
 }
@@ -4749,6 +4770,8 @@ static int icnss_remove(struct platform_device *pdev)
 	icnss_hw_power_off(priv);
 
 	icnss_put_resources(priv);
+
+	icnss_deinitialize_mem_pool();
 
 	dev_set_drvdata(&pdev->dev, NULL);
 

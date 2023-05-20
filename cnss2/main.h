@@ -23,6 +23,10 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/time64.h>
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/mailbox/qmp.h>
+#include <linux/soc/qcom/qcom_aoss.h>
+#endif
 #ifdef CONFIG_CNSS_OUT_OF_TREE
 #include "cnss2.h"
 #else
@@ -41,6 +45,8 @@
 #endif
 #include <linux/iommu.h>
 #include "qmi.h"
+#include "cnss_prealloc.h"
+#include "cnss_common.h"
 
 #define MAX_NO_OF_MAC_ADDR		4
 #define QMI_WLFW_MAX_TIMESTAMP_LEN	32
@@ -586,6 +592,10 @@ struct cnss_plat_data {
 	u8 charger_mode;
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
+#if IS_ENABLED(CONFIG_MSM_QMP)
+	struct qmp *qmp;
+#endif
+	bool use_direct_qmp;
 	const char *vreg_ol_cpr, *vreg_ipa;
 	const char **pdc_init_table, **vreg_pdc_map, **pmu_vreg_map;
 	int pdc_init_table_len, vreg_pdc_map_len, pmu_vreg_map_len;
@@ -610,6 +620,7 @@ struct cnss_plat_data {
 	u32 on_chip_pmic_devices_count;
 	u32 *on_chip_pmic_board_ids;
 	bool no_bwscale;
+	bool sleep_clk;
 };
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
@@ -642,6 +653,7 @@ struct cnss_plat_data *cnss_get_plat_priv_by_rc_num(int rc_num);
 int cnss_get_plat_env_count(void);
 struct cnss_plat_data *cnss_get_plat_env(int index);
 void cnss_get_qrtr_info(struct cnss_plat_data *plat_priv);
+void cnss_get_sleep_clk_supported(struct cnss_plat_data *plat_priv);
 void cnss_get_bwscal_info(struct cnss_plat_data *plat_priv);
 bool cnss_is_dual_wlan_enabled(void);
 int cnss_driver_event_post(struct cnss_plat_data *plat_priv,
@@ -695,7 +707,8 @@ int cnss_enable_int_pow_amp_vreg(struct cnss_plat_data *plat_priv);
 int cnss_get_tcs_info(struct cnss_plat_data *plat_priv);
 unsigned int cnss_get_timeout(struct cnss_plat_data *plat_priv,
 			      enum cnss_timeout_type);
-int cnss_aop_mbox_init(struct cnss_plat_data *plat_priv);
+int cnss_aop_interface_init(struct cnss_plat_data *plat_priv);
+void cnss_aop_interface_deinit(struct cnss_plat_data *plat_priv);
 int cnss_aop_pdc_reconfig(struct cnss_plat_data *plat_priv);
 int cnss_aop_send_msg(struct cnss_plat_data *plat_priv, char *msg);
 void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv);
@@ -713,4 +726,5 @@ int cnss_get_feature_list(struct cnss_plat_data *plat_priv,
 int cnss_get_input_gpio_value(struct cnss_plat_data *plat_priv, int gpio_num);
 bool cnss_check_driver_loading_allowed(void);
 int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv);
+void cnss_recovery_handler(struct cnss_plat_data *plat_priv);
 #endif /* _CNSS_MAIN_H */

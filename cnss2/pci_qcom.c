@@ -579,6 +579,7 @@ int cnss_pci_init_smmu(struct cnss_pci_data *pci_priv)
 		pci_priv->smmu_s1_enable = true;
 		iommu_set_fault_handler(pci_priv->iommu_domain,
 					cnss_pci_smmu_fault_handler, pci_priv);
+		cnss_register_iommu_fault_handler_irq(pci_priv);
 	}
 
 	ret = of_property_read_u32_array(of_node,  "qcom,iommu-dma-addr-pool",
@@ -643,9 +644,13 @@ int cnss_pci_of_reserved_mem_device_init(struct cnss_pci_data *pci_priv)
 	 * attached to platform device of_node.
 	 */
 	ret = of_reserved_mem_device_init(dev_pci);
-	if (ret)
-		cnss_pr_err("Failed to init reserved mem device, err = %d\n",
-			    ret);
+	if (ret) {
+		if (ret == -EINVAL)
+			cnss_pr_vdbg("Ignore, no specific reserved-memory assigned\n");
+		else
+			cnss_pr_err("Failed to init reserved mem device, err = %d\n",
+				    ret);
+	}
 	if (dev_pci->cma_area)
 		cnss_pr_dbg("CMA area is %s\n",
 			    cma_get_name(dev_pci->cma_area));

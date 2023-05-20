@@ -288,6 +288,14 @@ cnss_get_pld_bus_ops_name(struct cnss_plat_data *plat_priv)
 }
 #endif
 
+void cnss_get_sleep_clk_supported(struct cnss_plat_data *plat_priv)
+{
+	plat_priv->sleep_clk = of_property_read_bool(plat_priv->dev_node,
+						     "qcom,sleep-clk-support");
+	cnss_pr_dbg("qcom,sleep-clk-support is %d\n",
+		    plat_priv->sleep_clk);
+}
+
 void cnss_get_bwscal_info(struct cnss_plat_data *plat_priv)
 {
 	plat_priv->no_bwscale = of_property_read_bool(plat_priv->dev_node,
@@ -1340,7 +1348,9 @@ int cnss_idle_restart(struct device *dev)
 	ret = cnss_driver_event_post(plat_priv,
 				     CNSS_DRIVER_EVENT_IDLE_RESTART,
 				     CNSS_EVENT_SYNC_UNINTERRUPTIBLE, NULL);
-	if (ret)
+	if (ret == -EINTR && plat_priv->device_id != QCA6174_DEVICE_ID)
+		cnss_pr_err("Idle restart has been interrupted but device power up is still in progress");
+	else if (ret)
 		goto out;
 
 	if (plat_priv->device_id == QCA6174_DEVICE_ID) {
@@ -1874,18 +1884,29 @@ static void cnss_recovery_work_handler(struct work_struct *work)
 {
 }
 #else
-static void cnss_recovery_work_handler(struct work_struct *work)
+void cnss_recovery_handler(struct cnss_plat_data *plat_priv)
 {
 	int ret;
 
-	struct cnss_plat_data *plat_priv =
-		container_of(work, struct cnss_plat_data, recovery_work);
+	set_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state);
 
 	if (!plat_priv->recovery_enabled)
 		panic("subsys-restart: Resetting the SoC wlan crashed\n");
 
 	cnss_bus_dev_shutdown(plat_priv);
 	cnss_bus_dev_ramdump(plat_priv);
+
+	/* If recovery is triggered before Host driver registration,
+	 * avoid device power up because eventually device will be
+	 * power up as part of driver registration.
+	 */
+	if (!test_bit(CNSS_DRIVER_REGISTER, &plat_priv->driver_state) ||
+	    !test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state)) {
+		cnss_pr_dbg("Host driver not registered yet, ignore Device Power Up, 0x%lx\n",
+			    plat_priv->driver_state);
+		return;
+	}
+
 	msleep(POWER_RESET_MIN_DELAY_MS);
 
 	ret = cnss_bus_dev_powerup(plat_priv);
@@ -1893,6 +1914,14 @@ static void cnss_recovery_work_handler(struct work_struct *work)
 		__pm_relax(plat_priv->recovery_ws);
 
 	return;
+}
+
+static void cnss_recovery_work_handler(struct work_struct *work)
+{
+	struct cnss_plat_data *plat_priv =
+		container_of(work, struct cnss_plat_data, recovery_work);
+
+	cnss_recovery_handler(plat_priv);
 }
 
 void cnss_device_crashed(struct device *dev)
@@ -2001,6 +2030,18 @@ self_recovery:
 	if (test_bit(LINK_DOWN_SELF_RECOVERY, &plat_priv->ctrl_params.quirks))
 		clear_bit(LINK_DOWN_SELF_RECOVERY,
 			  &plat_priv->ctrl_params.quirks);
+
+	/* If link down self recovery is triggered before Host driver
+	 * registration, avoid device power up because eventually device
+	 * will be power up as part of driver registration.
+	 */
+
+	if (!test_bit(CNSS_DRIVER_REGISTER, &plat_priv->driver_state) ||
+	    !test_bit(CNSS_DRIVER_REGISTERED, &plat_priv->driver_state)) {
+		cnss_pr_dbg("Host driver not registered yet, ignore Device Power Up, 0x%lx\n",
+			    plat_priv->driver_state);
+		return 0;
+	}
 
 	cnss_bus_dev_powerup(plat_priv);
 
@@ -3132,10 +3173,6 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		[CNSS_HOST_WMI_EVENT_LOG] = "wmi_event_log",
 		[CNSS_HOST_WMI_RX_EVENT] = "wmi_rx_event",
 		[CNSS_HOST_HAL_SOC] = "hal_soc",
-		[CNSS_HOST_WMI_HANG_DATA] = "wmi_hang_data",
-		[CNSS_HOST_CE_HANG_EVT] = "ce_hang_evt",
-		[CNSS_HOST_PEER_MAC_ADDR_HANG_DATA] = "peer_mac_addr_hang_data",
-		[CNSS_HOST_CP_VDEV_INFO] = "cp_vdev_info",
 		[CNSS_HOST_GWLAN_LOGGING] = "gwlan_logging",
 		[CNSS_HOST_WMI_DEBUG_LOG_INFO] = "wmi_debug_log_info",
 		[CNSS_HOST_HTC_CREDIT_IDX] = "htc_credit_history_idx",
@@ -3143,7 +3180,10 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		[CNSS_HOST_WMI_TX_CMP_IDX] = "wmi_tx_cmp_idx",
 		[CNSS_HOST_WMI_COMMAND_LOG_IDX] = "wmi_command_log_idx",
 		[CNSS_HOST_WMI_EVENT_LOG_IDX] = "wmi_event_log_idx",
-		[CNSS_HOST_WMI_RX_EVENT_IDX] = "wmi_rx_event_idx"
+		[CNSS_HOST_WMI_RX_EVENT_IDX] = "wmi_rx_event_idx",
+		[CNSS_HOST_HIF_CE_DESC_HISTORY] = "hif_ce_desc_history",
+		[CNSS_HOST_HIF_CE_DESC_HISTORY_BUFF] = "hif_ce_desc_history_buff",
+		[CNSS_HOST_HANG_EVENT_DATA] = "hang_event_data"
 	};
 	int i;
 	int ret = 0;
@@ -3918,14 +3958,15 @@ static ssize_t shutdown_store(struct device *dev,
 {
 	struct cnss_plat_data *plat_priv = dev_get_drvdata(dev);
 
+	cnss_pr_dbg("Received shutdown notification\n");
 	if (plat_priv) {
 		set_bit(CNSS_IN_REBOOT, &plat_priv->driver_state);
+		cnss_bus_update_status(plat_priv, CNSS_SYS_REBOOT);
 		del_timer(&plat_priv->fw_boot_timer);
 		complete_all(&plat_priv->power_up_complete);
 		complete_all(&plat_priv->cal_complete);
+		cnss_pr_dbg("Shutdown notification handled\n");
 	}
-
-	cnss_pr_dbg("Received shutdown notification\n");
 
 	return count;
 }
@@ -4174,6 +4215,7 @@ static int cnss_reboot_notifier(struct notifier_block *nb,
 		container_of(nb, struct cnss_plat_data, reboot_nb);
 
 	set_bit(CNSS_IN_REBOOT, &plat_priv->driver_state);
+	cnss_bus_update_status(plat_priv, CNSS_SYS_REBOOT);
 	del_timer(&plat_priv->fw_boot_timer);
 	complete_all(&plat_priv->power_up_complete);
 	complete_all(&plat_priv->cal_complete);
@@ -4265,6 +4307,24 @@ static void cnss_sram_dump_init(struct cnss_plat_data *plat_priv)
 	if (plat_priv->device_id == QCA6490_DEVICE_ID &&
 	    cnss_get_host_build_type() == QMI_HOST_BUILD_TYPE_PRIMARY_V01)
 		plat_priv->sram_dump = kcalloc(SRAM_DUMP_SIZE, 1, GFP_KERNEL);
+}
+#endif
+
+#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+static void cnss_initialize_mem_pool(unsigned long device_id)
+{
+	cnss_initialize_prealloc_pool(device_id);
+}
+static void cnss_deinitialize_mem_pool(void)
+{
+	cnss_deinitialize_prealloc_pool();
+}
+#else
+static void cnss_initialize_mem_pool(unsigned long device_id)
+{
+}
+static void cnss_deinitialize_mem_pool(void)
+{
 }
 #endif
 
@@ -4858,6 +4918,8 @@ static int cnss_probe(struct platform_device *plat_dev)
 		goto reset_plat_dev;
 	}
 
+	cnss_initialize_mem_pool(plat_priv->device_id);
+
 	ret = cnss_get_pld_bus_ops_name(plat_priv);
 	if (ret)
 		cnss_pr_err("Failed to find bus ops name, err = %d\n",
@@ -4884,7 +4946,7 @@ static int cnss_probe(struct platform_device *plat_dev)
 	cnss_power_misc_params_init(plat_priv);
 	cnss_get_tcs_info(plat_priv);
 	cnss_get_cpr_info(plat_priv);
-	cnss_aop_mbox_init(plat_priv);
+	cnss_aop_interface_init(plat_priv);
 	cnss_init_control_params(plat_priv);
 
 	ret = cnss_get_resources(plat_priv);
@@ -4960,7 +5022,9 @@ unreg_esoc:
 free_res:
 	cnss_put_resources(plat_priv);
 reset_ctx:
+	cnss_aop_interface_deinit(plat_priv);
 	platform_set_drvdata(plat_dev, NULL);
+	cnss_deinitialize_mem_pool();
 reset_plat_dev:
 	cnss_clear_plat_priv(plat_priv);
 out:
@@ -4986,10 +5050,8 @@ static int cnss_remove(struct platform_device *plat_dev)
 	cnss_unregister_bus_scale(plat_priv);
 	cnss_unregister_esoc(plat_priv);
 	cnss_put_resources(plat_priv);
-
-	if (!IS_ERR_OR_NULL(plat_priv->mbox_chan))
-		mbox_free_channel(plat_priv->mbox_chan);
-
+	cnss_aop_interface_deinit(plat_priv);
+	cnss_deinitialize_mem_pool();
 	platform_set_drvdata(plat_dev, NULL);
 	cnss_clear_plat_priv(plat_priv);
 
