@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,8 @@
 #include "rmnet_qmi.h"
 #include "rmnet_ctl.h"
 #include "rmnet_qmap.h"
+#include "rmnet_module.h"
+#include "rmnet_hook.h"
 
 static atomic_t qmap_txid;
 static void *rmnet_ctl_handle;
@@ -79,6 +81,11 @@ static void rmnet_qmap_cmd_handler(struct sk_buff *skb)
 		rc = ll_qmap_cmd_handler(skb);
 		break;
 
+	case QMAP_DATA_REPORT:
+		rmnet_module_hook_aps_data_report(skb);
+		rc = QMAP_CMD_DONE;
+		break;
+
 	default:
 		if (cmd->cmd_type == QMAP_CMD_REQUEST)
 			rc = QMAP_CMD_UNSUPPORTED;
@@ -111,6 +118,7 @@ int rmnet_qmap_next_txid(void)
 {
 	return atomic_inc_return(&qmap_txid);
 }
+EXPORT_SYMBOL(rmnet_qmap_next_txid);
 
 struct net_device *rmnet_qmap_get_dev(u8 mux_id)
 {
