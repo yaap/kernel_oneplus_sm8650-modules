@@ -10,7 +10,8 @@ def define_pineapple():
             "qce50_dlkm",
             "qcedev-mod_dlkm",
             "qrng_dlkm",
-            "qcrypto-msm_dlkm"
+            "qcrypto-msm_dlkm",
+            "smmu_proxy_dlkm"
         ],
         extra_options = [
             "CONFIG_QCOM_SMCINVOKE"]
