@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_CVP_BUF_H_
@@ -194,6 +195,7 @@ int msm_cvp_smem_cache_operations(struct dma_buf *dbuf,
 				unsigned long offset,
 				unsigned long size);
 int msm_cvp_map_ipcc_regs(u32 *iova);
+int msm_cvp_unmap_ipcc_regs(u32 iova);
 
 /* CVP driver internal buffer management functions*/
 struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <asm/memory.h>
@@ -2342,6 +2343,7 @@ static int iris_hfi_core_release(void *dev)
 	struct iris_hfi_device *device = dev;
 	struct cvp_hal_session *session, *next;
 	struct dev_pm_qos_request *qos_hdl;
+	u32 ipcc_iova;
 
 	if (!device) {
 		dprintk(CVP_ERR, "invalid device\n");
@@ -2370,6 +2372,8 @@ static int iris_hfi_core_release(void *dev)
 	__dsp_shutdown(device);
 
 	__disable_subcaches(device);
+	ipcc_iova = __read_register(device, CVP_MMAP_ADDR);
+	msm_cvp_unmap_ipcc_regs(ipcc_iova);
 	__unload_fw(device);
 	__hwfence_regs_unmap(device);
 
@@ -2521,6 +2525,11 @@ static int iris_debug_hook(void *device)
 		dprintk(CVP_ERR, "%s Invalid device\n", __func__);
 		return -ENODEV;
 	}
+	__write_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG, 0x11);
+	__write_register(dev, CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG, 0x1);
+	dprintk(CVP_ERR, "Halt Tensilica and core and axi\n");
+	return 0;
+
 	/******* FDU & MPU *****/
 #define CVP0_CVP_SS_FDU_SECURE_ENABLE 0x90
 #define CVP0_CVP_SS_MPU_SECURE_ENABLE 0x94

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -1038,12 +1039,16 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 		return -EINVAL;
 	}
 
+	dprintk(CVP_ERR, "%s - faulting address: %lx fault cnt %d\n",
+			__func__, iova, core->smmu_fault_count);
+	if (core->smmu_fault_count > 0) {
+		core->smmu_fault_count++;
+		return -ENOSYS;
+	}
 	mutex_lock(&core->lock);
 	core->smmu_fault_count++;
 	if (!core->last_fault_addr)
 		core->last_fault_addr = iova;
-	dprintk(CVP_ERR, "%s - faulting address: %lx, %d\n",
-		__func__, iova, core->smmu_fault_count);
 
 	log = (core->log.snapshot_index > 0)? false : true;
 	list_for_each_entry(inst, &core->instances, list) {

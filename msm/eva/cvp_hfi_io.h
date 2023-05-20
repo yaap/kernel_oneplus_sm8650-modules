@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CVP_HFI_IO_H__
@@ -111,6 +112,7 @@
 
 #define CVP_WRAPPER_TZ_BASE_OFFS		0x000C0000
 
+#define CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG	(CVP_WRAPPER_TZ_BASE_OFFS)
 #define CVP_WRAPPER_INTR_CLEAR_A2HWD_BMSK	0x10
 #define CVP_WRAPPER_INTR_CLEAR_A2HWD_SHFT	0x4
 #define CVP_WRAPPER_INTR_CLEAR_A2H_BMSK	0x4
