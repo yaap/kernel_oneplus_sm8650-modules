@@ -237,8 +237,16 @@ DATARMNETaf95716235,
 DATARMNET7e039054c6,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
 DATARMNET7e039054c6,
 "\x72\x6d\x6e\x65\x74\x20\x73\x68\x73\x20\x77\x71\x20\x72\x65\x73\x74\x61\x72\x74\x20\x63\x6f\x75\x6e\x74"
+);unsigned int DATARMNET68dc14b50d=(0xd26+209-0xdf6);module_param(
+DATARMNET68dc14b50d,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+DATARMNET68dc14b50d,
+"\x72\x65\x73\x65\x72\x76\x65\x20\x6d\x61\x73\x6b\x20\x66\x65\x61\x74\x75\x72\x65\x20\x66\x6c\x61\x67"
+);unsigned int rmnet_shs_no_sync_off=(0xd26+209-0xdf6);module_param(
+rmnet_shs_no_sync_off,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
+rmnet_shs_no_sync_off,
+"\x72\x6d\x6e\x65\x74\x20\x6e\x6f\x20\x73\x79\x6e\x63\x20\x66\x65\x61\x74\x75\x72\x65\x20\x74\x6f\x67\x67\x6c\x65"
 );unsigned int DATARMNET952c960091=(0xd2d+202-0xdf7);module_param(
 DATARMNET952c960091,uint,(0xdb7+6665-0x261c));MODULE_PARM_DESC(
-DATARMNET7e039054c6,
+DATARMNET952c960091,
 "\x72\x6d\x6e\x65\x74\x20\x73\x68\x73\x20\x61\x73\x79\x6e\x63\x20\x70\x61\x63\x6b\x65\x74\x20\x63\x6f\x75\x6e\x74"
 );
