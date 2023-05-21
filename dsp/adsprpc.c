@@ -7499,6 +7499,14 @@ static void  fastrpc_print_debug_data(int cid)
 	kfree(gmsg_log_rx);
 }
 
+void fastrpc_restart_drivers(int cid)
+{
+	struct fastrpc_apps *me = &gfa;
+
+	fastrpc_notify_drivers(me, cid);
+	me->channel[cid].ssrcount++;
+}
+
 static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 					unsigned long code,
 					void *data)

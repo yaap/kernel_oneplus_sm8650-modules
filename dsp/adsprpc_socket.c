@@ -205,6 +205,7 @@ static void fastrpc_recv_del_server(struct frpc_transport_session_control *sessi
 {
 	uint32_t remote_server_instance = session_control->remote_server_instance;
 	int32_t err = 0;
+	int32_t cid = 0;
 
 	/* Ignore EOF marker */
 	if (!node && !port) {
@@ -223,7 +224,9 @@ static void fastrpc_recv_del_server(struct frpc_transport_session_control *sessi
 	session_control->frpc_socket.remote_sock_addr.sq_port = 0;
 	session_control->remote_server_online = false;
 	mutex_unlock(&session_control->frpc_socket.socket_mutex);
+	cid = GET_CID_FROM_SERVER_INSTANCE(remote_server_instance);
 	ADSPRPC_INFO("Remote server is down: remote ID (0x%x)", remote_server_instance);
+	fastrpc_restart_drivers(cid);
 bail:
 	if (err != -EINVAL && err)
 		ADSPRPC_WARN("Ignoring ctrl packet: node %u, port %u, err %d", node, port, err);

@@ -670,6 +670,7 @@ void fastrpc_transport_session_init(int cid, char *subsys);
 void fastrpc_transport_session_deinit(int cid);
 int fastrpc_wait_for_transport_interrupt(int cid, unsigned int flags);
 int fastrpc_set_tvm_remote_domain(struct fastrpc_file *fl, struct fastrpc_ioctl_init *init);
+void fastrpc_restart_drivers(int cid);
 
 static inline struct smq_invoke_buf *smq_invoke_buf_start(remote_arg64_t *pra,
 							uint32_t sc)
