@@ -110,7 +110,6 @@ enum ubwcp_std_image_format {
 	TP10   = 4,
 	P016   = 5,
 	INFO_FORMAT_LIST_SIZE,
-	STD_IMAGE_FORMAT_INVALID = 0xFF
 };
 
 enum ubwcp_state {
@@ -654,34 +653,67 @@ static void dump_attributes(struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("");
 }
 
-static enum ubwcp_std_image_format to_std_format(u16 ioctl_image_format)
+static int to_std_format(u16 ioctl_image_format, enum ubwcp_std_image_format *format)
 {
 	switch (ioctl_image_format) {
 	case UBWCP_RGBA8888:
-		return RGBA;
+		*format = RGBA;
+		return 0;
 	case UBWCP_NV12:
 	case UBWCP_NV12_Y:
 	case UBWCP_NV12_UV:
-		return NV12;
+		*format = NV12;
+		return 0;
 	case UBWCP_NV124R:
 	case UBWCP_NV124R_Y:
 	case UBWCP_NV124R_UV:
-		return NV124R;
+		*format = NV124R;
+		return 0;
 	case UBWCP_TP10:
 	case UBWCP_TP10_Y:
 	case UBWCP_TP10_UV:
-		return TP10;
+		*format = TP10;
+		return 0;
 	case UBWCP_P010:
 	case UBWCP_P010_Y:
 	case UBWCP_P010_UV:
-		return P010;
+		*format = P010;
+		return 0;
 	case UBWCP_P016:
 	case UBWCP_P016_Y:
 	case UBWCP_P016_UV:
-		return P016;
+		*format = P016;
+		return 0;
 	default:
-		WARN(1, "Fix this!!!");
-		return STD_IMAGE_FORMAT_INVALID;
+		ERR("Failed to convert ioctl image format to std format: %d", ioctl_image_format);
+		return -1;
+	}
+}
+
+static int std_to_hw_img_fmt(enum ubwcp_std_image_format format, u16 *hw_fmt)
+{
+	switch (format) {
+	case RGBA:
+		*hw_fmt = HW_BUFFER_FORMAT_RGBA;
+		return 0;
+	case NV12:
+		*hw_fmt = HW_BUFFER_FORMAT_NV12;
+		return 0;
+	case NV124R:
+		*hw_fmt = HW_BUFFER_FORMAT_NV124R;
+		return 0;
+	case P010:
+		*hw_fmt = HW_BUFFER_FORMAT_P010;
+		return 0;
+	case TP10:
+		*hw_fmt = HW_BUFFER_FORMAT_TP10;
+		return 0;
+	case P016:
+		*hw_fmt = HW_BUFFER_FORMAT_P016;
+		return 0;
+	default:
+		ERR("Failed to convert std image format to hw format: %d", format);
+		return -1;
 	}
 }
 
@@ -747,15 +779,11 @@ ubwcp_pixel_to_bytes(struct ubwcp_driver *ubwcp,
  * always returns false for linear image
  */
 static bool stride_is_valid(struct ubwcp_driver *ubwcp,
-				u16 ioctl_img_fmt, u32 width, u32 lin_stride)
+				enum ubwcp_std_image_format format, u32 width, u32 lin_stride)
 {
 	u32 compressed_stride;
 	u32 width_b;
 	u32 height_b;
-	enum ubwcp_std_image_format format = to_std_format(ioctl_img_fmt);
-
-	if (format == STD_IMAGE_FORMAT_INVALID)
-		return false;
 
 	ubwcp_pixel_to_bytes(ubwcp, format, width, 0, &width_b, &height_b);
 
@@ -810,10 +838,26 @@ static bool ioctl_format_is_valid(u16 ioctl_image_format)
 /* validate buffer attributes */
 static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffer_attrs *attr)
 {
+	enum ubwcp_std_image_format format;
+
+	if (attr->unused1 || attr->unused2 || attr->unused3 || attr->unused4 || attr->unused5 ||
+	    attr->unused6 || attr->unused7 || attr->unused8 || attr->unused9) {
+		ERR("buf attr unused values must be set to 0");
+		goto err;
+	}
+
 	if (!ioctl_format_is_valid(attr->image_format)) {
 		ERR("invalid image format: %d", attr->image_format);
 		goto err;
 	}
+
+	/* rest of the fields are ignored for linear format */
+	if (attr->image_format == UBWCP_LINEAR) {
+		goto valid;
+	}
+
+	if (to_std_format(attr->image_format, &format))
+		goto err;
 
 	if (attr->major_ubwc_ver || attr->minor_ubwc_ver) {
 		ERR("major/minor ubwc ver must be 0. major: %d minor: %d",
@@ -842,11 +886,10 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 		goto err;
 	}
 
-	if (attr->image_format != UBWCP_LINEAR)
-		if(!stride_is_valid(ubwcp, attr->image_format, attr->width, attr->stride)) {
-			ERR("stride is invalid: %d", attr->stride);
-			goto err;
-		}
+	if(!stride_is_valid(ubwcp, format, attr->width, attr->stride)) {
+		ERR("stride is invalid: %d", attr->stride);
+		goto err;
+	}
 
 	if ((attr->scanlines < attr->height) ||
 	    (attr->scanlines > attr->height + MAX_ATTR_SCANLN_HT_DELTA)) {
@@ -887,6 +930,7 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 		goto err;
 	}
 
+valid:
 	dump_attributes(attr);
 	return true;
 err:
@@ -1109,30 +1153,6 @@ static int planes_in_format(enum ubwcp_std_image_format format)
 		return 2;
 }
 
-static unsigned int ubwcp_get_hw_image_format_value(u16 ioctl_image_format)
-{
-	enum ubwcp_std_image_format format;
-
-	format = to_std_format(ioctl_image_format);
-	switch (format) {
-	case RGBA:
-		return HW_BUFFER_FORMAT_RGBA;
-	case NV12:
-		return HW_BUFFER_FORMAT_NV12;
-	case NV124R:
-		return HW_BUFFER_FORMAT_NV124R;
-	case P010:
-		return HW_BUFFER_FORMAT_P010;
-	case TP10:
-		return HW_BUFFER_FORMAT_TP10;
-	case P016:
-		return HW_BUFFER_FORMAT_P016;
-	default:
-		WARN(1, "Fix this!!!!!");
-		return 0;
-	}
-}
-
 static int ubwcp_validate_uv_align(struct ubwcp_driver *ubwcp,
 					struct ubwcp_buffer_attrs *attr,
 					size_t ula_y_plane_size,
@@ -1144,8 +1164,13 @@ static int ubwcp_validate_uv_align(struct ubwcp_driver *ubwcp,
 	int y_tile_height;
 	int planes;
 
+	enum ubwcp_std_image_format format;
+	ret = to_std_format(attr->image_format, &format);
+	if (ret)
+		goto err;
+
 	/* Only validate UV align if there is both a Y and UV plane */
-	planes = planes_in_format(to_std_format(attr->image_format));
+	planes = planes_in_format(format);
 	if (planes != 2)
 		return 0;
 
@@ -1160,7 +1185,7 @@ static int ubwcp_validate_uv_align(struct ubwcp_driver *ubwcp,
 	/*
 	 * Check that UV plane does not overlap with any of the Y plane’s tiles
 	 */
-	y_tile_height = get_tile_height(ubwcp, to_std_format(attr->image_format), 0);
+	y_tile_height = get_tile_height(ubwcp, format, 0);
 	y_tile_align_bytes = y_tile_height * attr->stride;
 	ula_y_plane_size_align = ((ula_y_plane_size + y_tile_align_bytes - 1) /
 					y_tile_align_bytes) * y_tile_align_bytes;
@@ -1193,14 +1218,15 @@ static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 	u32 stride;
 	u32 scanlines;
 	u32 planar_padding;
+	int ret;
+
+	ret = to_std_format(attr->image_format, &format);
+	if (ret)
+		return ret;
 
 	stride         = attr->stride;
 	scanlines      = attr->scanlines;
 	planar_padding = attr->planar_padding;
-
-	/* convert ioctl image format to standard image format */
-	format = to_std_format(attr->image_format);
-
 
 	/* Number of "expected" planes in "the standard defined" image format */
 	planes = planes_in_format(format);
@@ -1266,11 +1292,14 @@ static int ubwcp_calc_ubwcp_buf_params(struct ubwcp_driver *ubwcp,
 	int missing_plane;
 	enum ubwcp_std_image_format format;
 	size_t stride_tp10_p;
+	int ret;
 
 	FENTRY();
 
-	/* convert ioctl image format to standard image format */
-	format = to_std_format(attr->image_format);
+	ret = to_std_format(attr->image_format, &format);
+	if (ret)
+		return ret;
+
 	missing_plane = missing_plane_from_format(attr->image_format);
 	planes = planes_in_format(format);
 
@@ -1506,32 +1535,41 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	u32 height_b;
 	enum ubwcp_std_image_format std_image_format;
 	bool is_non_lin_buf;
+	u16 hw_img_format;
 
 	FENTRY();
 	trace_ubwcp_set_buf_attrs_start(dmabuf);
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
-		trace_ubwcp_set_buf_attrs_end(dmabuf);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_validation;
 	}
 
 	if (!attr) {
 		ERR("NULL attr ptr");
-		trace_ubwcp_set_buf_attrs_end(dmabuf);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_validation;
 	}
 
 	buf = dma_buf_to_ubwcp_buf(dmabuf);
 	if (!buf) {
 		ERR("No corresponding ubwcp_buf for the passed in dma_buf");
-		trace_ubwcp_set_buf_attrs_end(dmabuf);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_validation;
 	}
 
 	ubwcp = buf->ubwcp;
-	if (ubwcp->state != UBWCP_STATE_READY)
-		return -EPERM;
+	if (ubwcp->state != UBWCP_STATE_READY) {
+		ret = EPERM;
+		goto err_validation;
+	}
+
+	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
+		ERR("Invalid buf attrs");
+		ret = -EINVAL;
+		goto err_validation;
+	}
 
 	mutex_lock(&buf->lock);
 
@@ -1543,11 +1581,6 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 
 	mmdata = &buf->mmdata;
 	is_non_lin_buf = (buf->buf_attr.image_format != UBWCP_LINEAR);
-
-	if (!ubwcp_buf_attrs_valid(ubwcp, attr)) {
-		ERR("Invalid buf attrs");
-		goto unlock;
-	}
 
 	/* note: this also checks if buf is mmap'ed */
 	ret = ubwcp->mmap_config_fptr(buf->dma_buf, true, 0, 0);
@@ -1575,9 +1608,13 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 		return ret;
 	}
 
-	std_image_format = to_std_format(attr->image_format);
-	if (std_image_format == STD_IMAGE_FORMAT_INVALID) {
+	if (to_std_format(attr->image_format, &std_image_format)) {
 		ERR("Unable to map ioctl image format to std image format");
+		goto unlock;
+	}
+
+	if (std_to_hw_img_fmt(std_image_format, &hw_img_format)) {
+		ERR("Unable to map std image format to hw image format");
 		goto unlock;
 	}
 
@@ -1665,7 +1702,7 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	/* create the mmdata descriptor */
 	memset(mmdata, 0, sizeof(*mmdata));
 	mmdata->uv_start_addr = CACHE_ADDR(uv_start);
-	mmdata->format        = ubwcp_get_hw_image_format_value(attr->image_format);
+	mmdata->format = hw_img_format;
 
 	if (std_image_format != TP10) {
 		mmdata->stride       = CACHE_ADDR(stride_b);      /* uncompressed stride */
@@ -1727,31 +1764,13 @@ err:
 	}
 unlock:
 	mutex_unlock(&buf->lock);
+err_validation:
 	if (!ret)
 		ret = -1;
 	trace_ubwcp_set_buf_attrs_end(dmabuf);
 	return ret;
 }
 EXPORT_SYMBOL(ubwcp_set_buf_attrs);
-
-
-/* Set buffer attributes ioctl */
-static int ubwcp_set_buf_attrs_ioctl(struct ubwcp_ioctl_buffer_attrs *attr_ioctl)
-{
-	int ret;
-	struct dma_buf *dmabuf;
-
-	dmabuf = dma_buf_get(attr_ioctl->fd);
-	if (IS_ERR(dmabuf)) {
-		ERR("dmabuf ptr not found for dma_buf_fd = %d", dma_buf_fd);
-		return PTR_ERR(dmabuf);
-	}
-
-	ret = ubwcp_set_buf_attrs(dmabuf, &attr_ioctl->attr);
-	dma_buf_put(dmabuf);
-	return ret;
-}
-
 
 /* Free up the buffer descriptor */
 static void ubwcp_buf_desc_free(struct ubwcp_driver *ubwcp, struct ubwcp_desc *desc)
@@ -2274,14 +2293,137 @@ static int ubwcp_close(struct inode *i, struct file *f)
 	return 0;
 }
 
+static int ioctl_set_buf_attr(struct ubwcp_driver *ubwcp, unsigned long ioctl_param)
+{
+	int ret;
+	struct dma_buf *dmabuf;
+	struct ubwcp_ioctl_buffer_attrs buf_attr_ioctl;
+
+	if (copy_from_user(&buf_attr_ioctl, (const void __user *) ioctl_param,
+			   sizeof(buf_attr_ioctl))) {
+		ERR("copy_from_user() failed");
+		return -EFAULT;
+	}
+	DBG("IOCTL: SET_BUF_ATTR: fd = %d", buf_attr_ioctl.fd);
+
+	dmabuf = dma_buf_get(buf_attr_ioctl.fd);
+	if (IS_ERR(dmabuf)) {
+		ERR("dmabuf ptr not found for dma_buf_fd = %d", buf_attr_ioctl.fd);
+		return PTR_ERR(dmabuf);
+	}
+	ret = ubwcp_set_buf_attrs(dmabuf, &buf_attr_ioctl.attr);
+	dma_buf_put(dmabuf);
+	return ret;
+}
+
+static int ioctl_get_hw_ver(struct ubwcp_driver *ubwcp, unsigned long ioctl_param)
+{
+	struct ubwcp_ioctl_hw_version hw_ver;
+
+	DBG("IOCTL: GET_HW_VER");
+	if (ubwcp_get_hw_version(&hw_ver))
+		return -EINVAL;
+
+	if (copy_to_user((void __user *)ioctl_param, &hw_ver, sizeof(hw_ver))) {
+		ERR("copy_to_user() failed");
+		return -EFAULT;
+	}
+	return 0;
+}
+
+static int ioctl_get_stride_align(struct ubwcp_driver *ubwcp, unsigned long ioctl_param)
+{
+	struct ubwcp_ioctl_stride_align stride_align_ioctl;
+	enum ubwcp_std_image_format format;
+
+	DBG("IOCTL: GET_STRIDE_ALIGN");
+	if (copy_from_user(&stride_align_ioctl, (const void __user *) ioctl_param,
+			   sizeof(stride_align_ioctl))) {
+		ERR("copy_from_user() failed");
+		return -EFAULT;
+	}
+
+	if (stride_align_ioctl.unused != 0) {
+		ERR("unused values must be set to 0");
+		return -EINVAL;
+	}
+
+	if (!ioctl_format_is_valid(stride_align_ioctl.image_format)) {
+		ERR("invalid image format: %d", stride_align_ioctl.image_format);
+		return -EINVAL;
+	}
+
+	if (stride_align_ioctl.image_format == UBWCP_LINEAR) {
+		ERR("not supported for LINEAR format");
+		return -EINVAL;
+	}
+
+	if (to_std_format(stride_align_ioctl.image_format, &format)) {
+		ERR("Unable to map ioctl image format to std image format");
+		return -EINVAL;
+	}
+
+	if (get_stride_alignment(format, &stride_align_ioctl.stride_align)) {
+		ERR("failed for format: %d", format);
+		return -EFAULT;
+	}
+
+	if (copy_to_user((void __user *)ioctl_param, &stride_align_ioctl,
+			sizeof(stride_align_ioctl))) {
+		ERR("copy_to_user() failed");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+static int ioctl_validate_stride(struct ubwcp_driver *ubwcp, unsigned long ioctl_param)
+{
+	struct ubwcp_ioctl_validate_stride validate_stride_ioctl;
+	enum ubwcp_std_image_format format;
+
+	DBG("IOCTL: VALIDATE_STRIDE");
+	if (copy_from_user(&validate_stride_ioctl, (const void __user *) ioctl_param,
+			   sizeof(validate_stride_ioctl))) {
+		ERR("copy_from_user() failed");
+		return -EFAULT;
+	}
+
+	if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
+		ERR("unused values must be set to 0");
+		return -EINVAL;
+	}
+
+	if (!ioctl_format_is_valid(validate_stride_ioctl.image_format)) {
+		ERR("not supported for LINEAR format");
+		return -EINVAL;
+	}
+
+	if (validate_stride_ioctl.image_format == UBWCP_LINEAR) {
+		ERR("not supported for LINEAR format");
+		return -EINVAL;
+	}
+
+	if (to_std_format(validate_stride_ioctl.image_format, &format)) {
+		ERR("Unable to map ioctl image format to std image format");
+		return -EINVAL;
+	}
+
+	validate_stride_ioctl.valid = stride_is_valid(ubwcp, format, validate_stride_ioctl.width,
+					validate_stride_ioctl.stride);
+
+	if (copy_to_user((void __user *)ioctl_param, &validate_stride_ioctl,
+		sizeof(validate_stride_ioctl))) {
+		ERR("copy_to_user() failed");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
 /* handle IOCTLs */
 static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
 {
-	struct ubwcp_ioctl_buffer_attrs buf_attr_ioctl;
-	struct ubwcp_ioctl_hw_version hw_ver;
-	struct ubwcp_ioctl_validate_stride validate_stride_ioctl;
-	struct ubwcp_ioctl_stride_align stride_align_ioctl;
-	enum ubwcp_std_image_format format;
 	struct ubwcp_driver *ubwcp;
 
 	ubwcp = ubwcp_get_driver();
@@ -2295,93 +2437,16 @@ static long ubwcp_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 
 	switch (ioctl_num) {
 	case UBWCP_IOCTL_SET_BUF_ATTR:
-		if (copy_from_user(&buf_attr_ioctl, (const void __user *) ioctl_param,
-				   sizeof(buf_attr_ioctl))) {
-			ERR("ERROR: copy_from_user() failed");
-			return -EFAULT;
-		}
-		DBG("IOCTL : SET_BUF_ATTR: fd = %d", buf_attr_ioctl.fd);
-
-		if (buf_attr_ioctl.attr.unused1 || buf_attr_ioctl.attr.unused2
-		    || buf_attr_ioctl.attr.unused3 || buf_attr_ioctl.attr.unused4
-		    || buf_attr_ioctl.attr.unused5 || buf_attr_ioctl.attr.unused6
-		    || buf_attr_ioctl.attr.unused7 || buf_attr_ioctl.attr.unused8
-		    || buf_attr_ioctl.attr.unused9) {
-			ERR("ERROR: buf attr unused values must be set to 0");
-			return -EINVAL;
-		}
-
-		return ubwcp_set_buf_attrs_ioctl(&buf_attr_ioctl);
+		return ioctl_set_buf_attr(ubwcp, ioctl_param);
 
 	case UBWCP_IOCTL_GET_HW_VER:
-		DBG("IOCTL : GET_HW_VER");
-
-		if (ubwcp_get_hw_version(&hw_ver))
-			return -EINVAL;
-
-		if (copy_to_user((void __user *)ioctl_param, &hw_ver, sizeof(hw_ver))) {
-			ERR("ERROR: copy_to_user() failed");
-			return -EFAULT;
-		}
-		break;
+		return ioctl_get_hw_ver(ubwcp, ioctl_param);
 
 	case UBWCP_IOCTL_GET_STRIDE_ALIGN:
-		DBG("IOCTL : GET_STRIDE_ALIGN");
-		if (copy_from_user(&stride_align_ioctl, (const void __user *) ioctl_param,
-				   sizeof(stride_align_ioctl))) {
-			ERR("ERROR: copy_from_user() failed");
-			return -EFAULT;
-		}
-
-		format = to_std_format(stride_align_ioctl.image_format);
-		if (format == STD_IMAGE_FORMAT_INVALID)
-			return -EINVAL;
-
-		if (stride_align_ioctl.unused != 0)
-			return -EINVAL;
-
-		if (get_stride_alignment(format, &stride_align_ioctl.stride_align)) {
-			ERR("ERROR: copy_to_user() failed");
-			return -EFAULT;
-		}
-
-		if (copy_to_user((void __user *)ioctl_param, &stride_align_ioctl,
-				sizeof(stride_align_ioctl))) {
-			ERR("ERROR: copy_to_user() failed");
-			return -EFAULT;
-		}
-		break;
+		return ioctl_get_stride_align(ubwcp, ioctl_param);
 
 	case UBWCP_IOCTL_VALIDATE_STRIDE:
-		DBG("IOCTL : VALIDATE_STRIDE");
-		if (copy_from_user(&validate_stride_ioctl, (const void __user *) ioctl_param,
-				   sizeof(validate_stride_ioctl))) {
-			ERR("ERROR: copy_from_user() failed");
-			return -EFAULT;
-		}
-
-		if (validate_stride_ioctl.unused1 || validate_stride_ioctl.unused2) {
-			ERR("ERROR: unused values must be set to 0");
-			return -EINVAL;
-		}
-
-		format = to_std_format(validate_stride_ioctl.image_format);
-		if (format == STD_IMAGE_FORMAT_INVALID) {
-			ERR("ERROR: invalid format: %d", validate_stride_ioctl.image_format);
-			return -EINVAL;
-		}
-
-		validate_stride_ioctl.valid = stride_is_valid(ubwcp,
-						validate_stride_ioctl.image_format,
-						validate_stride_ioctl.width,
-						validate_stride_ioctl.stride);
-
-		if (copy_to_user((void __user *)ioctl_param, &validate_stride_ioctl,
-			sizeof(validate_stride_ioctl))) {
-			ERR("ERROR: copy_to_user() failed");
-			return -EFAULT;
-		}
-		break;
+		return ioctl_validate_stride(ubwcp, ioctl_param);
 
 	default:
 		ERR("Invalid ioctl_num = %d", ioctl_num);
