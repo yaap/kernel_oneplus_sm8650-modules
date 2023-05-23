@@ -8508,32 +8508,33 @@ static struct device fastrpc_bus = {
 
 static int fastrpc_bus_match(struct device *dev, struct device_driver *driver)
 {
+	struct fastrpc_apps *me = &gfa;
 	struct fastrpc_driver *frpc_driver = to_fastrpc_driver(driver);
 	struct fastrpc_device *frpc_device = to_fastrpc_device(dev);
+	unsigned long irq_flags = 0;
 
-	if (frpc_device->handle == frpc_driver->handle)
+	if (frpc_device->handle == frpc_driver->handle) {
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		/* If device is being closed, fail the match */
+		if (frpc_device->dev_close) {
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
+			return 0;
+		}
+		frpc_device->refs++;
+		frpc_driver->device = dev;
+		spin_unlock_irqrestore(&me->hlock, irq_flags);
 		return 1;
+	}
 	return 0;
 }
 
 static int fastrpc_bus_probe(struct device *dev)
 {
-	struct fastrpc_apps *me = &gfa;
 	struct fastrpc_device *frpc_dev = to_fastrpc_device(dev);
 	struct fastrpc_driver *frpc_drv = to_fastrpc_driver(dev->driver);
-	unsigned long irq_flags = 0;
 
-	if (frpc_drv && frpc_drv->probe) {
-		spin_lock_irqsave(&me->hlock, irq_flags);
-		if (frpc_dev->dev_close) {
-			spin_unlock_irqrestore(&me->hlock, irq_flags);
-			return 0;
-		}
-		frpc_dev->refs++;
-		frpc_drv->device = dev;
-		spin_unlock_irqrestore(&me->hlock, irq_flags);
+	if (frpc_drv && frpc_drv->probe)
 		return frpc_drv->probe(frpc_dev);
-	}
 
 	return 0;
 }
