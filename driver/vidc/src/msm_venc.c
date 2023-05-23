@@ -1711,12 +1711,12 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 		input_rate_q16 = input_rate << 16;
 		input_rate_q16 |=
 			(timeperframe->denominator % timeperframe->numerator);
-
 	}
-	i_vpr_h(inst, "%s: type %s, %s value %u\n",
+
+	i_vpr_h(inst, "%s: type %s, %s value %u.%u\n",
 		__func__, v4l2_type_name(s_parm->type),
 		is_frame_rate ? "frame rate" : "operating rate",
-		input_rate_q16 >> 16);
+		input_rate_q16 >> 16, input_rate_q16 & 0xffff);
 
 	msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
 		input_rate_q16, __func__);
