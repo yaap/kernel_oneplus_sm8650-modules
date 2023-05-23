@@ -2478,27 +2478,26 @@ int msm_vidc_adjust_session_priority(void *instance, struct v4l2_ctrl *ctrl)
 	}
 	/*
 	 * Priority handling
-	 * Client will set 0 (realtime), 1+ (non-realtime)
-	 * Driver adds NRT_PRIORITY_OFFSET (2) to clients non-realtime priority
-	 * and hence PRIORITY values in the driver become 0, 3+.
-	 * Driver may move decode realtime sessions to non-realtime by
-	 * increasing priority by 1 to RT sessions in HW overloaded cases.
-	 * So driver PRIORITY values can be 0, 1, 3+.
+	 * Client will set 0 (realtime), (1 to 4) (non-realtime)
 	 * When driver setting priority to firmware, driver adds
 	 * FIRMWARE_PRIORITY_OFFSET (1) for all sessions except
 	 * non-critical sessions. So finally firmware priority values ranges
 	 * from 0 (Critical session), 1 (realtime session),
-	 * 2+ (non-realtime session)
+	 * (2 to 5) (non-realtime session).
+	 * Driver may move decode realtime sessions to non-realtime by
+	 * increasing priority by 1 to RT sessions in HW overloaded cases.
+	 * Following will be priority based on requirement -
+	 *  ___________________________________________________________
+	 *  |  Description    |    HAL Value     |Driver value|FW Value|
+	 *  |_________________|__________________|____________|________|
+	 *  |Critical Priority| Vendor Extension | Via control|   0    |
+	 *  |      RT         |        0         |      0     |   1    |
+	 *  |      NRT        |     -1 to -4     |     1-4    |  2-5   |
+	 *  |_________________|__________________|____________|________|
 	 */
-	if (ctrl) {
-		/* add offset when client sets non-realtime */
-		if (ctrl->val)
-			adjusted_value = ctrl->val + NRT_PRIORITY_OFFSET;
-		else
-			adjusted_value = ctrl->val;
-	} else {
-		adjusted_value = inst->capabilities[PRIORITY].value;
-	}
+
+	adjusted_value = ctrl ? ctrl->val :
+		inst->capabilities[PRIORITY].value;
 
 	msm_vidc_update_cap_value(inst, PRIORITY, adjusted_value, __func__);
 
