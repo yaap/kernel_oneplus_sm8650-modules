@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_cvp.h"
@@ -94,9 +95,8 @@ static int cvp_wait_process_message(struct msm_cvp_inst *inst,
 	if (wait_event_timeout(sq->wq,
 		cvp_msg_pending(sq, &msg, ktid), timeout) == 0) {
 		dprintk(CVP_WARN, "session queue wait timeout\n");
-		if(inst && inst->core && inst->core->device){
+		if (inst && inst->core && inst->core->device && inst->state != MSM_CVP_CORE_INVALID)
 			print_hfi_queue_info(inst->core->device);
-		}
 		rc = -ETIMEDOUT;
 		goto exit;
 	}
@@ -182,6 +182,11 @@ static int msm_cvp_session_process_hfi(
 	if (!inst || !inst->core || !in_pkt) {
 		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
 		return -EINVAL;
+	}
+
+	if (inst->state == MSM_CVP_CORE_INVALID) {
+		dprintk(CVP_ERR, "sess %pK INVALIDim reject new HFIs\n", inst);
+		return -ECONNRESET;
 	}
 
 	s = cvp_get_inst_validate(inst->core, inst);
@@ -474,121 +479,8 @@ exit:
 static int msm_cvp_session_process_hfi_fence(struct msm_cvp_inst *inst,
 					struct eva_kmd_arg *arg)
 {
-	int rc = 0;
-	int idx;
-	struct eva_kmd_hfi_fence_packet *fence_pkt;
-	struct eva_kmd_hfi_synx_packet *synx_pkt;
-	struct eva_kmd_fence_ctrl *kfc;
-	struct cvp_hfi_cmd_session_hdr *pkt;
-	unsigned int offset = 0, buf_num = 0, in_offset, in_buf_num;
-	struct msm_cvp_inst *s;
-	struct cvp_fence_command *f;
-	struct cvp_fence_queue *q;
-	u32 *fence;
-	enum op_mode mode;
-	bool is_config_pkt;
-
-	if (!inst || !inst->core || !arg || !inst->core->device) {
-		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	s = cvp_get_inst_validate(inst->core, inst);
-	if (!s)
-		return -ECONNRESET;
-
-	q = &inst->fence_cmd_queue;
-
-	mutex_lock(&q->lock);
-	mode = q->mode;
-	mutex_unlock(&q->lock);
-
-	if (mode == OP_DRAINING) {
-		dprintk(CVP_SYNX, "%s: flush in progress\n", __func__);
-		rc = -EBUSY;
-		goto exit;
-	}
-
-	in_offset = arg->buf_offset;
-	in_buf_num = arg->buf_num;
-
-	fence_pkt = &arg->data.hfi_fence_pkt;
-	pkt = (struct cvp_hfi_cmd_session_hdr *)&fence_pkt->pkt_data;
-	idx = get_pkt_index((struct cvp_hal_session_cmd_pkt *)pkt);
-
-	if (idx < 0 ||
-		(pkt->size > MAX_HFI_FENCE_OFFSET * sizeof(unsigned int))) {
-		dprintk(CVP_ERR, "%s incorrect packet %d %#x\n", __func__,
-				pkt->size, pkt->packet_type);
-		goto exit;
-	} else {
-		is_config_pkt = cvp_hfi_defs[idx].is_config_pkt;
-	}
-
-	if (in_offset && in_buf_num) {
-		offset = in_offset;
-		buf_num = in_buf_num;
-	}
-
-	if (!is_buf_param_valid(buf_num, offset)) {
-		dprintk(CVP_ERR, "Incorrect buf num and offset in cmd\n");
-		goto exit;
-	}
-
-	if (is_config_pkt)
-		pr_info(CVP_DBG_TAG "inst %pK config %s\n",
-			"pkt", inst, cvp_hfi_defs[idx].name);
-
-	rc = msm_cvp_map_frame(inst, (struct eva_kmd_hfi_packet *)pkt, offset,
-				buf_num);
-	if (rc)
-		goto exit;
-
-	rc = cvp_alloc_fence_data(&f, pkt->size);
-	if (rc)
-		goto exit;
-
-	f->type = cvp_hfi_defs[idx].type;
-	f->mode = OP_NORMAL;
-
-	synx_pkt = &arg->data.hfi_synx_pkt;
-	if (synx_pkt->fence_data[0] != 0xFEEDFACE) {
-		dprintk(CVP_ERR, "%s deprecated synx path\n", __func__);
-		cvp_free_fence_data(f);
-		msm_cvp_unmap_frame(inst, pkt->client_data.kdata);
-		goto exit;
-	} else {
-		kfc = &synx_pkt->fc;
-		fence = (u32 *)&kfc->fences;
-		f->frame_id = kfc->frame_id;
-		f->signature = 0xFEEDFACE;
-		f->num_fences = kfc->num_fences;
-		f->output_index = kfc->output_index;
-	}
-
-
-	dprintk(CVP_SYNX, "%s: frameID %llu ktid %llu\n",
-			__func__, f->frame_id, pkt->client_data.kdata);
-
-	memcpy(f->pkt, pkt, pkt->size);
-
-	f->pkt->client_data.kdata |= FENCE_BIT;
-
-	rc = inst->core->synx_ftbl->cvp_import_synx(inst, f, fence);
-	if (rc) {
-		cvp_free_fence_data(f);
-		goto exit;
-	}
-
-	mutex_lock(&q->lock);
-	list_add_tail(&f->list, &inst->fence_cmd_queue.wait_list);
-	mutex_unlock(&q->lock);
-
-	wake_up(&inst->fence_cmd_queue.wq);
-
-exit:
-	cvp_put_inst(s);
-	return rc;
+	dprintk(CVP_WARN, "Deprecated IOCTL command %s\n", __func__);
+	return -EINVAL;
 }
 
 
@@ -1534,7 +1426,6 @@ check_sched:
 int cvp_clean_session_queues(struct msm_cvp_inst *inst)
 {
 	struct cvp_fence_queue *q;
-	struct cvp_session_queue *sq;
 	u32 count = 0, max_retries = 100;
 
 	q = &inst->fence_cmd_queue;
@@ -1563,11 +1454,6 @@ retry:
 		return -EBUSY;
 
 	goto retry;
-
-	sq = &inst->session_queue_fence;
-	spin_lock(&sq->lock);
-	sq->state = QUEUE_INVALID;
-	spin_unlock(&sq->lock);
 }
 
 static int cvp_flush_all(struct msm_cvp_inst *inst)

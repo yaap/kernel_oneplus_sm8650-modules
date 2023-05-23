@@ -3305,10 +3305,8 @@ static void **get_session_id(struct msm_cvp_cb_info *info)
 	case HAL_SESSION_PROPERTY_INFO:
 	case HAL_SESSION_EVENT_CHANGE:
 	case HAL_SESSION_DUMP_NOTIFY:
-		session_id = &info->response.cmd.session_id;
-		break;
 	case HAL_SESSION_ERROR:
-		session_id = &info->response.data.session_id;
+		session_id = &info->response.cmd.session_id;
 		break;
 	case HAL_RESPONSE_UNUSED:
 	default:
@@ -3525,6 +3523,7 @@ err_no_work:
 		}
 		dprintk(CVP_HFI, "Processing response %d of %d, type %d\n",
 			(i + 1), num_responses, r->response_type);
+		/* callback = void cvp_handle_cmd_response() */
 		device->callback(r->response_type, rsp);
 	}
 

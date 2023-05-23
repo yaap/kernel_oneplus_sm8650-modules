@@ -2079,7 +2079,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 				HAL_SESSION_RELEASE_BUFFER_DONE);
 			if (rc)
 				dprintk(CVP_WARN,
-				"%s: wait for signal failed, rc %d\n",
+				"%s: wait release_arp signal failed, rc %d\n",
 				__func__, rc);
 			mutex_lock(&inst->persistbufs.lock);
 		} else {
