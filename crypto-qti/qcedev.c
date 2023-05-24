@@ -49,7 +49,7 @@
  * This is temporary, and we can use the 1500 value once the
  * core irqs are enabled.
  */
-#define MAX_OFFLOAD_CRYPTO_WAIT_TIME 25
+#define MAX_OFFLOAD_CRYPTO_WAIT_TIME 20
 
 #define MAX_REQUEST_TIME 5000
 
@@ -841,12 +841,10 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			}
 			return 0;
 		}
-		spin_lock_irqsave(&podev->lock, flags);
 		ret = qce_manage_timeout(podev->qce, current_req_info);
 		if (ret)
 			pr_err("%s: error during manage timeout", __func__);
 
-		spin_unlock_irqrestore(&podev->lock, flags);
 		req_done((unsigned long) podev);
 		if (qcedev_areq->offload_cipher_op_req.err !=
 						QCEDEV_OFFLOAD_NO_ERROR)
