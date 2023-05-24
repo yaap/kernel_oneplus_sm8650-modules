@@ -1208,7 +1208,7 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	{PRIORITY, DEC|ENC, CODECS_ALL,
-		0, 1 + NRT_PRIORITY_OFFSET, 1, 1 + NRT_PRIORITY_OFFSET,
+		0, 4, 1, 4,
 		0,
 		HFI_PROP_SESSION_PRIORITY,
 		CAP_FLAG_DYNAMIC_ALLOWED},
