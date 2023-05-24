@@ -7,7 +7,6 @@
 #define FASTRPC_IOCTL_H
 
 #include <linux/types.h>
-#include <linux/cdev.h>
 
 #define remote_arg_t    union remote_arg
 /* Map and unmap IOCTL methods reserved memory size for future extensions */

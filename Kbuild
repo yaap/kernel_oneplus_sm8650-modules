@@ -20,6 +20,7 @@ ccflags-y += -DCONFIG_DSP_PINEAPPLE=1
 endif
 
 LINUXINCLUDE += -I$(DSP_ROOT)/include/linux
+LINUXINCLUDE += -I$(DSP_ROOT)/include/uapi
 
 frpc-adsprpc-y := dsp/adsprpc.o	\
                   dsp/adsprpc_rpmsg.o \

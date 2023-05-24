@@ -30,8 +30,14 @@ def define_modules(target, variant):
         ],
         local_defines = ["DSP_TRACE_INCLUDE_PATH={}".format(trace_include_path)],
         out = "frpc-adsprpc.ko",
-        hdrs = ["include/linux/fastrpc.h"],
-        includes = ["include/linux"],
+        hdrs = [
+            "include/linux/fastrpc.h",
+            "include/uapi/fastrpc_shared.h",
+        ],
+        includes = [
+            "include/linux",
+            "include/uapi",
+        ],
     )
 
     ddk_module(
