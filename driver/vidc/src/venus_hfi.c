@@ -225,26 +225,6 @@ exit:
 
 	return rc;
 }
-/*
-static int __sys_set_coverage(struct msm_vidc_core *core,
-		u32 mode)
-{
-	int rc = 0;
-
-	//rc = call_hfi_pkt_op(core, sys_coverage_config,	pkt, mode);
-	if (rc) {
-		d_vpr_e("Coverage mode setting to FW failed\n");
-		return -ENOTEMPTY;
-	}
-
-	//if (__cmdq_write(core, pkt, sid)) {
-	//	d_vpr_e("Failed to send coverage pkt to f/w\n");
-	//	return -ENOTEMPTY;
-	//}
-
-	return 0;
-}
-*/
 static int __sys_set_power_control(struct msm_vidc_core *core, bool enable)
 {
 	int rc = 0;
@@ -332,64 +312,10 @@ skip_power_off:
 	d_vpr_e("%s: skipped\n", __func__);
 	return -EAGAIN;
 }
-
-#if 0 // TODO
-static int __core_set_resource(struct msm_vidc_core *core,
-		struct vidc_resource_hdr *resource_hdr, void *resource_value)
-{
-	int rc = 0;
-
-	if (!core || !resource_hdr || !resource_value) {
-		d_vpr_e("%s: invalid params %pK %pK %pK\n", __func__,
-			core, resource_hdr, resource_value);
-		return -EINVAL;
-	}
-
-	//rc = hfi_packet_sys_set_resource(core, core->packet, core->packet_size,
-	//		resource_hdr, resource_value);
-	if (rc) {
-		d_vpr_e("set_res: failed to create packet\n");
-		goto err_create_pkt;
-	}
-
-	//rc = __cmdq_write(core, core->packet);
-	if (rc)
-		rc = -ENOTEMPTY;
-
-err_create_pkt:
-	return rc;
-}
-
-static int __core_release_resource(struct msm_vidc_core *core,
-		struct vidc_resource_hdr *resource_hdr)
-{
-	int rc = 0;
-
-	if (!core || !resource_hdr) {
-		d_vpr_e("%s: invalid params %pK %pK\n",
-			__func__, core, resource_hdr);
-		return -EINVAL;
-	}
-
-	//rc = hfi_packet_sys_release_resource(core, core->packet, core->packet_size, resource_hdr);
-	if (rc) {
-		d_vpr_e("release_res: failed to create packet\n");
-		goto err_create_pkt;
-	}
-
-	//rc = __cmdq_write(core, core->packet);
-	if (rc)
-		rc = -ENOTEMPTY;
-
-err_create_pkt:
-	return rc;
-}
-#endif
-
 static int __release_subcaches(struct msm_vidc_core *core)
 {
 	int rc = 0;
-	struct subcache_info* sinfo;
+	struct subcache_info *sinfo;
 	struct hfi_buffer buf;
 
 	if (msm_vidc_syscache_disable || !is_sys_cache_present(core))
@@ -512,30 +438,7 @@ err_fail_set_subacaches:
 	return rc;
 }
 
-/*
-static int __set_ubwc_config(struct msm_vidc_core *core)
-{
-	int rc = 0;
-
-	if (!core->platform->data.ubwc_config) {
-		d_vpr_h("%s: invalid ubwc config\n", __func__);
-		return -EINVAL;
-	}
-
-	//rc = hfi_packet_sys_ubwc_config(core, core->packet, core->packet_size);
-	if (rc)
-		return rc;
-
-	//rc = __cmdq_write(core, core->packet));
-	if (rc)
-		return rc;
-
-	d_vpr_h("Configured UBWC Config\n");
-	return rc;
-}
-*/
-
-static int __venus_power_off(struct msm_vidc_core* core)
+static int __venus_power_off(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
@@ -697,7 +600,8 @@ int __load_fw(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	d_vpr_h("%s\n", __func__);
+	d_vpr_h("%s: loading video firmware\n", __func__);
+
 	/* clear all substates */
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_MAX - 1, 0, __func__);
 
@@ -713,11 +617,11 @@ int __load_fw(struct msm_vidc_core *core)
 		goto fail_load_fw;
 
 	/*
-	* Hand off control of regulators to h/w _after_ loading fw.
-	* Note that the GDSC will turn off when switching from normal
-	* (s/w triggered) to fast (HW triggered) unless the h/w vote is
-	* present.
-	*/
+	 * Hand off control of regulators to h/w _after_ loading fw.
+	 * Note that the GDSC will turn off when switching from normal
+	 * (s/w triggered) to fast (HW triggered) unless the h/w vote is
+	 * present.
+	 */
 	call_res_op(core, gdsc_hw_ctrl, core);
 	trace_msm_v4l2_vidc_fw_load("END");
 
@@ -741,7 +645,7 @@ void __unload_fw(struct msm_vidc_core *core)
 	/* clear all substates */
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_MAX - 1, 0, __func__);
 
-	d_vpr_h("%s done\n", __func__);
+	d_vpr_h("%s unloaded video firmware\n", __func__);
 }
 
 static int __response_handler(struct msm_vidc_core *core)
@@ -790,7 +694,8 @@ irqreturn_t venus_hfi_isr_handler(int irq, void *data)
 	struct msm_vidc_core *core = data;
 	int num_responses = 0, rc = 0;
 
-	d_vpr_l("%s()\n", __func__);
+	d_vpr_l("%s: received interrupt from hardware\n", __func__);
+
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return IRQ_NONE;
@@ -1431,7 +1336,7 @@ unlock:
 int venus_hfi_session_close(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1470,7 +1375,7 @@ unlock:
 int venus_hfi_start(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1513,7 +1418,7 @@ unlock:
 int venus_hfi_stop(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1557,7 +1462,7 @@ unlock:
 int venus_hfi_session_pause(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1601,7 +1506,7 @@ int venus_hfi_session_resume(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port, u32 payload)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -1644,7 +1549,7 @@ unlock:
 int venus_hfi_session_drain(struct msm_vidc_inst *inst, enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core || !inst->packet) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2042,10 +1947,10 @@ unlock:
 	return rc;
 }
 
-int venus_hfi_scale_clocks(struct msm_vidc_inst* inst, u64 freq)
+int venus_hfi_scale_clocks(struct msm_vidc_inst *inst, u64 freq)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2072,7 +1977,7 @@ exit:
 int venus_hfi_scale_buses(struct msm_vidc_inst *inst, u64 bw_ddr, u64 bw_llcc)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);

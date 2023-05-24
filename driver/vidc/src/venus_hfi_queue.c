@@ -38,6 +38,7 @@ static void __dump_packet(u8 *packet, const char *function, void *qinfo)
 	 * "de ad ba ab " * 8 + '\0'
 	 */
 	char row[3 * 32];
+
 	session_id = *((u32 *)packet + 1);
 
 	q = (struct msm_vidc_iface_q_info *)qinfo;
@@ -300,11 +301,10 @@ static int __iface_cmdq_write_relaxed(struct msm_vidc_core *core,
 		goto err_q_null;
 	}
 
-	if (!__write_queue(q_info, (u8 *)pkt, requires_interrupt)) {
+	if (!__write_queue(q_info, (u8 *)pkt, requires_interrupt))
 		rc = 0;
-	} else {
+	else
 		d_vpr_e("queue full\n");
-	}
 
 err_q_null:
 	return rc;
@@ -411,7 +411,7 @@ void venus_hfi_queue_deinit(struct msm_vidc_core *core)
 {
 	int i;
 
-	d_vpr_h("%s()\n", __func__);
+	d_vpr_h("%s: deinitializing interface queue\n", __func__);
 
 	if (!core->iface_q_table.align_virtual_addr) {
 		d_vpr_h("%s: queues already deallocated\n", __func__);
@@ -542,7 +542,7 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	u32 *payload;
 	u32 i;
 
-	d_vpr_h("%s()\n", __func__);
+	d_vpr_h("%s: initializing interface queue\n", __func__);
 
 	if (!core) {
 		d_vpr_h("%s: invalid params\n", __func__);

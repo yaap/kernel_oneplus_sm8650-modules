@@ -608,19 +608,18 @@ static int get_driver_buffer_flags(struct msm_vidc_inst *inst, u32 hfi_flags)
 {
 	u32 driver_flags = 0;
 
-	if (inst->hfi_frame_info.picture_type & HFI_PICTURE_IDR) {
+	if (inst->hfi_frame_info.picture_type & HFI_PICTURE_IDR)
 		driver_flags |= MSM_VIDC_BUF_FLAG_KEYFRAME;
-	} else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_P) {
+	else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_P)
 		driver_flags |= MSM_VIDC_BUF_FLAG_PFRAME;
-	} else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_B) {
+	else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_B)
 		driver_flags |= MSM_VIDC_BUF_FLAG_BFRAME;
-	} else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_I) {
+	else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_I)
 		driver_flags |= MSM_VIDC_BUF_FLAG_KEYFRAME;
-	} else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_CRA) {
+	else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_CRA)
 		driver_flags |= MSM_VIDC_BUF_FLAG_KEYFRAME;
-	} else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_BLA) {
+	else if (inst->hfi_frame_info.picture_type & HFI_PICTURE_BLA)
 		driver_flags |= MSM_VIDC_BUF_FLAG_KEYFRAME;
-	}
 
 	if (inst->hfi_frame_info.data_corrupt)
 		driver_flags |= MSM_VIDC_BUF_FLAG_ERROR;
@@ -904,7 +903,7 @@ static int msm_vidc_handle_fence_signal(struct msm_vidc_inst *inst,
 
 		if (inst->hfi_frame_info.fence_error)
 			i_vpr_e(inst,
-				"%s: fence error info recieved for SW fence\n",
+				"%s: fence error info received for SW fence\n",
 				__func__);
 	} else {
 		i_vpr_e(inst, "%s: invalid fence type\n", __func__);
