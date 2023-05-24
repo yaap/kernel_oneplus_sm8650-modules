@@ -5782,8 +5782,17 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 
 	spin_lock_irqsave(&fl->apps->hlock, irq_flags);
 	is_locked = true;
-	if (fl->is_dma_invoke_pend)
-		wait_for_completion(&fl->dma_invoke);
+	if (!fl->is_dma_invoke_pend)
+		goto skip_dmainvoke_wait;
+	is_locked = false;
+	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
+	wait_for_completion(&fl->dma_invoke);
+
+skip_dmainvoke_wait:
+	if (!is_locked) {
+		spin_lock_irqsave(&fl->apps->hlock, irq_flags);
+		is_locked = true;
+	}
 	if (!fl->is_ramdump_pend)
 		goto skip_dump_wait;
 	is_locked = false;
