@@ -353,6 +353,7 @@ static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 static struct ubwcp_buf *dma_buf_to_ubwcp_buf(struct dma_buf *dmabuf)
 {
 	struct ubwcp_buf *buf = NULL;
+	struct ubwcp_buf *ret_buf = NULL;
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	unsigned long flags;
 
@@ -362,12 +363,14 @@ static struct ubwcp_buf *dma_buf_to_ubwcp_buf(struct dma_buf *dmabuf)
 	spin_lock_irqsave(&ubwcp->buf_table_lock, flags);
 	/* look up ubwcp_buf corresponding to this dma_buf */
 	hash_for_each_possible(ubwcp->buf_table, buf, hnode, (u64)dmabuf) {
-		if (buf->dma_buf == dmabuf)
+		if (buf->dma_buf == dmabuf) {
+			ret_buf = buf;
 			break;
+		}
 	}
 	spin_unlock_irqrestore(&ubwcp->buf_table_lock, flags);
 
-	return buf;
+	return ret_buf;
 }
 
 
@@ -387,7 +390,7 @@ int ubwcp_get_hw_version(struct ubwcp_ioctl_hw_version *ver)
 	if (!ubwcp)
 		return -1;
 
-	if (ubwcp->state != UBWCP_STATE_FAULT)
+	if (ubwcp->state == UBWCP_STATE_INVALID)
 		return -EPERM;
 
 	ver->major = ubwcp->hw_ver_major;
