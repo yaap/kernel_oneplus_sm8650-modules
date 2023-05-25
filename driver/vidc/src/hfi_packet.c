@@ -22,7 +22,7 @@ u32 get_hfi_port(struct msm_vidc_inst *inst,
 	}
 
 	if (is_decode_session(inst)) {
-		switch(port) {
+		switch (port) {
 		case INPUT_PORT:
 		case INPUT_META_PORT:
 			hfi_port = HFI_PORT_BITSTREAM;
@@ -70,7 +70,7 @@ u32 get_hfi_port_from_buffer_type(struct msm_vidc_inst *inst,
 	}
 
 	if (is_decode_session(inst)) {
-		switch(buffer_type) {
+		switch (buffer_type) {
 		case MSM_VIDC_BUF_INPUT:
 		case MSM_VIDC_BUF_INPUT_META:
 		case MSM_VIDC_BUF_BIN:
@@ -257,7 +257,7 @@ u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
 		return hfi_colorformat;
 	}
 
-	switch(colorformat) {
+	switch (colorformat) {
 	case MSM_VIDC_FMT_NV12:
 		hfi_colorformat = HFI_COLOR_FMT_NV12;
 		break;
@@ -723,8 +723,8 @@ err_cmd:
 	return rc;
 }
 
-int hfi_packet_sys_intraframe_powercollapse(struct msm_vidc_core* core,
-	u8* pkt, u32 pkt_size, u32 enable)
+int hfi_packet_sys_intraframe_powercollapse(struct msm_vidc_core *core,
+	u8 *pkt, u32 pkt_size, u32 enable)
 {
 	int rc = 0;
 	u32 payload = 0;
