@@ -530,6 +530,7 @@ err:
 	atomic_dec(&ubwcp->num_non_lin_buffers);
 	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -568,6 +569,7 @@ err:
 	atomic_inc(&ubwcp->num_non_lin_buffers);
 	mutex_unlock(&ubwcp->mem_hotplug_lock);
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -940,17 +942,11 @@ err:
 
 /* calculate and return metadata buffer size for a given plane
  * and buffer attributes
- * NOTE: in this function, we will only pass in NV12 format.
- * NOT NV12_Y or NV12_UV etc.
- * the Y or UV information is in the "plane"
- * "format" here purely means "encoding format" and no information
- * if some plane data is missing.
  */
-static size_t metadata_buf_sz(struct ubwcp_driver *ubwcp,
+static int metadata_buf_sz(struct ubwcp_driver *ubwcp,
 				enum ubwcp_std_image_format format,
-				u32 width, u32 height, u8 plane)
+				u32 width, u32 height, u8 plane, size_t *size)
 {
-	size_t size;
 	u64 pitch;
 	u64 lines;
 	u64 tile_width;
@@ -966,10 +962,8 @@ static size_t metadata_buf_sz(struct ubwcp_driver *ubwcp,
 	DBG_BUF_ATTR("Calculating metadata buffer size: format = %d, plane = %d", format, plane);
 
 	if (plane >= f_info.planes) {
-		ERR("Format does not have requested plane info: format: %d, plane: %d",
-			format, plane);
-		WARN(1, "Fix this!!!!!");
-		return 0;
+		ERR("Missing plane info: format: %d, plane: %d", format, plane);
+		return -1;
 	}
 
 	p_info = f_info.p_info[plane];
@@ -996,21 +990,20 @@ static size_t metadata_buf_sz(struct ubwcp_driver *ubwcp,
 	DBG_BUF_ATTR("size (p*l*bytes) : %d", pitch*lines*1);
 
 	/* x1 below is only to clarify that we are multiplying by 1 bytes/tile */
-	size = UBWCP_ALIGN(pitch*lines*1, META_DATA_SIZE_ALIGN);
+	*size = UBWCP_ALIGN(pitch*lines*1, META_DATA_SIZE_ALIGN);
 
-	DBG_BUF_ATTR("size (aligned 4K): %zu (0x%zx)", size, size);
-	return size;
+	DBG_BUF_ATTR("size (aligned 4K): %zu (0x%zx)", *size, *size);
+	return 0;
 }
 
 
 /* calculate and return size of pixel data buffer for a given plane
  * and buffer attributes
  */
-static size_t pixeldata_buf_sz(struct ubwcp_driver *ubwcp,
+static int pixeldata_buf_sz(struct ubwcp_driver *ubwcp,
 					u16 format, u32 width,
-					u32 height, u8 plane)
+					u32 height, u8 plane, size_t *size)
 {
-	size_t size;
 	u64 pitch;
 	u64 lines;
 	u16 pixel_bytes;
@@ -1028,10 +1021,8 @@ static size_t pixeldata_buf_sz(struct ubwcp_driver *ubwcp,
 	DBG_BUF_ATTR("Calculating Pixeldata buffer size: format = %d, plane = %d", format, plane);
 
 	if (plane >= f_info.planes) {
-		ERR("Format does not have requested plane info: format: %d, plane: %d",
-			format, plane);
-		WARN(1, "Fix this!!!!!");
-		return 0;
+		ERR("Missing plane info: format: %d, plane: %d", format, plane);
+		return -1;
 	}
 
 	p_info = f_info.p_info[plane];
@@ -1060,11 +1051,9 @@ static size_t pixeldata_buf_sz(struct ubwcp_driver *ubwcp,
 	DBG_BUF_ATTR("lines            : %d", lines);
 	DBG_BUF_ATTR("size (p*l*bytes) : %d", (pitch*lines*pixel_bytes)/per_pixel);
 
-	size  = UBWCP_ALIGN((pitch*lines*pixel_bytes)/per_pixel, PIXEL_DATA_SIZE_ALIGN);
-
-	DBG_BUF_ATTR("size (aligned 4K): %zu (0x%zx)", size, size);
-
-	return size;
+	*size  = UBWCP_ALIGN((pitch*lines*pixel_bytes)/per_pixel, PIXEL_DATA_SIZE_ALIGN);
+	DBG_BUF_ATTR("size (aligned 4K): %zu (0x%zx)", *size, *size);
+	return 0;
 }
 
 static int get_tile_height(struct ubwcp_driver *ubwcp, enum ubwcp_std_image_format format,
@@ -1230,13 +1219,6 @@ static int ubwcp_calc_ula_params(struct ubwcp_driver *ubwcp,
 
 	/* Number of "expected" planes in "the standard defined" image format */
 	planes = planes_in_format(format);
-
-	/* any plane missing?
-	 * valid missing_plane values:
-	 *      0 == no plane missing
-	 *      1 == 1st plane missing
-	 *      2 == 2nd plane missing
-	 */
 	missing_plane = missing_plane_from_format(attr->image_format);
 
 	DBG_BUF_ATTR("ula params -->");
@@ -1314,21 +1296,18 @@ static int ubwcp_calc_ubwcp_buf_params(struct ubwcp_driver *ubwcp,
 	*pd_p1 = 0;
 	*stride_tp10_b = 0;
 
-	if (!missing_plane) {
-		*md_p0 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
-		*pd_p0 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
-		if (planes == 2) {
-			*md_p1 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
-			*pd_p1 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
-		}
-	} else {
-		if (missing_plane == 1) {
-			*md_p1 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
-			*pd_p1 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 1);
-		} else {
-			*md_p0 = metadata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
-			*pd_p0 = pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 0);
-		}
+	if (missing_plane != 1) {
+		if (metadata_buf_sz(ubwcp, format, attr->width, attr->height, 0, md_p0))
+			return -1;
+		if (pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 0, pd_p0))
+			return -1;
+	}
+
+	if ((planes == 2) && (missing_plane != 2)){
+		if (metadata_buf_sz(ubwcp, format, attr->width, attr->height, 1, md_p1))
+			return -1;
+		if (pixeldata_buf_sz(ubwcp, format, attr->width, attr->height, 1, pd_p1))
+			return -1;
 	}
 
 	if (format == TP10) {
@@ -1828,6 +1807,8 @@ static int range_check_disable(struct ubwcp_driver *ubwcp, int idx)
 	trace_ubwcp_hw_flush_start(0);
 	ret = ubwcp_hw_disable_range_check_with_flush(ubwcp->base, idx);
 	trace_ubwcp_hw_flush_end(0);
+	if (ret)
+		ERR("disable_range_check_with_flush() failed: %d", ret);
 	mutex_unlock(&ubwcp->hw_range_ck_lock);
 	mutex_unlock(&ubwcp->ubwcp_flush_lock);
 	return ret;
@@ -1956,7 +1937,7 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		ret = ubwcp_flush(ubwcp);
 		if (ret) {
 			ubwcp->state = UBWCP_STATE_FAULT;
-			ERR("ubwcp_flush() failed: %d, driver state set to FAULT", ret);
+			ERR("state set to fault");
 			goto err_flush_failed;
 		}
 
@@ -2033,7 +2014,7 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 	ret = range_check_disable(ubwcp, buf->desc->idx);
 	if (ret) {
 		ubwcp->state = UBWCP_STATE_FAULT;
-		ERR("disable_range_check_with_flush() failed: %d, driver state set to FAULT", ret);
+		ERR("state set to fault");
 	}
 
 	/* release descriptor if perm range xlation is not set */
@@ -2256,7 +2237,7 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	if (buf->desc) {
 		if (!buf->perm) {
 			ubwcp->state = UBWCP_STATE_FAULT;
-			WARN_ON(true);
+			ERR("state set to fault");
 		}
 		ubwcp_buf_desc_free(buf->ubwcp, buf->desc);
 		buf->desc = NULL;
@@ -2489,6 +2470,7 @@ static int read_err_w_op(void *data, u64 value)
 	return 0;
 err:
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -2522,6 +2504,7 @@ static int write_err_w_op(void *data, u64 value)
 	return 0;
 err:
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -2555,6 +2538,7 @@ static int decode_err_w_op(void *data, u64 value)
 	return 0;
 err:
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -2588,6 +2572,7 @@ static int encode_err_w_op(void *data, u64 value)
 	return 0;
 err:
 	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
 	return -1;
 }
 
@@ -3382,7 +3367,6 @@ static int qcom_ubwcp_remove(struct platform_device *pdev)
 	if (psize != avail) {
 		ERR("gen_pool is not empty! avail: %zx size: %zx", avail, psize);
 		ERR("skipping pool destroy....cause it will PANIC. Fix this!!!!");
-		WARN(1, "Fix this!");
 	} else {
 		gen_pool_destroy(ubwcp->ula_pool);
 	}
@@ -3410,8 +3394,6 @@ static int ubwcp_probe(struct platform_device *pdev)
 
 	of_property_read_string(pdev->dev.of_node, "compatible", &compatible);
 	ERR("unknown device: %s", compatible);
-
-	WARN_ON(1);
 	return -EINVAL;
 }
 
@@ -3436,8 +3418,6 @@ static int ubwcp_remove(struct platform_device *pdev)
 
 	of_property_read_string(pdev->dev.of_node, "compatible", &compatible);
 	ERR("unknown device: %s", compatible);
-
-	WARN_ON(1);
 	return -EINVAL;
 }
 
