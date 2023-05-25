@@ -6,6 +6,8 @@ ifeq ($(call is-board-platform-in-list,kalama pineapple),true)
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 	LOCAL_PATH := $(call my-dir)
 	SPU_BLD_DIR := $(TOP)/vendor/qcom/opensource/spu-kernel
+	LOCAL_MODULE_DDK_BUILD := true
+	LOCAL_MODULE_KO_DIRS := drivers/spcom.ko drivers/spss_utils.ko
 	DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 	INSTALL_MODULE_HEADERS := 1
 
