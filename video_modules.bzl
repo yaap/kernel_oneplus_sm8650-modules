@@ -45,8 +45,8 @@ module_entry(
         ],
     },
     deps = [
-            "//techpack/mm-drivers:hw_fence_headers",
-            "//techpack/synx-kernel:synx_headers",
+            "//vendor/qcom/opensource/mm-drivers:hw_fence_headers",
+            "//vendor/qcom/opensource/synx-kernel:synx_headers",
         ],
 )
 
