@@ -380,8 +380,9 @@ static bool is_vpp_cycles_close_to_freq_corner(struct msm_vidc_core *core,
 	closest_freq_upper_corner =
 		core->resource->freq_set.freq_tbl[0].freq;
 
+	/* return true if vpp_min_freq is more than max frequency */
 	if (vpp_min_freq > closest_freq_upper_corner)
-		return false;
+		return true;
 
 	/* get the closest freq corner for vpp_min_freq */
 	for (i = 0; i < core->resource->freq_set.count; i++) {
@@ -1360,12 +1361,15 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 
 	/* check if vpp_min_freq is exceeding closest freq corner margin */
 	if (is_vpp_cycles_close_to_freq_corner(core,
-		codec_output.vpp_min_freq))
-		/* enables ring buffer */
+		codec_output.vpp_min_freq)) {
+		/* enable ring buffer */
+		i_vpr_h(inst,
+			"%s: vpp_min_freq %d, ring_buffer_count %d\n",
+			__func__, codec_output.vpp_min_freq, MAX_ENC_RING_BUF_COUNT);
 		inst->capabilities[ENC_RING_BUFFER_COUNT].value =
 			MAX_ENC_RING_BUF_COUNT;
-	else
+	} else {
 		inst->capabilities[ENC_RING_BUFFER_COUNT].value = 0;
-
+	}
 	return 0;
 }

@@ -333,6 +333,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	struct v4l2_format *output_fmt, *input_fmt;
 	struct msm_vidc_core* core;
 	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
+	u32 frame_rate = 0, operating_rate = 0;
 
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -342,30 +343,39 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	output_fmt = &inst->fmts[OUTPUT_PORT];
 	input_fmt = &inst->fmts[INPUT_PORT];
 
-	fps = inst->capabilities[FRAME_RATE].value >> 16;
+	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
+	operating_rate = inst->capabilities[OPERATING_RATE].value >> 16;
+	fps = max(frame_rate, operating_rate);
 	pixel_count = output_fmt->fmt.pix_mp.width *
 		output_fmt->fmt.pix_mp.height;
 
-	/* check if current session supports ring buffer enablement */
-	if (!(pixel_count >= 7680 * 4320 && fps >= 30) &&
-		!(pixel_count >= 3840 * 2160 && fps >= 120) &&
-		!(pixel_count >= 1920 * 1080 && fps >= 480) &&
-		!(pixel_count >= 1280 * 720 && fps >= 960)) {
-		i_vpr_h(inst,
-			"%s: session %ux%u@%u fps does not support ring buffer\n",
-			__func__, output_fmt->fmt.pix_mp.width,
-			output_fmt->fmt.pix_mp.height, fps);
-		inst->capabilities[cap_id].value = 0;
-	} else {
+	/*
+	 * try to enable ring buffer feature if
+	 * resolution >= 8k and fps >= 30fps and
+	 * resolution >= 4k and fps >= 120fps and
+	 * resolution >= 1080p and fps >= 480fps and
+	 * resolution >= 720p and fps >= 960fps
+	 */
+	if ((pixel_count >= 7680 * 4320 && fps >= 30) ||
+	    (pixel_count >= 3840 * 2160 && fps >= 120) ||
+	    (pixel_count >= 1920 * 1080 && fps >= 480) ||
+	    (pixel_count >= 1280 * 720 && fps >= 960)) {
 		data_size = input_fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
+		i_vpr_h(inst, "%s: calculate ring buffer count\n", __func__);
 		rc = call_session_op(core, ring_buf_count, inst, data_size);
 		if (rc) {
-			i_vpr_e(inst, "%s: failed to calculate ring buf count\n",
+			i_vpr_e(inst, "%s: failed to calculate ring buffer count\n",
 				__func__);
 			/* ignore error */
 			rc = 0;
 			inst->capabilities[cap_id].value = 0;
 		}
+	} else {
+		i_vpr_h(inst,
+			"%s: session %ux%u@%u fps does not support ring buffer\n",
+			__func__, output_fmt->fmt.pix_mp.width,
+			output_fmt->fmt.pix_mp.height, fps);
+		inst->capabilities[cap_id].value = 0;
 	}
 
 	count = inst->capabilities[cap_id].value;
