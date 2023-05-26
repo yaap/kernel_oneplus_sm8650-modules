@@ -3456,7 +3456,7 @@ exit:
 	return packet_count;
 }
 
-static void iris_hfi_core_work_handler(struct work_struct *work)
+irqreturn_t iris_hfi_core_work_handler(int irq, void *data)
 {
 	struct msm_cvp_core *core;
 	struct iris_hfi_device *device;
@@ -3468,11 +3468,9 @@ static void iris_hfi_core_work_handler(struct work_struct *work)
 	if (core)
 		device = core->device->hfi_device_data;
 	else
-		return;
+		return IRQ_HANDLED;
 
 	mutex_lock(&device->lock);
-
-
 	if (!__core_in_valid_state(device)) {
 		if (warning_on) {
 			dprintk(CVP_WARN, "%s Core not in init state\n",
@@ -3531,21 +3529,13 @@ err_no_work:
 	if (!(intr_status & CVP_WRAPPER_INTR_STATUS_A2HWD_BMSK))
 		enable_irq(device->cvp_hal_data->irq);
 
-	/*
-	 * XXX: Don't add any code beyond here.  Reacquiring locks after release
-	 * it above doesn't guarantee the atomicity that we're aiming for.
-	 */
+	return IRQ_HANDLED;
 }
-
-static DECLARE_WORK(iris_hfi_work, iris_hfi_core_work_handler);
 
 irqreturn_t cvp_hfi_isr(int irq, void *dev)
 {
-	struct iris_hfi_device *device = dev;
-
 	disable_irq_nosync(irq);
-	queue_work(device->cvp_workq, &iris_hfi_work);
-	return IRQ_HANDLED;
+	return IRQ_WAKE_THREAD;
 }
 
 static void iris_hfi_wd_work_handler(struct work_struct *work)
