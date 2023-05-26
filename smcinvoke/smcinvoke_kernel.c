@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -19,7 +19,7 @@
 #if !IS_ENABLED(CONFIG_QSEECOM)
 #include "IQSEEComCompat.h"
 #include "IQSEEComCompatAppLoader.h"
-#include "linux/qseecom.h"
+#include "linux/qseecom_api.h"
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 #include <linux/qseecom_kernel.h>
 #else

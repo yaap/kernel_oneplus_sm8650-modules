@@ -58,7 +58,7 @@ register_securemsm_module(
         "IQSEEComCompat.h",
         "IQSEEComCompatAppLoader.h",
     ],
-    deps = [":smcinvoke_kernel_headers"],
+    deps = [":smcinvoke_kernel_headers", ":qseecom_kernel_headers"],
     hdrs = [":smcinvoke_kernel_headers"],
 )
 
@@ -69,14 +69,15 @@ register_securemsm_module(
         "qseecom.c",
         "ice.h",
     ],
-    deps = [":securemsm_kernel_headers"],
-    srcs = ["config/sec-kernel_defconfig_qseecom.h"],
-    copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
+    deps = [":qseecom_kernel_headers"],
+    #srcs = ["config/sec-kernel_defconfig_qseecom.h"],
+    #copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
 )
 
 register_securemsm_module(
     name = "tz_log_dlkm",
     path = TZLOG_PATH,
+    deps = [":qseecom_kernel_headers"],
     default_srcs = ["tz_log.c"],
 )
 

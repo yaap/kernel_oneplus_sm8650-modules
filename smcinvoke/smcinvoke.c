@@ -29,7 +29,6 @@
 #include <linux/freezer.h>
 #include <linux/ratelimit.h>
 #include <asm/cacheflush.h>
-#include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/kthread.h>
 #include "smcinvoke.h"
@@ -41,6 +40,7 @@
 #else
 #include "misc/qseecom_kernel.h"
 #endif
+#include "misc/qseecomi.h"
 
 #define CREATE_TRACE_POINTS
 #include "trace_smcinvoke.h"

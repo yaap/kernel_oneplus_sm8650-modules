@@ -16,7 +16,8 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
 SEC_KERNEL_DIR := $(TOP)/vendor/qcom/opensource/securemsm-kernel
 
-LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/
+LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/ \
+                                $(LOCAL_PATH)/include/uapi
 
 SSG_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/*) \
