@@ -3,6 +3,8 @@
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#define pr_fmt(fmt) "%s: %s(): " fmt, KBUILD_MODNAME, __func__
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/dma-buf.h>
@@ -49,17 +51,13 @@ MODULE_IMPORT_NS(DMA_BUF);
 #define UBWCP_ALIGN(_x, _y)  ((((_x) + (_y) - 1)/(_y))*(_y))
 
 
-#define DBG_BUF_ATTR(fmt, args...) do { if (ubwcp_debug_trace_enable) \
-					pr_err("ubwcp: %s(): " fmt "\n", __func__, ##args); \
+#define DBG_BUF_ATTR(fmt, args...) do { if (unlikely(ubwcp_debug_trace_enable)) \
+					pr_err(fmt "\n", ##args); \
 					} while (0)
-#define DBG(fmt, args...) do { if (ubwcp_debug_trace_enable) \
-				pr_err("ubwcp: %s(): " fmt "\n", __func__, ##args); \
+#define DBG(fmt, args...) do { if (unlikely(ubwcp_debug_trace_enable)) \
+				pr_err(fmt "\n", ##args); \
 				} while (0)
-#define ERR(fmt, args...) pr_err("ubwcp: %d: %s(): ~~~ERROR~~~: " fmt "\n", __LINE__, __func__, ##args)
-#define ERR_RATE_LIMIT(fmt, args...) pr_err_ratelimited("ubwcp: %s(): ~~~ERROR~~~: " fmt "\n",\
-							__func__, ##args)
-
-#define FENTRY() DBG("")
+#define ERR(fmt, args...) pr_err_ratelimited("%d: ~~~ERROR~~~: " fmt "\n", __LINE__, ##args)
 
 #define META_DATA_PITCH_ALIGN    64
 #define META_DATA_HEIGHT_ALIGN   16
@@ -379,8 +377,6 @@ int ubwcp_get_hw_version(struct ubwcp_ioctl_hw_version *ver)
 {
 	struct ubwcp_driver *ubwcp;
 
-	FENTRY();
-
 	if (!ver) {
 		ERR("invalid version ptr");
 		return -EINVAL;
@@ -592,7 +588,6 @@ static int ubwcp_init_buffer(struct dma_buf *dmabuf)
 	struct ubwcp_driver *ubwcp = ubwcp_get_driver();
 	unsigned long flags;
 
-	FENTRY();
 	trace_ubwcp_init_buffer_start(dmabuf);
 
 	if (!ubwcp) {
@@ -1279,8 +1274,6 @@ static int ubwcp_calc_ubwcp_buf_params(struct ubwcp_driver *ubwcp,
 	size_t stride_tp10_p;
 	int ret;
 
-	FENTRY();
-
 	ret = to_std_format(attr->image_format, &format);
 	if (ret)
 		return ret;
@@ -1371,7 +1364,6 @@ static phys_addr_t ubwcp_ula_realloc(struct ubwcp_driver *ubwcp,
 /* unmap dma buf */
 static void ubwcp_dma_unmap(struct ubwcp_buf *buf)
 {
-	FENTRY();
 	if (buf->dma_buf && buf->attachment) {
 		DBG("Calling dma_buf_unmap_attachment()");
 		dma_buf_unmap_attachment(buf->attachment, buf->sgt, DMA_BIDIRECTIONAL);
@@ -1519,7 +1511,6 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	bool is_non_lin_buf;
 	u16 hw_img_format;
 
-	FENTRY();
 	trace_ubwcp_set_buf_attrs_start(dmabuf);
 
 	if (!dmabuf) {
@@ -1844,7 +1835,6 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	struct ubwcp_buf *buf;
 	struct ubwcp_driver *ubwcp;
 
-	FENTRY();
 	trace_ubwcp_lock_start(dmabuf);
 
 	if (!dmabuf) {
@@ -2046,7 +2036,6 @@ static int ubwcp_unlock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 	struct ubwcp_buf *buf;
 	int ret;
 
-	FENTRY();
 	trace_ubwcp_unlock_start(dmabuf);
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
@@ -2092,8 +2081,6 @@ int ubwcp_get_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 {
 	int ret = 0;
 	struct ubwcp_buf *buf;
-
-	FENTRY();
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
@@ -2143,8 +2130,6 @@ int ubwcp_set_perm_range_translation(struct dma_buf *dmabuf, bool enable)
 {
 	int ret = 0;
 	struct ubwcp_buf *buf;
-
-	FENTRY();
 
 	if (!dmabuf) {
 		ERR("NULL dmabuf input ptr");
@@ -2203,7 +2188,6 @@ static int ubwcp_free_buffer(struct dma_buf *dmabuf)
 	unsigned long flags;
 	bool is_non_lin_buf;
 
-	FENTRY();
 	trace_ubwcp_free_buffer_start(dmabuf);
 
 	if (!dmabuf) {
@@ -2901,7 +2885,7 @@ int ubwcp_iommu_fault_handler(struct iommu_domain *domain, struct device *dev,
 	err.smmu_err.dmabuf = get_dma_buf_from_iova(iova);
 	err.smmu_err.iova = iova;
 	err.smmu_err.iommu_fault_flags = flags;
-	ERR_RATE_LIMIT("ubwcp_err: err code: %d (smmu), iommu_dev_id: %d, iova: 0x%llx, flags: 0x%x",
+	ERR("ubwcp_err: err code: %d (smmu), iommu_dev_id: %d, iova: 0x%llx, flags: 0x%x",
 		err.err_code, err.smmu_err.iommu_dev_id, err.smmu_err.iova,
 		err.smmu_err.iommu_fault_flags);
 	ubwcp_notify_error_handlers(&err);
@@ -2926,7 +2910,7 @@ static irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 		err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
 		err.translation_err.ula_pa = addr;
 		err.translation_err.read = true;
-		ERR_RATE_LIMIT("ubwcp_err: err code: %d (range), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
+		ERR("err_code: %d (range read), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
 			err.err_code, err.translation_err.dmabuf, err.translation_err.read, addr);
 		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 0);
@@ -2937,7 +2921,7 @@ static irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 		err.translation_err.dmabuf = get_dma_buf_from_ulapa(addr);
 		err.translation_err.ula_pa = addr;
 		err.translation_err.read = false;
-		ERR_RATE_LIMIT("ubwcp_err: err code: %d (range), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
+		ERR("err_code: %d (range write), dmabuf: 0x%llx, read: %d, addr: 0x%llx",
 			err.err_code, err.translation_err.dmabuf, err.translation_err.read, addr);
 		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 1);
@@ -2946,7 +2930,7 @@ static irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 		err.err_code = UBWCP_ENCODE_ERROR;
 		err.enc_err.dmabuf = get_dma_buf_from_ulapa(addr);
 		err.enc_err.ula_pa = addr;
-		ERR_RATE_LIMIT("ubwcp_err: err code: %d (encode), dmabuf: 0x%llx, addr: 0x%llx",
+		ERR("err_code: %d (encode), dmabuf: 0x%llx, addr: 0x%llx",
 				err.err_code, err.enc_err.dmabuf, addr);
 		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 3);
@@ -2955,7 +2939,7 @@ static irqreturn_t ubwcp_irq_handler(int irq, void *ptr)
 		err.err_code = UBWCP_DECODE_ERROR;
 		err.dec_err.dmabuf = get_dma_buf_from_ulapa(addr);
 		err.dec_err.ula_pa = addr;
-		ERR_RATE_LIMIT("ubwcp_err: err code: %d (decode), dmabuf: 0x%llx, addr: 0x%llx",
+		ERR("err_code: %d (decode), dmabuf: 0x%llx, addr: 0x%llx",
 				err.err_code, err.enc_err.dmabuf, addr);
 		ubwcp_notify_error_handlers(&err);
 		ubwcp_hw_interrupt_clear(ubwcp->base, 2);
@@ -2971,8 +2955,6 @@ static int ubwcp_interrupt_register(struct platform_device *pdev, struct ubwcp_d
 {
 	int ret = 0;
 	struct device *dev = &pdev->dev;
-
-	FENTRY();
 
 	ubwcp->irq_range_ck_rd = platform_get_irq(pdev, 0);
 	if (ubwcp->irq_range_ck_rd < 0)
@@ -3032,8 +3014,6 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct ubwcp_driver *ubwcp;
 	struct device *ubwcp_dev = &pdev->dev;
-
-	FENTRY();
 
 	ubwcp = devm_kzalloc(ubwcp_dev, sizeof(*ubwcp), GFP_KERNEL);
 	if (!ubwcp) {
@@ -3197,8 +3177,6 @@ static int ubwcp_probe_cb_buf(struct platform_device *pdev)
 	struct ubwcp_driver *ubwcp;
 	struct iommu_domain *domain = NULL;
 
-	FENTRY();
-
 	ubwcp = dev_get_drvdata(pdev->dev.parent);
 	if (!ubwcp) {
 		ERR("failed to get ubwcp ptr");
@@ -3222,8 +3200,6 @@ static int ubwcp_probe_cb_desc(struct platform_device *pdev)
 	int ret = 0;
 	struct ubwcp_driver *ubwcp;
 	struct iommu_domain *domain = NULL;
-
-	FENTRY();
 
 	ubwcp = dev_get_drvdata(pdev->dev.parent);
 	if (!ubwcp) {
@@ -3292,8 +3268,6 @@ static int ubwcp_remove_cb_buf(struct platform_device *pdev)
 {
 	struct ubwcp_driver *ubwcp;
 
-	FENTRY();
-
 	ubwcp = dev_get_drvdata(pdev->dev.parent);
 	if (!ubwcp) {
 		ERR("failed to get ubwcp ptr");
@@ -3309,8 +3283,6 @@ static int ubwcp_remove_cb_buf(struct platform_device *pdev)
 static int ubwcp_remove_cb_desc(struct platform_device *pdev)
 {
 	struct ubwcp_driver *ubwcp;
-
-	FENTRY();
 
 	ubwcp = dev_get_drvdata(pdev->dev.parent);
 	if (!ubwcp) {
@@ -3344,8 +3316,6 @@ static int qcom_ubwcp_remove(struct platform_device *pdev)
 	size_t avail;
 	size_t psize;
 	struct ubwcp_driver *ubwcp;
-
-	FENTRY();
 
 	/* get pdev->dev->driver_data = ubwcp */
 	ubwcp = platform_get_drvdata(pdev);
@@ -3385,7 +3355,6 @@ static int ubwcp_probe(struct platform_device *pdev)
 {
 	const char *compatible = "";
 
-	FENTRY();
 	trace_ubwcp_probe(pdev);
 
 	if (of_device_is_compatible(pdev->dev.of_node, "qcom,ubwcp"))
@@ -3405,7 +3374,6 @@ static int ubwcp_remove(struct platform_device *pdev)
 {
 	const char *compatible = "";
 
-	FENTRY();
 	trace_ubwcp_remove(pdev);
 
 	/* TBD: what if buffers are still allocated? locked? etc.

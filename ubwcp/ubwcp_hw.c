@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
+#define pr_fmt(fmt) "%s: hw: %s(): " fmt, KBUILD_MODNAME, __func__
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -17,10 +19,10 @@ static bool ubwcp_hw_trace_en;
 //#define DBG(fmt, args...)
 #define DBG(fmt, args...) \
 	do { \
-		if (ubwcp_hw_trace_en) \
-			pr_err("ubwcp: hw: %s(): " fmt "\n", __func__, ##args); \
+		if (unlikely(ubwcp_hw_trace_en)) \
+			pr_err(fmt "\n", ##args); \
 	} while (0)
-#define ERR(fmt, args...) pr_err("ubwcp: hw: %s(): ~~~ERROR~~~: " fmt "\n", __func__, ##args);
+#define ERR(fmt, args...) pr_err_ratelimited(": %d: ~~~ERROR~~~: " fmt "\n", __LINE__, ##args)
 
 MODULE_LICENSE("GPL");
 
