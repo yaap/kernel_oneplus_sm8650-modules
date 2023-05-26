@@ -13,7 +13,7 @@
 u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u64 vsp_cycles = 0, vpp_cycles = 0, fw_cycles = 0;
 	u64 fw_vpp_cycles = 0, bitrate = 0;
 	u32 vpp_cycles_per_mb;
@@ -674,7 +674,7 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d)
 	return ret;
 }
 
-static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d)
+static u64 __calculate(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d)
 {
 	u64 value = 0;
 

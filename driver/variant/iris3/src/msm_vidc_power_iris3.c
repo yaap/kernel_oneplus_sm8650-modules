@@ -14,7 +14,7 @@
 
 static u64 __calculate_decoder(struct vidc_bus_vote_data *d);
 static u64 __calculate_encoder(struct vidc_bus_vote_data *d);
-static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d);
+static u64 __calculate(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d);
 static u64 msm_vidc_calc_freq_iris3_legacy(struct msm_vidc_inst *inst, u32 data_size);
 
 static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_size,
@@ -287,7 +287,7 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 static u64 msm_vidc_calc_freq_iris3_new(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	int ret = 0;
 	struct api_calculation_input codec_input;
 	struct api_calculation_freq_output codec_output;
@@ -368,7 +368,7 @@ u64 msm_vidc_calc_freq_iris3(struct msm_vidc_inst *inst, u32 data_size)
 static u64 msm_vidc_calc_freq_iris3_legacy(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u64 vsp_cycles = 0, vpp_cycles = 0, fw_cycles = 0;
 	u64 fw_vpp_cycles = 0, bitrate = 0;
 	u32 vpp_cycles_per_mb;
@@ -1127,7 +1127,7 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d)
 	return ret;
 }
 
-static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d)
+static u64 __calculate(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d)
 {
 	u64 value = 0;
 

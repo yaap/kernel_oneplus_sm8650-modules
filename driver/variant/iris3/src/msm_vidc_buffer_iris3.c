@@ -56,7 +56,7 @@ static u32 msm_vidc_decoder_bin_size_iris3(struct msm_vidc_inst *inst)
 	return size;
 }
 
-static u32 msm_vidc_decoder_comv_size_iris3(struct msm_vidc_inst* inst)
+static u32 msm_vidc_decoder_comv_size_iris3(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, num_comv, vpp_delay;
@@ -108,12 +108,12 @@ static u32 msm_vidc_decoder_comv_size_iris3(struct msm_vidc_inst* inst)
 	return size;
 }
 
-static u32 msm_vidc_decoder_non_comv_size_iris3(struct msm_vidc_inst* inst)
+static u32 msm_vidc_decoder_non_comv_size_iris3(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, num_vpp_pipes;
-	struct msm_vidc_core* core;
-	struct v4l2_format* f;
+	struct msm_vidc_core *core;
+	struct v4l2_format *f;
 
 	core = inst->core;
 
@@ -347,11 +347,11 @@ static u32 msm_vidc_get_recon_buf_count(struct msm_vidc_inst *inst)
 	return num_buf_recon;
 }
 
-static u32 msm_vidc_encoder_comv_size_iris3(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_comv_size_iris3(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, num_recon = 0;
-	struct v4l2_format* f;
+	struct v4l2_format *f;
 
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
@@ -367,12 +367,12 @@ static u32 msm_vidc_encoder_comv_size_iris3(struct msm_vidc_inst* inst)
 	return size;
 }
 
-static u32 msm_vidc_encoder_non_comv_size_iris3(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_non_comv_size_iris3(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u32 size = 0;
 	u32 width, height, num_vpp_pipes;
-	struct v4l2_format* f;
+	struct v4l2_format *f;
 
 	core = inst->core;
 
@@ -448,13 +448,13 @@ static u32 msm_vidc_encoder_arp_size_iris3(struct msm_vidc_inst *inst)
 	return size;
 }
 
-static u32 msm_vidc_encoder_vpss_size_iris3(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_vpss_size_iris3(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	bool ds_enable = false, is_tenbit = false, blur = false;
 	u32 rotation_val = HFI_ROTATION_NONE;
 	u32 width, height, driver_colorfmt;
-	struct v4l2_format* f;
+	struct v4l2_format *f;
 
 	ds_enable = is_scaling_enabled(inst);
 	msm_vidc_v4l2_to_hfi_enum(inst, ROTATION, &rotation_val);
@@ -586,7 +586,7 @@ exit:
 	return size;
 }
 
-static int msm_vidc_input_min_count_iris3(struct msm_vidc_inst* inst)
+static int msm_vidc_input_min_count_iris3(struct msm_vidc_inst *inst)
 {
 	u32 input_min_count = 0;
 	u32 total_hb_layer = 0;

@@ -855,7 +855,7 @@ static int __boot_firmware_iris3(struct msm_vidc_core *vidc_core)
 	return rc;
 }
 
-int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst *inst)
 {
 	u32 work_mode;
 	struct v4l2_format *inp_f;
@@ -912,10 +912,10 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_work_route_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_route_iris3(struct msm_vidc_inst *inst)
 {
 	u32 work_route;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	core = inst->core;
 	work_route = core->capabilities[NUM_VPP_PIPE].value;
@@ -948,7 +948,7 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
@@ -994,7 +994,7 @@ decision_done:
 	return 0;
 }
 
-int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
+int msm_vidc_adjust_bitrate_boost_iris3(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
