@@ -20,6 +20,8 @@
 #include <sound/soc-dapm.h>
 #include <asoc/wcdcal-hwdep.h>
 #include <asoc/wcd-mbhc-v2-api.h>
+#include <linux/sysfs.h>
+#include <linux/kobject.h>
 #include "wcd939x-registers.h"
 #include "internal.h"
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
@@ -952,6 +954,310 @@ err_data:
 	*gnd_tap = 0;
 }
 
+struct usbcss_hs_attr {
+	struct wcd939x_priv *priv;
+	struct kobj_attribute attr;
+	int index;
+};
+
+static char *usbcss_sysfs_files[] = {
+	"rdson",
+	"r2",
+	"r3",
+	"r4",
+	"r5",
+	"r6",
+	"r7",
+	"lin-k-aud",
+	"lin-k-gnd",
+	"xtalk_config",
+};
+
+static ssize_t usbcss_sysfs_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf,
+		size_t count)
+{
+	struct usbcss_hs_attr *usbc_attr;
+	struct wcd939x_priv *wcd939x;
+	struct wcd939x_pdata *pdata;
+	struct wcd939x_usbcss_hs_params *usbcss_hs;
+	long val;
+	int rc;
+	u32 aud_tap = 0, gnd_tap = 0;
+	bool update_xtalk = false, update_linearizer = false;
+
+	usbc_attr = container_of(attr, struct usbcss_hs_attr, attr);
+	wcd939x = usbc_attr->priv;
+	pdata = dev_get_platdata(wcd939x->dev);
+
+	if (!wcd939x || !pdata)
+		return -EINVAL;
+
+	usbcss_hs = &pdata->usbcss_hs;
+
+	rc = kstrtol(buf, 0, &val);
+	if (rc)
+		return rc;
+
+	if (strcmp(attr->attr.name, "rdson") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r_gnd_ext_fet_customer_mohms = val;
+		update_linearizer = usbcss_hs->xtalk_config == XTALK_ANALOG;
+	} else if (strcmp(attr->attr.name, "r2") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r_conn_par_load_pos_mohms = val;
+	} else if (strcmp(attr->attr.name, "r3") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r3 = val;
+		update_linearizer = true;
+	} else if (strcmp(attr->attr.name, "r4") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r4 = val;
+		update_xtalk = true;
+		update_linearizer = true;
+
+		switch (usbcss_hs->xtalk_config) {
+		case XTALK_DIGITAL:
+			usbcss_hs->r_gnd_par_route2_mohms = usbcss_hs->r6 + val;
+			break;
+		case XTALK_ANALOG:
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r5 + val;
+			break;
+		case XTALK_NONE:
+			fallthrough;
+		default:
+			return count;
+		}
+	} else if (strcmp(attr->attr.name, "r5") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r5 = val;
+
+		switch (usbcss_hs->xtalk_config) {
+		case XTALK_ANALOG:
+			update_xtalk = true;
+			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route1_mohms = val + usbcss_hs->r4;
+			break;
+		case XTALK_DIGITAL:
+			fallthrough;
+		case XTALK_NONE:
+			fallthrough;
+		default:
+			return count;
+		}
+	} else if (strcmp(attr->attr.name, "r6") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r6 = val;
+
+		switch (usbcss_hs->xtalk_config) {
+		case XTALK_DIGITAL:
+			update_xtalk = true;
+			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route2_mohms = val + usbcss_hs->r4;
+			break;
+		case XTALK_ANALOG:
+			fallthrough;
+		case XTALK_NONE:
+			fallthrough;
+		default:
+			return count;
+		}
+	} else if (strcmp(attr->attr.name, "r7") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r7 = val;
+
+		switch (usbcss_hs->xtalk_config) {
+		case XTALK_DIGITAL:
+			update_xtalk = true;
+			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route1_mohms = val;
+			break;
+		case XTALK_ANALOG:
+			fallthrough;
+		case XTALK_NONE:
+			fallthrough;
+		default:
+			return count;
+		}
+	} else if (strcmp(attr->attr.name, "lin-k-aud") == 0) {
+		if (val < MIN_K_TIMES_100 || val > MAX_K_TIMES_100) {
+			dev_err(wcd939x->dev, "%s: Value %d out of bounds. Min: %d, Max: %d\n",
+			__func__, val, MIN_K_TIMES_100, MAX_K_TIMES_100);
+			return count;
+		}
+		usbcss_hs->k_aud_times_100 = val;
+		update_linearizer = true;
+	} else if (strcmp(attr->attr.name, "lin-k-gnd") == 0) {
+		if (val < MIN_K_TIMES_100 || val > MAX_K_TIMES_100) {
+			dev_err(wcd939x->dev, "%s: Value %d out of bounds. Min: %d, Max: %d\n",
+			__func__, val, MIN_K_TIMES_100, MAX_K_TIMES_100);
+			return count;
+		}
+		usbcss_hs->k_gnd_times_100 = val;
+		update_linearizer = true;
+	} else if (strcmp(attr->attr.name, "xtalk_config") == 0) {
+		pdata->usbcss_hs.xtalk_config = val;
+		update_xtalk = true;
+
+		switch (val) {
+		case XTALK_NONE:
+			usbcss_hs->scale_l = MAX_XTALK_SCALE;
+			usbcss_hs->scale_r = MAX_XTALK_SCALE;
+			usbcss_hs->alpha_l = MIN_XTALK_ALPHA;
+			usbcss_hs->alpha_r = MIN_XTALK_ALPHA;
+			break;
+		case XTALK_DIGITAL:
+			usbcss_hs->r_gnd_par_route2_mohms = usbcss_hs->r6 + usbcss_hs->r4;
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r7;
+			update_linearizer = true;
+			break;
+		case XTALK_ANALOG:
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r5 + usbcss_hs->r4;
+			usbcss_hs->r_gnd_par_route2_mohms = 1;
+			update_linearizer = true;
+			break;
+		default:
+			return count;
+		}
+	}
+
+	if (update_xtalk) {
+		update_xtalk_scale_and_alpha(pdata, wcd939x->regmap);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0,
+				0x1F, pdata->usbcss_hs.scale_l);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1,
+				0xFF, pdata->usbcss_hs.alpha_l);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0 + 1,
+				0x1F, pdata->usbcss_hs.scale_r);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1 + 1,
+				0xFF, pdata->usbcss_hs.alpha_r);
+		dev_err(wcd939x->dev, "%s: Updated xtalk thru sysfs\n",
+			__func__);
+	}
+
+	if (update_linearizer) {
+		get_linearizer_taps(pdata, &aud_tap, &gnd_tap);
+		wcd_usbss_set_linearizer_sw_tap(aud_tap, gnd_tap);
+		dev_err(wcd939x->dev, "%s: Updated linearizer thru sysfs\n",
+			__func__);
+	}
+
+	return count;
+}
+
+static ssize_t usbcss_sysfs_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	struct usbcss_hs_attr *usbc_attr;
+	struct wcd939x_priv *wcd939x;
+	struct wcd939x_pdata *pdata;
+
+	usbc_attr = container_of(attr, struct usbcss_hs_attr, attr);
+	wcd939x = usbc_attr->priv;
+	pdata = dev_get_platdata(wcd939x->dev);
+
+	if (strcmp(attr->attr.name, "rdson") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r_gnd_ext_fet_customer_mohms);
+	else if (strcmp(attr->attr.name, "r2") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r_conn_par_load_pos_mohms);
+	else if (strcmp(attr->attr.name, "r3") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r3);
+	else if (strcmp(attr->attr.name, "r4") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r4);
+	else if (strcmp(attr->attr.name, "r5") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r5);
+	else if (strcmp(attr->attr.name, "r6") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r6);
+	else if (strcmp(attr->attr.name, "r7") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r7);
+	else if (strcmp(attr->attr.name, "lin-k-aud") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.k_aud_times_100);
+	else if (strcmp(attr->attr.name, "lin-k-gnd") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.k_gnd_times_100);
+	else if (strcmp(attr->attr.name, "xtalk_config") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.xtalk_config);
+
+	return 0;
+}
+
+static int create_sysfs_entry_file(struct wcd939x_priv *wcd939x, char *name, int mode,
+		int index, struct kobject *parent)
+{
+	struct usbcss_hs_attr *usbc_attr;
+	char *name_copy;
+
+	usbc_attr = devm_kmalloc(wcd939x->dev, sizeof(*usbc_attr), GFP_KERNEL);
+	if (!usbc_attr)
+		return -ENOMEM;
+
+	name_copy = devm_kstrdup(wcd939x->dev, name, GFP_KERNEL);
+	if (!name_copy)
+		return -ENOMEM;
+
+	usbc_attr->priv = wcd939x;
+	usbc_attr->index = index;
+	usbc_attr->attr.attr.name = name_copy;
+	usbc_attr->attr.attr.mode = mode;
+	usbc_attr->attr.show = usbcss_sysfs_show;
+	usbc_attr->attr.store = usbcss_sysfs_store;
+	sysfs_attr_init(&usbc_attr->attr.attr);
+
+	return sysfs_create_file(parent, &usbc_attr->attr.attr);
+}
+
+static int usbcss_hs_sysfs_init(struct wcd939x_priv *wcd939x)
+{
+	int rc = 0;
+	int i = 0;
+	struct kobject *kobj = NULL;
+
+	if (!wcd939x || !wcd939x->dev) {
+		pr_err("%s: Invalid wcd939x private data.\n", __func__);
+		return -EINVAL;
+	}
+
+	kobj = kobject_create_and_add("usbcss_hs", kernel_kobj);
+	if (!kobj) {
+		dev_err(wcd939x->dev, "%s: Could not create the USBC-SS HS kobj.\n", __func__);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(usbcss_sysfs_files); i++) {
+		rc = create_sysfs_entry_file(wcd939x, usbcss_sysfs_files[i],
+				0644, i, kobj);
+	}
+
+	return 0;
+}
+
 static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl, uint32_t *zr)
 {
 	struct snd_soc_component *component = mbhc->component;
@@ -1595,6 +1901,7 @@ int wcd939x_mbhc_init(struct wcd939x_mbhc **mbhc,
 	struct wcd_mbhc *wcd_mbhc = NULL;
 	int ret = 0;
 	struct wcd939x_pdata *pdata;
+	struct wcd939x_priv *wcd939x;
 
 	if (!component) {
 		pr_err("%s: component is NULL\n", __func__);
@@ -1646,6 +1953,14 @@ int wcd939x_mbhc_init(struct wcd939x_mbhc **mbhc,
 				   ARRAY_SIZE(impedance_detect_controls));
 	snd_soc_add_component_controls(component, hph_type_detect_controls,
 				   ARRAY_SIZE(hph_type_detect_controls));
+
+	wcd939x = dev_get_drvdata(component->dev);
+	if (!wcd939x) {
+		dev_err(component->dev, "%s: wcd939x pointer is NULL\n", __func__);
+		ret = -EINVAL;
+		goto err;
+	}
+	usbcss_hs_sysfs_init(wcd939x);
 
 	return 0;
 err:
