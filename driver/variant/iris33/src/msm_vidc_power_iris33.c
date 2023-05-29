@@ -337,7 +337,7 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		{"frame_rate", "%d", codec_input->frame_rate},
 		{"frame_width", "%d", codec_input->frame_width},
 		{"frame_height", "%d", codec_input->frame_height},
-		{"work_mode","%d", d->work_mode},
+		{"work_mode", "%d", d->work_mode},
 		{"encoder_or_decode", "%d", inst->domain},
 		{"chipset_gen", "%d", codec_input->chipset_gen},
 		{"codec_input", "%d", codec_input->codec},

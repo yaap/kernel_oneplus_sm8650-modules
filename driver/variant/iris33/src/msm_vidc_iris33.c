@@ -1272,7 +1272,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl)
 	}
 
 	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
-	f= &inst->fmts[OUTPUT_PORT];
+	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 
