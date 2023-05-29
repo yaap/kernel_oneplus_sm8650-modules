@@ -14,7 +14,7 @@ M ?= $(shell pwd)
 ifeq ($(WLAN_ROOT),)
 KBUILD_OPTIONS += \
     WLAN_ROOT=$(KERNEL_SRC)/$(M) \
-    WLAN_PLATFORM_ROOT=vendor/qcom/opensource/wlan/platform \
+    WLAN_PLATFORM_ROOT=$(KERNEL_SRC)/$(M)/../platform \
     WLAN_COMMON_ROOT=cmn \
     WLAN_COMMON_INC=$(KERNEL_SRC)/$(M)/cmn \
     WLAN_FW_API=$(KERNEL_SRC)/$(M)/../fw-api \
