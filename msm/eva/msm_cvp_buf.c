@@ -188,7 +188,7 @@ static bool __is_buf_valid(struct msm_cvp_inst *inst,
 		struct eva_kmd_buffer *buf)
 {
 	struct cvp_hal_session *session;
-	struct cvp_internal_buf *cbuf = NULL;
+	struct cvp_internal_buf *cbuf = (struct cvp_internal_buf *)0xdeadbeef;
 	bool found = false;
 
 	if (!inst || !inst->core || !buf) {
@@ -363,7 +363,7 @@ int msm_cvp_unmap_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 {
 	int rc = 0;
 	bool found;
-	struct cvp_internal_buf *cbuf;
+	struct cvp_internal_buf *cbuf = (struct cvp_internal_buf *)0xdeadbeef;
 	struct cvp_hal_session *session;
 
 	if (!inst || !inst->core || !buf) {
@@ -417,7 +417,7 @@ int msm_cvp_map_buf_wncc(struct msm_cvp_inst *inst,
 {
 	int rc = 0, i;
 	bool found = false;
-	struct cvp_internal_buf* cbuf;
+	struct cvp_internal_buf* cbuf = (struct cvp_internal_buf *)0xdeadbeef;
 	struct msm_cvp_smem* smem = NULL;
 	struct dma_buf* dma_buf = NULL;
 
@@ -579,7 +579,7 @@ int msm_cvp_unmap_buf_wncc(struct msm_cvp_inst *inst,
 {
 	int rc = 0;
 	bool found;
-	struct cvp_internal_buf *cbuf;
+	struct cvp_internal_buf *cbuf = (struct cvp_internal_buf *)0xdeadbeef;
 	uint32_t buf_id, buf_idx;
 
 	if (!inst || !inst->core || !buf) {
@@ -771,7 +771,7 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 	struct eva_kmd_oob_wncc* wncc_oob)
 {
 	int rc = 0;
-	u32 oob_type;
+	u32 oob_type = 0;
 	struct eva_kmd_oob_buf* oob_buf_u;
 	struct eva_kmd_oob_wncc* wncc_oob_u;
 	struct eva_kmd_oob_wncc* wncc_oob_k;
@@ -1221,8 +1221,8 @@ static struct msm_cvp_smem *msm_cvp_session_find_smem(struct msm_cvp_inst *inst,
 				u32 pkt_type)
 {
 	struct msm_cvp_smem *smem;
-	struct msm_cvp_frame *frame;
-	struct cvp_internal_buf *buf;
+	struct msm_cvp_frame *frame = (struct msm_cvp_frame *)0xdeadbeef;
+	struct cvp_internal_buf *buf = (struct cvp_internal_buf *)0xdeadbeef;
 	int i;
 
 	if (inst->dma_cache.nr > MAX_DMABUF_NUMS)
@@ -1424,7 +1424,8 @@ static u32 msm_cvp_map_user_persist_buf(struct msm_cvp_inst *inst,
 {
 	u32 iova = 0;
 	struct msm_cvp_smem *smem = NULL;
-	struct list_head *ptr, *next;
+	struct list_head *ptr = (struct list_head *)0xdead;
+	struct list_head *next = (struct list_head *)0xdead;
 	struct cvp_internal_buf *pbuf;
 	struct dma_buf *dma_buf;
 
@@ -1439,6 +1440,8 @@ static u32 msm_cvp_map_user_persist_buf(struct msm_cvp_inst *inst,
 
 	mutex_lock(&inst->persistbufs.lock);
 	list_for_each_safe(ptr, next, &inst->persistbufs.list) {
+		if (!ptr)
+			return 0;
 		pbuf = list_entry(ptr, struct cvp_internal_buf, list);
 		if (dma_buf == pbuf->smem->dma_buf) {
 			pbuf->size =
@@ -1609,7 +1612,7 @@ static void backup_frame_buffers(struct msm_cvp_inst *inst,
 
 void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 {
-	struct msm_cvp_frame *frame, *dummy1;
+	struct msm_cvp_frame *frame = (struct msm_cvp_frame *)0xdeadbeef, *dummy1;
 	bool found;
 
 	if (!inst) {
@@ -1627,22 +1630,20 @@ void msm_cvp_unmap_frame(struct msm_cvp_inst *inst, u64 ktid)
 		if (frame->ktid == ktid) {
 			found = true;
 			list_del(&frame->list);
+			dprintk(CVP_CMD, "%s: "
+				"pkt_type %08x sess_id %08x trans_id <> ktid %llu\n",
+				__func__, frame->pkt_type,
+				hash32_ptr(inst->session),
+				frame->ktid);
+			/* Save the previous frame mappings for debug */
+			backup_frame_buffers(inst, frame);
+			msm_cvp_unmap_frame_buf(inst, frame);
 			break;
 		}
 	}
 	mutex_unlock(&inst->frames.lock);
 
-	if (found) {
-		dprintk(CVP_CMD, "%s: "
-			"pkt_type %08x sess_id %08x trans_id <> ktid %llu\n",
-			__func__, frame->pkt_type,
-			hash32_ptr(inst->session),
-			frame->ktid);
-		/* Save the previous frame mappings for debug */
-		backup_frame_buffers(inst, frame);
-		msm_cvp_unmap_frame_buf(inst, frame);
-	}
-	else
+	if (!found)
 		dprintk(CVP_WARN, "%s frame %llu not found!\n", __func__, ktid);
 }
 
@@ -1698,7 +1699,7 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 	u64 ktid;
 	struct msm_cvp_frame *frame;
 	struct cvp_hfi_cmd_session_hdr *cmd_hdr;
-	struct msm_cvp_inst *instance;
+	struct msm_cvp_inst *instance = (struct  msm_cvp_inst *)0xdeadbeef;
 	struct msm_cvp_core *core = NULL;
 
 	core = get_cvp_core(MSM_CORE_CVP);
@@ -1767,11 +1768,12 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 {
 	int rc = 0, i;
 	struct cvp_internal_buf *cbuf, *dummy;
-	struct msm_cvp_frame *frame, *dummy1;
+	struct msm_cvp_frame *frame = (struct msm_cvp_frame *)0xdeadbeef, *dummy1;
 	struct msm_cvp_smem *smem;
 	struct cvp_hal_session *session;
 	struct eva_kmd_buffer buf;
-	struct list_head *ptr, *next;
+	struct list_head *ptr = (struct list_head *)0xdead;
+	struct list_head *next = (struct list_head *)0xdead;
 
 	session = (struct cvp_hal_session *)inst->session;
 
@@ -1784,6 +1786,8 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 
 	mutex_lock(&inst->persistbufs.lock);
 	list_for_each_safe(ptr, next, &inst->persistbufs.list) {
+		if (!ptr)
+			return -EINVAL;
 		cbuf = list_entry(ptr, struct cvp_internal_buf, list);
 		smem = cbuf->smem;
 		if (!smem) {
@@ -1839,6 +1843,7 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 	}
 	mutex_unlock(&inst->dma_cache.lock);
 
+	cbuf = (struct cvp_internal_buf *)0xdeadbeef;
 	mutex_lock(&inst->cvpdspbufs.lock);
 	list_for_each_entry_safe(cbuf, dummy, &inst->cvpdspbufs.list, list) {
 		print_internal_buffer(CVP_MEM, "remove dspbufs", inst, cbuf);
@@ -1892,11 +1897,14 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 #define MAX_NUM_FRAMES_DUMP 4
 void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 {
-	struct cvp_internal_buf *buf;
-	struct msm_cvp_frame *frame;
+	struct cvp_internal_buf *buf = (struct cvp_internal_buf *)0xdeadbeef;
+	struct msm_cvp_frame *frame = (struct msm_cvp_frame *)0xdeadbeef;
 	struct msm_cvp_core *core;
 	struct inst_snapshot *snap = NULL;
 	int i = 0, c = 0;
+
+	if (!cvp_driver->cores)
+		return;
 
 	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
 	if (log && core->log.snapshot_index < 16) {
@@ -2035,7 +2043,8 @@ fail_kzalloc:
 int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 {
 	struct msm_cvp_smem *smem;
-	struct list_head *ptr, *next;
+	struct list_head *ptr = (struct list_head *)0xdead;
+	struct list_head *next = (struct list_head *)0xdead;
 	struct cvp_internal_buf *buf;
 	int rc = 0;
 	struct msm_cvp_core *core;
@@ -2079,6 +2088,8 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 	}
 
 	list_for_each_safe(ptr, next, &inst->persistbufs.list) {
+		if (!ptr)
+			return -EINVAL;
 		buf = list_entry(ptr, struct cvp_internal_buf, list);
 		smem = buf->smem;
 		if (!smem) {
