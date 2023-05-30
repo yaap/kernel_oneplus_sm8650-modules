@@ -29,20 +29,4 @@
 #define V4L2_MPEG_MSM_VIDC_DISABLE 0
 #define V4L2_MPEG_MSM_VIDC_ENABLE 1
 
-#define V4L2_CID_MPEG_VIDC_SECURE               (V4L2_CID_MPEG_VIDC_BASE + 0x1)
-#define V4L2_CID_MPEG_VIDC_LOWLATENCY_REQUEST   (V4L2_CID_MPEG_VIDC_BASE + 0x3)
-#define V4L2_CID_MPEG_VIDC_TIME_DELTA_BASED_RC  (V4L2_CID_MPEG_VIDC_BASE + 0xD)
-#define V4L2_CID_MPEG_VIDC_PRIORITY             (V4L2_CID_MPEG_VIDC_BASE + 0x2A)
-
-/* Encoder Complexity control */
-#define V4L2_CID_MPEG_VIDC_VENC_COMPLEXITY                                   \
-    (V4L2_CID_MPEG_VIDC_BASE + 0x2F)
-
-/* Decoder Max Number of Reorder Frames */
-#define V4L2_CID_MPEG_VIDC_METADATA_MAX_NUM_REORDER_FRAMES                   \
-    (V4L2_CID_MPEG_VIDC_BASE + 0x30)
-
-#define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO                                    \
-    (V4L2_CID_MPEG_VIDC_BASE + 0x43)
-
 #endif
