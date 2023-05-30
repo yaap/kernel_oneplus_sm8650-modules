@@ -23,3 +23,10 @@ register_synx_module(
         "synx/ipclite.c",
     ],
 )
+register_synx_module(
+    name = "ipclite_test",
+    path = "msm",
+    srcs = [
+        "synx/test/ipclite_test.c",
+    ],
+)
