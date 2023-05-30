@@ -380,6 +380,7 @@ struct qseecom_control {
 	struct task_struct *unload_app_kthread_task;
 	wait_queue_head_t unload_app_kthread_wq;
 	atomic_t unload_app_kthread_state;
+	bool no_user_contig_mem_support;
 };
 
 struct qseecom_unload_app_pending_list {
@@ -4720,6 +4721,8 @@ static void __qseecom_free_coherent_buf(uint32_t size,
 	dma_free_coherent(qseecom.dev, size, vaddr, paddr);
 }
 
+
+#if IS_ENABLED(CONFIG_QSEECOM)
 static int __qseecom_load_fw(struct qseecom_dev_handle *data, char *appname,
 				uint32_t *app_id)
 {
@@ -4859,6 +4862,7 @@ exit_free_img_data:
 		__qseecom_free_coherent_buf(fw_size, img_data, pa);
 	return ret;
 }
+#endif
 
 static int qseecom_load_commonlib_image(struct qseecom_dev_handle *data,
 					char *cmnlib_name)
@@ -5006,6 +5010,7 @@ static int qseecom_unload_commonlib_image(void)
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_QSEECOM)
 static int __qseecom_start_app(struct qseecom_handle **handle,
 						char *app_name, uint32_t size)
 {
@@ -5313,6 +5318,7 @@ static int __qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_QSEECOM)
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 const static struct qseecom_drv_ops qseecom_driver_ops = {
        .qseecom_send_command = __qseecom_send_command,
@@ -5347,6 +5353,7 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
                         resp_buf, rbuf_len);
 }
 EXPORT_SYMBOL(qseecom_send_command);
+#endif
 #endif
 
 int qseecom_set_bandwidth(struct qseecom_handle *handle, bool high)
@@ -5429,7 +5436,7 @@ int qseecom_process_listener_from_smcinvoke(uint32_t *result,
 	return ret;
 }
 EXPORT_SYMBOL(qseecom_process_listener_from_smcinvoke);
-
+#endif
 static int qseecom_send_resp(void)
 {
 	qseecom.send_resp_flag = 1;
@@ -9500,12 +9507,18 @@ static int qseecom_register_shmbridge(struct platform_device *pdev)
 		qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
 		return ret;
 	}
-	ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
-					&qseecom.user_contig_bridge_handle);
-	if (ret) {
-		qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
-		qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
-		return ret;
+
+	/* no-user-contig-mem is present in dtsi if user_contig_region is not needed*/
+	qseecom.no_user_contig_mem_support = of_property_read_bool((&pdev->dev)->of_node,
+						"qcom,no-user-contig-mem-support");
+	if (!qseecom.no_user_contig_mem_support) {
+		ret = qseecom_register_heap_shmbridge(pdev, "user_contig_mem",
+						&qseecom.user_contig_bridge_handle);
+		if (ret) {
+			qtee_shmbridge_deregister(qseecom.qseecom_bridge_handle);
+			qtee_shmbridge_deregister(qseecom.ta_bridge_handle);
+			return ret;
+		}
 	}
 	return 0;
 }
@@ -9549,7 +9562,7 @@ static int qseecom_probe(struct platform_device *pdev)
 	if (rc)
 		goto exit_deinit_bus;
 
-#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#if IS_ENABLED(CONFIG_QSEECOM) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
 	/*If the api fails to get the func ops, print the error and continue
 	* Do not treat it as fatal*/
 	rc = get_qseecom_kernel_fun_ops();

@@ -13,10 +13,12 @@ endif
 ifneq (, $(filter y, $(CONFIG_QTI_QUIN_GVM) $(CONFIG_ARCH_KHAJE) $(CONFIG_ARCH_SA8155)))
     include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom.conf
     LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom.h
-
-    obj-$(CONFIG_QSEECOM) += qseecom_dlkm.o
-    qseecom_dlkm-objs := qseecom/qseecom.o
+else
+    LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom_compat.h
 endif
+
+obj-$(CONFIG_QSEECOM) += qseecom_dlkm.o
+qseecom_dlkm-objs := qseecom/qseecom.o
 
 include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smcinvoke.conf
 LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smcinvoke.h

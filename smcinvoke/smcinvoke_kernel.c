@@ -16,7 +16,7 @@
 #include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
-#if !IS_ENABLED(CONFIG_QSEECOM)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT)
 #include "IQSEEComCompat.h"
 #include "IQSEEComCompatAppLoader.h"
 #include "linux/qseecom_api.h"
@@ -323,7 +323,7 @@ int32_t get_client_env_object(struct Object *clientEnvObj)
 }
 EXPORT_SYMBOL(get_client_env_object);
 
-#if !IS_ENABLED(CONFIG_QSEECOM)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT)
 
 static int load_app(struct qseecom_compat_context *cxt, const char *app_name)
 {

@@ -3226,7 +3226,7 @@ static int smcinvoke_probe(struct platform_device *pdev)
 	}
 	smcinvoke_pdev = pdev;
 
-#if !IS_ENABLED(CONFIG_QSEECOM) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
 	/*If the api fails to get the func ops, print the error and continue
 	* Do not treat it as fatal*/
 	rc = get_qseecom_kernel_fun_ops();
