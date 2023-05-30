@@ -3575,22 +3575,6 @@ static int update_inst_cap_dependency(
 	return 0;
 }
 
-int msm_vidc_deinit_instance_caps(struct msm_vidc_core *core)
-{
-	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	msm_vidc_vmem_free((void **)&core->inst_caps);
-	core->inst_caps = NULL;
-	d_vpr_h("%s: core->inst_caps freed\n", __func__);
-
-	return rc;
-}
-
 int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 {
 	int rc = 0;
@@ -3635,10 +3619,13 @@ int msm_vidc_init_instance_caps(struct msm_vidc_core *core)
 	core->dec_codecs_count = dec_codecs_count;
 
 	codecs_count = enc_codecs_count + dec_codecs_count;
-	rc = msm_vidc_vmem_alloc(codecs_count * sizeof(struct msm_vidc_inst_capability),
-		(void **)&core->inst_caps, __func__);
-	if (rc)
+	core->inst_caps = devm_kzalloc(&core->pdev->dev,
+		codecs_count * sizeof(struct msm_vidc_inst_capability), GFP_KERNEL);
+	if (!core->inst_caps) {
+		d_vpr_e("%s: failed to alloc memory for instance caps\n", __func__);
+		rc = -ENOMEM;
 		goto error;
+	}
 
 	check_bit = 0;
 	/* determine codecs for enc domain */

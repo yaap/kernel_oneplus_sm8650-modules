@@ -1767,10 +1767,3 @@ int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core)
 
 	return 0;
 }
-
-int msm_vidc_deinit_platform_pineapple(struct msm_vidc_core *core)
-{
-	/* do nothing */
-	return 0;
-}
-

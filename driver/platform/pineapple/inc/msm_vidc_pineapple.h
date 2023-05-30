@@ -11,14 +11,8 @@
 
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
 int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core);
-int msm_vidc_deinit_platform_pineapple(struct msm_vidc_core *core);
 #else
 int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core)
-{
-	return -EINVAL;
-}
-
-int msm_vidc_deinit_platform_pineapple(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }

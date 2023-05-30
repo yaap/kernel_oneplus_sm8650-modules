@@ -170,9 +170,7 @@ struct msm_platform_inst_cap_dependency {
 struct msm_vidc_compat_handle {
 	const char *compat;
 	int (*init_platform)(struct msm_vidc_core *core);
-	int (*deinit_platform)(struct msm_vidc_core *core);
 	int (*init_iris)(struct msm_vidc_core *core);
-	int (*deinit_iris)(struct msm_vidc_core *core);
 };
 
 struct msm_vidc_csc_coeff {
@@ -281,8 +279,7 @@ static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 	return !!core->platform->data.supports_mmrm;
 }
 
-int msm_vidc_init_platform(struct platform_device *pdev);
-int msm_vidc_deinit_platform(struct platform_device *pdev);
+int msm_vidc_init_platform(struct msm_vidc_core *core);
 
 /* control framework support functions */
 

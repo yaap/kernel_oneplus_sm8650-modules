@@ -211,41 +211,31 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 	{
 		.compat                     = "qcom,sm8650-vidc",
 		.init_platform              = msm_vidc_init_platform_pineapple,
-		.deinit_platform            = msm_vidc_deinit_platform_pineapple,
 		.init_iris                  = msm_vidc_init_iris33,
-		.deinit_iris                = msm_vidc_deinit_iris33,
 	},
 	{
 		.compat                     = "qcom,sm8650-vidc-v2",
 		.init_platform              = msm_vidc_init_platform_pineapple,
-		.deinit_platform            = msm_vidc_deinit_platform_pineapple,
 		.init_iris                  = msm_vidc_init_iris33,
-		.deinit_iris                = msm_vidc_deinit_iris33,
 	},
 #endif
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 	{
 		.compat                     = "qcom,sm8550-vidc",
 		.init_platform              = msm_vidc_init_platform_kalama,
-		.deinit_platform            = msm_vidc_deinit_platform_kalama,
 		.init_iris                  = msm_vidc_init_iris3,
-		.deinit_iris                = msm_vidc_deinit_iris3,
 	},
 	{
 		.compat                     = "qcom,sm8550-vidc-v2",
 		.init_platform              = msm_vidc_init_platform_kalama,
-		.deinit_platform            = msm_vidc_deinit_platform_kalama,
 		.init_iris                  = msm_vidc_init_iris3,
-		.deinit_iris                = msm_vidc_deinit_iris3,
 	},
 #endif
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 	{
 		.compat                     = "qcom,sm8450-vidc",
 		.init_platform              = msm_vidc_init_platform_waipio,
-		.deinit_platform            = msm_vidc_deinit_platform_waipio,
 		.init_iris                  = msm_vidc_init_iris2,
-		.deinit_iris                = msm_vidc_deinit_iris2,
 	},
 #endif
 };
@@ -285,41 +275,6 @@ static int msm_vidc_init_ops(struct msm_vidc_core *core)
 	return 0;
 }
 
-static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core)
-{
-	struct device *dev = NULL;
-	int i, rc = 0;
-
-	if (!core || !core->pdev) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-	dev = &core->pdev->dev;
-
-	d_vpr_h("%s()\n", __func__);
-
-	/* select platform based on compatible match */
-	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
-		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
-			rc = compat_handle[i].deinit_platform(core);
-			if (rc) {
-				d_vpr_e("%s: (%s) init failed with %d\n",
-					__func__, compat_handle[i].compat, rc);
-				return rc;
-			}
-			break;
-		}
-	}
-
-	/* handle unknown compat type */
-	if (i == ARRAY_SIZE(compat_handle)) {
-		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
 static int msm_vidc_init_platform_variant(struct msm_vidc_core *core)
 {
 	struct device *dev = NULL;
@@ -337,39 +292,6 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core)
 	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
 		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
 			rc = compat_handle[i].init_platform(core);
-			if (rc) {
-				d_vpr_e("%s: (%s) init failed with %d\n",
-					__func__, compat_handle[i].compat, rc);
-				return rc;
-			}
-			break;
-		}
-	}
-
-	/* handle unknown compat type */
-	if (i == ARRAY_SIZE(compat_handle)) {
-		d_vpr_e("%s: Unsupported device: (%s)\n", __func__, dev_name(dev));
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
-static int msm_vidc_deinit_vpu(struct msm_vidc_core *core)
-{
-	struct device *dev = NULL;
-	int i, rc = 0;
-
-	if (!core || !core->pdev) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-	dev = &core->pdev->dev;
-
-	/* select platform based on compatible match */
-	for (i = 0; i < ARRAY_SIZE(compat_handle); i++) {
-		if (of_device_is_compatible(dev->of_node, compat_handle[i].compat)) {
-			rc = compat_handle[i].deinit_iris(core);
 			if (rc) {
 				d_vpr_e("%s: (%s) init failed with %d\n",
 					__func__, compat_handle[i].compat, rc);
@@ -421,55 +343,24 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core)
 	return rc;
 }
 
-int msm_vidc_deinit_platform(struct platform_device *pdev)
-{
-	struct msm_vidc_core *core;
-
-	if (!pdev) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	core = dev_get_drvdata(&pdev->dev);
-	if (!core) {
-		d_vpr_e("%s: core not found in device %s",
-			__func__, dev_name(&pdev->dev));
-		return -EINVAL;
-	}
-
-	d_vpr_h("%s()\n", __func__);
-
-	msm_vidc_deinit_vpu(core);
-	msm_vidc_deinit_platform_variant(core);
-
-	msm_vidc_vmem_free((void **)&core->platform);
-	return 0;
-}
-
-int msm_vidc_init_platform(struct platform_device *pdev)
+int msm_vidc_init_platform(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	struct msm_vidc_platform *platform = NULL;
-	struct msm_vidc_core *core;
-
-	if (!pdev) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	d_vpr_h("%s()\n", __func__);
 
-	core = dev_get_drvdata(&pdev->dev);
 	if (!core) {
-		d_vpr_e("%s: core not found in device %s",
-			__func__, dev_name(&pdev->dev));
+		d_vpr_e("%s: invalid param\n", __func__);
 		return -EINVAL;
 	}
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct msm_vidc_platform),
-			(void **)&platform, __func__);
-	if (rc)
-		return rc;
+	platform = devm_kzalloc(&core->pdev->dev,
+		sizeof(struct msm_vidc_platform), GFP_KERNEL);
+	if (!platform) {
+		d_vpr_e("%s: failed to alloc memory for platform\n", __func__);
+		return -ENOMEM;
+	}
 
 	core->platform = platform;
 	platform->core = core;
