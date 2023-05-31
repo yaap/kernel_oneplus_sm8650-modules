@@ -449,9 +449,9 @@ static void ula_unmap(struct ubwcp_driver *ubwcp)
 
 static void ula_sync_for_cpu(struct device *dev, u64 addr, unsigned long size)
 {
-	trace_ubwcp_dma_sync_single_for_cpu_start(size);
+	trace_ubwcp_dma_sync_single_for_cpu_start(size, DMA_BIDIRECTIONAL);
 	dma_sync_single_for_cpu(dev, addr, size, DMA_BIDIRECTIONAL);
-	trace_ubwcp_dma_sync_single_for_cpu_end(size);
+	trace_ubwcp_dma_sync_single_for_cpu_end(size, DMA_BIDIRECTIONAL);
 }
 
 /** Remove ula memory in chunks
@@ -1940,9 +1940,9 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		 */
 		if (dir == DMA_TO_DEVICE)
 			dir = DMA_BIDIRECTIONAL;
-		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size);
+		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size, dir);
 		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size);
+		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size, dir);
 		buf->dma_dir = dir;
 	} else {
 		DBG("buf already locked");
@@ -1997,10 +1997,13 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 
 	ubwcp = buf->ubwcp;
 
-	/* Flush/invalidate ULA PA from CPU caches */
-	trace_ubwcp_dma_sync_single_for_device_start(buf->ula_size);
-	dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, buf->dma_dir);
-	trace_ubwcp_dma_sync_single_for_device_end(buf->ula_size);
+	/* Only apply CMOs if there were potential CPU writes */
+	if (buf->dma_dir == DMA_TO_DEVICE || buf->dma_dir == DMA_BIDIRECTIONAL) {
+		/* Flush/invalidate ULA PA from CPU caches */
+		trace_ubwcp_dma_sync_single_for_device_start(buf->ula_size, buf->dma_dir);
+		dma_sync_single_for_device(ubwcp->dev, buf->ula_pa, buf->ula_size, buf->dma_dir);
+		trace_ubwcp_dma_sync_single_for_device_end(buf->ula_size, buf->dma_dir);
+	}
 
 	/* disable range check */
 	DBG("disabling range check");

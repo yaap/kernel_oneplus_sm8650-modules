@@ -89,6 +89,26 @@ DECLARE_EVENT_CLASS(ubwcp_size_event,
 	TP_printk("size:%zu", __entry->size)
 );
 
+DECLARE_EVENT_CLASS(ubwcp_sync_event,
+
+	TP_PROTO(size_t size,
+		 int dir),
+
+	TP_ARGS(size, dir),
+
+	TP_STRUCT__entry(
+		__field(size_t, size)
+		__field(int, dir)
+	),
+
+	TP_fast_assign(
+		__entry->size = size;
+		__entry->dir = dir;
+	),
+
+	TP_printk("size:%zu, dir:%d", __entry->size, __entry->dir)
+);
+
 DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_init_buffer_start,
 
 	TP_PROTO(struct dma_buf *dbuf_addr),
@@ -173,32 +193,32 @@ DEFINE_EVENT(ubwcp_size_event, ubwcp_offline_sync_end,
 	TP_ARGS(size)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_device_start,
+DEFINE_EVENT(ubwcp_sync_event, ubwcp_dma_sync_single_for_device_start,
 
-	TP_PROTO(size_t size),
+	TP_PROTO(size_t size, int dir),
 
-	TP_ARGS(size)
+	TP_ARGS(size, dir)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_device_end,
+DEFINE_EVENT(ubwcp_sync_event, ubwcp_dma_sync_single_for_device_end,
 
-	TP_PROTO(size_t size),
+	TP_PROTO(size_t size, int dir),
 
-	TP_ARGS(size)
+	TP_ARGS(size, dir)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_cpu_start,
+DEFINE_EVENT(ubwcp_sync_event, ubwcp_dma_sync_single_for_cpu_start,
 
-	TP_PROTO(size_t size),
+	TP_PROTO(size_t size, int dir),
 
-	TP_ARGS(size)
+	TP_ARGS(size, dir)
 );
 
-DEFINE_EVENT(ubwcp_size_event, ubwcp_dma_sync_single_for_cpu_end,
+DEFINE_EVENT(ubwcp_sync_event, ubwcp_dma_sync_single_for_cpu_end,
 
-	TP_PROTO(size_t size),
+	TP_PROTO(size_t size, int dir),
 
-	TP_ARGS(size)
+	TP_ARGS(size, dir)
 );
 
 DEFINE_EVENT(ubwcp_size_event, ubwcp_hw_flush_start,
