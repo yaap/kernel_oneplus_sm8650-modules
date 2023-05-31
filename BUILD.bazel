@@ -14,28 +14,41 @@ ddk_headers(
         "include/linux/ITrustedCameraDriver.h",
         "include/linux/CTrustedCameraDriver.h",
         "linux/misc/qseecom_kernel.h",
-        "linux/misc/qseecom_priv.h"
+        "linux/misc/qseecom_priv.h",
     ]),
-    includes = ["include/linux", "linux", "include"]
+    includes = [
+        "include",
+        "include/linux",
+        "linux",
+    ],
 )
 
 ddk_headers(
     name = "securemsm_kernel_headers",
     hdrs = [
         "linux/misc/qseecom_kernel.h",
-        "linux/misc/qseecom_priv.h"
+        "linux/misc/qseecom_priv.h",
     ],
-    includes = ["linux"]
+    includes = ["linux"],
 )
+
 ddk_headers(
     name = "hdcp_qseecom_dlkm",
     hdrs = glob([
+        ":smcinvoke_kernel_headers",
         "linux/*.h",
-        "linux/misc/qseecom_kernel.h",
-        "hdcp_qseecom/*.h",
-        "config/*.h"
+        "include/linux/*h",
+        "include/smci/uid/*h",
+        "include/smci/interface/*h",
+        "linux/misc/*.h",
+        "config/*.h",
     ]),
-    includes = [".","linux","config"]
+    includes = [
+        ".",
+        "config",
+        "include",
+        "linux",
+    ],
 )
 
 ddk_headers(

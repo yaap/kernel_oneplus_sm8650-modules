@@ -14,5 +14,6 @@ def define_pineapple():
             "smmu_proxy_dlkm"
         ],
         extra_options = [
-            "CONFIG_QCOM_SMCINVOKE"]
+            "CONFIG_QCOM_SMCINVOKE",
+        ],
     )

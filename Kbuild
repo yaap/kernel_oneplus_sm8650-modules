@@ -35,7 +35,7 @@ obj-$(CONFIG_CRYPTO_DEV_QCRYPTO) += qcrypto-msm_dlkm.o
 qcrypto-msm_dlkm-objs := crypto-qti/qcrypto.o
 
 obj-$(CONFIG_HDCP_QSEECOM) += hdcp_qseecom_dlkm.o
-hdcp_qseecom_dlkm-objs := hdcp/hdcp_qseecom.o
+hdcp_qseecom_dlkm-objs := hdcp/hdcp_main.o hdcp/hdcp_smcinvoke.o hdcp/hdcp_qseecom.o
 
 obj-$(CONFIG_HW_RANDOM_MSM_LEGACY) += qrng_dlkm.o
 qrng_dlkm-objs := qrng/msm_rng.o
