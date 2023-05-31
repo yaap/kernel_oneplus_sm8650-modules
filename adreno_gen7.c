@@ -1527,6 +1527,8 @@ int gen7_probe_common(struct platform_device *pdev,
 {
 	const struct adreno_gpudev *gpudev = gpucore->gpudev;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	const struct adreno_gen7_core *gen7_core = container_of(gpucore,
+			struct adreno_gen7_core, base);
 	int ret;
 
 	adreno_dev->gpucore = gpucore;
@@ -1538,6 +1540,8 @@ int gen7_probe_common(struct platform_device *pdev,
 	adreno_dev->uche_client_pf = 1;
 
 	device->pwrscale.avoid_ddr_stall = true;
+
+	device->pwrctrl.rt_bus_hint = gen7_core->rt_bus_hint;
 
 	ret = adreno_device_probe(pdev, adreno_dev);
 	if (ret)
