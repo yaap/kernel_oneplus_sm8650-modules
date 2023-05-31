@@ -124,7 +124,7 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 	u8 *log;
 	struct hfi_debug_header *pkt;
 	bool local_packet = false;
-	enum vidc_msg_prio log_level = msm_vidc_debug;
+	enum vidc_msg_prio_fw log_level_fw = msm_fw_debug;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -143,7 +143,7 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 		 * Local packet is used when error occurred.
 		 * It is good to print these logs to printk as well.
 		 */
-		log_level |= FW_PRINTK;
+		log_level_fw |= FW_PRINTK;
 	}
 
 	while (!venus_hfi_queue_dbg_read(core, packet)) {
@@ -169,7 +169,7 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 		 * line.
 		 */
 		log = (u8 *)packet + sizeof(struct hfi_debug_header) + 1;
-		dprintk_firmware(log_level, "%s", log);
+		dprintk_firmware(log_level_fw, "%s", log);
 	}
 
 	if (local_packet)
@@ -565,7 +565,7 @@ static int __resume(struct msm_vidc_core *core)
 		goto err_reset_core;
 	}
 
-	__sys_set_debug(core, (msm_vidc_debug & FW_LOGMASK) >> FW_LOGSHIFT);
+	__sys_set_debug(core, (msm_fw_debug & FW_LOGMASK) >> FW_LOGSHIFT);
 
 	rc = call_res_op(core, llcc, core, true);
 	if (rc) {
@@ -853,7 +853,7 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	if (rc)
 		goto error;
 
-	rc = __sys_set_debug(core, (msm_vidc_debug & FW_LOGMASK) >> FW_LOGSHIFT);
+	rc = __sys_set_debug(core, (msm_fw_debug & FW_LOGMASK) >> FW_LOGSHIFT);
 	if (rc)
 		goto error;
 
@@ -1133,8 +1133,7 @@ int venus_hfi_session_open(struct msm_vidc_inst *inst)
 		goto unlock;
 	}
 
-	__sys_set_debug(core,
-		(msm_vidc_debug & FW_LOGMASK) >> FW_LOGSHIFT);
+	__sys_set_debug(core, (msm_fw_debug & FW_LOGMASK) >> FW_LOGSHIFT);
 
 	rc = hfi_packet_session_command(inst,
 				HFI_CMD_OPEN,

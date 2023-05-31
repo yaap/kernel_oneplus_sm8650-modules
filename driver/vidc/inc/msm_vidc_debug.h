@@ -35,6 +35,7 @@ struct msm_vidc_inst;
 #endif
 
 extern unsigned int msm_vidc_debug;
+extern unsigned int msm_fw_debug;
 extern bool msm_vidc_lossless_encode;
 extern bool msm_vidc_syscache_disable;
 extern int msm_vidc_clock_voting;
@@ -62,7 +63,7 @@ extern bool msm_vidc_synx_fence_enable;
  * To enable all messages set msm_vidc_debug = 0x101F
  */
 
-enum vidc_msg_prio {
+enum vidc_msg_prio_drv {
 	VIDC_ERR        = 0x00000001,
 	VIDC_HIGH       = 0x00000002,
 	VIDC_LOW        = 0x00000004,
@@ -72,25 +73,27 @@ enum vidc_msg_prio {
 	VIDC_STAT       = 0x00000040,
 	VIDC_ENCODER    = 0x00000100,
 	VIDC_DECODER    = 0x00000200,
-	VIDC_PRINTK     = 0x00001000,
-	VIDC_FTRACE     = 0x00002000,
-	FW_LOW          = 0x00010000,
-	FW_MED          = 0x00020000,
-	FW_HIGH         = 0x00040000,
-	FW_ERROR        = 0x00080000,
-	FW_FATAL        = 0x00100000,
-	FW_PERF         = 0x00200000,
+	VIDC_PRINTK     = 0x10000000,
+	VIDC_FTRACE     = 0x20000000,
+};
+enum vidc_msg_prio_fw {
+	FW_LOW          = 0x00000001,
+	FW_MED          = 0x00000002,
+	FW_HIGH         = 0x00000004,
+	FW_ERROR        = 0x00000008,
+	FW_FATAL        = 0x00000010,
+	FW_PERF         = 0x00000020,
 	FW_PRINTK       = 0x10000000,
 	FW_FTRACE       = 0x20000000,
 };
 
 #define DRV_LOG        (VIDC_ERR | VIDC_PRINTK)
 #define DRV_LOGSHIFT   (0)
-#define DRV_LOGMASK    (0x0FFF)
+#define DRV_LOGMASK    (0x0FFFFFFF)
 
 #define FW_LOG         (FW_ERROR | FW_FATAL | FW_PRINTK)
-#define FW_LOGSHIFT    (16)
-#define FW_LOGMASK     (0x0FFF0000)
+#define FW_LOGSHIFT    (0)
+#define FW_LOGMASK     (0x0FFFFFFF)
 
 #define dprintk_inst(__level, __level_str, inst, __fmt, ...) \
 	do { \
@@ -146,7 +149,7 @@ enum vidc_msg_prio {
 
 #define dprintk_firmware(__level, __fmt, ...)	\
 	do { \
-		if (__level & FW_PRINTK) { \
+		if ((msm_fw_debug & (__level)) & FW_PRINTK) { \
 			pr_info(FW_DBG_TAG __fmt, \
 				"fw", \
 				##__VA_ARGS__); \

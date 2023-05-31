@@ -21,11 +21,13 @@ extern struct msm_vidc_core *g_core;
 #define MSM_VIDC_MIN_STATS_DELAY_MS     200
 #define MSM_VIDC_MAX_STATS_DELAY_MS     10000
 
-unsigned int msm_vidc_debug = (DRV_LOG | FW_LOG);
+unsigned int msm_vidc_debug = DRV_LOG;
+unsigned int msm_fw_debug = FW_LOG;
+
 /* disabled synx fence by default temporarily */
 bool msm_vidc_synx_fence_enable = false;
 
-static int debug_level_set(const char *val,
+static int debug_level_set_drv(const char *val,
 	const struct kernel_param *kp)
 {
 	struct msm_vidc_core *core = NULL;
@@ -50,9 +52,8 @@ static int debug_level_set(const char *val,
 		return 0;
 	}
 
-	/* check if driver or FW logmask is more than default level */
-	if (((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) ||
-		((dvalue & FW_LOGMASK) & ~(FW_LOG))) {
+	/* check if driver is more than default level */
+	if ((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) {
 		core->capabilities[HW_RESPONSE_TIMEOUT].value = 4 * HW_RESPONSE_TIMEOUT_VALUE;
 		core->capabilities[SW_PC_DELAY].value         = 4 * SW_PC_DELAY_VALUE;
 		core->capabilities[FW_UNLOAD_DELAY].value     = 4 * FW_UNLOAD_DELAY_VALUE;
@@ -63,7 +64,8 @@ static int debug_level_set(const char *val,
 		core->capabilities[FW_UNLOAD_DELAY].value     = FW_UNLOAD_DELAY_VALUE;
 	}
 
-	d_vpr_h("timeout updated: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
+	d_vpr_h(
+		"timeout updated for driver: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
 		core->capabilities[HW_RESPONSE_TIMEOUT].value,
 		core->capabilities[SW_PC_DELAY].value,
 		core->capabilities[FW_UNLOAD_DELAY].value,
@@ -72,14 +74,71 @@ static int debug_level_set(const char *val,
 	return 0;
 }
 
-static int debug_level_get(char *buffer, const struct kernel_param *kp)
+static int debug_level_set_fw(const char *val,
+	const struct kernel_param *kp)
+{
+	struct msm_vidc_core *core = NULL;
+	unsigned int dvalue;
+	int ret;
+
+	if (!kp || !kp->arg || !val) {
+		d_vpr_e("%s: Invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = kstrtouint(val, 0, &dvalue);
+	if (ret)
+		return ret;
+
+	msm_fw_debug = dvalue;
+
+	core = *(struct msm_vidc_core **)kp->arg;
+
+	if (!core) {
+		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
+		return 0;
+	}
+
+	/* check if firmware is more than default level */
+	if ((dvalue & FW_LOGMASK) & ~(FW_LOG)) {
+		core->capabilities[HW_RESPONSE_TIMEOUT].value = 4 * HW_RESPONSE_TIMEOUT_VALUE;
+		core->capabilities[SW_PC_DELAY].value         = 4 * SW_PC_DELAY_VALUE;
+		core->capabilities[FW_UNLOAD_DELAY].value     = 4 * FW_UNLOAD_DELAY_VALUE;
+	} else {
+		/* reset timeout values, if user reduces the logging */
+		core->capabilities[HW_RESPONSE_TIMEOUT].value = HW_RESPONSE_TIMEOUT_VALUE;
+		core->capabilities[SW_PC_DELAY].value         = SW_PC_DELAY_VALUE;
+		core->capabilities[FW_UNLOAD_DELAY].value     = FW_UNLOAD_DELAY_VALUE;
+	}
+
+	d_vpr_h(
+		"timeout updated for firmware: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
+		core->capabilities[HW_RESPONSE_TIMEOUT].value,
+		core->capabilities[SW_PC_DELAY].value,
+		core->capabilities[FW_UNLOAD_DELAY].value,
+		msm_fw_debug);
+
+	return 0;
+}
+
+static int debug_level_get_drv(char *buffer, const struct kernel_param *kp)
 {
 	return scnprintf(buffer, PAGE_SIZE, "%#x", msm_vidc_debug);
 }
 
+static int debug_level_get_fw(char *buffer, const struct kernel_param *kp)
+{
+	return scnprintf(buffer, PAGE_SIZE, "%#x", msm_fw_debug);
+}
+
 static const struct kernel_param_ops msm_vidc_debug_fops = {
-	.set = debug_level_set,
-	.get = debug_level_get,
+	.set = debug_level_set_drv,
+	.get = debug_level_get_drv,
+};
+
+static const struct kernel_param_ops msm_fw_debug_fops = {
+	.set = debug_level_set_fw,
+	.get = debug_level_get_fw,
 };
 
 static int fw_dump_set(const char *val,
@@ -145,6 +204,7 @@ static const struct kernel_param_ops msm_vidc_synx_fence_debug_fops = {
 };
 
 module_param_cb(msm_vidc_debug, &msm_vidc_debug_fops, &g_core, 0644);
+module_param_cb(msm_fw_debug, &msm_fw_debug_fops, &g_core, 0644);
 module_param_cb(msm_vidc_fw_dump, &msm_vidc_fw_dump_fops, &g_core, 0644);
 module_param_cb(msm_vidc_synx_fence_enable,
 	&msm_vidc_synx_fence_debug_fops, &g_core, 0644);
