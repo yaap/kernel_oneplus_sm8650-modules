@@ -199,7 +199,7 @@ static struct lut {
 	},
 };
 
-static inline u32 get_type_frm_name(const char* name)
+static inline u32 get_type_frm_name(const char *name)
 {
 	if (!strcmp(name, "venus-llcc"))
 		return LLCC;
@@ -213,13 +213,13 @@ static inline u32 get_type_frm_name(const char* name)
 #define DUMP_FP_FMT "%FP" /* special format for fp_t */
 
 struct dump {
-	char* key;
-	char* format;
+	char *key;
+	char *format;
 	size_t val;
 };
 
-struct lut const* __lut(int width, int height, int fps);
-fp_t __compression_ratio(struct lut const* entry, int bpp);
+struct lut const *__lut(int width, int height, int fps);
+fp_t __compression_ratio(struct lut const *entry, int bpp);
 void __dump(struct dump dump[], int len);
 
 static inline bool __ubwc(enum msm_vidc_colorformat_type f)
@@ -250,7 +250,7 @@ static inline int __bpp(enum msm_vidc_colorformat_type f)
 	}
 }
 
-u64 msm_vidc_max_freq(struct msm_vidc_inst* inst);
+u64 msm_vidc_max_freq(struct msm_vidc_inst *inst);
 int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses);
 void msm_vidc_power_data_reset(struct msm_vidc_inst *inst);
 

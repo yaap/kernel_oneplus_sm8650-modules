@@ -444,7 +444,7 @@ int msm_vidc_session_set_default_header(struct msm_vidc_inst *inst);
 int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 		enum msm_vidc_port_type port);
 int msm_vidc_session_close(struct msm_vidc_inst *inst);
-int msm_vidc_kill_session(struct msm_vidc_inst* inst);
+int msm_vidc_kill_session(struct msm_vidc_inst *inst);
 int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst);
 int msm_vidc_change_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_core_state request_state, const char *func);
@@ -506,7 +506,7 @@ int msm_vidc_queue_deferred_buffers(struct msm_vidc_inst *inst,
 int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer);
 void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst);
-int msm_vidc_flush_buffers(struct msm_vidc_inst* inst,
+int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type type);
 int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type type);
@@ -541,7 +541,7 @@ int msm_vidc_process_drain_done(struct msm_vidc_inst *inst);
 int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst);
 int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst);
 int msm_vidc_get_mbs_per_frame(struct msm_vidc_inst *inst);
-u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst* inst);
+u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst *inst);
 int msm_vidc_get_fps(struct msm_vidc_inst *inst);
 int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type type, enum msm_vidc_buffer_attributes attr);
@@ -559,10 +559,10 @@ int msm_vidc_update_meta_port_settings(struct msm_vidc_inst *inst);
 int msm_vidc_update_buffer_count(struct msm_vidc_inst *inst, u32 port);
 void msm_vidc_schedule_core_deinit(struct msm_vidc_core *core);
 bool msm_vidc_is_super_buffer(struct msm_vidc_inst *inst);
-int msm_vidc_init_core_caps(struct msm_vidc_core* core);
-int msm_vidc_init_instance_caps(struct msm_vidc_core* core);
-int msm_vidc_deinit_core_caps(struct msm_vidc_core* core);
-int msm_vidc_deinit_instance_caps(struct msm_vidc_core* core);
+int msm_vidc_init_core_caps(struct msm_vidc_core *core);
+int msm_vidc_init_instance_caps(struct msm_vidc_core *core);
+int msm_vidc_deinit_core_caps(struct msm_vidc_core *core);
+int msm_vidc_deinit_instance_caps(struct msm_vidc_core *core);
 int msm_vidc_update_debug_str(struct msm_vidc_inst *inst);
 void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_decode_batch(struct msm_vidc_inst *inst);

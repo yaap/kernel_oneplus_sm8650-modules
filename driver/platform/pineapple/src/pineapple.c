@@ -230,7 +230,7 @@ static int msm_vidc_set_ring_buffer_count_pineapple(void *instance,
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	struct v4l2_format *output_fmt, *input_fmt;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u32 count = 0, data_size = 0, pixel_count = 0, fps = 0;
 	u32 frame_rate = 0, operating_rate = 0;
 

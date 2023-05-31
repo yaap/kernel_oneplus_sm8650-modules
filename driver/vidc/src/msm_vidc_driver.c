@@ -5109,7 +5109,7 @@ static int msm_vidc_check_inst_mbpf(struct msm_vidc_inst *inst)
 	return 0;
 }
 
-u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst* inst)
+u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst *inst)
 {
 	u32 max_bitrate = 0x7fffffff;
 

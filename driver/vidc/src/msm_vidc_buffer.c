@@ -13,7 +13,7 @@
 #include "msm_vidc_debug.h"
 
 /* Generic function for all targets. Not being used for iris2 */
-u32 msm_vidc_input_min_count(struct msm_vidc_inst* inst)
+u32 msm_vidc_input_min_count(struct msm_vidc_inst *inst)
 {
 	u32 input_min_count = 0;
 	u32 hb_enh_layer = 0;

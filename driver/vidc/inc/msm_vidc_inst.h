@@ -21,7 +21,7 @@ struct msm_vidc_inst;
 struct msm_vidc_session_ops {
 	u64 (*calc_freq)(struct msm_vidc_inst *inst, u32 data_size);
 	int (*calc_bw)(struct msm_vidc_inst *inst,
-		struct vidc_bus_vote_data* vote_data);
+		struct vidc_bus_vote_data *vote_data);
 	int (*decide_work_route)(struct msm_vidc_inst *inst);
 	int (*decide_work_mode)(struct msm_vidc_inst *inst);
 	int (*decide_quality_mode)(struct msm_vidc_inst *inst);

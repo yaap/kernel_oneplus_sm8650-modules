@@ -102,7 +102,7 @@ static const char *const mpeg_video_vidc_ir_type[] = {
 	NULL,
 };
 
-static const char * const * msm_vidc_get_qmenu_type(
+static const char * const *msm_vidc_get_qmenu_type(
 		struct msm_vidc_inst *inst, u32 cap_id)
 {
 	switch (cap_id) {
@@ -652,7 +652,7 @@ error:
 	return rc;
 }
 
-static int msm_vidc_update_buffer_count_if_needed(struct msm_vidc_inst* inst,
+static int msm_vidc_update_buffer_count_if_needed(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;

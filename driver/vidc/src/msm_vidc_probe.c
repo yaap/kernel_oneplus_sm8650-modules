@@ -647,7 +647,7 @@ static const struct component_master_ops msm_vidc_component_master_ops = {
 
 static int msm_vidc_remove_video_device(struct platform_device *pdev)
 {
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	if (!pdev) {
 		d_vpr_e("%s: invalid input %pK", __func__, pdev);

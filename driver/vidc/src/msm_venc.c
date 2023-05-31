@@ -313,7 +313,7 @@ static int msm_venc_set_crop_offsets(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
+static int msm_venc_set_colorspace(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
@@ -388,7 +388,7 @@ static int msm_venc_set_colorspace(struct msm_vidc_inst* inst,
 	return 0;
 }
 
-static int msm_venc_set_csc(struct msm_vidc_inst* inst,
+static int msm_venc_set_csc(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
@@ -417,7 +417,7 @@ static int msm_venc_set_csc(struct msm_vidc_inst* inst,
 static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_core* core = inst->core;
+	struct msm_vidc_core *core = inst->core;
 	u32 mode;
 
 	rc = call_session_op(core, decide_quality_mode, inst);
@@ -1400,7 +1400,7 @@ int msm_venc_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	return rc;
 }
 
-int msm_venc_s_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
+int msm_venc_s_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s)
 {
 	int rc = 0;
 	struct v4l2_format *output_fmt;
@@ -1503,7 +1503,7 @@ int msm_venc_s_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
 	return rc;
 }
 
-int msm_venc_g_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
+int msm_venc_g_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s)
 {
 	int rc = 0;
 

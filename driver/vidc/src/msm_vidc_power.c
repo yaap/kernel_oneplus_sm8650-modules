@@ -90,7 +90,7 @@ void __dump(struct dump dump[], int len)
 
 u64 msm_vidc_max_freq(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	struct frequency_table *freq_tbl;
 	u64 freq = 0;
 
@@ -154,11 +154,11 @@ static int fill_dynamic_stats(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-static int msm_vidc_set_buses(struct msm_vidc_inst* inst)
+static int msm_vidc_set_buses(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
-	struct msm_vidc_inst* temp;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *temp;
 	u64 total_bw_ddr = 0, total_bw_llcc = 0;
 	u64 curr_time_ns;
 
@@ -325,11 +325,11 @@ set_buses:
 	return 0;
 }
 
-int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
+int msm_vidc_set_clocks(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	struct msm_vidc_core* core;
-	struct msm_vidc_inst* temp;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *temp;
 	u64 freq;
 	u64 rate = 0;
 	bool increment, decrement;
@@ -480,7 +480,7 @@ exit:
 
 int msm_vidc_scale_clocks(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 
 	core = inst->core;
 

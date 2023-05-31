@@ -225,8 +225,8 @@ static u32 write_str(char *buffer,
 	return len;
 }
 
-static ssize_t core_info_read(struct file* file, char __user* buf,
-	size_t count, loff_t* ppos)
+static ssize_t core_info_read(struct file *file, char __user *buf,
+	size_t count, loff_t *ppos)
 {
 	struct msm_vidc_core *core = file->private_data;
 	char *cur, *end, *dbuf = NULL;
@@ -317,12 +317,12 @@ static const struct file_operations stats_delay_fops = {
 	.read = stats_delay_read_ms,
 };
 
-static ssize_t trigger_ssr_write(struct file* filp, const char __user* buf,
-	size_t count, loff_t* ppos)
+static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
+	size_t count, loff_t *ppos)
 {
 	unsigned long ssr_trigger_val = 0;
 	int rc = 0;
-	struct msm_vidc_core* core = filp->private_data;
+	struct msm_vidc_core *core = filp->private_data;
 	size_t size = MAX_SSR_STRING_LEN;
 	char kbuf[MAX_SSR_STRING_LEN + 1] = { 0 };
 
@@ -400,7 +400,7 @@ static const struct file_operations stability_fops = {
 	.write = trigger_stability_write,
 };
 
-struct dentry* msm_vidc_debugfs_init_drv(void)
+struct dentry *msm_vidc_debugfs_init_drv(void)
 {
 	struct dentry *dir = NULL;
 

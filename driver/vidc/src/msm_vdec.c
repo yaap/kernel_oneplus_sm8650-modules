@@ -2421,13 +2421,13 @@ int msm_vdec_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	return rc;
 }
 
-int msm_vdec_s_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
+int msm_vdec_s_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s)
 {
 	i_vpr_e(inst, "%s: unsupported\n", __func__);
 	return -EINVAL;
 }
 
-int msm_vdec_g_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s)
+int msm_vdec_g_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s)
 {
 	if (s->type != OUTPUT_MPLANE && s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		i_vpr_e(inst, "%s: invalid type %d\n", __func__, s->type);
@@ -2484,7 +2484,7 @@ int msm_vdec_subscribe_event(struct msm_vidc_inst *inst,
 	return rc;
 }
 
-static int msm_vdec_check_colorformat_supported(struct msm_vidc_inst* inst,
+static int msm_vdec_check_colorformat_supported(struct msm_vidc_inst *inst,
 		enum msm_vidc_colorformat_type colorformat)
 {
 	bool supported = true;
