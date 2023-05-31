@@ -1006,12 +1006,10 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	}
 
 	if (is_decode_session(inst)) {
-		/* RO flag is not expected for linear colorformat */
-		if (is_linear_colorformat(inst->capabilities[PIX_FMTS].value) &&
-			(buffer->flags & HFI_BUF_FW_FLAG_READONLY)) {
-			buffer->flags &= ~HFI_BUF_FW_FLAG_READONLY;
-			print_vidc_buffer(
-				VIDC_HIGH, "high", "RO flag in linear colorformat", inst, buf);
+		/* RO flag is not expected when internal dpb buffers are allocated */
+		if (inst->buffers.dpb.size && buffer->flags & HFI_BUF_FW_FLAG_READONLY) {
+			print_vidc_buffer(VIDC_ERR, "err ", "unexpected RO flag", inst, buf);
+			msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
 		}
 
 		if (buffer->flags & HFI_BUF_FW_FLAG_READONLY) {
@@ -1621,6 +1619,12 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 	bool found = false;
 	u64 device_addr;
 
+	if (!is_decode_session(inst)) {
+		i_vpr_e(inst,
+			"%s: unsupported for non-decode session\n", __func__);
+		return -EINVAL;
+	}
+
 	payload_size = pkt->size - sizeof(struct hfi_packet);
 	num_words_in_payload = payload_size / 4;
 	payload_start = (u8 *)((u8 *)pkt + sizeof(struct hfi_packet));
@@ -1771,16 +1775,9 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 				__func__);
 		break;
 	case HFI_PROP_DPB_LIST:
-		if (is_decode_session(inst)) {
-			rc = handle_dpb_list_property(inst, pkt);
-			if (rc)
-				break;
-		} else {
-			i_vpr_e(inst,
-				"%s: invalid dpb property %#x for %s port %d\n",
-				__func__, pkt->type, is_decode_session(inst) ? "decode" : "encode",
-				port);
-		}
+		rc = handle_dpb_list_property(inst, pkt);
+		if (rc)
+			break;
 		break;
 	case HFI_PROP_QUALITY_MODE:
 		if (inst->capabilities[QUALITY_MODE].value !=  payload_ptr[0])
@@ -1816,7 +1813,18 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 static int handle_property_without_payload(struct msm_vidc_inst *inst,
 	struct hfi_packet *pkt, u32 port)
 {
+	int rc = 0;
+
 	switch (pkt->type) {
+	case HFI_PROP_DPB_LIST:
+		/*
+		 * if fw sends dpb list property without payload,
+		 * it means there are no more reference buffers.
+		 */
+		rc = handle_dpb_list_property(inst, pkt);
+		if (rc)
+			break;
+		break;
 	case HFI_PROP_NO_OUTPUT:
 		if (port != INPUT_PORT) {
 			i_vpr_e(inst,
@@ -1833,7 +1841,7 @@ static int handle_property_without_payload(struct msm_vidc_inst *inst,
 		break;
 	}
 
-	return 0;
+	return rc;
 }
 
 static int handle_session_property(struct msm_vidc_inst *inst,
