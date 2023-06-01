@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -273,12 +273,12 @@ int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
 	/* get rootObj */
 	ret = get_client_env_object(&client_env);
 	if (ret) {
-		pr_debug("Failed to get client_env_object, ret: %d\n", ret);
+		pr_err("Failed to get client_env_object, ret: %d\n", ret);
 		goto end;
 	}
 	ret = IClientEnv_open(client_env, PERISEC_HW_STATE_UID, &app_object);
 	if (ret) {
-		pr_debug("Failed to get app_object, ret: %d\n",  ret);
+		pr_err("Failed to get app_object, ret: %d\n",  ret);
 		if (ret == PERISEC_FEATURE_NOT_SUPPORTED) {
 			ret = 0; /* Do not Assert */
 			plat_priv->sec_peri_feature_disable = true;
@@ -292,12 +292,12 @@ int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
 	ret = Object_invoke(app_object, PERISEC_HW_OP_GET_STATE, obj_arg,
 			    ObjectCounts_pack(1, 1, 0, 0));
 
-	pr_debug("SMC invoke ret: %d state: %d\n", ret, state);
+	pr_info("SMC invoke ret: %d state: %d\n", ret, state);
 	if (ret) {
 		if (ret == PERISEC_PERIPHERAL_NOT_FOUND) {
 			ret = 0; /* Do not Assert */
 			plat_priv->sec_peri_feature_disable = true;
-			pr_debug("Secure HW mode is not updated. Peripheral not found\n");
+			pr_info("Secure HW mode is not updated. Peripheral not found\n");
 		}
 	} else {
 		if (state == 1)
@@ -762,7 +762,7 @@ static int bluetooth_power(int on)
 {
 	int rc = 0;
 
-	pr_debug("%s: on: %d\n", __func__, on);
+	pr_info("%s: on: %d\n", __func__, on);
 
 	rc = perisec_cnss_bt_hw_disable_check(bt_power_pdata);
 	if (on == 1) {
@@ -1208,7 +1208,12 @@ static int bt_power_probe(struct platform_device *pdev)
 				__func__);
 			goto free_pdata;
 		}
-		pdev->dev.platform_data = bt_power_pdata;
+		if (bt_power_pdata->bt_sec_hw_disable) {
+			pr_info("%s: bt is in secure mode\n", __func__);
+		} else {
+			pr_info(" %s:send platform data of btpower\n", __func__);
+			pdev->dev.platform_data = bt_power_pdata;
+		}
 	} else if (pdev->dev.platform_data) {
 		/* Optional data set to default if not provided */
 		if (!((struct btpower_platform_data *)
