@@ -1903,9 +1903,6 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	struct inst_snapshot *snap = NULL;
 	int i = 0, c = 0;
 
-	if (!cvp_driver->cores)
-		return;
-
 	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
 	if (log && core->log.snapshot_index < 16) {
 		snap = &core->log.snapshot[core->log.snapshot_index];
