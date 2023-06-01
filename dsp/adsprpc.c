@@ -55,6 +55,7 @@
 #include <linux/iommu.h>
 #include <asm/arch_timer.h>
 #include <linux/genalloc.h>
+#include <soc/qcom/socinfo.h>
 
 #ifdef CONFIG_HIBERNATION
 #include <linux/suspend.h>
@@ -2949,34 +2950,22 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 	return err;
 }
 
-/*
- * Reads the property string from device node
- * and updates the cdsp device avialbility status
- * if the node belongs to cdsp device.
+/* fastrpc_get_nsp_status() - Reads the property string from soc_info
+ * denoted for nsp part, and updates the nsp device avialbility status
+ * if the nsp is not defective.
  * @me  : pointer to fastrpc_apps.
  */
 
-static void fastrpc_get_dsp_status(struct fastrpc_apps *me)
+static void fastrpc_get_nsp_status(struct fastrpc_apps *me)
 {
-	int ret = -1;
-	struct device_node *node = NULL;
-	const char *name = NULL;
-
-	do {
-		node = of_find_compatible_node(node, NULL, "qcom,pil-tz-generic");
-		if (node) {
-			ret = of_property_read_string(node, "qcom,firmware-name", &name);
-			if (!strcmp(name, "cdsp")) {
-				ret =  of_device_is_available(node);
-				me->remote_cdsp_status = ret;
-				ADSPRPC_INFO("cdsp node found with ret:%x\n", ret);
-				break;
-			}
-		} else {
-			ADSPRPC_ERR("cdsp node not found\n");
-			break;
-		}
-	} while (1);
+	if (socinfo_get_part_info(PART_NSP)) {
+		me->fastrpc_nsp_status = 0;
+		ADSPRPC_ERR(
+			"nsp part defective with status:%x\n", me->fastrpc_nsp_status);
+	} else {
+		me->fastrpc_nsp_status = 1;
+		ADSPRPC_INFO("nsp available with status: %x\n", me->fastrpc_nsp_status);
+	}
 }
 
 /*
@@ -8069,15 +8058,15 @@ bail:
 }
 
 /*
- * remote_cdsp_status_show - Updates the buffer with remote cdsp status
- *                           by reading the fastrpc node.
+ * fastrpc_nsp_status_show() - Updates the buffer with remote nsp status
+ * by reading the fastrpc node.
  * @dev : pointer to device node.
  * @attr: pointer to device attribute.
- * @buf : Output parameter to be updated with remote cdsp status.
+ * @buf : Output parameter to be updated with remote nsp status.
  * Return : bytes written to buffer.
  */
 
-static ssize_t remote_cdsp_status_show(struct device *dev,
+static ssize_t fastrpc_nsp_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct fastrpc_apps *me = &gfa;
@@ -8094,15 +8083,15 @@ static ssize_t remote_cdsp_status_show(struct device *dev,
 	}
 
 	return scnprintf(buf, PAGE_SIZE, "%d",
-			me->remote_cdsp_status);
+			me->fastrpc_nsp_status);
 }
 
-/* Remote cdsp status attribute declaration as read only */
-static DEVICE_ATTR_RO(remote_cdsp_status);
+/* Remote nsp status attribute declaration as read only */
+static DEVICE_ATTR_RO(fastrpc_nsp_status);
 
 /* Declaring attribute for remote dsp */
 static struct attribute *msm_remote_dsp_attrs[] = {
-	&dev_attr_remote_cdsp_status.attr,
+	&dev_attr_fastrpc_nsp_status.attr,
 	NULL
 };
 
@@ -8674,7 +8663,7 @@ static int __init fastrpc_device_init(void)
 	}
 	memset(me, 0, sizeof(*me));
 	fastrpc_init(me);
-	fastrpc_get_dsp_status(me);
+	fastrpc_get_nsp_status(me);
 	me->dev = NULL;
 	me->legacy_remote_heap = false;
 	err = bus_register(&fastrpc_bus_type);

@@ -738,8 +738,8 @@ struct fastrpc_apps {
 	struct hlist_head frpc_devices;
 	struct hlist_head frpc_drivers;
 	struct mutex mut_uid;
-	/* Indicates cdsp device status */
-	int remote_cdsp_status;
+	/* Indicates nsp status */
+	int fastrpc_nsp_status;
 	/* Indicates secure context bank to be shared */
 	int share_securecb;
 	/* Indicates process type is configured for SMMU context bank */
