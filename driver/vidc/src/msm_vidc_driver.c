@@ -2712,7 +2712,16 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	if (!buffers)
 		return -EINVAL;
 
-	if (buf_size <= buffers->size && buf_count <= buffers->min_count) {
+	/*
+	 * In a usecase when film grain is initially present, dpb buffers
+	 * are allocated and in the middle of the session, if film grain
+	 * is disabled, then dpb internal buffers should be destroyed.
+	 * When film grain is disabled, buffer_size op call returns 0.
+	 * To ensure buffers->reuse is set to false, add check to detect
+	 * if buf_size has become zero. Do the same for buf_count as well.
+	 */
+	if (buf_size && buf_size <= buffers->size &&
+	    buf_count && buf_count <= buffers->min_count) {
 		buffers->reuse = true;
 	} else {
 		buffers->reuse = false;
