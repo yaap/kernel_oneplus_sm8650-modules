@@ -46,7 +46,6 @@ module_entry(
     config_option = "CONFIG_TOUCHSCREEN_ATMEL_MXT",
     srcs = [
             "atmel_mxt/atmel_mxt_ts.c",
-            "qts/qts_core.c"
     ]
 )
 
