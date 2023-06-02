@@ -237,7 +237,7 @@ u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
 {
 	u32 hfi_colorformat = HFI_COLOR_FMT_NV12_UBWC;
 
-	switch(colorformat) {
+	switch (colorformat) {
 	case MSM_VIDC_FMT_NV12:
 		hfi_colorformat = HFI_COLOR_FMT_NV12;
 		break;

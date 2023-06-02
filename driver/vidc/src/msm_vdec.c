@@ -73,7 +73,7 @@ static int msm_vdec_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 		goto exit;
 
 	rc = msm_vidc_ctrl_handler_init(inst, session_init);
-	if(rc)
+	if (rc)
 		goto exit;
 
 	rc = msm_vidc_update_buffer_count(inst, INPUT_PORT);
@@ -819,7 +819,7 @@ int msm_vdec_release_input_internal_buffers(struct msm_vidc_inst *inst)
 	int rc = 0;
 	u32 i = 0;
 
-	i_vpr_h(inst, "%s()\n",__func__);
+	i_vpr_h(inst, "%s()\n", __func__);
 
 	for (i = 0; i < ARRAY_SIZE(msm_vdec_internal_buffer_type); i++) {
 		rc = msm_vidc_release_internal_buffers(inst, msm_vdec_internal_buffer_type[i]);

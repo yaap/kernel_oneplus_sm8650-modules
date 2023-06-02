@@ -913,7 +913,7 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 			FP_INT(bps(1)));
 
 	if (is_h264_category)
-		ddr.line_buffer_write = fp_div(ddr.line_buffer_read,FP_INT(2));
+		ddr.line_buffer_write = fp_div(ddr.line_buffer_read, FP_INT(2));
 	else
 		ddr.line_buffer_write = ddr.line_buffer_read;
 	if (llc_top_line_buf_enabled) {

@@ -91,7 +91,7 @@ static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 		goto exit;
 
 	rc = msm_vidc_ctrl_handler_init(inst, session_init);
-	if(rc)
+	if (rc)
 		goto exit;
 
 	rc = msm_vidc_update_buffer_count(inst, INPUT_PORT);

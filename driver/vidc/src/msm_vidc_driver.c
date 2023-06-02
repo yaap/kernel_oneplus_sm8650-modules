@@ -3375,7 +3375,7 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 	}
 	inst_lock(inst, __func__);
 
-	if(rc)
+	if (rc)
 		goto error;
 
 	if (port == INPUT_PORT) {
@@ -4247,7 +4247,7 @@ void msm_vidc_fw_unload_handler(struct work_struct *work)
 		return;
 	}
 
-	d_vpr_h("%s: deinitializing video core\n",__func__);
+	d_vpr_h("%s: deinitializing video core\n", __func__);
 	rc = msm_vidc_core_deinit(core, false);
 	if (rc)
 		d_vpr_e("%s: Failed to deinit core\n", __func__);

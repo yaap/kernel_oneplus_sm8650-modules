@@ -197,7 +197,7 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 			rc = -EIO;
 			goto error;
 		}
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0))
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
 		if (rc) {
 			d_vpr_e("%s: kernel map failed\n", __func__);

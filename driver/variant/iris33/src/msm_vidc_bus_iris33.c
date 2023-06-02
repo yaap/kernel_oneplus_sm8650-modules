@@ -819,13 +819,13 @@ static int calculate_bandwidth_encoder_iris33(
 	/* I frame only */
 	if (codec_input.hierachical_layer == CODEC_GOP_IONLY) {
 		codec_output->dpb_rd_y_noc = 0;
-		codec_output->dpb_rd_crcb_noc =0;
-		codec_output->dpb_rdwr_duetooverlap_noc =0;
-		codec_output->dpb_wr_noc =0;
-		codec_output->dpb_rd_y_ddr=0;
-		codec_output->dpb_rd_crcb_ddr =0;
-		codec_output->dpb_rdwr_duetooverlap_ddr=0;
-		codec_output->dpb_wr_ddr =0;
+		codec_output->dpb_rd_crcb_noc = 0;
+		codec_output->dpb_rdwr_duetooverlap_noc = 0;
+		codec_output->dpb_wr_noc = 0;
+		codec_output->dpb_rd_y_ddr = 0;
+		codec_output->dpb_rd_crcb_ddr = 0;
+		codec_output->dpb_rdwr_duetooverlap_ddr = 0;
+		codec_output->dpb_wr_ddr = 0;
 	}
 
 	/* accumulation */

@@ -433,7 +433,7 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 				MSM_VIDC_BUF_ARP);
 			if (rc)
 				return rc;
-		} else if(is_decode_session(inst)) {
+		} else if (is_decode_session(inst)) {
 			rc = msm_vidc_session_set_default_header(inst);
 			if (rc)
 				return rc;
