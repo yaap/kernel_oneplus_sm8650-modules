@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/dma-direction.h>
@@ -138,7 +139,7 @@ static void __deinit_session_queue(struct msm_cvp_inst *inst)
 	wake_up_all(&inst->session_queue.wq);
 }
 
-void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
+void *msm_cvp_open(int session_type, struct task_struct *task)
 {
 	struct msm_cvp_inst *inst = NULL;
 	struct msm_cvp_core *core = NULL;
@@ -146,16 +147,9 @@ void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
 	int i = 0;
 	u32 instance_count;
 
-	if (core_id >= MSM_CVP_CORES_MAX ||
-			session_type >= MSM_CVP_MAX_DEVICES) {
-		dprintk(CVP_ERR, "Invalid input, core_id = %d, session = %d\n",
-			core_id, session_type);
-		goto err_invalid_core;
-	}
-	core = get_cvp_core(core_id);
+	core = cvp_driver->cvp_core;
 	if (!core) {
-		dprintk(CVP_ERR,
-			"Failed to find core for core_id = %d\n", core_id);
+		dprintk(CVP_ERR, "%s CVP core not initialized\n", __func__);
 		goto err_invalid_core;
 	}
 
@@ -210,7 +204,6 @@ void *msm_cvp_open(int core_id, int session_type, struct task_struct *task)
 	inst->clk_data.ddr_bw = 0;
 	inst->clk_data.sys_cache_bw = 0;
 	inst->clk_data.bitrate = 0;
-	inst->clk_data.core_id = 0;
 
 	for (i = SESSION_MSG_INDEX(SESSION_MSG_START);
 		i <= SESSION_MSG_INDEX(SESSION_MSG_END); i++) {
@@ -473,8 +466,8 @@ int msm_cvp_close(void *instance)
 }
 EXPORT_SYMBOL(msm_cvp_close);
 
-int msm_cvp_suspend(int core_id)
+int msm_cvp_suspend(void)
 {
-	return msm_cvp_comm_suspend(core_id);
+	return msm_cvp_comm_suspend();
 }
 EXPORT_SYMBOL(msm_cvp_suspend);

@@ -155,7 +155,7 @@ static int adjust_bw_freqs(void)
 	int i, rc = 0, bus_count = 0;
 	unsigned long ctrl_freq;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 
 	hdev = core->device->hfi_device_data;
 	clocks = &core->resources.clock_set;
@@ -444,7 +444,7 @@ unsigned int msm_cvp_get_hw_aggregate_cycles(enum hfi_hw_thread hwblk)
 	struct msm_cvp_inst *inst;
 	unsigned long cycles_sum = 0;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 
 	if (!core) {
 		dprintk(CVP_ERR, "%s: invalid core\n", __func__);

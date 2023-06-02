@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_CVP_INTERNAL_H_
@@ -135,8 +136,7 @@ struct cvp_kmem_cache {
 
 struct msm_cvp_drv {
 	struct mutex lock;
-	struct list_head cores;
-	int num_cores;
+	struct msm_cvp_core *cvp_core;
 	struct dentry *debugfs_root;
 	int thermal_level;
 	u32 sku_version;
@@ -170,7 +170,6 @@ struct cvp_clock_data {
 	u32 ddr_bw;
 	u32 sys_cache_bw;
 	u32 operating_rate;
-	u32 core_id;
 	bool low_latency_mode;
 	bool turbo_mode;
 };
@@ -331,10 +330,8 @@ struct cvp_debug_log {
 };
 
 struct msm_cvp_core {
-	struct list_head list;
 	struct mutex lock;
 	struct mutex clk_lock;
-	int id;
 	dev_t dev_num;
 	struct cdev cdev;
 	struct class *class;

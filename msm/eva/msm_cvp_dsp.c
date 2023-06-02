@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/rpmsg.h>
@@ -494,7 +495,7 @@ static bool dsp_session_exist(void)
 	struct msm_cvp_core *core;
 	struct msm_cvp_inst *inst = NULL;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core) {
 		mutex_lock(&core->lock);
 		list_for_each_entry(inst, &core->instances, list) {
@@ -896,7 +897,7 @@ static int __reinit_dsp(void)
 	struct msm_cvp_core *core;
 	struct iris_hfi_device *device;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core && core->device)
 		device = core->device->hfi_device_data;
 	else
@@ -1365,7 +1366,7 @@ void cvp_dsp_send_hfi_queue(void)
 	uint32_t size;
 	int rc;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core && core->device)
 		device = core->device->hfi_device_data;
 	else
@@ -1469,7 +1470,7 @@ static void *get_inst_from_dsp(uint32_t session_cpu_high, uint32_t session_cpu_l
 		return inst;
 	}
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core) {
 		mutex_lock(&core->lock);
 		list_for_each_entry(sess_inst, &core->instances, list) {
@@ -1565,7 +1566,7 @@ static void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 		goto fail_lookup;
 	}
 
-	inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_DSP, task);
+	inst = msm_cvp_open(MSM_CVP_DSP, task);
 	if (!inst) {
 		dprintk(CVP_ERR, "%s Failed create instance\n", __func__);
 		goto fail_msm_cvp_open;
@@ -2099,7 +2100,7 @@ static int cvp_dsp_thread(void *data)
 	struct cvp_hfi_device *hdev;
 	struct msm_cvp_core *core;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (!core) {
 		dprintk(CVP_ERR, "%s: Failed to find core\n", __func__);
 		rc = -EINVAL;

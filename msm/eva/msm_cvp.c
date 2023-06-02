@@ -1647,7 +1647,6 @@ int msm_cvp_session_init(struct msm_cvp_inst *inst)
 		inst, hash32_ptr(inst->session));
 
 	/* set default frequency */
-	inst->clk_data.core_id = 0;
 	inst->clk_data.min_freq = 1000;
 	inst->clk_data.ddr_bw = 1000;
 	inst->clk_data.sys_cache_bw = 1000;

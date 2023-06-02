@@ -579,7 +579,7 @@ int msm_cvp_map_ipcc_regs(u32 *iova)
 	phys_addr_t paddr;
 	u32 size;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core) {
 		hfi_ops = core->device;
 		if (hfi_ops)
@@ -616,7 +616,7 @@ int msm_cvp_unmap_ipcc_regs(u32 iova)
 	struct iris_hfi_device *dev = NULL;
 	u32 size;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core) {
 		hfi_ops = core->device;
 		if (hfi_ops)

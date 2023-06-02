@@ -9,7 +9,7 @@
 #include "cvp_core_hfi.h"
 
 struct cvp_hfi_device *cvp_hfi_initialize(enum msm_cvp_hfi_type hfi_type,
-		u32 device_id, struct msm_cvp_platform_resources *res,
+		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback)
 {
 	struct cvp_hfi_device *hdev = NULL;
@@ -21,7 +21,7 @@ struct cvp_hfi_device *cvp_hfi_initialize(enum msm_cvp_hfi_type hfi_type,
 		return NULL;
 	}
 
-	rc = cvp_iris_hfi_initialize(hdev, device_id, res, callback);
+	rc = cvp_iris_hfi_initialize(hdev, res, callback);
 
 	if (rc) {
 		if (rc != -EPROBE_DEFER)

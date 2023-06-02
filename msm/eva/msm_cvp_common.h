@@ -16,10 +16,9 @@ struct msm_cvp_inst *cvp_get_inst_validate(struct msm_cvp_core *core,
 bool is_cvp_inst_valid(struct msm_cvp_inst *inst);
 void cvp_change_inst_state(struct msm_cvp_inst *inst,
 		enum instance_state state);
-struct msm_cvp_core *get_cvp_core(int core_id);
 int msm_cvp_comm_try_state(struct msm_cvp_inst *inst, int state);
 int msm_cvp_deinit_core(struct msm_cvp_inst *inst);
-int msm_cvp_comm_suspend(int core_id);
+int msm_cvp_comm_suspend(void);
 void msm_cvp_comm_session_clean(struct msm_cvp_inst *inst);
 int msm_cvp_comm_kill_session(struct msm_cvp_inst *inst);
 void msm_cvp_comm_generate_sys_error(struct msm_cvp_inst *inst);

@@ -523,7 +523,7 @@ static int hfi_process_session_dump_notify(u32 device_id,
 		return -E2BIG;
 	}
 	session_id = get_msg_session_id(pkt);
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst_from_id(core, session_id);
 	if (!inst) {
 		dprintk(CVP_ERR, "%s: invalid session\n", __func__);
@@ -568,7 +568,7 @@ static int hfi_process_session_cvp_msg(u32 device_id,
 		return -E2BIG;
 	}
 	session_id = get_msg_session_id(pkt);
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst_from_id(core, session_id);
 
 	if (!inst) {

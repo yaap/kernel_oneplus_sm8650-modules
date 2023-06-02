@@ -1702,7 +1702,7 @@ int msm_cvp_map_frame(struct msm_cvp_inst *inst,
 	struct msm_cvp_inst *instance = (struct  msm_cvp_inst *)0xdeadbeef;
 	struct msm_cvp_core *core = NULL;
 
-	core = get_cvp_core(MSM_CORE_CVP);
+	core = cvp_driver->cvp_core;
 	if (!core)
 		return -EINVAL;
 
@@ -1903,7 +1903,7 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	struct inst_snapshot *snap = NULL;
 	int i = 0, c = 0;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (log && core->log.snapshot_index < 16) {
 		snap = &core->log.snapshot[core->log.snapshot_index];
 		snap->session = inst->session;
