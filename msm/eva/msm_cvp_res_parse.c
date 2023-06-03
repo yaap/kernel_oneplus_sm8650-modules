@@ -848,7 +848,13 @@ int cvp_read_platform_resources_from_drv_data(
 
 	res->pm_qos.latency_us = find_key_value(platform_data,
 			"qcom,pm-qos-latency-us");
-	res->pm_qos.silver_count = 4;
+	res->pm_qos.silver_count = 0;
+	for(i = 0; i < MAX_SILVER_CORE_NUM; i++) {
+		if(topology_cluster_id(i) == 0)
+			res->pm_qos.silver_count++;
+		else
+			break;
+	}
 	for (i = 0; i < res->pm_qos.silver_count; i++)
 		res->pm_qos.silver_cores[i] = i;
 	res->pm_qos.off_vote_cnt = 0;
