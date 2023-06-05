@@ -1,20 +1,22 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/version.h>
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM rmnet
 #undef TRACE_INCLUDE_PATH
 
-#if defined(RMNET_LA_PLATFORM)
-	#define TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/datarmnet/core
+#ifndef RMNET_TRACE_INCLUDE_PATH
+#if defined(CONFIG_RMNET_LA_PLATFORM)
+#define RMNET_TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/datarmnet/core
 #elif defined(__arch_um__)
-	#define TRACE_INCLUDE_PATH ../../datarmnet/core
+#define RMNET_TRACE_INCLUDE_PATH ../../datarmnet/core
 #else
-	#define TRACE_INCLUDE_PATH ../../../../../../../datarmnet/core
-#endif /* defined(RMNET_LA_PLATFORM) */
-
+#define RMNET_TRACE_INCLUDE_PATH ../../../../../../../datarmnet/core
+#endif /* defined(CONFIG_RMNET_LA_PLATFORM) */
+#endif /* RMNET_TRACE_INCLUDE_PATH */
+#define TRACE_INCLUDE_PATH RMNET_TRACE_INCLUDE_PATH
 #define TRACE_INCLUDE_FILE rmnet_trace
 
 #if !defined(_TRACE_RMNET_H) || defined(TRACE_HEADER_MULTI_READ)
