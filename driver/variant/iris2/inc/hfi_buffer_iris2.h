@@ -225,7 +225,7 @@ typedef HFI_U32 HFI_BOOL;
 	(buf_height = HFI_ALIGN(frame_height, min_buf_height_multiple))
 
 #define HFI_RGBA8888_CALC_BUF_SIZE(buf_size, stride, buf_height) \
-	buf_size = (stride) * (buf_height)
+	(buf_size = (stride) * (buf_height))
 
 #define HFI_RGBA8888_UBWC_CALC_DATA_PLANE_BUF_SIZE(buf_size, stride, \
 				buf_height) \
@@ -234,39 +234,41 @@ typedef HFI_U32 HFI_BOOL;
 #define HFI_RGBA8888_UBWC_BUF_SIZE(buf_size, data_buf_size, \
 	metadata_buffer_size, stride, buf_height, _metadata_tride, \
 	_metadata_buf_height) \
-	HFI_RGBA8888_UBWC_CALC_DATA_PLANE_BUF_SIZE(data_buf_size, \
-			stride, buf_height); \
-	HFI_UBWC_METADATA_PLANE_BUFFER_SIZE(metadata_buffer_size, \
-			_metadata_tride, _metadata_buf_height); \
-	buf_size = data_buf_size + metadata_buffer_size
+	do { \
+		HFI_RGBA8888_UBWC_CALC_DATA_PLANE_BUF_SIZE(data_buf_size, \
+				stride, buf_height); \
+		HFI_UBWC_METADATA_PLANE_BUFFER_SIZE(metadata_buffer_size, \
+				_metadata_tride, _metadata_buf_height); \
+		buf_size = data_buf_size + metadata_buffer_size \
+	} while (0)
 
 #define HFI_UBWC_CALC_METADATA_PLANE_STRIDE(metadata_stride, frame_width,\
 	metadata_stride_multiple, tile_width_in_pels) \
-	metadata_stride = HFI_ALIGN(((frame_width + (tile_width_in_pels - 1)) /\
-	tile_width_in_pels), metadata_stride_multiple)
+	(metadata_stride = HFI_ALIGN(((frame_width + (tile_width_in_pels - 1)) /\
+	tile_width_in_pels), metadata_stride_multiple))
 
 #define HFI_UBWC_METADATA_PLANE_BUFHEIGHT(metadata_buf_height, frame_height, \
 	metadata_height_multiple, tile_height_in_pels) \
-	metadata_buf_height = HFI_ALIGN(((frame_height + \
+	(metadata_buf_height = HFI_ALIGN(((frame_height + \
 	(tile_height_in_pels - 1)) / tile_height_in_pels), \
-	metadata_height_multiple)
+	metadata_height_multiple))
 
 #define HFI_UBWC_UV_METADATA_PLANE_STRIDE(metadata_stride, frame_width, \
 	metadata_stride_multiple, tile_width_in_pels) \
-	metadata_stride = HFI_ALIGN(((((frame_width + 1) >> 1) +\
+	(metadata_stride = HFI_ALIGN(((((frame_width + 1) >> 1) +\
 	(tile_width_in_pels - 1)) / tile_width_in_pels), \
-	metadata_stride_multiple)
+	metadata_stride_multiple))
 
 #define HFI_UBWC_UV_METADATA_PLANE_BUFHEIGHT(metadata_buf_height, frame_height,\
 	metadata_height_multiple, tile_height_in_pels) \
-	metadata_buf_height = HFI_ALIGN(((((frame_height + 1) >> 1) + \
+	(metadata_buf_height = HFI_ALIGN(((((frame_height + 1) >> 1) + \
 	(tile_height_in_pels - 1)) / tile_height_in_pels), \
-	metadata_height_multiple)
+	metadata_height_multiple))
 
 #define HFI_UBWC_METADATA_PLANE_BUFFER_SIZE(buffer_size, _metadata_tride, \
 					_metadata_buf_height) \
-	buffer_size = HFI_ALIGN(_metadata_tride * _metadata_buf_height, \
-					HFI_ALIGNMENT_4096)
+	(buffer_size = HFI_ALIGN(_metadata_tride * _metadata_buf_height, \
+					HFI_ALIGNMENT_4096))
 
 #define BUFFER_ALIGNMENT_512_BYTES 512
 #define BUFFER_ALIGNMENT_256_BYTES 256
@@ -432,7 +434,7 @@ typedef HFI_U32 HFI_BOOL;
 	} while (0)
 
 #define HFI_BUFFER_LINE_H264D(_size, frame_width, frame_height, \
-                              is_opb, num_vpp_pipes)            \
+							  is_opb, num_vpp_pipes)            \
 	do { \
 		HFI_U32 vpss_lb_size = 0; \
 		_size = HFI_ALIGN(SIZE_H264D_LB_FE_TOP_DATA(frame_width, \
@@ -497,8 +499,7 @@ typedef HFI_U32 HFI_BOOL;
 		if (!is_interlaced)  { \
 			SIZE_H264D_HW_BIN_BUFFER(_size, n_aligned_w, \
 				n_aligned_h, delay, num_vpp_pipes); \
-		}     \
-		else { \
+		} else { \
 			_size = 0;  \
 		} \
 	} while (0)
@@ -690,8 +691,7 @@ typedef HFI_U32 HFI_BOOL;
 		if (!is_interlaced) { \
 			SIZE_H265D_HW_BIN_BUFFER(_size, n_aligned_w, \
 			n_aligned_h, delay, num_vpp_pipes); \
-		} \
-		else { \
+		} else { \
 			_size = 0; \
 		} \
 	} while (0)
@@ -874,8 +874,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 		} \
 		else if (bitstream_size > (1280 * 720)) { \
 			bitstream_size = (bitstream_size >> 2); \
-		} \
-		else { \
+		} else { \
 			bitstream_size = (bitstream_size << 1);\
 		} \
 		if ((rc_type == HFI_RC_CQ) || (rc_type == HFI_RC_OFF))  { \
@@ -1004,8 +1003,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 					bitstream_size_eval = (bitstream_size_eval * 5 >> 2); \
 				} \
 			} \
-		} \
-		else { \
+		} else { \
 			bitstream_size_eval = size_aligned_width * \
 					size_aligned_height * 3; \
 		} \
@@ -1026,8 +1024,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 		} \
 		else if (num_vpp_pipes > 2) { \
 			size_single_pipe_eval = bitbin_size / 2; \
-		} \
-		else { \
+		} else { \
 			size_single_pipe_eval = bitbin_size; \
 		} \
 		if (rc_type == HFI_RC_LOSSLESS) { \
@@ -1067,10 +1064,10 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			bitbin_size = size_single_pipe * num_vpp_pipes; \
 			_size = HFI_ALIGN(bitbin_size, VENUS_DMA_ALIGNMENT) * \
 					total_bitbin_buffers + 512; \
-		} \
-		else \
+		} else { \
 			/* Avoid 512 Bytes allocation in case of 1Pipe HEVC Direct Mode*/ \
 			_size = 0; \
+			} \
 	} while (0)
 
 #define HFI_BUFFER_BIN_H264E(_size, rc_type, frame_width, frame_height, \
@@ -1202,13 +1199,13 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define SIZE_OVERRIDE_BUF(num_lcumb) (HFI_ALIGN(((16 * (((num_lcumb) + 7)\
 		>> 3))), VENUS_DMA_ALIGNMENT) * 2)
 #define SIZE_IR_BUF(num_lcu_in_frame) HFI_ALIGN((((((num_lcu_in_frame) << 1) + 7) &\
-    (~7)) * 3), VENUS_DMA_ALIGNMENT)
+	(~7)) * 3), VENUS_DMA_ALIGNMENT)
 
 #define SIZE_VPSS_LINE_BUF(num_vpp_pipes_enc, frame_height_coded, \
 			frame_width_coded) \
 	(HFI_ALIGN(((((((8192) >> 2) << 5) * (num_vpp_pipes_enc)) + 64) + \
 	(((((MAX((frame_width_coded), (frame_height_coded)) + 3) >> 2) << 5) +\
-    256) * 16)), VENUS_DMA_ALIGNMENT))
+	256) * 16)), VENUS_DMA_ALIGNMENT))
 
 #define SIZE_TOP_LINE_BUF_FIRST_STG_SAO(frame_width_coded) \
 	HFI_ALIGN((16 * ((frame_width_coded) >> 5)), VENUS_DMA_ALIGNMENT)
@@ -1411,8 +1408,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			HFI_UBWC_METADATA_PLANE_BUFFER_SIZE(meta_size_c, \
 				metadata_stride, metadata_buf_height); \
 			_size = ref_buf_size + meta_size_y + meta_size_c; \
-		} \
-		else { \
+		} else { \
 			SIZE_ENC_TEN_BIT_REF_BUFFER(ten_bit_ref_buf_size, \
 				frame_width, frame_height); \
 			HFI_UBWC_CALC_METADATA_PLANE_STRIDE(metadata_stride, \
@@ -1451,8 +1447,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define HFI_IRIS2_ENC_MIN_INPUT_BUF_COUNT(numInput, TotalHBLayers) \
 	do { \
 		numInput = 3;                                             \
-		if (TotalHBLayers >= 2)                                   \
-		{                                                         \
+		if (TotalHBLayers >= 2) { \
 			numInput = (1 << (TotalHBLayers - 1)) + 2;        \
 		}                                                         \
 	} while (0)

@@ -494,8 +494,8 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	/* poll AON spare register bit0 to become zero with 50ms timeout */
 	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_SPARE,
 			0x1, 0x0, 1000, 50 * 1000);
-        if (rc)
-                d_vpr_e("%s: AON spare register is not zero\n", __func__);
+	if (rc)
+		d_vpr_e("%s: AON spare register is not zero\n", __func__);
 
 	/* enable bit(1) to avoid cvp noc xo reset */
 	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
@@ -539,12 +539,12 @@ skip_video_xo_reset:
         /* remove retain mem and retain peripheral */
         rc = call_res_op(core, clk_set_flag, core,
                 "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
-        if (rc)
-                d_vpr_e("%s: set noretain peripheral failed\n", __func__);
+		if (rc)
+			d_vpr_e("%s: set noretain peripheral failed\n", __func__);
         rc = call_res_op(core, clk_set_flag, core,
                 "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
-        if (rc)
-                d_vpr_e("%s: set noretain mem failed\n", __func__);
+		if (rc)
+			d_vpr_e("%s: set noretain mem failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
 	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");

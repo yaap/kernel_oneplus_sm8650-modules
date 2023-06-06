@@ -97,7 +97,7 @@ static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_
 		buf_name(mem->type), mem->secure, mem->region);
 
 	if (mem->kvaddr) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		dma_buf_vunmap(mem->dmabuf, mem->kvaddr);
 #else
 		dma_buf_vunmap(mem->dmabuf, &mem->dmabuf_map);
@@ -190,7 +190,7 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 	 * Kalama uses Kernel Version 5.15.x,
 	 * Pineapple uses Kernel Version 5.18.x
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		mem->kvaddr = dma_buf_vmap(mem->dmabuf);
 		if (!mem->kvaddr) {
 			d_vpr_e("%s: kernel map failed\n", __func__);

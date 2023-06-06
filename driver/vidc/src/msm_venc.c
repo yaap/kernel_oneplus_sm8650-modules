@@ -1473,7 +1473,7 @@ int msm_venc_s_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s)
 		inst->compose.left = s->r.left;
 		inst->compose.top = s->r.top;
 		inst->compose.width = s->r.width;
-		inst->compose.height= s->r.height;
+		inst->compose.height = s->r.height;
 
 		if (is_scaling_enabled(inst)) {
 			i_vpr_h(inst,

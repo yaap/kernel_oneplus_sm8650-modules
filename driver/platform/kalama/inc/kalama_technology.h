@@ -118,7 +118,7 @@ static u32 bitrate_table_kalama_rec_fp[5][10] = {
 #endif
 };
 
-static u32 input_bitrate_fp = 0;
+static u32 input_bitrate_fp;
 
 /* 8KUHD60; UHD240; 1080p960  with B */
 static u32 fp_pixel_count_bar0 = 3840 * 2160 * 240;
