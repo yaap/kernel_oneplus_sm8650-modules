@@ -4,6 +4,9 @@ ifeq ($(call is-board-platform-in-list, $(TARGET_BOARD_PLATFORM)),true)
 DLKM_DIR   := device/qcom/common/dlkm
 
 LOCAL_PATH := $(call my-dir)
+# For DDK
+LOCAL_MODULE_DDK_BUILD := true
+LOCAL_MODULE_KO_DIRS := msm/msm-eva.ko
 
 include $(CLEAR_VARS)
 # For incremental compilation
