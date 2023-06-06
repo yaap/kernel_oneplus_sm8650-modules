@@ -233,6 +233,8 @@ static int delete_dsp_session(struct msm_cvp_inst *inst,
 	mutex_lock(&buf_list->lock);
 	ptr_dsp_buf = &buf_list->list;
 	list_for_each_safe(ptr_dsp_buf, next_dsp_buf, &buf_list->list) {
+		if (!ptr_dsp_buf)
+			break;
 		buf = list_entry(ptr_dsp_buf, struct cvp_internal_buf, list);
 		if (buf) {
 			dprintk(CVP_DSP, "fd in list 0x%x\n", buf->fd);
@@ -379,6 +381,8 @@ search_again:
 
 	mutex_lock(&me->fastrpc_driver_list.lock);
 	list_for_each_safe(ptr, next, &me->fastrpc_driver_list.list) {
+		if (!ptr)
+			break;
 		frpc_node = list_entry(ptr,
 			struct cvp_dsp_fastrpc_driver_entry, list);
 
@@ -991,6 +995,8 @@ static struct cvp_dsp_fastrpc_driver_entry *cvp_get_fastrpc_node_with_handle(
 
 	mutex_lock(&me->fastrpc_driver_list.lock);
 	list_for_each_safe(ptr, next, &me->fastrpc_driver_list.list) {
+		if (!ptr)
+			break;
 		tmp_node = list_entry(ptr,
 				struct cvp_dsp_fastrpc_driver_entry, list);
 		if (handle == tmp_node->handle) {
@@ -1189,6 +1195,8 @@ int cvp_dsp_del_sess(uint32_t handle, struct msm_cvp_inst *inst)
 	}
 	mutex_lock(&frpc_node->dsp_sessions.lock);
 	list_for_each_safe(ptr, next, &frpc_node->dsp_sessions.list) {
+		if (!ptr)
+			break;
 		sess = list_entry(ptr, struct msm_cvp_inst, dsp_list);
 		if (sess == inst) {
 			dprintk(CVP_DSP, "%s Find sess %pK to be deleted\n",
@@ -1989,6 +1997,8 @@ static void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 	buf_list = &inst->cvpdspbufs;
 	mutex_lock(&buf_list->lock);
 	list_for_each_safe(ptr, next, &buf_list->list) {
+		if (!ptr)
+			break;
 		buf = list_entry(ptr, struct cvp_internal_buf, list);
 
 		if (!buf->smem) {

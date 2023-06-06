@@ -477,8 +477,11 @@ static int publish_unreleased_reference(struct msm_cvp_inst *inst,
 
 static void put_inst_helper(struct kref *kref)
 {
-	struct msm_cvp_inst *inst = container_of(kref,
-			struct msm_cvp_inst, kref);
+	struct msm_cvp_inst *inst;
+
+	if (!kref)
+		return;
+	inst = container_of(kref, struct msm_cvp_inst, kref);
 
 	msm_cvp_destroy(inst);
 }
