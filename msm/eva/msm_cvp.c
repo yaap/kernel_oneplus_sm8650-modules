@@ -1325,10 +1325,7 @@ static int cvp_drain_fence_sched_list(struct msm_cvp_inst *inst)
 	if (!q)
 		return -EINVAL;
 
-	f  = list_first_entry(&q->sched_list,
-			struct cvp_fence_command,
-			list);
-	if (!f)
+	if (list_empty(&q->sched_list))
 		return rc;
 
 	mutex_lock(&q->lock);
@@ -1382,10 +1379,7 @@ static void cvp_clean_fence_queue(struct msm_cvp_inst *inst, int synx_state)
 	mutex_lock(&q->lock);
 	q->mode = OP_DRAINING;
 
-	f = list_first_entry(&q->wait_list,
-			struct cvp_fence_command,
-			list);
-	if (!f)
+	if (list_empty(&q->wait_list))
 		goto check_sched;
 
 	list_for_each_entry_safe(f, d, &q->wait_list, list) {
@@ -1403,10 +1397,7 @@ static void cvp_clean_fence_queue(struct msm_cvp_inst *inst, int synx_state)
 	}
 
 check_sched:
-	f = list_first_entry(&q->sched_list,
-			struct cvp_fence_command,
-			list);
-	if (!f) {
+	if (list_empty(&q->sched_list)) {
 		mutex_unlock(&q->lock);
 		return;
 	}

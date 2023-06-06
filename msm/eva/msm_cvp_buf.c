@@ -1424,8 +1424,8 @@ static u32 msm_cvp_map_user_persist_buf(struct msm_cvp_inst *inst,
 {
 	u32 iova = 0;
 	struct msm_cvp_smem *smem = NULL;
-	struct list_head *ptr = (struct list_head *)0xdead;
-	struct list_head *next = (struct list_head *)0xdead;
+	struct list_head *ptr;
+	struct list_head *next;
 	struct cvp_internal_buf *pbuf;
 	struct dma_buf *dma_buf;
 
@@ -1439,6 +1439,10 @@ static u32 msm_cvp_map_user_persist_buf(struct msm_cvp_inst *inst,
 		return -EINVAL;
 
 	mutex_lock(&inst->persistbufs.lock);
+	if (!inst->persistbufs.list.next) {
+		mutex_unlock(&inst->persistbufs.lock);
+		return 0;
+	}
 	list_for_each_safe(ptr, next, &inst->persistbufs.list) {
 		if (!ptr)
 			return 0;

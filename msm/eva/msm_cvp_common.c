@@ -126,7 +126,12 @@ static void handle_sys_init_done(enum hal_command_response cmd, void *data)
 
 static void put_inst_helper(struct kref *kref)
 {
-	struct msm_cvp_inst *inst = container_of(kref,
+	struct msm_cvp_inst *inst;
+
+	if (!kref)
+		return;
+
+	inst = container_of(kref,
 			struct msm_cvp_inst, kref);
 
 	msm_cvp_destroy(inst);
@@ -1189,6 +1194,9 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 	int rc;
 	struct msm_cvp_core *core;
 	struct cvp_hfi_device *hdev;
+
+	if (!work)
+		return;
 
 	core = container_of(work, struct msm_cvp_core, ssr_work);
 	if (!core || !core->device) {

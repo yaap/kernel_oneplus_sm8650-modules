@@ -139,7 +139,7 @@ static void __deinit_session_queue(struct msm_cvp_inst *inst)
 	wake_up_all(&inst->session_queue.wq);
 }
 
-void *msm_cvp_open(int session_type, struct task_struct *task)
+struct msm_cvp_inst *msm_cvp_open(int session_type, struct task_struct *task)
 {
 	struct msm_cvp_inst *inst = NULL;
 	struct msm_cvp_core *core = NULL;
@@ -428,8 +428,11 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 
 static void close_helper(struct kref *kref)
 {
-	struct msm_cvp_inst *inst = container_of(kref,
-			struct msm_cvp_inst, kref);
+	struct msm_cvp_inst *inst;
+
+	if (!kref)
+		return;
+	inst = container_of(kref, struct msm_cvp_inst, kref);
 
 	msm_cvp_destroy(inst);
 }
