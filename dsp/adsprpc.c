@@ -2395,7 +2395,7 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 			}
 			mutex_unlock(&ctx->fl->map_mutex);
 			goto bail;
-		} else {
+		} else if (ctx->maps[i]) {
 			/*
 			 * Increment ctx refs count for in/out handle if map created
 			 * and no error, indicate map under use in remote call
