@@ -54,30 +54,44 @@ u32 msm_vidc_output_min_count(struct msm_vidc_inst *inst)
 	if (is_thumbnail_session(inst))
 		return 1;
 
-	if (is_decode_session(inst)) {
-		if (inst->fw_min_count)
-			return inst->fw_min_count;
+	if (is_encode_session(inst))
+		return MIN_ENC_OUTPUT_BUFFERS;
 
-		switch (inst->codec) {
-		case MSM_VIDC_H264:
-		case MSM_VIDC_HEVC:
-			output_min_count = 4;
-			break;
-		case MSM_VIDC_VP9:
-			output_min_count = 9;
-			break;
-		case MSM_VIDC_AV1:
-			output_min_count = 11;
-			break;
-		case MSM_VIDC_HEIC:
-			output_min_count = 3;
-			break;
-		default:
-			output_min_count = 4;
+	/* decoder handling below */
+	/* fw_min_count > 0 indicates reconfig event has already arrived */
+	if (inst->fw_min_count) {
+		/* TODO: need to update condition to include AVC/HEVC as well */
+		if (is_split_mode_enabled(inst) &&
+			(inst->codec == MSM_VIDC_AV1 ||
+			inst->codec == MSM_VIDC_VP9)) {
+			/*
+			 * return opb min buffer count as min(4, fw_min_count)
+			 * fw min count is used for dpb min count
+			 */
+			return min_t(u32, 4, inst->fw_min_count);
+		} else {
+			return inst->fw_min_count;
 		}
-	} else {
-		output_min_count = MIN_ENC_OUTPUT_BUFFERS;
-		//todo: reduce heic count to 2, once HAL side cushion is added
+	}
+
+	/* initial handling before reconfig event arrived */
+	switch (inst->codec) {
+	case MSM_VIDC_H264:
+	case MSM_VIDC_HEVC:
+		output_min_count = 4;
+		break;
+	case MSM_VIDC_VP9:
+		output_min_count = 9;
+		break;
+	case MSM_VIDC_AV1:
+		output_min_count = 11;
+		break;
+	case MSM_VIDC_HEIC:
+		output_min_count = 3;
+		break;
+	default:
+		output_min_count = 4;
+		break;
 	}
 
 	return output_min_count;
