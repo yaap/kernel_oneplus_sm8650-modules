@@ -337,6 +337,10 @@ static int update_residency_stats(
 	u64 cur_time_us = 0;
 	int rc = 0;
 
+	/* skip update if high or stats logs not enabled */
+	if(!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
+		return 0;
+
 	if (!core || !cl) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
