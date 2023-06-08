@@ -68,11 +68,6 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_co
 	 * on the whole buffer size and hence pass skip sync flag.
 	 */
 	attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-	/*
-	 * Get the scatterlist for the given attachment
-	 * Mapping of sg is taken care by map attachment
-	 */
-	attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
 	if (is_sys_cache_present(core))
 		attach->dma_map_attrs |= DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
 
