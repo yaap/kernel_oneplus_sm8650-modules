@@ -4,6 +4,8 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/remoteproc.h>
+#include <linux/remoteproc/qcom_rproc.h>
 #include "btfm_codec.h"
 #include "btfm_codec_interface.h"
 #include "btfm_codec_pkt.h"
@@ -676,6 +678,40 @@ static struct snd_soc_dai_ops btfmcodec_dai_ops = {
 	.get_channel_map = btfmcodec_dai_get_channel_map,
 };
 
+static int btfmcodec_adsp_ssr_notify(struct notifier_block *nb,
+				    unsigned long action, void *data)
+{
+	struct btfmcodec_data *btfmcodec  = container_of(nb,
+					    struct btfmcodec_data, notifier.nb);
+	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
+	struct btm_adsp_state_ind state_ind;
+
+	switch (action) {
+	case QCOM_SSR_BEFORE_SHUTDOWN: {
+		BTFMCODEC_WARN("LPASS SSR triggered");
+		break;
+	} case QCOM_SSR_AFTER_SHUTDOWN: {
+		BTFMCODEC_WARN("LPASS SSR Completed");
+		break;
+	} case QCOM_SSR_BEFORE_POWERUP: {
+		BTFMCODEC_WARN("LPASS booted up after SSR");
+		break;
+	} case QCOM_SSR_AFTER_POWERUP: {
+		BTFMCODEC_WARN("LPASS booted up completely");
+		state_ind.opcode = BTM_BTFMCODEC_ADSP_STATE_IND;
+		state_ind.len  = BTM_ADSP_STATE_IND_LEN;
+		state_ind.action = (uint32_t)action;
+		btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &state_ind,
+				(state_ind.len +
+				BTM_HEADER_LEN));
+		break;
+	} default:
+		BTFMCODEC_WARN("unhandled action id %lu", action);
+		break;
+	}
+	return 0;
+}
+
 int btfm_register_codec(struct hwep_data *hwep_info)
 {
 	struct btfmcodec_data *btfmcodec;
@@ -687,6 +723,16 @@ int btfm_register_codec(struct hwep_data *hwep_info)
 	btfmcodec = btfm_get_btfmcodec();
 	btfmcodec_dev = btfmcodec->btfmcodec_dev;
 	dev = &btfmcodec->dev;
+
+	btfmcodec->notifier.nb.notifier_call = btfmcodec_adsp_ssr_notify;
+	btfmcodec->notifier.notifier = qcom_register_ssr_notifier("lpass",
+					&btfmcodec->notifier.nb);
+	if (IS_ERR(btfmcodec->notifier.notifier)) {
+		ret = PTR_ERR(btfmcodec->notifier.notifier);
+		BTFMCODEC_ERR("Failed to register SSR notification: %d\n", ret);
+		return ret;
+	}
+
 	btfmcodec_dai_info = kzalloc((sizeof(struct snd_soc_dai_driver) * hwep_info->num_dai), GFP_KERNEL);
 	if (!btfmcodec_dai_info) {
 		BTFMCODEC_ERR("failed to allocate memory");

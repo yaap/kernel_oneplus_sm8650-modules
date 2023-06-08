@@ -40,6 +40,7 @@ struct btm_ctrl_pkt {
 #define BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP                  0x50000005
 #define BTM_BTFMCODEC_BEARER_SWITCH_IND                         0x58000001
 #define BTM_BTFMCODEC_TRANSPORT_SWITCH_FAILED_IND               0x58000002
+#define BTM_BTFMCODEC_ADSP_STATE_IND                            0x58000003
 #define BTM_BTFMCODEC_CTRL_LOG_LVL_IND                          0x58000004
 
 #define BTM_MASTER_CONFIG_REQ_LEN			13
@@ -51,6 +52,7 @@ struct btm_ctrl_pkt {
 #define BTM_PREPARE_AUDIO_BEARER_SWITCH_REQ_LEN		1
 #define BTM_BEARER_SWITCH_IND_LEN			1
 #define BTM_LOG_LVL_IND_LEN                             1
+#define BTM_ADSP_STATE_IND_LEN				4
 
 enum rx_status {
 	/* Waiting for response */
@@ -94,6 +96,13 @@ struct btm_master_shutdown_req {
 	uint32_t len;
 	uint8_t stream_id;
 }__attribute__((packed));
+
+struct btm_adsp_state_ind {
+	btm_opcode opcode;
+	uint32_t len;
+	uint32_t action;
+} __attribute__((packed));
+
 int btfmcodec_dev_enqueue_pkt(struct btfmcodec_char_device *, void *, int);
 bool btfmcodec_is_valid_cache_avb(struct btfmcodec_data *);
 #endif /* __LINUX_BTFM_CODEC_PKT_H*/

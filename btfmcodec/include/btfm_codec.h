@@ -86,12 +86,18 @@ struct btfmcodec_char_device {
 	void *btfmcodec;
 };
 
+struct adsp_notifier {
+	void *notifier;
+	struct notifier_block nb;
+};
+
 struct btfmcodec_data {
 	struct device dev;
 	struct btfmcodec_state_machine states;
 	struct btfmcodec_char_device *btfmcodec_dev;
 	struct hwep_data *hwep_info;
 	struct list_head config_head;
+	struct adsp_notifier notifier;
 };
 
 struct btfmcodec_data *btfm_get_btfmcodec(void);
