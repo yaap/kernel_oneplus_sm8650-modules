@@ -18,8 +18,7 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
- *
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *****************************************************************************/
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -30,6 +29,7 @@
 #include <linux/ipc_logging.h>
 #include <linux/clk.h>
 #include <nfcinfo.h>
+#include <sn_uapi.h>
 #include "i2c_drv.h"
 #include "ese_cold_reset.h"
 
@@ -98,19 +98,6 @@
 #define WRITE_RETRY_WAIT_TIME_US	(3000)
 /* Time to wait before retrying read for some specific usecases */
 #define READ_RETRY_WAIT_TIME_US		(3500)
-#define NFC_MAGIC			(0xE9)
-
-// Ioctls
-// The type should be aligned with MW HAL definitions
-
-#define NFC_SET_PWR                   _IOW(NFC_MAGIC, 0x01, uint32_t)
-#define ESE_SET_PWR                   _IOW(NFC_MAGIC, 0x02, uint32_t)
-#define ESE_GET_PWR                   _IOR(NFC_MAGIC, 0x03, uint32_t)
-#define NFC_SET_RESET_READ_PENDING    _IOW(NFC_MAGIC, 0x04, uint32_t)
-#define NFC_GET_GPIO_STATUS	      _IOR(NFC_MAGIC, 0x05, uint32_t)
-#ifdef NFC_SECURE_PERIPHERAL_ENABLED
-#define NFC_SECURE_ZONE               _IOW(NFC_MAGIC, 0x0A, uint32_t)
-#endif
 
 #define DTS_IRQ_GPIO_STR	"qcom,sn-irq"
 #define DTS_VEN_GPIO_STR	"qcom,sn-ven"

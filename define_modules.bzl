@@ -17,7 +17,8 @@ def define_modules(target, variant):
                 "nfc/ese_cold_reset.h",
                 "nfc/i2c_drv.h"
                ],
-        hdrs = ["include/uapi/linux/nfc/nfcinfo.h"],
+        hdrs = ["include/uapi/linux/nfc/nfcinfo.h",
+                "include/uapi/linux/nfc/sn_uapi.h"],
         includes = [".", "linux", "nfc", "include/uapi/linux/nfc"],
         deps = ["//msm-kernel:all_headers",
                 "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
