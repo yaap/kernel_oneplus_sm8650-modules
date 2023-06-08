@@ -212,22 +212,6 @@ struct cvp_session_queue {
 	wait_queue_head_t wq;
 };
 
-#define CVP_CYCLE_STAT_SIZE		8
-struct cvp_cycle_stat {
-	u32 busy[CVP_CYCLE_STAT_SIZE];
-	u32 total;
-	u32 idx;
-	u32 size;
-};
-
-struct cvp_cycle_info {
-	u32 sum_fps[HFI_MAX_HW_THREADS];
-	u32 hi_ctrl_lim[HFI_MAX_HW_THREADS];
-	u32 lo_ctrl_lim[HFI_MAX_HW_THREADS];
-	struct cvp_cycle_stat cycle[HFI_MAX_HW_THREADS];
-	unsigned long conf_freq;
-};
-
 struct cvp_session_prop {
 	u32 type;
 	u32 kernel_mask;
@@ -356,7 +340,7 @@ struct msm_cvp_core {
 	bool trigger_ssr;
 	unsigned long curr_freq;
 	unsigned long orig_core_sum;
-	struct cvp_cycle_info dyn_clk;
+	unsigned long bw_sum;
 	atomic64_t kernel_trans_id;
 	struct cvp_debug_log log;
 };

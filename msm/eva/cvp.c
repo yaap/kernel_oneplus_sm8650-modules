@@ -112,16 +112,6 @@ static int read_platform_resources(struct msm_cvp_core *core,
 	return rc;
 }
 
-static void init_cycle_info(struct cvp_cycle_info *info)
-{
-	memset(info->sum_fps, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->hi_ctrl_lim, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->lo_ctrl_lim, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->cycle, 0,
-		HFI_MAX_HW_THREADS*sizeof(struct cvp_cycle_stat));
-	info->conf_freq = 0;
-}
-
 static int msm_cvp_initialize_core(struct platform_device *pdev,
 				struct msm_cvp_core *core)
 {
@@ -147,7 +137,6 @@ static int msm_cvp_initialize_core(struct platform_device *pdev,
 	}
 
 	INIT_WORK(&core->ssr_work, msm_cvp_ssr_handler);
-	init_cycle_info(&core->dyn_clk);
 	core->ssr_count = 0;
 
 	return rc;

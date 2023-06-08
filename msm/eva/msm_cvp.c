@@ -138,7 +138,6 @@ static int msm_cvp_session_receive_hfi(struct msm_cvp_inst *inst,
 	struct cvp_session_queue *sq;
 	struct msm_cvp_inst *s;
 	int rc = 0;
-	bool clock_check = false;
 
 	if (!inst) {
 		dprintk(CVP_ERR, "%s invalid session\n", __func__);
@@ -154,11 +153,6 @@ static int msm_cvp_session_receive_hfi(struct msm_cvp_inst *inst,
 	sq = &inst->session_queue;
 
 	rc = cvp_wait_process_message(inst, sq, NULL, wait_time, out_pkt);
-
-	clock_check = check_clock_required(inst, out_pkt);
-	if (clock_check)
-		cvp_check_clock(inst,
-			(struct cvp_hfi_msg_session_hdr_ext *)out_pkt);
 
 	cvp_put_inst(inst);
 	return rc;
@@ -311,7 +305,6 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 	struct cvp_session_queue *sq;
 	u32 hfi_err = HFI_ERR_NONE;
 	struct cvp_hfi_msg_session_hdr_ext hdr;
-	bool clock_check = false;
 
 	dprintk(CVP_SYNX, "%s %s\n", current->comm, __func__);
 
@@ -343,10 +336,6 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 	rc = cvp_wait_process_message(inst, sq, &ktid, timeout,
 				(struct eva_kmd_hfi_packet *)&hdr);
 
-	/* Only FD support dcvs at certain FW */
-	clock_check = check_clock_required(inst,
-					(struct eva_kmd_hfi_packet *)&hdr);
-
 	hfi_err = hdr.error_type;
 	if (rc) {
 		dprintk(CVP_ERR, "%s %s: cvp_wait_process_message rc %d\n",
@@ -371,9 +360,6 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 exit:
 	rc = inst->core->synx_ftbl->cvp_synx_ops(inst, CVP_OUTPUT_SYNX,
 			fc, &synx_state);
-	if (clock_check)
-		cvp_check_clock(inst,
-			(struct cvp_hfi_msg_session_hdr_ext *)&hdr);
 	return rc;
 }
 
@@ -1421,7 +1407,7 @@ int cvp_clean_session_queues(struct msm_cvp_inst *inst)
 
 	q = &inst->fence_cmd_queue;
 	mutex_lock(&q->lock);
-	if (q->state == QUEUE_START) {
+	if (q->state == QUEUE_START || q->state == QUEUE_ACTIVE) {
 		mutex_unlock(&q->lock);
 		cvp_clean_fence_queue(inst, SYNX_STATE_SIGNALED_CANCEL);
 	} else {
