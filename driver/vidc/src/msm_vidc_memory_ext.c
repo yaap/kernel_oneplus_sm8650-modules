@@ -165,8 +165,7 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 		goto error;
 	}
 
-	if (mem->secure && mem->type == MSM_VIDC_BUF_BIN)
-	{
+	if (mem->secure && mem->type == MSM_VIDC_BUF_BIN) {
 		vmids[0] = VMID_CP_BITSTREAM;
 		perms[0] = PERM_READ | PERM_WRITE;
 

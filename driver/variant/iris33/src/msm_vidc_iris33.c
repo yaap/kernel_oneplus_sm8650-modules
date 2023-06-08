@@ -536,15 +536,16 @@ skip_video_xo_reset:
 	if (rc)
 		return rc;
 
-        /* remove retain mem and retain peripheral */
-        rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
-		if (rc)
-			d_vpr_e("%s: set noretain peripheral failed\n", __func__);
-        rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
-		if (rc)
-			d_vpr_e("%s: set noretain mem failed\n", __func__);
+	/* remove retain mem and retain peripheral */
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
+	if (rc)
+		d_vpr_e("%s: set noretain peripheral failed\n", __func__);
+
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
+	if (rc)
+		d_vpr_e("%s: set noretain mem failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
 	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");

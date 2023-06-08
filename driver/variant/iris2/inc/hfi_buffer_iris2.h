@@ -129,7 +129,7 @@ typedef HFI_U32 HFI_BOOL;
 #define HFI_YUV420_TP10_CALC_Y_STRIDE(stride, frame_width, stride_multiple) \
 	do { \
 	stride = HFI_ALIGN(frame_width, 192); \
-	stride = HFI_ALIGN(stride * 4 / 3, stride_multiple) \
+	stride = HFI_ALIGN(stride * 4 / 3, stride_multiple); \
 	} while (0)
 
 #define HFI_YUV420_TP10_CALC_Y_BUFHEIGHT(buf_height, frame_height, \
@@ -386,7 +386,9 @@ typedef HFI_U32 HFI_BOOL;
 				BUFFER_ALIGNMENT_32_BYTES); \
 		_size = MIN((((_height + 15) >> 4) * 48), H264D_MAX_SLICE) * \
 					SIZE_H264D_VPP_CMD_PER_BUF; \
-		if (_size > VPP_CMD_MAX_SIZE) { _size = VPP_CMD_MAX_SIZE; } \
+		if (_size > VPP_CMD_MAX_SIZE) { \
+			_size = VPP_CMD_MAX_SIZE; \
+		} \
 	} while (0)
 
 #define HFI_BUFFER_COMV_H264D(coMV_size, frame_width, \
@@ -785,8 +787,8 @@ typedef HFI_U32 HFI_BOOL;
 	} while (0)
 
 #define VPX_DECODER_FRAME_CONCURENCY_LVL (2)
-#define VPX_DECODER_FRAME_BIN_HDR_BUDGET_RATIO 1 / 2
-#define VPX_DECODER_FRAME_BIN_RES_BUDGET_RATIO 3 / 2
+#define VPX_DECODER_FRAME_BIN_HDR_BUDGET_RATIO (1 / 2)
+#define VPX_DECODER_FRAME_BIN_RES_BUDGET_RATIO (3 / 2)
 
 #define HFI_BUFFER_BIN_VP9D(_size, frame_width, frame_height, \
 				is_interlaced, num_vpp_pipes) \
@@ -820,14 +822,14 @@ typedef HFI_U32 HFI_BOOL;
 #define CCE_TILE_OFFSET_SIZE HFI_ALIGN(32 * 4 * 4, BUFFER_ALIGNMENT_32_BYTES)
 
 #define HFI_BUFFER_PERSIST_VP9D(_size) \
-	_size = HFI_ALIGN(VP9_NUM_PROBABILITY_TABLE_BUF * VP9_PROB_TABLE_SIZE, \
+	(_size = HFI_ALIGN(VP9_NUM_PROBABILITY_TABLE_BUF * VP9_PROB_TABLE_SIZE, \
 	VENUS_DMA_ALIGNMENT) + HFI_ALIGN(HFI_IRIS2_VP9D_COMV_SIZE, \
 	VENUS_DMA_ALIGNMENT) + HFI_ALIGN(MAX_SUPERFRAME_HEADER_LEN, \
 	VENUS_DMA_ALIGNMENT) + HFI_ALIGN(VP9_UDC_HEADER_BUF_SIZE, \
 	VENUS_DMA_ALIGNMENT) + HFI_ALIGN(VP9_NUM_FRAME_INFO_BUF * \
 	CCE_TILE_OFFSET_SIZE, VENUS_DMA_ALIGNMENT) + \
 	HFI_ALIGN(VP9_NUM_FRAME_INFO_BUF * VP9_FRAME_INFO_BUF_SIZE, \
-	VENUS_DMA_ALIGNMENT) + HDR10_HIST_EXTRADATA_SIZE
+	VENUS_DMA_ALIGNMENT) + HDR10_HIST_EXTRADATA_SIZE)
 
 #define HFI_BUFFER_LINE_MP2D(_size, frame_width, frame_height, \
 _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
@@ -860,7 +862,7 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define QMATRIX_SIZE (sizeof(HFI_U32) * 128 + 256)
 #define MP2D_QPDUMP_SIZE 115200
 #define HFI_BUFFER_PERSIST_MP2D(_size) \
-	_size = QMATRIX_SIZE + MP2D_QPDUMP_SIZE;
+	(_size = QMATRIX_SIZE + MP2D_QPDUMP_SIZE;)
 
 #define HFI_BUFFER_BITSTREAM_ENC(size, frame_width, frame_height, \
 			rc_type, is_ten_bit) \
