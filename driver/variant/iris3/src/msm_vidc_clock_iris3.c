@@ -17,7 +17,7 @@ static u32 calculate_number_mbs_kalama(u32 width, u32 height, u32 lcu_size)
 	return mbs_width * mbs_height * (lcu_size / 16) * (lcu_size / 16);
 }
 
-static int initialize_encoder_complexity_table()
+static int initialize_encoder_complexity_table(void)
 {
 	/* Beging Calculate Encoder GOP Complexity Table and HW Floor numbers */
 	codec_encoder_gop_complexity_table_fp
