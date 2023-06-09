@@ -1577,7 +1577,6 @@ int msm_vdec_streamon_input(struct msm_vidc_inst *inst)
 
 error:
 	i_vpr_e(inst, "%s: failed\n", __func__);
-	msm_vdec_streamoff_input(inst);
 	return rc;
 }
 
