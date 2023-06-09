@@ -25,7 +25,7 @@ unsigned int msm_vidc_debug = DRV_LOG;
 unsigned int msm_fw_debug = FW_LOG;
 
 /* disabled synx fence by default temporarily */
-bool msm_vidc_synx_fence_enable = false;
+bool msm_vidc_synx_fence_enable;
 
 static int debug_level_set_drv(const char *val,
 	const struct kernel_param *kp)
@@ -405,8 +405,7 @@ static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
 	if (rc) {
 		d_vpr_e("returning error err %d\n", rc);
 		rc = -EINVAL;
-	}
-	else {
+	} else {
 		msm_vidc_trigger_ssr(core, ssr_trigger_val);
 		rc = count;
 	}

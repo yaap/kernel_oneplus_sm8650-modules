@@ -999,7 +999,7 @@ bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
 
 	/* in case of decoder session return false */
 	if (!is_decode_session(inst))
-              return false;
+		return false;
 
 	colorformat = v4l2_colorformat_to_driver(inst,
 		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
@@ -4934,8 +4934,8 @@ static int msm_vidc_get_inst_load(struct msm_vidc_inst *inst)
 	return mbpf * fps;
 }
 
-static bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst) {
-
+static bool msm_vidc_ignore_session_load(struct msm_vidc_inst *inst)
+{
 	if (!is_realtime_session(inst) || is_thumbnail_session(inst) ||
 		is_image_session(inst) || is_session_error(inst))
 		return true;
@@ -5010,7 +5010,7 @@ int msm_vidc_check_core_mbps(struct msm_vidc_inst *inst)
 			}
 			core_unlock(core, __func__);
 		}
-	} else if (is_decode_session(inst)){
+	} else if (is_decode_session(inst)) {
 		/*
 		 * if total_mbps is greater than max_mbps then allow this
 		 * decoder by reducing its piority (moving it to NRT)

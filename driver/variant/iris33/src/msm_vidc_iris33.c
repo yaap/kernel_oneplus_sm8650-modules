@@ -38,8 +38,7 @@
 
 #define HFI_CTRL_INIT_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMD_IRIS33
 #define HFI_CTRL_STATUS_IRIS33                        VCODEC_VPU_CPU_CS_SCIACMDARG0_IRIS33
-typedef enum
-{
+typedef enum {
     HFI_CTRL_NOT_INIT                   = 0x0,
     HFI_CTRL_READY                      = 0x1,
     HFI_CTRL_ERROR_FATAL                = 0x2,
@@ -50,8 +49,7 @@ typedef enum
 } hfi_ctrl_status_type;
 
 #define HFI_QTBL_INFO_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMDARG1_IRIS33
-typedef enum
-{
+typedef enum {
     HFI_QTBL_DISABLED    = 0x00,
     HFI_QTBL_ENABLED     = 0x01,
 } hfi_qtbl_status_type;

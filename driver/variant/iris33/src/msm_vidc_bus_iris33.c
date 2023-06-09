@@ -608,7 +608,7 @@ static int calculate_bandwidth_encoder_iris33(
 		(codec_input.codec == CODEC_H264_CAVLC)) {
 		frame_lcu_size = 16;
 		collocated_bytes_per_lcu = 16;
-	} if (codec_input.codec == CODEC_HEVC) {
+	} else if (codec_input.codec == CODEC_HEVC) {
 		frame_lcu_size = 32;
 		collocated_bytes_per_lcu = 64;
 	} else {

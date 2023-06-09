@@ -1265,7 +1265,7 @@ static int update_residency_stats(
 	int rc = 0;
 
 	/* skip update if high or stats logs not enabled */
-	if(!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
+	if (!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
 		return 0;
 
 	if (!core || !cl) {
