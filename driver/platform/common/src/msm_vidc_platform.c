@@ -1247,25 +1247,16 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 	if (slice_mode == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE)
 		return 0;
 
+	bitrate = inst->capabilities[BIT_RATE].value;
+
 	if (msm_vidc_get_parent_value(inst, SLICE_MODE,
 		BITRATE_MODE, &rc_type, __func__) ||
 		msm_vidc_get_parent_value(inst, SLICE_MODE,
 		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
 
-	if (inst->capabilities[BIT_RATE].flags & CAP_FLAG_CLIENT_SET) {
-		bitrate = inst->capabilities[BIT_RATE].value;
-	} else if (!msm_vidc_get_parent_value(inst, SLICE_MODE,
-		ENH_LAYER_COUNT, &enh_layer_count, __func__) &&
-		msm_vidc_check_all_layer_bitrate_set(inst)) {
+	if (enh_layer_count && msm_vidc_check_all_layer_bitrate_set(inst)) {
 		bitrate = msm_vidc_get_cumulative_bitrate(inst);
-	} else {
-		adjusted_value = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
-		update_cap = SLICE_MODE;
-		i_vpr_h(inst,
-			"%s: client did not set bitrate & layerwise bitrates\n",
-			__func__);
-		goto exit;
 	}
 
 	fps = inst->capabilities[FRAME_RATE].value >> 16;
