@@ -277,6 +277,36 @@ DEFINE_EVENT(ubwcp_dmabuf_event, ubwcp_free_buffer_end,
 	TP_ARGS(dbuf_addr)
 );
 
+DECLARE_EVENT_CLASS(ubwcp_int_event,
+
+	TP_PROTO(int value),
+
+	TP_ARGS(value),
+
+	TP_STRUCT__entry(
+		__field(int, value)
+	),
+
+	TP_fast_assign(
+		__entry->value = value;
+	),
+
+	TP_printk("value:%d", __entry->value)
+);
+
+DEFINE_EVENT(ubwcp_int_event, ubwcp_prefetch_tgt_start,
+
+	TP_PROTO(int value),
+
+	TP_ARGS(value)
+);
+
+DEFINE_EVENT(ubwcp_int_event, ubwcp_prefetch_tgt_end,
+
+	TP_PROTO(int value),
+
+	TP_ARGS(value)
+);
 #endif
 
 /* This part must be outside protection */

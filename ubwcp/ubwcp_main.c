@@ -30,6 +30,7 @@
 #include <linux/iommu.h>
 #include <linux/set_memory.h>
 #include <linux/range.h>
+#include <linux/qcom_scm.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
@@ -116,6 +117,13 @@ enum ubwcp_state {
 	UBWCP_STATE_FAULT   = -2,
 };
 
+
+struct ubwcp_prefetch_tgt_ctrl {
+	atomic_t cpu_count;
+	bool enable;
+	int result;
+};
+
 struct ubwcp_driver {
 	/* cdev related */
 	dev_t devt;
@@ -187,6 +195,12 @@ struct ubwcp_driver {
 	spinlock_t err_handler_list_lock;  /* err_handler_list lock */
 
 	struct dev_pagemap pgmap;
+
+	/* power state tracking */
+	int power_on;
+	struct mutex power_ctrl_lock;
+
+	struct ubwcp_prefetch_tgt_ctrl ctrl;
 };
 
 struct ubwcp_buf {
@@ -216,6 +230,51 @@ struct ubwcp_buf {
 
 static struct ubwcp_driver *me;
 static u32 ubwcp_debug_trace_enable;
+
+static void prefetch_tgt_per_cpu(void *info)
+{
+	int ret = 0;
+	struct ubwcp_prefetch_tgt_ctrl *ctrl;
+
+	ctrl = (struct ubwcp_prefetch_tgt_ctrl *) info;
+
+	ret = qcom_scm_prefetch_tgt_ctrl(ctrl->enable);
+	if (ret) {
+		ctrl->result = ret;
+		ERR("scm call failed, ret: %d enable: %d", ret, ctrl->enable);
+	}
+
+	atomic_dec(&ctrl->cpu_count);
+}
+
+/* Enable/disable generation of prefetch target opcode. smc call must be done from each core
+ * to update the core specific register. Not thread-safe.
+ */
+static int prefetch_tgt(struct ubwcp_driver *ubwcp, bool enable)
+{
+	int cpu;
+
+	trace_ubwcp_prefetch_tgt_start(enable);
+
+	DBG("enable: %d", enable);
+	ubwcp->ctrl.enable = enable;
+	ubwcp->ctrl.result = 0;
+	atomic_set(&ubwcp->ctrl.cpu_count, 0);
+
+	cpus_read_lock();
+	for_each_cpu(cpu, cpu_online_mask) {
+		atomic_inc(&ubwcp->ctrl.cpu_count);
+		smp_call_function_single(cpu, prefetch_tgt_per_cpu, (void *) &ubwcp->ctrl, false);
+	}
+	cpus_read_unlock();
+
+	while (atomic_read(&ubwcp->ctrl.cpu_count))
+		;
+	DBG("done");
+
+	trace_ubwcp_prefetch_tgt_end(enable);
+	return ubwcp->ctrl.result;
+}
 
 static struct ubwcp_driver *ubwcp_get_driver(void)
 {
@@ -318,32 +377,54 @@ static void ubwcp_disable_clocks(struct ubwcp_driver *ubwcp)
 		clk_disable_unprepare(ubwcp->clocks[i - 1]);
 }
 
-/* UBWCP Power control */
+/* UBWCP Power control
+ * Due to hw bug, ubwcp block cannot handle prefetch target opcode. Thus we disable the opcode
+ * when ubwcp is powered on and enable it back when ubwcp is powered off.
+ */
 static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 {
 	int ret = 0;
 
-	if (enable)
-		ret = regulator_enable(ubwcp->vdd);
-	else
-		ret = regulator_disable(ubwcp->vdd);
+	mutex_lock(&ubwcp->power_ctrl_lock);
 
-	if (ret) {
-		ERR("regulator call (enable: %d) failed: %d", enable, ret);
-		return ret;
+	if (enable) {
+		ubwcp->power_on++;
+		if (ubwcp->power_on != 1)
+			goto done;
+	} else {
+		ubwcp->power_on--;
+		if (ubwcp->power_on != 0)
+			goto done;
 	}
 
 	if (enable) {
+		ret = prefetch_tgt(ubwcp, 0);
+		if (ret)
+			goto done;
+
+		ret = regulator_enable(ubwcp->vdd);
+		if (ret) {
+			ERR("regulator call (enable: %d) failed: %d", enable, ret);
+			goto done;
+		}
 		ret = ubwcp_enable_clocks(ubwcp);
 		if (ret) {
 			ERR("enable clocks failed: %d", ret);
 			regulator_disable(ubwcp->vdd);
-			return ret;
+			goto done;
 		}
 	} else {
+		ret = regulator_disable(ubwcp->vdd);
+		if (ret) {
+			ERR("regulator call (enable: %d) failed: %d", enable, ret);
+			goto done;
+		}
 		ubwcp_disable_clocks(ubwcp);
+		ret = prefetch_tgt(ubwcp, 1);
 	}
 
+done:
+	mutex_unlock(&ubwcp->power_ctrl_lock);
 	return ret;
 }
 
@@ -3062,6 +3143,7 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	mutex_init(&ubwcp->ula_lock);
 	mutex_init(&ubwcp->ubwcp_flush_lock);
 	mutex_init(&ubwcp->hw_range_ck_lock);
+	mutex_init(&ubwcp->power_ctrl_lock);
 	spin_lock_init(&ubwcp->err_handler_list_lock);
 
 	/* Regulator */
