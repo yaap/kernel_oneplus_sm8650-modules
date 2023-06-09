@@ -9,7 +9,7 @@
 
 int msm_mmrm_debug = MMRM_ERR | MMRM_WARN | MMRM_PRINTK;
 u8 msm_mmrm_enable_throttle_feature = 1;
-u8 msm_mmrm_allow_multiple_register;
+u8 msm_mmrm_allow_multiple_register = 0;
 
 
 
