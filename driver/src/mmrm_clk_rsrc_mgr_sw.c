@@ -555,7 +555,7 @@ static int mmrm_sw_check_req_level(
 				break;
 			}
 			if  ((tbl_entry->vdd_level < peak_data->aggreg_level)
-					&& (tbl_entry->vdd_level > req_level ))
+					&& (tbl_entry->vdd_level > req_level))
 				next_max_entry = tbl_entry;
 
 		}
@@ -753,7 +753,8 @@ static void mmrm_sw_dump_enabled_client_info(struct mmrm_sw_clk_mgr_info *sinfo)
 	}
 }
 
-static int mmrm_reinstate_throttled_client(struct mmrm_sw_clk_mgr_info *sinfo) {
+static int mmrm_reinstate_throttled_client(struct mmrm_sw_clk_mgr_info *sinfo)
+{
 	struct mmrm_sw_peak_current_data *peak_data = &sinfo->peak_cur_data;
 	struct mmrm_sw_throttled_clients_data *iter, *safe_iter = NULL;
 	struct mmrm_client_notifier_data notifier_data;
