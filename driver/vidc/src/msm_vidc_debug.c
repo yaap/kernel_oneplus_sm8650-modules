@@ -25,7 +25,7 @@ unsigned int msm_vidc_debug = DRV_LOG;
 unsigned int msm_fw_debug = FW_LOG;
 
 /* disabled synx fence by default temporarily */
-bool msm_vidc_synx_fence_enable;
+bool msm_vidc_synx_fence_enable = false;
 
 static int debug_level_set_drv(const char *val,
 	const struct kernel_param *kp)
