@@ -76,7 +76,7 @@ typedef HFI_U32 HFI_BOOL;
 	do { \
 		y_bufSize = (y_stride * y_buf_height); \
 		uv_buf_size = (uv_stride * uv_buf_height); \
-		buf_size = HFI_ALIGN(y_bufSize + uv_buf_size, HFI_ALIGNMENT_4096) \
+		buf_size = HFI_ALIGN(y_bufSize + uv_buf_size, HFI_ALIGNMENT_4096); \
 	} while (0)
 
 #define HFI_NV12_UBWC_IL_CALC_Y_BUF_SIZE(y_bufSize, y_stride, y_buf_height) \
@@ -152,7 +152,7 @@ typedef HFI_U32 HFI_BOOL;
 	do { \
 		y_buf_size = (y_stride * y_buf_height); \
 		uv_buf_size = (uv_stride * uv_buf_height); \
-		buf_size = y_buf_size + uv_buf_size \
+		buf_size = y_buf_size + uv_buf_size; \
 	} while (0)
 
 #define HFI_YUV420_TP10_UBWC_CALC_Y_BUF_SIZE(y_buf_size, y_stride, \
@@ -239,7 +239,7 @@ typedef HFI_U32 HFI_BOOL;
 				stride, buf_height); \
 		HFI_UBWC_METADATA_PLANE_BUFFER_SIZE(metadata_buffer_size, \
 				_metadata_tride, _metadata_buf_height); \
-		buf_size = data_buf_size + metadata_buffer_size \
+		buf_size = data_buf_size + metadata_buffer_size; \
 	} while (0)
 
 #define HFI_UBWC_CALC_METADATA_PLANE_STRIDE(metadata_stride, frame_width,\
@@ -787,8 +787,8 @@ typedef HFI_U32 HFI_BOOL;
 	} while (0)
 
 #define VPX_DECODER_FRAME_CONCURENCY_LVL (2)
-#define VPX_DECODER_FRAME_BIN_HDR_BUDGET_RATIO (1 / 2)
-#define VPX_DECODER_FRAME_BIN_RES_BUDGET_RATIO (3 / 2)
+#define VPX_DECODER_FRAME_BIN_HDR_BUDGET_RATIO 1 / 2
+#define VPX_DECODER_FRAME_BIN_RES_BUDGET_RATIO 3 / 2
 
 #define HFI_BUFFER_BIN_VP9D(_size, frame_width, frame_height, \
 				is_interlaced, num_vpp_pipes) \
