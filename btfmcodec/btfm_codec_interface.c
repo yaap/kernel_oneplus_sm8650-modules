@@ -18,29 +18,23 @@ static int btfm_codec_get_mixer_control(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *codec = kcontrol->private_data;
 	struct btfmcodec_data *btfmcodec = snd_soc_component_get_drvdata(codec);
 	struct hwep_data *hwepinfo = btfmcodec->hwep_info;
-	struct btfmcodec_state_machine states = btfmcodec->states;
 	struct snd_kcontrol_new *mixer_ctrl = hwepinfo->mixer_ctrl;
 	struct snd_ctl_elem_id id = kcontrol->id;
 	int num_mixer_ctrl = hwepinfo->num_mixer_ctrl;
 	int i = 0;
 
 	BTFMCODEC_DBG("");
-	if (states.current_state != IDLE) {
-		BTFMCODEC_WARN("Received probe when state is :%s",
-			coverttostring(states.current_state));
-	} else {
-		for (; i < num_mixer_ctrl ; i++) {
-			BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
-				id.name, mixer_ctrl[i].name);
-			if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
-				BTFMCODEC_DBG("Matched");
-				mixer_ctrl[i].get(kcontrol, ucontrol);
-				break;
-			}
+	for (; i < num_mixer_ctrl ; i++) {
+		BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
+			id.name, mixer_ctrl[i].name);
+		if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
+			BTFMCODEC_DBG("Matched");
+			mixer_ctrl[i].get(kcontrol, ucontrol);
+			break;
 		}
-		if (num_mixer_ctrl == i)
-			return 0;
 	}
+	if (num_mixer_ctrl == i)
+		return 0;
 	return 1;
 }
 
@@ -51,29 +45,23 @@ static int btfmcodec_put_mixer_control(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *codec = kcontrol->private_data;
 	struct btfmcodec_data *btfmcodec = snd_soc_component_get_drvdata(codec);
 	struct hwep_data *hwepinfo = btfmcodec->hwep_info;
-	struct btfmcodec_state_machine states = btfmcodec->states;
 	struct snd_kcontrol_new *mixer_ctrl = hwepinfo->mixer_ctrl;
 	struct snd_ctl_elem_id id = kcontrol->id;
 	int num_mixer_ctrl = hwepinfo->num_mixer_ctrl;
 	int i = 0;
 
 	BTFMCODEC_DBG("");
-	if (states.current_state != IDLE) {
-		BTFMCODEC_WARN("Received probe when state is :%s",
-			coverttostring(states.current_state));
-	} else {
-		for (; i < num_mixer_ctrl ; i++) {
-			BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
-			       id.name, mixer_ctrl[i].name);
-			if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
-				BTFMCODEC_DBG("Matched");
-				mixer_ctrl[i].put(kcontrol, ucontrol);
-				break;
-			}
+	for (; i < num_mixer_ctrl ; i++) {
+		BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
+			id.name, mixer_ctrl[i].name);
+		if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
+			BTFMCODEC_DBG("Matched");
+			mixer_ctrl[i].put(kcontrol, ucontrol);
+			break;
 		}
-		if (num_mixer_ctrl == i)
-			return 0;
 	}
+	if (num_mixer_ctrl == i)
+		return 0;
 	return 1;
 }
 

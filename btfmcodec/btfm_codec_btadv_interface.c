@@ -155,6 +155,7 @@ int btfmcodec_initiate_hwep_configuration(struct btfmcodec_char_device *btfmcode
 
 	schedule_work(&btfmcodec_dev->wq_hwep_configure);
 
+	*status = BTM_WAITING_RSP;
 	ret = wait_event_interruptible_timeout(*rsp_wait_q,
 		*status != BTM_WAITING_RSP,
 		msecs_to_jiffies(BTM_MASTER_CONFIG_RSP_TIMEOUT));
@@ -190,8 +191,8 @@ void btfmcodec_configure_hwep(struct btfmcodec_char_device *btfmcodec_dev)
 		btfmcodec_revert_current_state(state);
 	}
 
-	ret = btfmcodec_frame_transport_switch_ind_pkt(btfmcodec_dev,
-				btfmcodec_get_current_transport(state), status);
+	ret = btfmcodec_frame_prepare_bearer_rsp_pkt(btfmcodec_dev,
+		btfmcodec_get_current_transport(state), status);
 
 	if (status != MSG_SUCCESS)
 		return;
