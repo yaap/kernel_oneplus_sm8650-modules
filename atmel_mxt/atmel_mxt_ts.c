@@ -1377,7 +1377,7 @@ static int mxt_check_retrigen(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
 	int error;
-	int val;
+	int val = 0;
 	struct irq_data *irqd;
 
 	data->use_retrigen_workaround = false;
