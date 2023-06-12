@@ -7,6 +7,9 @@ ifeq ($(call is-board-platform-in-list, $(RMNET_PERF_TETHER_DLKM_PLATFORMS_LIST)
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
+#Enabling BAZEL
+LOCAL_MODULE_DDK_BUILD := true
+
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 
 LOCAL_MODULE := rmnet_perf_tether.ko

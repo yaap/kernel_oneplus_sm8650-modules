@@ -1,0 +1,6 @@
+load(":define_mem.bzl", "define_mem")
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+
+define_mem("pineapple", "consolidate")
+
+define_mem("pineapple", "gki")

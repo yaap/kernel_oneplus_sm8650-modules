@@ -6,6 +6,9 @@ RMNET_APS_DLKM_PLATFORMS_LIST := pineapple
 ifeq ($(call is-board-platform-in-list, $(RMNET_APS_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)
 
+#Enabling BAZEL
+LOCAL_MODULE_DDK_BUILD := true
+
 include $(CLEAR_VARS)
 LOCAL_MODULE := rmnet_aps.ko
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)

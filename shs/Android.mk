@@ -9,6 +9,9 @@ include $(CLEAR_VARS)
 LOCAL_CFLAGS := -Wno-macro-redefined -Wno-unused-function -Wall -Werror
 LOCAL_CLANG :=true
 
+#Enabling BAZEL
+LOCAL_MODULE_DDK_BUILD := true
+
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE := rmnet_shs.ko
 LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
