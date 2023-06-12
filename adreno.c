@@ -3595,10 +3595,10 @@ static int adreno_hibernation_suspend(struct device *dev)
 	struct kgsl_device *device = dev_get_drvdata(dev);
 	struct adreno_device *adreno_dev;
 	const struct adreno_power_ops *ops;
-	int status = -EINVAL;
+	int status;
 
 	if (!device)
-		return -EINVAL;
+		return 0;
 
 	adreno_dev = ADRENO_DEVICE(device);
 	ops = ADRENO_POWER_OPS(adreno_dev);
@@ -3629,10 +3629,10 @@ static int adreno_hibernation_resume(struct device *dev)
 	struct kgsl_pwrscale *pwrscale;
 	struct adreno_device *adreno_dev;
 	const struct adreno_power_ops *ops;
-	int ret = 0;
+	int ret;
 
 	if (!device)
-		return -EINVAL;
+		return 0;
 
 	iommu = &device->mmu.iommu;
 	pwrscale = &device->pwrscale;
