@@ -2531,8 +2531,8 @@ static int iris_debug_hook(void *device)
 		dprintk(CVP_ERR, "%s Invalid device\n", __func__);
 		return -ENODEV;
 	}
-	__write_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG, 0x11);
-	__write_register(dev, CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG, 0x1);
+	//__write_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG, 0x11);
+	//__write_register(dev, CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG, 0x1);
 	dprintk(CVP_ERR, "Halt Tensilica and core and axi\n");
 	return 0;
 

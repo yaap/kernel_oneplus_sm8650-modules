@@ -207,7 +207,7 @@ static int msm_cvp_session_process_hfi(
 	}
 
 	if (is_config_pkt)
-		pr_info(CVP_DBG_TAG "inst %pK config %s\n", "sess",
+		pr_info_ratelimited(CVP_DBG_TAG "inst %pK config %s\n", "sess",
 			inst, cvp_hfi_defs[pkt_idx].name);
 
 	if (signal == HAL_NO_RESP) {
@@ -657,7 +657,7 @@ static int cvp_enqueue_pkt(struct msm_cvp_inst* inst,
 	if (map_type == MAP_PERSIST)
 		rc = msm_cvp_map_user_persist(inst, in_pkt, in_offset, in_buf_num);
 	else if (map_type == UNMAP_PERSIST)
-		rc = msm_cvp_mark_user_persist(inst, in_pkt, in_offset, in_buf_num);
+		rc = msm_cvp_unmap_user_persist(inst, in_pkt, in_offset, in_buf_num);
 	else
 		rc = msm_cvp_map_frame(inst, in_pkt, in_offset, in_buf_num);
 
@@ -893,7 +893,8 @@ int msm_cvp_session_start(struct msm_cvp_inst *inst,
 		goto stop_thread;
 	}
 
-	dprintk(CVP_SESS, "session %llx (%#x) started\n", inst, hash32_ptr(inst->session));
+	pr_info_ratelimited(CVP_DBG_TAG "session %llx (%#x) started\n",
+		"sess", inst, hash32_ptr(inst->session));
 
 	return 0;
 
@@ -942,8 +943,8 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	}
 	sq->state = QUEUE_STOP;
 
-	dprintk(CVP_SESS, "Stop session: %pK session_id = %d\n",
-			inst, hash32_ptr(inst->session));
+	pr_info_ratelimited(CVP_DBG_TAG "Stop session: %pK session_id = %d\n",
+			"sess", inst, hash32_ptr(inst->session));
 	spin_unlock(&sq->lock);
 
 	hdev = inst->core->device;
@@ -1074,6 +1075,18 @@ static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 		{
 			props->prop_data[i].data =
 				session_prop->dump_size;
+			break;
+		}
+		case EVA_KMD_PROP_SESSION_ERROR:
+		{
+			rc = dma_buf_fd(hfi->mem_addr.mem_data.dma_buf, O_RDONLY | O_CLOEXEC);
+			if (rc < 0) {
+				dprintk(CVP_WARN, "Failed get dma_buf fd %d\n", rc);
+				break;
+			}
+
+			props->prop_data[i].data = rc;
+			rc = 0;
 			break;
 		}
 		case EVA_KMD_PROP_PWR_FDU:

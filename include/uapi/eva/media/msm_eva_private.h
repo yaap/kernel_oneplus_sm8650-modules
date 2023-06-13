@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __MSM_EVA_PRIVATE_H__
 #define __MSM_EVA_PRIVATE_H__
@@ -139,6 +140,7 @@ struct eva_kmd_hfi_packet {
 #define EVA_KMD_PROP_SESSION_DSPMASK	6
 #define EVA_KMD_PROP_SESSION_DUMPOFFSET	7
 #define EVA_KMD_PROP_SESSION_DUMPSIZE	8
+#define EVA_KMD_PROP_SESSION_ERROR	9
 
 #define EVA_KMD_PROP_PWR_FDU	0x10
 #define EVA_KMD_PROP_PWR_ICA	0x11
