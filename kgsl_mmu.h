@@ -210,7 +210,6 @@ void kgsl_mmu_exit(void);
 
 int kgsl_mmu_start(struct kgsl_device *device);
 
-void kgsl_print_global_pt_entries(struct seq_file *s);
 void kgsl_mmu_putpagetable(struct kgsl_pagetable *pagetable);
 
 int kgsl_mmu_map(struct kgsl_pagetable *pagetable,
@@ -229,13 +228,6 @@ unsigned int kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu,
 		u64 ttbr0, uint64_t addr);
 bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr,
 		uint64_t size);
-
-int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
-		uint64_t gpuaddr, uint64_t size);
-
-int kgsl_mmu_find_region(struct kgsl_pagetable *pagetable,
-		uint64_t region_start, uint64_t region_end,
-		uint64_t *gpuaddr, uint64_t size, unsigned int align);
 
 uint64_t kgsl_mmu_find_svm_region(struct kgsl_pagetable *pagetable,
 		uint64_t start, uint64_t end, uint64_t size,

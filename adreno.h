@@ -1011,17 +1011,6 @@ long adreno_ioctl_helper(struct kgsl_device_private *dev_priv,
 		unsigned int cmd, unsigned long arg,
 		const struct kgsl_ioctl *cmds, int len);
 
-/*
- * adreno_switch_to_unsecure_mode - Execute a zap shader
- * @adreno_dev: An Adreno GPU handle
- * @rb: The ringbuffer to execute on
- *
- * Execute the zap shader from the CP to take the GPU out of secure mode.
- * Return: 0 on success or negative on failure
- */
-int adreno_switch_to_unsecure_mode(struct adreno_device *adreno_dev,
-				struct adreno_ringbuffer *rb);
-
 int adreno_spin_idle(struct adreno_device *device, unsigned int timeout);
 int adreno_idle(struct kgsl_device *device);
 
