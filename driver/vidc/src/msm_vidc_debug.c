@@ -293,7 +293,7 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	ssize_t len = 0;
 	int rc = 0;
 
-	if (!core || !core->resource) {
+	if (!core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, core);
 		return 0;
 	}
@@ -333,6 +333,11 @@ static ssize_t stats_delay_write_ms(struct file *filp, const char __user *buf,
 	char kbuf[MAX_DEBUG_LEVEL_STRING_LEN] = {0};
 	u32 delay_ms = 0;
 
+	if (!core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, core);
+		return 0;
+	}
+
 	/* filter partial writes and invalid commands */
 	if (*ppos != 0 || count >= sizeof(kbuf) || count == 0) {
 		d_vpr_e("returning error - pos %lld, count %lu\n", *ppos, count);
@@ -367,6 +372,11 @@ static ssize_t stats_delay_read_ms(struct file *file, char __user *buf,
 	char kbuf[MAX_DEBUG_LEVEL_STRING_LEN];
 	struct msm_vidc_core *core = file->private_data;
 
+	if (!core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, core);
+		return 0;
+	}
+
 	len = scnprintf(kbuf, sizeof(kbuf), "%u\n", core->capabilities[STATS_TIMEOUT_MS].value);
 	return simple_read_from_buffer(buf, count, ppos, kbuf, len);
 }
@@ -385,6 +395,11 @@ static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
 	struct msm_vidc_core *core = filp->private_data;
 	size_t size = MAX_SSR_STRING_LEN;
 	char kbuf[MAX_SSR_STRING_LEN + 1] = { 0 };
+
+	if (!core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, core);
+		return 0;
+	}
 
 	if (!buf)
 		return -EINVAL;
@@ -426,6 +441,11 @@ static ssize_t trigger_stability_write(struct file *filp, const char __user *buf
 	struct msm_vidc_core *core = filp->private_data;
 	size_t size = MAX_STABILITY_STRING_LEN;
 	char kbuf[MAX_STABILITY_STRING_LEN + 1] = { 0 };
+
+	if (!core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, core);
+		return 0;
+	}
 
 	if (!buf)
 		return -EINVAL;
@@ -497,7 +517,7 @@ struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core)
 	char debugfs_name[MAX_DEBUGFS_NAME];
 	struct dentry *parent;
 
-	if (!core || !core->debugfs_parent) {
+	if (!core->debugfs_parent) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		goto failed_create_dir;
 	}

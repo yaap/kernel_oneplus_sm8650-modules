@@ -265,7 +265,6 @@ struct msm_vidc_platform_data {
 };
 
 struct msm_vidc_platform {
-	void *core;
 	struct msm_vidc_platform_data data;
 };
 

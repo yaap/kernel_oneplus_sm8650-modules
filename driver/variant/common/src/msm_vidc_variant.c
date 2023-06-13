@@ -21,11 +21,6 @@ int __write_register(struct msm_vidc_core *core, u32 reg, u32 value)
 	u8 *base_addr;
 	int rc = 0;
 
-	if (!core || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = __strict_check(core, __func__);
 	if (rc)
 		return rc;
@@ -57,11 +52,6 @@ int __write_register_masked(struct msm_vidc_core *core, u32 reg, u32 value,
 	u32 prev_val, new_val;
 	u8 *base_addr;
 	int rc = 0;
-
-	if (!core || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __strict_check(core, __func__);
 	if (rc)
@@ -100,11 +90,6 @@ int __read_register(struct msm_vidc_core *core, u32 reg, u32 *value)
 	int rc = 0;
 	u8 *base_addr;
 
-	if (!core || !core->resource || !value) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("HFI Read register failed : Power is OFF\n");
 		return -EINVAL;
@@ -130,11 +115,6 @@ int __read_register_with_poll_timeout(struct msm_vidc_core *core, u32 reg,
 	int rc = 0;
 	u32 val = 0;
 	u8 *addr;
-
-	if (!core || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_e("%s failed: Power is OFF\n", __func__);
@@ -162,11 +142,6 @@ int __set_registers(struct msm_vidc_core *core)
 	const struct reg_preset_table *reg_prst;
 	unsigned int prst_count;
 	int cnt, rc = 0;
-
-	if (!core || !core->platform) {
-		d_vpr_e("core resources null, cannot set registers\n");
-		return -EINVAL;
-	}
 
 	reg_prst = core->platform->data.reg_prst_tbl;
 	prst_count = core->platform->data.reg_prst_tbl_size;

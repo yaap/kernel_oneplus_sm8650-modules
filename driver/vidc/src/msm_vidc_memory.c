@@ -324,7 +324,7 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach(struct msm_vidc_core *
 	int rc = 0;
 	struct dma_buf_attachment *attach = NULL;
 
-	if (!core || !dbuf || !dev) {
+	if (!dbuf || !dev) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return NULL;
 	}
@@ -466,7 +466,7 @@ static int msm_vidc_dma_map_page(struct msm_vidc_core *core,
 	struct context_bank_info *cb = NULL;
 	dma_addr_t dma_addr;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -515,7 +515,7 @@ static int msm_vidc_dma_unmap_page(struct msm_vidc_core *core,
 	int rc = 0;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -563,7 +563,7 @@ static int msm_vidc_iommu_map(struct msm_vidc_core *core, struct msm_vidc_mem *m
 	int rc = 0;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -594,7 +594,7 @@ static int msm_vidc_iommu_unmap(struct msm_vidc_core *core, struct msm_vidc_mem 
 	int rc = 0;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}

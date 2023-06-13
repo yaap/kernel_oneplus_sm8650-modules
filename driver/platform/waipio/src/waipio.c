@@ -1836,10 +1836,6 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	d_vpr_h("%s: initialize waipio data\n", __func__);
 
 	core->platform->data = waipio_data;

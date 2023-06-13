@@ -87,11 +87,6 @@ static int msm_vidc_core_deinit_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
 	{
@@ -126,11 +121,6 @@ static int msm_vidc_core_init_wait_state(struct msm_vidc_core *core,
 	struct msm_vidc_event_data *data)
 {
 	int rc = 0;
-
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
@@ -167,11 +157,6 @@ static int msm_vidc_core_init_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
 	{
@@ -206,11 +191,6 @@ static int msm_vidc_core_error_state(struct msm_vidc_core *core,
 	struct msm_vidc_event_data *data)
 {
 	int rc = 0;
-
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
@@ -346,11 +326,6 @@ int msm_vidc_change_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_allow allow;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* core must be locked */
 	rc = __strict_check(core, func);
 	if (rc) {
@@ -436,11 +411,6 @@ static int msm_vidc_update_core_sub_state(struct msm_vidc_core *core,
 	char sub_state_name[MAX_NAME_LENGTH];
 	int ret = 0, rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* no substate update */
 	if (!sub_state)
 		return 0;
@@ -467,11 +437,6 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	enum msm_vidc_core_sub_state prev_sub_state;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* core must be locked */
 	rc = __strict_check(core, func);

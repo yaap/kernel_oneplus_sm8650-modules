@@ -242,11 +242,6 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 
 static int msm_vidc_init_ops(struct msm_vidc_core *core)
 {
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	d_vpr_h("%s: initialize ops\n", __func__);
 	core->v4l2_file_ops = &msm_v4l2_file_operations;
 	core->v4l2_ioctl_ops_enc = &msm_v4l2_ioctl_ops_enc;
@@ -280,10 +275,6 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core)
 	struct device *dev = NULL;
 	int i, rc = 0;
 
-	if (!core || !core->pdev) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	dev = &core->pdev->dev;
 
 	d_vpr_h("%s()\n", __func__);
@@ -315,10 +306,6 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core)
 	struct device *dev = NULL;
 	int i, rc = 0;
 
-	if (!core || !core->pdev) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	dev = &core->pdev->dev;
 
 	/* select platform based on compatible match */
@@ -350,11 +337,6 @@ int msm_vidc_init_platform(struct msm_vidc_core *core)
 
 	d_vpr_h("%s()\n", __func__);
 
-	if (!core) {
-		d_vpr_e("%s: invalid param\n", __func__);
-		return -EINVAL;
-	}
-
 	platform = devm_kzalloc(&core->pdev->dev,
 		sizeof(struct msm_vidc_platform), GFP_KERNEL);
 	if (!platform) {
@@ -363,7 +345,6 @@ int msm_vidc_init_platform(struct msm_vidc_core *core)
 	}
 
 	core->platform = platform;
-	platform->core = core;
 
 	/* selected ops can be re-assigned in platform specific file */
 	rc = msm_vidc_init_ops(core);
@@ -3246,10 +3227,6 @@ int msm_vidc_set_csc_custom_matrix(void *instance,
 	s32 csc_limit_payload[MAX_LIMIT_COEFFS + 2];
 
 	core = inst->core;
-	if (!core->platform) {
-		d_vpr_e("%s: invalid core platform\n", __func__);
-		return -EINVAL;
-	}
 	csc_coeff = &core->platform->data.csc_data;
 
 	if (!inst->capabilities[cap_id].value ||

@@ -700,10 +700,6 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	int i = 0;
 
 	d_vpr_h("%s: %s\n", __func__, video_banner);
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
 
 	if (session_type != MSM_VIDC_DECODER &&
 	    session_type != MSM_VIDC_ENCODER) {

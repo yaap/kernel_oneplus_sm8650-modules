@@ -903,11 +903,6 @@ static int msm_vdec_subscribe_input_port_settings_change(struct msm_vidc_inst *i
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	core = inst->core;
-	if (!core->platform) {
-		d_vpr_e("%s: invalid platform data\n", __func__);
-		return -EINVAL;
-	}
-
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {
 		subscribe_psc_size = core->platform->data.psc_avc_tbl_size;
@@ -976,11 +971,6 @@ static int msm_vdec_subscribe_property(struct msm_vidc_inst *inst,
 
 	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
-
-	if (!core->platform) {
-		d_vpr_e("%s: invalid platform data\n", __func__);
-		return -EINVAL;
-	}
 
 	payload[0] = HFI_MODE_PROPERTY;
 
@@ -1635,10 +1625,6 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	core = inst->core;
-	if (!core->platform) {
-		d_vpr_e("%s: invalid platform data\n", __func__);
-		return -EINVAL;
-	}
 
 	payload[0] = HFI_MODE_PORT_SETTINGS_CHANGE;
 	if (inst->codec == MSM_VIDC_H264) {

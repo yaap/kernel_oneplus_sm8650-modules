@@ -212,11 +212,6 @@ static int validate_hdr_packet(struct msm_vidc_core *core,
 	u8 *pkt;
 	int i, rc = 0;
 
-	if (!core || !hdr || !function) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (hdr->size < sizeof(struct hfi_header) + sizeof(struct hfi_packet)) {
 		d_vpr_e("%s: invalid header size %d\n", __func__, hdr->size);
 		return -EINVAL;
@@ -395,10 +390,6 @@ void fw_coredump(struct msm_vidc_core *core)
 	char *data = NULL, *dump = NULL;
 	u64 total_size;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	pdev = core->pdev;
 
 	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
@@ -2074,11 +2065,6 @@ int handle_response(struct msm_vidc_core *core, void *response)
 {
 	struct hfi_header *hdr;
 	int rc = 0;
-
-	if (!core || !response) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	hdr = (struct hfi_header *)response;
 	rc = validate_hdr_packet(core, hdr, __func__);

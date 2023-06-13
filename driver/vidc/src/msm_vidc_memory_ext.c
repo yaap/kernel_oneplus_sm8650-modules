@@ -29,7 +29,7 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_co
 	struct dma_buf_attachment *attach = NULL;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !dbuf || !dev) {
+	if (!dbuf || !dev) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return NULL;
 	}
@@ -231,7 +231,7 @@ static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_m
 	struct sg_table *table = NULL;
 	struct context_bank_info *cb = NULL;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -257,7 +257,7 @@ static int msm_vidc_memory_map_ext(struct msm_vidc_core *core, struct msm_vidc_m
 	}
 
 	cb = msm_vidc_get_context_bank_for_region(core, mem->region);
-	if (!cb) {
+	if (!cb || !cb->dev) {
 		d_vpr_e("%s: Failed to get context bank device\n",
 			 __func__);
 		rc = -EIO;
@@ -302,7 +302,7 @@ static int msm_vidc_memory_unmap_ext(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !mem) {
+	if (!mem) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
