@@ -1634,14 +1634,17 @@ static void _signal_all_wait_clients(struct hw_fence_driver_data *drv_data,
 	for (wait_client_id = 0; wait_client_id <= drv_data->rxq_clients_num; wait_client_id++) {
 		if (hw_fence->wait_client_mask & BIT(wait_client_id)) {
 			hw_fence_wait_client = drv_data->clients[wait_client_id];
+
+			if (!hw_fence_wait_client)
+				continue;
+
 			data_id = hw_fence_get_client_data_id(hw_fence_wait_client->client_id_ext);
 
 			if (data_id < HW_FENCE_MAX_CLIENTS_WITH_DATA)
 				client_data = hw_fence->client_data[data_id];
 
-			if (hw_fence_wait_client)
-				_fence_ctl_signal(drv_data, hw_fence_wait_client, hw_fence,
-					hash, 0, client_data, error);
+			_fence_ctl_signal(drv_data, hw_fence_wait_client, hw_fence,
+				hash, 0, client_data, error);
 		}
 	}
 }
