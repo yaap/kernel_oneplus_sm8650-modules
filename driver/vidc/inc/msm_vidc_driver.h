@@ -471,7 +471,7 @@ int msm_vidc_trigger_stability(struct msm_vidc_core *core,
 void msm_vidc_stability_handler(struct work_struct *work);
 int cancel_stability_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
-int msm_vidc_suspend_locked(struct msm_vidc_core *core);
+int msm_vidc_suspend(struct msm_vidc_core *core);
 void msm_vidc_batch_handler(struct work_struct *work);
 int msm_vidc_event_queue_init(struct msm_vidc_inst *inst);
 int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst);

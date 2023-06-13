@@ -235,7 +235,7 @@ static u32 msm_vidc_get_buffer_stats_flag(struct msm_vidc_inst *inst)
 	return flags;
 }
 
-int msm_vidc_suspend_locked(struct msm_vidc_core *core)
+int msm_vidc_suspend(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
