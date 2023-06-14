@@ -144,8 +144,7 @@ struct clock_rate *find_clk_by_name(const char *name)
 	struct mmrm_test_platform_resources  *res = &test_drv_data->clk_res;
 	struct clock_rate *p = res->clk_rate_tbl;
 
-	for (i=0; i < res->count; i++, p++)
-	{
+	for (i = 0; i < res->count; i++, p++) {
 		if (strcmp(name, p->name) == 0)
 			return p;
 	}

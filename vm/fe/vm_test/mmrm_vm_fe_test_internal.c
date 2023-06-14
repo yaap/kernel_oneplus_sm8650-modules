@@ -261,8 +261,7 @@ void mmrm_vm_fe_client_register_tests(struct platform_device *pdev)
 		client = test_mmrm_vm_fe_client_register(&desc);
 		if (client == NULL) {
 			d_mpr_e("%s: client register fails\n", __func__);
-		}
-		else
+		} else
 			d_mpr_w("%s: client register successful\n", __func__);
 	}
 }
@@ -671,7 +670,7 @@ test_case_info_t  *kalama_testcases[] = {
 
 int kalama_testcases_count = sizeof(kalama_testcases)/sizeof(kalama_testcases[0]);
 
-static test_case_info_t cornercases_1 [] = {
+static test_case_info_t cornercases_1[] = {
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_NOM, 1, 3},
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_NOM, 1, 2},
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_NOM, 1, 1},
@@ -681,7 +680,7 @@ static test_case_info_t cornercases_1 [] = {
 	{"", MMRM_TEST_VDD_LEVEL_MAX}
 };
 
-static test_case_info_t cornercases_2 [] = {
+static test_case_info_t cornercases_2[] = {
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_LOW_SVS, 1, 3},
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_LOW_SVS, 1, 2},
 	{"cam_cc_csid_clk_src", MMRM_TEST_VDD_LEVEL_SVS_L1, 1, 1},
@@ -691,7 +690,7 @@ static test_case_info_t cornercases_2 [] = {
 	{"", MMRM_TEST_VDD_LEVEL_MAX}
 };
 
-test_case_info_t *kalama_cornercase_testcases [] = {
+test_case_info_t *kalama_cornercase_testcases[] = {
 	cornercases_1,
 	cornercases_2,
 };
@@ -784,7 +783,7 @@ int test_mmrm_populate_testcase(struct platform_device *pdev,
 	if (pcase[0]->client_id != 0)
 		return 0;
 
-	for (i=0; i < count; i++, p++) 	{
+	for (i = 0; i < count; i++, p++) {
 		ptr = *p;
 		while (ptr->vdd_level != MMRM_TEST_VDD_LEVEL_MAX) {
 			p_clk_rate = find_clk_by_name(ptr->name);
