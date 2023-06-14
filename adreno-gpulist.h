@@ -2375,6 +2375,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 	.bcl_data = 1,
 	.acv_perfmode_vote = BIT(2),
 	.ctxt_record_size = (3572 * SZ_1K),
+	.preempt_level = 1,
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
@@ -2409,6 +2410,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
 	.bcl_data = 1,
 	.acv_perfmode_vote = BIT(2),
 	.ctxt_record_size = (3572 * SZ_1K),
+	.preempt_level = 1,
 };
 
 static const struct kgsl_regmap_list a663_hwcg_regs[] = {
