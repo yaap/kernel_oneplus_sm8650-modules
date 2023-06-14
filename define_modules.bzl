@@ -3,6 +3,14 @@ load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 
 def define_modules(target, variant):
     tv = "{}_{}".format(target, variant)
+    copts = []
+    deps = ["//msm-kernel:all_headers"]
+
+    if target == "pineapple":
+       copts.append("-DNFC_SECURE_PERIPHERAL_ENABLED")
+       deps += ["//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
+                "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv)
+       ]
 
     ddk_module(
         name = "{}_nxp-nci".format(tv),
@@ -20,10 +28,9 @@ def define_modules(target, variant):
         hdrs = ["include/uapi/linux/nfc/nfcinfo.h",
                 "include/uapi/linux/nfc/sn_uapi.h"],
         includes = [".", "linux", "nfc", "include/uapi/linux/nfc"],
-        deps = ["//msm-kernel:all_headers",
-                "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
-                "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv)],
-        kernel_build = "//msm-kernel:{}".format(tv),
+        copts = copts,
+        deps = deps,
+        kernel_build= "//msm-kernel:{}".format(tv),
         visibility = ["//visibility:public"]
     )
 
