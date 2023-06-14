@@ -45,7 +45,7 @@ module_entry(
         ],
     },
     deps = [
-            "//vendor/qcom/opensource/mm-drivers:hw_fence_headers",
+            "//vendor/qcom/opensource/mm-drivers:mm_drivers_headers",
             "//vendor/qcom/opensource/synx-kernel:synx_headers",
         ],
 )
