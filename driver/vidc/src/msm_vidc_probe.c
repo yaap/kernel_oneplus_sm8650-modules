@@ -960,7 +960,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 	}
 
 	d_vpr_h("%s\n", __func__);
-	rc = msm_vidc_suspend_locked(core);
+	rc = msm_vidc_suspend(core);
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
