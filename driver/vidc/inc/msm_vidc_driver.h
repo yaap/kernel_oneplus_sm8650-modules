@@ -320,6 +320,19 @@ static inline bool is_rgba_colorformat(enum msm_vidc_colorformat_type colorforma
 		colorformat == MSM_VIDC_FMT_RGBA8888C;
 }
 
+static inline bool is_split_mode_enabled(struct msm_vidc_inst *inst)
+{
+	if (!is_decode_session(inst))
+		return false;
+
+	if (is_linear_colorformat(inst->capabilities[PIX_FMTS].value) ||
+		(inst->codec == MSM_VIDC_AV1 &&
+		inst->capabilities[FILM_GRAIN].value))
+		return true;
+
+	return false;
+}
+
 static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 {
 	return !!(inst->capabilities[THUMBNAIL_MODE].value);

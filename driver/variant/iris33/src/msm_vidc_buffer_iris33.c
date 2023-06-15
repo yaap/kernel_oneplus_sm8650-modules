@@ -74,9 +74,11 @@ static u32 msm_vidc_decoder_comv_size_iris33(struct msm_vidc_inst *inst)
 		 * achieve performance but save memory.
 		 */
 		if (res_is_greater_than(width, height, 4096, 2176))
-			num_comv = inst->buffers.output.min_count + 3;
+			num_comv = inst->fw_min_count ?
+				inst->fw_min_count + 3 : inst->buffers.output.min_count + 3;
 		else
-			num_comv = inst->buffers.output.min_count + 7;
+			num_comv = inst->fw_min_count ?
+				inst->fw_min_count + 7 : inst->buffers.output.min_count + 7;
 	} else {
 		num_comv = inst->buffers.output.min_count;
 	}
@@ -624,21 +626,18 @@ static int msm_vidc_input_min_count_iris33(struct msm_vidc_inst *inst)
 static int msm_buffer_dpb_count(struct msm_vidc_inst *inst)
 {
 	int count = 0;
-	u32 color_fmt;
-
-	/* decoder dpb buffer count */
-	if (is_decode_session(inst)) {
-		color_fmt = inst->capabilities[PIX_FMTS].value;
-		if (is_linear_colorformat(color_fmt) ||
-			(inst->codec == MSM_VIDC_AV1 &&
-			(inst->capabilities[FILM_GRAIN].value)))
-			count = inst->buffers.output.min_count;
-
-		return count;
-	}
 
 	/* encoder dpb buffer count */
-	return msm_vidc_get_recon_buf_count(inst);
+	if (is_encode_session(inst))
+		return msm_vidc_get_recon_buf_count(inst);
+
+	/* decoder dpb buffer count */
+	if (is_split_mode_enabled(inst)) {
+		count = inst->fw_min_count ?
+			inst->fw_min_count : inst->buffers.output.min_count;
+	}
+
+	return count;
 }
 
 static int msm_buffer_delivery_mode_based_min_count_iris33(struct msm_vidc_inst *inst,

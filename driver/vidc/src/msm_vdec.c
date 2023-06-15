@@ -615,15 +615,12 @@ static int msm_vdec_set_av1_superblock_enabled(struct msm_vidc_inst *inst,
 static int msm_vdec_set_opb_enable(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
-	u32 color_fmt;
 	u32 opb_enable = 0;
 
 	if (inst->codec != MSM_VIDC_AV1)
 		return 0;
 
-	color_fmt = inst->capabilities[PIX_FMTS].value;
-	if (is_linear_colorformat(color_fmt) ||
-		inst->capabilities[FILM_GRAIN].value)
+	if (is_split_mode_enabled(inst))
 		opb_enable = 1;
 
 	i_vpr_h(inst, "%s: OPB enable: %d",  __func__, opb_enable);
@@ -1355,19 +1352,6 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 	inst->fmts[INPUT_PORT].fmt.pix_mp.quantization =
 		inst->fmts[OUTPUT_PORT].fmt.pix_mp.quantization;
 
-	inst->buffers.output.min_count = subsc_params.fw_min_count;
-	inst->fw_min_count = subsc_params.fw_min_count;
-	inst->buffers.output.extra_count = call_session_op(core,
-		extra_count, inst, MSM_VIDC_BUF_OUTPUT);
-	inst->buffers.output_meta.min_count = inst->buffers.output.min_count;
-	inst->buffers.output_meta.extra_count = inst->buffers.output.extra_count;
-	if (is_thumbnail_session(inst) && inst->codec != MSM_VIDC_VP9) {
-		if (inst->buffers.output.min_count != 1) {
-			i_vpr_e(inst, "%s: invalid min count %d in thumbnail case\n",
-				__func__, inst->buffers.output.min_count);
-			msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-		}
-	}
 	inst->crop.top = subsc_params.crop_offsets[0] & 0xFFFF;
 	inst->crop.left = (subsc_params.crop_offsets[0] >> 16) & 0xFFFF;
 	inst->crop.height = inst->fmts[INPUT_PORT].fmt.pix_mp.height -
@@ -1400,6 +1384,21 @@ static int msm_vdec_read_input_subcr_params(struct msm_vidc_inst *inst)
 		msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
 			MSM_VIDC_META_RX_INPUT |
 			MSM_VIDC_META_DISABLE, __func__);
+	}
+
+	inst->fw_min_count = subsc_params.fw_min_count;
+	inst->buffers.output.min_count = call_session_op(core,
+		min_count, inst, MSM_VIDC_BUF_OUTPUT);
+	inst->buffers.output.extra_count = call_session_op(core,
+		extra_count, inst, MSM_VIDC_BUF_OUTPUT);
+	inst->buffers.output_meta.min_count = inst->buffers.output.min_count;
+	inst->buffers.output_meta.extra_count = inst->buffers.output.extra_count;
+	if (is_thumbnail_session(inst) && inst->codec != MSM_VIDC_VP9) {
+		if (inst->buffers.output.min_count != 1) {
+			i_vpr_e(inst, "%s: invalid min count %d in thumbnail case\n",
+				__func__, inst->buffers.output.min_count);
+			msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+		}
 	}
 
 	return 0;
