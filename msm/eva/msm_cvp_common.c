@@ -516,8 +516,8 @@ static void handle_session_error(enum hal_command_response cmd, void *data)
 	struct msm_cvp_cb_cmd_done *response = data;
 	struct cvp_hfi_device *hdev = NULL;
 	struct msm_cvp_inst *inst = NULL;
-	unsigned long flags = 0;
-	int i;
+	//unsigned long flags = 0;
+	//int i;
 
 	if (!response) {
 		dprintk(CVP_ERR,
@@ -536,18 +536,19 @@ static void handle_session_error(enum hal_command_response cmd, void *data)
 	dprintk(CVP_ERR, "Sess error 0x%x received for inst %pK sess %x\n",
 		response->status, inst, hash32_ptr(inst->session));
 	cvp_print_inst(CVP_WARN, inst);
-	if (inst->state != MSM_CVP_CORE_INVALID) {
-		change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
-		if (cvp_clean_session_queues(inst))
-			dprintk(CVP_WARN, "Failed to clean sess queues\n");
-		for (i = 0; i < ARRAY_SIZE(inst->completions); i++)
-			complete(&inst->completions[i]);
-		spin_lock_irqsave(&inst->event_handler.lock, flags);
-		inst->event_handler.event = CVP_SSR_EVENT;
-		spin_unlock_irqrestore(
-			&inst->event_handler.lock, flags);
-		wake_up_all(&inst->event_handler.wq);
-	}
+
+	//if (inst->state != MSM_CVP_CORE_INVALID) {
+	//	change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
+	//	if (cvp_clean_session_queues(inst))
+	//		dprintk(CVP_WARN, "Failed to clean sess queues\n");
+	//	for (i = 0; i < ARRAY_SIZE(inst->completions); i++)
+	//		complete(&inst->completions[i]);
+	//	spin_lock_irqsave(&inst->event_handler.lock, flags);
+	//	inst->event_handler.event = CVP_SSR_EVENT;
+	//	spin_unlock_irqrestore(
+	//		&inst->event_handler.lock, flags);
+	//	wake_up_all(&inst->event_handler.wq);
+	//}
 
 	cvp_put_inst(inst);
 }
