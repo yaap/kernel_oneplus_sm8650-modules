@@ -12,6 +12,7 @@
 #include <linux/cdev.h>
 #include <linux/qcom_scm.h>
 #include <linux/delay.h>
+#include <asm/barrier.h>
 
 #include "ubwcp_hw.h"
 
@@ -209,6 +210,19 @@ int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
 	u32 val;
 	u16 ctrl_reg = index >> 5;
 
+	/*
+	 * It is not clear that the isb() calls in this sequence are
+	 * requried, we may be able to remove them.
+	 */
+
+	//ensure all CMOs have completed
+	isb();
+
+	//disable range ck
+	val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
+	val &= ~(1 << (index & 0x1F));
+	UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
+	isb();
 	//assert flush
 	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
 
@@ -216,11 +230,6 @@ int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
 	do {
 		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
 		if (flush_complete) {
-			//disable range ck
-			val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
-			val &= ~(1 << (index & 0x1F));
-			UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
-
 			//clear flush
 			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
 			return 0;
