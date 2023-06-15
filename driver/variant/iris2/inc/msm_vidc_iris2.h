@@ -11,15 +11,9 @@
 
 #if defined(CONFIG_MSM_VIDC_WAIPIO)
 int msm_vidc_init_iris2(struct msm_vidc_core *core);
-int msm_vidc_deinit_iris2(struct msm_vidc_core *core);
 int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl);
 #else
 static inline int msm_vidc_init_iris2(struct msm_vidc_core *core)
-{
-	return -EINVAL;
-}
-
-static inline int msm_vidc_deinit_iris2(struct msm_vidc_core *core)
 {
 	return -EINVAL;
 }
