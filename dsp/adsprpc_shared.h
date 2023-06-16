@@ -8,7 +8,12 @@
 
 #include <linux/types.h>
 #include <linux/cdev.h>
+
+#ifdef CONFIG_MSM_ADSPRPC_TRUSTED
+#include "../include/uapi/fastrpc_shared.h"
+#else
 #include "fastrpc_shared.h"
+#endif
 
 #define FASTRPC_GLINK_GUID "fastrpcglink-apps-dsp"
 #define FASTRPC_SMD_GUID "fastrpcsmd-apps-dsp"
