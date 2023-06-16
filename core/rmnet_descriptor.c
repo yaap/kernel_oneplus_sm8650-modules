@@ -2006,13 +2006,15 @@ void rmnet_descriptor_deinit(struct rmnet_port *port)
 	struct rmnet_frag_descriptor *frag_desc, *tmp;
 
 	pool = port->frag_desc_pool;
+	if (pool) {
+		list_for_each_entry_safe(frag_desc, tmp, &pool->free_list, list) {
+			kfree(frag_desc);
+			pool->pool_size--;
+		}
 
-	list_for_each_entry_safe(frag_desc, tmp, &pool->free_list, list) {
-		kfree(frag_desc);
-		pool->pool_size--;
+		kfree(pool);
+		port->frag_desc_pool = NULL;
 	}
-
-	kfree(pool);
 }
 
 int rmnet_descriptor_init(struct rmnet_port *port)

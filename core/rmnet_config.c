@@ -136,28 +136,33 @@ static int rmnet_register_real_device(struct net_device *real_dev)
 	port->phy_shs_cfg.map_mask = QMAP_SHS_MASK;
 	port->phy_shs_cfg.max_pkts = QMAP_SHS_PKT_LIMIT;
 
-	rc = netdev_rx_handler_register(real_dev, rmnet_rx_handler, port);
-	if (rc) {
-		kfree(port);
-		return -EBUSY;
-	}
-	/* hold on to real dev for MAP data */
-	dev_hold(real_dev);
+
+	rmnet_map_tx_aggregate_init(port);
+	rmnet_map_cmd_init(port);
+
 
 	for (entry = 0; entry < RMNET_MAX_LOGICAL_EP; entry++)
 		INIT_HLIST_HEAD(&port->muxed_ep[entry]);
 
 	rc = rmnet_descriptor_init(port);
 	if (rc) {
-		rmnet_descriptor_deinit(port);
-		return rc;
+		goto err;
 	}
 
-	rmnet_map_tx_aggregate_init(port);
-	rmnet_map_cmd_init(port);
+	rc = netdev_rx_handler_register(real_dev, rmnet_rx_handler, port);
+	if (rc) {
+		rc = -EBUSY;
+		goto err;
+	}
+	/* hold on to real dev for MAP data */
+	dev_hold(real_dev);
 
 	netdev_dbg(real_dev, "registered with rmnet\n");
 	return 0;
+err:
+	rmnet_descriptor_deinit(port);
+	kfree(port);
+	return rc;
 }
 
 static void rmnet_unregister_bridge(struct net_device *dev,
