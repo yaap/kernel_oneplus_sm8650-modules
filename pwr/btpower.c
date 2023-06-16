@@ -299,13 +299,13 @@ int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
 			plat_priv->sec_peri_feature_disable = true;
 			pr_info("Secure HW mode is not updated. Peripheral not found\n");
 		}
-		Object_release(app_object);
 	} else {
 		if (state == 1)
 			plat_priv->bt_sec_hw_disable = 1;
 		else
 			plat_priv->bt_sec_hw_disable = 0;
 	}
+	Object_release(app_object);
 
 exit_release_clientenv:
 	Object_release(client_env);
