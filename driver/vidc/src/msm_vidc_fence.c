@@ -164,7 +164,7 @@ static void msm_vidc_fence_destroy(struct msm_vidc_inst *inst, u64 fence_id)
 		return;
 	}
 
-	i_vpr_e(inst, "%s: fence %s\n", __func__, fence->name);
+	i_vpr_l(inst, "%s: fence %s\n", __func__, fence->name);
 	list_del_init(&fence->list);
 	dma_fence_set_error(&fence->dma_fence, -EINVAL);
 	dma_fence_signal(&fence->dma_fence);

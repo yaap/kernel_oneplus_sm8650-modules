@@ -546,7 +546,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0, MSM_VIDC_META_DISABLE,
 		V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE,
 		HFI_PROP_FENCE,
-		CAP_FLAG_BITMASK | CAP_FLAG_META},
+		CAP_FLAG_BITMASK | CAP_FLAG_META | CAP_FLAG_DYNAMIC_ALLOWED},
 
 	/*
 	 * Client to do set_ctrl with FENCE_ID to set fence_id
@@ -564,6 +564,40 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		V4L2_CID_MPEG_VIDC_SW_FENCE_FD,
 		0,
 		CAP_FLAG_VOLATILE},
+
+	/* Fence type for input buffer. Currently unused */
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
+		BIT(MSM_VIDC_FENCE_NONE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
+		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE),
+		MSM_VIDC_FENCE_NONE,
+		0,
+		HFI_PROP_FENCE_TYPE,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
+
+	/* Fence direction for input buffer. Currently unused */
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
+		BIT(MSM_VIDC_FENCE_DIR_NONE),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
+		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX),
+		MSM_VIDC_FENCE_DIR_NONE,
+		0,
+		HFI_PROP_FENCE_DIRECTION,
+		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
 	{TS_REORDER, DEC, H264|HEVC,
 		0, 1, 1, 0,
@@ -1539,9 +1573,17 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		HFI_PROP_PIPE},
 
-	{POC, DEC, H264, 0, 2, 1, 1,
+	{POC, DEC, H264,
+		0, 2, 1, 1,
 		0,
-		HFI_PROP_PIC_ORDER_CNT_TYPE},
+		HFI_PROP_PIC_ORDER_CNT_TYPE,
+		CAP_FLAG_VOLATILE},
+
+	{MAX_NUM_REORDER_FRAMES, DEC, H264 | HEVC,
+		0, 16, 1, 0,
+		V4L2_CID_MPEG_VIDC_MAX_NUM_REORDER_FRAMES,
+		HFI_PROP_MAX_NUM_REORDER_FRAMES,
+		CAP_FLAG_VOLATILE},
 
 	{QUALITY_MODE, ENC, CODECS_ALL,
 		MSM_VIDC_MAX_QUALITY_MODE,
@@ -1551,8 +1593,9 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	{CODED_FRAMES, DEC, H264|HEVC|HEIC,
 		CODED_FRAMES_PROGRESSIVE, CODED_FRAMES_INTERLACE,
 		1, CODED_FRAMES_PROGRESSIVE,
-		0,
-		HFI_PROP_CODED_FRAMES},
+		V4L2_CID_MPEG_VIDC_INTERLACE,
+		HFI_PROP_CODED_FRAMES,
+		CAP_FLAG_VOLATILE},
 
 	{BIT_DEPTH, DEC, CODECS_ALL, BIT_DEPTH_8, BIT_DEPTH_10, 1, BIT_DEPTH_8,
 		0,
@@ -1982,9 +2025,29 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_set_u32},
 
 	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9|AV1,
-		{LOWLATENCY_MODE},
-		msm_vidc_adjust_dec_outbuf_fence,
+		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
+		NULL,
 		NULL},
+
+	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_type,
+		msm_vidc_set_outbuf_fence_type},
+
+	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		NULL,
+		NULL},
+
+	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+		{0},
+		msm_vidc_adjust_dec_outbuf_fence_direction,
+		msm_vidc_set_outbuf_fence_direction},
 
 	{HFLIP, ENC, CODECS_ALL,
 		{0},
@@ -2352,7 +2415,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL},
 
 	{OUTPUT_ORDER, DEC, H264|HEVC|VP9|AV1,
-		{META_OUTBUF_FENCE},
+		{0},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 

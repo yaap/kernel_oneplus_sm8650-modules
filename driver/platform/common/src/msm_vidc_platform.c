@@ -2234,30 +2234,6 @@ int msm_vidc_adjust_roi_info(void *instance, struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
-int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
-{
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-	u32 adjusted_value = 0;
-	s32 picture_order = -1;
-
-	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_OUTBUF_FENCE].value;
-
-	if (msm_vidc_get_parent_value(inst, META_OUTBUF_FENCE, OUTPUT_ORDER,
-		&picture_order, __func__))
-		return -EINVAL;
-
-	if (picture_order == 0) {
-		/* disable outbuf fence */
-		adjusted_value = MSM_VIDC_META_DISABLE |
-			MSM_VIDC_META_RX_INPUT;
-	}
-
-	msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
-		adjusted_value, __func__);
-
-	return 0;
-}
-
 int msm_vidc_adjust_dec_outbuf_fence_type(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst_cap *capability;
