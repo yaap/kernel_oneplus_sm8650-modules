@@ -1,4 +1,5 @@
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
 include $(CLEAR_VARS)
 
 # This makefile is only for DLKM
