@@ -49,20 +49,6 @@ def register_securemsm_module(name, path = None, config_option = None, default_s
 
 # ------------------------------------ SECUREMSM MODULE DEFINITIONS ---------------------------------
 register_securemsm_module(
-    name = "smcinvoke_dlkm",
-    path = SMCINVOKE_PATH,
-    default_srcs = [
-        "smcinvoke.c",
-        "smcinvoke_kernel.c",
-        "trace_smcinvoke.h",
-        "IQSEEComCompat.h",
-        "IQSEEComCompatAppLoader.h",
-    ],
-    deps = [":smcinvoke_kernel_headers", ":qseecom_kernel_headers"],
-    hdrs = [":smcinvoke_kernel_headers"],
-)
-
-register_securemsm_module(
     name = "qseecom_dlkm",
     path = QSEECOM_PATH,
     default_srcs = [
@@ -72,6 +58,21 @@ register_securemsm_module(
     deps = [":qseecom_kernel_headers"],
     #srcs = ["config/sec-kernel_defconfig_qseecom.h"],
     #copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
+)
+
+
+register_securemsm_module(
+    name = "smcinvoke_dlkm",
+    path = SMCINVOKE_PATH,
+    default_srcs = [
+        "smcinvoke.c",
+        "smcinvoke_kernel.c",
+        "trace_smcinvoke.h",
+        "IQSEEComCompat.h",
+        "IQSEEComCompatAppLoader.h",
+    ],
+    deps = [":smcinvoke_kernel_headers", ":qseecom_kernel_headers", "%b_qseecom_dlkm"],
+    hdrs = [":smcinvoke_kernel_headers"],
 )
 
 register_securemsm_module(
@@ -103,7 +104,7 @@ register_securemsm_module(
         "hdcp1_ops.h",
         "hdcp2p2.h",
     ],
-    deps = [":hdcp_qseecom_dlkm", "%b_smcinvoke_dlkm"],
+    deps = [":hdcp_qseecom_dlkm", "%b_smcinvoke_dlkm", "%b_qseecom_dlkm"],
     srcs = ["config/sec-kernel_defconfig.h"],
     copts = [
         "-include",

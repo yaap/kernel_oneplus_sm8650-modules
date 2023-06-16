@@ -18,6 +18,8 @@ static inline int qseecom_process_listener_from_smcinvoke(uint32_t *result,
 {
         return -EOPNOTSUPP;
 }
+
+int get_qseecom_kernel_fun_ops(void);
 #endif
 
 

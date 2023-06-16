@@ -16,5 +16,6 @@ def define_pineapple():
         ],
         extra_options = [
             "CONFIG_QCOM_SMCINVOKE",
+            "CONFIG_QSEECOM_COMPAT",
         ],
     )
