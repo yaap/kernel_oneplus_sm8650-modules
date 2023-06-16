@@ -77,11 +77,6 @@ int msm_vidc_poll(struct msm_vidc_inst *inst, struct file *filp,
 {
 	int poll = 0;
 
-	if (is_session_error(inst)) {
-		i_vpr_e(inst, "%s: inst in error state\n", __func__);
-		return POLLERR;
-	}
-
 	poll_wait(filp, &inst->fh.wait, wait);
 	poll_wait(filp, &inst->bufq[INPUT_META_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[OUTPUT_META_PORT].vb2q->done_wq, wait);
