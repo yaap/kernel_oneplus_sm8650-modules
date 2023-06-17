@@ -86,7 +86,8 @@ static LIST_HEAD(qce50_bam_list);
 
 #define AES_CTR_IV_CTR_SIZE	64
 
-#define QCE_STATUS1_NO_ERROR	0x2000006
+#define QCE_NO_ERROR_VAL1	0x2000006
+#define QCE_NO_ERROR_VAL2	0x2000004
 
 // Crypto Engines 5.7 and below
 // Key timer expiry for pipes 1-15 (Status3)
@@ -247,7 +248,7 @@ void qce_get_crypto_status(void *handle, struct qce_error *error)
 	dump_status_regs(status);
 #endif
 
-	if (status[0] != QCE_STATUS1_NO_ERROR || status[1]) {
+	if (status[0] != QCE_NO_ERROR_VAL1 && status[0] != QCE_NO_ERROR_VAL2) {
 		if (pce_dev->ce_bam_info.minor_version >= 8) {
 			if (status[2] & CRYPTO58_TIMER_EXPIRED) {
 				error->timer_error = true;
