@@ -87,7 +87,7 @@ static u32 get_llcc_flags(struct kgsl_mmu *mmu)
 		return 0;
 
 	if (mmu->subtype == KGSL_IOMMU_SMMU_V500)
-		return IOMMU_USE_LLC_NWA;
+		return 0;
 	else
 		return IOMMU_USE_UPSTREAM_HINT;
 }
