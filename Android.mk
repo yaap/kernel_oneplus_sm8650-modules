@@ -20,6 +20,8 @@ KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
 DLKM_DIR   := device/qcom/common/dlkm
 
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD    := true
+LOCAL_MODULE_KO_DIRS      := driver/msm-mmrm.ko test/mmrm_test_module.ko
 
 include $(CLEAR_VARS)
 # For incremental compilation
@@ -28,7 +30,6 @@ LOCAL_MODULE              := mmrm-module-symvers
 LOCAL_MODULE_STEM         := Module.symvers
 LOCAL_MODULE_KBUILD_NAME  := Module.symvers
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-ENABLE_DDK_BUILD          := false
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
@@ -41,7 +42,6 @@ LOCAL_MODULE_KBUILD_NAME  := driver/msm-mmrm.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-ENABLE_DDK_BUILD          := false
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
@@ -54,7 +54,6 @@ LOCAL_MODULE_KBUILD_NAME  := test/mmrm_test_module.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-ENABLE_DDK_BUILD          := false
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk

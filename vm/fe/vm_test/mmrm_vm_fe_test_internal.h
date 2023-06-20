@@ -19,7 +19,7 @@ struct mmrm_test_desc {
 #define MMRM_SYSFS_ENTRY_MAX_LEN     PAGE_SIZE
 
 enum mmrm_vdd_level {
-	MMRM_TEST_VDD_LEVEL_LOW_SVS=0,
+	MMRM_TEST_VDD_LEVEL_LOW_SVS = 0,
 	MMRM_TEST_VDD_LEVEL_SVS,
 	MMRM_TEST_VDD_LEVEL_SVS_L1,
 	MMRM_TEST_VDD_LEVEL_NOM,
@@ -48,7 +48,7 @@ typedef struct test_case_info_s {
 extern test_case_info_t  *kalama_testcases[];
 extern int kalama_testcases_count;
 
-extern test_case_info_t *kalama_cornercase_testcases [];
+extern test_case_info_t *kalama_cornercase_testcases[];
 extern int kalama_cornercase_testcases_count;
 
 void mmrm_vm_fe_client_tests(struct platform_device *pdev);
