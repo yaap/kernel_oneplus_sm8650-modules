@@ -215,3 +215,13 @@ void gmu_core_dev_force_first_boot(struct kgsl_device *device)
 	if (ops && ops->force_first_boot)
 		return ops->force_first_boot(device);
 }
+
+void gmu_core_set_vrb_register(void *ptr, u32 index, u32 val)
+{
+	u32 *vrb = ptr;
+
+	vrb[index] = val;
+
+	/* Make sure the vrb write is posted before moving ahead */
+	wmb();
+}

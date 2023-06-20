@@ -48,6 +48,8 @@ struct a6xx_gmu_device {
 	const struct firmware *fw_image;
 	struct kgsl_memdesc *dump_mem;
 	struct kgsl_memdesc *gmu_log;
+	/** @vrb: GMU virtual register bank memory */
+	struct kgsl_memdesc *vrb;
 	struct a6xx_hfi hfi;
 	/** @pwrlevels: Array of GMU power levels */
 	struct regulator *cx_gdsc;

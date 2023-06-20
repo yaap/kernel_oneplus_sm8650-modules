@@ -52,6 +52,8 @@ struct gen7_gmu_device {
 	struct kgsl_memdesc *gmu_init_scratch;
 	/** @gpu_boot_scratch: Memory to store the bootup HFI messages */
 	struct kgsl_memdesc *gpu_boot_scratch;
+	/** @vrb: GMU virtual register bank memory */
+	struct kgsl_memdesc *vrb;
 	struct gen7_hfi hfi;
 	/** @pwrlevels: Array of GMU power levels */
 	struct regulator *cx_gdsc;
