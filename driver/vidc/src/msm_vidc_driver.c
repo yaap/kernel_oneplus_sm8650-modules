@@ -3236,7 +3236,7 @@ int msm_vidc_add_session(struct msm_vidc_inst *inst)
 	} else {
 		i_vpr_e(inst, "%s: max limit %d already running %d sessions\n",
 			__func__, core->capabilities[MAX_SESSION_COUNT].value, count);
-		rc = -EINVAL;
+		rc = -EAGAIN;
 	}
 unlock:
 	core_unlock(core, __func__);
