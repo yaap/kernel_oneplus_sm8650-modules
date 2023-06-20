@@ -115,7 +115,8 @@ def define_target_variant_module(target, variant):
             "CONFIG_SYNC_FILE": { True: [ "kgsl_sync.c" ] },
         },
         deps = [
-            "//msm-kernel:all_headers" ] + external_deps(target, variant),
+            "//msm-kernel:all_headers",
+            "//msm-kernel:all_headers_unsafe" ] + external_deps(target, variant),
         includes = ["include", "."],
         kernel_build = kernel_build,
         visibility = ["//visibility:private"]

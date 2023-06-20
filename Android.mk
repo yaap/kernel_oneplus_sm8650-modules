@@ -11,9 +11,6 @@ ifeq ($(ENABLE_HYP), true)
         KGSL_ENABLED := false
 endif
 
-LOCAL_MODULE_DDK_BUILD := true
-LOCAL_MODULE_DDK_ALLOW_UNSAFE_HEADERS := true
-
 ifeq ($(KGSL_ENABLED),true)
 KGSL_SELECT := CONFIG_QCOM_KGSL=m
 
