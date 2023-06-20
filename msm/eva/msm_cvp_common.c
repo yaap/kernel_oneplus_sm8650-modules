@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/jiffies.h>
@@ -623,9 +622,11 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 			wake_up_all(&inst->event_handler.wq);
 		}
 
-		if (!core->trigger_ssr)
+		if (!core->trigger_ssr) {
+			cvp_print_inst(CVP_WARN, inst);
 			if (hfi_device->error != CVP_ERR_NOC_ERROR)
 				msm_cvp_print_inst_bufs(inst, false);
+		}
 	}
 
 	/* handle the hw error before core released to get full debug info */
