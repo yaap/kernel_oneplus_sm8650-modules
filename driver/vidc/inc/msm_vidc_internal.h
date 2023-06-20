@@ -938,9 +938,9 @@ struct msm_vidc_mem {
 	 * Kalama uses Kernel Version 5.15.x,
 	 * Pineapple uses Kernel version 5.18.x
 	 */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0))
 	struct iosys_map            dmabuf_map;
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5,15,0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 	struct dma_buf_map          dmabuf_map;
 #endif
 	void                       *kvaddr;

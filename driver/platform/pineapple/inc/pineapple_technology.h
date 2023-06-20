@@ -11,8 +11,7 @@
  * Chipset Generation Technology: SW/FW overhead profiling
  * need update with new numbers
  */
-static u32 frequency_table_pineapple[2][6] =
-{
+static u32 frequency_table_pineapple[2][6] = {
 	/* //make lowsvs_D1 as invalid; */
 	{533, 480, 435, 380, 300, 196},
 	{840, 720, 652, 570, 450, 294},
@@ -35,13 +34,13 @@ static u32 frequency_table_pineapple[2][6] =
 #define DECODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE                                         (93000)
 
 #define DECODER_VSP_FW_OVERHEAD_PINEAPPLE \
-	DECODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE - DECODER_VPP_FW_OVERHEAD_PINEAPPLE
+	(DECODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE - DECODER_VPP_FW_OVERHEAD_PINEAPPLE)
 
 /* Tensilica cycles; encoder has ARP register */
 #define ENCODER_VPP_FW_OVERHEAD_PINEAPPLE                                                  (69000*3/2)
 
 #define ENCODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE \
-	ENCODER_VPP_FW_OVERHEAD_PINEAPPLE + DECODER_VSP_FW_OVERHEAD_PINEAPPLE
+	(ENCODER_VPP_FW_OVERHEAD_PINEAPPLE + DECODER_VSP_FW_OVERHEAD_PINEAPPLE)
 
 #define DECODER_SW_OVERHEAD_PINEAPPLE                                                      (489583)
 #define ENCODER_SW_OVERHEAD_PINEAPPLE                                                      (489583)
@@ -54,8 +53,7 @@ static u32 decoder_vpp_target_clk_per_mb_pineapple = 200;
  * These pipe penalty numbers only applies to 4 pipe
  * For 2pipe and 1pipe, these numbers need recalibrate
  */
-static u32 pipe_penalty_pineapple[3][3] =
-{
+static u32 pipe_penalty_pineapple[3][3] = {
 	/* NON AV1 */
 	{1059, 1059, 1059},
 	/* AV1 RECOMMENDED TILE 1080P_V2XH1, UHD_V2X2, 8KUHD_V8X2 */
@@ -69,8 +67,7 @@ static u32 pipe_penalty_pineapple[3][3] =
  * HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered)
  * TODO Can we convert to Cycles/MB? This will remove DIVISION.
  */
-static u32 bitrate_table_pineapple_2stage_fp[5][10] =
-{
+static u32 bitrate_table_pineapple_2stage_fp[5][10] = {
 	/* h264 cavlc */
 	{0, 220, 220, 220, 220, 220, 220, 220, 220, 220},
 	/* h264 cabac */
@@ -84,8 +81,7 @@ static u32 bitrate_table_pineapple_2stage_fp[5][10] =
 };
 
 /* HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered) */
-static u32 bitrate_table_pineapple_1stage_fp[5][10] = /* 1-stage assume IPPP */
-{
+static u32 bitrate_table_pineapple_1stage_fp[5][10] = { /* 1-stage assume IPPP */
 	/* h264 cavlc */
 	{0, 220, 220, 220, 220, 220, 220, 220, 220, 220},
 	/* h264 cabac */
@@ -99,8 +95,7 @@ static u32 bitrate_table_pineapple_1stage_fp[5][10] = /* 1-stage assume IPPP */
 };
 
 /* rec pwc and power bitrate table */
-static u32 bitrate_table_pineapple_rec_fp[5][10] =
-{
+static u32 bitrate_table_pineapple_rec_fp[5][10] = {
 	/* rec. worst bitrate based on bitrate table */
 #if ENABLE_FINEBITRATE_SUBUHD60
 	/* h264 cavlc */
@@ -127,7 +122,7 @@ static u32 bitrate_table_pineapple_rec_fp[5][10] =
 #endif
 };
 
-static u32 input_bitrate_fp = 0;
+static u32 input_bitrate_fp;
 
 /* 8KUHD60; UHD240; 1080p960  with B */
 static u32 fp_pixel_count_bar0 = 3840 * 2160 * 240;
@@ -153,8 +148,7 @@ static u32 fp_pixel_count_bar9 = 1280 * 720 * 30;
 static u32 codec_encoder_gop_complexity_table_fp[8][3];
 static u32 codec_mbspersession_pineaple;
 
-static u32 cr_table_basic_pineapple[7][4] =
-{
+static u32 cr_table_basic_pineapple[7][4] = {
 	{1920, 1080, 20, 40},
 	{3840, 2160, 42, 84},
 	{4096, 2160, 44, 88},
@@ -165,8 +159,7 @@ static u32 cr_table_basic_pineapple[7][4] =
 };
 
 /* 100x */
-static u32 dpbopb_ubwc30_cr_table_cratio_pineapple[7][12] =
-{
+static u32 dpbopb_ubwc30_cr_table_cratio_pineapple[7][12] = {
 	{237, 399, 272, 137, 225, 158, 185, 259, 203, 138, 167, 152},
 	{269, 404, 302, 202, 367, 238, 210, 299, 232, 134, 181, 149},
 	{269, 404, 302, 202, 367, 238, 210, 299, 232, 134, 181, 149},
@@ -177,8 +170,7 @@ static u32 dpbopb_ubwc30_cr_table_cratio_pineapple[7][12] =
 };
 
 /* 100x */
-static u32 rpb_ubwc30_cr_table_cratio_pineapple[7][12] =
-{
+static u32 rpb_ubwc30_cr_table_cratio_pineapple[7][12] = {
 	{193, 294, 218, 135, 214, 155, 175, 241, 191, 139, 162, 149},
 	{285, 406, 316, 207, 373, 243, 201, 280, 221, 139, 177, 152},
 	{285, 406, 316, 207, 373, 243, 201, 280, 221, 139, 177, 152},
@@ -189,8 +181,7 @@ static u32 rpb_ubwc30_cr_table_cratio_pineapple[7][12] =
 };
 
 /* 100x */
-static u32 ipblossy_ubwc30_cr_table_cratio_pineapple[7][12] =
-{
+static u32 ipblossy_ubwc30_cr_table_cratio_pineapple[7][12] = {
 	{215, 215, 215, 174, 174, 174, 266, 266, 266, 231, 231, 231},
 	{254, 254, 254, 219, 219, 219, 292, 292, 292, 249, 249, 249},
 	{254, 254, 254, 219, 219, 219, 292, 292, 292, 249, 249, 249},
@@ -201,8 +192,7 @@ static u32 ipblossy_ubwc30_cr_table_cratio_pineapple[7][12] =
 };
 
 /* 100x */
-static u32 ipblossless_ubwc30_cr_table_cratio_pineapple[7][12] =
-{
+static u32 ipblossless_ubwc30_cr_table_cratio_pineapple[7][12] = {
 	{185, 215, 194, 147, 178, 159, 162, 181, 169, 138, 161, 146},
 	{186, 217, 195, 151, 183, 161, 164, 182, 170, 140, 168, 148},
 	{186, 217, 195, 151, 183, 161, 164, 182, 170, 140, 168, 148},
@@ -217,8 +207,7 @@ static u32 en_original_compression_factor_rgba_pwd_pineapple = 243;
 /* 100x */
 static u32 en_original_compression_factor_rgba_avg_pineapple = 454;
 
-static u32 av1_num_tiles_pineapple[7][3] =
-{
+static u32 av1_num_tiles_pineapple[7][3] = {
 	{2, 1, 1},
 	{4, 2, 2},
 	{4, 2, 2},

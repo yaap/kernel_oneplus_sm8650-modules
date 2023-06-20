@@ -102,7 +102,7 @@ static const char *const mpeg_video_vidc_ir_type[] = {
 	NULL,
 };
 
-static const char * const * msm_vidc_get_qmenu_type(
+static const char * const *msm_vidc_get_qmenu_type(
 		struct msm_vidc_inst *inst, u32 cap_id)
 {
 	switch (cap_id) {
@@ -155,8 +155,6 @@ bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id)
 bool is_valid_cap(struct msm_vidc_inst *inst,
 		enum msm_vidc_inst_capability_type cap_id)
 {
-	if (!inst)
-		return false;
 	if (cap_id <= INST_CAP_NONE || cap_id >= INST_CAP_MAX)
 		return false;
 
@@ -332,10 +330,6 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 	s32 prev_value;
 	int rc = 0;
 
-	if (!inst || !ctrl) {
-		d_vpr_e("%s: invalid param\n", __func__);
-		return -EINVAL;
-	}
 	cap = &inst->capabilities[0];
 
 	/* sanitize cap_id */
@@ -440,10 +434,6 @@ static int msm_vidc_set_dynamic_property(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	list_for_each_entry_safe(entry, temp, &inst->firmware_list, list) {
@@ -468,10 +458,6 @@ error:
 
 int msm_vidc_ctrl_handler_deinit(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid parameters\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s(): num ctrls %d\n", __func__, inst->num_ctrls);
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 	memset(&inst->ctrl_handler, 0, sizeof(struct v4l2_ctrl_handler));
@@ -489,10 +475,6 @@ int msm_vidc_ctrl_handler_init(struct msm_vidc_inst *inst, bool init)
 	int num_ctrls = 0, ctrl_idx = 0;
 	u64 codecs_count, step_or_mask;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 	cap = &inst->capabilities[0];
 
@@ -670,16 +652,11 @@ error:
 	return rc;
 }
 
-static int msm_vidc_update_buffer_count_if_needed(struct msm_vidc_inst* inst,
+static int msm_vidc_update_buffer_count_if_needed(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
 	bool update_input_port = false, update_output_port = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid parameters\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (cap_id) {
 	case LAYER_TYPE:
@@ -719,10 +696,6 @@ static int msm_vidc_allow_secure_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	u32 count = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -785,11 +758,6 @@ static int msm_vidc_update_static_property(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_capability_type cap_id, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
-
-	if (!inst || !ctrl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (cap_id == DRV_VERSION) {
 		i_vpr_h(inst, "%s: driver version update not allowed\n",
@@ -879,10 +847,6 @@ int msm_vidc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	int rc = 0;
 	u32 port;
 
-	if (!inst || !ctrl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	cap = &inst->capabilities[0];
 
 	i_vpr_h(inst, FMT_STRING_SET_CTRL,
@@ -969,10 +933,6 @@ int msm_vidc_prepare_dependency_list(struct msm_vidc_inst *inst)
 	int tmp_count_total, tmp_count, num_nodes = 0;
 	int i, rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	cap = &inst->capabilities[0];
 
 	if (!list_empty(&inst->caps_list)) {
@@ -1084,10 +1044,6 @@ int msm_vidc_adjust_v4l2_properties(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	/* adjust all possible caps from caps_list */
@@ -1108,10 +1064,6 @@ int msm_vidc_set_v4l2_properties(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst_cap_entry *entry = NULL, *temp = NULL;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	/* set all caps from caps_list */

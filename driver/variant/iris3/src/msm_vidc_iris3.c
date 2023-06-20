@@ -855,17 +855,12 @@ static int __boot_firmware_iris3(struct msm_vidc_core *vidc_core)
 	return rc;
 }
 
-int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_mode_iris3(struct msm_vidc_inst *inst)
 {
 	u32 work_mode;
 	struct v4l2_format *inp_f;
 	u32 width, height;
 	bool res_ok = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	work_mode = MSM_VIDC_STAGE_2;
 	inp_f = &inst->fmts[INPUT_PORT];
@@ -917,15 +912,10 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_work_route_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_route_iris3(struct msm_vidc_inst *inst)
 {
 	u32 work_route;
-	struct msm_vidc_core* core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
+	struct msm_vidc_core *core;
 
 	core = inst->core;
 	work_route = core->capabilities[NUM_VPP_PIPE].value;
@@ -958,16 +948,11 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst* inst)
+int msm_vidc_decide_quality_mode_iris3(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!is_encode_session(inst))
 		return 0;
@@ -1009,7 +994,7 @@ decision_done:
 	return 0;
 }
 
-int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
+int msm_vidc_adjust_bitrate_boost_iris3(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
@@ -1017,11 +1002,6 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 	u32 width, height, frame_rate;
 	struct v4l2_format *f;
 	u32 max_bitrate = 0, bitrate = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	adjusted_value = ctrl ? ctrl->val :
 		inst->capabilities[BITRATE_BOOST].value;
@@ -1043,7 +1023,7 @@ int msm_vidc_adjust_bitrate_boost_iris3(void* instance, struct v4l2_ctrl *ctrl)
 	}
 
 	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
-	f= &inst->fmts[OUTPUT_PORT];
+	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 

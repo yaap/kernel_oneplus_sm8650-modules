@@ -21,10 +21,10 @@ int msm_venc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f);
 int msm_venc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f);
 int msm_venc_s_fmt_output(struct msm_vidc_inst *inst, struct v4l2_format *f);
 int msm_venc_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f);
-int msm_venc_s_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s);
-int msm_venc_g_selection(struct msm_vidc_inst* inst, struct v4l2_selection* s);
+int msm_venc_s_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s);
+int msm_venc_g_selection(struct msm_vidc_inst *inst, struct v4l2_selection *s);
 int msm_venc_s_param(struct msm_vidc_inst *inst,
-        struct v4l2_streamparm *s_parm);
+		struct v4l2_streamparm *s_parm);
 int msm_venc_g_param(struct msm_vidc_inst *inst,
 		struct v4l2_streamparm *s_parm);
 int msm_venc_subscribe_event(struct msm_vidc_inst *inst,

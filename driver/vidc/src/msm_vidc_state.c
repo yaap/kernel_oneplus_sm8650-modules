@@ -659,11 +659,6 @@ static int msm_vidc_open_state(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
 	if (rc) {
@@ -768,11 +763,6 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_event event, void *data)
 {
 	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
@@ -971,11 +961,6 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
 	if (rc) {
@@ -1165,11 +1150,6 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
 	if (rc) {
@@ -1286,11 +1266,6 @@ static int msm_vidc_close_state(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
 	if (rc) {
@@ -1321,11 +1296,6 @@ static int msm_vidc_error_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_event event, void *data)
 {
 	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* inst must be locked */
 	rc = __strict_inst_check(inst, __func__);
@@ -1424,11 +1394,6 @@ int msm_vidc_change_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_allow allow;
 	int rc;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (is_session_error(inst)) {
 		i_vpr_h(inst,
 			"%s: inst is in bad state, can not change state to %s\n",
@@ -1513,11 +1478,6 @@ static int msm_vidc_set_sub_state(struct msm_vidc_inst *inst,
 								   MSM_VIDC_OUTPUT_PAUSE         },
 	};
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* no substate to update */
 	if (!sub_state)
 		return 0;
@@ -1591,11 +1551,6 @@ int msm_vidc_change_sub_state(struct msm_vidc_inst *inst,
 {
 	enum msm_vidc_sub_state prev_sub_state;
 	int rc = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_session_error(inst)) {
 		i_vpr_h(inst,

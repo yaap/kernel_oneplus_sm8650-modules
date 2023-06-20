@@ -16,7 +16,7 @@
 
 static u64 __calculate_decoder(struct vidc_bus_vote_data *d);
 static u64 __calculate_encoder(struct vidc_bus_vote_data *d);
-static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d);
+static u64 __calculate(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d);
 static u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size);
 
 
@@ -337,7 +337,7 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		{"frame_rate", "%d", codec_input->frame_rate},
 		{"frame_width", "%d", codec_input->frame_width},
 		{"frame_height", "%d", codec_input->frame_height},
-		{"work_mode","%d", d->work_mode},
+		{"work_mode", "%d", d->work_mode},
 		{"encoder_or_decode", "%d", inst->domain},
 		{"chipset_gen", "%d", codec_input->chipset_gen},
 		{"codec_input", "%d", codec_input->codec},
@@ -380,8 +380,9 @@ static bool is_vpp_cycles_close_to_freq_corner(struct msm_vidc_core *core,
 	closest_freq_upper_corner =
 		core->resource->freq_set.freq_tbl[0].freq;
 
+	/* return true if vpp_min_freq is more than max frequency */
 	if (vpp_min_freq > closest_freq_upper_corner)
-		return false;
+		return true;
 
 	/* get the closest freq corner for vpp_min_freq */
 	for (i = 0; i < core->resource->freq_set.count; i++) {
@@ -407,16 +408,11 @@ static bool is_vpp_cycles_close_to_freq_corner(struct msm_vidc_core *core,
 static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	int ret = 0;
 	struct api_calculation_input codec_input;
 	struct api_calculation_freq_output codec_output;
 	u32 fps, mbpf;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
 
 	core = inst->core;
 
@@ -510,11 +506,6 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
-
 	if (ENABLE_LEGACY_POWER_CALCULATIONS)
 		freq = msm_vidc_calc_freq_iris33_legacy(inst, data_size);
 	else
@@ -526,7 +517,7 @@ u64 msm_vidc_calc_freq_iris33(struct msm_vidc_inst *inst, u32 data_size)
 u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u64 vsp_cycles = 0, vpp_cycles = 0, fw_cycles = 0;
 	u64 fw_vpp_cycles = 0, bitrate = 0;
 	u32 vpp_cycles_per_mb;
@@ -535,10 +526,6 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	u32 base_cycles = 0;
 	u32 fps, mbpf;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return freq;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||
@@ -926,7 +913,7 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 			FP_INT(bps(1)));
 
 	if (is_h264_category)
-		ddr.line_buffer_write = fp_div(ddr.line_buffer_read,FP_INT(2));
+		ddr.line_buffer_write = fp_div(ddr.line_buffer_read, FP_INT(2));
 	else
 		ddr.line_buffer_write = ddr.line_buffer_read;
 	if (llc_top_line_buf_enabled) {
@@ -1293,7 +1280,7 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d)
 	return ret;
 }
 
-static u64 __calculate(struct msm_vidc_inst* inst, struct vidc_bus_vote_data *d)
+static u64 __calculate(struct msm_vidc_inst *inst, struct vidc_bus_vote_data *d)
 {
 	u64 value = 0;
 
@@ -1334,10 +1321,6 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 	struct api_calculation_input codec_input;
 	struct api_calculation_freq_output codec_output;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	if (!core->resource || !core->resource->freq_set.freq_tbl ||
@@ -1360,12 +1343,15 @@ int msm_vidc_ring_buf_count_iris33(struct msm_vidc_inst *inst, u32 data_size)
 
 	/* check if vpp_min_freq is exceeding closest freq corner margin */
 	if (is_vpp_cycles_close_to_freq_corner(core,
-		codec_output.vpp_min_freq))
-		/* enables ring buffer */
+		codec_output.vpp_min_freq)) {
+		/* enable ring buffer */
+		i_vpr_h(inst,
+			"%s: vpp_min_freq %d, ring_buffer_count %d\n",
+			__func__, codec_output.vpp_min_freq, MAX_ENC_RING_BUF_COUNT);
 		inst->capabilities[ENC_RING_BUFFER_COUNT].value =
 			MAX_ENC_RING_BUF_COUNT;
-	else
+	} else {
 		inst->capabilities[ENC_RING_BUFFER_COUNT].value = 0;
-
+	}
 	return 0;
 }

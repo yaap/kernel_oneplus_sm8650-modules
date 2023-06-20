@@ -20,11 +20,6 @@ int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
 		pix_fmts = MSM_VIDC_FMT_NONE;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[IR_PERIOD].value;
 
 	if (msm_vidc_get_parent_value(inst, IR_PERIOD, ALL_INTRA,
@@ -83,11 +78,6 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	u32 adjusted_value = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (is_encode_session(inst)) {
 		d_vpr_e("%s: adjust framerate invalid for enc\n", __func__);
 		return -EINVAL;
@@ -103,11 +93,6 @@ int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	u32 adjusted_value = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_encode_session(inst)) {
 		d_vpr_e("%s: adjust operating rate invalid for enc\n", __func__);
@@ -125,11 +110,6 @@ int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 	s32 adjusted_value;
 	s32 slice_mode = -1;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_decode_session(inst))
 		return 0;
@@ -158,11 +138,6 @@ int msm_vidc_set_ir_period(void *instance,
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 ir_type = 0;
 	struct msm_vidc_core *core;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	core = inst->core;
 
@@ -206,11 +181,6 @@ int msm_vidc_set_signal_color_info(void *instance,
 	u32 pix_fmt;
 	/* Unspecified video format */
 	u32 video_format = 5;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!(inst->capabilities[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
 		i_vpr_h(inst, "%s: colorspace not configured via control\n", __func__);
@@ -272,11 +242,6 @@ int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl)
 	s32 adjusted_value;
 	s32 pix_fmt = -1;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_decode_session(inst))
 		return 0;

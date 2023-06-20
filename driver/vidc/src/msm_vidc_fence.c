@@ -53,11 +53,6 @@ struct msm_vidc_fence *msm_vidc_fence_create(struct msm_vidc_inst *inst)
 	struct msm_vidc_fence *fence = NULL;
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
 	rc = msm_vidc_vmem_alloc(sizeof(*fence), (void **)&fence, __func__);
 	if (rc)
 		return NULL;
@@ -87,11 +82,6 @@ int msm_vidc_dma_fence_create_fd(struct msm_vidc_inst *inst,
 	struct msm_vidc_fence *fence)
 {
 	int rc = 0;
-
-	if (!inst || !fence) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	fence->fd = get_unused_fd_flags(0);
 	if (fence->fd < 0) {
@@ -125,11 +115,6 @@ static struct msm_vidc_fence *msm_vidc_get_dma_fence_from_id(
 	struct msm_vidc_fence *fence, *dummy_fence;
 	bool found = false;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
 		if (fence->fence_id == fence_id) {
 			found = true;
@@ -150,11 +135,6 @@ static int msm_vidc_fence_signal(struct msm_vidc_inst *inst, u64 fence_id)
 {
 	int rc = 0;
 	struct msm_vidc_fence *fence;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	fence = msm_vidc_get_dma_fence_from_id(inst, fence_id);
 	if (!fence) {
@@ -179,11 +159,6 @@ static void msm_vidc_fence_destroy(struct msm_vidc_inst *inst, u64 fence_id)
 {
 	struct msm_vidc_fence *fence;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
-
 	fence = msm_vidc_get_dma_fence_from_id(inst, fence_id);
 	if (!fence) {
 		return;
@@ -200,11 +175,6 @@ int msm_vidc_fence_init(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	inst->fence_context.ctx_num = dma_fence_context_alloc(1);
 	snprintf(inst->fence_context.name, sizeof(inst->fence_context.name),
 		"msm_vidc_fence: %s: %llu", inst->debug_str,
@@ -216,10 +186,6 @@ int msm_vidc_fence_init(struct msm_vidc_inst *inst)
 
 void msm_vidc_fence_deinit(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	i_vpr_h(inst, "%s: %s\n", __func__, inst->fence_context.name);
 	inst->fence_context.ctx_num = 0;
 	snprintf(inst->fence_context.name, sizeof(inst->fence_context.name),

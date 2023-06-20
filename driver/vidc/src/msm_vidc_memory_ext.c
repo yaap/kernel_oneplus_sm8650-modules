@@ -68,11 +68,6 @@ static struct dma_buf_attachment *msm_vidc_dma_buf_attach_ext(struct msm_vidc_co
 	 * on the whole buffer size and hence pass skip sync flag.
 	 */
 	attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-	/*
-	 * Get the scatterlist for the given attachment
-	 * Mapping of sg is taken care by map attachment
-	 */
-	attach->dma_map_attrs |= DMA_ATTR_DELAYED_UNMAP;
 	if (is_sys_cache_present(core))
 		attach->dma_map_attrs |= DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
 
@@ -97,7 +92,7 @@ static int msm_vidc_memory_free_ext(struct msm_vidc_core *core, struct msm_vidc_
 		buf_name(mem->type), mem->secure, mem->region);
 
 	if (mem->kvaddr) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		dma_buf_vunmap(mem->dmabuf, mem->kvaddr);
 #else
 		dma_buf_vunmap(mem->dmabuf, &mem->dmabuf_map);
@@ -151,6 +146,12 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 	}
 
 	heap = dma_heap_find(heap_name);
+	if (IS_ERR_OR_NULL(heap)) {
+		d_vpr_e("%s: dma heap %s find failed\n", __func__, heap_name);
+		heap = NULL;
+		rc = -ENOMEM;
+		goto error;
+	}
 	mem->dmabuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(mem->dmabuf)) {
 		d_vpr_e("%s: dma heap %s alloc failed\n", __func__, heap_name);
@@ -159,8 +160,7 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 		goto error;
 	}
 
-	if (mem->secure && mem->type == MSM_VIDC_BUF_BIN)
-	{
+	if (mem->secure && mem->type == MSM_VIDC_BUF_BIN) {
 		vmids[0] = VMID_CP_BITSTREAM;
 		perms[0] = PERM_READ | PERM_WRITE;
 
@@ -184,14 +184,14 @@ static int msm_vidc_memory_alloc_ext(struct msm_vidc_core *core, struct msm_vidc
 	 * Kalama uses Kernel Version 5.15.x,
 	 * Pineapple uses Kernel Version 5.18.x
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		mem->kvaddr = dma_buf_vmap(mem->dmabuf);
 		if (!mem->kvaddr) {
 			d_vpr_e("%s: kernel map failed\n", __func__);
 			rc = -EIO;
 			goto error;
 		}
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0))
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
 		if (rc) {
 			d_vpr_e("%s: kernel map failed\n", __func__);

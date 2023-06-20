@@ -16,13 +16,8 @@ u32 get_hfi_port(struct msm_vidc_inst *inst,
 {
 	u32 hfi_port = HFI_PORT_NONE;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return hfi_port;
-	}
-
 	if (is_decode_session(inst)) {
-		switch(port) {
+		switch (port) {
 		case INPUT_PORT:
 		case INPUT_META_PORT:
 			hfi_port = HFI_PORT_BITSTREAM;
@@ -64,13 +59,8 @@ u32 get_hfi_port_from_buffer_type(struct msm_vidc_inst *inst,
 {
 	u32 hfi_port = HFI_PORT_NONE;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return hfi_port;
-	}
-
 	if (is_decode_session(inst)) {
-		switch(buffer_type) {
+		switch (buffer_type) {
 		case MSM_VIDC_BUF_INPUT:
 		case MSM_VIDC_BUF_INPUT_META:
 		case MSM_VIDC_BUF_BIN:
@@ -219,11 +209,6 @@ u32 hfi_buf_type_to_driver(enum msm_vidc_domain_type domain,
 
 u32 get_hfi_codec(struct msm_vidc_inst *inst)
 {
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
-
 	switch (inst->codec) {
 	case MSM_VIDC_H264:
 		if (inst->domain == MSM_VIDC_ENCODER)
@@ -252,12 +237,7 @@ u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
 {
 	u32 hfi_colorformat = HFI_COLOR_FMT_NV12_UBWC;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return hfi_colorformat;
-	}
-
-	switch(colorformat) {
+	switch (colorformat) {
 	case MSM_VIDC_FMT_NV12:
 		hfi_colorformat = HFI_COLOR_FMT_NV12;
 		break;
@@ -312,11 +292,6 @@ static u32 get_hfi_region_flag(enum msm_vidc_buffer_region region)
 int get_hfi_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer, struct hfi_buffer *buf)
 {
-	if (!inst || !buffer || !buf) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	memset(buf, 0, sizeof(struct hfi_buffer));
 	buf->type = hfi_buf_type_from_driver(inst->domain, buffer->type);
 	buf->index = buffer->index;
@@ -691,10 +666,6 @@ int hfi_packet_session_command(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core || !inst->packet) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 	core = inst->core;
 
 	rc = hfi_create_header(inst->packet, inst->packet_size,
@@ -723,8 +694,8 @@ err_cmd:
 	return rc;
 }
 
-int hfi_packet_sys_intraframe_powercollapse(struct msm_vidc_core* core,
-	u8* pkt, u32 pkt_size, u32 enable)
+int hfi_packet_sys_intraframe_powercollapse(struct msm_vidc_core *core,
+	u8 *pkt, u32 pkt_size, u32 enable)
 {
 	int rc = 0;
 	u32 payload = 0;

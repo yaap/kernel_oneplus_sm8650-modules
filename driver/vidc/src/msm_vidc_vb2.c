@@ -23,10 +23,6 @@ struct vb2_queue *msm_vidc_get_vb2q(struct msm_vidc_inst *inst,
 {
 	struct vb2_queue *q = NULL;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", func);
-		return NULL;
-	}
 	if (type == INPUT_MPLANE) {
 		q = inst->bufq[INPUT_PORT].vb2q;
 	} else if (type == OUTPUT_MPLANE) {
@@ -407,11 +403,6 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 	enum msm_vidc_buffer_type buf_type;
 	int rc = 0;
 
-	if (!inst || !q) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
 		i_vpr_h(inst, "%s: nothing to start on %s\n",
 			__func__, v4l2_type_name(q->type));
@@ -442,7 +433,7 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 				MSM_VIDC_BUF_ARP);
 			if (rc)
 				return rc;
-		} else if(is_decode_session(inst)) {
+		} else if (is_decode_session(inst)) {
 			rc = msm_vidc_session_set_default_header(inst);
 			if (rc)
 				return rc;
@@ -512,11 +503,6 @@ int msm_vidc_start_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 int msm_vidc_stop_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q)
 {
 	int rc = 0;
-
-	if (!inst || !q) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (q->type == INPUT_META_PLANE || q->type == OUTPUT_META_PLANE) {
 		i_vpr_h(inst, "%s: nothing to stop on %s\n",
@@ -593,6 +579,11 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 	struct msm_vidc_inst *inst;
 	u64 timestamp_us = 0;
 	u64 ktime_ns = ktime_get_ns();
+
+	if (!vb2) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return;
+	}
 
 	inst = vb2_get_drv_priv(vb2->vb2_queue);
 	if (!inst) {
@@ -698,15 +689,31 @@ void msm_vb2_buf_cleanup(struct vb2_buffer *vb)
 
 int msm_vb2_buf_out_validate(struct vb2_buffer *vb)
 {
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct vb2_v4l2_buffer *vbuf;
 
+	if (!vb) {
+		d_vpr_e("%s: invalid vb\n", __func__);
+		return -EINVAL;
+	}
+
+	vbuf = to_vb2_v4l2_buffer(vb);
 	vbuf->field = V4L2_FIELD_NONE;
 	return 0;
 }
 
 void msm_vb2_request_complete(struct vb2_buffer *vb)
 {
-	struct msm_vidc_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
+	struct msm_vidc_inst *inst;
+
+	if (!vb) {
+		d_vpr_e("%s: invalid vb\n", __func__);
+		return;
+	}
+	inst = vb2_get_drv_priv(vb->vb2_queue);
+	if (!inst) {
+		 d_vpr_e("%s: invalid inst\n", __func__);
+		 return;
+	}
 
 	i_vpr_l(inst, "%s: vb type %d, index %d\n",
 		__func__, vb->type, vb->index);

@@ -10,8 +10,8 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_power.h"
 
-u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst* inst, u32 data_size);
-int msm_vidc_calc_bw_iris2(struct msm_vidc_inst* inst,
-		struct vidc_bus_vote_data* vote_data);
+u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size);
+int msm_vidc_calc_bw_iris2(struct msm_vidc_inst *inst,
+		struct vidc_bus_vote_data *vote_data);
 
 #endif

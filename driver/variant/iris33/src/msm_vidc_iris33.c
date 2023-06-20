@@ -38,8 +38,7 @@
 
 #define HFI_CTRL_INIT_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMD_IRIS33
 #define HFI_CTRL_STATUS_IRIS33                        VCODEC_VPU_CPU_CS_SCIACMDARG0_IRIS33
-typedef enum
-{
+typedef enum {
     HFI_CTRL_NOT_INIT                   = 0x0,
     HFI_CTRL_READY                      = 0x1,
     HFI_CTRL_ERROR_FATAL                = 0x2,
@@ -50,8 +49,7 @@ typedef enum
 } hfi_ctrl_status_type;
 
 #define HFI_QTBL_INFO_IRIS33                          VCODEC_VPU_CPU_CS_SCIACMDARG1_IRIS33
-typedef enum
-{
+typedef enum {
     HFI_QTBL_DISABLED    = 0x00,
     HFI_QTBL_ENABLED     = 0x01,
 } hfi_qtbl_status_type;
@@ -494,8 +492,8 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	/* poll AON spare register bit0 to become zero with 50ms timeout */
 	rc = __read_register_with_poll_timeout(core, AON_WRAPPER_SPARE,
 			0x1, 0x0, 1000, 50 * 1000);
-        if (rc)
-                d_vpr_e("%s: AON spare register is not zero\n", __func__);
+	if (rc)
+		d_vpr_e("%s: AON spare register is not zero\n", __func__);
 
 	/* enable bit(1) to avoid cvp noc xo reset */
 	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
@@ -536,15 +534,16 @@ skip_video_xo_reset:
 	if (rc)
 		return rc;
 
-        /* remove retain mem and retain peripheral */
-        rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
-        if (rc)
-                d_vpr_e("%s: set noretain peripheral failed\n", __func__);
-        rc = call_res_op(core, clk_set_flag, core,
-                "video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
-        if (rc)
-                d_vpr_e("%s: set noretain mem failed\n", __func__);
+	/* remove retain mem and retain peripheral */
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_PERIPH);
+	if (rc)
+		d_vpr_e("%s: set noretain peripheral failed\n", __func__);
+
+	rc = call_res_op(core, clk_set_flag, core,
+		"video_cc_mvs0c_clk", MSM_VIDC_CLKFLAG_NORETAIN_MEM);
+	if (rc)
+		d_vpr_e("%s: set noretain mem failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
 	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
@@ -1104,17 +1103,12 @@ static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
 	return rc;
 }
 
-int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_mode_iris33(struct msm_vidc_inst *inst)
 {
 	u32 work_mode;
 	struct v4l2_format *inp_f;
 	u32 width, height;
 	bool res_ok = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	work_mode = MSM_VIDC_STAGE_2;
 	inp_f = &inst->fmts[INPUT_PORT];
@@ -1166,15 +1160,10 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_work_route_iris33(struct msm_vidc_inst* inst)
+int msm_vidc_decide_work_route_iris33(struct msm_vidc_inst *inst)
 {
 	u32 work_route;
-	struct msm_vidc_core* core;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
+	struct msm_vidc_core *core;
 
 	core = inst->core;
 	work_route = core->capabilities[NUM_VPP_PIPE].value;
@@ -1207,16 +1196,11 @@ exit:
 	return 0;
 }
 
-int msm_vidc_decide_quality_mode_iris33(struct msm_vidc_inst* inst)
+int msm_vidc_decide_quality_mode_iris33(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
 	u32 mode = MSM_VIDC_POWER_SAVE_MODE;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!is_encode_session(inst))
 		return 0;
@@ -1258,7 +1242,7 @@ decision_done:
 	return 0;
 }
 
-int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
+int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
@@ -1266,11 +1250,6 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 	u32 width, height, frame_rate;
 	struct v4l2_format *f;
 	u32 max_bitrate = 0, bitrate = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	adjusted_value = ctrl ? ctrl->val :
 		inst->capabilities[BITRATE_BOOST].value;
@@ -1292,7 +1271,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void* instance, struct v4l2_ctrl *ctrl)
 	}
 
 	frame_rate = inst->capabilities[FRAME_RATE].value >> 16;
-	f= &inst->fmts[OUTPUT_PORT];
+	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
 

@@ -17,7 +17,7 @@
 #include "msm_vidc_platform.h"
 #include "venus_hfi.h"
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0))
 	MODULE_IMPORT_NS(DMA_BUF);
 #endif
 
@@ -69,7 +69,7 @@ void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst, enum msm_memory_pool_type 
 	struct msm_memory_alloc_header *hdr = NULL;
 	struct msm_memory_pool *pool;
 
-	if (!inst || type < 0 || type >= MSM_MEM_POOL_MAX) {
+	if (type < 0 || type >= MSM_MEM_POOL_MAX) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return NULL;
 	}
@@ -110,7 +110,7 @@ void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf)
 	struct msm_memory_alloc_header *hdr;
 	struct msm_memory_pool *pool;
 
-	if (!inst || !vidc_buf) {
+	if (!vidc_buf) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return;
 	}
@@ -148,7 +148,7 @@ static void msm_vidc_destroy_pool_buffers(struct msm_vidc_inst *inst,
 	struct msm_memory_pool *pool;
 	u32 fcount = 0, bcount = 0;
 
-	if (!inst || type < 0 || type >= MSM_MEM_POOL_MAX) {
+	if (type < 0 || type >= MSM_MEM_POOL_MAX) {
 		d_vpr_e("%s: Invalid params\n", __func__);
 		return;
 	}
@@ -181,11 +181,6 @@ int msm_vidc_pools_init(struct msm_vidc_inst *inst)
 {
 	u32 i;
 
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (ARRAY_SIZE(buftype_size_name_arr) != MSM_MEM_POOL_MAX) {
 		i_vpr_e(inst, "%s: num elements mismatch %lu %u\n", __func__,
 			ARRAY_SIZE(buftype_size_name_arr), MSM_MEM_POOL_MAX);
@@ -211,11 +206,6 @@ void msm_vidc_pools_deinit(struct msm_vidc_inst *inst)
 {
 	u32 i = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return;
-	}
-
 	/* destroy all buffers from all pool types */
 	for (i = 0; i < MSM_MEM_POOL_MAX; i++)
 		msm_vidc_destroy_pool_buffers(inst, i);
@@ -226,11 +216,6 @@ static struct dma_buf *msm_vidc_dma_buf_get(struct msm_vidc_inst *inst, int fd)
 	struct msm_memory_dmabuf *buf = NULL;
 	struct dma_buf *dmabuf = NULL;
 	bool found = false;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
 
 	/* get local dmabuf ref for tracking */
 	dmabuf = dma_buf_get(fd);
@@ -277,7 +262,7 @@ static void msm_vidc_dma_buf_put(struct msm_vidc_inst *inst, struct dma_buf *dma
 	struct msm_memory_dmabuf *buf = NULL;
 	bool found = false;
 
-	if (!inst || !dmabuf) {
+	if (!dmabuf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
@@ -312,7 +297,7 @@ static void msm_vidc_dma_buf_put(struct msm_vidc_inst *inst, struct dma_buf *dma
 static void msm_vidc_dma_buf_put_completely(struct msm_vidc_inst *inst,
 	struct msm_memory_dmabuf *buf)
 {
-	if (!inst || !buf) {
+	if (!buf) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}

@@ -35,7 +35,8 @@ LOCAL_MODULE_KBUILD_NAME  := msm_video/msm_video.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-ENABLE_DDK_BUILD          := false
+LOCAL_MODULE_DDK_BUILD    := true
+LOCAL_MODULE_KO_DIRS      := msm_video/msm_video.ko
 
 LOCAL_REQUIRED_MODULES    := mmrm-module-symvers
 LOCAL_REQUIRED_MODULES    += hw-fence-module-symvers

@@ -24,10 +24,6 @@ static u32 msm_vidc_decoder_bin_size_iris2(struct msm_vidc_inst *inst)
 	bool is_interlaced;
 	u32 vpp_delay;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -58,16 +54,11 @@ static u32 msm_vidc_decoder_bin_size_iris2(struct msm_vidc_inst *inst)
 	return size;
 }
 
-static u32 msm_vidc_decoder_comv_size_iris2(struct msm_vidc_inst* inst)
+static u32 msm_vidc_decoder_comv_size_iris2(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, out_min_count, vpp_delay;
-	struct v4l2_format* f;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
+	struct v4l2_format *f;
 
 	f = &inst->fmts[INPUT_PORT];
 	width = f->fmt.pix_mp.width;
@@ -88,17 +79,13 @@ static u32 msm_vidc_decoder_comv_size_iris2(struct msm_vidc_inst* inst)
 	return size;
 }
 
-static u32 msm_vidc_decoder_non_comv_size_iris2(struct msm_vidc_inst* inst)
+static u32 msm_vidc_decoder_non_comv_size_iris2(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, num_vpp_pipes;
-	struct msm_vidc_core* core;
-	struct v4l2_format* f;
+	struct msm_vidc_core *core;
+	struct v4l2_format *f;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -125,10 +112,6 @@ static u32 msm_vidc_decoder_line_size_iris2(struct msm_vidc_inst *inst)
 	bool is_opb;
 	u32 color_fmt;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -174,11 +157,6 @@ static u32 msm_vidc_decoder_persist_size_iris2(struct msm_vidc_inst *inst)
 	u32 size = 0;
 	u32 rpu_enabled = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
-
 	if (inst->capabilities[META_DOLBY_RPU].value)
 		rpu_enabled = 1;
 
@@ -198,11 +176,6 @@ static u32 msm_vidc_decoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 
 	u32 color_fmt, width, height, size = 0;
 	struct v4l2_format *f;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 
 	color_fmt = inst->capabilities[PIX_FMTS].value;
 	if (!is_linear_colorformat(color_fmt))
@@ -248,10 +221,6 @@ static u32 msm_vidc_encoder_bin_size_iris2(struct msm_vidc_inst *inst)
 	u32 width, height, num_vpp_pipes, stage;
 	struct v4l2_format *f;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -300,16 +269,11 @@ static u32 msm_vidc_get_recon_buf_count(struct msm_vidc_inst *inst)
 	return num_buf_recon;
 }
 
-static u32 msm_vidc_encoder_comv_size_iris2(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_comv_size_iris2(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	u32 width, height, num_recon = 0;
-	struct v4l2_format* f;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
+	struct v4l2_format *f;
 
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
@@ -325,17 +289,13 @@ static u32 msm_vidc_encoder_comv_size_iris2(struct msm_vidc_inst* inst)
 	return size;
 }
 
-static u32 msm_vidc_encoder_non_comv_size_iris2(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_non_comv_size_iris2(struct msm_vidc_inst *inst)
 {
-	struct msm_vidc_core* core;
+	struct msm_vidc_core *core;
 	u32 size = 0;
 	u32 width, height, num_vpp_pipes;
-	struct v4l2_format* f;
+	struct v4l2_format *f;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -360,10 +320,6 @@ static u32 msm_vidc_encoder_line_size_iris2(struct msm_vidc_inst *inst)
 	bool is_tenbit = false;
 	struct v4l2_format *f;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return size;
-	}
 	core = inst->core;
 
 	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
@@ -390,11 +346,6 @@ static u32 msm_vidc_encoder_dpb_size_iris2(struct msm_vidc_inst *inst)
 	struct v4l2_format *f;
 	bool is_tenbit;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
-
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;
 	height = f->fmt.pix_mp.height;
@@ -415,28 +366,18 @@ static u32 msm_vidc_encoder_arp_size_iris2(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
-
 	HFI_BUFFER_ARP_ENC(size);
 	i_vpr_l(inst, "%s: size %d\n", __func__, size);
 	return size;
 }
 
-static u32 msm_vidc_encoder_vpss_size_iris2(struct msm_vidc_inst* inst)
+static u32 msm_vidc_encoder_vpss_size_iris2(struct msm_vidc_inst *inst)
 {
 	u32 size = 0;
 	bool ds_enable = false, is_tenbit = false, blur = false;
 	u32 rotation_val = HFI_ROTATION_NONE;
 	u32 width, height, driver_colorfmt;
-	struct v4l2_format* f;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
+	struct v4l2_format *f;
 
 	ds_enable = is_scaling_enabled(inst);
 	msm_vidc_v4l2_to_hfi_enum(inst, ROTATION, &rotation_val);
@@ -538,15 +479,10 @@ exit:
 	return size;
 }
 
-static int msm_vidc_input_min_count_iris2(struct msm_vidc_inst* inst)
+static int msm_vidc_input_min_count_iris2(struct msm_vidc_inst *inst)
 {
 	u32 input_min_count = 0;
 	u32 total_hb_layer = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	if (is_decode_session(inst)) {
 		input_min_count = MIN_DEC_INPUT_BUFFERS;
@@ -575,11 +511,6 @@ static int msm_buffer_dpb_count(struct msm_vidc_inst *inst)
 	int count = 0;
 	u32 color_fmt;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
-
 	/* decoder dpb buffer count */
 	if (is_decode_session(inst)) {
 		color_fmt = inst->capabilities[PIX_FMTS].value;
@@ -597,11 +528,6 @@ int msm_buffer_min_count_iris2(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type buffer_type)
 {
 	int count = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	switch (buffer_type) {
 	case MSM_VIDC_BUF_INPUT:
@@ -636,11 +562,6 @@ int msm_buffer_extra_count_iris2(struct msm_vidc_inst *inst,
 		enum msm_vidc_buffer_type buffer_type)
 {
 	int count = 0;
-
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return 0;
-	}
 
 	switch (buffer_type) {
 	case MSM_VIDC_BUF_INPUT:

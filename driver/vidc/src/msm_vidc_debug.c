@@ -21,11 +21,13 @@ extern struct msm_vidc_core *g_core;
 #define MSM_VIDC_MIN_STATS_DELAY_MS     200
 #define MSM_VIDC_MAX_STATS_DELAY_MS     10000
 
-unsigned int msm_vidc_debug = (DRV_LOG | FW_LOG);
+unsigned int msm_vidc_debug = DRV_LOG;
+unsigned int msm_fw_debug = FW_LOG;
+
 /* disabled synx fence by default temporarily */
 bool msm_vidc_synx_fence_enable = false;
 
-static int debug_level_set(const char *val,
+static int debug_level_set_drv(const char *val,
 	const struct kernel_param *kp)
 {
 	struct msm_vidc_core *core = NULL;
@@ -50,9 +52,8 @@ static int debug_level_set(const char *val,
 		return 0;
 	}
 
-	/* check if driver or FW logmask is more than default level */
-	if (((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) ||
-		((dvalue & FW_LOGMASK) & ~(FW_LOG))) {
+	/* check if driver is more than default level */
+	if ((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) {
 		core->capabilities[HW_RESPONSE_TIMEOUT].value = 4 * HW_RESPONSE_TIMEOUT_VALUE;
 		core->capabilities[SW_PC_DELAY].value         = 4 * SW_PC_DELAY_VALUE;
 		core->capabilities[FW_UNLOAD_DELAY].value     = 4 * FW_UNLOAD_DELAY_VALUE;
@@ -63,7 +64,8 @@ static int debug_level_set(const char *val,
 		core->capabilities[FW_UNLOAD_DELAY].value     = FW_UNLOAD_DELAY_VALUE;
 	}
 
-	d_vpr_h("timeout updated: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
+	d_vpr_h(
+		"timeout updated for driver: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
 		core->capabilities[HW_RESPONSE_TIMEOUT].value,
 		core->capabilities[SW_PC_DELAY].value,
 		core->capabilities[FW_UNLOAD_DELAY].value,
@@ -72,14 +74,71 @@ static int debug_level_set(const char *val,
 	return 0;
 }
 
-static int debug_level_get(char *buffer, const struct kernel_param *kp)
+static int debug_level_set_fw(const char *val,
+	const struct kernel_param *kp)
+{
+	struct msm_vidc_core *core = NULL;
+	unsigned int dvalue;
+	int ret;
+
+	if (!kp || !kp->arg || !val) {
+		d_vpr_e("%s: Invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = kstrtouint(val, 0, &dvalue);
+	if (ret)
+		return ret;
+
+	msm_fw_debug = dvalue;
+
+	core = *(struct msm_vidc_core **)kp->arg;
+
+	if (!core) {
+		d_vpr_e("%s: Invalid core/capabilities\n", __func__);
+		return 0;
+	}
+
+	/* check if firmware is more than default level */
+	if ((dvalue & FW_LOGMASK) & ~(FW_LOG)) {
+		core->capabilities[HW_RESPONSE_TIMEOUT].value = 4 * HW_RESPONSE_TIMEOUT_VALUE;
+		core->capabilities[SW_PC_DELAY].value         = 4 * SW_PC_DELAY_VALUE;
+		core->capabilities[FW_UNLOAD_DELAY].value     = 4 * FW_UNLOAD_DELAY_VALUE;
+	} else {
+		/* reset timeout values, if user reduces the logging */
+		core->capabilities[HW_RESPONSE_TIMEOUT].value = HW_RESPONSE_TIMEOUT_VALUE;
+		core->capabilities[SW_PC_DELAY].value         = SW_PC_DELAY_VALUE;
+		core->capabilities[FW_UNLOAD_DELAY].value     = FW_UNLOAD_DELAY_VALUE;
+	}
+
+	d_vpr_h(
+		"timeout updated for firmware: hw_response %u, sw_pc %u, fw_unload %u, debug_level %#x\n",
+		core->capabilities[HW_RESPONSE_TIMEOUT].value,
+		core->capabilities[SW_PC_DELAY].value,
+		core->capabilities[FW_UNLOAD_DELAY].value,
+		msm_fw_debug);
+
+	return 0;
+}
+
+static int debug_level_get_drv(char *buffer, const struct kernel_param *kp)
 {
 	return scnprintf(buffer, PAGE_SIZE, "%#x", msm_vidc_debug);
 }
 
+static int debug_level_get_fw(char *buffer, const struct kernel_param *kp)
+{
+	return scnprintf(buffer, PAGE_SIZE, "%#x", msm_fw_debug);
+}
+
 static const struct kernel_param_ops msm_vidc_debug_fops = {
-	.set = debug_level_set,
-	.get = debug_level_get,
+	.set = debug_level_set_drv,
+	.get = debug_level_get_drv,
+};
+
+static const struct kernel_param_ops msm_fw_debug_fops = {
+	.set = debug_level_set_fw,
+	.get = debug_level_get_fw,
 };
 
 static int fw_dump_set(const char *val,
@@ -145,6 +204,7 @@ static const struct kernel_param_ops msm_vidc_synx_fence_debug_fops = {
 };
 
 module_param_cb(msm_vidc_debug, &msm_vidc_debug_fops, &g_core, 0644);
+module_param_cb(msm_fw_debug, &msm_fw_debug_fops, &g_core, 0644);
 module_param_cb(msm_vidc_fw_dump, &msm_vidc_fw_dump_fops, &g_core, 0644);
 module_param_cb(msm_vidc_synx_fence_enable,
 	&msm_vidc_synx_fence_debug_fops, &g_core, 0644);
@@ -173,48 +233,42 @@ struct core_inst_pair {
 };
 
 /* debug fs support */
-static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
+static inline void tic(struct msm_vidc_inst *inst, enum profiling_points p,
 				 char *b)
 {
-	if (!i->debug.pdata[p].name[0])
-		memcpy(i->debug.pdata[p].name, b, 64);
-	if (i->debug.pdata[p].sampling) {
-		i->debug.pdata[p].start = ktime_get_ns() / 1000 / 1000;
-		i->debug.pdata[p].sampling = false;
+	if (!inst->debug.pdata[p].name[0])
+		memcpy(inst->debug.pdata[p].name, b, 64);
+	if (inst->debug.pdata[p].sampling) {
+		inst->debug.pdata[p].start = ktime_get_ns() / 1000 / 1000;
+		inst->debug.pdata[p].sampling = false;
 	}
 }
 
-static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
+static inline void toc(struct msm_vidc_inst *inst, enum profiling_points p)
 {
-	if (!i->debug.pdata[p].sampling) {
-		i->debug.pdata[p].stop = ktime_get_ns() / 1000 / 1000;
-		i->debug.pdata[p].cumulative += i->debug.pdata[p].stop -
-			i->debug.pdata[p].start;
-		i->debug.pdata[p].sampling = true;
+	if (!inst->debug.pdata[p].sampling) {
+		inst->debug.pdata[p].stop = ktime_get_ns() / 1000 / 1000;
+		inst->debug.pdata[p].cumulative += inst->debug.pdata[p].stop -
+			inst->debug.pdata[p].start;
+		inst->debug.pdata[p].sampling = true;
 	}
 }
 
-void msm_vidc_show_stats(void *inst)
+void msm_vidc_show_stats(struct msm_vidc_inst *inst)
 {
 	int x;
-	struct msm_vidc_inst *i = (struct msm_vidc_inst *) inst;
-
-	if (!i) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	for (x = 0; x < MAX_PROFILING_POINTS; x++) {
-		if (i->debug.pdata[x].name[0]) {
-			if (i->debug.samples) {
-				i_vpr_p(i, "%s averaged %llu ms/sample\n",
-						i->debug.pdata[x].name,
-						i->debug.pdata[x].cumulative /
-						i->debug.samples);
+		if (inst->debug.pdata[x].name[0]) {
+			if (inst->debug.samples) {
+				i_vpr_p(inst, "%s averaged %llu ms/sample\n",
+						inst->debug.pdata[x].name,
+						inst->debug.pdata[x].cumulative /
+						inst->debug.samples);
 			}
 
-			i_vpr_p(i, "%s Samples: %d\n",
-				i->debug.pdata[x].name, i->debug.samples);
+			i_vpr_p(inst, "%s Samples: %d\n",
+				inst->debug.pdata[x].name, inst->debug.samples);
 		}
 	}
 }
@@ -231,8 +285,8 @@ static u32 write_str(char *buffer,
 	return len;
 }
 
-static ssize_t core_info_read(struct file* file, char __user* buf,
-	size_t count, loff_t* ppos)
+static ssize_t core_info_read(struct file *file, char __user *buf,
+	size_t count, loff_t *ppos)
 {
 	struct msm_vidc_core *core = file->private_data;
 	char *cur, *end, *dbuf = NULL;
@@ -323,12 +377,12 @@ static const struct file_operations stats_delay_fops = {
 	.read = stats_delay_read_ms,
 };
 
-static ssize_t trigger_ssr_write(struct file* filp, const char __user* buf,
-	size_t count, loff_t* ppos)
+static ssize_t trigger_ssr_write(struct file *filp, const char __user *buf,
+	size_t count, loff_t *ppos)
 {
 	unsigned long ssr_trigger_val = 0;
 	int rc = 0;
-	struct msm_vidc_core* core = filp->private_data;
+	struct msm_vidc_core *core = filp->private_data;
 	size_t size = MAX_SSR_STRING_LEN;
 	char kbuf[MAX_SSR_STRING_LEN + 1] = { 0 };
 
@@ -351,8 +405,7 @@ static ssize_t trigger_ssr_write(struct file* filp, const char __user* buf,
 	if (rc) {
 		d_vpr_e("returning error err %d\n", rc);
 		rc = -EINVAL;
-	}
-	else {
+	} else {
 		msm_vidc_trigger_ssr(core, ssr_trigger_val);
 		rc = count;
 	}
@@ -406,7 +459,7 @@ static const struct file_operations stability_fops = {
 	.write = trigger_stability_write,
 };
 
-struct dentry* msm_vidc_debugfs_init_drv(void)
+struct dentry *msm_vidc_debugfs_init_drv(void)
 {
 	struct dentry *dir = NULL;
 
@@ -438,11 +491,10 @@ failed_create_dir:
 	return NULL;
 }
 
-struct dentry *msm_vidc_debugfs_init_core(void *core_in)
+struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core)
 {
 	struct dentry *dir = NULL;
 	char debugfs_name[MAX_DEBUGFS_NAME];
-	struct msm_vidc_core *core = (struct msm_vidc_core *) core_in;
 	struct dentry *parent;
 
 	if (!core || !core->debugfs_parent) {
@@ -592,17 +644,12 @@ static const struct file_operations inst_info_fops = {
 	.release = inst_info_release,
 };
 
-struct dentry *msm_vidc_debugfs_init_inst(void *instance, struct dentry *parent)
+struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst, struct dentry *parent)
 {
 	struct dentry *dir = NULL, *info = NULL;
 	char debugfs_name[MAX_DEBUGFS_NAME];
 	struct core_inst_pair *idata = NULL;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		goto exit;
-	}
 	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%d", inst->session_id);
 
 	if (msm_vidc_vmem_alloc(sizeof(struct core_inst_pair), (void **)&idata, __func__))
@@ -641,12 +688,11 @@ exit:
 	return dir;
 }
 
-void msm_vidc_debugfs_deinit_inst(void *instance)
+void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst)
 {
 	struct dentry *dentry = NULL;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 
-	if (!inst || !inst->debugfs_root)
+	if (!inst->debugfs_root)
 		return;
 
 	dentry = inst->debugfs_root;
@@ -660,17 +706,12 @@ void msm_vidc_debugfs_deinit_inst(void *instance)
 	inst->debugfs_root = NULL;
 }
 
-void msm_vidc_debugfs_update(void *instance,
+void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 	enum msm_vidc_debugfs_event e)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	struct msm_vidc_debug *d;
 	char a[64] = "Frame processing";
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	d = &inst->debug;
 
 	switch (e) {
