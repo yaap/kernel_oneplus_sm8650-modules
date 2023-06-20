@@ -1466,7 +1466,7 @@ int msm_vdec_input_port_settings_change(struct msm_vidc_inst *inst)
 
 	event.type = V4L2_EVENT_SOURCE_CHANGE;
 	event.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION;
-	v4l2_event_queue_fh(&inst->event_handler, &event);
+	v4l2_event_queue_fh(&inst->fh, &event);
 
 	return rc;
 }
@@ -2523,13 +2523,13 @@ int msm_vdec_subscribe_event(struct msm_vidc_inst *inst,
 
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:
-		rc = v4l2_event_subscribe(&inst->event_handler, sub, MAX_EVENTS, NULL);
+		rc = v4l2_event_subscribe(&inst->fh, sub, MAX_EVENTS, NULL);
 		break;
 	case V4L2_EVENT_SOURCE_CHANGE:
-		rc = v4l2_src_change_event_subscribe(&inst->event_handler, sub);
+		rc = v4l2_src_change_event_subscribe(&inst->fh, sub);
 		break;
 	case V4L2_EVENT_CTRL:
-		rc = v4l2_ctrl_subscribe_event(&inst->event_handler, sub);
+		rc = v4l2_ctrl_subscribe_event(&inst->fh, sub);
 		break;
 	default:
 		i_vpr_e(inst, "%s: invalid type %d id %d\n", __func__, sub->type, sub->id);

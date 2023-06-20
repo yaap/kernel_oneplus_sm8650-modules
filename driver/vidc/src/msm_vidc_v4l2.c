@@ -20,7 +20,7 @@ static struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 	if (!filp || !filp->private_data)
 		return NULL;
 	return container_of(filp->private_data,
-					struct msm_vidc_inst, event_handler);
+					struct msm_vidc_inst, fh);
 }
 
 unsigned int msm_v4l2_poll(struct file *filp, struct poll_table_struct *pt)
@@ -60,7 +60,7 @@ int msm_v4l2_open(struct file *filp)
 		trace_msm_v4l2_vidc_open("END", NULL);
 		return -ENOMEM;
 	}
-	filp->private_data = &(inst->event_handler);
+	filp->private_data = &(inst->fh);
 	trace_msm_v4l2_vidc_open("END", inst);
 	return 0;
 }
@@ -552,7 +552,7 @@ int msm_v4l2_subscribe_event(struct v4l2_fh *fh,
 	struct msm_vidc_inst *inst;
 	int rc = 0;
 
-	inst = container_of(fh, struct msm_vidc_inst, event_handler);
+	inst = container_of(fh, struct msm_vidc_inst, fh);
 	inst = get_inst_ref(g_core, inst);
 	if (!inst || !sub) {
 		d_vpr_e("%s: invalid instance\n", __func__);
@@ -584,7 +584,7 @@ int msm_v4l2_unsubscribe_event(struct v4l2_fh *fh,
 	struct msm_vidc_inst *inst;
 	int rc = 0;
 
-	inst = container_of(fh, struct msm_vidc_inst, event_handler);
+	inst = container_of(fh, struct msm_vidc_inst, fh);
 	inst = get_inst_ref(g_core, inst);
 	if (!inst || !sub) {
 		d_vpr_e("%s: invalid instance\n", __func__);

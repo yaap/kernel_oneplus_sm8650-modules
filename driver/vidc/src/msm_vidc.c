@@ -82,13 +82,13 @@ int msm_vidc_poll(struct msm_vidc_inst *inst, struct file *filp,
 		return POLLERR;
 	}
 
-	poll_wait(filp, &inst->event_handler.wait, wait);
+	poll_wait(filp, &inst->fh.wait, wait);
 	poll_wait(filp, &inst->bufq[INPUT_META_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[OUTPUT_META_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[INPUT_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[OUTPUT_PORT].vb2q->done_wq, wait);
 
-	if (v4l2_event_pending(&inst->event_handler))
+	if (v4l2_event_pending(&inst->fh))
 		poll |= POLLPRI;
 
 	poll |= get_poll_flags(inst, INPUT_META_PORT);
@@ -676,7 +676,7 @@ int msm_vidc_unsubscribe_event(struct msm_vidc_inst *inst,
 	int rc = 0;
 
 	i_vpr_h(inst, "%s: type %d id %d\n", __func__, sub->type, sub->id);
-	rc = v4l2_event_unsubscribe(&inst->event_handler, sub);
+	rc = v4l2_event_unsubscribe(&inst->fh, sub);
 	if (rc)
 		i_vpr_e(inst, "%s: failed, type %d id %d\n",
 			 __func__, sub->type, sub->id);
@@ -687,7 +687,7 @@ int msm_vidc_dqevent(struct msm_vidc_inst *inst, struct v4l2_event *event)
 {
 	int rc = 0;
 
-	rc = v4l2_event_dequeue(&inst->event_handler, event, false);
+	rc = v4l2_event_dequeue(&inst->fh, event, false);
 	if (rc)
 		i_vpr_e(inst, "%s: fialed\n", __func__);
 	return rc;
@@ -803,7 +803,7 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	INIT_DELAYED_WORK(&inst->stats_work, msm_vidc_stats_handler);
 	INIT_WORK(&inst->stability_work, msm_vidc_stability_handler);
 
-	rc = msm_vidc_event_queue_init(inst);
+	rc = msm_vidc_v4l2_fh_init(inst);
 	if (rc)
 		goto fail_eventq_init;
 
@@ -850,7 +850,7 @@ fail_fence_init:
 fail_inst_init:
 	msm_vidc_vb2_queue_deinit(inst);
 fail_vb2q_init:
-	msm_vidc_event_queue_deinit(inst);
+	msm_vidc_v4l2_fh_deinit(inst);
 fail_eventq_init:
 	destroy_workqueue(inst->workq);
 fail_create_workq:

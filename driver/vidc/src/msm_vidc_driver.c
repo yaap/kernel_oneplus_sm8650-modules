@@ -1350,7 +1350,7 @@ int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst)
 	}
 
 	event.type = V4L2_EVENT_EOS;
-	v4l2_event_queue_fh(&inst->event_handler, &event);
+	v4l2_event_queue_fh(&inst->fh, &event);
 
 	return rc;
 }
@@ -1370,7 +1370,7 @@ int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst)
 	}
 
 	event.type = V4L2_EVENT_EOS;
-	v4l2_event_queue_fh(&inst->event_handler, &event);
+	v4l2_event_queue_fh(&inst->fh, &event);
 
 	return rc;
 }
@@ -3011,7 +3011,7 @@ int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-int msm_vidc_event_queue_init(struct msm_vidc_inst *inst)
+int msm_vidc_v4l2_fh_init(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	int index;
@@ -3019,7 +3019,7 @@ int msm_vidc_event_queue_init(struct msm_vidc_inst *inst)
 	core = inst->core;
 
 	/* do not init, if already inited */
-	if (inst->event_handler.vdev) {
+	if (inst->fh.vdev) {
 		i_vpr_e(inst, "%s: already inited\n", __func__);
 		return -EINVAL;
 	}
@@ -3031,26 +3031,26 @@ int msm_vidc_event_queue_init(struct msm_vidc_inst *inst)
 	else
 		return -EINVAL;
 
-	v4l2_fh_init(&inst->event_handler, &core->vdev[index].vdev);
-	inst->event_handler.ctrl_handler = &inst->ctrl_handler;
-	v4l2_fh_add(&inst->event_handler);
+	v4l2_fh_init(&inst->fh, &core->vdev[index].vdev);
+	inst->fh.ctrl_handler = &inst->ctrl_handler;
+	v4l2_fh_add(&inst->fh);
 
 	return rc;
 }
 
-int msm_vidc_event_queue_deinit(struct msm_vidc_inst *inst)
+int msm_vidc_v4l2_fh_deinit(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
 	/* do not deinit, if not already inited */
-	if (!inst->event_handler.vdev) {
+	if (!inst->fh.vdev) {
 		i_vpr_h(inst, "%s: already not inited\n", __func__);
 		return 0;
 	}
 
-	v4l2_fh_del(&inst->event_handler);
-	inst->event_handler.ctrl_handler = NULL;
-	v4l2_fh_exit(&inst->event_handler);
+	v4l2_fh_del(&inst->fh);
+	inst->fh.ctrl_handler = NULL;
+	v4l2_fh_exit(&inst->fh);
 
 	return rc;
 }
@@ -3138,7 +3138,7 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 		i_vpr_e(inst, "%s: v4l2_m2m_ctx_init failed\n", __func__);
 		goto fail_m2m_ctx_init;
 	}
-	inst->event_handler.m2m_ctx = inst->m2m_ctx;
+	inst->fh.m2m_ctx = inst->m2m_ctx;
 
 	rc = msm_vidc_vmem_alloc(sizeof(struct vb2_queue),
 			(void **)&inst->bufq[INPUT_META_PORT].vb2q, "input meta port");
@@ -3173,7 +3173,7 @@ fail_in_meta_vb2q_init:
 fail_in_meta_alloc:
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
 	inst->m2m_ctx = NULL;
-	inst->event_handler.m2m_ctx = NULL;
+	inst->fh.m2m_ctx = NULL;
 	inst->bufq[OUTPUT_PORT].vb2q = NULL;
 	inst->bufq[INPUT_PORT].vb2q = NULL;
 fail_m2m_ctx_init:
@@ -4574,7 +4574,7 @@ static void msm_vidc_close_helper(struct kref *kref)
 	 */
 	inst_lock(inst, __func__);
 	msm_vidc_vb2_queue_deinit(inst);
-	msm_vidc_event_queue_deinit(inst);
+	msm_vidc_v4l2_fh_deinit(inst);
 	inst_unlock(inst, __func__);
 	destroy_workqueue(inst->workq);
 	msm_vidc_destroy_buffers(inst);
