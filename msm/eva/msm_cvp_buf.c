@@ -178,7 +178,7 @@ void print_client_buffer(u32 tag, const char *str,
 
 	dprintk(tag,
 		"%s: %x : idx %2d fd %d off %d size %d type %d flags 0x%x"
-                " reserved[0] %u\n",
+		" reserved[0] %u\n",
 		str, hash32_ptr(inst->session), cbuf->index, cbuf->fd,
 		cbuf->offset, cbuf->size, cbuf->type, cbuf->flags,
 		cbuf->reserved[0]);
@@ -789,6 +789,12 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 
+	if (!access_ok(&oob_buf_u->oob_type, sizeof(oob_buf_u->oob_type))) {
+		dprintk(CVP_ERR,
+			"%s: bad OOB buf pointer, oob_type inaccessible",
+			__func__);
+		return -EINVAL;
+	}
 	rc = get_user(oob_type, &oob_buf_u->oob_type);
 	if (rc)
 		return rc;
@@ -801,6 +807,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 	wncc_oob_u = &oob_buf_u->wncc;
 	wncc_oob_k = wncc_oob;
 
+	if (!access_ok(&wncc_oob_u->metadata_bufs_offset,
+		sizeof(wncc_oob_u->metadata_bufs_offset))) {
+		dprintk(CVP_ERR,
+			"%s: bad OOB buf pointer, wncc.metadata_bufs_offset inaccessible",
+			__func__);
+		return -EINVAL;
+	}
 	rc = get_user(wncc_oob_k->metadata_bufs_offset,
 		&wncc_oob_u->metadata_bufs_offset);
 	if (rc)
@@ -812,6 +825,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 
+	if (!access_ok(&wncc_oob_u->num_layers,
+		sizeof(wncc_oob_u->num_layers))) {
+		dprintk(CVP_ERR,
+			"%s: bad OOB buf pointer, wncc.num_layers inaccessible",
+			__func__);
+		return -EINVAL;
+	}
 	rc = get_user(wncc_oob_k->num_layers, &wncc_oob_u->num_layers);
 	if (rc)
 		return rc;
@@ -823,6 +843,13 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 
 	for (i = 0; i < wncc_oob_k->num_layers; i++) {
 
+		if (!access_ok(&wncc_oob_u->layers[i].num_addrs,
+			sizeof(wncc_oob_u->layers[i].num_addrs))) {
+			dprintk(CVP_ERR,
+				"%s: bad OOB buf pointer, wncc.layers[%u].num_addrs inaccessible",
+				__func__, i);
+			return -EINVAL;
+		}
 		rc = get_user(wncc_oob_k->layers[i].num_addrs,
 			&wncc_oob_u->layers[i].num_addrs);
 		if (rc)
@@ -837,10 +864,18 @@ static int _wncc_copy_oob_from_user(struct eva_kmd_hfi_packet* in_pkt,
 			break;
 		}
 
+		if (!access_ok(wncc_oob_u->layers[i].addrs,
+				num_addrs * sizeof(struct eva_kmd_wncc_addr)) ||
+			!access_ok(&wncc_oob_u->layers[i].addrs[num_addrs - 1],
+				sizeof(struct eva_kmd_wncc_addr))) {
+			dprintk(CVP_ERR,
+				"%s: bad OOB buf pointer, wncc.layers[%u].addrs inaccessible",
+				__func__, i);
+			return -EINVAL;
+		}
 		rc = copy_from_user(wncc_oob_k->layers[i].addrs,
 			wncc_oob_u->layers[i].addrs,
-			wncc_oob_k->layers[i].num_addrs *
-			sizeof(struct eva_kmd_wncc_addr));
+			num_addrs * sizeof(struct eva_kmd_wncc_addr));
 		if (rc)
 			break;
 	}
