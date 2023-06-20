@@ -180,7 +180,7 @@ struct eva_kmd_hfi_packet {
 #define EVA_KMD_PROP_PWR_FPS_LSR 0x30
 
 
-#define MAX_KMD_PROP_NUM_PER_PACKET		64
+#define MAX_KMD_PROP_NUM_PER_PACKET		8
 #define MAX_KMD_PROP_TYPE	(EVA_KMD_PROP_PWR_FPS_ICA + 1)
 
 struct eva_kmd_sys_property {
