@@ -23,6 +23,7 @@ static dev_t dev_major;
 struct btfmcodec_data *btfmcodec;
 struct device_driver driver = {.name = "btfmcodec-driver", .owner = THIS_MODULE};
 struct btfmcodec_char_device *btfmcodec_dev;
+
 #define cdev_to_btfmchardev(_cdev) container_of(_cdev, struct btfmcodec_char_device, cdev)
 #define MIN_PKT_LEN  0x9
 
@@ -212,6 +213,16 @@ static void btfmcodec_dev_rxwork(struct work_struct *work)
 			}
 			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_BEARER_SWITCH_IND status:%d",
 				status);
+			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
+			break;
+		case BTM_BTFMCODEC_CTRL_LOG_LVL_IND:
+			if (len == BTM_LOG_LVL_IND_LEN) {
+				log_lvl = skb->data[0];
+			} else {
+				BTFMCODEC_ERR("wrong packet format with len:%d", len);
+			}
+			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_CTRL_LOG_LVL_IND status:%d",
+					log_lvl);
 			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
 			break;
 		default:
