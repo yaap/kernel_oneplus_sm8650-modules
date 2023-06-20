@@ -53,11 +53,34 @@
 #define HW_FENCE_CLIENT_TYPE_MAX_VPU 32
 #define HW_FENCE_CLIENT_TYPE_MAX_IFE 32
 
-/*
- * Each bit in this mask represents each of the loopback clients supported in
- * the enum hw_fence_client_id
+/**
+ * HW_FENCE_CTRL_QUEUE_DOORBELL:
+ * Bit set in doorbell flags mask if hw fence driver should read ctrl rx queue
  */
-#define HW_FENCE_LOOPBACK_CLIENTS_MASK 0x7fff
+#define HW_FENCE_CTRL_QUEUE_DOORBELL 0
+
+/**
+ * HW_FENCE_DOORBELL_FLAGS_ID_LAST:
+ * Last doorbell flags id for which HW Fence Driver can receive doorbell
+ */
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+#define HW_FENCE_DOORBELL_FLAGS_ID_LAST HW_FENCE_CLIENT_ID_VAL6
+#else
+#define HW_FENCE_DOORBELL_FLAGS_ID_LAST HW_FENCE_CTRL_QUEUE_DOORBELL
+#endif /* CONFIG_DEBUG_FS */
+
+/**
+ * HW_FENCE_DOORBELL_MASK:
+ * Each bit in this mask represents possible doorbell flag ids for which hw fence driver can receive
+ */
+#define HW_FENCE_DOORBELL_MASK \
+	GENMASK(HW_FENCE_DOORBELL_FLAGS_ID_LAST, HW_FENCE_CTRL_QUEUE_DOORBELL)
+
+/**
+ * HW_FENCE_MAX_ITER_READ:
+ * Maximum number of iterations when reading queue
+ */
+#define HW_FENCE_MAX_ITER_READ 100
 
 /**
  * HW_FENCE_MAX_EVENTS:
@@ -179,12 +202,110 @@ void global_atomic_store(struct hw_fence_driver_data *drv_data, uint64_t *lock, 
 	}
 }
 
-static int _process_doorbell_client(struct hw_fence_driver_data *drv_data, int client_id)
+int hw_fence_utils_fence_error_cb(struct msm_hw_fence_client *hw_fence_client, u64 ctxt_id,
+	u64 seqno, u64 hash, u64 flags, u32 error)
+{
+	struct msm_hw_fence_cb_data cb_data;
+	struct dma_fence fence;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(hw_fence_client)) {
+		HWFNC_ERR("Invalid client:0x%pK\n", hw_fence_client);
+		return -EINVAL;
+	}
+
+	mutex_lock(&hw_fence_client->error_cb_lock);
+	if (!error || !hw_fence_client->fence_error_cb) {
+		HWFNC_ERR("Invalid error:%d fence_error_cb:0x%pK\n", error,
+			hw_fence_client->fence_error_cb);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	/* initialize cb_data info */
+	fence.context = ctxt_id;
+	fence.seqno = seqno;
+	fence.flags = flags;
+	fence.error = error;
+	cb_data.fence = &fence;
+	cb_data.data = hw_fence_client->fence_error_cb_userdata;
+
+	HWFNC_DBG_L("invoking cb for client:%d ctx:%llu seq:%llu flags:%llu e:%u data:0x%pK\n",
+		hw_fence_client->client_id, ctxt_id, seqno, flags, error,
+		hw_fence_client->fence_error_cb_userdata);
+
+	hw_fence_client->fence_error_cb(hash, error, &cb_data);
+
+exit:
+	mutex_unlock(&hw_fence_client->error_cb_lock);
+
+	return ret;
+}
+
+static int _process_fence_error_client_loopback(struct hw_fence_driver_data *drv_data,
+	int db_flag_id)
+{
+	struct msm_hw_fence_client *hw_fence_client;
+	struct msm_hw_fence_queue_payload payload;
+	int i, cb_ret, ret = 0, read = 1;
+	u32 client_id;
+
+	for (i = 0; read && i < HW_FENCE_MAX_ITER_READ; i++) {
+		read = hw_fence_read_queue_helper(&drv_data->ctrl_queues[HW_FENCE_RX_QUEUE - 1],
+			&payload);
+		if (read < 0) {
+			HWFNC_DBG_Q("unable to read ctrl rxq for db_flag_id:%d\n", db_flag_id);
+			return read;
+		}
+		if (payload.type != HW_FENCE_PAYLOAD_TYPE_2) {
+			HWFNC_ERR("unsupported payload type in ctrl rxq received:%u expected:%u\n",
+				payload.type, HW_FENCE_PAYLOAD_TYPE_2);
+			ret = -EINVAL;
+			continue;
+		}
+		if (payload.client_data < HW_FENCE_CLIENT_ID_CTX0 ||
+				payload.client_data >= drv_data->clients_num) {
+			HWFNC_ERR("read invalid client_id:%llu from ctrl rxq min:%u max:%u\n",
+				payload.client_data, HW_FENCE_CLIENT_ID_CTX0,
+				drv_data->clients_num);
+			ret = -EINVAL;
+			continue;
+		}
+
+		client_id = payload.client_data;
+		HWFNC_DBG_Q("ctrl rxq rd: it:%d h:%llu ctx:%llu seq:%llu f:%llu e:%u client:%u\n",
+			i, payload.hash, payload.ctxt_id, payload.seqno, payload.flags,
+			payload.error, client_id);
+
+		hw_fence_client = drv_data->clients[client_id];
+		if (!hw_fence_client) {
+			HWFNC_ERR("processing fence error cb for unregistered client_id:%u\n",
+				client_id);
+			ret = -EINVAL;
+			continue;
+		}
+
+		cb_ret = hw_fence_utils_fence_error_cb(hw_fence_client, payload.ctxt_id,
+			payload.seqno, payload.hash, payload.flags, payload.error);
+		if (cb_ret) {
+			HWFNC_ERR("fence_error_cb failed for client:%u ctx:%llu seq:%llu err:%u\n",
+				client_id, payload.ctxt_id, payload.seqno, payload.error);
+			ret = cb_ret;
+		}
+	}
+
+	return ret;
+}
+
+static int _process_doorbell_id(struct hw_fence_driver_data *drv_data, int db_flag_id)
 {
 	int ret;
 
-	HWFNC_DBG_H("Processing doorbell client_id:%d\n", client_id);
-	switch (client_id) {
+	HWFNC_DBG_H("Processing doorbell mask id:%d\n", db_flag_id);
+	switch (db_flag_id) {
+	case HW_FENCE_CTRL_QUEUE_DOORBELL:
+		ret = _process_fence_error_client_loopback(drv_data, db_flag_id);
+		break;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	case HW_FENCE_CLIENT_ID_VAL0:
 	case HW_FENCE_CLIENT_ID_VAL1:
@@ -193,11 +314,11 @@ static int _process_doorbell_client(struct hw_fence_driver_data *drv_data, int c
 	case HW_FENCE_CLIENT_ID_VAL4:
 	case HW_FENCE_CLIENT_ID_VAL5:
 	case HW_FENCE_CLIENT_ID_VAL6:
-		ret = process_validation_client_loopback(drv_data, client_id);
+		ret = process_validation_client_loopback(drv_data, db_flag_id);
 		break;
 #endif /* CONFIG_DEBUG_FS */
 	default:
-		HWFNC_ERR("unknown client:%d\n", client_id);
+		HWFNC_ERR("unknown mask id:%d\n", db_flag_id);
 		ret = -EINVAL;
 	}
 
@@ -206,22 +327,21 @@ static int _process_doorbell_client(struct hw_fence_driver_data *drv_data, int c
 
 void hw_fence_utils_process_doorbell_mask(struct hw_fence_driver_data *drv_data, u64 db_flags)
 {
-	int client_id = HW_FENCE_CLIENT_ID_CTL0;
+	int db_flag_id = HW_FENCE_CTRL_QUEUE_DOORBELL;
 	u64 mask;
 
-	for (; client_id <= HW_FENCE_CLIENT_ID_VAL6; client_id++) {
-		mask = 1 << client_id;
+	for (; db_flag_id <= HW_FENCE_DOORBELL_FLAGS_ID_LAST; db_flag_id++) {
+		mask = 1 << db_flag_id;
 		if (mask & db_flags) {
-			HWFNC_DBG_H("client_id:%d signaled! flags:0x%llx\n", client_id, db_flags);
+			HWFNC_DBG_H("db_flag:%d signaled! flags:0x%llx\n", db_flag_id, db_flags);
 
-			/* process client */
-			if (_process_doorbell_client(drv_data, client_id))
-				HWFNC_ERR("Failed to process client:%d\n", client_id);
+			if (_process_doorbell_id(drv_data, db_flag_id))
+				HWFNC_ERR("Failed to process db_flag_id:%d\n", db_flag_id);
 
-			/* clear mask for this client and if nothing else pending finish */
+			/* clear mask for this flag id if nothing else pending finish */
 			db_flags = db_flags & ~(mask);
-			HWFNC_DBG_H("client_id:%d cleared flags:0x%llx mask:0x%llx ~mask:0x%llx\n",
-				client_id, db_flags, mask, ~(mask));
+			HWFNC_DBG_H("db_flag_id:%d cleared flags:0x%llx mask:0x%llx ~mask:0x%llx\n",
+				db_flag_id, db_flags, mask, ~(mask));
 			if (!db_flags)
 				break;
 		}
@@ -232,7 +352,7 @@ void hw_fence_utils_process_doorbell_mask(struct hw_fence_driver_data *drv_data,
 static void _hw_fence_cb(int irq, void *data)
 {
 	struct hw_fence_driver_data *drv_data = (struct hw_fence_driver_data *)data;
-	gh_dbl_flags_t clear_flags = HW_FENCE_LOOPBACK_CLIENTS_MASK;
+	gh_dbl_flags_t clear_flags = HW_FENCE_DOORBELL_MASK;
 	int ret;
 
 	if (!drv_data)

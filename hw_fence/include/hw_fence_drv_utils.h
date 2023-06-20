@@ -123,6 +123,21 @@ int hw_fence_utils_cleanup_fence(struct hw_fence_driver_data *drv_data,
 	u32 reset_flags);
 
 /**
+ * hw_fence_utils_fence_error_cb() - Invokes fence error callback registered by specified client
+ *
+ * @hw_fence_client: client, for which fence error callback must be invoked
+ * @ctxt_id: context id of the hw-fence
+ * @seqno: sequence number of the hw-fence
+ * @hash: hash of the hw-fence
+ * @flags: flags of the hw-fence
+ * @error: error of the hw-fence
+ *
+ * Returns zero if success, otherwise returns negative error code
+ */
+int hw_fence_utils_fence_error_cb(struct msm_hw_fence_client *hw_fence_client, u64 ctxt_id,
+	u64 seqno, u64 hash, u64 flags, u32 error);
+
+/**
  * hw_fence_utils_get_client_id_priv() - Gets the index into clients struct within hw fence driver
  *                                       from the client_id used externally
  *

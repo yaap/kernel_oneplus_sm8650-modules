@@ -131,9 +131,12 @@ struct msm_hw_fence_queue {
 
 /**
  * enum payload_type - Enum with the queue payload types.
+ * HW_FENCE_PAYLOAD_TYPE_1: client queue payload
+ * HW_FENCE_PAYLOAD_TYPE_2: ctrl queue payload for fence error; client_data stores client_id
  */
 enum payload_type {
-	HW_FENCE_PAYLOAD_TYPE_1 = 1
+	HW_FENCE_PAYLOAD_TYPE_1 = 1,
+	HW_FENCE_PAYLOAD_TYPE_2
 };
 
 /**
@@ -144,6 +147,10 @@ enum payload_type {
  * @mem_descriptor: hfi header memory descriptor
  * @queues: queues descriptor
  * @queues_num: number of client queues
+ * @fence_error_cb: function called for waiting clients that need HLOS notification of fence error
+ * @fence_error_cb_userdata: opaque pointer registered with fence error callback and passed to
+ *                           client during invocation of callback function
+ * @error_cb_lock: lock to synchronize access to fence error cb and fence error cb data
  * @ipc_signal_id: id of the signal to be triggered for this client
  * @ipc_client_vid: virtual id of the ipc client for this hw fence driver client
  * @ipc_client_pid: physical id of the ipc client for this hw fence driver client
@@ -158,6 +165,9 @@ struct msm_hw_fence_client {
 	struct msm_hw_fence_mem_addr mem_descriptor;
 	struct msm_hw_fence_queue queues[HW_FENCE_CLIENT_QUEUES];
 	int queues_num;
+	msm_hw_fence_error_cb_t fence_error_cb;
+	void *fence_error_cb_userdata;
+	struct mutex error_cb_lock;
 	int ipc_signal_id;
 	int ipc_client_vid;
 	int ipc_client_pid;
@@ -505,9 +515,13 @@ int hw_fence_process_fence(struct hw_fence_driver_data *drv_data,
 int hw_fence_update_queue(struct hw_fence_driver_data *drv_data,
 	struct msm_hw_fence_client *hw_fence_client, u64 ctxt_id, u64 seqno, u64 hash,
 	u64 flags, u64 client_data, u32 error, int queue_type);
+int hw_fence_update_existing_txq_payload(struct hw_fence_driver_data *drv_data,
+	struct msm_hw_fence_client *hw_fence_client, u64 hash, u32 error);
 inline u64 hw_fence_get_qtime(struct hw_fence_driver_data *drv_data);
 int hw_fence_read_queue(struct msm_hw_fence_client *hw_fence_client,
 	struct msm_hw_fence_queue_payload *payload, int queue_type);
+int hw_fence_read_queue_helper(struct msm_hw_fence_queue *queue,
+	struct msm_hw_fence_queue_payload *payload);
 int hw_fence_register_wait_client(struct hw_fence_driver_data *drv_data,
 	struct dma_fence *fence, struct msm_hw_fence_client *hw_fence_client, u64 context,
 	u64 seqno, u64 *hash, u64 client_data);
