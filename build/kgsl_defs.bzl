@@ -81,7 +81,7 @@ def external_deps(target, variant):
     # Targets that use hw-fences
     if target in [ "pineapple" ]:
         deplist = deplist + [
-            "//vendor/qcom/opensource/mm-drivers:{}_{}_mm_drivers".format(target, variant)
+            "//vendor/qcom/opensource/mm-drivers/hw_fence:{}_{}_msm_hw_fence".format(target, variant)
             ]
 
     return deplist
