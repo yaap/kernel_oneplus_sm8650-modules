@@ -741,7 +741,7 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	inst->initial_time_us = ktime_get_ns() / 1000;
 	kref_init(&inst->kref);
 	mutex_init(&inst->lock);
-	mutex_init(&inst->request_lock);
+	mutex_init(&inst->ctx_q_lock);
 	mutex_init(&inst->client_lock);
 	msm_vidc_update_debug_str(inst);
 	i_vpr_h(inst, "Opening video instance: %d\n", session_type);
@@ -860,7 +860,7 @@ fail_pools_init:
 	msm_vidc_remove_dangling_session(inst);
 fail_add_session:
 	mutex_destroy(&inst->client_lock);
-	mutex_destroy(&inst->request_lock);
+	mutex_destroy(&inst->ctx_q_lock);
 	mutex_destroy(&inst->lock);
 	msm_vidc_vmem_free((void **)&inst);
 	return NULL;
