@@ -73,6 +73,8 @@ ddk_headers(
     includes = [".", "smmu-proxy"],
 )
 
-load("pineapple.bzl", "define_pineapple")
+load(":build/pineapple.bzl", "define_pineapple")
+load(":build/blair.bzl", "define_blair")
 
 define_pineapple()
+define_blair()
