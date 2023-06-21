@@ -574,6 +574,7 @@ static const char rmnet_port_gstrings_stats[][ETH_GSTRING_LEN] = {
 	"DL chaining frags [8-11]",
 	"DL chaining frags [12-15]",
 	"DL chaining frags = 16",
+	"PB Byte Marker Count",
 };
 
 static const char rmnet_ll_gstrings_stats[][ETH_GSTRING_LEN] = {

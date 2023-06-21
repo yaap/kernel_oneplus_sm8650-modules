@@ -1,5 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,6 +40,7 @@ enum rmnet_map_commands {
 	RMNET_MAP_COMMAND_FLOW_ENABLE,
 	RMNET_MAP_COMMAND_FLOW_START = 7,
 	RMNET_MAP_COMMAND_FLOW_END = 8,
+	RMNET_MAP_COMMAND_PB_BYTES = 29,
 	/* These should always be the last 2 elements */
 	RMNET_MAP_COMMAND_UNKNOWN,
 	RMNET_MAP_COMMAND_ENUM_LENGTH
@@ -165,6 +166,29 @@ struct rmnet_map_flow_info_be {
 	u32 pkts;
 } __aligned(1);
 
+struct rmnet_map_pb_ind_hdr {
+	union {
+		struct {
+			u32 seq_num;
+			u32 start_end_seq_num;
+			u32 row_bytes_pending;
+			u32 fc_bytes_pending;
+		} le __aligned(1);
+		struct {
+			u32 seq_num;
+			u32 start_end_seq_num;
+			u32 row_bytes_pending;
+			u32 fc_bytes_pending;
+		} be __aligned(1);
+	} __aligned(1);
+} __aligned(1);
+
+struct rmnet_map_pb_ind {
+	u8 priority;
+	void (*pb_ind_handler)(struct rmnet_map_pb_ind_hdr *pbhdr);
+	struct list_head list;
+};
+
 struct rmnet_map_dl_ind_hdr {
 	union {
 		struct {
@@ -285,6 +309,8 @@ void rmnet_map_dl_hdr_notify_v2(struct rmnet_port *port,
 void rmnet_map_dl_trl_notify_v2(struct rmnet_port *port,
 				struct rmnet_map_dl_ind_trl *dltrl,
 				struct rmnet_map_control_command_header *qcmd);
+void rmnet_map_pb_ind_notify(struct rmnet_port *port,
+			     struct rmnet_map_pb_ind_hdr *pbhdr);
 int rmnet_map_flow_command(struct sk_buff *skb,
 			   struct rmnet_port *port,
 			   bool rmnet_perf);
@@ -293,6 +319,10 @@ int rmnet_map_dl_ind_register(struct rmnet_port *port,
 			      struct rmnet_map_dl_ind *dl_ind);
 int rmnet_map_dl_ind_deregister(struct rmnet_port *port,
 				struct rmnet_map_dl_ind *dl_ind);
+int rmnet_map_pb_ind_register(struct rmnet_port *port,
+			      struct rmnet_map_pb_ind *pb_ind);
+int rmnet_map_pb_ind_deregister(struct rmnet_port *port,
+				struct rmnet_map_pb_ind *pb_ind);
 void rmnet_map_cmd_exit(struct rmnet_port *port);
 void rmnet_map_tx_qmap_cmd(struct sk_buff *qmap_skb, u8 ch, bool flush);
 void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state);
