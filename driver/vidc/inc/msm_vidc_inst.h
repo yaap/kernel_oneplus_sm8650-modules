@@ -67,7 +67,7 @@ struct buf_queue {
 struct msm_vidc_inst {
 	struct list_head                   list;
 	struct mutex                       lock;
-	struct mutex                       request_lock;
+	struct mutex                       ctx_q_lock;
 	struct mutex                       client_lock;
 	enum msm_vidc_state                state;
 	int                              (*event_handle)(struct msm_vidc_inst *inst,

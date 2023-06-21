@@ -3092,7 +3092,7 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	core = inst->core;
 
 	src_vq->supports_requests = core->capabilities[SUPPORTS_REQUESTS].value;
-	src_vq->lock = &inst->request_lock;
+	src_vq->lock = &inst->ctx_q_lock;
 	src_vq->dev = &core->pdev->dev;
 	rc = vb2q_init(inst, src_vq, INPUT_MPLANE);
 	if (rc)
@@ -4581,7 +4581,7 @@ static void msm_vidc_close_helper(struct kref *kref)
 	msm_vidc_remove_session(inst);
 	msm_vidc_remove_dangling_session(inst);
 	mutex_destroy(&inst->client_lock);
-	mutex_destroy(&inst->request_lock);
+	mutex_destroy(&inst->ctx_q_lock);
 	mutex_destroy(&inst->lock);
 	msm_vidc_vmem_free((void **)&inst);
 }
