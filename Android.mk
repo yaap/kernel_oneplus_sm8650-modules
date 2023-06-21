@@ -25,5 +25,6 @@ endif
 
 ########## Build kernel module based on local DLKM flag status ##########
 ifeq ($(NFC_DLKM_ENABLED), true)
+  LOCAL_MODULE_DDK_BUILD := true
   include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif
