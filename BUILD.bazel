@@ -1,0 +1,40 @@
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
+
+package(
+    default_visibility = [
+        "//visibility:public"],
+)
+
+ddk_headers(
+    name = "goodix_ts_headers",
+    hdrs = glob([
+            "goodix_berlin_driver/*.h",
+            "qts/*.h"
+        ]
+    )
+)
+
+ddk_headers(
+    name = "nt36xxx_headers",
+    hdrs = glob([
+            "nt36xxx/*.h"
+        ]
+    )
+)
+
+ddk_headers(
+    name = "config_headers",
+    hdrs = glob([
+            "config/*.h"
+        ]
+    ),
+    includes = ["config"]
+)
+
+ddk_headers(
+    name = "touch_drivers_headers",
+    hdrs = [":goodix_ts_headers", ":nt36xxx_headers", ":config_headers"]
+)
+
+load(":target.bzl", "define_pineapple")
+define_pineapple()
