@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
+#define pr_fmt(fmt) "%s: hw: %s(): " fmt, KBUILD_MODNAME, __func__
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -13,18 +15,14 @@
 
 #include "ubwcp_hw.h"
 
-extern u32 ubwcp_debug_trace_enable;
+static bool ubwcp_hw_trace_en;
 //#define DBG(fmt, args...)
 #define DBG(fmt, args...) \
 	do { \
-		if (ubwcp_debug_trace_enable) \
-			pr_err("ubwcp: hw: %s(): " fmt "\n", __func__, ##args); \
+		if (unlikely(ubwcp_hw_trace_en)) \
+			pr_err(fmt "\n", ##args); \
 	} while (0)
-#define ERR(fmt, args...) \
-	do { \
-		if (ubwcp_debug_trace_enable) \
-			pr_err("ubwcp: hw: %s(): ~~~ERROR~~~: " fmt "\n", __func__, ##args); \
-	} while (0)
+#define ERR(fmt, args...) pr_err_ratelimited(": %d: ~~~ERROR~~~: " fmt "\n", __LINE__, ##args)
 
 MODULE_LICENSE("GPL");
 
@@ -65,26 +63,10 @@ MODULE_LICENSE("GPL");
 #define SPARE				0x1188
 
 
-/* read/write register */
-#if defined(UBWCP_USE_SMC)
-#define UBWCP_REG_READ(_base, _offset) \
-			({u32 _reg = 0; int _ret; \
-			_ret = qcom_scm_io_readl((phys_addr_t)(_base + _offset), &_reg); \
-			if (_ret) \
-				DBG("scm_read() failed: %d", _ret); \
-			else \
-				DBG("scm_read() : %p + 0x%x -> 0x%08x", _base, _offset, _reg); \
-			_reg; })
+#define UBWCP_DEBUG_REG_RW
 
-#define UBWCP_REG_WRITE(_base, _offset, _value) \
-			{int _ret;\
-			_ret = qcom_scm_io_writel((phys_addr_t)(_base + _offset), _value); \
-			if (_ret) \
-				DBG("scm_write() failed: %d", _ret); \
-			else \
-				DBG("scm_write(): %p + 0x%x <- 0x%08x", _base, _offset, _value); \
-			}
-#elif defined(UBWCP_DEBUG_REG_RW)
+/* read/write register */
+#if defined(UBWCP_DEBUG_REG_RW)
 #define UBWCP_REG_READ(_base, _offset) \
 			({u32 _reg; \
 			_reg = ioread32(_base + _offset); \
@@ -96,16 +78,9 @@ MODULE_LICENSE("GPL");
 			DBG("WRITE: 0x%x <- 0x%08x", _offset, _value); \
 			iowrite32(_value, _base + _offset); \
 			}
-#elif defined(UBWCP_DUMMY_REG_RW)
-/* do nothing */
-#define UBWCP_REG_READ(_base, _offset)           ((_base + _offset) ? 0x0 : 0x0)
-#define UBWCP_REG_WRITE(_base, _offset, _value)  ((_base + _offset + _value) ? 0x0 : 0x0)
-
 #else
-
 #define UBWCP_REG_READ(_base, _offset)           ioread32(_base + _offset)
 #define UBWCP_REG_WRITE(_base, _offset, _value)  iowrite32(_value, _base + _offset)
-
 #endif
 
 #define UBWCP_REG_READ_NO_DBG(_base, _offset)           ioread32(_base + _offset)
@@ -166,20 +141,20 @@ u64 ubwcp_hw_interrupt_src_address(void __iomem *base, u16 interrupt)
 
 	switch (interrupt) {
 	case INTERRUPT_READ_ERROR:
-		addr_low  = UBWCP_REG_READ(base, INTERRUPT_READ_SRC_LOW);
-		addr_high = UBWCP_REG_READ(base, INTERRUPT_READ_SRC_HIGH) & 0xF;
+		addr_low  = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_READ_SRC_LOW);
+		addr_high = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_READ_SRC_HIGH) & 0xF;
 		break;
 	case INTERRUPT_WRITE_ERROR:
-		addr_low  = UBWCP_REG_READ(base, INTERRUPT_WRITE_SRC_LOW);
-		addr_high = UBWCP_REG_READ(base, INTERRUPT_WRITE_SRC_HIGH) & 0xF;
+		addr_low  = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_WRITE_SRC_LOW);
+		addr_high = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_WRITE_SRC_HIGH) & 0xF;
 		break;
 	case INTERRUPT_DECODE_ERROR:
-		addr_low  = UBWCP_REG_READ(base, INTERRUPT_DECODE_SRC_LOW);
-		addr_high = UBWCP_REG_READ(base, INTERRUPT_DECODE_SRC_HIGH) & 0xF;
+		addr_low  = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_DECODE_SRC_LOW);
+		addr_high = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_DECODE_SRC_HIGH) & 0xF;
 		break;
 	case INTERRUPT_ENCODE_ERROR:
-		addr_low  = UBWCP_REG_READ(base, INTERRUPT_ENCODE_SRC_LOW);
-		addr_high = UBWCP_REG_READ(base, INTERRUPT_ENCODE_SRC_HIGH) & 0xF;
+		addr_low  = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_ENCODE_SRC_LOW);
+		addr_high = UBWCP_REG_READ_NO_DBG(base, INTERRUPT_ENCODE_SRC_HIGH) & 0xF;
 		break;
 	default:
 		/* TBD: fatal error? */
@@ -356,15 +331,11 @@ void ubwcp_hw_power_vote_status(void __iomem *pwr_ctrl, u8 *vote, u8 *status)
 	reg = UBWCP_REG_READ(pwr_ctrl, 0);
 	*vote =   (reg & BIT(0)) >> 0;
 	*status = (reg & BIT(31)) >> 31;
-	DBG("pwr_ctrl reg: 0x%x (vote = %d status = %d)", reg, *vote, *status);
 }
 
 void ubwcp_hw_one_time_init(void __iomem *base)
 {
 	u32 reg;
-
-	/* hack: set dataless hazard override bit */
-	UBWCP_REG_WRITE(base, OVERRIDE, 0x2000);
 
 	/* Spare reg config: set bit-9: SCC & bit-1: padding */
 	reg = UBWCP_REG_READ(base, SPARE);
@@ -383,3 +354,15 @@ void ubwcp_hw_one_time_init(void __iomem *base)
 	ubwcp_hw_macro_tile_config(base);
 }
 EXPORT_SYMBOL(ubwcp_hw_one_time_init);
+
+void ubwcp_hw_trace_set(bool value)
+{
+	ubwcp_hw_trace_en = value;
+}
+EXPORT_SYMBOL(ubwcp_hw_trace_set);
+
+void ubwcp_hw_trace_get(bool *value)
+{
+	*value = ubwcp_hw_trace_en;
+}
+EXPORT_SYMBOL(ubwcp_hw_trace_get);
