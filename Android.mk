@@ -21,12 +21,15 @@ KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
 DLKM_DIR   := $(TOP)/device/qcom/common/dlkm
 
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
+LOCAL_MODULE_KO_DIRS := msm/synx/synx-driver.ko msm/synx/ipclite.ko
 
 include $(CLEAR_VARS)
 # For incremental compilation
 LOCAL_SRC_FILES           := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 LOCAL_MODULE              := synx-driver-symvers
 LOCAL_MODULE_KBUILD_NAME  := Module.symvers
+#LOCAL_MODULE_STEM         := Module.symvers
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
@@ -37,7 +40,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 $(info LOCAL_SRC_FILES = $(LOCAL_SRC_FILES))
 LOCAL_MODULE      := synx-driver.ko
-LOCAL_MODULE_KBUILD_NAME := msm/synx-driver.ko
+LOCAL_MODULE_KBUILD_NAME := msm/synx/synx-driver.ko
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
@@ -57,7 +60,6 @@ $(info LOCAL_ADDITIONAL_DEPENDENCY = $(LOCAL_ADDITIONAL_DEPENDENCY))
 $(info LOCAL_ADDITIONAL_DEPENDENCIES = $(LOCAL_ADDITIONAL_DEPENDENCIES))
 $(info LOCAL_REQUIRED_MODULES = $(LOCAL_REQUIRED_MODULES))
 $(info DLKM_DIR = $(DLKM_DIR))
-
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
 

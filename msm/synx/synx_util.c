@@ -12,6 +12,7 @@
 #include "synx_util.h"
 
 extern void synx_external_callback(s32 sync_obj, int status, void *data);
+static u32 __fence_state(struct dma_fence *fence, bool locked);
 
 int synx_util_init_coredata(struct synx_coredata *synx_obj,
 	struct synx_create_params *params,
@@ -247,6 +248,38 @@ void synx_util_put_object(struct synx_coredata *synx_obj)
 	kref_put(&synx_obj->refcount, synx_util_destroy_coredata);
 }
 
+int synx_util_cleanup_merged_fence(struct synx_coredata *synx_obj, int status)
+{
+	struct dma_fence_array *array = NULL;
+	u32 i;
+	int rc = 0;
+
+	if (IS_ERR_OR_NULL(synx_obj) || IS_ERR_OR_NULL(synx_obj->fence))
+		return -SYNX_INVALID;
+
+	if (dma_fence_is_array(synx_obj->fence)) {
+		array = to_dma_fence_array(synx_obj->fence);
+		if (IS_ERR_OR_NULL(array))
+			return -SYNX_INVALID;
+
+		for (i = 0; i < array->num_fences; i++) {
+			if (kref_read(&array->fences[i]->refcount) == 1 &&
+				__fence_state(array->fences[i], false) == SYNX_STATE_ACTIVE) {
+				dma_fence_set_error(array->fences[i],
+					-SYNX_STATE_SIGNALED_CANCEL);
+
+				rc = dma_fence_signal(array->fences[i]);
+				if (rc)
+					dprintk(SYNX_ERR,
+						"signaling child fence %pK failed=%d\n",
+						array->fences[i], rc);
+			}
+			dma_fence_put(array->fences[i]);
+		}
+	}
+	return rc;
+}
+
 void synx_util_object_destroy(struct synx_coredata *synx_obj)
 {
 	int rc;
@@ -263,10 +296,13 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 	list_for_each_entry_safe(synx_cb,
 		synx_cb_temp, &synx_obj->reg_cbs_list, node) {
 		dprintk(SYNX_ERR,
-			"cleaning up callback of session %pK\n",
+			"dipatching un-released callbacks of session %pK\n",
 			synx_cb->session);
+		synx_cb->status = SYNX_STATE_SIGNALED_CANCEL;
 		list_del_init(&synx_cb->node);
-		kfree(synx_cb);
+		queue_work(synx_dev->wq_cb,
+			&synx_cb->cb_dispatch);
+		dprintk(SYNX_VERB, "dispatched callback for fence %pKn", synx_obj->fence);
 	}
 
 	for (i = 0; i < synx_obj->num_bound_synxs; i++) {
@@ -311,7 +347,10 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 	 */
 	if (!IS_ERR_OR_NULL(synx_obj->fence)) {
 		spin_lock_irqsave(synx_obj->fence->lock, flags);
-		if (kref_read(&synx_obj->fence->refcount) == 1 &&
+		if (synx_util_is_merged_object(synx_obj) &&
+			synx_util_get_object_status_locked(synx_obj) == SYNX_STATE_ACTIVE)
+			rc = synx_util_cleanup_merged_fence(synx_obj, -SYNX_STATE_SIGNALED_CANCEL);
+		else if (kref_read(&synx_obj->fence->refcount) == 1 &&
 				(synx_util_get_object_status_locked(synx_obj) ==
 				SYNX_STATE_ACTIVE)) {
 			// set fence error to cancel
@@ -319,12 +358,12 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 				-SYNX_STATE_SIGNALED_CANCEL);
 
 			rc = dma_fence_signal_locked(synx_obj->fence);
-			if (rc)
-				dprintk(SYNX_ERR,
-					"signaling fence %pK failed=%d\n",
-					synx_obj->fence, rc);
 		}
 		spin_unlock_irqrestore(synx_obj->fence->lock, flags);
+		if (rc)
+			dprintk(SYNX_ERR,
+				"signaling fence %pK failed=%d\n",
+				synx_obj->fence, rc);
 	}
 
 	dma_fence_put(synx_obj->fence);
@@ -873,6 +912,7 @@ static void synx_util_cleanup_fence(
 	unsigned long flags;
 	u32 g_status;
 	u32 f_status;
+	u32 h_synx = 0;
 
 	mutex_lock(&synx_obj->obj_lock);
 	synx_obj->map_count--;
@@ -903,6 +943,8 @@ static void synx_util_cleanup_fence(
 			if (synx_util_get_object_status_locked(synx_obj) ==
 				SYNX_STATE_ACTIVE) {
 				signal_cb->synx_obj = NULL;
+				synx_global_fetch_handle_details(synx_obj->global_idx, &h_synx);
+				signal_cb->handle = h_synx;
 				synx_obj->signal_cb =  NULL;
 				/*
 				 * release reference held by signal cb and
@@ -1363,6 +1405,8 @@ static void synx_client_cleanup(struct work_struct *dispatch)
 	struct synx_handle_coredata *curr;
 	struct hlist_node *tmp;
 
+	dprintk(SYNX_INFO, "[sess :%llu] session removed %s\n",
+		client->id, client->name);
 	/*
 	 * go over all the remaining synx obj handles
 	 * un-released from this session and remove them.
@@ -1390,8 +1434,6 @@ static void synx_client_destroy(struct kref *kref)
 		container_of(kref, struct synx_client, refcount);
 
 	hash_del(&client->node);
-	dprintk(SYNX_INFO, "[sess :%llu] session removed %s\n",
-		client->id, client->name);
 
 	INIT_WORK(&client->dispatch, synx_client_cleanup);
 	queue_work(synx_dev->wq_cleanup, &client->dispatch);

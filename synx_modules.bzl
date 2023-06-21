@@ -6,7 +6,7 @@ synx_modules = create_module_registry([":synx_headers"])
 register_synx_module = synx_modules.register
 
 register_synx_module(
-    name = "synx",
+    name = "synx-driver",
     path = "msm",
     srcs = [
         "synx/synx.c",
