@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __H_CVP_CORE_HFI_H__
@@ -94,7 +95,7 @@ struct cvp_hfi_mem_map {
 		(i * sizeof(struct cvp_hfi_queue_header)))
 
 #define QDSS_SIZE 4096
-#define SFR_SIZE 4096
+#define SFR_SIZE 1048576
 
 #define QUEUE_SIZE (CVP_IFACEQ_TABLE_SIZE + \
 	(CVP_IFACEQ_QUEUE_SIZE * CVP_IFACEQ_NUMQ))
@@ -241,7 +242,6 @@ struct iris_hfi_device {
 	struct list_head sess_head;
 	u32 version;
 	u32 intr_status;
-	u32 device_id;
 	u32 clk_freq;
 	u32 last_packet_type;
 	u32 error;
@@ -280,10 +280,11 @@ struct iris_hfi_device {
 };
 
 irqreturn_t cvp_hfi_isr(int irq, void *dev);
+irqreturn_t iris_hfi_core_work_handler(int irq, void *data);
 irqreturn_t iris_hfi_isr_wd(int irq, void *dev);
 void cvp_iris_hfi_delete_device(void *device);
 
-int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev, u32 device_id,
+int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev,
 		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback);
 

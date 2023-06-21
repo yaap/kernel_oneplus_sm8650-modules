@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -36,13 +37,11 @@ struct msm_cvp_drv *cvp_driver;
 
 static int cvp_open(struct inode *inode, struct file *filp)
 {
-	struct msm_cvp_core *core = container_of(inode->i_cdev,
-		struct msm_cvp_core, cdev);
 	struct msm_cvp_inst *inst;
 
-	dprintk(CVP_SESS, "%s: core->id: %d\n", __func__, core->id);
+	dprintk(CVP_SESS, "%s\n", __func__);
 
-	inst = msm_cvp_open(core->id, MSM_CVP_USER, current);
+	inst = msm_cvp_open(MSM_CVP_USER, current);
 	if (!inst) {
 		dprintk(CVP_ERR, "Failed to create cvp instance\n");
 		return -ENOMEM;
@@ -113,16 +112,6 @@ static int read_platform_resources(struct msm_cvp_core *core,
 	return rc;
 }
 
-static void init_cycle_info(struct cvp_cycle_info *info)
-{
-	memset(info->sum_fps, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->hi_ctrl_lim, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->lo_ctrl_lim, 0, HFI_MAX_HW_THREADS*sizeof(u32));
-	memset(info->cycle, 0,
-		HFI_MAX_HW_THREADS*sizeof(struct cvp_cycle_stat));
-	info->conf_freq = 0;
-}
-
 static int msm_cvp_initialize_core(struct platform_device *pdev,
 				struct msm_cvp_core *core)
 {
@@ -148,7 +137,6 @@ static int msm_cvp_initialize_core(struct platform_device *pdev,
 	}
 
 	INIT_WORK(&core->ssr_work, msm_cvp_ssr_handler);
-	init_cycle_info(&core->dyn_clk);
 	core->ssr_count = 0;
 
 	return rc;
@@ -185,7 +173,7 @@ static ssize_t pwr_collapse_delay_store(struct device *dev,
 	else if (!val)
 		return -EINVAL;
 
-	core = get_cvp_core(MSM_CORE_CVP);
+	core = cvp_driver->cvp_core;
 	if (!core)
 		return -EINVAL;
 	core->resources.msm_cvp_pwr_collapse_delay = val;
@@ -198,7 +186,7 @@ static ssize_t pwr_collapse_delay_show(struct device *dev,
 {
 	struct msm_cvp_core *core = NULL;
 
-	core = get_cvp_core(MSM_CORE_CVP);
+	core = cvp_driver->cvp_core;
 	if (!core)
 		return -EINVAL;
 
@@ -266,7 +254,7 @@ static ssize_t boot_store(struct device *dev,
 	if (val == 1 && booted == 0) {
 		struct msm_cvp_inst *inst;
 
-		inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_BOOT, current);
+		inst = msm_cvp_open(MSM_CVP_BOOT, current);
 		if (!inst) {
 			dprintk(CVP_ERR,
 			"Failed to create cvp instance\n");
@@ -281,7 +269,7 @@ static ssize_t boot_store(struct device *dev,
 	} else if (val == 2) {
 		struct msm_cvp_inst *inst;
 
-		inst = msm_cvp_open(MSM_CORE_CVP, MSM_CVP_USER, current);
+		inst = msm_cvp_open(MSM_CVP_USER, current);
 		if (!inst) {
 			dprintk(CVP_ERR,
 			"Failed to create eva instance\n");
@@ -347,8 +335,6 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 		goto err_core_init;
 	}
 
-	core->id = MSM_CORE_CVP;
-
 	rc = alloc_chrdev_region(&core->dev_num, 0, 1, DRIVER_NAME);
 	if (rc < 0) {
 		dprintk(CVP_ERR, "alloc_chrdev_region failed: %d\n",
@@ -383,17 +369,6 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 		goto error_cdev_add;
 	}
 
-	/* finish setting up the 'core' */
-	mutex_lock(&cvp_driver->lock);
-	if (cvp_driver->num_cores + 1 > MSM_CVP_CORES_MAX) {
-		mutex_unlock(&cvp_driver->lock);
-		dprintk(CVP_ERR, "Maximum cores already exist, core_no = %d\n",
-				cvp_driver->num_cores);
-		goto err_cores_exceeded;
-	}
-	cvp_driver->num_cores++;
-	mutex_unlock(&cvp_driver->lock);
-
 	rc = sysfs_create_group(&core->dev->kobj, &msm_cvp_core_attr_group);
 	if (rc) {
 		dprintk(CVP_ERR,
@@ -404,11 +379,10 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 	/* VM manager shall be started before HFI init */
 	vm_manager.vm_ops->vm_start(core);
 
-	core->device = cvp_hfi_initialize(core->hfi_type, core->id,
+	core->device = cvp_hfi_initialize(core->hfi_type,
 				&core->resources, &cvp_handle_cmd_response);
 	if (IS_ERR_OR_NULL(core->device)) {
 		mutex_lock(&cvp_driver->lock);
-		cvp_driver->num_cores--;
 		mutex_unlock(&cvp_driver->lock);
 
 		rc = PTR_ERR(core->device) ?: -EBADHANDLE;
@@ -422,7 +396,7 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 	cvp_synx_ftbl_init(core);
 
 	mutex_lock(&cvp_driver->lock);
-	list_add_tail(&core->list, &cvp_driver->cores);
+	cvp_driver->cvp_core = core;
 	mutex_unlock(&cvp_driver->lock);
 
 	cvp_driver->debugfs_root = msm_cvp_debugfs_init_drv();
@@ -567,7 +541,7 @@ static int msm_cvp_pm_suspend(struct device *dev)
 		return -EINVAL;
 	}
 
-	rc = msm_cvp_suspend(core->id);
+	rc = msm_cvp_suspend();
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
@@ -610,7 +584,6 @@ static int __init msm_cvp_init(void)
 		return -ENOMEM;
 	}
 
-	INIT_LIST_HEAD(&cvp_driver->cores);
 	mutex_init(&cvp_driver->lock);
 
 	rc = platform_driver_register(&msm_cvp_driver);

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CVP_HFI_API_H__
@@ -298,7 +299,7 @@ enum cvp_status hfi_process_session_init_done_prop_read(
 	struct cvp_hal_session_init_done *session_init_done);
 
 struct cvp_hfi_device *cvp_hfi_initialize(enum msm_cvp_hfi_type hfi_type,
-		u32 device_id, struct msm_cvp_platform_resources *res,
+		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback);
 void cvp_hfi_deinitialize(enum msm_cvp_hfi_type hfi_type,
 			struct cvp_hfi_device *hdev);

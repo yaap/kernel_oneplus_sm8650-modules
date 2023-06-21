@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/bitops.h>
@@ -93,8 +94,9 @@ static int hfi_process_session_error(u32 device_id,
 	cmd_done.device_id = device_id;
 	cmd_done.session_id = (void *)(uintptr_t)pkt->session_id;
 	cmd_done.status = hfi_map_err_status(pkt->event_data1);
+	cmd_done.size = pkt->event_data2;
 	info->response.cmd = cmd_done;
-	dprintk(CVP_INFO, "Received: SESSION_ERROR with event id : %#x %#x\n",
+	dprintk(CVP_WARN, "Received: SESSION_ERROR with event data 1 2: %#x %#x\n",
 		pkt->event_data1, pkt->event_data2);
 	switch (pkt->event_data1) {
 	/* Ignore below errors */
@@ -108,7 +110,7 @@ static int hfi_process_session_error(u32 device_id,
 			"%s: session %x id %#x, data1 %#x, data2 %#x\n",
 			__func__, pkt->session_id, pkt->event_id,
 			pkt->event_data1, pkt->event_data2);
-		info->response_type = HAL_RESPONSE_UNUSED;
+		info->response_type = HAL_SESSION_ERROR;
 		break;
 	}
 
@@ -135,8 +137,6 @@ static int hfi_process_event_notify(u32 device_id,
 		return hfi_process_sys_error(device_id, pkt, info);
 
 	case HFI_EVENT_SESSION_ERROR:
-		dprintk(CVP_INFO, "HFI_EVENT_SESSION_ERROR[%#x]\n",
-				pkt->session_id);
 		return hfi_process_session_error(device_id, pkt, info);
 
 	default:
@@ -523,7 +523,7 @@ static int hfi_process_session_dump_notify(u32 device_id,
 		return -E2BIG;
 	}
 	session_id = get_msg_session_id(pkt);
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst_from_id(core, session_id);
 	if (!inst) {
 		dprintk(CVP_ERR, "%s: invalid session\n", __func__);
@@ -568,7 +568,7 @@ static int hfi_process_session_cvp_msg(u32 device_id,
 		return -E2BIG;
 	}
 	session_id = get_msg_session_id(pkt);
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst_from_id(core, session_id);
 
 	if (!inst) {

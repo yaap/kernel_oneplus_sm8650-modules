@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/dma-buf.h>
@@ -578,7 +579,7 @@ int msm_cvp_map_ipcc_regs(u32 *iova)
 	phys_addr_t paddr;
 	u32 size;
 
-	core = list_first_entry(&cvp_driver->cores, struct msm_cvp_core, list);
+	core = cvp_driver->cvp_core;
 	if (core) {
 		hfi_ops = core->device;
 		if (hfi_ops)
@@ -604,5 +605,38 @@ int msm_cvp_map_ipcc_regs(u32 *iova)
 		dprintk(CVP_WARN, "%s: fail to map IPCC regs\n", __func__);
 		return -EFAULT;
 	}
+	return 0;
+}
+
+int msm_cvp_unmap_ipcc_regs(u32 iova)
+{
+	struct context_bank_info *cb;
+	struct msm_cvp_core *core;
+	struct cvp_hfi_device *hfi_ops;
+	struct iris_hfi_device *dev = NULL;
+	u32 size;
+
+	core = cvp_driver->cvp_core;
+	if (core) {
+		hfi_ops = core->device;
+		if (hfi_ops)
+			dev = hfi_ops->hfi_device_data;
+	}
+
+	if (!dev)
+		return -EINVAL;
+
+	size = dev->res->ipcc_reg_size;
+
+	if (!iova || !size)
+		return -EINVAL;
+
+	cb = msm_cvp_smem_get_context_bank(dev->res, 0);
+	if (!cb) {
+		dprintk(CVP_ERR, "%s: fail to get context bank\n", __func__);
+		return -EINVAL;
+	}
+	dma_unmap_resource(cb->dev, iova, size, DMA_BIDIRECTIONAL, 0);
+
 	return 0;
 }

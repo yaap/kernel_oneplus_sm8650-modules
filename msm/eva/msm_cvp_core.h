@@ -20,11 +20,6 @@
 #define DDR_TYPE_LPDDR4Y 0x8
 #define DDR_TYPE_LPDDR5 0x9
 
-enum core_id {
-	MSM_CORE_CVP = 0,
-	MSM_CVP_CORES_MAX,
-};
-
 enum session_type {
 	MSM_CVP_USER = 1,
 	MSM_CVP_KERNEL,
@@ -34,9 +29,9 @@ enum session_type {
 	MSM_CVP_MAX_DEVICES = MSM_CVP_UNKNOWN,
 };
 
-void *msm_cvp_open(int core_id, int session_type, struct task_struct *task);
+struct msm_cvp_inst *msm_cvp_open(int session_type, struct task_struct *task);
 int msm_cvp_close(void *instance);
-int msm_cvp_suspend(int core_id);
+int msm_cvp_suspend(void);
 int msm_cvp_poll(void *instance, struct file *filp,
 		struct poll_table_struct *pt);
 int msm_cvp_private(void *cvp_inst, unsigned int cmd,

@@ -28,6 +28,7 @@ enum fastrpc_driver_status {
 enum fastrpc_driver_invoke_nums {
 	FASTRPC_DEV_MAP_DMA = 1,
 	FASTRPC_DEV_UNMAP_DMA,
+	FASTRPC_DEV_GET_HLOS_PID,
 };
 
 struct fastrpc_driver {
@@ -210,7 +211,7 @@ enum DRIVER_NAME_STATUS {
 
 struct cvp_dsp_fastrpc_driver_entry {
 	struct list_head list;
-	uint32_t handle;
+	uint32_t handle;	/*handle is not PID*/
 	uint32_t session_cnt;
 	uint32_t driver_name_idx;
 	atomic_t refcount;
@@ -298,9 +299,9 @@ int cvp_dsp_deregister_buffer(uint32_t session_id, uint32_t buff_fd,
 			uint32_t buff_offset, uint32_t buff_index,
 			uint32_t buff_fd_iova);
 
-int cvp_dsp_fastrpc_unmap(uint32_t process_id, struct cvp_internal_buf *buf);
+int cvp_dsp_fastrpc_unmap(uint32_t handle, struct cvp_internal_buf *buf);
 
-int cvp_dsp_del_sess(uint32_t process_id, struct msm_cvp_inst *inst);
+int cvp_dsp_del_sess(uint32_t handle, struct msm_cvp_inst *inst);
 
 void cvp_dsp_send_debug_mask(void);
 
