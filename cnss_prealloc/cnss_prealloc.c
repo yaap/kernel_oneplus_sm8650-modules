@@ -85,6 +85,14 @@ static struct cnss_pool cnss_pools_adrastea[] = {
 	{128 * 1024, 2, "cnss-pool-128k", NULL, NULL},
 };
 
+static struct cnss_pool cnss_pools_wcn6750[] = {
+	{8 * 1024, 2, "cnss-pool-8k", NULL, NULL},
+	{16 * 1024, 8, "cnss-pool-16k", NULL, NULL},
+	{32 * 1024, 11, "cnss-pool-32k", NULL, NULL},
+	{64 * 1024, 15, "cnss-pool-64k", NULL, NULL},
+	{128 * 1024, 4, "cnss-pool-128k", NULL, NULL},
+};
+
 struct cnss_pool *cnss_pools;
 unsigned int cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_default);
 
@@ -161,6 +169,9 @@ static void cnss_pool_deinit(void)
 {
 	int i;
 
+	if (!cnss_pools)
+		return;
+
 	for (i = 0; i < cnss_prealloc_pool_size; i++) {
 		pr_info("cnss_prealloc: destroy mempool %s\n",
 			cnss_pools[i].name);
@@ -181,6 +192,9 @@ void cnss_assign_prealloc_pool(unsigned long device_id)
 		cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_adrastea);
 		break;
 	case WCN6750_DEVICE_ID:
+		cnss_pools = cnss_pools_wcn6750;
+		cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_wcn6750);
+		break;
 	case WCN6450_DEVICE_ID:
 	case QCA6390_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
@@ -287,6 +301,9 @@ void *wcnss_prealloc_get(size_t size)
 	gfp_t gfp_mask = __GFP_ZERO;
 	int i;
 
+	if (!cnss_pools)
+		return mem;
+
 	if (in_interrupt() || !preemptible() || rcu_preempt_depth())
 		gfp_mask |= GFP_ATOMIC;
 	else
@@ -326,7 +343,7 @@ int wcnss_prealloc_put(void *mem)
 {
 	int i;
 
-	if (!mem)
+	if (!mem || !cnss_pools)
 		return 0;
 
 	i = cnss_pool_get_index(mem);

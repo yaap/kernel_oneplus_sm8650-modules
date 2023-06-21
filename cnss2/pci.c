@@ -47,6 +47,7 @@
 #define MANGO_PATH_PREFIX		"mango/"
 #define PEACH_PATH_PREFIX		"peach/"
 #define DEFAULT_PHY_M3_FILE_NAME	"m3.bin"
+#define DEFAULT_AUX_FILE_NAME		"aux_ucode.elf"
 #define DEFAULT_PHY_UCODE_FILE_NAME	"phy_ucode.elf"
 #define PHY_UCODE_V2_FILE_NAME		"phy_ucode20.elf"
 #define DEFAULT_FW_FILE_NAME		"amss.bin"
@@ -2210,7 +2211,7 @@ cnss_get_plat_priv_by_driver_ops(struct cnss_wlan_driver *driver_ops)
 		}
 	}
 
-	cnss_pr_err("Invalid cnss driver name from ko %s\n", driver_ops->name);
+	cnss_pr_vdbg("Invalid cnss driver name from ko %s\n", driver_ops->name);
 	/* in the dual wlan card case, the pld_bus_ops_name from dts
 	 * and driver_ops-> name from ko should match, otherwise
 	 * wlanhost driver don't know which plat_env it can use;
@@ -4855,6 +4856,61 @@ void cnss_pci_free_blob_mem(struct cnss_pci_data *pci_priv)
 }
 #endif
 
+int cnss_pci_load_aux(struct cnss_pci_data *pci_priv)
+{
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+	struct cnss_fw_mem *aux_mem = &plat_priv->aux_mem;
+	char filename[MAX_FIRMWARE_NAME_LEN];
+	char *aux_filename = DEFAULT_AUX_FILE_NAME;
+	const struct firmware *fw_entry;
+	int ret = 0;
+
+	if (!aux_mem->va && !aux_mem->size) {
+		cnss_pci_add_fw_prefix_name(pci_priv, filename,
+					    aux_filename);
+
+		ret = firmware_request_nowarn(&fw_entry, filename,
+					      &pci_priv->pci_dev->dev);
+		if (ret) {
+			cnss_pr_err("Failed to load AUX image: %s\n", filename);
+			return ret;
+		}
+
+		aux_mem->va = dma_alloc_coherent(&pci_priv->pci_dev->dev,
+						fw_entry->size, &aux_mem->pa,
+						GFP_KERNEL);
+		if (!aux_mem->va) {
+			cnss_pr_err("Failed to allocate memory for AUX, size: 0x%zx\n",
+				    fw_entry->size);
+			release_firmware(fw_entry);
+			return -ENOMEM;
+		}
+
+		memcpy(aux_mem->va, fw_entry->data, fw_entry->size);
+		aux_mem->size = fw_entry->size;
+		release_firmware(fw_entry);
+	}
+
+	return 0;
+}
+
+static void cnss_pci_free_aux_mem(struct cnss_pci_data *pci_priv)
+{
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+	struct cnss_fw_mem *aux_mem = &plat_priv->aux_mem;
+
+	if (aux_mem->va && aux_mem->size) {
+		cnss_pr_dbg("Freeing memory for AUX, va: 0x%pK, pa: %pa, size: 0x%zx\n",
+			    aux_mem->va, &aux_mem->pa, aux_mem->size);
+		dma_free_coherent(&pci_priv->pci_dev->dev, aux_mem->size,
+				  aux_mem->va, aux_mem->pa);
+	}
+
+	aux_mem->va = NULL;
+	aux_mem->pa = 0;
+	aux_mem->size = 0;
+}
+
 void cnss_pci_fw_boot_timeout_hdlr(struct cnss_pci_data *pci_priv)
 {
 	struct cnss_plat_data *plat_priv;
@@ -5540,8 +5596,13 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 	if (!test_bit(CNSS_MHI_POWER_ON, &pci_priv->mhi_state) ||
 	    test_bit(CNSS_MHI_POWERING_OFF, &pci_priv->mhi_state))
 		return -EINVAL;
-
-	cnss_auto_resume(&pci_priv->pci_dev->dev);
+	/*
+	 * Call pm_runtime_get_sync insteat of auto_resume to get
+	 * reference and make sure runtime_suspend wont get called.
+	 */
+	ret = cnss_pci_pm_runtime_get_sync(pci_priv, RTPM_ID_CNSS);
+	if (ret < 0)
+		goto runtime_pm_put;
 
 	if (!pci_priv->is_smmu_fault)
 		cnss_pci_mhi_reg_dump(pci_priv);
@@ -5550,6 +5611,8 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 	ret = cnss_pci_check_link_status(pci_priv);
 	if (ret) {
 		cnss_pci_link_down(&pci_priv->pci_dev->dev);
+		cnss_pci_pm_runtime_mark_last_busy(pci_priv);
+		cnss_pci_pm_runtime_put_autosuspend(pci_priv, RTPM_ID_CNSS);
 		return 0;
 	}
 
@@ -5562,15 +5625,20 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 		if (!test_bit(CNSS_MHI_POWER_ON, &pci_priv->mhi_state) ||
 		    test_bit(CNSS_MHI_POWERING_OFF, &pci_priv->mhi_state)) {
 			cnss_pr_dbg("MHI is not powered on, ignore RDDM failure\n");
+			cnss_pci_pm_runtime_mark_last_busy(pci_priv);
+			cnss_pci_pm_runtime_put_autosuspend(pci_priv, RTPM_ID_CNSS);
 			return 0;
 		}
 		cnss_fatal_err("Failed to trigger RDDM, err = %d\n", ret);
-		if (!cnss_pci_assert_host_sol(pci_priv))
+		if (!cnss_pci_assert_host_sol(pci_priv)) {
+			cnss_pci_pm_runtime_mark_last_busy(pci_priv);
+			cnss_pci_pm_runtime_put_autosuspend(pci_priv, RTPM_ID_CNSS);
 			return 0;
+		}
 		cnss_pci_dump_debug_reg(pci_priv);
 		cnss_schedule_recovery(&pci_priv->pci_dev->dev,
 				       CNSS_REASON_DEFAULT);
-		return ret;
+		goto runtime_pm_put;
 	}
 
 	if (pci_priv->is_smmu_fault) {
@@ -5583,7 +5651,10 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 			  jiffies + msecs_to_jiffies(DEV_RDDM_TIMEOUT));
 	}
 
-	return 0;
+runtime_pm_put:
+	cnss_pci_pm_runtime_mark_last_busy(pci_priv);
+	cnss_pci_pm_runtime_put_autosuspend(pci_priv, RTPM_ID_CNSS);
+	return ret;
 }
 
 static void cnss_pci_add_dump_seg(struct cnss_pci_data *pci_priv,
@@ -6845,6 +6916,54 @@ static void cnss_pci_suspend_pwroff(struct pci_dev *pci_dev)
 	}
 }
 
+#ifdef CONFIG_CNSS2_ENUM_WITH_LOW_SPEED
+static void
+cnss_pci_downgrade_rc_speed(struct cnss_plat_data *plat_priv, u32 rc_num)
+{
+	int ret;
+
+	ret = cnss_pci_set_max_link_speed(plat_priv->bus_priv, rc_num,
+					  PCI_EXP_LNKSTA_CLS_2_5GB);
+	if (ret)
+		cnss_pr_err("Failed to set max PCIe RC%x link speed to Gen1, err = %d\n",
+			     rc_num, ret);
+}
+
+static void
+cnss_pci_restore_rc_speed(struct cnss_pci_data *pci_priv)
+{
+	int ret;
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+
+	/* if not Genoa, do not restore rc speed */
+	if (pci_priv->device_id != QCN7605_DEVICE_ID) {
+		/* The request 0 will reset maximum GEN speed to default */
+		ret = cnss_pci_set_max_link_speed(pci_priv, plat_priv->rc_num, 0);
+		if (ret)
+			cnss_pr_err("Failed to reset max PCIe RC%x link speed to default, err = %d\n",
+				     plat_priv->rc_num, ret);
+
+		/* suspend/resume will trigger retain to re-establish link speed */
+		ret = cnss_suspend_pci_link(pci_priv);
+		if (ret)
+			cnss_pr_err("Failed to suspend PCI link, err = %d\n", ret);
+
+		ret = cnss_resume_pci_link(pci_priv);
+		cnss_pr_err("Failed to resume PCI link, err = %d\n", ret);
+	}
+}
+#else
+static void
+cnss_pci_downgrade_rc_speed(struct cnss_plat_data *plat_priv, u32 rc_num)
+{
+}
+
+static void
+cnss_pci_restore_rc_speed(struct cnss_pci_data *pci_priv)
+{
+}
+#endif
+
 static int cnss_pci_probe(struct pci_dev *pci_dev,
 			  const struct pci_device_id *id)
 {
@@ -6879,6 +6998,8 @@ static int cnss_pci_probe(struct pci_dev *pci_dev,
 	mutex_init(&pci_priv->bus_lock);
 	if (plat_priv->use_pm_domain)
 		dev->pm_domain = &cnss_pm_domain;
+
+	cnss_pci_restore_rc_speed(pci_priv);
 
 	ret = cnss_pci_get_dev_cfg_node(plat_priv);
 	if (ret) {
@@ -7001,6 +7122,7 @@ static void cnss_pci_remove(struct pci_dev *pci_dev)
 
 	clear_bit(CNSS_PCI_PROBE_DONE, &plat_priv->driver_state);
 	cnss_pci_unregister_driver_hdlr(pci_priv);
+	cnss_pci_free_aux_mem(pci_priv);
 	cnss_pci_free_m3_mem(pci_priv);
 	cnss_pci_free_fw_mem(pci_priv);
 	cnss_pci_free_qdss_mem(pci_priv);
@@ -7081,6 +7203,8 @@ static int cnss_pci_enumerate(struct cnss_plat_data *plat_priv, u32 rc_num)
 		if (ret && ret != -EPROBE_DEFER)
 			cnss_pr_err("Failed to set max PCIe RC%x link speed to Gen2, err = %d\n",
 				    rc_num, ret);
+	} else {
+		cnss_pci_downgrade_rc_speed(plat_priv, rc_num);
 	}
 
 	cnss_pr_dbg("Trying to enumerate with PCIe RC%x\n", rc_num);

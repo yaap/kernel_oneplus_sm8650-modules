@@ -156,3 +156,19 @@ config CNSS_OUT_OF_TREE
 	help
 	  If enabled, CNSS platform driver modules would be able to access
 	  functions from the other modules in the platform driver.
+
+config WCNSS_MEM_PRE_ALLOC
+	tristate "WCNSS pre-alloc memory support"
+	help
+	  Pre-allocate memory for the WLAN driver module.
+	  This feature enable cld wlan driver to use pre allocated memory
+	  for it's internal usage and release it to back to pre allocated pool.
+	  This memory is allocated at the cold boot time.
+
+config CNSS2_ENUM_WITH_LOW_SPEED
+	bool "Enable/Disable enumurate with low speed feature"
+	depends on CNSS2
+	depends on PCI
+	help
+	  Set link target speed to Gen1 before enum, and then restore default
+	  RC speed to re-establish link speed. For Genoa chip, needn't restore.

@@ -67,6 +67,7 @@ def _define_modules_for_target_variant(target, variant):
         deps = [
             "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
             ":{}_cnss_utils".format(tv),
+            ":{}_cnss_prealloc".format(tv),
             ":{}_wlan_firmware_service".format(tv),
             ":{}_cnss_plat_ipc_qmi_svc".format(tv),
             "//msm-kernel:all_headers",
@@ -97,6 +98,9 @@ def _define_modules_for_target_variant(target, variant):
         out = "icnss2.ko",
         kernel_build = "//msm-kernel:{}".format(tv),
         deps = [
+            ":{}_cnss_utils".format(tv),
+            ":{}_cnss_prealloc".format(tv),
+            ":{}_wlan_firmware_service".format(tv),
             "//msm-kernel:all_headers",
             ":wlan-platform-headers",
         ],
@@ -119,9 +123,11 @@ def _define_modules_for_target_variant(target, variant):
 
     ddk_module(
         name = "{}_cnss_prealloc".format(tv),
-        srcs = [
+        srcs = native.glob([
             "cnss_prealloc/cnss_prealloc.c",
-        ],
+            "cnss_utils/*.h",
+        ]),
+        includes = ["cnss_utils"],
         kconfig = "cnss_prealloc/Kconfig",
         defconfig = "build/{}_defconfig".format(tv),
         out = "cnss_prealloc.ko",

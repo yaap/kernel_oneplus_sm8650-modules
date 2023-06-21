@@ -45,7 +45,11 @@
 #include <linux/soc/qcom/pdr.h>
 #include <linux/remoteproc.h>
 #include <trace/hooks/remoteproc.h>
+#ifdef SLATE_MODULE_ENABLED
 #include <linux/soc/qcom/slatecom_interface.h>
+#include <linux/soc/qcom/slate_events_bridge_intf.h>
+#include <uapi/linux/slatecom_interface.h>
+#endif
 #include "main.h"
 #include "qmi.h"
 #include "debug.h"
@@ -837,6 +841,40 @@ static enum wlfw_wlan_rf_subtype_v01 icnss_rf_subtype_value_to_type(u32 val)
 	}
 }
 
+#ifdef SLATE_MODULE_ENABLED
+static void icnss_send_wlan_boot_init(void)
+{
+	send_wlan_state(GMI_MGR_WLAN_BOOT_INIT);
+	icnss_pr_info("sent wlan boot init command\n");
+}
+
+static void icnss_send_wlan_boot_complete(void)
+{
+	send_wlan_state(GMI_MGR_WLAN_BOOT_COMPLETE);
+	icnss_pr_info("sent wlan boot complete command\n");
+}
+
+static void icnss_wait_for_slate_complete(struct icnss_priv *priv)
+{
+	if (!test_bit(ICNSS_SLATE_UP, &priv->state)) {
+		reinit_completion(&priv->slate_boot_complete);
+		icnss_pr_err("Waiting for slate boot up notification, 0x%lx\n",
+			     priv->state);
+		wait_for_completion(&priv->slate_boot_complete);
+	}
+
+	icnss_send_wlan_boot_init();
+}
+#else
+static void icnss_send_wlan_boot_complete(void)
+{
+}
+
+static void icnss_wait_for_slate_complete(struct icnss_priv *priv)
+{
+}
+#endif
+
 static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 						 void *data)
 {
@@ -865,17 +903,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 
 	set_bit(ICNSS_WLFW_CONNECTED, &priv->state);
 
-	if (priv->is_slate_rfa) {
-		if (!test_bit(ICNSS_SLATE_UP, &priv->state)) {
-			reinit_completion(&priv->slate_boot_complete);
-			icnss_pr_dbg("Waiting for slate boot up notification, 0x%lx\n",
-				     priv->state);
-			wait_for_completion(&priv->slate_boot_complete);
-		}
-
-		send_wlan_state(GMI_MGR_WLAN_BOOT_INIT);
-		icnss_pr_info("sent wlan boot init command\n");
-	}
+	if (priv->is_slate_rfa)
+		icnss_wait_for_slate_complete(priv);
 
 	ret = wlfw_ind_register_send_sync_msg(priv);
 	if (ret < 0) {
@@ -1194,10 +1223,8 @@ static int icnss_driver_event_fw_ready_ind(struct icnss_priv *priv, void *data)
 		goto out;
 	}
 
-	if (priv->is_slate_rfa && test_bit(ICNSS_SLATE_UP, &priv->state)) {
-		send_wlan_state(GMI_MGR_WLAN_BOOT_COMPLETE);
-		icnss_pr_info("sent wlan boot complete command\n");
-	}
+	if (priv->is_slate_rfa && test_bit(ICNSS_SLATE_UP, &priv->state))
+		icnss_send_wlan_boot_complete();
 
 	if (test_bit(ICNSS_PD_RESTART, &priv->state)) {
 		ret = icnss_pd_restart_complete(priv);
@@ -2319,6 +2346,57 @@ static int icnss_wpss_ssr_register_notifier(struct icnss_priv *priv)
 	return ret;
 }
 
+#ifdef SLATE_MODULE_ENABLED
+static int icnss_slate_event_notifier_nb(struct notifier_block *nb,
+					 unsigned long event, void *data)
+{
+	icnss_pr_info("Received slate event 0x%x\n", event);
+
+	if (event == SLATE_STATUS) {
+		struct icnss_priv *priv = container_of(nb, struct icnss_priv,
+						       seb_nb);
+		enum boot_status status = *(enum boot_status *)data;
+
+		if (status == SLATE_READY) {
+			icnss_pr_dbg("Slate ready received, state: 0x%lx\n",
+				     priv->state);
+			set_bit(ICNSS_SLATE_READY, &priv->state);
+			set_bit(ICNSS_SLATE_UP, &priv->state);
+			complete(&priv->slate_boot_complete);
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static int icnss_register_slate_event_notifier(struct icnss_priv *priv)
+{
+	int ret = 0;
+
+	priv->seb_nb.notifier_call = icnss_slate_event_notifier_nb;
+
+	priv->seb_handle = seb_register_for_slate_event(SLATE_STATUS,
+							&priv->seb_nb);
+	if (IS_ERR_OR_NULL(priv->seb_handle)) {
+		ret = priv->seb_handle ? PTR_ERR(priv->seb_handle) : -EINVAL;
+		icnss_pr_err("SLATE event register notifier failed: %d\n",
+			     ret);
+	}
+
+	return ret;
+}
+
+static int icnss_unregister_slate_event_notifier(struct icnss_priv *priv)
+{
+	int ret = 0;
+
+	ret = seb_unregister_for_slate_event(priv->seb_handle, &priv->seb_nb);
+	if (ret < 0)
+		icnss_pr_err("Slate event unregister failed: %d\n", ret);
+
+	return ret;
+}
+
 static int icnss_slate_notifier_nb(struct notifier_block *nb,
 				   unsigned long code,
 				   void *data)
@@ -2329,7 +2407,8 @@ static int icnss_slate_notifier_nb(struct notifier_block *nb,
 
 	icnss_pr_vdbg("Slate-subsys-notify: event %lu\n", code);
 
-	if (code == QCOM_SSR_AFTER_POWERUP) {
+	if (code == QCOM_SSR_AFTER_POWERUP &&
+	    test_bit(ICNSS_SLATE_READY, &priv->state)) {
 		set_bit(ICNSS_SLATE_UP, &priv->state);
 		complete(&priv->slate_boot_complete);
 		icnss_pr_dbg("Slate boot complete, state: 0x%lx\n",
@@ -2386,6 +2465,27 @@ static int icnss_slate_ssr_unregister_notifier(struct icnss_priv *priv)
 
 	return 0;
 }
+#else
+static int icnss_register_slate_event_notifier(struct icnss_priv *priv)
+{
+	return 0;
+}
+
+static int icnss_unregister_slate_event_notifier(struct icnss_priv *priv)
+{
+	return 0;
+}
+
+static int icnss_slate_ssr_register_notifier(struct icnss_priv *priv)
+{
+	return 0;
+}
+
+static int icnss_slate_ssr_unregister_notifier(struct icnss_priv *priv)
+{
+	return 0;
+}
+#endif
 
 static int icnss_modem_ssr_register_notifier(struct icnss_priv *priv)
 {
@@ -2719,8 +2819,10 @@ static int icnss_enable_recovery(struct icnss_priv *priv)
 
 	icnss_modem_ssr_register_notifier(priv);
 
-	if (priv->is_slate_rfa)
+	if (priv->is_slate_rfa) {
 		icnss_slate_ssr_register_notifier(priv);
+		icnss_register_slate_event_notifier(priv);
+	}
 
 	if (test_bit(SSR_ONLY, &priv->ctrl_params.quirks)) {
 		icnss_pr_dbg("PDR disabled through module parameter\n");
@@ -4593,6 +4695,9 @@ static int icnss_probe(struct platform_device *pdev)
 	INIT_WORK(&priv->event_work, icnss_driver_event_work);
 	INIT_LIST_HEAD(&priv->event_list);
 
+	if (priv->is_slate_rfa)
+		init_completion(&priv->slate_boot_complete);
+
 	ret = icnss_register_fw_service(priv);
 	if (ret < 0) {
 		icnss_pr_err("fw service registration failed: %d\n", ret);
@@ -4613,9 +4718,6 @@ static int icnss_probe(struct platform_device *pdev)
 	icnss_set_plat_priv(priv);
 
 	init_completion(&priv->unblock_shutdown);
-
-	if (priv->is_slate_rfa)
-		init_completion(&priv->slate_boot_complete);
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
@@ -4727,8 +4829,10 @@ static int icnss_remove(struct platform_device *pdev)
 
 	complete_all(&priv->unblock_shutdown);
 
-	if (priv->is_slate_rfa)
+	if (priv->is_slate_rfa) {
 		icnss_slate_ssr_unregister_notifier(priv);
+		icnss_unregister_slate_event_notifier(priv);
+	}
 
 	icnss_destroy_ramdump_device(priv->msa0_dump_dev);
 
