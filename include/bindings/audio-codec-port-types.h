@@ -96,4 +96,14 @@
 #define SWRM_TX_PCM_IN 58
 #define HIFI_PCM_L 59
 #define HIFI_PCM_R 60
+
+// BT SWR PORT defines
+#define BT_AUDIO_RX1 101
+#define BT_AUDIO_TX1 102
+#define BT_AUDIO_RX2 103
+#define BT_AUDIO_TX2 104
+#define BT_AUDIO_RX3 105
+#define BT_AUDIO_TX3 106
+#define FM_AUDIO_TX1 107
+
 #endif /* __AUDIO_CODEC_PORT_TYPES_H */
