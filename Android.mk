@@ -4,6 +4,7 @@ ifeq ($(call is-board-platform-in-list,pineapple), true)
 ifneq (,$(filter arm aarch64 arm64, $(TARGET_ARCH)))
 
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
 
 DLKM_DIR   := device/qcom/common/dlkm
 
