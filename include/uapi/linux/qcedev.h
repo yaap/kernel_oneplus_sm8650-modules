@@ -4,8 +4,8 @@
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#ifndef _QCEDEV__H
-#define _QCEDEV__H
+#ifndef _UAPI_QCEDEV__H
+#define _UAPI_QCEDEV__H
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
@@ -384,4 +384,4 @@ struct file;
 	_IOWR(QCEDEV_IOC_MAGIC, 11, struct qcedev_unmap_buf_req)
 #define QCEDEV_IOCTL_OFFLOAD_OP_REQ		\
 	_IOWR(QCEDEV_IOC_MAGIC, 12, struct qcedev_offload_cipher_op_req)
-#endif /* _QCEDEV__H */
+#endif /* _UAPI_QCEDEV__H */

@@ -16,14 +16,15 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
 SEC_KERNEL_DIR := $(TOP)/vendor/qcom/opensource/securemsm-kernel
 
-LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/
+LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/ \
+                                $(LOCAL_PATH)/include/uapi
 
 SSG_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/*) \
  	$(wildcard $(LOCAL_PATH)/*/*) \
  	$(wildcard $(LOCAL_PATH)/*/*/*) \
  	$(wildcard $(LOCAL_PATH)/*/*/*/*)
-
+LOCAL_MODULE_DDK_BUILD := true
 # This is set once per LOCAL_PATH, not per (kernel) module
 KBUILD_OPTIONS := SSG_ROOT=$(SEC_KERNEL_DIR)
 KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
@@ -110,7 +111,6 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ###################################################
 ###################################################
-ifneq (, $(filter true, $(TARGET_ENABLE_QSEECOM) $(TARGET_BOARD_AUTO)))
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
 LOCAL_MODULE              := qseecom_dlkm.ko
@@ -119,7 +119,6 @@ LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
-endif #TARGET_ENABLE_QSEECOM OR TARGET_BOARD_AUTO
 ###################################################
 ###################################################
 ifeq ($(TARGET_USES_SMMU_PROXY), true)

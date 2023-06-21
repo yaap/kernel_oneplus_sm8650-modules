@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/debugfs.h>
 #include <linux/errno.h>
@@ -17,10 +18,10 @@
 #include <linux/of.h>
 #include <linux/dma-buf.h>
 #include <linux/qcom_scm.h>
-#include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/proc_fs.h>
 #include <linux/version.h>
+#include "misc/qseecomi.h"
 
 /* QSEE_LOG_BUF_SIZE = 32K */
 #define QSEE_LOG_BUF_SIZE 0x8000

@@ -1,7 +1,13 @@
-load("//build/kernel/kleaf:kernel.bzl", "kernel_modules_install",
-                                        "ddk_module")
-load(":securemsm_modules.bzl", "securemsm_modules",
-                           "securemsm_modules_by_config")
+load(
+    "//build/kernel/kleaf:kernel.bzl",
+    "ddk_module",
+    "kernel_modules_install",
+)
+load(
+    ":securemsm_modules.bzl",
+    "securemsm_modules",
+    "securemsm_modules_by_config",
+)
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 
 def _replace_formatting_codes(target, variant, s):
@@ -11,9 +17,9 @@ def _replace_formatting_codes(target, variant, s):
 
 def _console_print(target, variant, module, message):
     if module:
-        print('{}: {}: securemsm-kernel: {}: {}'.format(target, variant, module, message))
+        print("{}: {}: securemsm-kernel: {}: {}".format(target, variant, module, message))
     else:
-        print('{}: {}: securemsm-kernel: {} '.format(target, variant, message))
+        print("{}: {}: securemsm-kernel: {} ".format(target, variant, message))
 
 def _get_options(target, variant, target_config_option, modules, extra_options):
     all_options = {option: True for option in extra_options}
@@ -37,7 +43,7 @@ def _get_options(target, variant, target_config_option, modules, extra_options):
         all_options[target_config_option] = True
 
     if redundant_options:
-        _console_print(target, variant, None, 'INFO: The following options are already declared either by a module or the target, no need to redeclare: \n{}'.format('\n'.join(redundant_options)))
+        _console_print(target, variant, None, "INFO: The following options are already declared either by a module or the target, no need to redeclare: \n{}".format("\n".join(redundant_options)))
 
     return all_options
 
@@ -51,7 +57,7 @@ def _get_module_srcs(target, variant, module, options):
     globbed_srcs = native.glob(["{}{}".format(module_path, _replace_formatting_codes(target, variant, src)) for src in srcs])
 
     if not globbed_srcs:
-        _console_print(target, variant, module["name"], 'WARNING: Module has no sources attached!')
+        _console_print(target, variant, module["name"], "WARNING: Module has no sources attached!")
 
     return globbed_srcs
 
@@ -79,27 +85,25 @@ def define_target_variant_modules(target, variant, modules, extra_options = [], 
             deps = ["//msm-kernel:all_headers"] + [_replace_formatting_codes(target, variant, dep) for dep in module["deps"]],
             hdrs = module["hdrs"],
             local_defines = target_local_defines,
-            copts = module["copts"]
-
+            copts = module["copts"],
         )
         module_rules.append(rule_name)
 
     copy_to_dist_dir(
-          name = "{}_securemsm-kernel_dist".format(kernel_build_variant),
-          data = module_rules,
-          dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
-          flat = True,
-          wipe_dist_dir = False,
-          allow_duplicate_filenames = False,
-          mode_overrides = {"**/*": "644"},
-          log = "info",
+        name = "{}_securemsm-kernel_dist".format(kernel_build_variant),
+        data = module_rules,
+        dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
+        flat = True,
+        wipe_dist_dir = False,
+        allow_duplicate_filenames = False,
+        mode_overrides = {"**/*": "644"},
+        log = "info",
     )
-
 
     kernel_modules_install(
         name = "{}_modules_install".format(kernel_build_variant),
         kernel_build = "//msm-kernel:{}".format(kernel_build_variant),
-        kernel_modules = module_rules
+        kernel_modules = module_rules,
     )
 
 def define_consolidate_gki_modules(target, modules, extra_options = [], config_option = None):

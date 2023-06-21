@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -16,10 +16,10 @@
 #include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
-#if !IS_ENABLED(CONFIG_QSEECOM)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT)
 #include "IQSEEComCompat.h"
 #include "IQSEEComCompatAppLoader.h"
-#include "linux/qseecom.h"
+#include "linux/qseecom_api.h"
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 #include <linux/qseecom_kernel.h>
 #else
@@ -323,7 +323,7 @@ int32_t get_client_env_object(struct Object *clientEnvObj)
 }
 EXPORT_SYMBOL(get_client_env_object);
 
-#if !IS_ENABLED(CONFIG_QSEECOM)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT)
 
 static int load_app(struct qseecom_compat_context *cxt, const char *app_name)
 {

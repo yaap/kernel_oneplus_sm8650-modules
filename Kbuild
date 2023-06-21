@@ -1,6 +1,8 @@
 LINUXINCLUDE += -I$(SSG_MODULE_ROOT)/ \
                 -I$(SSG_MODULE_ROOT)/linux/ \
-                -I$(SSG_MODULE_ROOT)/include/linux/
+                -I$(SSG_MODULE_ROOT)/include/linux/ \
+                -I$(SSG_MODULE_ROOT)/include/uapi/ \
+                -I$(SSG_MODULE_ROOT)/include/uapi/linux/
 
 ifneq ($(CONFIG_ARCH_QTI_VM), y)
     LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig.h
@@ -11,10 +13,12 @@ endif
 ifneq (, $(filter y, $(CONFIG_QTI_QUIN_GVM) $(CONFIG_ARCH_KHAJE) $(CONFIG_ARCH_SA8155)))
     include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom.conf
     LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom.h
-
-    obj-$(CONFIG_QSEECOM) += qseecom_dlkm.o
-    qseecom_dlkm-objs := qseecom/qseecom.o
+else
+    LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_qseecom_compat.h
 endif
+
+obj-$(CONFIG_QSEECOM) += qseecom_dlkm.o
+qseecom_dlkm-objs := qseecom/qseecom.o
 
 include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smcinvoke.conf
 LINUXINCLUDE += -include $(SSG_MODULE_ROOT)/config/sec-kernel_defconfig_smcinvoke.h
@@ -35,7 +39,7 @@ obj-$(CONFIG_CRYPTO_DEV_QCRYPTO) += qcrypto-msm_dlkm.o
 qcrypto-msm_dlkm-objs := crypto-qti/qcrypto.o
 
 obj-$(CONFIG_HDCP_QSEECOM) += hdcp_qseecom_dlkm.o
-hdcp_qseecom_dlkm-objs := hdcp/hdcp_qseecom.o
+hdcp_qseecom_dlkm-objs := hdcp/hdcp_main.o hdcp/hdcp_smcinvoke.o hdcp/hdcp_qseecom.o
 
 obj-$(CONFIG_HW_RANDOM_MSM_LEGACY) += qrng_dlkm.o
 qrng_dlkm-objs := qrng/msm_rng.o

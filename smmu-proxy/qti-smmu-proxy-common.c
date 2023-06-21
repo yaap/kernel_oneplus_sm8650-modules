@@ -5,7 +5,7 @@
 
 #include <linux/cdev.h>
 #include "qti-smmu-proxy-common.h"
-#include "../include/linux/smcinvoke.h"
+#include "smcinvoke.h"
 #include "../include/linux/ITrustedCameraDriver.h"
 #include "../include/linux/CTrustedCameraDriver.h"
 #include "../include/linux/IClientEnv.h"

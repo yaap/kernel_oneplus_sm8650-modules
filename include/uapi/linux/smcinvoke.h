@@ -3,8 +3,8 @@
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-#ifndef _SMCINVOKE_H_
-#define _SMCINVOKE_H_
+#ifndef _UAPI_SMCINVOKE_H_
+#define _UAPI_SMCINVOKE_H_
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
@@ -107,4 +107,4 @@ struct smcinvoke_server {
 #define SMCINVOKE_IOCTL_LOG \
 	_IOC(_IOC_READ|_IOC_WRITE, SMCINVOKE_IOC_MAGIC, 255, SMCINVOKE_LOG_BUF_SIZE)
 
-#endif /* _SMCINVOKE_H_ */
+#endif /* _UAPI_SMCINVOKE_H_ */

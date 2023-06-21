@@ -1,5 +1,5 @@
 # Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
-# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published by
@@ -29,7 +29,10 @@ def run_headers_install(verbose, gen_dir, headers_install, unifdef, prefix, h):
     # ex. out/soong/.temp/sbox/<temp hash value>/out/linux/smcinvoke.h
     # After the build is complete, you can find the headers that you exposed located in the following gen path:
     # out/soong/.intermediates/.../qti_generate_smcinvoke_kernel_headers/gen/
-    out_h = os.path.join(gen_dir, h[len(prefix):])
+    if 'include/uapi' in h:
+        out_h = os.path.join(gen_dir,'include', h[len(prefix):])
+    else:
+        out_h = os.path.join(gen_dir, h[len(prefix):])
     (out_h_dirname, out_h_basename) = os.path.split(out_h)
     env = os.environ.copy()
     env["LOC_UNIFDEF"] = unifdef
@@ -54,10 +57,16 @@ def gen_smcinvoke_headers(verbose, gen_dir, headers_install, unifdef, smcinvoke_
         # h will be the relative path from the repo root directory securemsm-kernel ex. <parent directory structure>/securemsm-kernel/linux/smcinvoke.h
         # So we need to split the string and keep the directory structure we want to expose i.e. just linux/smcinvoke.h
         topDirectory = 'securemsm-kernel'
-        directorySplitLocation = '/'+ topDirectory +'/'
-        smcinvoke_headers_to_expose_prefix = os.path.join(h.split(directorySplitLocation)[0], topDirectory) + os.sep
-        if not run_headers_install(verbose, gen_dir, headers_install, unifdef, smcinvoke_headers_to_expose_prefix, h):
-                error_count += 1
+        if 'include/uapi' in h:
+            directorySplitLocation = '/'+ topDirectory +'/'
+            smcinvoke_headers_to_expose_prefix = os.path.join(h.split(directorySplitLocation)[0], topDirectory, 'include', 'uapi') + os.sep
+            if not run_headers_install(verbose, gen_dir, headers_install, unifdef, smcinvoke_headers_to_expose_prefix, h):
+                    error_count += 1
+        else:
+            directorySplitLocation = '/'+ topDirectory +'/'
+            smcinvoke_headers_to_expose_prefix = os.path.join(h.split(directorySplitLocation)[0], topDirectory) + os.sep
+            if not run_headers_install(verbose, gen_dir, headers_install, unifdef, smcinvoke_headers_to_expose_prefix, h):
+                    error_count += 1
     return error_count
 
 def main():

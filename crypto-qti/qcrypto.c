@@ -3,6 +3,7 @@
  * QTI Crypto driver
  *
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -25,10 +26,10 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/cache.h>
-#include "linux/qcom_crypto_device.h"
 #include <linux/interconnect.h>
 #include <linux/hardirq.h>
-#include "linux/qcrypto.h"
+#include "qcrypto.h"
+#include "qcom_crypto_device.h"
 
 #include <crypto/ctr.h>
 #include <crypto/des.h>
@@ -45,7 +46,7 @@
 #include <crypto/internal/hash.h>
 #include <crypto/internal/aead.h>
 
-#include "linux/fips_status.h"
+#include "fips_status.h"
 
 #include "qce.h"
 

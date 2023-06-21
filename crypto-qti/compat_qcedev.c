@@ -3,6 +3,7 @@
  * QTI CE 32-bit compatibility syscall for 64-bit systems
  *
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -10,7 +11,7 @@
 #include <linux/uaccess.h>
 #include "linux/qcedev.h"
 #include <linux/compat.h>
-#include "compat_qcedev.h"
+#include "linux/compat_qcedev.h"
 
 static void *compat_alloc_user_space(int size){
     return NULL;

@@ -22,12 +22,11 @@ securemsm_modules_by_config = {}
 
 def register_securemsm_module(name, path = None, config_option = None, default_srcs = [], config_srcs = {}, deps = [], srcs = [], copts = [], hdrs = []):
     processed_config_srcs = {}
-
     for config_src_name in config_srcs:
         config_src = config_srcs[config_src_name]
 
         if type(config_src) == "list":
-            processed_config_srcs[config_src_name] = { True: config_src }
+            processed_config_srcs[config_src_name] = {True: config_src}
         else:
             processed_config_srcs[config_src_name] = config_src
 
@@ -48,46 +47,69 @@ def register_securemsm_module(name, path = None, config_option = None, default_s
     if config_option:
         securemsm_modules_by_config[config_option] = name
 
-
 # ------------------------------------ SECUREMSM MODULE DEFINITIONS ---------------------------------
+register_securemsm_module(
+    name = "qseecom_dlkm",
+    path = QSEECOM_PATH,
+    default_srcs = [
+        "qseecom.c",
+        "ice.h",
+    ],
+    deps = [":qseecom_kernel_headers"],
+    #srcs = ["config/sec-kernel_defconfig_qseecom.h"],
+    #copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
+)
+
+
 register_securemsm_module(
     name = "smcinvoke_dlkm",
     path = SMCINVOKE_PATH,
     default_srcs = [
-            "smcinvoke.c",
-            "smcinvoke_kernel.c",
-            "trace_smcinvoke.h",
-            "IQSEEComCompat.h",
-            "IQSEEComCompatAppLoader.h",
-
+        "smcinvoke.c",
+        "smcinvoke_kernel.c",
+        "trace_smcinvoke.h",
+        "IQSEEComCompat.h",
+        "IQSEEComCompatAppLoader.h",
     ],
-    deps = [":smcinvoke_kernel_headers"],
+    deps = [":smcinvoke_kernel_headers", ":qseecom_kernel_headers", "%b_qseecom_dlkm"],
     hdrs = [":smcinvoke_kernel_headers"],
-)
-
-register_securemsm_module(
-    name = "qseecom_dlkm",
-    path = QSEECOM_PATH,
-    default_srcs = ["qseecom.c",
-                    "ice.h"],
-    deps = [":securemsm_kernel_headers"],
-    srcs = ["config/sec-kernel_defconfig_qseecom.h"],
-    copts = ["-include", "config/sec-kernel_defconfig_qseecom.h"],
 )
 
 register_securemsm_module(
     name = "tz_log_dlkm",
     path = TZLOG_PATH,
+    deps = [":qseecom_kernel_headers"],
     default_srcs = ["tz_log.c"],
 )
 
 register_securemsm_module(
     name = "hdcp_qseecom_dlkm",
     path = HDCP_PATH,
-    default_srcs = ["hdcp_qseecom.c"],
-    deps = [":hdcp_qseecom_dlkm","%b_smcinvoke_dlkm"],
+    default_srcs = [
+        "hdcp_qseecom.c",
+        "hdcp_qseecom.h",
+        "hdcp_main.c",
+        "smcinvoke_object.h",
+        "hdcp_main.h",
+        "hdcp_smcinvoke.c",
+        "hdcp_smcinvoke.h",
+        "CAppClient.h",
+        "CAppLoader.h",
+        "IAppClient.h",
+        "IAppController.h",
+        "IAppLoader.h",
+        "IClientEnv.h",
+        "IOpener.h",
+        "hdcp1.h",
+        "hdcp1_ops.h",
+        "hdcp2p2.h",
+    ],
+    deps = [":hdcp_qseecom_dlkm", "%b_smcinvoke_dlkm", "%b_qseecom_dlkm"],
     srcs = ["config/sec-kernel_defconfig.h"],
-    copts = ["-include", "config/sec-kernel_defconfig.h"],
+    copts = [
+        "-include",
+        "config/sec-kernel_defconfig.h",
+    ],
 )
 
 register_securemsm_module(

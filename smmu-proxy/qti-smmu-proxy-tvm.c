@@ -367,7 +367,6 @@ static void smmu_proxy_process_msg(void *buf, size_t size)
 	struct smmu_proxy_resp_hdr *resp;
 	int ret = -EINVAL;
 
-	pr_err("%s: smmu-proxy message received\n", __func__);
 	if (size < sizeof(*msg_hdr) || msg_hdr->msg_size != size) {
 		pr_err("%s: message received is not of a proper size: 0x%lx, 0x:%lx\n",
 		       __func__, size, msg_hdr->msg_size);

@@ -3,6 +3,7 @@
  * QTI CE device driver.
  *
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/mman.h>
@@ -22,16 +23,16 @@
 #include <linux/debugfs.h>
 #include <linux/scatterlist.h>
 #include <linux/crypto.h>
-#include "linux/qcom_crypto_device.h"
 #include "linux/qcedev.h"
 #include <linux/interconnect.h>
 #include <linux/delay.h>
+#include "linux/compat_qcedev.h"
 
 #include <crypto/hash.h>
 #include "qcedevi.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
-#include "compat_qcedev.h"
+#include "qcom_crypto_device.h"
 
 #include <linux/compat.h>
 
@@ -39,11 +40,16 @@
 #define CE_SHA_BLOCK_SIZE SHA256_BLOCK_SIZE
 #define MAX_CEHW_REQ_TRANSFER_SIZE (128*32*1024)
 /*
- * Max wait time once a crypto request is done.
- * Assuming 5ms per crypto operation, this is calculated for
- * the scenario of having 3 offload reqs + 1 tz req + buffer.
+ * Max wait time once a crypto request is submitted.
  */
-#define MAX_CRYPTO_WAIT_TIME 25
+#define MAX_CRYPTO_WAIT_TIME 1500
+/*
+ * Max wait time once a offload crypto request is submitted.
+ * This is low due to expected timeout and key pause errors.
+ * This is temporary, and we can use the 1500 value once the
+ * core irqs are enabled.
+ */
+#define MAX_OFFLOAD_CRYPTO_WAIT_TIME 20
 
 #define MAX_REQUEST_TIME 5000
 
@@ -563,12 +569,15 @@ static int start_offload_cipher_req(struct qcedev_control *podev,
 		return -EINVAL;
 	}
 
-	if (qcedev_areq->offload_cipher_op_req.is_copy_op) {
+	if (qcedev_areq->offload_cipher_op_req.is_copy_op ||
+	    qcedev_areq->offload_cipher_op_req.encrypt) {
 		creq.dir = QCE_ENCRYPT;
 	} else {
 		switch(qcedev_areq->offload_cipher_op_req.op) {
 		case QCEDEV_OFFLOAD_HLOS_HLOS:
+		case QCEDEV_OFFLOAD_HLOS_HLOS_1:
 		case QCEDEV_OFFLOAD_HLOS_CPB:
+		case QCEDEV_OFFLOAD_HLOS_CPB_1:
 			creq.dir = QCE_DECRYPT;
 			break;
 		case QCEDEV_OFFLOAD_CPB_HLOS:
@@ -732,6 +741,7 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	struct qcedev_async_req *new_req = NULL;
 	int retries = 0;
 	int req_wait = MAX_REQUEST_TIME;
+	unsigned int crypto_wait = 0;
 
 	qcedev_areq->err = 0;
 	podev = handle->cntl;
@@ -753,12 +763,15 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			case QCEDEV_CRYPTO_OPER_CIPHER:
 				ret = start_cipher_req(podev,
 						&current_req_info);
+				crypto_wait = MAX_CRYPTO_WAIT_TIME;
 				break;
 			case QCEDEV_CRYPTO_OPER_OFFLOAD_CIPHER:
 				ret = start_offload_cipher_req(podev,
 						&current_req_info);
+				crypto_wait = MAX_OFFLOAD_CRYPTO_WAIT_TIME;
 				break;
 			default:
+				crypto_wait = MAX_CRYPTO_WAIT_TIME;
 
 				ret = start_sha_req(podev,
 						&current_req_info);
@@ -804,7 +817,7 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	qcedev_areq->timed_out = false;
 	if (ret == 0)
 		wait = wait_for_completion_timeout(&qcedev_areq->complete,
-				msecs_to_jiffies(MAX_CRYPTO_WAIT_TIME));
+				msecs_to_jiffies(crypto_wait));
 
 	if (!wait) {
 	/*
@@ -815,6 +828,9 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	 */
 		pr_err("%s: wait timed out, req info = %d\n", __func__,
 					current_req_info);
+		spin_lock_irqsave(&podev->lock, flags);
+		qcedev_areq->timed_out = true;
+		spin_unlock_irqrestore(&podev->lock, flags);
 		qcedev_check_crypto_status(qcedev_areq, podev->qce);
 		if (qcedev_areq->offload_cipher_op_req.err ==
 			QCEDEV_OFFLOAD_NO_ERROR) {
@@ -828,13 +844,10 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 			}
 			return 0;
 		}
-		spin_lock_irqsave(&podev->lock, flags);
-		qcedev_areq->timed_out = true;
 		ret = qce_manage_timeout(podev->qce, current_req_info);
 		if (ret)
 			pr_err("%s: error during manage timeout", __func__);
 
-		spin_unlock_irqrestore(&podev->lock, flags);
 		req_done((unsigned long) podev);
 		if (qcedev_areq->offload_cipher_op_req.err !=
 						QCEDEV_OFFLOAD_NO_ERROR)

@@ -27,8 +27,8 @@
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
 #include <linux/freezer.h>
+#include <linux/ratelimit.h>
 #include <asm/cacheflush.h>
-#include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/kthread.h>
 #include "smcinvoke.h"
@@ -40,6 +40,7 @@
 #else
 #include "misc/qseecom_kernel.h"
 #endif
+#include "misc/qseecomi.h"
 
 #define CREATE_TRACE_POINTS
 #include "trace_smcinvoke.h"
@@ -62,6 +63,18 @@
 #define SMCINVOKE_MEM_PERM_RW			6
 #define SMCINVOKE_SCM_EBUSY_WAIT_MS		30
 #define SMCINVOKE_SCM_EBUSY_MAX_RETRY		200
+#define TZCB_ERR_RATELIMIT_INTERVAL		(1*HZ)
+#define TZCB_ERR_RATELIMIT_BURST		1
+
+//print tzcb err per sec
+#define tzcb_err_ratelimited(fmt, ...) 	do {		\
+	static DEFINE_RATELIMIT_STATE(_rs, 		\
+			TZCB_ERR_RATELIMIT_INTERVAL,	\
+			TZCB_ERR_RATELIMIT_BURST);	\
+	if (__ratelimit(&_rs))				\
+		pr_err(fmt, ##__VA_ARGS__);		\
+} while(0)
+
 
 
 /* TZ defined values - Start */
@@ -385,7 +398,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm);
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm, bool retry);
 
 static void process_piggyback_data(void *buf, size_t buf_size);
 static void add_mem_obj_info_to_async_side_channel_locked(void *buf, size_t buf_size, struct list_head *l_pending_mem_obj);
@@ -559,7 +572,7 @@ static int smcinvoke_release_tz_object(struct qtee_shm *in_shm, struct qtee_shm 
 	ret = prepare_send_scm_msg(in_buf, in_shm->paddr,
 			SMCINVOKE_TZ_MIN_BUF_SIZE, out_buf, out_shm->paddr,
 			SMCINVOKE_TZ_MIN_BUF_SIZE, &req, NULL,
-			&release_handles, context_type, in_shm, out_shm);
+			&release_handles, context_type, in_shm, out_shm, false);
 	process_piggyback_data(out_buf, SMCINVOKE_TZ_MIN_BUF_SIZE);
 	if (ret) {
 		pr_err_ratelimited("Failed to release object(0x%x), ret:%d\n",
@@ -1712,13 +1725,13 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 		}
 		if (ret == 0) {
 			if (srvr_info->is_server_suspended == 0) {
-			pr_err("CBobj timed out waiting on cbtxn :%d,cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
-					cb_txn->txn_id,cb_req->hdr.tzhandle, cbobj_retries,
-					cb_req->hdr.op, cb_req->hdr.counts);
-			pr_err("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
-					cb_req->hdr.tzhandle, current->pid,
-					current->tgid, srvr_info->state,
-					srvr_info->server_id);
+				tzcb_err_ratelimited("CBobj timed out waiting on cbtxn :%d,cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
+						cb_txn->txn_id,cb_req->hdr.tzhandle, cbobj_retries,
+						cb_req->hdr.op, cb_req->hdr.counts);
+				tzcb_err_ratelimited("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
+						cb_req->hdr.tzhandle, current->pid,
+						current->tgid, srvr_info->state,
+						srvr_info->server_id);
 			}
 		} else {
 			/* wait_event returned due to a signal */
@@ -1874,7 +1887,8 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 		struct smcinvoke_cmd_req *req,
 		union smcinvoke_arg *args_buf,
 		bool *tz_acked, uint32_t context_type,
-		struct qtee_shm *in_shm, struct qtee_shm *out_shm)
+		struct qtee_shm *in_shm, struct qtee_shm *out_shm,
+		bool retry)
 {
 	int ret = 0, cmd, retry_count = 0;
 	u64 response_type;
@@ -1899,7 +1913,7 @@ static int prepare_send_scm_msg(const uint8_t *in_buf, phys_addr_t in_paddr,
 				msleep(SMCINVOKE_SCM_EBUSY_WAIT_MS);
 			}
 
-		} while ((ret == -EBUSY) &&
+		} while (retry && (ret == -EBUSY) &&
 				(retry_count++ < SMCINVOKE_SCM_EBUSY_MAX_RETRY));
 
 		if (!ret && !is_inbound_req(response_type)) {
@@ -2071,7 +2085,7 @@ static int marshal_in_tzcb_req(const struct smcinvoke_cb_txn *cb_txn,
 
 	user_req->txn_id = cb_txn->txn_id;
 	if (get_uhandle_from_tzhandle(tzcb_req->hdr.tzhandle, srvr_id,
-			&user_req->cbobj_id, TAKE_LOCK,
+			(int32_t*)(&user_req->cbobj_id), TAKE_LOCK,
 			SMCINVOKE_OBJ_TYPE_TZ_OBJ)) {
 		ret = -EINVAL;
 		goto out;
@@ -2785,7 +2799,7 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	ret = prepare_send_scm_msg(in_msg, in_shm.paddr, inmsg_size,
 			out_msg, out_shm.paddr, outmsg_size,
 			&req, args_buf, &tz_acked, context_type,
-			&in_shm, &out_shm);
+			&in_shm, &out_shm, true);
 
 	/*
 	 * If scm_call is success, TZ owns responsibility to release
@@ -3212,7 +3226,7 @@ static int smcinvoke_probe(struct platform_device *pdev)
 	}
 	smcinvoke_pdev = pdev;
 
-#if !IS_ENABLED(CONFIG_QSEECOM) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#if IS_ENABLED(CONFIG_QSEECOM_COMPAT) && IS_ENABLED(CONFIG_QSEECOM_PROXY)
 	/*If the api fails to get the func ops, print the error and continue
 	* Do not treat it as fatal*/
 	rc = get_qseecom_kernel_fun_ops();
