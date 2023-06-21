@@ -10,6 +10,13 @@
 int btfm_slim_register_hw_ep(struct btfmslim *btfm_slim);
 void btfm_slim_unregister_hwep(void);
 
+/* Codec driver defines */
+enum {
+	BTAUDIO_TX = 1,
+	BTAUDIO_RX = 2,
+	BTAUDIO_NUM_CODEC_DAIS
+};
+
 typedef enum Codec {
 	SBC = 0,
 	AAC,

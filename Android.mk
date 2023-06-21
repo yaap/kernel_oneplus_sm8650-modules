@@ -3,7 +3,7 @@
 LOCAL_PATH := $(call my-dir)
 
 # Build/Package only in case of supported target
-ifeq ($(call is-board-platform-in-list,taro kalama pineapple), true)
+ifeq ($(call is-board-platform-in-list,taro kalama pineapple blair), true)
 
 BT_SELECT := CONFIG_MSM_BT_POWER=m
 #ifdef CONFIG_SLIMBUS
@@ -18,6 +18,11 @@ endif
 endif
 
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
+LOCAL_MODULE_KO_DIRS := pwr/btpower.ko
+LOCAL_MODULE_KO_DIRS += slimbus/bt_fm_slim.ko
+LOCAL_MODULE_KO_DIRS += rtc6226/radio-i2c-rtc6226-qca.ko
+
 
 # This makefile is only for DLKM
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)

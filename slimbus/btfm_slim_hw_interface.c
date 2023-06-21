@@ -445,10 +445,10 @@ static struct hwep_dai_ops  btfmslim_hw_dai_ops = {
 
 static struct hwep_dai_driver btfmslim_dai_driver[] = {
 	{	/* Bluetooth SCO voice uplink: bt -> lpass */
-		.dai_name = "btfm_bt_sco_slim_tx",
-		.id = BTFM_BT_SCO_SLIM_TX,
+		.dai_name = "btaudio_tx",
+		.id = BTAUDIO_TX,
 		.capture = {
-			.stream_name = "SCO TX Capture",
+			.stream_name = "BT Audio Slim Tx Capture",
 			/* 8 KHz or 16 KHz */
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000
 				| SNDRV_PCM_RATE_8000_192000
@@ -464,10 +464,10 @@ static struct hwep_dai_driver btfmslim_dai_driver[] = {
 		.dai_ops = &btfmslim_hw_dai_ops,
 	},
 	{	/* Bluetooth SCO voice downlink: lpass -> bt or A2DP Playback */
-		.dai_name = "btfm_bt_sco_a2dp_slim_rx",
-		.id = BTFM_BT_SCO_A2DP_SLIM_RX,
+		.dai_name = "btaudio_rx",
+		.id = BTAUDIO_RX,
 		.playback = {
-			.stream_name = "SCO A2DP RX Playback",
+			.stream_name = "BT Audio Slim Rx Playback",
 			/* 8/16/44.1/48/88.2/96 Khz */
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000
 				| SNDRV_PCM_RATE_8000_192000

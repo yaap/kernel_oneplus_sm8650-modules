@@ -681,7 +681,11 @@ device_err:
 class_err:
 	unregister_chrdev(btfm_slim_major, "btfm_slim");
 register_err:
+#if IS_ENABLED(CONFIG_BTFM_SLIM)
 	btfm_slim_unregister_codec(&slim->dev);
+#else
+	btfm_slim_unregister_hwep();
+#endif
 dealloc:
 	mutex_destroy(&btfm_slim->io_lock);
 	mutex_destroy(&btfm_slim->xfer_lock);
