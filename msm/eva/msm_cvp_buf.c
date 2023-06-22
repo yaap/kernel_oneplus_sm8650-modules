@@ -290,7 +290,7 @@ int msm_cvp_map_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 
 	file = msm_cvp_fget(buf->fd, inst->task, FMODE_PATH, 1);
 	if (file == NULL) {
-		dprintk(CVP_WARN, "%s fail to get file from fd\n", __func__);
+		dprintk(CVP_WARN, "%s fail to get file from fd %d %s\n", __func__, buf->fd, inst->proc_name);
 		return -EINVAL;
 	}
 
