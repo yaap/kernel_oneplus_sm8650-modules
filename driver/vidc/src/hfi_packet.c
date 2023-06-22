@@ -211,13 +211,13 @@ u32 get_hfi_codec(struct msm_vidc_inst *inst)
 {
 	switch (inst->codec) {
 	case MSM_VIDC_H264:
-		if (inst->domain == MSM_VIDC_ENCODER)
+		if (is_encode_session(inst))
 			return HFI_CODEC_ENCODE_AVC;
 		else
 			return HFI_CODEC_DECODE_AVC;
 	case MSM_VIDC_HEVC:
 	case MSM_VIDC_HEIC:
-		if (inst->domain == MSM_VIDC_ENCODER)
+		if (is_encode_session(inst))
 			return HFI_CODEC_ENCODE_HEVC;
 		else
 			return HFI_CODEC_DECODE_HEVC;

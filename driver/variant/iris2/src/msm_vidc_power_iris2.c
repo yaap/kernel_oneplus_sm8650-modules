@@ -36,7 +36,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 	fw_cycles = fps * inst->capabilities[MB_CYCLES_FW].value;
 	fw_vpp_cycles = fps * inst->capabilities[MB_CYCLES_FW_VPP].value;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		vpp_cycles_per_mb = is_low_power_session(inst) ?
 			inst->capabilities[MB_CYCLES_LP].value :
 			inst->capabilities[MB_CYCLES_VPP].value;
@@ -99,7 +99,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 
 		vsp_cycles += mbs_per_second * base_cycles;
 
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		/* VPP */
 		vpp_cycles = mbs_per_second * inst->capabilities[MB_CYCLES_VPP].value /
 			inst->capabilities[PIPE].value;

@@ -23,9 +23,9 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	enum msm_vidc_port_type port;
 	u32 color_fmt;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		codec_input->decoder_or_encoder = CODEC_ENCODER;
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		codec_input->decoder_or_encoder = CODEC_DECODER;
 	} else {
 		d_vpr_e("%s: invalid domain %d\n", __func__, inst->domain);
@@ -59,7 +59,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	codec_input->pipe_num = inst->capabilities[PIPE].value;
 	codec_input->frame_rate = inst->max_rate;
 
-	port = inst->domain == MSM_VIDC_DECODER ? INPUT_PORT : OUTPUT_PORT;
+	port = is_decode_session(inst) ? INPUT_PORT : OUTPUT_PORT;
 	codec_input->frame_width = inst->fmts[port].fmt.pix_mp.width;
 	codec_input->frame_height = inst->fmts[port].fmt.pix_mp.height;
 
@@ -88,7 +88,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	/* set as IPP */
 	codec_input->hierachical_layer = 0;
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		color_fmt = v4l2_colorformat_to_driver(inst,
 			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 	else
@@ -397,7 +397,7 @@ static u64 msm_vidc_calc_freq_iris3_legacy(struct msm_vidc_inst *inst, u32 data_
 	fw_cycles = fps * inst->capabilities[MB_CYCLES_FW].value;
 	fw_vpp_cycles = fps * inst->capabilities[MB_CYCLES_FW_VPP].value;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		vpp_cycles_per_mb = is_low_power_session(inst) ?
 			inst->capabilities[MB_CYCLES_LP].value :
 			inst->capabilities[MB_CYCLES_VPP].value;
@@ -464,7 +464,7 @@ static u64 msm_vidc_calc_freq_iris3_legacy(struct msm_vidc_inst *inst, u32 data_
 
 		vsp_cycles += mbs_per_second * base_cycles;
 
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		/* VPP */
 		vpp_cycles = mbs_per_second * inst->capabilities[MB_CYCLES_VPP].value /
 			inst->capabilities[PIPE].value;
