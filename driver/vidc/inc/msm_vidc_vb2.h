@@ -43,7 +43,6 @@ int msm_vidc_stop_streaming(struct msm_vidc_inst *inst, struct vb2_queue *q);
 int msm_vb2_start_streaming(struct vb2_queue *q, unsigned int count);
 void msm_vb2_stop_streaming(struct vb2_queue *q);
 void msm_vb2_buf_queue(struct vb2_buffer *vb2);
-void msm_vb2_buf_cleanup(struct vb2_buffer *vb);
 int msm_vb2_buf_out_validate(struct vb2_buffer *vb);
 void msm_vb2_request_complete(struct vb2_buffer *vb);
 #endif // _MSM_VIDC_VB2_H_
