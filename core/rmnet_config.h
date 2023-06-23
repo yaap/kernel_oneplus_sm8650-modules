@@ -77,6 +77,7 @@ struct rmnet_port_priv_stats {
 	u64 dl_frag_stat_1;
 	u64 dl_frag_stat[5];
 	u64 pb_marker_count;
+	u64 pb_marker_seq;
 };
 
 struct rmnet_egress_agg_params {
