@@ -928,6 +928,11 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 		goto err;
 	}
 
+	if (!attr->width || !attr->height || !attr->stride || !attr->scanlines) {
+		ERR("width/height/stride/scanlines cannot be 0");
+		goto err;
+	}
+
 	if (!ioctl_format_is_valid(attr->image_format)) {
 		ERR("invalid image format: %d", attr->image_format);
 		goto err;
@@ -1708,6 +1713,11 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("stride_tp10     : %8d (0x%8zx)", stride_tp10_b, stride_tp10_b);
 	DBG_BUF_ATTR("iova_min_size   : %8d (0x%8zx)", iova_min_size, iova_min_size);
 	DBG_BUF_ATTR("");
+
+	if (!ula_size) {
+		ERR("Invalid ula_size (0)");
+		goto unlock;
+	}
 
 	/* assign ULA PA with uncompressed-size range */
 	ula_pa = ubwcp_ula_realloc(ubwcp, buf->ula_pa, buf->ula_size, ula_size);
