@@ -176,8 +176,7 @@ struct msm_cvp_inst *msm_cvp_open(int session_type, struct task_struct *task)
 		goto err_invalid_core;
 	}
 
-	pr_info_ratelimited(
-		CVP_DBG_TAG "%s opening cvp instance: %pK type %d cnt %d\n",
+	pr_info(CVP_DBG_TAG "%s opening cvp instance: %pK type %d cnt %d\n",
 		"sess", task->comm, inst, session_type, instance_count);
 	mutex_init(&inst->sync_lock);
 	mutex_init(&inst->lock);
@@ -377,6 +376,11 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 
 	core = inst->core;
 
+	if (inst->session_type == MSM_CVP_DSP) {
+		cvp_dsp_del_sess(inst->dsp_handle, inst);
+		inst->task = NULL;
+	}
+
 	/* Ensure no path has core->clk_lock and core->lock sequence */
 	mutex_lock(&core->lock);
 	mutex_lock(&core->clk_lock);
@@ -404,8 +408,7 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 	__deinit_fence_queue(inst);
 	core->synx_ftbl->cvp_sess_deinit_synx(inst);
 
-	pr_info_ratelimited(
-		CVP_DBG_TAG
+	pr_info(CVP_DBG_TAG
 		"closed cvp instance: %pK session_id = %d type %d %d\n",
 		inst->proc_name, inst, hash32_ptr(inst->session),
 		inst->session_type, core->smem_leak_count);
@@ -447,6 +450,14 @@ int msm_cvp_close(void *instance)
 		return -EINVAL;
 	}
 
+	pr_info(CVP_DBG_TAG
+		"to close instance: %pK session_id = %d type %d state %d\n",
+		inst->proc_name, inst, hash32_ptr(inst->session),
+		inst->session_type, inst->state);
+
+	if (inst->session == 0 || inst->state == MSM_CVP_CORE_UNINIT)
+		return -EINVAL;
+
 	if (inst->session_type != MSM_CVP_BOOT) {
 		msm_cvp_cleanup_instance(inst);
 		msm_cvp_session_deinit(inst);
@@ -460,9 +471,6 @@ int msm_cvp_close(void *instance)
 	}
 
 	msm_cvp_comm_session_clean(inst);
-
-	if (inst->session_type == MSM_CVP_DSP)
-		cvp_dsp_del_sess(inst->dsp_handle, inst);
 
 	kref_put(&inst->kref, close_helper);
 	return 0;

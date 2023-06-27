@@ -2190,7 +2190,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 
 	mutex_lock(&inst->persistbufs.lock);
 	/* Workaround for FW: release buffer means release all */
-	if (inst->state <= MSM_CVP_CLOSE_DONE) {
+	if (inst->state > MSM_CVP_CORE_INIT_DONE && inst->state <= MSM_CVP_CLOSE_DONE) {
 		rc = call_hfi_op(hdev, session_release_buffers,
 				(void *)inst->session);
 		if (!rc) {

@@ -139,8 +139,11 @@ static void put_inst_helper(struct kref *kref)
 
 void cvp_put_inst(struct msm_cvp_inst *inst)
 {
-	if (!inst)
+	if (!inst || (kref_read(&inst->kref) < 1)) {
+		dprintk(CVP_ERR, "Invalid session %llx\n", inst);
+		WARN_ON(true);
 		return;
+	}
 
 	kref_put(&inst->kref, put_inst_helper);
 }
@@ -399,6 +402,7 @@ static void handle_session_init_done(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
 	struct msm_cvp_inst *inst = NULL;
+	struct msm_cvp_core *core;
 
 	if (!response) {
 		dprintk(CVP_ERR,
@@ -406,11 +410,13 @@ static void handle_session_init_done(enum hal_command_response cmd, void *data)
 		return;
 	}
 
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst(cvp_driver->cvp_core, response->session_id);
-
 	if (!inst) {
-		dprintk(CVP_WARN, "%s:Got a response for an inactive session\n",
-				__func__);
+		dprintk(CVP_WARN, "%s:Got a response for an inactive session %#x\n",
+				__func__, response->session_id);
+		list_for_each_entry(inst, &core->instances, list)
+			cvp_print_inst(CVP_WARN, inst);
 		return;
 	}
 
@@ -579,6 +585,7 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 	hdev = core->device;
 
 	mutex_lock(&core->lock);
+	core->ssr_count++;
 	if (core->state == CVP_CORE_UNINIT) {
 		dprintk(CVP_ERR,
 			"%s: Core %pK already moved to state %d\n",
@@ -589,8 +596,8 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 
 	cur_state = core->state;
 	core->state = CVP_CORE_UNINIT;
-	dprintk(CVP_WARN, "SYS_ERROR received for core %pK cmd %x\n",
-			core, cmd);
+	dprintk(CVP_WARN, "SYS_ERROR from core %pK cmd %x total: %d\n",
+			core, cmd, core->ssr_count);
 	mutex_lock(&core->clk_lock);
 	hfi_device = hdev->hfi_device_data;
 	if (hfi_device->error == CVP_ERR_NOC_ERROR) {
@@ -669,6 +676,7 @@ static void handle_session_close(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
 	struct msm_cvp_inst *inst;
+	struct msm_cvp_core *core;
 
 	if (!response) {
 		dprintk(CVP_ERR,
@@ -676,10 +684,15 @@ static void handle_session_close(enum hal_command_response cmd, void *data)
 		return;
 	}
 
+	core = cvp_driver->cvp_core;
 	inst = cvp_get_inst(cvp_driver->cvp_core, response->session_id);
 	if (!inst) {
-		dprintk(CVP_WARN, "%s: response for an inactive session\n",
-				__func__);
+		dprintk(CVP_WARN, "%s: response for an inactive session %#x\n",
+				__func__, response->session_id);
+
+		list_for_each_entry(inst, &core->instances, list)
+			cvp_print_inst(CVP_WARN, inst);
+
 		return;
 	}
 
@@ -1165,14 +1178,13 @@ int msm_cvp_noc_error_info(struct msm_cvp_core *core)
 		return 0;
 
 	last_fault_count = core->smmu_fault_count;
-	core->ssr_count++;
 	dprintk(CVP_ERR, "cvp ssr count %d %d %d\n", core->ssr_count,
 			core->resources.max_ssr_allowed,
 			core->smmu_fault_count);
 	hdev = core->device;
 	call_hfi_op(hdev, noc_error_info, hdev->hfi_device_data);
 
-	if (core->ssr_count >= core->resources.max_ssr_allowed)
+	if (core->smmu_fault_count >= core->resources.max_ssr_allowed)
 		BUG_ON(!core->resources.non_fatal_pagefaults);
 
 	return 0;
@@ -1302,15 +1314,8 @@ int msm_cvp_comm_kill_session(struct msm_cvp_inst *inst)
 	 */
 	if (inst->state >= MSM_CVP_OPEN_DONE &&
 			inst->state < MSM_CVP_CLOSE_DONE) {
-		rc = msm_comm_session_abort(inst);
-		if (rc) {
-			dprintk(CVP_ERR,
-				"%s: inst %pK session %x abort failed\n",
-				__func__, inst, hash32_ptr(inst->session));
-			change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
-		} else {
-			change_cvp_inst_state(inst, MSM_CVP_CORE_UNINIT);
-		}
+		msm_comm_session_abort(inst);
+		change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
 	}
 
 	if (inst->state >= MSM_CVP_CORE_UNINIT) {
