@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __ESE_COLD_RESET_H
@@ -22,7 +23,6 @@
 #define COLD_RESET_OID			0x1E
 #define COLD_RESET_PROT_OID		0x1F
 
-#define ESE_COLD_RESET _IOWR(NFCC_MAGIC, 0x08, struct ese_ioctl_arg)
 
 enum ese_ioctl_arg_type {
 	ESE_ARG_TYPE_COLD_RESET = 0,

@@ -35,5 +35,6 @@
 #define NFC_SET_RESET_READ_PENDING	_IOW(NFC_MAGIC, 0x04, uint32_t)
 #define NFC_GET_GPIO_STATUS		_IOR(NFC_MAGIC, 0x05, uint32_t)
 #define NFC_SECURE_ZONE			_IOW(NFC_MAGIC, 0x0A, uint32_t)
+#define ESE_COLD_RESET _IOWR(NFCC_MAGIC, 0x08, struct ese_ioctl_arg)
 
 #endif
