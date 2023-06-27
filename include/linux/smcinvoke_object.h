@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __SMCINVOKE_OBJECT_H
 #define __SMCINVOKE_OBJECT_H
@@ -116,6 +116,7 @@
 	((nObjectsOut) << 12)))
 
 union ObjectArg;
+struct smcinvoke_cmd_req;
 
 typedef int32_t (*ObjectInvoke)(void *h,
 				uint32_t op,
