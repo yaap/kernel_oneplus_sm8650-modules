@@ -2,6 +2,7 @@ ifneq ($(TARGET_BOARD_AUTO),true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
 RMNET_PERF_TETHER_DLKM_PLATFORMS_LIST := pineapple
+RMNET_PERF_TETHER_DLKM_PLATFORMS_LIST += blair
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_PERF_TETHER_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)
