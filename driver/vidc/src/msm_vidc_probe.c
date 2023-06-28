@@ -66,17 +66,11 @@ static int msm_vidc_init_resources(struct msm_vidc_core *core)
 	struct msm_vidc_resource *res = NULL;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	res = devm_kzalloc(&core->pdev->dev, sizeof(*res), GFP_KERNEL);
 	if (!res) {
 		d_vpr_e("%s: failed to alloc memory for resource\n", __func__);
 		return -ENOMEM;
 	}
-	res->core = core;
 	core->resource = res;
 
 	rc = call_res_op(core, init, core);
@@ -173,11 +167,6 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 	int index, media_index;
 
 	d_vpr_h("%s: domain %d\n", __func__, type);
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (type == MSM_VIDC_DECODER) {
 		index = 0;
@@ -317,11 +306,6 @@ static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_mmrm_supported(core))
 		goto exit;
 
@@ -337,11 +321,6 @@ exit:
 #else
 static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core->platform->data.supports_mmrm = 0;
 
 	return 0;
@@ -377,10 +356,6 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	d_vpr_h("%s()\n", __func__);
 
 	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
@@ -498,11 +473,6 @@ static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 {
 	struct context_bank_info *cb = NULL;
 	int rc = 0;
-
-	if (!core || !dev) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	cb = msm_vidc_get_context_bank_for_device(core, dev);
 	if (!cb) {
@@ -707,9 +677,10 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 		d_vpr_e("%s: invalid input %pK", __func__, pdev);
 		return -EINVAL;
 	}
+
 	core = dev_get_drvdata(&pdev->dev);
 	if (!core) {
-		d_vpr_e("%s: invalid core", __func__);
+		d_vpr_e("%s: invalid core\n", __func__);
 		return -EINVAL;
 	}
 
@@ -908,6 +879,11 @@ static int msm_vidc_probe_context_bank(struct platform_device *pdev)
 static int msm_vidc_probe(struct platform_device *pdev)
 {
 	d_vpr_h("%s()\n", __func__);
+
+	if (!pdev) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
 
 	/*
 	 * Sub devices probe will be triggered by of_platform_populate() towards

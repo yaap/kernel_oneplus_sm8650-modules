@@ -118,11 +118,6 @@ static int msm_vidc_synx_fence_register(struct msm_vidc_core *core)
 	char synx_session_name[MAX_SYNX_FENCE_SESSION_NAME];
 	struct synx_queue_desc queue_desc;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!core->capabilities[SUPPORTS_SYNX_FENCE].value)
 		return 0;
 
@@ -163,11 +158,6 @@ static int msm_vidc_synx_fence_register(struct msm_vidc_core *core)
 static int msm_vidc_synx_fence_deregister(struct msm_vidc_core *core)
 {
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!core->capabilities[SUPPORTS_SYNX_FENCE].value)
 		return 0;
@@ -327,11 +317,6 @@ exit:
 static void msm_vidc_synx_fence_recover(struct msm_vidc_core *core)
 {
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid paras\n", __func__);
-		return;
-	}
 
 	rc = synx_hwfence_recover(
 		(enum synx_client_id)core->synx_fence_data.client_id);

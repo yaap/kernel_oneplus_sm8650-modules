@@ -2960,10 +2960,6 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 	struct device *dev = NULL;
 	int rc = 0;
 
-	if (!core || !core->pdev || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	dev = &core->pdev->dev;
 
 	d_vpr_h("%s: initialize pineapple data\n", __func__);

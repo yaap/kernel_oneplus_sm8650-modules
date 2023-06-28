@@ -235,7 +235,6 @@ struct device_region_set {
 };
 
 struct msm_vidc_resource {
-	void                      *core;
 	u8 __iomem                *register_base_addr;
 	u32                        irq;
 	struct bus_set             bus_set;

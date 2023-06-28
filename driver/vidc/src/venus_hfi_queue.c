@@ -270,12 +270,6 @@ static int __iface_cmdq_write_relaxed(struct msm_vidc_core *core,
 	//struct vidc_hal_cmd_pkt_hdr *cmd_packet;
 	int rc = -E2BIG;
 
-	if (!core || !pkt) {
-		d_vpr_e("%s: invalid params %pK %pK\n",
-			__func__, core, pkt);
-		return -EINVAL;
-	}
-
 	rc = __strict_check(core, __func__);
 	if (rc)
 		return rc;
@@ -458,11 +452,6 @@ int venus_hfi_reset_queue_header(struct msm_vidc_core *core)
 	struct hfi_queue_header *q_hdr;
 	int i, rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid param\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
 		iface_q = &core->iface_queues[i];
 		__set_queue_hdr_defaults(iface_q->q_hdr);
@@ -543,11 +532,6 @@ int venus_hfi_queue_init(struct msm_vidc_core *core)
 	u32 i;
 
 	d_vpr_h("%s: initializing interface queue\n", __func__);
-
-	if (!core) {
-		d_vpr_h("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (core->iface_q_table.align_virtual_addr) {
 		d_vpr_h("%s: queues already allocated\n", __func__);

@@ -31,10 +31,6 @@ static int __init_regulators(struct msm_vidc_core *core)
 	u32 regulator_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	regulators = &core->resource->regulator_set;
 
 	regulator_tbl = core->platform->data.regulator_tbl;
@@ -92,11 +88,6 @@ static int __acquire_regulator(struct msm_vidc_core *core,
 			       struct regulator_info *rinfo)
 {
 	int rc = 0;
-
-	if (!core || !rinfo) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (rinfo->hw_power_collapse) {
 		if (!rinfo->regulator) {
@@ -186,11 +177,6 @@ static int __enable_regulator(struct msm_vidc_core *core, const char *reg_name)
 	struct regulator_info *rinfo;
 	bool found;
 
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	found = false;
 	venus_hfi_for_each_regulator(core, rinfo) {
 		if (!rinfo->regulator) {
@@ -230,11 +216,6 @@ static int __disable_regulator(struct msm_vidc_core *core, const char *reg_name)
 	int rc = 0;
 	struct regulator_info *rinfo;
 	bool found;
-
-	if (!core || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	found = false;
 	venus_hfi_for_each_regulator(core, rinfo) {
@@ -341,11 +322,6 @@ static int update_residency_stats(
 	if (!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
 		return 0;
 
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* skip update if scaling not supported */
 	if (!cl->has_scaling)
 		return 0;
@@ -392,12 +368,6 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	struct mmrm_client_data client_data;
 	struct mmrm_client *client;
 	u64 srate;
-
-	/* not registered */
-	if (!core || !cl || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (is_mmrm_supported(core) && !cl->mmrm_client) {
 		d_vpr_e("%s: invalid mmrm client\n", __func__);
@@ -451,12 +421,6 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 {
 	u64 srate;
 	int rc = 0;
-
-	/* not registered */
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* update clock residency stats */
 	update_residency_stats(core, cl, rate);

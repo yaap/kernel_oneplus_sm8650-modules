@@ -545,11 +545,6 @@ static int msm_venc_get_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
 			msm_venc_input_internal_buffer_type[i]);
@@ -1673,11 +1668,6 @@ int msm_venc_subscribe_event(struct msm_vidc_inst *inst,
 		const struct v4l2_event_subscription *sub)
 {
 	int rc = 0;
-
-	if (!inst || !sub) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:

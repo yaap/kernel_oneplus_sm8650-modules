@@ -37,9 +37,6 @@ static int protect_cp_mem(struct msm_vidc_core *core)
 	int rc = 0;
 	struct context_bank_info *cb;
 
-	if (!core)
-		return -EINVAL;
-
 	memprot.cp_start = 0x0;
 	memprot.cp_size = 0x0;
 	memprot.cp_nonpixel_start = 0x0;
