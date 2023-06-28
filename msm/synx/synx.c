@@ -694,7 +694,8 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 		goto fail;
 	}
 
-	if (rc == SYNX_SUCCESS)
+	if (rc == SYNX_SUCCESS && synx_util_get_object_status(synx_obj)
+		!= SYNX_STATE_ACTIVE)
 		rc = synx_native_signal_core(synx_obj, status,
 			(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
 			true : false, signal_cb->ext_sync_id);
