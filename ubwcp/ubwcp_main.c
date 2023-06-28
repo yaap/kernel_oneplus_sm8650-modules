@@ -240,8 +240,9 @@ static void prefetch_tgt_per_cpu(void *info)
 
 	ret = qcom_scm_prefetch_tgt_ctrl(ctrl->enable);
 	if (ret) {
-		ctrl->result = ret;
-		ERR("scm call failed, ret: %d enable: %d", ret, ctrl->enable);
+		//ctrl->result = ret;
+		//ERR("scm call failed, ret: %d enable: %d", ret, ctrl->enable);
+		DBG("scm call failed, ret: %d missing the matching TZ?", ret);
 	}
 
 	atomic_dec(&ctrl->cpu_count);
