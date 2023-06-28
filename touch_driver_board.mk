@@ -26,7 +26,8 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
                         else ifeq ($(TARGET_BOARD_PLATFORM), blair)
                                 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/focaltech_fts.ko \
                                         $(KERNEL_MODULES_OUT)/nt36xxx-i2c.ko \
-                                        $(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko
+                                        $(KERNEL_MODULES_OUT)/synaptics_tcm_ts.ko \
+                                        $(KERNEL_MODULES_OUT)/goodix_ts.ko
                         else ifeq ($(TARGET_BOARD_PLATFORM), crow)
                                 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/goodix_ts.ko
                         else ifeq ($(TARGET_BOARD_PLATFORM), bengal)
