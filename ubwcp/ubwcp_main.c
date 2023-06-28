@@ -2026,15 +2026,12 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 			goto err_flush_failed;
 		}
 
-		/* Flush/invalidate ULA PA from CPU caches
-		 * Always invalidate cache, even when writing.
-		 * Upgrade direction to force invalidate.
-		 */
-		if (dir == DMA_TO_DEVICE)
-			dir = DMA_BIDIRECTIONAL;
-		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size, dir);
-		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size, dir);
+		/* Only apply CMOs if there are potential CPU reads */
+		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL) {
+			trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size, dir);
+			dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
+			trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size, dir);
+		}
 		buf->dma_dir = dir;
 	} else {
 		DBG("buf already locked");
@@ -2042,8 +2039,19 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		 * A previous read lock will now become write lock.
 		 * This will ensure a flush when the last unlock comes in.
 		 */
-		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		if (buf->dma_dir == DMA_TO_DEVICE &&
+		    buf->dma_dir != dir) {
+			/*
+			 * Locking for read would require doing a cache invalidation which
+			 * we don't want to do while a client may be writing to the buffer
+			 * as that could drop valid lines from the cache.
+			 */
+			ret = -EINVAL;
+			ERR("no support for locking a write only buffer for read");
+			goto err;
+		} else if (buf->dma_dir != dir) {
 			buf->dma_dir = DMA_BIDIRECTIONAL;
+		}
 	}
 	buf->lock_count++;
 	DBG("new lock_count: %d", buf->lock_count);
@@ -2077,8 +2085,9 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 		DBG("Forced lock_count: %d", buf->lock_count);
 	} else {
 		/* for write unlocks, remember the direction so we flush on last unlock */
-		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		if (buf->dma_dir != dir)
 			buf->dma_dir = DMA_BIDIRECTIONAL;
+
 		buf->lock_count--;
 		DBG("new lock_count: %d", buf->lock_count);
 		if (buf->lock_count) {
