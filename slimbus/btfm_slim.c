@@ -581,15 +581,18 @@ static int btfm_slim_status(struct slim_device *sdev,
 #if IS_ENABLED(CONFIG_BTFM_SLIM)
 	if (!is_registered) {
 		ret = btfm_slim_register_codec(btfm_slim);
-		if (ret == 0)
-			is_registered = true;
 	}
 #else
-	btfm_slim_get_hwep_details(sdev, btfm_slim);
-	ret = btfm_slim_register_hw_ep(btfm_slim);
+	if (!is_registered) {
+		btfm_slim_get_hwep_details(sdev, btfm_slim);
+		ret = btfm_slim_register_hw_ep(btfm_slim);
+	}
 #endif
-	if (ret)
+	if (!ret)
+		is_registered = true;
+	else
 		BTFMSLIM_ERR("error, registering slimbus codec failed");
+
 	return ret;
 }
 
