@@ -46,8 +46,7 @@ void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 	struct msm_vidc_subscription_params subsc_params)
 {
 	i_vpr_h(inst,
-		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d "
-		"fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d, fg present %d, sb enabled %d max_num_reorder_frames %d\n",
+		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d, fg present %d, sb enabled %d, max_num_reorder_frames %d, max_dec_frame_buffering_count %d\n",
 		str, (subsc_params.bitstream_resolution & HFI_BITMASK_BITSTREAM_WIDTH) >> 16,
 		(subsc_params.bitstream_resolution & HFI_BITMASK_BITSTREAM_HEIGHT),
 		subsc_params.crop_offsets[0], subsc_params.crop_offsets[1],
@@ -55,7 +54,9 @@ void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 		subsc_params.fw_min_count, subsc_params.pic_order_cnt,
 		subsc_params.color_info, subsc_params.profile, subsc_params.level,
 		subsc_params.tier, subsc_params.av1_film_grain_present,
-		subsc_params.av1_super_block_enabled, subsc_params.max_num_reorder_frames);
+		subsc_params.av1_super_block_enabled,
+		(subsc_params.max_num_reorder_frames >> 16),
+		(subsc_params.max_num_reorder_frames & 0x00FF));
 }
 
 static void print_sfr_message(struct msm_vidc_core *core)

@@ -723,18 +723,19 @@ static int msm_vdec_set_output_properties(struct msm_vidc_inst *inst)
 
 static bool msm_vdec_check_outbuf_fence_allowed(struct msm_vidc_inst *inst)
 {
+	u32 reorder_count = inst->capabilities[MAX_NUM_REORDER_FRAMES].value >> 16;
+
 	/* no need of checking for reordering/interlace for vp9/av1 */
 	if (inst->codec == MSM_VIDC_VP9 || inst->codec == MSM_VIDC_AV1)
 		return true;
 
 	if (inst->capabilities[CODED_FRAMES].value == CODED_FRAMES_INTERLACE ||
-		(!inst->capabilities[OUTPUT_ORDER].value &&
-		inst->capabilities[MAX_NUM_REORDER_FRAMES].value)) {
+		(!inst->capabilities[OUTPUT_ORDER].value && reorder_count)) {
 		i_vpr_e(inst,
-			"%s: outbuf tx fence is unsupported for coded frames %d or output order %d and max num reorder frames %d\n",
+			"%s: outbuf tx fence is unsupported for coded frames %d or output order %d and reorder frames %d\n",
 			__func__, inst->capabilities[CODED_FRAMES].value,
 			inst->capabilities[OUTPUT_ORDER].value,
-			inst->capabilities[MAX_NUM_REORDER_FRAMES].value);
+			(inst->capabilities[MAX_NUM_REORDER_FRAMES].value >> 16));
 		return false;
 	}
 

@@ -1655,8 +1655,12 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_PIC_ORDER_CNT_TYPE,
 		CAP_FLAG_VOLATILE},
 
+	/*
+	 * value of MAX_NUM_REORDER_FRAMES is 32 packed as mentioned below
+	 * (max_num_reorder_count << 16) | max_dec_frame_buffering_count
+	 */
 	{MAX_NUM_REORDER_FRAMES, DEC, H264 | HEVC,
-		0, 16, 1, 0,
+		0, INT_MAX, 1, 0,
 		V4L2_CID_MPEG_VIDC_MAX_NUM_REORDER_FRAMES,
 		HFI_PROP_MAX_NUM_REORDER_FRAMES,
 		CAP_FLAG_VOLATILE},
@@ -2781,6 +2785,7 @@ static const u32 pineapple_vdec_psc_avc[] = {
 	HFI_PROP_PROFILE,
 	HFI_PROP_LEVEL,
 	HFI_PROP_SIGNAL_COLOR_INFO,
+	HFI_PROP_MAX_NUM_REORDER_FRAMES,
 };
 
 static const u32 pineapple_vdec_psc_hevc[] = {
