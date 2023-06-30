@@ -177,7 +177,7 @@ static int devm_pm_runtime_get_sync(struct device *dev)
 	int rc = 0;
 
 	rc = pm_runtime_get_sync(dev);
-	if (rc) {
+	if (rc < 0) {
 		d_vpr_e("%s: pm domain get sync failed\n", __func__);
 		return rc;
 	}
@@ -909,7 +909,7 @@ static int __enable_power_domains(struct msm_vidc_core *core, const char *name)
 			continue;
 
 		rc = pm_runtime_get_sync(pdinfo->genpd_dev);
-		if (rc) {
+		if (rc < 0) {
 			d_vpr_e("%s: failed to get sync: %s\n", __func__, pdinfo->name);
 			return rc;
 		}
