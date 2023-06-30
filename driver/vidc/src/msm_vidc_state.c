@@ -75,9 +75,6 @@ static int __strict_inst_check(struct msm_vidc_inst *inst, const char *function)
 
 	WARN_ON(fatal);
 
-	if (fatal)
-		d_vpr_e("%s: strict check failed\n", function);
-
 	return fatal ? -EINVAL : 0;
 }
 
