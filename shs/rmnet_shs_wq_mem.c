@@ -603,8 +603,9 @@ DATARMNET835a28686c);if(!DATARMNET835a28686c){rm_err("\x25\x73",
 ,idx);memcpy(((char*)DATARMNET835a28686c->data),&idx,sizeof(idx));memcpy(((char*
 )DATARMNET835a28686c->data+sizeof(uint16_t)),(void*)&DATARMNET2fdef9da24[
 (0xd2d+202-0xdf7)],sizeof(DATARMNET2fdef9da24));}void DATARMNET78666f33a1(void){
-struct rmnet_priv*priv;struct DATARMNET9b44b71ee9*ep=NULL;u16 idx=
-(0xd2d+202-0xdf7);u16 count=(0xd2d+202-0xdf7);rm_err(
+struct rmnet_priv*priv;struct rmnet_port*port;struct DATARMNET9b44b71ee9*ep=NULL
+;u16 idx=(0xd2d+202-0xdf7);u16 count=(0xd2d+202-0xdf7);port=DATARMNETecc0627c70.
+port;if(!port){DATARMNET68d84e7b98[DATARMNET42b73d0f3f]++;return;}rm_err(
 "\x53\x48\x53\x5f\x4e\x45\x54\x44\x45\x56\x3a\x20\x66\x75\x6e\x63\x74\x69\x6f\x6e\x20\x65\x6e\x74\x65\x72\x20\x25\x75" "\n"
 ,idx);list_for_each_entry(ep,&DATARMNET30a3e83974,DATARMNET0763436b8d){count+=
 (0xd26+209-0xdf6);rm_err(
@@ -634,7 +635,8 @@ coal.close.hw_evict;DATARMNETf46265286b[idx].coal_tcp=priv->stats.coal.coal_tcp;
 DATARMNETf46265286b[idx].coal_tcp_bytes=priv->stats.coal.coal_tcp_bytes;
 DATARMNETf46265286b[idx].coal_udp=priv->stats.coal.coal_udp;DATARMNETf46265286b[
 idx].coal_udp_bytes=priv->stats.coal.coal_udp_bytes;DATARMNETf46265286b[idx].
-mux_id=priv->mux_id;strlcpy(DATARMNETf46265286b[idx].name,ep->ep->name,sizeof(
+mux_id=priv->mux_id;DATARMNETf46265286b[idx].pb_marker_seq=port->stats.
+pb_marker_seq;strlcpy(DATARMNETf46265286b[idx].name,ep->ep->name,sizeof(
 DATARMNETf46265286b[idx].name));DATARMNETf46265286b[idx].DATARMNET870c3dafcb=
 priv->stats.coal.coal_pkts;DATARMNETf46265286b[idx].DATARMNET4eb77c78e6=ep->
 DATARMNET4eb77c78e6;DATARMNETf46265286b[idx].DATARMNET257fc4b2d4=ep->
