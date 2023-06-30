@@ -3014,7 +3014,6 @@ static int vb2q_init(struct msm_vidc_inst *inst,
 	q->ops = core->vb2_ops;
 	q->mem_ops = core->vb2_mem_ops;
 	q->drv_priv = inst;
-	q->allow_zero_bytesused = 1;
 	q->copy_timestamp = 1;
 	rc = vb2_queue_init(q);
 	if (rc)
