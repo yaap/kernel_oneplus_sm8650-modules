@@ -102,9 +102,9 @@ int msm_vidc_querycap(struct msm_vidc_inst *inst, struct v4l2_capability *cap)
 
 	memset(cap->reserved, 0, sizeof(cap->reserved));
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		strlcpy(cap->card, "msm_vidc_decoder", sizeof(cap->card));
-	else if (inst->domain == MSM_VIDC_ENCODER)
+	else if (is_encode_session(inst))
 		strlcpy(cap->card, "msm_vidc_encoder", sizeof(cap->card));
 	else
 		return -EINVAL;
@@ -114,9 +114,9 @@ int msm_vidc_querycap(struct msm_vidc_inst *inst, struct v4l2_capability *cap)
 
 int msm_vidc_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 {
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		return msm_vdec_enum_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		return msm_venc_enum_fmt(inst, f);
 
 	return -EINVAL;
@@ -179,9 +179,9 @@ int msm_vidc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_try_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_try_fmt(inst, f);
 
 	if (rc)
@@ -194,9 +194,9 @@ int msm_vidc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_s_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_s_fmt(inst, f);
 
 	if (rc)
@@ -657,9 +657,9 @@ int msm_vidc_subscribe_event(struct msm_vidc_inst *inst,
 
 	i_vpr_h(inst, "%s: type %d id %d\n", __func__, sub->type, sub->id);
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_subscribe_event(inst, sub);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_subscribe_event(inst, sub);
 
 	return rc;

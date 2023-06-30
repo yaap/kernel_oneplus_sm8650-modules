@@ -242,7 +242,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			inst->capabilities[SUPER_BLOCK].value ? 128 : 64;
 	vote_data->fps = inst->max_rate;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		vote_data->domain = MSM_VIDC_ENCODER;
 		vote_data->bitrate = inst->capabilities[BIT_RATE].value;
 		vote_data->rotation = inst->capabilities[ROTATION].value;
@@ -260,7 +260,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			inst->fmts[INPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 		vote_data->vpss_preprocessing_enabled =
 			inst->capabilities[REQUEST_PREPROCESS].value;
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		u32 color_format;
 
 		vote_data->domain = MSM_VIDC_DECODER;

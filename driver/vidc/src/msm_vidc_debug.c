@@ -599,7 +599,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	f = &inst->fmts[OUTPUT_PORT];
 	cur += write_str(cur, end - cur, "==============================\n");
 	cur += write_str(cur, end - cur, "INSTANCE: %pK (%s)\n", inst,
-		inst->domain == MSM_VIDC_ENCODER ? "Encoder" : "Decoder");
+		is_encode_session(inst) ? "Encoder" : "Decoder");
 	cur += write_str(cur, end - cur, "==============================\n");
 	cur += write_str(cur, end - cur, "core: %pK\n", inst->core);
 	cur += write_str(cur, end - cur, "height: %d\n", f->fmt.pix_mp.height);

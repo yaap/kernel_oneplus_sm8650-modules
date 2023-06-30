@@ -250,14 +250,14 @@ int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
 		return 0;
 
 	/* stats applicable only to input & output buffers */
-	if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT)
+	if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type))
 		return -EINVAL;
 
 	/* update start timestamp */
 	buf->start_time_ms = (ktime_get_ns() / 1000 - inst->initial_time_us) / 1000;
 
 	/* add buffer stats only in ETB path */
-	if (buf->type != MSM_VIDC_BUF_INPUT)
+	if (!is_input_buffer(buf->type))
 		return 0;
 
 	stats = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUF_STATS);
@@ -287,7 +287,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 		return 0;
 
 	/* stats applicable only to input & output buffers */
-	if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT)
+	if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type))
 		return -EINVAL;
 
 	/* update end timestamp */
@@ -298,7 +298,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 			continue;
 
 		remove_stat = false;
-		if (buf->type == MSM_VIDC_BUF_INPUT) {
+		if (is_input_buffer(buf->type)) {
 			/* skip - ebd already updated(multiple input - single output case) */
 			if (stats->ebd_time_ms)
 				continue;
@@ -320,7 +320,7 @@ int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
 			/* remove entry - no output attached */
 			remove_stat = !!(stats->flags & MSM_VIDC_STATS_FLAG_NO_OUTPUT);
 			remove_stat |= stats->ebd_time_ms && stats->fbd_time_ms;
-		} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+		} else if (is_output_buffer(buf->type)) {
 			/* skip - ebd already updated(encoder superframe case) */
 			if (stats->fbd_time_ms)
 				continue;
@@ -952,7 +952,7 @@ bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst)
 	if (colorformat == MSM_VIDC_FMT_TP10C || colorformat == MSM_VIDC_FMT_P010)
 		is10bit = true;
 
-	return inst->domain == MSM_VIDC_DECODER &&
+	return is_decode_session(inst) &&
 				inst->codec == MSM_VIDC_HEVC &&
 				is10bit;
 }
@@ -1497,9 +1497,9 @@ int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *vbuf;
 	struct msm_vidc_buffers *buffers;
 
-	if (type == MSM_VIDC_BUF_OUTPUT) {
+	if (is_output_buffer(type)) {
 		buffers = &inst->buffers.output;
-	} else if (type == MSM_VIDC_BUF_INPUT) {
+	} else if (is_input_buffer(type)) {
 		buffers = &inst->buffers.input;
 	} else {
 		i_vpr_e(inst, "%s: invalid buffer type %#x\n",
@@ -2087,9 +2087,9 @@ struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffers *buffers;
 	bool found = false;
 
-	if (buf->type == MSM_VIDC_BUF_INPUT) {
+	if (is_input_buffer(buf->type)) {
 		buffers = &inst->buffers.input_meta;
-	} else if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+	} else if (is_output_buffer(buf->type)) {
 		buffers = &inst->buffers.output_meta;
 	} else {
 		i_vpr_e(inst, "%s: invalid buffer type %d\n",
@@ -3916,7 +3916,7 @@ int msm_vidc_print_inst_info(struct msm_vidc_inst *inst)
 	int i = 0;
 
 	is_secure = is_secure_session(inst);
-	is_decode = inst->domain == MSM_VIDC_DECODER;
+	is_decode = is_decode_session(inst);
 	port = is_decode ? INPUT_PORT : OUTPUT_PORT;
 	width = inst->fmts[port].fmt.pix_mp.width;
 	height = inst->fmts[port].fmt.pix_mp.height;
@@ -4213,10 +4213,10 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 	int i;
 	core = inst->core;
 
-	if (type == MSM_VIDC_BUF_INPUT) {
+	if (is_input_buffer(type)) {
 		buffer_type[0] = MSM_VIDC_BUF_INPUT_META;
 		buffer_type[1] = MSM_VIDC_BUF_INPUT;
-	} else if (type == MSM_VIDC_BUF_OUTPUT) {
+	} else if (is_output_buffer(type)) {
 		buffer_type[0] = MSM_VIDC_BUF_OUTPUT_META;
 		buffer_type[1] = MSM_VIDC_BUF_OUTPUT;
 	} else {

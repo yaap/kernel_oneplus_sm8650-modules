@@ -748,13 +748,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}
 
 		/* defer output port */
-		if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+		if (is_output_buffer(buf->type)) {
 			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
 			return 0;
 		}
@@ -945,13 +945,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}
 
 		/* defer input port */
-		if (buf->type == MSM_VIDC_BUF_INPUT) {
+		if (is_input_buffer(buf->type)) {
 			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
 			return 0;
 		}
@@ -1134,7 +1134,7 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}
