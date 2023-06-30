@@ -19,7 +19,6 @@ bool is_valid_hfi_buffer_type(struct msm_vidc_inst *inst,
 	u32 buffer_type, const char *func);
 int handle_system_error(struct msm_vidc_core *core,
 	struct hfi_packet *pkt);
-void fw_coredump(struct msm_vidc_core *core);
 int handle_release_output_buffer(struct msm_vidc_inst *inst,
 	struct hfi_buffer *buffer);
 
