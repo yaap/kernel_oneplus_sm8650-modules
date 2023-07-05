@@ -369,32 +369,19 @@ int msm_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		return -EINVAL;
 	}
 	inst = q->drv_priv;
-	inst = get_inst_ref(g_core, inst);
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
-	}
-
-	client_lock(inst, __func__);
-	inst_lock(inst, __func__);
-	if (is_session_error(inst)) {
-		i_vpr_e(inst, "%s: inst in error state\n", __func__);
-		rc = -EBUSY;
-		goto unlock;
 	}
 
 	rc = inst->event_handle(inst, MSM_VIDC_STREAMON, q);
 	if (rc) {
 		i_vpr_e(inst, "Streamon: %s failed\n", v4l2_type_name(q->type));
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
-		goto unlock;
+		goto exit;
 	}
 
-unlock:
-	inst_unlock(inst, __func__);
-	client_unlock(inst, __func__);
-	put_inst(inst);
-
+exit:
 	return rc;
 }
 
@@ -577,6 +564,7 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst;
+	struct msm_vidc_core *core;
 	u64 timestamp_us = 0;
 	u64 ktime_ns = ktime_get_ns();
 
@@ -586,16 +574,11 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 	}
 
 	inst = vb2_get_drv_priv(vb2->vb2_queue);
-	if (!inst) {
+	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return;
 	}
-
-	inst = get_inst_ref(g_core, inst);
-	if (!inst) {
-		d_vpr_e("%s: invalid instance\n", __func__);
-		return;
-	}
+	core = inst->core;
 
 	/*
 	 * As part of every qbuf initalise request to true.
@@ -605,29 +588,24 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 	 * If the buffer does not have any requests with it, then
 	 * v4l2_ctrl_request_setup() will return 0.
 	 */
-	inst->request = true;
-	rc = v4l2_ctrl_request_setup(vb2->req_obj.req,
-			&inst->ctrl_handler);
-	inst->request = false;
-	v4l2_ctrl_request_complete(vb2->req_obj.req, &inst->ctrl_handler);
-	/*
-	 * call request_setup and request_complete without acquiring lock
-	 * to avoid deadlock issues because request_setup or request_complete
-	 * would call .s_ctrl and .g_volatile_ctrl respectively which acquire
-	 * lock too.
-	 */
-	client_lock(inst, __func__);
-	inst_lock(inst, __func__);
-	if (rc) {
-		i_vpr_e(inst, "%s: request setup failed, error %d\n",
-			__func__, rc);
-		goto unlock;
-	}
-
-	if (is_session_error(inst)) {
-		i_vpr_e(inst, "%s: inst in error state\n", __func__);
-		rc = -EINVAL;
-		goto unlock;
+	if (core->capabilities[SUPPORTS_REQUESTS].value) {
+		/*
+		 * If Request API is enabled:
+		 * Call request_setup and request_complete without acquiring lock
+		 * to avoid deadlock issues because request_setup or request_complete
+		 * would call .s_ctrl and .g_volatile_ctrl respectively which acquire
+		 * lock too.
+		 */
+		inst->request = true;
+		rc = v4l2_ctrl_request_setup(vb2->req_obj.req,
+				&inst->ctrl_handler);
+		inst->request = false;
+		v4l2_ctrl_request_complete(vb2->req_obj.req, &inst->ctrl_handler);
+		if (rc) {
+			i_vpr_e(inst, "%s: request setup failed, error %d\n",
+				__func__, rc);
+			goto exit;
+		}
 	}
 
 	if (!vb2->planes[0].bytesused) {
@@ -636,7 +614,7 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 			i_vpr_e(inst,
 				"%s: zero bytesused input buffer not supported\n", __func__);
 			rc = -EINVAL;
-			goto unlock;
+			goto exit;
 		}
 		if ((vb2->type == OUTPUT_META_PLANE && is_any_meta_tx_out_enabled(inst)) ||
 			(vb2->type == INPUT_META_PLANE && is_any_meta_tx_inp_enabled(inst))) {
@@ -659,7 +637,7 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 	if (vb2->type == INPUT_MPLANE) {
 		rc = msm_vidc_update_input_rate(inst, div_u64(ktime_ns, 1000));
 		if (rc)
-			goto unlock;
+			goto exit;
 	}
 
 	if (is_decode_session(inst))
@@ -670,17 +648,14 @@ void msm_vb2_buf_queue(struct vb2_buffer *vb2)
 		rc = -EINVAL;
 	if (rc) {
 		print_vb2_buffer("failed vb2-qbuf", inst, vb2);
-		goto unlock;
+		goto exit;
 	}
 
-unlock:
+exit:
 	if (rc) {
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
 		vb2_buffer_done(vb2, VB2_BUF_STATE_ERROR);
 	}
-	inst_unlock(inst, __func__);
-	client_unlock(inst, __func__);
-	put_inst(inst);
 }
 
 int msm_vb2_buf_out_validate(struct vb2_buffer *vb)
