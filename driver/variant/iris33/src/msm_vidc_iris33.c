@@ -996,6 +996,7 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 
 fail_deassert_xo_reset:
 fail_assert_xo_reset:
+	MSM_VIDC_FATAL(true);
 	return rc;
 }
 
