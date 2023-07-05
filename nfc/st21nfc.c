@@ -47,7 +47,6 @@
 #include <linux/version.h>
 
 /*secure library headers*/
-#include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
 
