@@ -75,7 +75,7 @@ static int btfmcodec_codec_probe(struct snd_soc_component *codec)
 	int num_mixer_ctrl = hwep_info->num_mixer_ctrl;
 	BTFMCODEC_DBG("");
 
-	// ToDo: check weather probe has to allowed when state if different
+	// ToDo: check Whether probe has to allowed when state if different
 	if (btfmcodec_get_current_transport(state)!= IDLE) {
 		BTFMCODEC_WARN("Received probe when state is :%s",
 			coverttostring(btfmcodec_get_current_transport(state)));
@@ -284,7 +284,7 @@ void btfmcodec_wq_hwep_shutdown(struct work_struct *work)
 		BTFMCODEC_INFO("shuting down dai id:%d", hwep_configs->stream_id);
 		ret = btfmcodec_hwep_shutdown(btfmcodec, hwep_configs->stream_id, true);
 		if (ret < 0) {
-			BTFMCODEC_ERR("failed to shutdown master with id", hwep_configs->stream_id);
+			BTFMCODEC_ERR("failed to shutdown master with id %d", hwep_configs->stream_id);
 			break;
 		}
 	}
@@ -657,7 +657,7 @@ void btfmcodec_wq_hwep_configure(struct work_struct *work)
 		if (ret >= 0)
 			ret = btfmcodec_hwep_prepare(btfmcodec, sample_rate, direction, id);
 		if (ret < 0) {
-			BTFMCODEC_ERR("failed to configure hwep", hwep_configs->stream_id);
+			BTFMCODEC_ERR("failed to configure hwep %d", hwep_configs->stream_id);
 			break;
 		}
 	}
@@ -753,7 +753,7 @@ int btfm_register_codec(struct hwep_data *hwep_info)
 	ret = snd_soc_register_component(dev, &btfmcodec_codec_component,
 					btfmcodec_dai_info, hwep_info->num_dai);
 	BTFMCODEC_INFO("Dev node address: %p", dev);
-	BTFMCODEC_INFO("btfmcodec address :%p, btfmcodec");
+	BTFMCODEC_INFO("btfmcodec address :%p", btfmcodec);
 	BTFMCODEC_INFO("HWEPINFO address:%p", hwep_info);
 	BTFMCODEC_INFO("btfmcodec_dev INFO address:%p", btfmcodec->btfmcodec_dev);
 	BTFMCODEC_INFO("before wq_hwep_shutdown:%p", btfmcodec_dev->wq_hwep_shutdown);

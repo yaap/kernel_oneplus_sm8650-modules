@@ -361,7 +361,7 @@ static __poll_t btfmcodec_dev_poll(struct file *file, poll_table *wait)
 	mutex_lock(&btfmcodec_dev->lock);
 	/* recheck if the client has released by the driver */
 	if (refcount_read(&btfmcodec_dev->active_clients) == 1) {
-		BTFMCODEC_WARN("port has been closed alreadt");
+		BTFMCODEC_WARN("port has been closed already");
 		mutex_unlock(&btfmcodec_dev->lock);
 		return POLLHUP;
 	}
@@ -465,9 +465,7 @@ static ssize_t btfmcodec_attributes_store(struct device *dev,
 	mutex_lock(&btfmcodec_dev->lock);
 	if (kstrtol(buf, 0, &tmp)) {
 		mutex_unlock(&btfmcodec_dev->lock);
-/*		BTFMCODEC_ERR("unable to convert string to int for /dev/%s\n",
-			      btfmcodec->dev->name);
-*/		return -EINVAL;
+		return -EINVAL;
 	}
 	mutex_unlock(&btfmcodec_dev->lock);
 
@@ -619,9 +617,9 @@ static void __exit btfmcodec_deinit(void)
 {
 	struct btfmcodec_char_device *btfmcodec_dev;
 	struct device *dev;
-	BTFMCODEC_INFO("cleaning up btfm codec driver", __func__);
+	BTFMCODEC_INFO("%s: cleaning up btfm codec driver", __func__);
 	if (!btfmcodec) {
-		BTFMCODEC_ERR("skiping driver cleanup", __func__);
+		BTFMCODEC_ERR("%s: skiping driver cleanup", __func__);
 		goto info_cleanup;
 	}
 
@@ -631,7 +629,7 @@ static void __exit btfmcodec_deinit(void)
 	put_device(dev);
 
 	if (!btfmcodec->btfmcodec_dev) {
-		BTFMCODEC_ERR("skiping device node cleanup", __func__);
+		BTFMCODEC_ERR("%s: skiping device node cleanup", __func__);
 		goto info_cleanup;
 	}
 
@@ -643,7 +641,7 @@ static void __exit btfmcodec_deinit(void)
 	kfree(btfmcodec_dev);
 info_cleanup:
 	kfree(btfmcodec);
-	BTFMCODEC_INFO("btfm codec driver cleanup completed", __func__);
+	BTFMCODEC_INFO("%s: btfm codec driver cleanup completed", __func__);
 	return;
 }
 
