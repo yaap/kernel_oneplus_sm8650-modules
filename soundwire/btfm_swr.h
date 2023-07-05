@@ -83,21 +83,4 @@ int btfm_swr_enable_port(u8 port_num, u8 ch_count, u32 sample_rate,
 
 
 int btfm_swr_disable_port(u8 port_num, u8 ch_count, u8 usecase);
-
-/**
- * btfm_swr_register_codec: Register codec driver with ALSA
- * @btfmswr: swr slave device data pointer.
- * Returns:
- * -ENOMEM
- * 0
- */
-int btfm_swr_register_codec(struct btfmswr *btfmswr);
-
-/**
- * btfm_swr_unregister_codec: Unregister codec driver with ALSA
- * @dev: device node
- * Returns:
- * VOID
- */
-void btfm_swr_unregister_codec(struct device *dev);
 #endif /* BTFM_SWR_H */

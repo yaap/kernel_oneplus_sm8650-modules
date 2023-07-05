@@ -33,6 +33,7 @@ static uint8_t log_lvl = BTM_BTFMCODEC_DEFAULT_LOG_LVL;
 				    }
 
 #define DEVICE_NAME_MAX_LEN	64
+#define BTM_CP_UPDATE           0xbfaf
 
 typedef enum btfmcodec_states {
 	/*Default state of kernel proxy driver */
@@ -54,6 +55,7 @@ enum btfm_pkt_type {
 	BTM_PKT_TYPE_BEARER_SWITCH_IND,
 	BTM_PKT_TYPE_HWEP_SHUTDOWN,
 	BTM_PKT_TYPE_HWEP_CONFIG,
+	BTM_PKT_TYPE_DMA_CONFIG_RSP,
 	BTM_PKT_TYPE_MAX,
 };
 
@@ -98,7 +100,9 @@ struct btfmcodec_data {
 	struct hwep_data *hwep_info;
 	struct list_head config_head;
 	struct adsp_notifier notifier;
+	struct mutex hwep_drv_lock;
 };
 
 struct btfmcodec_data *btfm_get_btfmcodec(void);
+bool isCpSupported(void);
 #endif /*__LINUX_BTFM_CODEC_H */

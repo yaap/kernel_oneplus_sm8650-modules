@@ -21,6 +21,7 @@
 #include <sound/tlv.h>
 #include "btpower.h"
 #include "btfm_swr.h"
+#include "btfm_swr_hw_interface.h"
 #include "btfm_swr_slave.h"
 
 struct class *btfm_swr_class;
@@ -205,7 +206,7 @@ static int btfm_swr_probe(struct swr_device *pdev)
 	pbtfmswr->initialized = false;
 
 	// register with ALSA
-	ret = btfm_swr_register_codec(pbtfmswr);
+	ret = btfm_swr_register_hw_ep(pbtfmswr);
 	if (ret) {
 		BTFMSWR_ERR("registration with ALSA failed, returning");
 		goto dealloc;
@@ -239,8 +240,7 @@ class_err:
 	unregister_chrdev(btfm_swr_major, "btfm_swr");
 
 register_err:
-	btfm_swr_unregister_codec(pbtfmswr->dev);
-
+	btfm_swr_unregister_hwep();
 dealloc:
 	kfree(pbtfmswr);
 	return ret;
