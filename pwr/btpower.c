@@ -33,7 +33,6 @@
 #include <linux/fs.h>
 
 #ifdef CONFIG_BT_HW_SECURE_DISABLE
-#include "linux/smcinvoke.h"
 #include "linux/smcinvoke_object.h"
 #include "linux/IClientEnv.h"
 
