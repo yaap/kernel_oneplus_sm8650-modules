@@ -711,9 +711,11 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	if (rc)
 		return NULL;
 
-	rc = msm_vidc_vmem_alloc(sizeof(*inst), (void **)&inst, "inst memory");
-	if (rc)
+	inst = vzalloc(sizeof(*inst));
+	if (!inst) {
+		d_vpr_e("%s: allocation failed\n", __func__);
 		return NULL;
+	}
 
 	inst->core = core;
 	inst->domain = session_type;
@@ -853,7 +855,7 @@ fail_add_session:
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->ctx_q_lock);
 	mutex_destroy(&inst->lock);
-	msm_vidc_vmem_free((void **)&inst);
+	vfree(inst);
 	return NULL;
 }
 

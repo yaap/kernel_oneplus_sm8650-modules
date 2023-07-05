@@ -38,32 +38,6 @@ static const struct msm_vidc_type_size_name buftype_size_name_arr[] = {
 	{MSM_MEM_POOL_BUF_STATS,  sizeof(struct msm_vidc_buffer_stats), "MSM_MEM_POOL_BUF_STATS"},
 };
 
-int msm_vidc_vmem_alloc(unsigned long size, void **mem, const char *msg)
-{
-	int rc = 0;
-
-	if (*mem) {
-		d_vpr_e("%s: error: double alloc\n", msg);
-		rc = -EINVAL;
-	}
-
-	*mem = vzalloc(size);
-	if (!*mem) {
-		d_vpr_e("allocation failed for %s\n", msg);
-		rc = -ENOMEM;
-	}
-
-	return rc;
-}
-
-void msm_vidc_vmem_free(void **addr)
-{
-	if (addr && *addr) {
-		vfree(*addr);
-		*addr = NULL;
-	}
-}
-
 void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst, enum msm_memory_pool_type type)
 {
 	struct msm_memory_alloc_header *hdr = NULL;
@@ -92,9 +66,11 @@ void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst, enum msm_memory_pool_type 
 		return hdr->buf;
 	}
 
-	if (msm_vidc_vmem_alloc(pool->size + sizeof(struct msm_memory_alloc_header),
-			(void **)&hdr, __func__))
+	hdr = vzalloc(pool->size + sizeof(struct msm_memory_alloc_header));
+	if (!hdr) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
 		return NULL;
+	}
 
 	INIT_LIST_HEAD(&hdr->list);
 	hdr->type = type;
@@ -162,14 +138,14 @@ static void msm_vidc_destroy_pool_buffers(struct msm_vidc_inst *inst,
 	/* destroy all free buffers */
 	list_for_each_entry_safe(hdr, dummy, &pool->free_pool, list) {
 		list_del(&hdr->list);
-		msm_vidc_vmem_free((void **)&hdr);
+		vfree(hdr);
 		fcount++;
 	}
 
 	/* destroy all busy buffers */
 	list_for_each_entry_safe(hdr, dummy, &pool->busy_pool, list) {
 		list_del(&hdr->list);
-		msm_vidc_vmem_free((void **)&hdr);
+		vfree(hdr);
 		bcount++;
 	}
 

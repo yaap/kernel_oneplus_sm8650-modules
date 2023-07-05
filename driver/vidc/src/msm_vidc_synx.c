@@ -62,7 +62,7 @@ static void msm_vidc_synx_fence_release(struct dma_fence *df)
 				__func__, fence->name);
 	}
 
-	msm_vidc_vmem_free((void **)&fence);
+	vfree(fence);
 	return;
 }
 
@@ -178,11 +178,12 @@ static int msm_vidc_synx_fence_deregister(struct msm_vidc_core *core)
 static struct msm_vidc_fence *msm_vidc_synx_dma_fence_create(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_fence *fence = NULL;
-	int rc = 0;
 
-	rc = msm_vidc_vmem_alloc(sizeof(*fence), (void **)&fence, __func__);
-	if (rc)
+	fence = vzalloc(sizeof(*fence));
+	if (!fence) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
 		return NULL;
+	}
 
 	fence->fd = INVALID_FD;
 	spin_lock_init(&fence->lock);

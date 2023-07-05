@@ -2293,9 +2293,11 @@ static void msm_vidc_update_input_cr(struct msm_vidc_inst *inst, u32 idx, u32 cr
 	}
 	if (!found) {
 		temp = NULL;
-		if (msm_vidc_vmem_alloc(sizeof(*temp), (void **)&temp, __func__))
+		temp = vzalloc(sizeof(*temp));
+		if (!temp) {
+			i_vpr_e(inst, "%s: allocation failed\n", __func__);
 			return;
-
+		}
 		temp->index = idx;
 		temp->input_cr = cr;
 		list_add_tail(&temp->list, &inst->enc_input_crs);
@@ -3084,20 +3086,24 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 	}
 	inst->fh.m2m_ctx = inst->m2m_ctx;
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct vb2_queue),
-			(void **)&inst->bufq[INPUT_META_PORT].vb2q, "input meta port");
-	if (rc)
+	inst->bufq[INPUT_META_PORT].vb2q = vzalloc(sizeof(*inst->bufq[INPUT_META_PORT].vb2q));
+	if (!inst->bufq[INPUT_META_PORT].vb2q) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
+		rc = -ENOMEM;
 		goto fail_in_meta_alloc;
+	}
 
 	/* do input meta port queues initialization */
 	rc = vb2q_init(inst, inst->bufq[INPUT_META_PORT].vb2q, INPUT_META_PLANE);
 	if (rc)
 		goto fail_in_meta_vb2q_init;
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct vb2_queue),
-			(void **)&inst->bufq[OUTPUT_META_PORT].vb2q, "output meta port");
-	if (rc)
+	inst->bufq[OUTPUT_META_PORT].vb2q = vzalloc(sizeof(*inst->bufq[OUTPUT_META_PORT].vb2q));
+	if (!inst->bufq[OUTPUT_META_PORT].vb2q) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
+		rc = -ENOMEM;
 		goto fail_out_meta_alloc;
+	}
 
 	/* do output meta port queues initialization */
 	rc = vb2q_init(inst, inst->bufq[OUTPUT_META_PORT].vb2q, OUTPUT_META_PLANE);
@@ -3107,12 +3113,12 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 	return 0;
 
 fail_out_meta_vb2q_init:
-	msm_vidc_vmem_free((void **)&inst->bufq[OUTPUT_META_PORT].vb2q);
+	vfree(inst->bufq[OUTPUT_META_PORT].vb2q);
 	inst->bufq[OUTPUT_META_PORT].vb2q = NULL;
 fail_out_meta_alloc:
 	vb2_queue_release(inst->bufq[INPUT_META_PORT].vb2q);
 fail_in_meta_vb2q_init:
-	msm_vidc_vmem_free((void **)&inst->bufq[INPUT_META_PORT].vb2q);
+	vfree(inst->bufq[INPUT_META_PORT].vb2q);
 	inst->bufq[INPUT_META_PORT].vb2q = NULL;
 fail_in_meta_alloc:
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
@@ -3148,10 +3154,10 @@ int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst)
 	inst->m2m_dev = NULL;
 
 	vb2_queue_release(inst->bufq[OUTPUT_META_PORT].vb2q);
-	msm_vidc_vmem_free((void **)&inst->bufq[OUTPUT_META_PORT].vb2q);
+	vfree(inst->bufq[OUTPUT_META_PORT].vb2q);
 	inst->bufq[OUTPUT_META_PORT].vb2q = NULL;
 	vb2_queue_release(inst->bufq[INPUT_META_PORT].vb2q);
-	msm_vidc_vmem_free((void **)&inst->bufq[INPUT_META_PORT].vb2q);
+	vfree(inst->bufq[INPUT_META_PORT].vb2q);
 	inst->bufq[INPUT_META_PORT].vb2q = NULL;
 
 	return rc;
@@ -3243,9 +3249,11 @@ int msm_vidc_session_open(struct msm_vidc_inst *inst)
 	int rc = 0;
 
 	inst->packet_size = 4096;
-	rc = msm_vidc_vmem_alloc(inst->packet_size, (void **)&inst->packet, __func__);
-	if (rc)
-		return rc;
+	inst->packet = vzalloc(inst->packet_size);
+	if (!inst->packet) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
+		return -ENOMEM;
+	}
 
 	rc = venus_hfi_session_open(inst);
 	if (rc)
@@ -3254,7 +3262,7 @@ int msm_vidc_session_open(struct msm_vidc_inst *inst)
 	return 0;
 error:
 	i_vpr_e(inst, "%s(): session open failed\n", __func__);
-	msm_vidc_vmem_free((void **)&inst->packet);
+	vfree(inst->packet);
 	inst->packet = NULL;
 	return rc;
 }
@@ -3395,7 +3403,7 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 
 	/* we are not supposed to send any more commands after close */
 	i_vpr_h(inst, "%s: free session packet data\n", __func__);
-	msm_vidc_vmem_free((void **)&inst->packet);
+	vfree(inst->packet);
 	inst->packet = NULL;
 
 	if (wait_for_response) {
@@ -4416,23 +4424,23 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(entry, dummy_entry, &inst->firmware_list, list) {
 		i_vpr_e(inst, "%s: fw list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	list_for_each_entry_safe(entry, dummy_entry, &inst->children_list, list) {
 		i_vpr_e(inst, "%s: child list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	list_for_each_entry_safe(entry, dummy_entry, &inst->caps_list, list) {
 		list_del(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	list_for_each_entry_safe(cr, dummy_cr, &inst->enc_input_crs, list) {
 		list_del(&cr->list);
-		msm_vidc_vmem_free((void **)&cr);
+		vfree(cr);
 	}
 
 	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
@@ -4476,7 +4484,7 @@ static void msm_vidc_close_helper(struct kref *kref)
 	mutex_destroy(&inst->client_lock);
 	mutex_destroy(&inst->ctx_q_lock);
 	mutex_destroy(&inst->lock);
-	msm_vidc_vmem_free((void **)&inst);
+	vfree(inst);
 }
 
 struct msm_vidc_inst *get_inst_ref(struct msm_vidc_core *core,

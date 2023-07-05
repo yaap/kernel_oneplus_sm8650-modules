@@ -183,10 +183,11 @@ static int add_node_list(struct list_head *list, enum msm_vidc_inst_capability_t
 	int rc = 0;
 	struct msm_vidc_inst_cap_entry *entry = NULL;
 
-	rc = msm_vidc_vmem_alloc(sizeof(struct msm_vidc_inst_cap_entry),
-			(void **)&entry, __func__);
-	if (rc)
-		return rc;
+	entry = vzalloc(sizeof(*entry));
+	if (!entry) {
+		d_vpr_e("%s: allocation failed\n", __func__);
+		return -ENOMEM;
+	}
 
 	INIT_LIST_HEAD(&entry->list);
 	entry->cap_id = cap_id;
@@ -403,7 +404,7 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 		}
 
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	/* expecting children_list to be empty */
@@ -418,12 +419,12 @@ error:
 	list_for_each_entry_safe(entry, temp, &inst->children_list, list) {
 		i_vpr_e(inst, "%s: child list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 	list_for_each_entry_safe(entry, temp, &inst->firmware_list, list) {
 		i_vpr_e(inst, "%s: fw list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	return rc;
@@ -442,7 +443,7 @@ static int msm_vidc_set_dynamic_property(struct msm_vidc_inst *inst)
 			goto error;
 
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	return 0;
@@ -450,7 +451,7 @@ error:
 	list_for_each_entry_safe(entry, temp, &inst->firmware_list, list) {
 		i_vpr_e(inst, "%s: fw list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 
 	return rc;
@@ -1029,12 +1030,12 @@ error:
 	list_for_each_entry_safe(entry, temp, &opt_list, list) {
 		i_vpr_e(inst, "%s: opt_list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 	list_for_each_entry_safe(entry, temp, &leaf_list, list) {
 		i_vpr_e(inst, "%s: leaf_list: %s\n", __func__, cap_name(entry->cap_id));
 		list_del_init(&entry->list);
-		msm_vidc_vmem_free((void **)&entry);
+		vfree(entry);
 	}
 	return rc;
 }

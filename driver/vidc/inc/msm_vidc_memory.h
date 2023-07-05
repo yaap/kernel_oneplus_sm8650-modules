@@ -45,8 +45,6 @@ struct msm_memory_pool {
 	struct list_head       busy_pool; /* list of struct msm_memory_alloc_header */
 };
 
-int msm_vidc_vmem_alloc(unsigned long size, void **mem, const char *msg);
-void msm_vidc_vmem_free(void **addr);
 void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst,
 		enum msm_memory_pool_type type);
 void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf);
