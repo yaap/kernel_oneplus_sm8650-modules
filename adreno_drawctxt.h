@@ -124,6 +124,7 @@ void adreno_drawctxt_detach(struct kgsl_context *context);
 void adreno_drawctxt_destroy(struct kgsl_context *context);
 
 struct adreno_ringbuffer;
+struct adreno_dispatcher_drawqueue;
 
 int adreno_drawctxt_wait(struct adreno_device *adreno_dev,
 		struct kgsl_context *context,
@@ -188,4 +189,18 @@ adreno_drawctxt_get_pagetable(struct adreno_context *drawctxt)
  */
 void adreno_drawctxt_set_guilty(struct kgsl_device *device,
 		struct kgsl_context *context);
+
+/**
+ * adreno_track_context - Add a context to active list and keep track of active contexts
+ * @adreno_dev: Pointer to adreno device
+ * @drawqueue: Pointer to the dispatch queue to which context send commands
+ * @drawctxt: Draw context which is to be tracked
+ *
+ * Add the given draw context to the active list and update number of contexts which
+ * are active overall as well as which are active on the dispatch queue to which
+ * the given context sends commands.
+ */
+void adreno_track_context(struct adreno_device *adreno_dev,
+		struct adreno_dispatcher_drawqueue *drawqueue,
+		struct adreno_context *drawctxt);
 #endif  /* __ADRENO_DRAWCTXT_H */
