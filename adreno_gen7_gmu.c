@@ -565,18 +565,21 @@ int gen7_gmu_load_fw(struct adreno_device *adreno_dev)
 				GEN7_GMU_CM3_DTCM_START,
 				gmu->vma[GMU_DTCM].start, blk);
 		} else {
-			struct kgsl_memdesc *md =
-				find_gmu_memdesc(gmu, blk->addr, blk->size);
+			/* The firmware block for memory needs to be copied on first boot only */
+			if (!test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags)) {
+				struct kgsl_memdesc *md =
+					find_gmu_memdesc(gmu, blk->addr, blk->size);
 
-			if (!md) {
-				dev_err(&gmu->pdev->dev,
-					"No backing memory for GMU FW block addr:0x%x size:0x%x\n",
-					blk->addr, blk->size);
-				return -EINVAL;
+				if (!md) {
+					dev_err(&gmu->pdev->dev,
+						"No backing memory for GMU FW block addr:0x%x size:0x%x\n",
+						blk->addr, blk->size);
+					return -EINVAL;
+				}
+
+				memcpy(md->hostptr + (blk->addr - md->gmuaddr), fw,
+					blk->size);
 			}
-
-			memcpy(md->hostptr + (blk->addr - md->gmuaddr), fw,
-				blk->size);
 		}
 
 		fw += blk->size;
