@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __UBWCP_HW_H_
@@ -68,5 +68,6 @@ void ubwcp_hw_one_time_init(void __iomem *base);
 int ubwcp_hw_flush(void __iomem *base);
 void ubwcp_hw_trace_set(bool value);
 void ubwcp_hw_trace_get(bool *value);
+void ubwcp_hw_single_tile(void __iomem *base, bool en);
 
 #endif /* __UBWCP_HW_H_ */

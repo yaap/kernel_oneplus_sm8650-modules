@@ -342,6 +342,20 @@ void ubwcp_hw_power_vote_status(void __iomem *pwr_ctrl, u8 *vote, u8 *status)
 	*status = (reg & BIT(31)) >> 31;
 }
 
+/* process only one tile at a time */
+void ubwcp_hw_single_tile(void __iomem *base, bool en)
+{
+	u32 reg;
+
+	reg = UBWCP_REG_READ(base, SPARE);
+	if (en)
+		reg |= BIT(15);
+	else
+		reg &= ~BIT(15);
+	UBWCP_REG_WRITE(base, SPARE, reg);
+}
+EXPORT_SYMBOL(ubwcp_hw_single_tile);
+
 void ubwcp_hw_one_time_init(void __iomem *base)
 {
 	u32 reg;

@@ -137,6 +137,7 @@ struct ubwcp_driver {
 	bool write_err_irq_en;
 	bool decode_err_irq_en;
 	bool encode_err_irq_en;
+	bool single_tile_en;
 
 	/* ubwcp devices */
 	struct device *dev; //ubwcp device
@@ -2682,11 +2683,46 @@ static int reg_rw_trace_r_op(void *data, u64 *value)
 	return 0;
 }
 
+static int single_tile_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp->state != UBWCP_STATE_READY)
+		return -EPERM;
+
+	*value = ubwcp->single_tile_en;
+	return 0;
+}
+
+static int single_tile_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp->state != UBWCP_STATE_READY)
+		return -EPERM;
+
+	if (ubwcp_power(ubwcp, true))
+		goto err;
+
+	ubwcp_hw_single_tile(ubwcp->base, value);
+	ubwcp->single_tile_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		goto err;
+
+	return 0;
+err:
+	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
+	return -1;
+}
+
 DEFINE_DEBUGFS_ATTRIBUTE(read_err_fops, read_err_r_op, read_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(decode_err_fops, decode_err_r_op, decode_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(write_err_fops, write_err_r_op, write_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(encode_err_fops, encode_err_r_op, encode_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(reg_rw_trace_fops, reg_rw_trace_r_op, reg_rw_trace_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(single_tile_fops, single_tile_r_op, single_tile_w_op, "%d\n");
 
 static void ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
 {
@@ -2730,6 +2766,12 @@ static void ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
 					&encode_err_fops);
 	if (IS_ERR_OR_NULL(dfile)) {
 		ERR("failed to create encode_err_irq debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("single_tile_en", 0644, debugfs_root, ubwcp, &single_tile_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create write_err_irq debugfs file");
 		goto err;
 	}
 
