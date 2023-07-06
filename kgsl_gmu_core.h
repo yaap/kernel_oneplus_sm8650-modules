@@ -156,7 +156,7 @@ struct gmu_block_header {
 #define GMU_BLK_TYPE_PREALLOC_PERSIST_REQ 7
 
 /* For GMU Logs*/
-#define GMU_LOG_SIZE  SZ_16K
+#define GMU_LOG_SIZE  SZ_64K
 
 /* GMU memdesc entries */
 #define GMU_KERNEL_ENTRIES		16
