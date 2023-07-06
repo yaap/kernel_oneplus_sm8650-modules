@@ -357,4 +357,15 @@ int gen7_hwsched_disable_hw_fence_throttle(struct adreno_device *adreno_dev);
  */
 void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev);
 
+/**
+ * gen7_hwsched_boot_gpu - Send the command to boot GPU
+ * @adreno_dev: Pointer to adreno device
+ *
+ * Send the hfi to boot GPU, and check the ack, incase of a failure
+ * get a snapshot and capture registers of interest.
+ *
+ * Return: Zero on success or negative error on failure
+ */
+int gen7_hwsched_boot_gpu(struct adreno_device *adreno_dev);
+
 #endif
