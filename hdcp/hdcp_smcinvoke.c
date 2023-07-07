@@ -185,7 +185,7 @@ error:
 
 static void hdcp1_app_unload(struct hdcp1_smcinvoke_handle *handle)
 {
-	if (!handle || !handle->hdcp1_app_obj.context) {
+	if (!handle || !!handle->hdcp1_app_obj.context) {
 		pr_err("invalid handle\n");
 		return;
 	}
@@ -348,22 +348,10 @@ void hdcp1_stop_smcinvoke(void *data)
 {
 	struct hdcp1_smcinvoke_handle *hdcp1_handle = data;
 
-	if (!hdcp1_handle) {
-		pr_err("invalid HDCP 1.x handle\n");
-		return;
-	}
-
-	if (!(hdcp1_handle->hdcp_state & HDCP_STATE_APP_LOADED)) {
-		pr_err("hdcp1 app not loaded\n");
-		return;
-	}
-
 	Object_ASSIGN_NULL(hdcp1_handle->hdcp1_app_obj);
 	Object_ASSIGN_NULL(hdcp1_handle->hdcp1_appcontroller_obj);
 	Object_ASSIGN_NULL(hdcp1_handle->hdcp1ops_app_obj);
 	Object_ASSIGN_NULL(hdcp1_handle->hdcp1ops_appcontroller_obj);
-
-	hdcp1_handle->hdcp_state &= ~HDCP_STATE_APP_LOADED;
 }
 
 void *hdcp2_init_smcinvoke(u32 device_type)
@@ -769,7 +757,6 @@ int hdcp2_app_process_msg_smcinvoke(void *ctx, uint32_t req_len)
 	size_t resMsgLen = 0;
 	uint32_t timeout = 0;
 	uint32_t flag = 0;
-	uint32_t state = 0;
 
 	uint8_t resMsg[MAX_TX_MESSAGE_SIZE] = {0};
 
@@ -792,7 +779,7 @@ int hdcp2_app_process_msg_smcinvoke(void *ctx, uint32_t req_len)
 	ret = hdcp2p2_rcvd_msg(
 		handle->hdcp2_app_obj, handle->app_data.request.data,
 		handle->app_data.request.length, handle->tz_ctxhandle, resMsg,
-		MAX_TX_MESSAGE_SIZE, &resMsgLen, &timeout, &flag, &state);
+		MAX_TX_MESSAGE_SIZE, &resMsgLen, &timeout, &flag);
 	if (ret) {
 		pr_err("hdcp2p2_rcvd_msg failed :%d\n", ret);
 		goto error;

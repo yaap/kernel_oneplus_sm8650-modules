@@ -82,27 +82,26 @@ static inline int32_t hdcp2p2_tx_deinit(struct Object self, uint32_t ctxhandle_v
 static inline int32_t hdcp2p2_rcvd_msg(
 	struct Object self, const void *reqMsg_ptr, size_t reqMsg_len,
 	uint32_t ctxhandle_val, void *resMsg_ptr, size_t resMsg_len,
-	size_t *resMsg_lenout, uint32_t *timeout_ptr, uint32_t *flag_ptr, uint32_t *state_ptr)
+	size_t *resMsg_lenout, uint32_t *timeout_ptr, uint32_t *flag_ptr)
 {
 	union ObjectArg a[4] = {{{0, 0}}};
 	int32_t result = 0;
 	struct {
 		uint32_t m_timeout;
 		uint32_t m_flag;
-		uint32_t m_state;
 	} o;
-	a[2].b = (struct ObjectBuf) {&o, 12};
+
+	a[2].b = (struct ObjectBuf) {&o, 8};
 	a[0].bi = (struct ObjectBufIn) {reqMsg_ptr, reqMsg_len * 1};
 	a[1].b = (struct ObjectBuf) {&ctxhandle_val, sizeof(uint32_t)};
 	a[3].b = (struct ObjectBuf) {resMsg_ptr, resMsg_len * 1};
 
 	result = Object_invoke(self, HDCP2P2_RCVD_MSG, a,
-			ObjectCounts_pack(2, 2, 0, 0));
+		   ObjectCounts_pack(2, 2, 0, 0));
 
 	*resMsg_lenout = a[3].b.size / 1;
 	*timeout_ptr = o.m_timeout;
 	*flag_ptr = o.m_flag;
-	*state_ptr = o.m_state;
 
 	return result;
 }
