@@ -513,6 +513,9 @@ struct icnss_priv {
 	struct timer_list recovery_timer;
 	struct timer_list wpss_ssr_timer;
 	bool wpss_self_recovery_enabled;
+	enum icnss_rd_card_chain_cap rd_card_chain_cap;
+	enum icnss_phy_he_channel_width_cap phy_he_channel_width_cap;
+	enum icnss_phy_qam_cap phy_qam_cap;
 };
 
 struct icnss_reg_info {

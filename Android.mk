@@ -13,6 +13,15 @@ ifeq ($(ENABLE_WLAN_PLATFORM_DLKM), true)
 
 # LOCAL_PATH is a relative path to root build directory.
 LOCAL_PATH := $(call my-dir)
+LOCAL_MODULE_DDK_BUILD := true
+LOCAL_MODULE_DDK_ALLOW_UNSAFE_HEADERS := true
+LOCAL_MODULE_KO_DIRS := cnss2/cnss2.ko
+LOCAL_MODULE_KO_DIRS += cnss_utils/cnss_plat_ipc_qmi_svc.ko
+LOCAL_MODULE_KO_DIRS += cnss_utils/wlan_firmware_service.ko
+LOCAL_MODULE_KO_DIRS += cnss_genl/cnss_nl.ko
+LOCAL_MODULE_KO_DIRS += cnss_prealloc/cnss_prealloc.ko
+LOCAL_MODULE_KO_DIRS += cnss_utils/cnss_utils.ko
+LOCAL_MODULE_KO_DIRS += icnss2/icnss2.ko
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
 # WLAN_PLATFORM_ROOT needs to be a absolute since it will be used
