@@ -108,6 +108,7 @@ int synx_util_init_coredata(struct synx_coredata *synx_obj,
 	if (rc != SYNX_SUCCESS)
 		goto clean;
 
+	synx_obj->status = synx_util_get_object_status(synx_obj);
 	return SYNX_SUCCESS;
 
 clean:
@@ -217,6 +218,7 @@ int synx_util_init_group_coredata(struct synx_coredata *synx_obj,
 	kref_init(&synx_obj->refcount);
 	mutex_init(&synx_obj->obj_lock);
 	INIT_LIST_HEAD(&synx_obj->reg_cbs_list);
+	synx_obj->status = synx_util_get_object_status(synx_obj);
 
 	synx_util_activate(synx_obj);
 	return rc;
@@ -299,6 +301,12 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 			"dipatching un-released callbacks of session %pK\n",
 			synx_cb->session);
 		synx_cb->status = SYNX_STATE_SIGNALED_CANCEL;
+		if (synx_cb->timeout != SYNX_NO_TIMEOUT) {
+			dprintk(SYNX_VERB,
+				"Deleting timer synx_cb 0x%x, timeout 0x%llx\n",
+				synx_cb, synx_cb->timeout);
+			del_timer(&synx_cb->synx_timer);
+		}
 		list_del_init(&synx_cb->node);
 		queue_work(synx_dev->wq_cb,
 			&synx_cb->cb_dispatch);
@@ -731,7 +739,7 @@ static u32 __fence_state(struct dma_fence *fence, bool locked)
 static u32 __fence_group_state(struct dma_fence *fence, bool locked)
 {
 	u32 i = 0;
-	u32 state = SYNX_STATE_INVALID;
+	u32 state = SYNX_STATE_INVALID, parent_state = SYNX_STATE_INVALID;
 	struct dma_fence_array *array = NULL;
 	u32 intr, actv_cnt, sig_cnt, err_cnt;
 
@@ -747,6 +755,8 @@ static u32 __fence_group_state(struct dma_fence *fence, bool locked)
 
 	for (i = 0; i < array->num_fences; i++) {
 		intr = __fence_state(array->fences[i], locked);
+		if (err_cnt == 0)
+			parent_state = intr;
 		switch (intr) {
 		case SYNX_STATE_ACTIVE:
 			actv_cnt++;
@@ -755,7 +765,7 @@ static u32 __fence_group_state(struct dma_fence *fence, bool locked)
 			sig_cnt++;
 			break;
 		default:
-			err_cnt++;
+			intr > SYNX_STATE_SIGNALED_MAX ? sig_cnt++ : err_cnt++;
 		}
 	}
 
@@ -763,12 +773,10 @@ static u32 __fence_group_state(struct dma_fence *fence, bool locked)
 		"group cnt stats act:%u, sig: %u, err: %u\n",
 		actv_cnt, sig_cnt, err_cnt);
 
-	if (err_cnt)
-		state = SYNX_STATE_SIGNALED_ERROR;
-	else if (actv_cnt)
+	if (actv_cnt)
 		state = SYNX_STATE_ACTIVE;
-	else if (sig_cnt == array->num_fences)
-		state = SYNX_STATE_SIGNALED_SUCCESS;
+	else
+		state = parent_state;
 
 	return state;
 }
@@ -1173,6 +1181,12 @@ void synx_util_callback_dispatch(struct synx_coredata *synx_obj, u32 status)
 	list_for_each_entry_safe(synx_cb,
 		synx_cb_temp, &synx_obj->reg_cbs_list, node) {
 		synx_cb->status = status;
+		if (synx_cb->timeout != SYNX_NO_TIMEOUT) {
+			dprintk(SYNX_VERB,
+				"Deleting timer synx_cb 0x%x, timeout 0x%llx\n",
+				synx_cb, synx_cb->timeout);
+			del_timer(&synx_cb->synx_timer);
+		}
 		list_del_init(&synx_cb->node);
 		queue_work(synx_dev->wq_cb,
 			&synx_cb->cb_dispatch);

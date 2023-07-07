@@ -483,6 +483,11 @@ int synx_native_signal_fence(struct synx_coredata *synx_obj,
 		return -SYNX_ALREADY;
 	}
 
+	synx_obj->status = status;
+
+	if (status >= SYNX_DMA_FENCE_STATE_MAX)
+		status = SYNX_DMA_FENCE_STATE_MAX - 1;
+
 	/* set fence error to model {signal w/ error} */
 	if (status != SYNX_STATE_SIGNALED_SUCCESS)
 		dma_fence_set_error(synx_obj->fence, -status);
@@ -514,6 +519,7 @@ int synx_native_signal_merged_fence(struct synx_coredata *synx_obj, u32 status)
 			rc = -SYNX_NOENT;
 			goto fail;
 		}
+
 		mutex_lock(&synx_child_obj[i]->obj_lock);
 		spin_lock_irqsave(synx_child_obj[i]->fence->lock, flags);
 		if (synx_util_get_object_status_locked(synx_child_obj[i]) != SYNX_STATE_ACTIVE ||
@@ -525,12 +531,87 @@ int synx_native_signal_merged_fence(struct synx_coredata *synx_obj, u32 status)
 		}
 		spin_unlock_irqrestore(synx_child_obj[i]->fence->lock, flags);
 
+		status = synx_global_get_status(synx_child_obj[i]->global_idx);
 		rc = synx_native_signal_fence(synx_child_obj[i], status);
 		mutex_unlock(&synx_child_obj[i]->obj_lock);
 	}
 fail:
 	kfree(synx_child_obj);
 	return rc;
+}
+
+u32 synx_get_child_status(struct synx_coredata *synx_obj)
+{
+	u32 h_child = 0, i = 0;
+	u32 status = SYNX_DMA_FENCE_STATE_MAX - 1, child_status = SYNX_STATE_ACTIVE;
+	struct dma_fence_array *array = NULL;
+	struct synx_map_entry *fence_entry = NULL;
+	struct synx_coredata *synx_child_obj = NULL;
+
+	if (!dma_fence_is_array(synx_obj->fence))
+		return status;
+
+	array = to_dma_fence_array(synx_obj->fence);
+	if (IS_ERR_OR_NULL(array))
+		goto bail;
+
+	for (i = 0; i < array->num_fences; i++) {
+		h_child = synx_util_get_fence_entry((u64)array->fences[i], 1);
+		if (h_child == 0)
+			h_child = synx_util_get_fence_entry((u64)array->fences[i], 0);
+
+		if (h_child == 0)
+			continue;
+
+		fence_entry = synx_util_get_map_entry(h_child);
+		if (IS_ERR_OR_NULL(fence_entry) || IS_ERR_OR_NULL(fence_entry->synx_obj)) {
+			dprintk(SYNX_ERR, "Invalid handle access %u", h_child);
+			goto bail;
+		}
+		synx_child_obj = fence_entry->synx_obj;
+
+		mutex_lock(&synx_child_obj->obj_lock);
+		if (synx_util_is_global_object(synx_child_obj))
+			child_status = synx_global_get_status(synx_child_obj->global_idx);
+		else
+			child_status = synx_child_obj->status;
+		mutex_unlock(&synx_child_obj->obj_lock);
+		synx_util_release_map_entry(fence_entry);
+
+		dprintk(SYNX_VERB, "Child handle %u status %d", h_child, child_status);
+		if (child_status != SYNX_STATE_ACTIVE &&
+			(status == SYNX_DMA_FENCE_STATE_MAX - 1 ||
+			(child_status > SYNX_STATE_SIGNALED_SUCCESS &&
+			child_status <= SYNX_STATE_SIGNALED_MAX)))
+			status = child_status;
+	}
+bail:
+	return status;
+}
+
+u32 synx_custom_get_status(struct synx_coredata *synx_obj, u32 status)
+{
+	u32 custom_status = status;
+	u32 parent_global_status =
+		synx_util_is_global_object(synx_obj) ?
+		synx_global_get_status(synx_obj->global_idx) : SYNX_STATE_ACTIVE;
+
+	if (IS_ERR_OR_NULL(synx_obj))
+		goto bail;
+
+	mutex_lock(&synx_obj->obj_lock);
+	if (synx_util_is_merged_object(synx_obj)) {
+		if (parent_global_status == SYNX_STATE_ACTIVE)
+			synx_obj->status = synx_get_child_status(synx_obj);
+		else
+			synx_obj->status = parent_global_status;
+	}
+
+	custom_status = synx_obj->status;
+	mutex_unlock(&synx_obj->obj_lock);
+
+bail:
+	return custom_status;
 }
 
 void synx_signal_handler(struct work_struct *cb_dispatch)
@@ -543,6 +624,13 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 
 	u32 h_synx = signal_cb->handle;
 	u32 status = signal_cb->status;
+
+	if (signal_cb->flag & SYNX_SIGNAL_FROM_FENCE) {
+		status = synx_custom_get_status(synx_obj, status);
+		dprintk(SYNX_VERB,
+			"handle %d will be updated with status %d\n",
+			h_synx, status);
+	}
 
 	if ((signal_cb->flag & SYNX_SIGNAL_FROM_FENCE) &&
 			(synx_util_is_global_handle(h_synx) ||
@@ -590,8 +678,8 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 	}
 
 	mutex_lock(&synx_obj->obj_lock);
-
-	if (signal_cb->flag & SYNX_SIGNAL_FROM_IPC) {
+	if (signal_cb->flag & SYNX_SIGNAL_FROM_IPC &&
+		synx_util_get_object_status(synx_obj) == SYNX_STATE_ACTIVE) {
 		if (synx_util_is_merged_object(synx_obj))
 			rc = synx_native_signal_merged_fence(synx_obj, status);
 		else
@@ -648,8 +736,12 @@ void synx_fence_callback(struct dma_fence *fence,
 	 */
 	if (status == 1)
 		status = SYNX_STATE_SIGNALED_SUCCESS;
-	else if (status < 0)
+	else if (status == -SYNX_STATE_SIGNALED_CANCEL)
+		status = SYNX_STATE_SIGNALED_CANCEL;
+	else if (status < 0 && status >= -SYNX_STATE_SIGNALED_MAX)
 		status = SYNX_STATE_SIGNALED_EXTERNAL;
+	else
+		status = (u32)-status;
 
 	signal_cb->status = status;
 
@@ -707,7 +799,10 @@ int synx_signal(struct synx_session *session, u32 h_synx, u32 status)
 	if (IS_ERR_OR_NULL(client))
 		return -SYNX_INVALID;
 
-	if (status <= SYNX_STATE_ACTIVE) {
+	if (status <= SYNX_STATE_ACTIVE ||
+			!(status == SYNX_STATE_SIGNALED_SUCCESS ||
+			status == SYNX_STATE_SIGNALED_CANCEL ||
+			status > SYNX_STATE_SIGNALED_MAX)) {
 		dprintk(SYNX_ERR,
 			"[sess :%llu] signaling with wrong status: %u\n",
 			client->id, status);
@@ -727,7 +822,6 @@ int synx_signal(struct synx_session *session, u32 h_synx, u32 status)
 	}
 
 	mutex_lock(&synx_obj->obj_lock);
-
 	if (synx_util_is_global_handle(h_synx) ||
 			synx_util_is_global_object(synx_obj))
 		rc = synx_global_update_status(
@@ -788,6 +882,52 @@ static int synx_match_payload(struct synx_kernel_payload *cb_payload,
 	return rc;
 }
 
+/* Timer Callback function. This will be called when timer expires */
+void synx_timer_cb(struct timer_list *data)
+{
+	struct synx_client *client;
+	struct synx_handle_coredata *synx_data;
+	struct synx_coredata *synx_obj;
+	struct synx_cb_data *synx_cb = container_of(data, struct synx_cb_data, synx_timer);
+
+	client = synx_get_client(synx_cb->session);
+	if (IS_ERR_OR_NULL(client)) {
+		dprintk(SYNX_ERR,
+			"invalid session data 0x%x in cb payload\n",
+			synx_cb->session);
+		return;
+	}
+	synx_data = synx_util_acquire_handle(client, synx_cb->h_synx);
+	synx_obj = synx_util_obtain_object(synx_data);
+	if (IS_ERR_OR_NULL(synx_obj)) {
+		dprintk(SYNX_ERR,
+			"[sess :0x%llx] invalid handle access 0x%x\n",
+			synx_cb->session, synx_cb->h_synx);
+		return;
+	}
+	dprintk(SYNX_VERB,
+		"Timer expired for synx_cb 0x%x timeout 0x%llx. Deleting the timer.\n",
+		synx_cb, synx_cb->timeout);
+
+	synx_cb->status = SYNX_STATE_TIMEOUT;
+	del_timer(&synx_cb->synx_timer);
+	list_del_init(&synx_cb->node);
+	queue_work(synx_dev->wq_cb, &synx_cb->cb_dispatch);
+}
+
+static int synx_start_timer(struct synx_cb_data *synx_cb)
+{
+	int rc = 0;
+
+	timer_setup(&synx_cb->synx_timer, synx_timer_cb, 0);
+	rc = mod_timer(&synx_cb->synx_timer, jiffies + msecs_to_jiffies(synx_cb->timeout));
+	dprintk(SYNX_VERB,
+		"Timer started for synx_cb 0x%x timeout 0x%llx\n",
+		synx_cb, synx_cb->timeout);
+	return rc;
+}
+
+
 int synx_async_wait(struct synx_session *session,
 	struct synx_callback_params *params)
 {
@@ -802,9 +942,6 @@ int synx_async_wait(struct synx_session *session,
 
 	if (IS_ERR_OR_NULL(session) || IS_ERR_OR_NULL(params))
 		return -SYNX_INVALID;
-
-	if (params->timeout_ms != SYNX_NO_TIMEOUT)
-		return -SYNX_NOSUPPORT;
 
 	client = synx_get_client(session);
 	if (IS_ERR_OR_NULL(client))
@@ -858,6 +995,8 @@ int synx_async_wait(struct synx_session *session,
 
 	synx_cb->session = session;
 	synx_cb->idx = idx;
+	synx_cb->h_synx = params->h_synx;
+
 	INIT_WORK(&synx_cb->cb_dispatch, synx_util_cb_dispatch);
 
 	/* add callback if object still ACTIVE, dispatch if SIGNALED */
@@ -865,6 +1004,17 @@ int synx_async_wait(struct synx_session *session,
 		dprintk(SYNX_VERB,
 			"[sess :%llu] callback added for handle %u\n",
 			client->id, params->h_synx);
+		synx_cb->timeout = params->timeout_ms;
+		if (params->timeout_ms != SYNX_NO_TIMEOUT) {
+			rc = synx_start_timer(synx_cb);
+			if (rc != SYNX_SUCCESS) {
+				dprintk(SYNX_ERR,
+					"[sess :%llu] timer start failed - synx_cb: 0x%x, params->timeout_ms: 0x%llx, handle: 0x%x, ret : %d\n",
+					client->id, synx_cb, params->timeout_ms,
+					params->h_synx, rc);
+				goto release;
+			}
+		}
 		list_add(&synx_cb->node, &synx_obj->reg_cbs_list);
 	} else {
 		synx_cb->status = status;
@@ -930,7 +1080,7 @@ int synx_cancel_async_wait(
 	status = synx_util_get_object_status(synx_obj);
 	if (status != SYNX_STATE_ACTIVE) {
 		dprintk(SYNX_ERR,
-			"handle %u already signaled cannot cancel\n",
+			"handle %u already signaled or timed out, cannot cancel\n",
 			params->h_synx);
 		rc = -SYNX_INVALID;
 		goto release;
@@ -958,6 +1108,12 @@ int synx_cancel_async_wait(
 
 		cb_payload = &client->cb_table[synx_cb->idx];
 		ret = synx_match_payload(&cb_payload->kernel_cb, &payload);
+		if (synx_cb->timeout != SYNX_NO_TIMEOUT) {
+			dprintk(SYNX_VERB,
+				"Deleting timer synx_cb 0x%x, timeout 0x%llx\n",
+				synx_cb, synx_cb->timeout);
+			del_timer(&synx_cb->synx_timer);
+		}
 		switch (ret) {
 		case 1:
 			/* queue the cancel cb work */
@@ -997,7 +1153,7 @@ EXPORT_SYMBOL(synx_cancel_async_wait);
 int synx_merge(struct synx_session *session,
 	struct synx_merge_params *params)
 {
-	int rc, i, num_signaled = 0;
+	int rc = SYNX_SUCCESS, i, num_signaled = 0;
 	u32 count = 0, h_child, status = SYNX_STATE_ACTIVE;
 	u32 *h_child_list = NULL, *h_child_idx_list = NULL;
 	struct synx_client *client;
@@ -1073,6 +1229,7 @@ int synx_merge(struct synx_session *session,
 
 	h_child_idx_list = kzalloc(count*4, GFP_KERNEL);
 	if (IS_ERR_OR_NULL(h_child_idx_list)) {
+		kfree(h_child_list);
 		rc = -SYNX_NOMEM;
 		goto clear;
 	}
@@ -1110,10 +1267,14 @@ int synx_merge(struct synx_session *session,
 						client->id, h_child_list[i]);
 					continue;
 				}
-
-				rc = synx_native_signal_fence(synx_obj_child, status);
+				mutex_lock(&synx_obj_child->obj_lock);
+				if (synx_obj->status == SYNX_STATE_ACTIVE)
+					rc = synx_native_signal_fence(synx_obj_child, status);
+				mutex_unlock(&synx_obj_child->obj_lock);
 				if (rc != SYNX_SUCCESS)
 					dprintk(SYNX_ERR, "h_synx %u failed with status %d\n", h_child_list[i], rc);
+
+				synx_util_release_handle(synx_data_child);
 			}
 		}
 	}
@@ -1361,7 +1522,7 @@ EXPORT_SYMBOL(synx_bind);
 int synx_get_status(struct synx_session *session,
 	u32 h_synx)
 {
-	int rc = 0;
+	int rc = 0, status = 0;
 	struct synx_client *client;
 	struct synx_handle_coredata *synx_data;
 	struct synx_coredata *synx_obj;
@@ -1381,23 +1542,13 @@ int synx_get_status(struct synx_session *session,
 		goto fail;
 	}
 
-	if (synx_util_is_global_handle(h_synx)) {
-		rc = synx_global_get_status(
-				synx_util_global_idx(h_synx));
-		if (rc != SYNX_STATE_ACTIVE) {
-			dprintk(SYNX_VERB,
-				"[sess :%llu] handle %u in status %d\n",
-				client->id, h_synx, rc);
-			goto fail;
-		}
-	}
-
 	mutex_lock(&synx_obj->obj_lock);
-	rc = synx_util_get_object_status(synx_obj);
+	status = synx_util_get_object_status(synx_obj);
+	rc = synx_obj->status;
 	mutex_unlock(&synx_obj->obj_lock);
 	dprintk(SYNX_VERB,
-		"[sess :%llu] handle %u status %d\n",
-		client->id, h_synx, rc);
+		"[sess :%llu] handle %u synx coredata status %d and dma fence status %d\n",
+		client->id, h_synx, rc, status);
 
 fail:
 	synx_util_release_handle(synx_data);
