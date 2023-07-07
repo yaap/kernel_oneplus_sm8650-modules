@@ -24,7 +24,7 @@ static int msm_vidc_get_hier_layer_val(struct msm_vidc_inst *inst)
 {
 	int hierachical_layer = CODEC_GOP_IPP;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		if (inst->capabilities[ALL_INTRA].value) {
 			/* no P and B frames case */
 			hierachical_layer = CODEC_GOP_IONLY;
@@ -51,9 +51,9 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	enum msm_vidc_port_type port;
 	u32 color_fmt, tile_rows_columns = 0;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		codec_input->decoder_or_encoder = CODEC_ENCODER;
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		codec_input->decoder_or_encoder = CODEC_DECODER;
 	} else {
 		d_vpr_e("%s: invalid domain %d\n", __func__, inst->domain);
@@ -91,7 +91,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	codec_input->pipe_num = inst->capabilities[PIPE].value;
 	codec_input->frame_rate = inst->max_rate;
 
-	port = inst->domain == MSM_VIDC_DECODER ? INPUT_PORT : OUTPUT_PORT;
+	port = is_decode_session(inst) ? INPUT_PORT : OUTPUT_PORT;
 	codec_input->frame_width = inst->fmts[port].fmt.pix_mp.width;
 	codec_input->frame_height = inst->fmts[port].fmt.pix_mp.height;
 
@@ -113,7 +113,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	codec_input->hierachical_layer =
 		msm_vidc_get_hier_layer_val(inst);
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		color_fmt = v4l2_colorformat_to_driver(inst,
 			inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
 	else
@@ -122,7 +122,7 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 
 	codec_input->linear_opb = is_linear_colorformat(color_fmt);
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		codec_input->bitrate_mbps =
 			(codec_input->frame_rate * data_size * 8) / 1000000;
 	else
@@ -428,7 +428,7 @@ static u64 msm_vidc_calc_freq_iris33_new(struct msm_vidc_inst *inst, u32 data_si
 	if (ret)
 		return freq;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		if (!inst->capabilities[ENC_RING_BUFFER_COUNT].value &&
 			is_vpp_cycles_close_to_freq_corner(core,
 				codec_output.vpp_min_freq)) {
@@ -546,7 +546,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	fw_cycles = fps * inst->capabilities[MB_CYCLES_FW].value;
 	fw_vpp_cycles = fps * inst->capabilities[MB_CYCLES_FW_VPP].value;
 
-	if (inst->domain == MSM_VIDC_ENCODER) {
+	if (is_encode_session(inst)) {
 		vpp_cycles_per_mb = is_low_power_session(inst) ?
 			inst->capabilities[MB_CYCLES_LP].value :
 			inst->capabilities[MB_CYCLES_VPP].value;
@@ -613,7 +613,7 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 
 		vsp_cycles += mbs_per_second * base_cycles;
 
-	} else if (inst->domain == MSM_VIDC_DECODER) {
+	} else if (is_decode_session(inst)) {
 		/* VPP */
 		vpp_cycles = mbs_per_second * inst->capabilities[MB_CYCLES_VPP].value /
 			inst->capabilities[PIPE].value;

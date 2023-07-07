@@ -123,21 +123,21 @@ typedef enum {
  */
 #define NOC_BASE_OFFS   0x00010000
 #define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW   (NOC_BASE_OFFS + 0xA008)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW   (NOC_BASE_OFFS + 0xA018)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW    (NOC_BASE_OFFS + 0xA018)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW   (NOC_BASE_OFFS + 0xA020)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH  (NOC_BASE_OFFS + 0xA024)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW   (NOC_BASE_OFFS + 0xA028)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH   (NOC_BASE_OFFS + 0xA02C)
 #define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW   (NOC_BASE_OFFS + 0xA030)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH  (NOC_BASE_OFFS + 0xA034)
 #define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW   (NOC_BASE_OFFS + 0xA038)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH  (NOC_BASE_OFFS + 0xA03C)
 #define NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW (NOC_BASE_OFFS + 0x7040)
 
-static int __interrupt_init_iris33(struct msm_vidc_core *vidc_core)
+static int __interrupt_init_iris33(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 mask_val = 0;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* All interrupts should be disabled initially 0x1F6 : Reset value */
 	rc = __read_register(core, WRAPPER_INTR_MASK_IRIS33, &mask_val);
@@ -161,10 +161,6 @@ static int __get_device_region_info(struct msm_vidc_core *core,
 	u32 min_addr, max_addr, count = 0;
 	int rc = 0;
 
-	if (!core || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	dev_set = &core->resource->device_region_set;
 
 	if (!dev_set->count) {
@@ -192,17 +188,11 @@ static int __get_device_region_info(struct msm_vidc_core *core,
 	return rc;
 }
 
-static int __program_bootup_registers_iris33(struct msm_vidc_core *vidc_core)
+static int __program_bootup_registers_iris33(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 min_dev_reg_addr = 0, dev_reg_size = 0;
 	u32 value;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	value = (u32)core->iface_q_table.align_device_addr;
 	rc = __write_register(core, HFI_UC_REGION_ADDR_IRIS33, value);
@@ -573,11 +563,6 @@ static int __power_off_iris33(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
@@ -808,17 +793,11 @@ fail_vote_buses:
 	return rc;
 }
 
-static int __prepare_pc_iris33(struct msm_vidc_core *vidc_core)
+static int __prepare_pc_iris33(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	u32 wfi_status = 0, idle_status = 0, pc_ready = 0;
 	u32 ctrl_status = 0;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __read_register(core, HFI_CTRL_STATUS_IRIS33, &ctrl_status);
 	if (rc)
@@ -875,15 +854,9 @@ skip_power_off:
 	return -EAGAIN;
 }
 
-static int __raise_interrupt_iris33(struct msm_vidc_core *vidc_core)
+static int __raise_interrupt_iris33(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __write_register(core, CPU_IC_SOFTINT_IRIS33, 1 << CPU_IC_SOFTINT_H2A_SHFT_IRIS33);
 	if (rc)
@@ -892,15 +865,9 @@ static int __raise_interrupt_iris33(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __watchdog_iris33(struct msm_vidc_core *vidc_core, u32 intr_status)
+static int __watchdog_iris33(struct msm_vidc_core *core, u32 intr_status)
 {
 	int rc = 0;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS33) {
 		d_vpr_e("%s: received watchdog interrupt\n", __func__);
@@ -914,11 +881,6 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 {
 	u32 value, count = 0;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/*
 	 * we are not supposed to access vcodec subsystem registers
@@ -986,17 +948,45 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 	}
 
 	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
 			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW, &value);
 	if (!rc)
 		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW:  %#x\n",
 			__func__, value);
-
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH:  %#x\n",
+			__func__, value);
 	rc = __read_register(core,
 			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW, &value);
 	if (!rc)
 		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
 			__func__, value);
-
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH:  %#x\n",
+			__func__, value);
 	/* release reset control for other consumers */
 	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
 	if (rc) {
@@ -1009,16 +999,10 @@ fail_assert_xo_reset:
 	return rc;
 }
 
-static int __clear_interrupt_iris33(struct msm_vidc_core *vidc_core)
+static int __clear_interrupt_iris33(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 intr_status = 0, mask = 0;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: NULL core\n", __func__);
-		return 0;
-	}
 
 	rc = __read_register(core, WRAPPER_INTR_STATUS_IRIS33, &intr_status);
 	if (rc)
@@ -1044,16 +1028,10 @@ static int __clear_interrupt_iris33(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __boot_firmware_iris33(struct msm_vidc_core *vidc_core)
+static int __boot_firmware_iris33(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 1000;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: NULL core\n", __func__);
-		return 0;
-	}
 
 	rc = __program_bootup_registers_iris33(core);
 	if (rc)
@@ -1333,20 +1311,9 @@ static struct msm_vidc_session_ops msm_session_ops = {
 
 int msm_vidc_init_iris33(struct msm_vidc_core *core)
 {
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	d_vpr_h("%s()\n", __func__);
 	core->venus_ops = &iris33_ops;
 	core->session_ops = &msm_session_ops;
 
-	return 0;
-}
-
-int msm_vidc_deinit_iris33(struct msm_vidc_core *core)
-{
-	/* do nothing */
 	return 0;
 }

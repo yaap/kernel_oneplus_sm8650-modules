@@ -87,11 +87,6 @@ static int msm_vidc_core_deinit_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
 	{
@@ -126,11 +121,6 @@ static int msm_vidc_core_init_wait_state(struct msm_vidc_core *core,
 	struct msm_vidc_event_data *data)
 {
 	int rc = 0;
-
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
@@ -167,11 +157,6 @@ static int msm_vidc_core_init_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
 	{
@@ -206,11 +191,6 @@ static int msm_vidc_core_error_state(struct msm_vidc_core *core,
 	struct msm_vidc_event_data *data)
 {
 	int rc = 0;
-
-	if (!core || !data) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	switch (type) {
 	case CORE_EVENT_UPDATE_SUB_STATE:
@@ -346,11 +326,6 @@ int msm_vidc_change_core_state(struct msm_vidc_core *core,
 	enum msm_vidc_allow allow;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* core must be locked */
 	rc = __strict_check(core, func);
 	if (rc) {
@@ -436,11 +411,6 @@ static int msm_vidc_update_core_sub_state(struct msm_vidc_core *core,
 	char sub_state_name[MAX_NAME_LENGTH];
 	int ret = 0, rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* no substate update */
 	if (!sub_state)
 		return 0;
@@ -467,11 +437,6 @@ int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	enum msm_vidc_core_sub_state prev_sub_state;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* core must be locked */
 	rc = __strict_check(core, func);
@@ -783,13 +748,13 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}
 
 		/* defer output port */
-		if (buf->type == MSM_VIDC_BUF_OUTPUT) {
+		if (is_output_buffer(buf->type)) {
 			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
 			return 0;
 		}
@@ -845,8 +810,8 @@ static int msm_vidc_input_streaming_state(struct msm_vidc_inst *inst,
 		if (is_decode_session(inst)) {
 			/* check dynamic allowed if master port is streaming */
 			if (!(inst->capabilities[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED)) {
-				i_vpr_e(inst, "%s: cap_id %#x not allowed in state %s\n",
-					__func__, cap_id, state_name(inst->state));
+				i_vpr_e(inst, "%s: cap_id %#x (%s) not allowed in state %s\n",
+					__func__, cap_id, cap_name(cap_id), state_name(inst->state));
 				return -EINVAL;
 			}
 		}
@@ -980,13 +945,13 @@ static int msm_vidc_output_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}
 
 		/* defer input port */
-		if (buf->type == MSM_VIDC_BUF_INPUT) {
+		if (is_input_buffer(buf->type)) {
 			print_vidc_buffer(VIDC_LOW, "low ", "qbuf deferred", inst, buf);
 			return 0;
 		}
@@ -1169,7 +1134,7 @@ static int msm_vidc_streaming_state(struct msm_vidc_inst *inst,
 		}
 
 		/* disallow */
-		if (buf->type != MSM_VIDC_BUF_INPUT && buf->type != MSM_VIDC_BUF_OUTPUT) {
+		if (!is_input_buffer(buf->type) && !is_output_buffer(buf->type)) {
 			i_vpr_e(inst, "%s: invalid buf type %u\n", __func__, buf->type);
 			return -EINVAL;
 		}

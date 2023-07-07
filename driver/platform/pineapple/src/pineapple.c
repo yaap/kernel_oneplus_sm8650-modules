@@ -1742,10 +1742,6 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	d_vpr_h("%s: initialize pineapple data\n", __func__);
 
 	core->platform->data = pineapple_data;
@@ -1767,10 +1763,3 @@ int msm_vidc_init_platform_pineapple(struct msm_vidc_core *core)
 
 	return 0;
 }
-
-int msm_vidc_deinit_platform_pineapple(struct msm_vidc_core *core)
-{
-	/* do nothing */
-	return 0;
-}
-

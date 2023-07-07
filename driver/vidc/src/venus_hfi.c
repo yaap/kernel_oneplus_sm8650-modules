@@ -67,9 +67,6 @@ static bool __valdiate_session(struct msm_vidc_core *core,
 	struct msm_vidc_inst *temp;
 	int rc = 0;
 
-	if (!core)
-		return false;
-
 	rc = __strict_check(core, __func__);
 	if (rc)
 		return false;
@@ -88,10 +85,6 @@ static bool __valdiate_session(struct msm_vidc_core *core,
 
 static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	if (!core->capabilities[SW_PC].value) {
 		d_vpr_l("software power collapse not enabled\n");
 		return;
@@ -108,10 +101,6 @@ static void __schedule_power_collapse_work(struct msm_vidc_core *core)
 
 static void __cancel_power_collapse_work(struct msm_vidc_core *core)
 {
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	if (!core->capabilities[SW_PC].value)
 		return;
 
@@ -125,11 +114,6 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 	struct hfi_debug_header *pkt;
 	bool local_packet = false;
 	enum vidc_msg_prio_fw log_level_fw = msm_fw_debug;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	if (!packet || !packet_size) {
 		if (msm_vidc_vmem_alloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE,
@@ -281,10 +265,6 @@ static int __power_collapse(struct msm_vidc_core *core, bool force)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_h("%s: Power already disabled\n", __func__);
 		goto exit;
@@ -479,10 +459,7 @@ static int __suspend(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	} else if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
+	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		d_vpr_h("Power already disabled\n");
 		return 0;
 	}
@@ -513,10 +490,7 @@ static int __resume(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	} else if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
+	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE)) {
 		goto exit;
 	} else if (!core_in_valid_state(core)) {
 		d_vpr_e("%s: core not in valid state\n", __func__);
@@ -726,10 +700,6 @@ void venus_hfi_pm_work_handler(struct work_struct *work)
 	struct msm_vidc_core *core;
 
 	core = container_of(work, struct msm_vidc_core, pm_work.work);
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 
 	core_lock(core, __func__);
 	d_vpr_h("%s: try power collapse\n", __func__);
@@ -818,11 +788,6 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	d_vpr_h("%s(): core %pK\n", __func__, core);
 
 	rc = __strict_check(core, __func__);
@@ -880,11 +845,6 @@ int venus_hfi_core_deinit(struct msm_vidc_core *core, bool force)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_h("%s(): invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	d_vpr_h("%s(): core %pK\n", __func__, core);
 	rc = __strict_check(core, __func__);
 	if (rc)
@@ -911,12 +871,6 @@ int venus_hfi_noc_error_info(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: Invalid parameters: %pK\n",
-			__func__, core);
-		return -EINVAL;
-	}
-
 	if (!core->capabilities[NON_FATAL_FAULTS].value)
 		return 0;
 
@@ -941,11 +895,6 @@ unlock:
 int venus_hfi_suspend(struct msm_vidc_core *core)
 {
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __strict_check(core, __func__);
 	if (rc)
@@ -974,11 +923,6 @@ int venus_hfi_trigger_ssr(struct msm_vidc_core *core, u32 type,
 {
 	int rc = 0;
 	u32 payload[2];
-
-	if (!core || !core->packet) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/*
 	 * call resume before preparing ssr hfi packet in core->packet

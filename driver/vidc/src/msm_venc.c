@@ -545,11 +545,6 @@ static int msm_venc_get_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
 
-	if (!inst) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
 			msm_venc_input_internal_buffer_type[i]);
@@ -934,7 +929,6 @@ int msm_venc_streamon_input(struct msm_vidc_inst *inst)
 
 error:
 	i_vpr_e(inst, "%s: failed\n", __func__);
-	msm_venc_streamoff_input(inst);
 	return rc;
 }
 
@@ -1675,17 +1669,12 @@ int msm_venc_subscribe_event(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	if (!inst || !sub) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:
-		rc = v4l2_event_subscribe(&inst->event_handler, sub, MAX_EVENTS, NULL);
+		rc = v4l2_event_subscribe(&inst->fh, sub, MAX_EVENTS, NULL);
 		break;
 	case V4L2_EVENT_CTRL:
-		rc = v4l2_ctrl_subscribe_event(&inst->event_handler, sub);
+		rc = v4l2_ctrl_subscribe_event(&inst->fh, sub);
 		break;
 	default:
 		i_vpr_e(inst, "%s: invalid type %d id %d\n", __func__, sub->type, sub->id);

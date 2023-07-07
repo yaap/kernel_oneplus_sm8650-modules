@@ -177,16 +177,10 @@
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW			0x00011238
 #define VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH		0x0001123C
 
-static int __interrupt_init_iris3(struct msm_vidc_core *vidc_core)
+static int __interrupt_init_iris3(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 mask_val = 0;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* All interrupts should be disabled initially 0x1F6 : Reset value */
 	rc = __read_register(core, WRAPPER_INTR_MASK_IRIS3, &mask_val);
@@ -203,16 +197,10 @@ static int __interrupt_init_iris3(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __setup_ucregion_memory_map_iris3(struct msm_vidc_core *vidc_core)
+static int __setup_ucregion_memory_map_iris3(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 value;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	value = (u32)core->iface_q_table.align_device_addr;
 	rc = __write_register(core, UC_REGION_ADDR_IRIS3, value);
@@ -463,11 +451,6 @@ static int __power_off_iris3(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
 
@@ -618,17 +601,11 @@ fail_vote_buses:
 	return rc;
 }
 
-static int __prepare_pc_iris3(struct msm_vidc_core *vidc_core)
+static int __prepare_pc_iris3(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	u32 wfi_status = 0, idle_status = 0, pc_ready = 0;
 	u32 ctrl_status = 0;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __read_register(core, CTRL_STATUS_IRIS3, &ctrl_status);
 	if (rc)
@@ -685,15 +662,9 @@ skip_power_off:
 	return -EAGAIN;
 }
 
-static int __raise_interrupt_iris3(struct msm_vidc_core *vidc_core)
+static int __raise_interrupt_iris3(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = __write_register(core, CPU_IC_SOFTINT_IRIS3, 1 << CPU_IC_SOFTINT_H2A_SHFT_IRIS3);
 	if (rc)
@@ -702,15 +673,9 @@ static int __raise_interrupt_iris3(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __watchdog_iris3(struct msm_vidc_core *vidc_core, u32 intr_status)
+static int __watchdog_iris3(struct msm_vidc_core *core, u32 intr_status)
 {
 	int rc = 0;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (intr_status & WRAPPER_INTR_STATUS_A2HWD_BMSK_IRIS3) {
 		d_vpr_e("%s: received watchdog interrupt\n", __func__);
@@ -720,15 +685,8 @@ static int __watchdog_iris3(struct msm_vidc_core *vidc_core, u32 intr_status)
 	return rc;
 }
 
-static int __noc_error_info_iris3(struct msm_vidc_core *vidc_core)
+static int __noc_error_info_iris3(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/*
 	 * we are not supposed to access vcodec subsystem registers
 	 * unless vcodec core clock WRAPPER_CORE_CLOCK_CONFIG_IRIS3 is enabled.
@@ -768,16 +726,10 @@ static int __noc_error_info_iris3(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __clear_interrupt_iris3(struct msm_vidc_core *vidc_core)
+static int __clear_interrupt_iris3(struct msm_vidc_core *core)
 {
-	struct msm_vidc_core *core = vidc_core;
 	u32 intr_status = 0, mask = 0;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: NULL core\n", __func__);
-		return 0;
-	}
 
 	rc = __read_register(core, WRAPPER_INTR_STATUS_IRIS3, &intr_status);
 	if (rc)
@@ -803,16 +755,10 @@ static int __clear_interrupt_iris3(struct msm_vidc_core *vidc_core)
 	return 0;
 }
 
-static int __boot_firmware_iris3(struct msm_vidc_core *vidc_core)
+static int __boot_firmware_iris3(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 1000;
-	struct msm_vidc_core *core = vidc_core;
-
-	if (!core) {
-		d_vpr_e("%s: NULL core\n", __func__);
-		return 0;
-	}
 
 	rc = __setup_ucregion_memory_map_iris3(core);
 	if (rc)
@@ -1084,20 +1030,9 @@ static struct msm_vidc_session_ops msm_session_ops = {
 
 int msm_vidc_init_iris3(struct msm_vidc_core *core)
 {
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	d_vpr_h("%s()\n", __func__);
 	core->venus_ops = &iris3_ops;
 	core->session_ops = &msm_session_ops;
 
-	return 0;
-}
-
-int msm_vidc_deinit_iris3(struct msm_vidc_core *core)
-{
-	/* do nothing */
 	return 0;
 }

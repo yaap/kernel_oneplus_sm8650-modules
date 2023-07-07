@@ -46,8 +46,7 @@ void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 	struct msm_vidc_subscription_params subsc_params)
 {
 	i_vpr_h(inst,
-		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d "
-		"fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d, fg present %d, sb enabled %d\n",
+		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d, fg present %d, sb enabled %d, max_num_reorder_frames %d, max_dec_frame_buffering_count %d\n",
 		str, (subsc_params.bitstream_resolution & HFI_BITMASK_BITSTREAM_WIDTH) >> 16,
 		(subsc_params.bitstream_resolution & HFI_BITMASK_BITSTREAM_HEIGHT),
 		subsc_params.crop_offsets[0], subsc_params.crop_offsets[1],
@@ -55,7 +54,9 @@ void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 		subsc_params.fw_min_count, subsc_params.pic_order_cnt,
 		subsc_params.color_info, subsc_params.profile, subsc_params.level,
 		subsc_params.tier, subsc_params.av1_film_grain_present,
-		subsc_params.av1_super_block_enabled);
+		subsc_params.av1_super_block_enabled,
+		(subsc_params.max_num_reorder_frames >> 16),
+		(subsc_params.max_num_reorder_frames & 0x00FF));
 }
 
 static void print_sfr_message(struct msm_vidc_core *core)
@@ -211,11 +212,6 @@ static int validate_hdr_packet(struct msm_vidc_core *core,
 	struct hfi_packet *packet;
 	u8 *pkt;
 	int i, rc = 0;
-
-	if (!core || !hdr || !function) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (hdr->size < sizeof(struct hfi_header) + sizeof(struct hfi_packet)) {
 		d_vpr_e("%s: invalid header size %d\n", __func__, hdr->size);
@@ -395,10 +391,6 @@ void fw_coredump(struct msm_vidc_core *core)
 	char *data = NULL, *dump = NULL;
 	u64 total_size;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return;
-	}
 	pdev = core->pdev;
 
 	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
@@ -849,11 +841,15 @@ static int msm_vidc_handle_fence_signal(struct msm_vidc_inst *inst,
 			return -EINVAL;
 		}
 	} else {
-		if (inst->hfi_frame_info.fence_id)
+		if (!inst->hfi_frame_info.fence_id) {
+			return 0;
+		} else {
 			i_vpr_e(inst,
-				"%s: fence id is received although fencing is not enabled\n",
-				__func__);
-		return 0;
+				"%s: fence id: %d is received although fencing is not enabled\n",
+				__func__, inst->hfi_frame_info.fence_id);
+			signal_error = true;
+			goto signal;
+		}
 	}
 
 	if (inst->capabilities[OUTBUF_FENCE_TYPE].value ==
@@ -874,6 +870,7 @@ static int msm_vidc_handle_fence_signal(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
+signal:
 	/* fence signalling */
 	if (signal_error) {
 		/* signal fence error */
@@ -1196,7 +1193,14 @@ static bool is_metabuffer_dequeued(struct msm_vidc_inst *inst,
 
 	list_for_each_entry(buffer, &buffers->list, list) {
 		if (buffer->index == buf->index &&
-			buffer->attr & MSM_VIDC_ATTR_DEQUEUED) {
+			(buffer->attr & MSM_VIDC_ATTR_DEQUEUED ||
+			buffer->attr & MSM_VIDC_ATTR_BUFFER_DONE)) {
+			/*
+			 * For META_OUTBUF_FENCE case, meta buffers are
+			 * dequeued ahead in time and completed vb2 done
+			 * as well. Hence, check for vb2 buffer done flag since
+			 * dequeued flag is already cleared for such buffers
+			 */
 			found = true;
 			break;
 		}
@@ -1216,14 +1220,6 @@ static int msm_vidc_check_meta_buffers(struct msm_vidc_inst *inst)
 	};
 
 	for (i = 0; i < ARRAY_SIZE(buffer_type); i++) {
-		/*
-		 * skip input meta buffers check as meta buffers were
-		 * already delivered if output fence enabled.
-		 */
-		if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
-			if (buffer_type[i] == MSM_VIDC_BUF_INPUT)
-				continue;
-		}
 		buffers = msm_vidc_get_buffers(inst, buffer_type[i], __func__);
 		if (!buffers)
 			return -EINVAL;
@@ -1732,6 +1728,9 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 	case HFI_PROP_AV1_SUPER_BLOCK_ENABLED:
 		inst->subcr_params[port].av1_super_block_enabled = payload_ptr[0];
 		break;
+	case HFI_PROP_MAX_NUM_REORDER_FRAMES:
+		inst->subcr_params[port].max_num_reorder_frames = payload_ptr[0];
+		break;
 	case HFI_PROP_PICTURE_TYPE:
 		inst->hfi_frame_info.picture_type = payload_ptr[0];
 		if (inst->hfi_frame_info.picture_type & HFI_PICTURE_B)
@@ -2067,11 +2066,6 @@ int handle_response(struct msm_vidc_core *core, void *response)
 {
 	struct hfi_header *hdr;
 	int rc = 0;
-
-	if (!core || !response) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	hdr = (struct hfi_header *)response;
 	rc = validate_hdr_packet(core, hdr, __func__);

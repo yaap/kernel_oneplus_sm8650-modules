@@ -66,17 +66,11 @@ static int msm_vidc_init_resources(struct msm_vidc_core *core)
 	struct msm_vidc_resource *res = NULL;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	res = devm_kzalloc(&core->pdev->dev, sizeof(*res), GFP_KERNEL);
 	if (!res) {
 		d_vpr_e("%s: failed to alloc memory for resource\n", __func__);
 		return -ENOMEM;
 	}
-	res->core = core;
 	core->resource = res;
 
 	rc = call_res_op(core, init, core);
@@ -173,11 +167,6 @@ static int msm_vidc_register_video_device(struct msm_vidc_core *core,
 	int index, media_index;
 
 	d_vpr_h("%s: domain %d\n", __func__, type);
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	if (type == MSM_VIDC_DECODER) {
 		index = 0;
@@ -317,11 +306,6 @@ static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	if (!is_mmrm_supported(core))
 		goto exit;
 
@@ -337,11 +321,6 @@ exit:
 #else
 static int msm_vidc_check_mmrm_support(struct msm_vidc_core *core)
 {
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core->platform->data.supports_mmrm = 0;
 
 	return 0;
@@ -361,11 +340,6 @@ static int msm_vidc_deinitialize_core(struct msm_vidc_core *core)
 	mutex_destroy(&core->lock);
 	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
 
-	msm_vidc_vmem_free((void **)&core->response_packet);
-	msm_vidc_vmem_free((void **)&core->packet);
-	core->response_packet = NULL;
-	core->packet = NULL;
-
 	if (core->batch_workq)
 		destroy_workqueue(core->batch_workq);
 
@@ -382,10 +356,6 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	d_vpr_h("%s()\n", __func__);
 
 	msm_vidc_update_core_state(core, MSM_VIDC_CORE_DEINIT, __func__);
@@ -405,15 +375,19 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 	}
 
 	core->packet_size = VIDC_IFACEQ_VAR_HUGE_PKT_SIZE;
-	rc = msm_vidc_vmem_alloc(core->packet_size,
-			(void **)&core->packet, "core packet");
-	if (rc)
+	core->packet = devm_kzalloc(&core->pdev->dev, core->packet_size, GFP_KERNEL);
+	if (!core->packet) {
+		d_vpr_e("%s: failed to alloc core packet\n", __func__);
+		rc = -ENOMEM;
 		goto exit;
+	}
 
-	rc = msm_vidc_vmem_alloc(core->packet_size,
-			(void **)&core->response_packet, "core response packet");
-	if (rc)
+	core->response_packet = devm_kzalloc(&core->pdev->dev, core->packet_size, GFP_KERNEL);
+	if (!core->packet) {
+		d_vpr_e("%s: failed to alloc core response packet\n", __func__);
+		rc = -ENOMEM;
 		goto exit;
+	}
 
 	mutex_init(&core->lock);
 	INIT_LIST_HEAD(&core->instances);
@@ -425,10 +399,6 @@ static int msm_vidc_initialize_core(struct msm_vidc_core *core)
 
 	return 0;
 exit:
-	msm_vidc_vmem_free((void **)&core->response_packet);
-	msm_vidc_vmem_free((void **)&core->packet);
-	core->response_packet = NULL;
-	core->packet = NULL;
 	if (core->batch_workq)
 		destroy_workqueue(core->batch_workq);
 	if (core->pm_workq)
@@ -439,16 +409,70 @@ exit:
 	return rc;
 }
 
+static void msm_vidc_devm_deinit_core(void *res)
+{
+	struct msm_vidc_core *core = res;
+
+	d_vpr_h("%s()\n", __func__);
+	msm_vidc_deinitialize_core(core);
+}
+
+static int msm_vidc_devm_init_core(struct device *dev, struct msm_vidc_core *core)
+{
+	int rc = 0;
+
+	if (!dev || !core) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	rc = msm_vidc_initialize_core(core);
+	if (rc) {
+		d_vpr_e("%s: init failed with %d\n", __func__, rc);
+		return rc;
+	}
+
+	rc = devm_add_action_or_reset(dev, msm_vidc_devm_deinit_core, (void *)core);
+	if (rc)
+		return -EINVAL;
+
+	return rc;
+}
+
+static void msm_vidc_devm_debugfs_put(void *res)
+{
+	struct dentry *parent = res;
+
+	d_vpr_h("%s()\n", __func__);
+	debugfs_remove_recursive(parent);
+}
+
+static struct dentry *msm_vidc_devm_debugfs_get(struct device *dev)
+{
+	struct dentry *parent = NULL;
+	int rc = 0;
+
+	if (!dev) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return NULL;
+	}
+
+	parent = msm_vidc_debugfs_init_drv();
+	if (!parent)
+		return NULL;
+
+	rc = devm_add_action_or_reset(dev, msm_vidc_devm_debugfs_put, (void *)parent);
+	if (rc)
+		return NULL;
+
+	return parent;
+}
+
 static int msm_vidc_setup_context_bank(struct msm_vidc_core *core,
 	struct device *dev)
 {
 	struct context_bank_info *cb = NULL;
 	int rc = 0;
-
-	if (!core || !dev) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	cb = msm_vidc_get_context_bank_for_device(core, dev);
 	if (!cb) {
@@ -653,9 +677,10 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 		d_vpr_e("%s: invalid input %pK", __func__, pdev);
 		return -EINVAL;
 	}
+
 	core = dev_get_drvdata(&pdev->dev);
 	if (!core) {
-		d_vpr_e("%s: invalid core", __func__);
+		d_vpr_e("%s: invalid core\n", __func__);
 		return -EINVAL;
 	}
 
@@ -674,14 +699,7 @@ static int msm_vidc_remove_video_device(struct platform_device *pdev)
 
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 
-	msm_vidc_deinit_instance_caps(core);
-
-	msm_vidc_deinit_platform(pdev);
-	msm_vidc_deinitialize_core(core);
-
 	dev_set_drvdata(&pdev->dev, NULL);
-	debugfs_remove_recursive(core->debugfs_parent);
-	msm_vidc_vmem_free((void **)&core);
 	g_core = NULL;
 	d_vpr_h("%s(): succssful\n", __func__);
 
@@ -724,25 +742,27 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 
 	d_vpr_h("%s: %s\n", __func__, dev_name(&pdev->dev));
 
-	rc = msm_vidc_vmem_alloc(sizeof(*core), (void **)&core, __func__);
-	if (rc)
-		return rc;
+	core = devm_kzalloc(&pdev->dev, sizeof(struct msm_vidc_core), GFP_KERNEL);
+	if (!core) {
+		d_vpr_e("%s: failed to alloc memory for core\n", __func__);
+		return -ENOMEM;
+	}
 	g_core = core;
-
-	core->debugfs_parent = msm_vidc_debugfs_init_drv();
-	if (!core->debugfs_parent)
-		d_vpr_h("Failed to create debugfs for msm_vidc\n");
 
 	core->pdev = pdev;
 	dev_set_drvdata(&pdev->dev, core);
 
-	rc = msm_vidc_initialize_core(core);
+	core->debugfs_parent = msm_vidc_devm_debugfs_get(&pdev->dev);
+	if (!core->debugfs_parent)
+		d_vpr_h("Failed to create debugfs for msm_vidc\n");
+
+	rc = msm_vidc_devm_init_core(&pdev->dev, core);
 	if (rc) {
 		d_vpr_e("%s: init core failed with %d\n", __func__, rc);
 		goto init_core_failed;
 	}
 
-	rc = msm_vidc_init_platform(pdev);
+	rc = msm_vidc_init_platform(core);
 	if (rc) {
 		d_vpr_e("%s: init platform failed with %d\n", __func__, rc);
 		rc = -EINVAL;
@@ -839,16 +859,11 @@ master_add_failed:
 sub_dev_failed:
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 init_group_failed:
-	msm_vidc_deinit_instance_caps(core);
 init_inst_caps_fail:
 init_res_failed:
-	msm_vidc_deinit_platform(pdev);
 init_plat_failed:
-	msm_vidc_deinitialize_core(core);
 init_core_failed:
 	dev_set_drvdata(&pdev->dev, NULL);
-	debugfs_remove_recursive(core->debugfs_parent);
-	msm_vidc_vmem_free((void **)&core);
 	g_core = NULL;
 
 	return rc;
@@ -864,6 +879,11 @@ static int msm_vidc_probe_context_bank(struct platform_device *pdev)
 static int msm_vidc_probe(struct platform_device *pdev)
 {
 	d_vpr_h("%s()\n", __func__);
+
+	if (!pdev) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
 
 	/*
 	 * Sub devices probe will be triggered by of_platform_populate() towards
@@ -916,7 +936,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 	}
 
 	d_vpr_h("%s\n", __func__);
-	rc = msm_vidc_suspend_locked(core);
+	rc = msm_vidc_suspend(core);
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)

@@ -67,7 +67,7 @@ struct buf_queue {
 struct msm_vidc_inst {
 	struct list_head                   list;
 	struct mutex                       lock;
-	struct mutex                       request_lock;
+	struct mutex                       ctx_q_lock;
 	struct mutex                       client_lock;
 	enum msm_vidc_state                state;
 	int                              (*event_handle)(struct msm_vidc_inst *inst,
@@ -84,7 +84,7 @@ struct msm_vidc_inst {
 	u32                                packet_size;
 	struct v4l2_format                 fmts[MAX_PORT];
 	struct v4l2_ctrl_handler           ctrl_handler;
-	struct v4l2_fh                     event_handler;
+	struct v4l2_fh                     fh;
 	struct v4l2_m2m_dev               *m2m_dev;
 	struct v4l2_m2m_ctx               *m2m_ctx;
 	u32                                num_ctrls;

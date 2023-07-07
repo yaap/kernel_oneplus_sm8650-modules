@@ -211,13 +211,13 @@ u32 get_hfi_codec(struct msm_vidc_inst *inst)
 {
 	switch (inst->codec) {
 	case MSM_VIDC_H264:
-		if (inst->domain == MSM_VIDC_ENCODER)
+		if (is_encode_session(inst))
 			return HFI_CODEC_ENCODE_AVC;
 		else
 			return HFI_CODEC_DECODE_AVC;
 	case MSM_VIDC_HEVC:
 	case MSM_VIDC_HEIC:
-		if (inst->domain == MSM_VIDC_ENCODER)
+		if (is_encode_session(inst))
 			return HFI_CODEC_ENCODE_HEVC;
 		else
 			return HFI_CODEC_DECODE_HEVC;
@@ -385,11 +385,6 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	u32 payload = 0;
 	u32 synx_client_data[2];
 
-	if (!core || !pkt) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = hfi_create_header(pkt, pkt_size,
 				   0 /*session_id*/,
 				   core->header_id++);
@@ -542,11 +537,6 @@ int hfi_packet_image_version(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !pkt) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = hfi_create_header(pkt, pkt_size,
 				   0 /*session_id*/,
 				   core->header_id++);
@@ -579,11 +569,6 @@ int hfi_packet_sys_pc_prep(struct msm_vidc_core *core,
 {
 	int rc = 0;
 
-	if (!core || !pkt) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	rc = hfi_create_header(pkt, pkt_size,
 			   0 /*session_id*/,
 			   core->header_id++);
@@ -614,11 +599,6 @@ int hfi_packet_sys_debug_config(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	u32 payload = 0;
-
-	if (!core || !pkt) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = hfi_create_header(pkt, pkt_size,
 				   0 /*session_id*/,
@@ -699,11 +679,6 @@ int hfi_packet_sys_intraframe_powercollapse(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	u32 payload = 0;
-
-	if (!core || !pkt) {
-		d_vpr_e("%s: Invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	rc = hfi_create_header(pkt, pkt_size,
 		0 /*session_id*/,

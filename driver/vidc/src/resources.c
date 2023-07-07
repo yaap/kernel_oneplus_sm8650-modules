@@ -194,10 +194,6 @@ static int __opp_set_rate(struct msm_vidc_core *core, u64 freq)
 	struct dev_pm_opp *opp;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	opp_freq = freq;
 
 	/* find max(ceil) freq from opp table */
@@ -229,10 +225,6 @@ static int __init_register_base(struct msm_vidc_core *core)
 {
 	struct msm_vidc_resource *res;
 
-	if (!core || !core->pdev || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	res = core->resource;
 
 	res->register_base_addr = devm_platform_ioremap_resource(core->pdev, 0);
@@ -254,10 +246,6 @@ static int __init_irq(struct msm_vidc_core *core)
 #endif
 	int rc = 0;
 
-	if (!core || !core->pdev || !core->resource) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	res = core->resource;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0))
@@ -290,10 +278,6 @@ static int __init_bus(struct msm_vidc_core *core)
 	u32 bus_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	interconnects = &core->resource->bus_set;
 
 	bus_tbl = core->platform->data.bw_tbl;
@@ -359,10 +343,6 @@ static int __init_power_domains(struct msm_vidc_core *core)
 	u32 pd_count = 0, opp_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	pds = &core->resource->power_domain_set;
 
 	pd_tbl = core->platform->data.pd_tbl;
@@ -490,10 +470,6 @@ static int __init_clocks(struct msm_vidc_core *core)
 	u32 clk_count = 0, freq_count = 0;
 	int fcnt = 0, cnt = 0, rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	clocks = &core->resource->clock_set;
 
 	clk_tbl = core->platform->data.clk_tbl;
@@ -586,10 +562,6 @@ static int __init_reset_clocks(struct msm_vidc_core *core)
 	u32 rst_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	rsts = &core->resource->reset_set;
 
 	rst_tbl = core->platform->data.clk_rst_tbl;
@@ -649,10 +621,6 @@ static int __init_subcaches(struct msm_vidc_core *core)
 	u32 llcc_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	caches = &core->resource->subcache_set;
 
 	/* skip init if subcache not available */
@@ -711,10 +679,6 @@ static int __init_freq_table(struct msm_vidc_core *core)
 	u32 freq_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	clks = &core->resource->freq_set;
 
 	freq_tbl = core->platform->data.freq_tbl;
@@ -758,10 +722,6 @@ static int __init_context_banks(struct msm_vidc_core *core)
 	u32 cb_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	cbs = &core->resource->context_bank_set;
 
 	cb_tbl = core->platform->data.context_bank_tbl;
@@ -817,10 +777,6 @@ static int __init_device_region(struct msm_vidc_core *core)
 	u32 dev_reg_count = 0, cnt = 0;
 	int rc = 0;
 
-	if (!core || !core->resource || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 	dev_set = &core->resource->device_region_set;
 
 	dev_reg_tbl = core->platform->data.dev_reg_tbl;
@@ -864,11 +820,6 @@ static int __register_mmrm(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	struct clock_info *cl;
-
-	if (!core || !core->platform) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* skip if platform does not support mmrm */
 	if (!is_mmrm_supported(core)) {
@@ -1100,11 +1051,6 @@ static int __unvote_buses(struct msm_vidc_core *core)
 	int rc = 0;
 	struct bus_info *bus = NULL;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	core->power.bw_ddr = 0;
 	core->power.bw_llcc = 0;
 
@@ -1125,11 +1071,6 @@ static int __vote_buses(struct msm_vidc_core *core,
 	struct bus_info *bus = NULL;
 	unsigned long bw_kbps = 0, bw_prev = 0;
 	enum vidc_bus_type type;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	venus_hfi_for_each_bus(core, bus) {
 		if (bus && bus->icc) {
@@ -1186,11 +1127,6 @@ static int print_residency_stats(struct msm_vidc_core *core, struct clock_info *
 	u64 total_time_us = 0;
 	int rc = 0;
 
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* skip if scaling not supported */
 	if (!cl->has_scaling)
 		return 0;
@@ -1216,11 +1152,6 @@ static int reset_residency_stats(struct msm_vidc_core *core, struct clock_info *
 {
 	struct clock_residency *residency = NULL;
 	int rc = 0;
-
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* skip if scaling not supported */
 	if (!cl->has_scaling)
@@ -1268,11 +1199,6 @@ static int update_residency_stats(
 	if (!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
 		return 0;
 
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	/* skip update if scaling not supported */
 	if (!cl->has_scaling)
 		return 0;
@@ -1315,12 +1241,6 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
 {
 	int rc = 0;
-
-	/* not registered */
-	if (!core || !cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	/* update clock residency stats */
 	update_residency_stats(core, cl, rate);
@@ -1374,11 +1294,6 @@ static int __disable_unprepare_clock(struct msm_vidc_core *core,
 	struct clock_info *cl;
 	bool found;
 
-	if (!core || !clk_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	found = false;
 	venus_hfi_for_each_clock(core, cl) {
 		if (!cl->clk) {
@@ -1410,11 +1325,6 @@ static int __prepare_enable_clock(struct msm_vidc_core *core,
 	struct clock_info *cl;
 	bool found;
 	u64 rate = 0;
-
-	if (!core || !clk_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	found = false;
 	venus_hfi_for_each_clock(core, cl) {
@@ -1729,11 +1639,6 @@ static int __print_clock_residency_stats(struct msm_vidc_core *core)
 	struct clock_info *cl;
 	int rc = 0;
 
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
 	venus_hfi_for_each_clock(core, cl) {
 		/* skip if scaling not supported */
 		if (!cl->has_scaling)
@@ -1750,11 +1655,6 @@ static int __reset_clock_residency_stats(struct msm_vidc_core *core)
 {
 	struct clock_info *cl;
 	int rc = 0;
-
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
 
 	venus_hfi_for_each_clock(core, cl) {
 		/* skip if scaling not supported */

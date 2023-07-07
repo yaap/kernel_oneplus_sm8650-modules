@@ -77,18 +77,13 @@ int msm_vidc_poll(struct msm_vidc_inst *inst, struct file *filp,
 {
 	int poll = 0;
 
-	if (is_session_error(inst)) {
-		i_vpr_e(inst, "%s: inst in error state\n", __func__);
-		return POLLERR;
-	}
-
-	poll_wait(filp, &inst->event_handler.wait, wait);
+	poll_wait(filp, &inst->fh.wait, wait);
 	poll_wait(filp, &inst->bufq[INPUT_META_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[OUTPUT_META_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[INPUT_PORT].vb2q->done_wq, wait);
 	poll_wait(filp, &inst->bufq[OUTPUT_PORT].vb2q->done_wq, wait);
 
-	if (v4l2_event_pending(&inst->event_handler))
+	if (v4l2_event_pending(&inst->fh))
 		poll |= POLLPRI;
 
 	poll |= get_poll_flags(inst, INPUT_META_PORT);
@@ -107,9 +102,9 @@ int msm_vidc_querycap(struct msm_vidc_inst *inst, struct v4l2_capability *cap)
 
 	memset(cap->reserved, 0, sizeof(cap->reserved));
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		strlcpy(cap->card, "msm_vidc_decoder", sizeof(cap->card));
-	else if (inst->domain == MSM_VIDC_ENCODER)
+	else if (is_encode_session(inst))
 		strlcpy(cap->card, "msm_vidc_encoder", sizeof(cap->card));
 	else
 		return -EINVAL;
@@ -119,9 +114,9 @@ int msm_vidc_querycap(struct msm_vidc_inst *inst, struct v4l2_capability *cap)
 
 int msm_vidc_enum_fmt(struct msm_vidc_inst *inst, struct v4l2_fmtdesc *f)
 {
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		return msm_vdec_enum_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		return msm_venc_enum_fmt(inst, f);
 
 	return -EINVAL;
@@ -184,9 +179,9 @@ int msm_vidc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_try_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_try_fmt(inst, f);
 
 	if (rc)
@@ -199,9 +194,9 @@ int msm_vidc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_s_fmt(inst, f);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_s_fmt(inst, f);
 
 	if (rc)
@@ -662,9 +657,9 @@ int msm_vidc_subscribe_event(struct msm_vidc_inst *inst,
 
 	i_vpr_h(inst, "%s: type %d id %d\n", __func__, sub->type, sub->id);
 
-	if (inst->domain == MSM_VIDC_DECODER)
+	if (is_decode_session(inst))
 		rc = msm_vdec_subscribe_event(inst, sub);
-	if (inst->domain == MSM_VIDC_ENCODER)
+	if (is_encode_session(inst))
 		rc = msm_venc_subscribe_event(inst, sub);
 
 	return rc;
@@ -676,7 +671,7 @@ int msm_vidc_unsubscribe_event(struct msm_vidc_inst *inst,
 	int rc = 0;
 
 	i_vpr_h(inst, "%s: type %d id %d\n", __func__, sub->type, sub->id);
-	rc = v4l2_event_unsubscribe(&inst->event_handler, sub);
+	rc = v4l2_event_unsubscribe(&inst->fh, sub);
 	if (rc)
 		i_vpr_e(inst, "%s: failed, type %d id %d\n",
 			 __func__, sub->type, sub->id);
@@ -687,7 +682,7 @@ int msm_vidc_dqevent(struct msm_vidc_inst *inst, struct v4l2_event *event)
 {
 	int rc = 0;
 
-	rc = v4l2_event_dequeue(&inst->event_handler, event, false);
+	rc = v4l2_event_dequeue(&inst->fh, event, false);
 	if (rc)
 		i_vpr_e(inst, "%s: fialed\n", __func__);
 	return rc;
@@ -700,10 +695,6 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	int i = 0;
 
 	d_vpr_h("%s: %s\n", __func__, video_banner);
-	if (!core) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
 
 	if (session_type != MSM_VIDC_DECODER &&
 	    session_type != MSM_VIDC_ENCODER) {
@@ -741,7 +732,7 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	inst->initial_time_us = ktime_get_ns() / 1000;
 	kref_init(&inst->kref);
 	mutex_init(&inst->lock);
-	mutex_init(&inst->request_lock);
+	mutex_init(&inst->ctx_q_lock);
 	mutex_init(&inst->client_lock);
 	msm_vidc_update_debug_str(inst);
 	i_vpr_h(inst, "Opening video instance: %d\n", session_type);
@@ -803,7 +794,7 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	INIT_DELAYED_WORK(&inst->stats_work, msm_vidc_stats_handler);
 	INIT_WORK(&inst->stability_work, msm_vidc_stability_handler);
 
-	rc = msm_vidc_event_queue_init(inst);
+	rc = msm_vidc_v4l2_fh_init(inst);
 	if (rc)
 		goto fail_eventq_init;
 
@@ -850,7 +841,7 @@ fail_fence_init:
 fail_inst_init:
 	msm_vidc_vb2_queue_deinit(inst);
 fail_vb2q_init:
-	msm_vidc_event_queue_deinit(inst);
+	msm_vidc_v4l2_fh_deinit(inst);
 fail_eventq_init:
 	destroy_workqueue(inst->workq);
 fail_create_workq:
@@ -860,7 +851,7 @@ fail_pools_init:
 	msm_vidc_remove_dangling_session(inst);
 fail_add_session:
 	mutex_destroy(&inst->client_lock);
-	mutex_destroy(&inst->request_lock);
+	mutex_destroy(&inst->ctx_q_lock);
 	mutex_destroy(&inst->lock);
 	msm_vidc_vmem_free((void **)&inst);
 	return NULL;
