@@ -27,6 +27,7 @@ struct hwep_configurations {
 	uint8_t bit_width;
 	uint8_t codectype;
 	uint32_t direction;
+	uint8_t num_channels;
 	struct list_head dai_list;
 };
 
@@ -51,7 +52,7 @@ struct hwep_comp_drv {
 struct hwep_dai_ops {
 	int (*hwep_startup)(void *);
 	void (*hwep_shutdown)(void *, int);
-	int (*hwep_hw_params)(void *, uint32_t, uint32_t);
+	int (*hwep_hw_params)(void *, uint32_t, uint32_t, uint8_t);
 	int (*hwep_prepare)(void *, uint32_t, uint32_t, int);
 	int (*hwep_set_channel_map)(void *, unsigned int, unsigned int *,
 				unsigned int, unsigned int *);
