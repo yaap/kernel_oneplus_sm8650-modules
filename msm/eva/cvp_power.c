@@ -219,9 +219,6 @@ int msm_cvp_update_power(struct msm_cvp_inst *inst)
 		return -ECONNRESET;
 
 	core = inst->core;
-	if (!core || core->state == CVP_CORE_UNINIT)
-                return -ECONNRESET;
-
 	clocks = &core->resources.clock_set;
 	cl = &clocks->clock_tbl[clocks->count - 1];
 	if (!cl->has_scaling) {
