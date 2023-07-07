@@ -388,7 +388,7 @@ int rmnet_map_dl_ind_deregister(struct rmnet_port *port,
 {
 	struct rmnet_map_dl_ind *tmp;
 
-	if (!port || !dl_ind)
+	if (!port || !dl_ind || !(port->dl_list.next))
 		return -EINVAL;
 
 	list_for_each_entry(tmp, &port->dl_list, list) {
@@ -447,7 +447,7 @@ int rmnet_map_pb_ind_deregister(struct rmnet_port *port,
 {
 	struct rmnet_map_pb_ind *tmp;
 
-	if (!port || !pb_ind)
+	if (!port || !pb_ind || !(port->pb_list.next))
 		return -EINVAL;
 
 	list_for_each_entry(tmp, &port->pb_list, list) {
