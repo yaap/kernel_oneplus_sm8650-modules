@@ -8,7 +8,12 @@
 
 #include <linux/types.h>
 #include <linux/cdev.h>
+
+#ifdef CONFIG_MSM_ADSPRPC_TRUSTED
+#include "../include/uapi/fastrpc_shared.h"
+#else
 #include "fastrpc_shared.h"
+#endif
 
 #define FASTRPC_GLINK_GUID "fastrpcglink-apps-dsp"
 #define FASTRPC_SMD_GUID "fastrpcsmd-apps-dsp"
@@ -82,6 +87,9 @@
 
 #define NUM_CHANNELS	4	/* adsp, mdsp, slpi, cdsp*/
 #define NUM_SESSIONS	14	/* max 11 compute, 3 cpz */
+
+/* Default maximum sessions allowed per process */
+#define DEFAULT_MAX_SESS_PER_PROC 4
 
 #define VALID_FASTRPC_CID(cid) \
 	(cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS)
@@ -748,6 +756,8 @@ struct fastrpc_apps {
 	unsigned int lowest_capacity_core_count;
 	/* Flag to check if PM QoS vote needs to be done for only one core */
 	bool single_core_latency_vote;
+	/* Maximum sessions allowed to be created per process */
+	uint32_t max_sess_per_proc;
 };
 
 struct fastrpc_mmap {
@@ -841,6 +851,8 @@ struct fastrpc_file {
 	int sessionid;
 	int tgid_open;	/* Process ID during device open */
 	int tgid;		/* Process ID that uses device for RPC calls */
+	/* Unique HLOS process ID created by fastrpc for each client */
+	int tgid_frpc;
 	int cid;
 	int tvm_remote_domain;
 	uint64_t ssrcount;
@@ -909,6 +921,8 @@ struct fastrpc_file {
 	* config paramters.
 	*/
 	struct fastrpc_proc_sharedbuf_info sharedbuf_info;
+	/* Flag to indicate 4 session support available */
+	bool multi_session_support;
 };
 
 int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
