@@ -283,6 +283,8 @@ struct msm_vidc_resources_ops {
 		const char *name, enum msm_vidc_branch_mem_flags flag);
 	int (*clk_print_residency_stats)(struct msm_vidc_core *core);
 	int (*clk_reset_residency_stats)(struct msm_vidc_core *core);
+	int (*clk_update_residency_stats)(
+		struct msm_vidc_core *core,struct clock_info *cl, u64 rate);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);

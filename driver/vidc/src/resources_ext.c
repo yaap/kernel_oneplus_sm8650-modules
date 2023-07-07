@@ -291,75 +291,6 @@ static int __acquire_regulators(struct msm_vidc_core *core)
 	return rc;
 }
 
-static struct clock_residency *get_residency_stats(struct clock_info *cl, u64 rate)
-{
-	struct clock_residency *residency = NULL;
-	bool found = false;
-
-	if (!cl) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return NULL;
-	}
-
-	list_for_each_entry(residency, &cl->residency_list, list) {
-		if (residency->rate == rate) {
-			found = true;
-			break;
-		}
-	}
-
-	return found ? residency : NULL;
-}
-
-static int update_residency_stats(
-	struct msm_vidc_core *core, struct clock_info *cl, u64 rate)
-{
-	struct clock_residency *cur_residency = NULL, *prev_residency = NULL;
-	u64 cur_time_us = 0;
-	int rc = 0;
-
-	/* skip update if high or stats logs not enabled */
-	if (!(msm_vidc_debug & (VIDC_HIGH | VIDC_STAT)))
-		return 0;
-
-	/* skip update if scaling not supported */
-	if (!cl->has_scaling)
-		return 0;
-
-	/* skip update if rate not changed */
-	if (rate == cl->prev)
-		return 0;
-
-	/* get current time in ns */
-	cur_time_us = ktime_get_ns() / 1000;
-
-	/* update previous rate residency end or total time */
-	prev_residency = get_residency_stats(cl, cl->prev);
-	if (prev_residency) {
-		if (prev_residency->start_time_us)
-			prev_residency->total_time_us += cur_time_us - prev_residency->start_time_us;
-
-		/* reset start time us */
-		prev_residency->start_time_us = 0;
-	}
-
-	/* clk disable case - no need to update new entry */
-	if (rate == 0)
-		return 0;
-
-	/* check if rate entry is present */
-	cur_residency = get_residency_stats(cl, rate);
-	if (!cur_residency) {
-		d_vpr_e("%s: entry not found. rate %llu\n", __func__, rate);
-		return -EINVAL;
-	}
-
-	/* update residency start time for current rate/freq */
-	cur_residency->start_time_us = cur_time_us;
-
-	return rc;
-}
-
 #ifdef CONFIG_MSM_MMRM
 static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 			  u64 rate)
@@ -375,7 +306,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	}
 
 	/* update clock residency stats */
-	update_residency_stats(core, cl, rate);
+	call_res_op(core, clk_update_residency_stats, core, cl, rate);
 
 	/*
 	 * This conversion is necessary since we are scaling clock values based on
@@ -423,7 +354,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	int rc = 0;
 
 	/* update clock residency stats */
-	update_residency_stats(core, cl, rate);
+	call_res_op(core, clk_update_residency_stats, core, cl, rate);
 
 	/*
 	 * This conversion is necessary since we are scaling clock values based on
