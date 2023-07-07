@@ -18,7 +18,7 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *****************************************************************************/
 #include <linux/gpio.h>
