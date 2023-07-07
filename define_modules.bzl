@@ -8,12 +8,13 @@ def define_modules(target, variant):
         name = "{}_stm_nfc_i2c".format(tv),
         out = "stm_nfc_i2c.ko",
         srcs = ["nfc/st21nfc.c",
-                "nfc/st21nfc.h"
+                "nfc/st21nfc.h",
+                "include/uapi/linux/nfc/st_uapi.h"
                ],
         includes = [".", "linux", "nfc"],
         deps = ["//msm-kernel:all_headers",
-		"//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
-		"//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv)],
+                "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
+                "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv)],
         kernel_build = "//msm-kernel:{}".format(tv),
         visibility = ["//visibility:public"]
     )

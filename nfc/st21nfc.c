@@ -6,7 +6,7 @@
  * Copyright (C) 2010 Trusted Logic S.A.
  */
 /*
-   Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 */
 
 #define DEBUG
@@ -43,6 +43,7 @@
 #include <linux/of_irq.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "st21nfc.h"
+#include "include/uapi/linux/nfc/st_uapi.h"
 #include <linux/version.h>
 
 /*secure library headers*/
