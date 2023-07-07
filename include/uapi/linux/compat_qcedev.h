@@ -10,7 +10,6 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
-#if IS_ENABLED(CONFIG_COMPAT)
 #include <linux/compat.h>
 
 /**
@@ -199,5 +198,4 @@ long compat_qcedev_ioctl(struct file *file,
 	_IOWR(QCEDEV_IOC_MAGIC, 10, struct compat_qcedev_map_buf_req)
 #define COMPAT_QCEDEV_IOCTL_UNMAP_BUF_REQ \
 	_IOWR(QCEDEV_IOC_MAGIC, 11, struct compat_qcedev_unmap_buf_req)
-#endif /* CONFIG_COMPAT */
 #endif /* _UAPI_COMPAT_QCEDEV__H */
