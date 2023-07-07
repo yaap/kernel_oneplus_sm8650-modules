@@ -3,10 +3,124 @@
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include "pineapple_technology.h"
+#include "perf_static_model.h"
 #include "msm_vidc_debug.h"
 
-static u32 calculate_number_mbs_pineapple(u32 width, u32 height, u32 lcu_size)
+#define ENABLE_FINEBITRATE_SUBUHD60 0
+
+static u32 codec_encoder_gop_complexity_table_fp[8][3];
+static u32 codec_mbspersession_iris33;
+static u32 input_bitrate_fp;
+
+/*
+ * Chipset Generation Technology: SW/FW overhead profiling
+ * need update with new numbers
+ */
+static u32 frequency_table_iris33[2][6] = {
+	/* //make lowsvs_D1 as invalid; */
+	{533, 480, 435, 380, 300, 196},
+	{840, 720, 652, 570, 450, 294},
+};
+
+ /*
+  * TODO Move to pineapple.c
+  * TODO Replace hardcoded values with
+  * ENCODER_VPP_TARGET_CLK_PER_MB_IRIS33 in CPP file.
+  */
+
+/* Tensilica cycles profiled by FW team in lanai device Feb 2022 */
+#define DECODER_VPP_FW_OVERHEAD_IRIS33_AV1D                                            ((80000*3)/2)
+#define DECODER_VPP_FW_OVERHEAD_IRIS33_NONAV1D                                         ((60000*3)/2)
+
+ /* Tensilica cycles */
+#define DECODER_VPP_FW_OVERHEAD_IRIS33                                                  (0)
+
+/* Tensilica cycles; this is measured in Lahaina 1stage with FW profiling */
+#define DECODER_VPPVSP1STAGE_FW_OVERHEAD_IRIS33                                         (93000)
+
+#define DECODER_VSP_FW_OVERHEAD_IRIS33 \
+	(DECODER_VPPVSP1STAGE_FW_OVERHEAD_IRIS33 - DECODER_VPP_FW_OVERHEAD_IRIS33)
+
+/* Tensilica cycles; encoder has ARP register */
+#define ENCODER_VPP_FW_OVERHEAD_IRIS33                                                  (69000*3/2)
+
+#define ENCODER_VPPVSP1STAGE_FW_OVERHEAD_IRIS33 \
+	(ENCODER_VPP_FW_OVERHEAD_IRIS33 + DECODER_VSP_FW_OVERHEAD_IRIS33)
+
+#define DECODER_SW_OVERHEAD_IRIS33                                                      (489583)
+#define ENCODER_SW_OVERHEAD_IRIS33                                                      (489583)
+
+/* Video IP Core Technology: pipefloor and pipe penlaty */
+// static u32 encoder_vpp_target_clk_per_mb_iris33[2] = {320, 675};
+static u32 decoder_vpp_target_clk_per_mb_iris33 = 200;
+
+/*
+ * These pipe penalty numbers only applies to 4 pipe
+ * For 2pipe and 1pipe, these numbers need recalibrate
+ */
+static u32 pipe_penalty_iris33[3][3] = {
+	/* NON AV1 */
+	{1059, 1059, 1059},
+	/* AV1 RECOMMENDED TILE 1080P_V2XH1, UHD_V2X2, 8KUHD_V8X2 */
+	{1410, 1248, 1226},
+	/* AV1 YOUTUBE/NETFLIX TILE 1080P_V4XH2_V4X1, UHD_V8X4_V8X1, 8KUHD_V8X8_V8X1 */
+	{2039, 2464, 1191},
+};
+
+/*
+ * Video IP Core Technology: bitrate constraint
+ * HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered)
+ * TODO Can we convert to Cycles/MB? This will remove DIVISION.
+ */
+static u32 bitrate_table_iris33_2stage_fp[5][10] = {
+	/* h264 cavlc */
+	{0, 220, 220, 220, 220, 220, 220, 220, 220, 220},
+	/* h264 cabac */
+	{0, 140, 150, 160, 175, 190, 190, 190, 190, 190},
+	/* h265 */
+	{90, 140, 160, 180, 190, 200, 200, 200, 200, 200},
+	/* vp9 */
+	{90, 90, 90, 90, 90, 90, 90, 90, 90, 90},
+	/* av1 */
+	{130, 130, 120, 120, 120, 120, 120, 120, 120, 120},
+};
+
+/* HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered) */
+static u32 bitrate_table_iris33_1stage_fp[5][10] = { /* 1-stage assume IPPP */
+	/* h264 cavlc */
+	{0, 220, 220, 220, 220, 220, 220, 220, 220, 220},
+	/* h264 cabac */
+	{0, 110, 150, 150, 150, 150, 150, 150, 150, 150},
+	/* h265 */
+	{0, 140, 150, 150, 150, 150, 150, 150, 150, 150},
+	/* vp9 */
+	{0, 70, 70, 70, 70, 70, 70, 70, 70, 70},
+	/* av1 */
+	{0, 100, 100, 100, 100, 100, 100, 100, 100, 100},
+};
+
+/* 8KUHD60; UHD240; 1080p960  with B */
+static u32 fp_pixel_count_bar0 = 3840 * 2160 * 240;
+/* 8KUHD60; UHD240; 1080p960  without B */
+static u32 fp_pixel_count_bar1 = 3840 * 2160 * 240;
+/* 1080p720 */
+static u32 fp_pixel_count_bar2 = 3840 * 2160 * 180;
+/* UHD120 */
+static u32 fp_pixel_count_bar3 = 3840 * 2160 * 120;
+/* UHD90 */
+static u32 fp_pixel_count_bar4 = 3840 * 2160 * 90;
+/* UHD60 */
+static u32 fp_pixel_count_bar5 = 3840 * 2160 * 60;
+/* UHD30; FHD120; HD240 */
+static u32 fp_pixel_count_bar6 = 3840 * 2160 * 30;
+/* FHD60 */
+static u32 fp_pixel_count_bar7 = 1920 * 1080 * 60;
+/* FHD30 */
+static u32 fp_pixel_count_bar8 = 1920 * 1080 * 30;
+/* HD30 */
+static u32 fp_pixel_count_bar9 = 1280 * 720 * 30;
+
+static u32 calculate_number_mbs_iris33(u32 width, u32 height, u32 lcu_size)
 {
 	u32 mbs_width = (width % lcu_size) ?
 		(width / lcu_size + 1) : (width / lcu_size);
@@ -215,57 +329,57 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		 *  TODO : Reduce these conditions by removing the zero entries from Bitrate table.
 		 */
 
-		vsp_hw_min_frequency = frequency_table_pineapple[0][2] *
+		vsp_hw_min_frequency = frequency_table_iris33[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1)
-			vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
+			vsp_hw_min_frequency = frequency_table_iris33[0][1] *
 				input_bitrate_fp * 1000;
 
 		if ((codec_input.codec == CODEC_H264) ||
 			(codec_input.codec == CODEC_H264_CAVLC)) {
-			vsp_hw_min_frequency = (frequency_table_pineapple[0][2] * 1000 +
+			vsp_hw_min_frequency = (frequency_table_iris33[0][2] * 1000 +
 				(fw_sw_vsp_offset - 1));
 			vsp_hw_min_frequency =
 				DIV_ROUND_UP(vsp_hw_min_frequency, fw_sw_vsp_offset);
 		} else {
 			if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 				vsp_hw_min_frequency = vsp_hw_min_frequency +
-					(bitrate_table_pineapple_2stage_fp[codec][0] *
+					(bitrate_table_iris33_2stage_fp[codec][0] *
 					fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_pineapple_2stage_fp[codec][0]) *
+					(bitrate_table_iris33_2stage_fp[codec][0]) *
 						fw_sw_vsp_offset);
 			} else {
 				vsp_hw_min_frequency = vsp_hw_min_frequency +
-					(bitrate_table_pineapple_1stage_fp[codec][0] *
+					(bitrate_table_iris33_1stage_fp[codec][0] *
 					fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_pineapple_1stage_fp[codec][0]) *
+					(bitrate_table_iris33_1stage_fp[codec][0]) *
 						fw_sw_vsp_offset);
 			}
 		}
 	} else {
-		vsp_hw_min_frequency = frequency_table_pineapple[0][2] *
+		vsp_hw_min_frequency = frequency_table_iris33[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1 && bitrate_entry == 1)
-			vsp_hw_min_frequency = frequency_table_pineapple[0][1] *
+			vsp_hw_min_frequency = frequency_table_iris33[0][1] *
 				input_bitrate_fp * 1000;
 
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			vsp_hw_min_frequency = vsp_hw_min_frequency +
-				(bitrate_table_pineapple_2stage_fp[codec][bitrate_entry] *
+				(bitrate_table_iris33_2stage_fp[codec][bitrate_entry] *
 				fw_sw_vsp_offset - 1);
 			vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-				(bitrate_table_pineapple_2stage_fp[codec][bitrate_entry]) *
+				(bitrate_table_iris33_2stage_fp[codec][bitrate_entry]) *
 					fw_sw_vsp_offset);
 		} else {
 			vsp_hw_min_frequency = vsp_hw_min_frequency +
-				(bitrate_table_pineapple_1stage_fp[codec][bitrate_entry] *
+				(bitrate_table_iris33_1stage_fp[codec][bitrate_entry] *
 				fw_sw_vsp_offset - 1);
 			vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-				(bitrate_table_pineapple_1stage_fp[codec][bitrate_entry]) *
+				(bitrate_table_iris33_1stage_fp[codec][bitrate_entry]) *
 					fw_sw_vsp_offset);
 		}
 	}
@@ -282,27 +396,27 @@ static u32 calculate_pipe_penalty(struct api_calculation_input codec_input)
 
 	/* decoder */
 	if (codec_input.decoder_or_encoder == CODEC_DECODER) {
-		pipe_penalty_codec = pipe_penalty_pineapple[0][0];
+		pipe_penalty_codec = pipe_penalty_iris33[0][0];
 		avid_commercial_content = codec_input.av1d_commer_tile_enable;
 		if (codec_input.codec == CODEC_AV1) {
 			pixel_count = codec_input.frame_width * codec_input.frame_height;
 			if (pixel_count <= 1920 * 1080)
 				pipe_penalty_codec =
-					pipe_penalty_pineapple[avid_commercial_content + 1][0];
+					pipe_penalty_iris33[avid_commercial_content + 1][0];
 			else if (pixel_count < 3840 * 2160)
 				pipe_penalty_codec =
-					(pipe_penalty_pineapple[avid_commercial_content + 1][0] +
-					pipe_penalty_pineapple[avid_commercial_content + 1][1]) / 2;
+					(pipe_penalty_iris33[avid_commercial_content + 1][0] +
+					pipe_penalty_iris33[avid_commercial_content + 1][1]) / 2;
 			else if ((pixel_count == 3840 * 2160) ||
 				(pixel_count == 4096 * 2160) || (pixel_count == 4096 * 2304))
-				pipe_penalty_codec = pipe_penalty_pineapple[avid_commercial_content + 1][1];
+				pipe_penalty_codec = pipe_penalty_iris33[avid_commercial_content + 1][1];
 			else if (pixel_count < 7680 * 4320)
 				pipe_penalty_codec =
-					(pipe_penalty_pineapple[avid_commercial_content + 1][1] +
-					pipe_penalty_pineapple[avid_commercial_content + 1][2]) / 2;
+					(pipe_penalty_iris33[avid_commercial_content + 1][1] +
+					pipe_penalty_iris33[avid_commercial_content + 1][2]) / 2;
 			else
 				pipe_penalty_codec =
-					pipe_penalty_pineapple[avid_commercial_content + 1][2];
+					pipe_penalty_iris33[avid_commercial_content + 1][2];
 		}
 	} else {
 		pipe_penalty_codec = 101;
@@ -327,17 +441,17 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 	u32 lpmode_uhd_cycle_permb = 0;
 	u32 hqmode1080p_cycle_permb = 0;
 	u32 encoder_vpp_target_clk_per_mb = 0;
-	u32 decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE;
+	u32 decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_IRIS33;
 
-	codec_mbspersession_pineaple =
-		calculate_number_mbs_pineapple(codec_input.frame_width,
+	codec_mbspersession_iris33 =
+		calculate_number_mbs_iris33(codec_input.frame_width,
 		codec_input.frame_height, codec_input.lcu_size) *
 		codec_input.frame_rate;
 
 	/* Section 2. 0  VPP/VSP calculation */
 	if (codec_input.decoder_or_encoder == CODEC_DECODER) { /* decoder */
-		vpp_hw_min_frequency = ((decoder_vpp_target_clk_per_mb_pineapple) *
-			(codec_mbspersession_pineaple) + codec_input.pipe_num - 1) /
+		vpp_hw_min_frequency = ((decoder_vpp_target_clk_per_mb_iris33) *
+			(codec_mbspersession_iris33) + codec_input.pipe_num - 1) /
 			(codec_input.pipe_num);
 
 		vpp_hw_min_frequency = (vpp_hw_min_frequency + 99999) / 1000000;
@@ -349,9 +463,9 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 		}
 
 		if (codec_input.codec == CODEC_AV1)
-			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE_AV1D;
+			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_IRIS33_AV1D;
 		else
-			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_PINEAPPLE_NONAV1D;
+			decoder_vpp_fw_overhead = DECODER_VPP_FW_OVERHEAD_IRIS33_NONAV1D;
 
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			/* FW overhead, convert FW cycles to impact to one pipe */
@@ -362,8 +476,8 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 
 			decoder_vpp_fw_overhead =
 				DIV_ROUND_UP((decoder_vpp_fw_overhead * 1000),
-				(codec_mbspersession_pineaple *
-				decoder_vpp_target_clk_per_mb_pineapple / codec_input.pipe_num));
+				(codec_mbspersession_iris33 *
+				decoder_vpp_target_clk_per_mb_iris33 / codec_input.pipe_num));
 
 			decoder_vpp_fw_overhead += 1000;
 			decoder_vpp_fw_overhead = (decoder_vpp_fw_overhead < 1050) ?
@@ -402,7 +516,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 			/* FW time */
 			fmin_fwoverhead105 = (fmin * 105 + 99) / 100;
 			fmin_measured_fwoverhead = fmin +
-				(((DECODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE *
+				(((DECODER_VPPVSP1STAGE_FW_OVERHEAD_IRIS33 *
 				codec_input.frame_rate * 10 + 14) / 15 + 999) / 1000 + 999) /
 				1000;
 
@@ -410,7 +524,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 				fmin_fwoverhead105 : fmin_measured_fwoverhead;
 		}
 
-		tensilica_min_frequency = (DECODER_SW_OVERHEAD_PINEAPPLE * 10 + 14) / 15;
+		tensilica_min_frequency = (DECODER_SW_OVERHEAD_IRIS33 * 10 + 14) / 15;
 		tensilica_min_frequency = (tensilica_min_frequency + 999) / 1000;
 		tensilica_min_frequency = tensilica_min_frequency * codec_input.frame_rate;
 		tensilica_min_frequency = (tensilica_min_frequency + 999) / 1000;
@@ -467,7 +581,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 			hqmode1080p_cycle_permb : lpmode_uhd_cycle_permb;
 
 		vpp_hw_min_frequency = ((encoder_vpp_target_clk_per_mb) *
-			(codec_mbspersession_pineaple) + codec_input.pipe_num - 1) /
+			(codec_mbspersession_iris33) + codec_input.pipe_num - 1) /
 			(codec_input.pipe_num);
 
 		vpp_hw_min_frequency = (vpp_hw_min_frequency + 99999) / 1000000;
@@ -483,12 +597,12 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 			u64 encoder_vpp_fw_overhead = 0;
 
 			encoder_vpp_fw_overhead =
-				DIV_ROUND_UP((ENCODER_VPP_FW_OVERHEAD_PINEAPPLE * 10 *
+				DIV_ROUND_UP((ENCODER_VPP_FW_OVERHEAD_IRIS33 * 10 *
 				codec_input.frame_rate), 15);
 
 			encoder_vpp_fw_overhead =
 				DIV_ROUND_UP((encoder_vpp_fw_overhead * 1000),
-				(codec_mbspersession_pineaple * encoder_vpp_target_clk_per_mb /
+				(codec_mbspersession_iris33 * encoder_vpp_target_clk_per_mb /
 				codec_input.pipe_num));
 
 			encoder_vpp_fw_overhead += 1000;
@@ -514,7 +628,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 			/* FW time */
 			fmin_fwoverhead105 = (fmin * 105 + 99) / 100;
 			fmin_measured_fwoverhead = fmin +
-				(((DECODER_VPPVSP1STAGE_FW_OVERHEAD_PINEAPPLE *
+				(((DECODER_VPPVSP1STAGE_FW_OVERHEAD_IRIS33 *
 				codec_input.frame_rate * 10 + 14) / 15 + 999) /
 				1000 + 999) / 1000;
 
@@ -523,7 +637,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 			/* SW time */
 		}
 
-		tensilica_min_frequency = (ENCODER_SW_OVERHEAD_PINEAPPLE * 10 + 14) / 15;
+		tensilica_min_frequency = (ENCODER_SW_OVERHEAD_IRIS33 * 10 + 14) / 15;
 		tensilica_min_frequency = (tensilica_min_frequency + 999) / 1000;
 
 		tensilica_min_frequency = tensilica_min_frequency *
