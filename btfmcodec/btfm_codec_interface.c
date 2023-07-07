@@ -4,6 +4,8 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/remoteproc.h>
+#include <linux/remoteproc/qcom_rproc.h>
 #include "btfm_codec.h"
 #include "btfm_codec_interface.h"
 #include "btfm_codec_pkt.h"
@@ -18,29 +20,23 @@ static int btfm_codec_get_mixer_control(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *codec = kcontrol->private_data;
 	struct btfmcodec_data *btfmcodec = snd_soc_component_get_drvdata(codec);
 	struct hwep_data *hwepinfo = btfmcodec->hwep_info;
-	struct btfmcodec_state_machine states = btfmcodec->states;
 	struct snd_kcontrol_new *mixer_ctrl = hwepinfo->mixer_ctrl;
 	struct snd_ctl_elem_id id = kcontrol->id;
 	int num_mixer_ctrl = hwepinfo->num_mixer_ctrl;
 	int i = 0;
 
 	BTFMCODEC_DBG("");
-	if (states.current_state != IDLE) {
-		BTFMCODEC_WARN("Received probe when state is :%s",
-			coverttostring(states.current_state));
-	} else {
-		for (; i < num_mixer_ctrl ; i++) {
-			BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
-				id.name, mixer_ctrl[i].name);
-			if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
-				BTFMCODEC_DBG("Matched");
-				mixer_ctrl[i].get(kcontrol, ucontrol);
-				break;
-			}
+	for (; i < num_mixer_ctrl ; i++) {
+		BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
+			id.name, mixer_ctrl[i].name);
+		if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
+			BTFMCODEC_DBG("Matched");
+			mixer_ctrl[i].get(kcontrol, ucontrol);
+			break;
 		}
-		if (num_mixer_ctrl == i)
-			return 0;
 	}
+	if (num_mixer_ctrl == i)
+		return 0;
 	return 1;
 }
 
@@ -51,29 +47,23 @@ static int btfmcodec_put_mixer_control(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *codec = kcontrol->private_data;
 	struct btfmcodec_data *btfmcodec = snd_soc_component_get_drvdata(codec);
 	struct hwep_data *hwepinfo = btfmcodec->hwep_info;
-	struct btfmcodec_state_machine states = btfmcodec->states;
 	struct snd_kcontrol_new *mixer_ctrl = hwepinfo->mixer_ctrl;
 	struct snd_ctl_elem_id id = kcontrol->id;
 	int num_mixer_ctrl = hwepinfo->num_mixer_ctrl;
 	int i = 0;
 
 	BTFMCODEC_DBG("");
-	if (states.current_state != IDLE) {
-		BTFMCODEC_WARN("Received probe when state is :%s",
-			coverttostring(states.current_state));
-	} else {
-		for (; i < num_mixer_ctrl ; i++) {
-			BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
-			       id.name, mixer_ctrl[i].name);
-			if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
-				BTFMCODEC_DBG("Matched");
-				mixer_ctrl[i].put(kcontrol, ucontrol);
-				break;
-			}
+	for (; i < num_mixer_ctrl ; i++) {
+		BTFMCODEC_DBG("checking mixer_ctrl:%s and current mixer:%s",
+			id.name, mixer_ctrl[i].name);
+		if (!strncmp(id.name, mixer_ctrl[i].name, 64)) {
+			BTFMCODEC_DBG("Matched");
+			mixer_ctrl[i].put(kcontrol, ucontrol);
+			break;
 		}
-		if (num_mixer_ctrl == i)
-			return 0;
 	}
+	if (num_mixer_ctrl == i)
+		return 0;
 	return 1;
 }
 
@@ -688,6 +678,40 @@ static struct snd_soc_dai_ops btfmcodec_dai_ops = {
 	.get_channel_map = btfmcodec_dai_get_channel_map,
 };
 
+static int btfmcodec_adsp_ssr_notify(struct notifier_block *nb,
+				    unsigned long action, void *data)
+{
+	struct btfmcodec_data *btfmcodec  = container_of(nb,
+					    struct btfmcodec_data, notifier.nb);
+	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
+	struct btm_adsp_state_ind state_ind;
+
+	switch (action) {
+	case QCOM_SSR_BEFORE_SHUTDOWN: {
+		BTFMCODEC_WARN("LPASS SSR triggered");
+		break;
+	} case QCOM_SSR_AFTER_SHUTDOWN: {
+		BTFMCODEC_WARN("LPASS SSR Completed");
+		break;
+	} case QCOM_SSR_BEFORE_POWERUP: {
+		BTFMCODEC_WARN("LPASS booted up after SSR");
+		break;
+	} case QCOM_SSR_AFTER_POWERUP: {
+		BTFMCODEC_WARN("LPASS booted up completely");
+		state_ind.opcode = BTM_BTFMCODEC_ADSP_STATE_IND;
+		state_ind.len  = BTM_ADSP_STATE_IND_LEN;
+		state_ind.action = (uint32_t)action;
+		btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &state_ind,
+				(state_ind.len +
+				BTM_HEADER_LEN));
+		break;
+	} default:
+		BTFMCODEC_WARN("unhandled action id %lu", action);
+		break;
+	}
+	return 0;
+}
+
 int btfm_register_codec(struct hwep_data *hwep_info)
 {
 	struct btfmcodec_data *btfmcodec;
@@ -699,6 +723,16 @@ int btfm_register_codec(struct hwep_data *hwep_info)
 	btfmcodec = btfm_get_btfmcodec();
 	btfmcodec_dev = btfmcodec->btfmcodec_dev;
 	dev = &btfmcodec->dev;
+
+	btfmcodec->notifier.nb.notifier_call = btfmcodec_adsp_ssr_notify;
+	btfmcodec->notifier.notifier = qcom_register_ssr_notifier("lpass",
+					&btfmcodec->notifier.nb);
+	if (IS_ERR(btfmcodec->notifier.notifier)) {
+		ret = PTR_ERR(btfmcodec->notifier.notifier);
+		BTFMCODEC_ERR("Failed to register SSR notification: %d\n", ret);
+		return ret;
+	}
+
 	btfmcodec_dai_info = kzalloc((sizeof(struct snd_soc_dai_driver) * hwep_info->num_dai), GFP_KERNEL);
 	if (!btfmcodec_dai_info) {
 		BTFMCODEC_ERR("failed to allocate memory");

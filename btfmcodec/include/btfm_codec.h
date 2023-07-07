@@ -13,10 +13,24 @@
 #include <linux/skbuff.h>
 #include "btfm_codec_hw_interface.h"
 
-#define BTFMCODEC_DBG(fmt, arg...)  pr_err("%s: " fmt "\n", __func__, ## arg)
-#define BTFMCODEC_INFO(fmt, arg...) pr_err("%s: " fmt "\n", __func__, ## arg)
+#define BTM_BTFMCODEC_DEFAULT_LOG_LVL        0x03
+#define BTM_BTFMCODEC_DEBUG_LOG_LVL          0x04
+#define BTM_BTFMCODEC_INFO_LOG_LVL           0x08
+
+static uint8_t log_lvl = BTM_BTFMCODEC_DEFAULT_LOG_LVL;
+
 #define BTFMCODEC_ERR(fmt, arg...)  pr_err("%s: " fmt "\n", __func__, ## arg)
 #define BTFMCODEC_WARN(fmt, arg...) pr_warn("%s: " fmt "\n", __func__, ## arg)
+#define BTFMCODEC_DBG(fmt, arg...)  { if(log_lvl >= BTM_BTFMCODEC_DEBUG_LOG_LVL) \
+	                                pr_err("%s: " fmt "\n", __func__, ## arg); \
+				      else \
+	                                pr_debug("%s: " fmt "\n", __func__, ## arg); \
+	                            }
+#define BTFMCODEC_INFO(fmt, arg...) { if(log_lvl >= BTM_BTFMCODEC_INFO_LOG_LVL) \
+					pr_err("%s: " fmt "\n", __func__, ## arg);\
+				      else \
+					pr_info("%s: " fmt "\n", __func__, ## arg);\
+				    }
 
 #define DEVICE_NAME_MAX_LEN	64
 
@@ -72,12 +86,18 @@ struct btfmcodec_char_device {
 	void *btfmcodec;
 };
 
+struct adsp_notifier {
+	void *notifier;
+	struct notifier_block nb;
+};
+
 struct btfmcodec_data {
 	struct device dev;
 	struct btfmcodec_state_machine states;
 	struct btfmcodec_char_device *btfmcodec_dev;
 	struct hwep_data *hwep_info;
 	struct list_head config_head;
+	struct adsp_notifier notifier;
 };
 
 struct btfmcodec_data *btfm_get_btfmcodec(void);
