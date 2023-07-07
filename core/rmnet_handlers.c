@@ -477,6 +477,20 @@ done:
 }
 EXPORT_SYMBOL(rmnet_rx_handler);
 
+rx_handler_result_t rmnet_rx_priv_handler(struct sk_buff **pskb)
+{
+	struct sk_buff *skb = *pskb;
+	rx_handler_result_t rc = RX_HANDLER_PASS;
+
+	rmnet_module_hook_wlan_ingress_rx_handler(&rc, pskb);
+	if (rc != RX_HANDLER_PASS)
+		return rc;
+
+	rmnet_module_hook_perf_ingress_rx_handler(skb);
+
+	return RX_HANDLER_PASS;
+}
+
 /* Modifies packet as per logical endpoint configuration and egress data format
  * for egress device configured in logical endpoint. Packet is then transmitted
  * on the egress device.
