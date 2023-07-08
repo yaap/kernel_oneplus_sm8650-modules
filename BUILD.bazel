@@ -2,35 +2,21 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_headers")
 
 package(
     default_visibility = [
-      "//visibility:public"],
+        "//visibility:public",
+    ],
 )
 
 ddk_headers(
     name = "mm_drivers_configs",
-    hdrs  = glob([
-      "config/*.h"]),
-    includes = ["config"]
-)
-
-ddk_headers(
-    name = "hw_fence_headers",
-    hdrs = glob([
-      "hw_fence/include/*.h"]),
-    includes = ["hw_fence/include"]
-)
-
-ddk_headers(
-    name = "sync_fence_uapi_headers",
-    hdrs = glob([
-      "sync_fence/include/uapi/sync_fence/*.h",
-      "sync_fence/include/*.h"]),
-    includes = ["sync_fence/include"]
+    hdrs = glob(["config/*.h"]),
+    includes = ["config"],
 )
 
 ddk_headers(
     name = "mm_drivers_headers",
-    hdrs = [":mm_drivers_configs",  ":hw_fence_headers", ":sync_fence_uapi_headers"]
+    hdrs = [
+        ":mm_drivers_configs",
+        "//vendor/qcom/opensource/mm-drivers/hw_fence:hw_fence_headers",
+        "//vendor/qcom/opensource/mm-drivers/sync_fence:sync_fence_uapi_headers",
+    ],
 )
-
-load(":target.bzl", "define_pineapple")
-define_pineapple()
