@@ -113,11 +113,11 @@ static inline void DEINIT_DMAMAP_CACHE(struct cvp_dmamap_cache *cache)
 #define INPUT_FENCE_BITMASK 0x1
 #define OUTPUT_FENCE_BITMASK 0x2
 
+/* Track source of dma_buf allocator/owner */
 enum buffer_owner {
-	DRIVER,
-	FIRMWARE,
-	CLIENT,
-	DSP,
+	DRIVER,		/* Allocated by KMD, for CPU driver */
+	CLIENT,		/* Allocated by Client (DSP or CPU) */
+	DSP,		/* Allocated by KMD, for DSP driver */
 	MAX_OWNER
 };
 
@@ -219,7 +219,7 @@ int msm_cvp_proc_oob(struct msm_cvp_inst* inst,
 			struct eva_kmd_hfi_packet* in_pkt);
 void msm_cvp_cache_operations(struct msm_cvp_smem *smem,
 			u32 type, u32 offset, u32 size);
-int msm_cvp_mark_user_persist(struct msm_cvp_inst *inst,
+int msm_cvp_unmap_user_persist(struct msm_cvp_inst *inst,
 			struct eva_kmd_hfi_packet *in_pkt,
 			unsigned int offset, unsigned int buf_num);
 int msm_cvp_map_user_persist(struct msm_cvp_inst *inst,

@@ -2531,8 +2531,8 @@ static int iris_debug_hook(void *device)
 		dprintk(CVP_ERR, "%s Invalid device\n", __func__);
 		return -ENODEV;
 	}
-	__write_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG, 0x11);
-	__write_register(dev, CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG, 0x1);
+	//__write_register(dev, CVP_WRAPPER_CORE_CLOCK_CONFIG, 0x11);
+	//__write_register(dev, CVP_WRAPPER_TZ_CPU_CLOCK_CONFIG, 0x1);
 	dprintk(CVP_ERR, "Halt Tensilica and core and axi\n");
 	return 0;
 
@@ -4441,7 +4441,7 @@ static int __power_on_core(struct iris_hfi_device *device)
 static int __iris_power_on(struct iris_hfi_device *device)
 {
 	int rc = 0;
-
+	u32 reg_gdsc, reg_cbcr, spare_val;
 
 	if (device->power_enabled)
 		return 0;
@@ -4484,6 +4484,36 @@ static int __iris_power_on(struct iris_hfi_device *device)
 		goto fail_enable_core;
 
 	dprintk(CVP_CORE, "Done with register set\n");
+
+	reg_gdsc = __read_register(device, CVP_CC_MVS1_GDSCR);
+	reg_cbcr = __read_register(device, CVP_CC_MVS1_CBCR);
+	if (!(reg_gdsc & 0x80000000) || (reg_cbcr & 0x80000000)) {
+		rc = -EINVAL;
+		dprintk(CVP_ERR, "CORE power on failed gdsc %x cbcr %x\n",
+			reg_gdsc, reg_cbcr);
+		goto fail_enable_core;
+	}
+
+	reg_gdsc = __read_register(device, CVP_CC_MVS1C_GDSCR);
+	reg_cbcr = __read_register(device, CVP_CC_MVS1C_CBCR);
+	if (!(reg_gdsc & 0x80000000) || (reg_cbcr & 0x80000000)) {
+		rc = -EINVAL;
+		dprintk(CVP_ERR, "CTRL power on failed gdsc %x cbcr %x\n",
+			reg_gdsc, reg_cbcr);
+		goto fail_enable_core;
+	}
+
+	spare_val = __read_register(device, CVP_AON_WRAPPER_SPARE);
+	if ((spare_val & 0x2) != 0) {
+		usleep_range(2000, 3000);
+		spare_val = __read_register(device, CVP_AON_WRAPPER_SPARE);
+		if ((spare_val & 0x2) != 0) {
+			dprintk(CVP_ERR, "WRAPPER_SPARE non-zero %#x\n", spare_val);
+			rc = -EINVAL;
+			goto fail_enable_core;
+		}
+	}
+
 	call_iris_op(device, interrupt_init, device);
 	dprintk(CVP_CORE, "Done with interrupt enabling\n");
 	device->intr_status = 0;
@@ -4878,7 +4908,6 @@ static void power_off_iris2(struct iris_hfi_device *device)
 static inline int __resume(struct iris_hfi_device *device)
 {
 	int rc = 0;
-	u32 reg_gdsc, reg_cbcr;
 	struct msm_cvp_core *core;
 
 	if (!device) {
@@ -4899,12 +4928,6 @@ static inline int __resume(struct iris_hfi_device *device)
 		dprintk(CVP_ERR, "Failed to power on cvp\n");
 		goto err_iris_power_on;
 	}
-
-	reg_gdsc = __read_register(device, CVP_CC_MVS1C_GDSCR);
-	reg_cbcr = __read_register(device, CVP_CC_MVS1C_CBCR);
-	if (!(reg_gdsc & 0x80000000) || (reg_cbcr & 0x80000000))
-		dprintk(CVP_ERR, "CVP power on failed gdsc %x cbcr %x\n",
-			reg_gdsc, reg_cbcr);
 
 	__setup_ucregion_memory_map(device);
 
