@@ -165,9 +165,9 @@ u32 get_compression_factors(struct compression_factors *compression_factor,
 		if ((codec_input.regression_mode == 3) &&
 			/* input cr numbers from interface */
 			((codec_input.cr_dpb != 0) || (codec_input.cr_opb != 0))) {
-			compression_factor->dpb_cf_y = (u32)(codec_input.cr_dpb * 100);
-			compression_factor->dpb_cf_cbcr = (u32)(codec_input.cr_dpb * 100);
-			compression_factor->opb_cf_ycbcr = (u32)(codec_input.cr_opb * 100);
+			compression_factor->dpb_cf_y = codec_input.cr_dpb;
+			compression_factor->dpb_cf_cbcr = codec_input.cr_dpb;
+			compression_factor->opb_cf_ycbcr = codec_input.cr_opb;
 		}
 	} else { /* encoder */
 		/*
@@ -196,9 +196,9 @@ u32 get_compression_factors(struct compression_factors *compression_factor,
 		if ((codec_input.regression_mode == 3) &&
 			/* input cr from interface */
 			((codec_input.cr_ipb != 0) || (codec_input.cr_rpb != 0))) {
-			compression_factor->dpb_cf_y = (u32)(codec_input.cr_rpb * 100);
-			compression_factor->dpb_cf_cbcr = (u32)(codec_input.cr_rpb * 100);
-			compression_factor->ipb_cr_y = (u32)(codec_input.cr_ipb * 100);
+			compression_factor->dpb_cf_y = codec_input.cr_rpb;
+			compression_factor->dpb_cf_cbcr = codec_input.cr_rpb;
+			compression_factor->ipb_cr_y = codec_input.cr_ipb;
 		}
 	}
 
