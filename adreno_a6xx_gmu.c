@@ -1620,7 +1620,7 @@ struct kgsl_memdesc *reserve_gmu_kernel_block(struct a6xx_gmu_device *gmu,
 		IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV);
 	if (ret) {
 		dev_err(&gmu->pdev->dev,
-			"Unable to map GMU kernel block: addr:0x%08x size:0x%x :%d\n",
+			"Unable to map GMU kernel block: addr:0x%08x size:0x%llx :%d\n",
 			addr, md->size, ret);
 		kgsl_sharedmem_free(md);
 		memset(md, 0, sizeof(*md));
@@ -1669,7 +1669,7 @@ struct kgsl_memdesc *reserve_gmu_kernel_block_fixed(struct a6xx_gmu_device *gmu,
 	ret = gmu_core_map_memdesc(gmu->domain, md, addr, attrs);
 	if (ret) {
 		dev_err(&gmu->pdev->dev,
-			"Unable to map GMU kernel block: addr:0x%08x size:0x%x :%d\n",
+			"Unable to map GMU kernel block: addr:0x%08x size:0x%llx :%d\n",
 			addr, md->size, ret);
 		md =  ERR_PTR(-ENOMEM);
 		goto done;

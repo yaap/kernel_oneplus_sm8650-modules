@@ -1229,7 +1229,7 @@ static void gen7_err_callback(struct adreno_device *adreno_dev, int bit)
 		kgsl_regread(device, GEN7_RBBM_SECVID_TSB_STATUS_LO, &lo);
 		kgsl_regread(device, GEN7_RBBM_SECVID_TSB_STATUS_HI, &hi);
 
-		dev_crit_ratelimited(dev, "TSB: Write error interrupt: Address: 0x%llx MID: %d\n",
+		dev_crit_ratelimited(dev, "TSB: Write error interrupt: Address: 0x%lx MID: %lu\n",
 			FIELD_GET(GENMASK(16, 0), hi) << 32 | lo,
 			FIELD_GET(GENMASK(31, 23), hi));
 		break;
