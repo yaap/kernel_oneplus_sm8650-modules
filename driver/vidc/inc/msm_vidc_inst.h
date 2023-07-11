@@ -137,7 +137,6 @@ struct msm_vidc_inst {
 	u32                                dpb_list_payload[MAX_DPB_LIST_ARRAY_SIZE];
 	bool                               input_dpb_list_enabled;
 	bool                               output_dpb_list_enabled;
-	u32                                max_map_output_count;
 	u32                                auto_framerate;
 	u32                                max_rate;
 	bool                               has_bframe;

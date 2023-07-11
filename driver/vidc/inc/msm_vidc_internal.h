@@ -202,7 +202,6 @@ enum msm_vidc_metadata_bits {
 #define SW_PC_DELAY_VALUE             (HW_RESPONSE_TIMEOUT_VALUE + 500)
 #define FW_UNLOAD_DELAY_VALUE         (SW_PC_DELAY_VALUE + 1500)
 
-#define MAX_MAP_OUTPUT_COUNT 64
 #define MAX_DPB_COUNT 32
  /*
   * max dpb count in firmware = 16

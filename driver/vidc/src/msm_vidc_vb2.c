@@ -683,10 +683,6 @@ unlock:
 	put_inst(inst);
 }
 
-void msm_vb2_buf_cleanup(struct vb2_buffer *vb)
-{
-}
-
 int msm_vb2_buf_out_validate(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf;

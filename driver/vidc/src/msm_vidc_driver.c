@@ -4520,11 +4520,6 @@ void put_inst(struct msm_vidc_inst *inst)
 	kref_put(&inst->kref, msm_vidc_close_helper);
 }
 
-bool core_lock_check(struct msm_vidc_core *core, const char *func)
-{
-	return mutex_is_locked(&core->lock);
-}
-
 void core_lock(struct msm_vidc_core *core, const char *function)
 {
 	mutex_lock(&core->lock);
@@ -4535,11 +4530,6 @@ void core_unlock(struct msm_vidc_core *core, const char *function)
 	mutex_unlock(&core->lock);
 }
 
-bool inst_lock_check(struct msm_vidc_inst *inst, const char *func)
-{
-	return mutex_is_locked(&inst->lock);
-}
-
 void inst_lock(struct msm_vidc_inst *inst, const char *function)
 {
 	mutex_lock(&inst->lock);
@@ -4548,11 +4538,6 @@ void inst_lock(struct msm_vidc_inst *inst, const char *function)
 void inst_unlock(struct msm_vidc_inst *inst, const char *function)
 {
 	mutex_unlock(&inst->lock);
-}
-
-bool client_lock_check(struct msm_vidc_inst *inst, const char *func)
-{
-	return mutex_is_locked(&inst->client_lock);
 }
 
 void client_lock(struct msm_vidc_inst *inst, const char *function)
@@ -4752,7 +4737,7 @@ int msm_vidc_update_debug_str(struct msm_vidc_inst *inst)
 	return 0;
 }
 
-static int msm_vidc_print_insts_info(struct msm_vidc_core *core)
+static int msm_vidc_print_running_instances_info(struct msm_vidc_core *core)
 {
 	struct msm_vidc_inst *inst;
 	u32 height, width, fps, orate;
@@ -5301,7 +5286,7 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 exit:
 	if (rc) {
 		i_vpr_e(inst, "%s: current session not supported\n", __func__);
-		msm_vidc_print_insts_info(inst->core);
+		msm_vidc_print_running_instances_info(inst->core);
 	}
 
 	return rc;
