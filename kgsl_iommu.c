@@ -436,8 +436,13 @@ static size_t _iommu_map_page_to_range(struct iommu_domain *domain,
 
 
 	while (range) {
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
 		int ret = iommu_map(domain, addr, page_to_phys(page),
-			PAGE_SIZE, prot);
+				    PAGE_SIZE, prot, GFP_KERNEL);
+#else
+		int ret = iommu_map(domain, addr, page_to_phys(page),
+				    PAGE_SIZE, prot);
+#endif
 		if (ret) {
 			iommu_unmap(domain, gpuaddr, mapped);
 			return 0;
@@ -458,7 +463,7 @@ static size_t _iommu_map_sg(struct iommu_domain *domain, u64 gpuaddr,
 	if (gpuaddr & (1ULL << 48))
 		gpuaddr |= 0xffff000000000000;
 
-	return iommu_map_sg(domain, gpuaddr, sgt->sgl, sgt->orig_nents, prot);
+	return kgsl_mmu_map_sg(domain, gpuaddr, sgt->sgl, sgt->orig_nents, prot);
 }
 
 static int

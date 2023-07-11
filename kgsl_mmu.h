@@ -419,4 +419,18 @@ static inline int kgsl_iommu_bind(struct kgsl_device *device, struct platform_de
 	return -ENODEV;
 }
 #endif
+
+/**
+ * kgsl_mmu_map_sg - Map the given buffer to the IOMMU domain
+ * @domain: The IOMMU domain to perform the mapping
+ * @iova: The start address to map the buffer
+ * @sgt: The sg_table object describing the buffer
+ * @prot: IOMMU protection bits
+ *
+ * Creates a mapping at @iova for the buffer described by a scatterlist
+ * stored in the given sg_table object in the provided IOMMU domain.
+ */
+ssize_t kgsl_mmu_map_sg(struct iommu_domain *domain,
+				unsigned long iova, struct scatterlist *sg,
+				unsigned int nents, int prot);
 #endif /* __KGSL_MMU_H */
