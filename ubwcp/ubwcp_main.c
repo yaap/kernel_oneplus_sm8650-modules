@@ -3263,6 +3263,8 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	/* one time hw init */
 	ubwcp_hw_one_time_init(ubwcp->base);
+	ubwcp_hw_single_tile(ubwcp->base, 1);
+	ubwcp->single_tile_en = 1;
 	ubwcp_hw_version(ubwcp->base, &ubwcp->hw_ver_major, &ubwcp->hw_ver_minor);
 	pr_err("ubwcp: hw version: major %d, minor %d\n", ubwcp->hw_ver_major, ubwcp->hw_ver_minor);
 	if (ubwcp->hw_ver_major == 0) {
