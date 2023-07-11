@@ -4440,7 +4440,7 @@ static void cnss_sram_dump_init(struct cnss_plat_data *plat_priv)
 }
 #endif
 
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+#if IS_ENABLED(CONFIG_WCNSS_MEM_PRE_ALLOC)
 static void cnss_initialize_mem_pool(unsigned long device_id)
 {
 	cnss_initialize_prealloc_pool(device_id);

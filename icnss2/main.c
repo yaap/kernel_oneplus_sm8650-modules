@@ -4621,7 +4621,7 @@ static void rproc_restart_level_notifier(void *data, struct rproc *rproc)
 	}
 }
 
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+#if IS_ENABLED(CONFIG_WCNSS_MEM_PRE_ALLOC)
 static void icnss_initialize_mem_pool(unsigned long device_id)
 {
 	cnss_initialize_prealloc_pool(device_id);
