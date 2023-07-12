@@ -72,7 +72,7 @@ static int __write_queue(struct msm_vidc_iface_q_info *qinfo, u8 *packet,
 		return -EINVAL;
 	}
 
-	queue = (struct hfi_queue_header *) qinfo->q_hdr;
+	queue = (struct hfi_queue_header *)qinfo->q_hdr;
 	if (!queue) {
 		d_vpr_e("queue not present\n");
 		return -ENOENT;
@@ -168,7 +168,7 @@ static int __read_queue(struct msm_vidc_iface_q_info *qinfo, u8 *packet,
 	 *reading it
 	 */
 	mb();
-	queue = (struct hfi_queue_header *) qinfo->q_hdr;
+	queue = (struct hfi_queue_header *)qinfo->q_hdr;
 
 	if (!queue) {
 		d_vpr_e("Queue memory is not allocated\n");

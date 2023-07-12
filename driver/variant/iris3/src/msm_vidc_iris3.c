@@ -943,7 +943,7 @@ decision_done:
 int msm_vidc_adjust_bitrate_boost_iris3(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 	u32 width, height, frame_rate;
 	struct v4l2_format *f;

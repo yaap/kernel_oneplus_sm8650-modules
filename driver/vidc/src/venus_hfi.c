@@ -133,7 +133,7 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 	}
 
 	while (!venus_hfi_queue_dbg_read(core, packet)) {
-		pkt = (struct hfi_debug_header *) packet;
+		pkt = (struct hfi_debug_header *)packet;
 
 		if (pkt->size < sizeof(struct hfi_debug_header)) {
 			d_vpr_e("%s: invalid pkt size %d\n",

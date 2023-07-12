@@ -18,7 +18,7 @@ int msm_vidc_adjust_ir_period(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value, all_intra = 0, roi_enable = 0,
 		pix_fmts = MSM_VIDC_FMT_NONE;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[IR_PERIOD].value;
 
@@ -75,7 +75,7 @@ exit:
 
 int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 adjusted_value = 0;
 
 	if (is_encode_session(inst)) {
@@ -91,7 +91,7 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 adjusted_value = 0;
 
 	if (is_encode_session(inst)) {
@@ -109,7 +109,7 @@ int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	s32 slice_mode = -1;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (is_decode_session(inst))
 		return 0;
@@ -241,7 +241,7 @@ int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	s32 pix_fmt = -1;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (is_decode_session(inst))
 		return 0;

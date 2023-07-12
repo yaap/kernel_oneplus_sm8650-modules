@@ -846,7 +846,7 @@ exit:
 int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, cac = -1;
 	s32 pix_fmts = -1, min_quality = -1;
 

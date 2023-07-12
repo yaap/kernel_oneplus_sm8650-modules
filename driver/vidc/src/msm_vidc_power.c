@@ -390,7 +390,7 @@ int msm_vidc_set_clocks(struct msm_vidc_inst *inst)
 		if (i > 0)
 			rate = core->resource->freq_set.freq_tbl[i - 1].freq;
 	} else if (decrement) {
-		if (i < (int) (core->platform->data.freq_tbl_size - 1))
+		if (i < (int)(core->platform->data.freq_tbl_size - 1))
 			rate = core->resource->freq_set.freq_tbl[i + 1].freq;
 	}
 	core->power.clk_freq = (u32)rate;
