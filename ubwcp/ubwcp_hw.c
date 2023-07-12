@@ -201,12 +201,33 @@ void ubwcp_hw_enable_range_check(void __iomem *base, u16 index)
 }
 EXPORT_SYMBOL(ubwcp_hw_enable_range_check);
 
+int ubwcp_hw_flush(void __iomem *base)
+{
+	u32 flush_complete = 0;
+	u32 count_no_delay = 1000;
+	u32 count_delay = 2000;
+	u32 count = count_no_delay + count_delay;
+
+	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
+	do {
+		if (count < count_delay)
+			udelay(1);
+
+		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
+		if (flush_complete) {
+			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
+			return 0;
+		}
+	} while (count--);
+
+	ERR("~~~~~ FLUSH FAILED ~~~~~");
+	return -1;
+}
+EXPORT_SYMBOL(ubwcp_hw_flush);
 
 /* Disable range check with flush */
 int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
 {
-	u32 flush_complete = 0;
-	u32 count = 20;
 	u32 val;
 	u16 ctrl_reg = index >> 5;
 
@@ -226,19 +247,7 @@ int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
 	//assert flush
 	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
 
-	//poll for flush done
-	do {
-		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
-		if (flush_complete) {
-			//clear flush
-			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
-			return 0;
-		}
-		udelay(100);
-	} while (count--);
-
-	ERR("~~~~~ FLUSH FAILED ~~~~~");
-	return -1;
+	return ubwcp_hw_flush(base);
 }
 EXPORT_SYMBOL(ubwcp_hw_disable_range_check_with_flush);
 
@@ -310,28 +319,6 @@ void ubwcp_hw_encoder_config(void __iomem *base)
 	 */
 	UBWCP_REG_WRITE(base, ENCODER_CONFIG, 0x7);
 }
-
-
-int ubwcp_hw_flush(void __iomem *base)
-{
-	u32 flush_complete = 0;
-	u32 count = 20;
-
-	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
-	do {
-		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
-		if (flush_complete) {
-			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
-			return 0;
-		}
-		udelay(100);
-	} while (count--);
-
-	ERR("~~~~~ FLUSH FAILED ~~~~~");
-	return -1;
-}
-EXPORT_SYMBOL(ubwcp_hw_flush);
-
 
 void ubwcp_hw_power_vote_status(void __iomem *pwr_ctrl, u8 *vote, u8 *status)
 {
