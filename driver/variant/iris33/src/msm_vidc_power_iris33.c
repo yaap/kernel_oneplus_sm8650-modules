@@ -714,9 +714,8 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 				vsp_cycles += div_u64(vpp_cycles * 25, 100);
 
 			/* Add 25 percent extra for HEVC 10bit all intra use case */
-			if (inst->iframe && is_hevc_10bit_decode_session(inst)) {
+			if (inst->iframe && is_hevc_10bit_decode_session(inst))
 				vsp_cycles += div_u64(vsp_cycles * 25, 100);
-			}
 
 			if (inst->codec == MSM_VIDC_VP9 &&
 					inst->capabilities[STAGE].value ==
@@ -850,11 +849,10 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 
 	if (d->codec == MSM_VIDC_AV1) {
 		collocated_bytes_per_lcu = 4 * 512; /* lcu_size = 128 */
-		if (lcu_size == 32) {
+		if (lcu_size == 32)
 			collocated_bytes_per_lcu = 4 * 512 / (128 * 128 / 32 / 32);
-		} else if (lcu_size == 64) {
+		else if (lcu_size == 64)
 			collocated_bytes_per_lcu = 4 * 512 / (128 * 128 / 64 / 64);
-		}
 	}
 
 	dpb_factor = FP(1, 50, 100);
@@ -1161,9 +1159,9 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d)
 	}
 
 	if (llc_ref_chroma_cache_enabled) {
-	total_ref_read_crcb = ddr.ref_read_crcb;
-	ddr.ref_read_crcb = fp_div(ddr.ref_read_crcb,
-			ref_cbcr_read_bw_factor);
+		total_ref_read_crcb = ddr.ref_read_crcb;
+		ddr.ref_read_crcb = fp_div(ddr.ref_read_crcb,
+					   ref_cbcr_read_bw_factor);
 		llc.ref_read_crcb = total_ref_read_crcb - ddr.ref_read_crcb;
 	}
 

@@ -995,17 +995,15 @@ int msm_vidc_state_change_streamoff(struct msm_vidc_inst *inst,
 		return 0;
 
 	if (port == INPUT_PORT) {
-		if (is_state(inst, MSM_VIDC_INPUT_STREAMING)) {
+		if (is_state(inst, MSM_VIDC_INPUT_STREAMING))
 			new_state = MSM_VIDC_OPEN;
-		} else if (is_state(inst, MSM_VIDC_STREAMING)) {
+		else if (is_state(inst, MSM_VIDC_STREAMING))
 			new_state = MSM_VIDC_OUTPUT_STREAMING;
-		}
 	} else if (port == OUTPUT_PORT) {
-		if (is_state(inst, MSM_VIDC_OUTPUT_STREAMING)) {
+		if (is_state(inst, MSM_VIDC_OUTPUT_STREAMING))
 			new_state = MSM_VIDC_OPEN;
-		} else if (is_state(inst, MSM_VIDC_STREAMING)) {
+		else if (is_state(inst, MSM_VIDC_STREAMING))
 			new_state = MSM_VIDC_INPUT_STREAMING;
-		}
 	}
 	rc = msm_vidc_change_state(inst, new_state, __func__);
 	if (rc)
@@ -4436,9 +4434,8 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		dmabuf = dbuf->dmabuf;
 		if (dmabuf && dmabuf->file) {
 			f_inode = file_inode(dmabuf->file);
-			if (f_inode) {
+			if (f_inode)
 				inode_num = f_inode->i_ino;
-			}
 		}
 		i_vpr_e(inst, "%s: removing dma_buf %p, inode %lu, refcount %u\n",
 			__func__, dbuf->dmabuf, inode_num, dbuf->refcount);
