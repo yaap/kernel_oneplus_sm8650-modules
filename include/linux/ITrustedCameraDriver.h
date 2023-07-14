@@ -63,7 +63,7 @@ ITrustedCameraDriver_getVersion(struct Object self, uint32_t *arch_ver_ptr, uint
     uint32_t m_arch_ver;
     uint32_t m_max_ver;
     uint32_t m_min_ver;
-  } o;
+  } o = {0};
   a[0].b = (struct ObjectBuf) { &o, 12 };
 
   result = Object_invoke(self, ITrustedCameraDriver_OP_getVersion, a, ObjectCounts_pack(0, 1, 0, 0));
