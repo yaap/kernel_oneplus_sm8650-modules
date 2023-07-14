@@ -674,7 +674,7 @@ static int __noc_error_info_iris2(struct msm_vidc_core *core)
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW:     %#x\n", val);
 	val = __read_register(core, VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH);
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH:     %#x\n", val);
-	*/
+	 */
 
 	return 0;
 }

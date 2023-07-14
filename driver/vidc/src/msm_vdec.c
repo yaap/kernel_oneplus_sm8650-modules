@@ -310,7 +310,7 @@ static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,
 
 	return rc;
 }
-*/
+ */
 static int msm_vdec_set_coded_frames(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
@@ -1197,12 +1197,12 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 				if (is_meta_rx_inp_enabled(inst,
 					META_OUTBUF_FENCE)) {
 					/*
-					* if output buffer fence enabled via
-					* META_OUTBUF_FENCE, then driver will send
-					* fence id via HFI_PROP_FENCE to firmware.
-					* So enable HFI_PROP_FENCE property as
-					* delivery mode property.
-					*/
+					 * if output buffer fence enabled via
+					 * META_OUTBUF_FENCE, then driver will send
+					 * fence id via HFI_PROP_FENCE to firmware.
+					 * So enable HFI_PROP_FENCE property as
+					 * delivery mode property.
+					 */
 					payload[++count] =
 						inst->capabilities[property_output_list[i]].hfi_id;
 				}

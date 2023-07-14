@@ -382,10 +382,12 @@ u32 msm_vidc_encoder_output_size(struct msm_vidc_inst *inst)
 		frame_size = frame_size << 1;
 
 	if (inst->rc_type == RATE_CONTROL_LOSSLESS)
-		frame_size = (width * height * 9) >> 2; */
+		frame_size = (width * height * 9) >> 2;
+	 */
 
 skip_calc:
-	/* multiply by 10/8 (1.25) to get size for 10 bit case */
+	/* multiply by 10/8 (1.25) to get size for 10 bit case
+	 */
 	if (codec == MSM_VIDC_HEVC || codec == MSM_VIDC_HEIC)
 		frame_size = frame_size + (frame_size >> 2);
 

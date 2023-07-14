@@ -196,11 +196,12 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{MAX_NUM_8K_SESSIONS, 2},
 	{MAX_RT_MBPF, 174080},	/* (8192x4352)/256 + (4096x2176)/256*/
 	{MAX_MBPF, 278528}, /* ((8192x4352)/256) * 2 */
-	{MAX_MBPS, 7833600},	/* max_load
-					 * 7680x4320@60fps or 3840x2176@240fps
-					 * which is greater than 4096x2176@120fps,
-					 * 8192x4320@48fps
-					 */
+	{MAX_MBPS, 7833600},
+	/* max_load
+	 * 7680x4320@60fps or 3840x2176@240fps
+	 * which is greater than 4096x2176@120fps,
+	 * 8192x4320@48fps
+	 */
 	{MAX_MBPF_HQ, 8160}, /* ((1920x1088)/256) */
 	{MAX_MBPS_HQ, 489600}, /* ((1920x1088)/256)@60fps */
 	{MAX_MBPF_B_FRAME, 32640}, /* 3840x2176/256 */
