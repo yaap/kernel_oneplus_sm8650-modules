@@ -15,6 +15,7 @@
 #ifndef DATARMNETe10fe0b1e0
 #define DATARMNETe10fe0b1e0
 #include "rmnet_shs.h"
+#include "rmnet_shs_config.h"
 #define DATARMNET6517f07a36      "\x73\x68\x73"
 #define DATARMNET41be983a65     \
 "\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x5f\x63\x61\x70\x73"
@@ -56,9 +57,9 @@ DATARMNET0d682bcb29;u64 DATARMNET20e8fc9db8;u32 hash;u16 DATARMNET42a992465f;u16
  trans_proto;u8 mux_id;};struct __attribute__((__packed__))DATARMNET57ccbe14f3{
 char name[DATARMNET9ae5f81f71];u64 DATARMNET77de6e34f2;u64 hw_evict;u64 
 DATARMNET870c3dafcb;u64 coal_tcp;u64 coal_tcp_bytes;u64 coal_udp;u64 
-coal_udp_bytes;u64 DATARMNET257fc4b2d4;u64 DATARMNET4eb77c78e6;u8 mux_id;};
-extern struct list_head DATARMNET6c23f11e81;extern struct list_head 
-DATARMNETf91b305f4e;extern struct list_head DATARMNET3208cd0982;extern struct 
+coal_udp_bytes;u64 DATARMNET257fc4b2d4;u64 DATARMNET4eb77c78e6;u64 pb_marker_seq
+;u8 mux_id;};extern struct list_head DATARMNET6c23f11e81;extern struct list_head
+ DATARMNETf91b305f4e;extern struct list_head DATARMNET3208cd0982;extern struct 
 list_head DATARMNET922b4752e2;extern struct list_head DATARMNETe46ae760db;enum{
 DATARMNETbd4083a6a4=(0x24f5+499-0x16e8)};struct DATARMNETa41d4c4a12{char*data;
 refcount_t refcnt;};void DATARMNET28a80d526e(struct DATARMNET6c78e47d24*
