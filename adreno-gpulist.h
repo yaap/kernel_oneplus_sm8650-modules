@@ -985,7 +985,7 @@ static const struct adreno_a6xx_core adreno_gpu_core_a619_variant = {
 	},
 	.prim_fifo_threshold = 0x0018000,
 	.sqefw_name = "a630_sqe.fw",
-	.zap_name = "a615_zap.mdt",
+	.zap_name = "gen6_3_25_0_zap.mdt",
 	.hwcg = a615_hwcg_regs,
 	.hwcg_count = ARRAY_SIZE(a615_hwcg_regs),
 	.vbif = a615_gbif_regs,
