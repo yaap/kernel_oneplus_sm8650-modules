@@ -1533,6 +1533,7 @@ int gen7_probe_common(struct platform_device *pdev,
 
 	adreno_dev->gpucore = gpucore;
 	adreno_dev->chipid = chipid;
+	adreno_dev->cx_misc_base = GEN7_CX_MISC_BASE;
 
 	adreno_reg_offset_init(gpudev->reg_offsets);
 
