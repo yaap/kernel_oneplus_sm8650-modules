@@ -546,8 +546,10 @@ static void pwrscale_busmon_create(struct kgsl_device *device,
 
 	dev_set_name(dev, "kgsl-busmon");
 	dev_set_drvdata(dev, device);
-	if (device_register(dev))
+	if (device_register(dev)) {
+		put_device(dev);
 		return;
+	}
 
 	/* Build out the OPP table for the busmon device */
 	for (i = 0; i < pwr->num_pwrlevels; i++) {
@@ -561,7 +563,7 @@ static void pwrscale_busmon_create(struct kgsl_device *device,
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to add busmon governor: %d\n", ret);
 		dev_pm_opp_remove_all_dynamic(dev);
-		put_device(dev);
+		device_unregister(dev);
 		return;
 	}
 
@@ -572,7 +574,7 @@ static void pwrscale_busmon_create(struct kgsl_device *device,
 		dev_err(&pdev->dev, "Bus scaling not enabled\n");
 		devfreq_gpubw_exit();
 		dev_pm_opp_remove_all_dynamic(dev);
-		put_device(dev);
+		device_unregister(dev);
 		return;
 	}
 
@@ -819,7 +821,7 @@ void kgsl_pwrscale_close(struct kgsl_device *device)
 		pwrscale->bus_devfreq = NULL;
 		devfreq_gpubw_exit();
 		dev_pm_opp_remove_all_dynamic(&pwrscale->busmondev);
-		put_device(&pwrscale->busmondev);
+		device_unregister(&pwrscale->busmondev);
 	}
 
 	if (!pwrscale->devfreqptr)

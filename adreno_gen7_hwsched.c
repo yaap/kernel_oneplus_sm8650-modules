@@ -1799,7 +1799,11 @@ int gen7_hwsched_probe(struct platform_device *pdev,
 
 	kgsl_mmu_set_feature(device, KGSL_MMU_PAGEFAULT_TERMINATE);
 
-	return adreno_hwsched_init(adreno_dev, &gen7_hwsched_ops);
+	ret = adreno_hwsched_init(adreno_dev, &gen7_hwsched_ops);
+	if (ret)
+		dev_err(&pdev->dev, "adreno hardware scheduler init failed ret %d\n", ret);
+
+	return ret;
 }
 
 int gen7_hwsched_add_to_minidump(struct adreno_device *adreno_dev)
