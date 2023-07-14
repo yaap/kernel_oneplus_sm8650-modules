@@ -1,18 +1,26 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#undef TRACE_SYSTEM
-#define TRACE_SYSTEM msm_cvp_events
+#if !defined(_MSM_CVP_EVENTS_H_) || defined(TRACE_HEADER_MULTI_READ)
+#define _MSM_CVP_EVENTS_H_
 
-#if !defined(_TRACE_MSM_CVP_H_) || defined(TRACE_HEADER_MULTI_READ)
-#define _TRACE_MSM_CVP_H
 #include <linux/types.h>
 #include <linux/tracepoint.h>
 
-TRACE_EVENT(tracing_mark_write_cvp,
+#undef TRACE_SYSTEM
+#define TRACE_SYSTEM msm_cvp
+
+#undef TRACE_INCLUDE_FILE
+#define TRACE_INCLUDE_FILE msm_cvp_events
+
+// Since Chrome supports to parse the event “tracing_mark_write” by default
+// so we can re-use this to display your own events in Chrome
+// enable command as below:
+// adb shell "echo 1 > /sys/kernel/tracing/events/msm_cvp/tracing_mark_write/enable"
+TRACE_EVENT(tracing_mark_write,
 	TP_PROTO(int pid, const char *name, bool trace_begin),
 	TP_ARGS(pid, name, trace_begin),
 	TP_STRUCT__entry(
@@ -29,9 +37,9 @@ TRACE_EVENT(tracing_mark_write_cvp,
 		__entry->pid, __get_str(trace_name))
 )
 #define CVPKERNEL_ATRACE_END(name) \
-		trace_tracing_mark_write_cvp(current->tgid, name, 0)
+		trace_tracing_mark_write(current->tgid, name, 0)
 #define CVPKERNEL_ATRACE_BEGIN(name) \
-		trace_tracing_mark_write_cvp(current->tgid, name, 1)
+		trace_tracing_mark_write(current->tgid, name, 1)
 
 
 DECLARE_EVENT_CLASS(msm_v4l2_cvp,
@@ -360,5 +368,8 @@ DEFINE_EVENT(msm_cvp_perf, msm_cvp_perf_bus_vote,
 );
 
 #endif
+
+#undef TRACE_INCLUDE_PATH
+#define TRACE_INCLUDE_PATH .
 
 #include <trace/define_trace.h>
