@@ -345,6 +345,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			/* FW overhead, convert FW cycles to impact to one pipe */
 			u64 decoder_vpp_fw_overhead = 0;
+
 			decoder_vpp_fw_overhead =
 				DIV_ROUND_UP((DECODER_VPP_FW_OVERHEAD_KALAMA * 10 *
 				codec_input.frame_rate), 15);
@@ -407,6 +408,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 	} else { /* encoder */
 		/* Decide LP/HQ */
 		u8 hq_mode = 0;
+
 		if (codec_input.pipe_num > 1)
 			if (codec_input.frame_width * codec_input.frame_height <=
 				1920 * 1080)
@@ -462,6 +464,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 
 		if (codec_input.pipe_num > 1) {
 			u32 pipe_penalty_codec = 101;
+
 			vpp_hw_min_frequency = (vpp_hw_min_frequency *
 				pipe_penalty_codec + 99) / 100;
 		}
