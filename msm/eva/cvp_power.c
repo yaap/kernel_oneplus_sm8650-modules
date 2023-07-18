@@ -257,7 +257,7 @@ int msm_cvp_update_power(struct msm_cvp_inst *inst)
 		core->curr_freq = core->orig_core_sum;
 		goto adjust_exit;
 	}
-	rc = msm_cvp_set_bw(bus, core->bw_sum);
+	rc = msm_cvp_set_bw(core, bus, core->bw_sum);
 
 adjust_exit:
 	cvp_put_inst(s);

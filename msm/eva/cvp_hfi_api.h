@@ -265,8 +265,7 @@ struct cvp_hfi_device {
 	int (*session_send)(void *sess, struct eva_kmd_hfi_packet *in_pkt);
 	int (*session_flush)(void *sess);
 	int (*scale_clocks)(void *dev, u32 freq);
-	int (*vote_bus)(void *dev, struct cvp_bus_vote_data *data,
-			int num_data);
+	int (*vote_bus)(void *dev, struct bus_info *bus, unsigned long bw);
 	int (*get_fw_info)(void *dev, struct cvp_hal_fw_info *fw_info);
 	int (*session_clean)(void *sess);
 	int (*get_core_capabilities)(void *dev);
