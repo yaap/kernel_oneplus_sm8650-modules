@@ -3547,11 +3547,6 @@ static int fastrpc_set_session_info(
 	int err = 0;
 	struct fastrpc_apps *me = &gfa;
 
-	if (fl->set_session_info) {
-		ADSPRPC_ERR("Set session info invoked multiple times\n");
-		err = -EBADR;
-		goto bail;
-	}
 	/*
 	 * Third-party apps don't have permission to open the fastrpc device, so
 	 * it is opened on their behalf by DSP HAL. This is detected by
@@ -5823,8 +5818,9 @@ skip_dump_wait:
 	fl->is_ramdump_pend = false;
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+	VERIFY(err, VALID_FASTRPC_CID(cid));
 	/* Reset the tgid usage to false */
-	if (VALID_FASTRPC_CID(cid) && fl->tgid_frpc != -1)
+	if (!err)
 		frpc_tgid_usage_array[cid][fl->tgid_frpc] = false;
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
@@ -6289,7 +6285,6 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->exit_notif = false;
 	fl->exit_async = false;
 	fl->multi_session_support = false;
-	fl->set_session_info = false;
 	init_completion(&fl->work);
 	init_completion(&fl->dma_invoke);
 	fl->file_close = FASTRPC_PROCESS_DEFAULT_STATE;
@@ -6435,16 +6430,6 @@ int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 		err = -EBADF;
 		goto bail;
 	}
-	spin_lock(&fl->hlock);
-	if (fl->set_session_info) {
-		spin_unlock(&fl->hlock);
-		ADSPRPC_ERR("Set session info invoked multiple times\n");
-		err = -EBADR;
-		goto bail;
-	}
-	// Set set_session_info to true
-	fl->set_session_info = true;
-	spin_unlock(&fl->hlock);
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (err) {
 		err = -ECHRNG;
