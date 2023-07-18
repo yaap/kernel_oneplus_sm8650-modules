@@ -5127,7 +5127,7 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device)
 {
 	struct msm_cvp_core *core;
 	struct cvp_noc_log *noc_log;
-	u32 val = 0, regi, regii, regiii, i;
+	u32 val = 0, regi, regii, regiii;
 	bool log_required = false;
 	int rc;
 
@@ -5251,20 +5251,6 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device)
 	__write_register(device, CVP_SS_CLK_HALT, 0);
 	__write_register(device, CVP_SS_CLK_EN, 0x3f);
 	__write_register(device, CVP_VPU_WRAPPER_CORE_CONFIG, 0);
-
-	for (i = 0; i < 15; i++) {
-		regi = 0xC0000000 + i;
-		__write_register(device, CVP_SS_ARP_TEST_BUS_CONTROL, regi);
-		val = __read_register(device, CVP_SS_ARP_TEST_BUS_REGISTER);
-		noc_log->arp_test_bus[i] = val;
-	}
-
-	for (i = 0; i < 512; i++) {
-		regi = 0x40000000 + i;
-		__write_register(device, CVP_DMA_TEST_BUS_CONTROL, regi);
-		val = __read_register(device, CVP_DMA_TEST_BUS_REGISTER);
-		noc_log->dma_test_bus[i] = val;
-	}
 }
 
 static int iris_hfi_noc_error_info(void *dev)
