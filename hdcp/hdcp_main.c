@@ -26,7 +26,6 @@ void select_interface(bool use_smcinvoke)
 		ta_interface.trusted_app_hdcp2_app_start_auth = &hdcp2_app_start_auth_smcinvoke;
 		ta_interface.trusted_app_hdcp2_app_process_msg = &hdcp2_app_process_msg_smcinvoke;
 		ta_interface.trusted_app_hdcp2_app_enable_encryption = &hdcp2_app_enable_encryption_smcinvoke;
-		ta_interface.trusted_app_hdcp2_app_timeout = &hdcp2_app_timeout_smcinvoke;
 		ta_interface.trusted_app_hdcp2_app_query_stream = &hdcp2_app_query_stream_smcinvoke;
 		ta_interface.trusted_app_hdcp2_app_stop = &hdcp2_app_stop_smcinvoke;
 		ta_interface.trusted_app_hdcp2_feature_supported = &hdcp2_feature_supported_smcinvoke;
@@ -46,7 +45,6 @@ void select_interface(bool use_smcinvoke)
 		ta_interface.trusted_app_hdcp2_app_start = &hdcp2_app_start_qseecom;
 		ta_interface.trusted_app_hdcp2_app_start_auth = &hdcp2_app_start_auth_qseecom;
 		ta_interface.trusted_app_hdcp2_app_process_msg = &hdcp2_app_process_msg_qseecom;
-		ta_interface.trusted_app_hdcp2_app_timeout = &hdcp2_app_timeout_qseecom;
 		ta_interface.trusted_app_hdcp2_app_enable_encryption = &hdcp2_app_enable_encryption_qseecom;
 		ta_interface.trusted_app_hdcp2_app_query_stream = &hdcp2_app_query_stream_qseecom;
 		ta_interface.trusted_app_hdcp2_app_stop = &hdcp2_app_stop_qseecom;
