@@ -503,7 +503,7 @@ static int handle_session_stop(struct msm_vidc_inst *inst,
 }
 
 static int handle_session_drain(struct msm_vidc_inst *inst,
-	struct hfi_packet *pkt)
+				struct hfi_packet *pkt)
 {
 	int rc = 0;
 
@@ -568,7 +568,7 @@ static int get_driver_buffer_flags(struct msm_vidc_inst *inst, u32 hfi_flags)
 }
 
 static int handle_read_only_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf)
+				   struct msm_vidc_buffer *buf)
 {
 	struct msm_vidc_buffer *ro_buf;
 	struct msm_vidc_core *core;
@@ -619,7 +619,7 @@ static int handle_read_only_buffer(struct msm_vidc_inst *inst,
 }
 
 static int handle_non_read_only_buffer(struct msm_vidc_inst *inst,
-	struct hfi_buffer *buffer)
+				       struct hfi_buffer *buffer)
 {
 	struct msm_vidc_buffer *ro_buf;
 
@@ -640,7 +640,7 @@ static int handle_non_read_only_buffer(struct msm_vidc_inst *inst,
 }
 
 static int handle_psc_last_flag_buffer(struct msm_vidc_inst *inst,
-		struct hfi_buffer *buffer)
+				       struct hfi_buffer *buffer)
 {
 	int rc = 0;
 
@@ -658,7 +658,7 @@ static int handle_psc_last_flag_buffer(struct msm_vidc_inst *inst,
 }
 
 static int handle_drain_last_flag_buffer(struct msm_vidc_inst *inst,
-		struct hfi_buffer *buffer)
+					 struct hfi_buffer *buffer)
 {
 	int rc = 0;
 

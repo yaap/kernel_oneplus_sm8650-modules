@@ -12,7 +12,7 @@
 #include "msm_vidc_debug.h"
 
 u32 get_hfi_port(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+		 enum msm_vidc_port_type port)
 {
 	u32 hfi_port = HFI_PORT_NONE;
 
@@ -55,7 +55,7 @@ u32 get_hfi_port(struct msm_vidc_inst *inst,
 }
 
 u32 get_hfi_port_from_buffer_type(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type)
+				  enum msm_vidc_buffer_type buffer_type)
 {
 	u32 hfi_port = HFI_PORT_NONE;
 
@@ -116,7 +116,7 @@ u32 get_hfi_port_from_buffer_type(struct msm_vidc_inst *inst,
 }
 
 u32 hfi_buf_type_from_driver(enum msm_vidc_domain_type domain,
-	enum msm_vidc_buffer_type buffer_type)
+			     enum msm_vidc_buffer_type buffer_type)
 {
 	switch (buffer_type) {
 	case MSM_VIDC_BUF_INPUT:
@@ -158,7 +158,7 @@ u32 hfi_buf_type_from_driver(enum msm_vidc_domain_type domain,
 }
 
 u32 hfi_buf_type_to_driver(enum msm_vidc_domain_type domain,
-	enum hfi_buffer_type buffer_type, enum hfi_packet_port_type port_type)
+			   enum hfi_buffer_type buffer_type, enum hfi_packet_port_type port_type)
 {
 	switch (buffer_type) {
 	case HFI_BUFFER_BITSTREAM:
@@ -233,7 +233,7 @@ u32 get_hfi_codec(struct msm_vidc_inst *inst)
 }
 
 u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
-	enum msm_vidc_colorformat_type colorformat)
+			enum msm_vidc_colorformat_type colorformat)
 {
 	u32 hfi_colorformat = HFI_COLOR_FMT_NV12_UBWC;
 
@@ -270,7 +270,6 @@ u32 get_hfi_colorformat(struct msm_vidc_inst *inst,
 
 static u32 get_hfi_region_flag(enum msm_vidc_buffer_region region)
 {
-
 	switch (region) {
 	case MSM_VIDC_NON_SECURE:
 		return HFI_BUF_HOST_FLAGS_CB_NON_SECURE;
@@ -290,7 +289,7 @@ static u32 get_hfi_region_flag(enum msm_vidc_buffer_region region)
 }
 
 int get_hfi_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buffer, struct hfi_buffer *buf)
+		   struct msm_vidc_buffer *buffer, struct hfi_buffer *buf)
 {
 	memset(buf, 0, sizeof(struct hfi_buffer));
 	buf->type = hfi_buf_type_from_driver(inst->domain, buffer->type);
@@ -320,7 +319,7 @@ int get_hfi_buffer(struct msm_vidc_inst *inst,
 }
 
 int hfi_create_header(u8 *packet, u32 packet_size, u32 session_id,
-	u32 header_id)
+		      u32 header_id)
 {
 	struct hfi_header *hdr = (struct hfi_header *)packet;
 
@@ -339,8 +338,8 @@ int hfi_create_header(u8 *packet, u32 packet_size, u32 session_id,
 }
 
 int hfi_create_packet(u8 *packet, u32 packet_size,
-	u32 pkt_type, u32 pkt_flags, u32 payload_type, u32 port,
-	u32 packet_id, void *payload, u32 payload_size)
+		      u32 pkt_type, u32 pkt_flags, u32 payload_type, u32 port,
+		      u32 packet_id, void *payload, u32 payload_size)
 {
 	struct hfi_header *hdr;
 	struct hfi_packet *pkt;
@@ -371,7 +370,7 @@ int hfi_create_packet(u8 *packet, u32 packet_size,
 	pkt->packet_id = packet_id;
 	if (payload_size)
 		memcpy((u8 *)pkt + sizeof(struct hfi_packet),
-			payload, payload_size);
+		       payload, payload_size);
 
 	hdr->num_packets++;
 	hdr->size += pkt->size;
@@ -379,15 +378,15 @@ int hfi_create_packet(u8 *packet, u32 packet_size,
 }
 
 int hfi_packet_sys_init(struct msm_vidc_core *core,
-	u8 *pkt, u32 pkt_size)
+			u8 *pkt, u32 pkt_size)
 {
 	int rc = 0;
 	u32 payload = 0;
 	u32 synx_client_data[2];
 
 	rc = hfi_create_header(pkt, pkt_size,
-				   0 /*session_id*/,
-				   core->header_id++);
+			       0 /*session_id*/,
+			       core->header_id++);
 	if (rc)
 		goto err_sys_init;
 
@@ -396,15 +395,15 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	d_vpr_h("%s: arch %d\n", __func__, payload);
 	core->sys_init_id = core->packet_id++;
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_CMD_INIT,
-				   (HFI_HOST_FLAGS_RESPONSE_REQUIRED |
-				   HFI_HOST_FLAGS_INTR_REQUIRED |
-				   HFI_HOST_FLAGS_NON_DISCARDABLE),
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->sys_init_id,
-				   &payload,
-				   sizeof(u32));
+			       HFI_CMD_INIT,
+			       (HFI_HOST_FLAGS_RESPONSE_REQUIRED |
+			       HFI_HOST_FLAGS_INTR_REQUIRED |
+			       HFI_HOST_FLAGS_NON_DISCARDABLE),
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->sys_init_id,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -412,13 +411,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->max_channels;
 	d_vpr_h("%s: ubwc max channels %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_MAX_CHANNELS,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_MAX_CHANNELS,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -426,13 +425,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->mal_length;
 	d_vpr_h("%s: ubwc mal length %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_MAL_LENGTH,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_MAL_LENGTH,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -440,13 +439,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->highest_bank_bit;
 	d_vpr_h("%s: ubwc hbb %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_HBB,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_HBB,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -468,13 +467,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->bank_swz2_level;
 	d_vpr_h("%s: ubwc swzl2 %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_BANK_SWZL_LEVEL2,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_BANK_SWZL_LEVEL2,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -482,13 +481,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->bank_swz3_level;
 	d_vpr_h("%s: ubwc swzl3 %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_BANK_SWZL_LEVEL3,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_BANK_SWZL_LEVEL3,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -496,13 +495,13 @@ int hfi_packet_sys_init(struct msm_vidc_core *core,
 	payload = core->platform->data.ubwc_config->bank_spreading;
 	d_vpr_h("%s: ubwc bank spreading %d\n", __func__, payload);
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_UBWC_BANK_SPREADING,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_UBWC_BANK_SPREADING,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_sys_init;
 
@@ -533,13 +532,13 @@ err_sys_init:
 }
 
 int hfi_packet_image_version(struct msm_vidc_core *core,
-	u8 *pkt, u32 pkt_size)
+			      u8 *pkt, u32 pkt_size)
 {
 	int rc = 0;
 
 	rc = hfi_create_header(pkt, pkt_size,
-				   0 /*session_id*/,
-				   core->header_id++);
+			       0 /*session_id*/,
+			       core->header_id++);
 	if (rc)
 		goto err_img_version;
 
@@ -565,13 +564,13 @@ err_img_version:
 }
 
 int hfi_packet_sys_pc_prep(struct msm_vidc_core *core,
-	u8 *pkt, u32 pkt_size)
+			    u8 *pkt, u32 pkt_size)
 {
 	int rc = 0;
 
 	rc = hfi_create_header(pkt, pkt_size,
-			   0 /*session_id*/,
-			   core->header_id++);
+			       0 /*session_id*/,
+			       core->header_id++);
 	if (rc)
 		goto err_sys_pc;
 
@@ -595,40 +594,40 @@ err_sys_pc:
 }
 
 int hfi_packet_sys_debug_config(struct msm_vidc_core *core,
-	u8 *pkt, u32 pkt_size, u32 debug_config)
+				 u8 *pkt, u32 pkt_size, u32 debug_config)
 {
 	int rc = 0;
 	u32 payload = 0;
 
 	rc = hfi_create_header(pkt, pkt_size,
-				   0 /*session_id*/,
-				   core->header_id++);
+			       0 /*session_id*/,
+			       core->header_id++);
 	if (rc)
 		goto err_debug;
 
 	/* HFI_PROP_DEBUG_CONFIG */
 	payload = 0; /*TODO:Change later*/
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_DEBUG_CONFIG,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32_ENUM,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_DEBUG_CONFIG,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32_ENUM,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_debug;
 
 	/* HFI_PROP_DEBUG_LOG_LEVEL */
 	payload = debug_config; /*TODO:Change later*/
 	rc = hfi_create_packet(pkt, pkt_size,
-				   HFI_PROP_DEBUG_LOG_LEVEL,
-				   HFI_HOST_FLAGS_NONE,
-				   HFI_PAYLOAD_U32_ENUM,
-				   HFI_PORT_NONE,
-				   core->packet_id++,
-				   &payload,
-				   sizeof(u32));
+			       HFI_PROP_DEBUG_LOG_LEVEL,
+			       HFI_HOST_FLAGS_NONE,
+			       HFI_PAYLOAD_U32_ENUM,
+			       HFI_PORT_NONE,
+			       core->packet_id++,
+			       &payload,
+			       sizeof(u32));
 	if (rc)
 		goto err_debug;
 
@@ -640,8 +639,8 @@ err_debug:
 }
 
 int hfi_packet_session_command(struct msm_vidc_inst *inst,
-	u32 pkt_type, u32 flags, u32 port, u32 session_id,
-	u32 payload_type, void *payload, u32 payload_size)
+				u32 pkt_type, u32 flags, u32 port, u32 session_id,
+				u32 payload_type, void *payload, u32 payload_size)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
