@@ -17,7 +17,6 @@
 #include <linux/sizes.h>
 
 #include <linux/hwspinlock.h>
-#include <linux/qcom_scm.h>
 
 #include <linux/sysfs.h>
 
@@ -32,15 +31,13 @@
 static struct ipclite_info *ipclite;
 static struct ipclite_client synx_client;
 static struct ipclite_client test_client;
-static struct ipclite_hw_mutex_ops *ipclite_hw_mutex;
 static struct ipclite_debug_info *ipclite_dbg_info;
 static struct ipclite_debug_struct *ipclite_dbg_struct;
 static struct ipclite_debug_inmem_buf *ipclite_dbg_inmem;
 static struct mutex ssr_mutex;
 static struct kobject *sysfs_kobj;
 
-static uint32_t enabled_hosts;
-static uint32_t partitions;
+static uint32_t enabled_hosts, partitions;
 static u32 global_atomic_support = GLOBAL_ATOMICS_ENABLED;
 static uint32_t ipclite_debug_level = IPCLITE_ERR | IPCLITE_WARN | IPCLITE_INFO;
 static uint32_t ipclite_debug_control = IPCLITE_DMESG_LOG, ipclite_debug_dump;
@@ -55,7 +52,7 @@ static inline bool is_loopback_except_apps(uint32_t h0, uint32_t h1)
 	return (h0 == h1 && h0 != IPCMEM_APPS);
 }
 
-static void IPCLITE_OS_INMEM_LOG(const char *psztStr, ...)
+static void ipclite_inmem_log(const char *psztStr, ...)
 {
 	uint32_t local_index = 0;
 	va_list pArgs;
@@ -183,38 +180,41 @@ static void ipclite_dump_inmem_logs(void)
 	return;
 }
 
-static void ipclite_hw_mutex_acquire(void)
+int ipclite_hw_mutex_acquire(void)
 {
-	int32_t ret;
+	int ret;
 
-	if (ipclite != NULL) {
-		if (!global_atomic_support) {
-			ret = hwspin_lock_timeout_irqsave(ipclite->hwlock,
-					HWSPINLOCK_TIMEOUT,
-					&ipclite->ipclite_hw_mutex->flags);
-			if (ret) {
-				IPCLITE_OS_LOG(IPCLITE_ERR, "Hw mutex lock acquire failed\n");
-				return;
-			}
-
-			ipclite->ipcmem.toc_data.host_info->hwlock_owner = IPCMEM_APPS;
-
-			IPCLITE_OS_LOG(IPCLITE_DBG, "Hw mutex lock acquired\n");
-		}
+	if (unlikely(!ipclite)) {
+		IPCLITE_OS_LOG(IPCLITE_ERR, "IPCLite not initialized");
+		return -ENOMEM;
 	}
+	ret = hwspin_lock_timeout_irqsave(ipclite->hwlock,
+					HWSPINLOCK_TIMEOUT, &ipclite->hw_mutex_flags);
+	if (ret) {
+		IPCLITE_OS_LOG(IPCLITE_ERR, "Hw mutex lock acquire failed");
+		return ret;
+	}
+	ipclite->ipcmem.toc_data.host_info->hwlock_owner = IPCMEM_APPS;
+	IPCLITE_OS_LOG(IPCLITE_DBG, "Hw mutex lock acquired");
+	return ret;
 }
+EXPORT_SYMBOL(ipclite_hw_mutex_acquire);
 
-static void ipclite_hw_mutex_release(void)
+int ipclite_hw_mutex_release(void)
 {
-	if (ipclite != NULL) {
-		if (!global_atomic_support) {
-			ipclite->ipcmem.toc_data.host_info->hwlock_owner = IPCMEM_INVALID_HOST;
-			hwspin_unlock_irqrestore(ipclite->hwlock,
-				&ipclite->ipclite_hw_mutex->flags);
-			IPCLITE_OS_LOG(IPCLITE_DBG, "Hw mutex lock release\n");
-		}
+	if (unlikely(!ipclite)) {
+		IPCLITE_OS_LOG(IPCLITE_ERR, "IPCLite not initialized");
+		return -ENOMEM;
 	}
+	if (ipclite->ipcmem.toc_data.host_info->hwlock_owner != IPCMEM_APPS)
+		return -EINVAL;
+
+	ipclite->ipcmem.toc_data.host_info->hwlock_owner = IPCMEM_INVALID_HOST;
+	hwspin_unlock_irqrestore(ipclite->hwlock, &ipclite->hw_mutex_flags);
+	IPCLITE_OS_LOG(IPCLITE_DBG, "Hw mutex lock released");
+	return 0;
 }
+EXPORT_SYMBOL(ipclite_hw_mutex_release);
 
 void ipclite_atomic_init_u32(ipclite_atomic_uint32_t *addr, uint32_t data)
 {
@@ -230,25 +230,17 @@ EXPORT_SYMBOL(ipclite_atomic_init_i32);
 
 void ipclite_global_atomic_store_u32(ipclite_atomic_uint32_t *addr, uint32_t data)
 {
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	atomic_set(addr, data);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 }
 EXPORT_SYMBOL(ipclite_global_atomic_store_u32);
 
 void ipclite_global_atomic_store_i32(ipclite_atomic_int32_t *addr, int32_t data)
 {
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	atomic_set(addr, data);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 }
 EXPORT_SYMBOL(ipclite_global_atomic_store_i32);
 
@@ -256,13 +248,9 @@ uint32_t ipclite_global_atomic_load_u32(ipclite_atomic_uint32_t *addr)
 {
 	uint32_t ret;
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_read(addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -272,13 +260,9 @@ int32_t ipclite_global_atomic_load_i32(ipclite_atomic_int32_t *addr)
 {
 	int32_t ret;
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_read(addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -289,13 +273,9 @@ uint32_t ipclite_global_test_and_set_bit(uint32_t nr, ipclite_atomic_uint32_t *a
 	uint32_t ret;
 	uint32_t mask = (1 << nr);
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_fetch_or(mask, addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -306,13 +286,9 @@ uint32_t ipclite_global_test_and_clear_bit(uint32_t nr, ipclite_atomic_uint32_t 
 	uint32_t ret;
 	uint32_t mask = (1 << nr);
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_fetch_and(~mask, addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -322,13 +298,9 @@ int32_t ipclite_global_atomic_inc(ipclite_atomic_int32_t *addr)
 {
 	int32_t ret = 0;
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_fetch_add(1, addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -338,13 +310,9 @@ int32_t ipclite_global_atomic_dec(ipclite_atomic_int32_t *addr)
 {
 	int32_t ret = 0;
 
-	/* callback to acquire hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->acquire();
-
+	ATOMIC_HW_MUTEX_ACQUIRE;
 	ret = atomic_fetch_sub(1, addr);
-
-	/* callback to release hw mutex lock if atomic support is not enabled */
-	ipclite->ipclite_hw_mutex->release();
+	ATOMIC_HW_MUTEX_RELEASE;
 
 	return ret;
 }
@@ -1158,7 +1126,6 @@ int32_t get_global_partition_info(struct global_region_info *global_ipcmem)
 {
 	struct ipcmem_global_partition *global_partition;
 
-	/* Check added to verify ipclite is initialized */
 	if (!ipclite) {
 		IPCLITE_OS_LOG(IPCLITE_ERR, "IPCLite not initialized\n");
 		return -ENOMEM;
@@ -1249,12 +1216,6 @@ static int ipclite_channel_init(struct device *parent,
 		goto err_put_dev;
 	}
 	IPCLITE_OS_LOG(IPCLITE_DBG, "remote_pid = %d, local_pid=%d\n", remote_pid, local_pid);
-
-	ipclite_hw_mutex = devm_kzalloc(dev, sizeof(*ipclite_hw_mutex), GFP_KERNEL);
-	if (!ipclite_hw_mutex) {
-		ret = -ENOMEM;
-		goto err_put_dev;
-	}
 
 	ret = of_property_read_u32(dev->of_node, "global_atomic", &global_atomic);
 	if (ret) {
@@ -1626,13 +1587,6 @@ static int ipclite_probe(struct platform_device *pdev)
 
 	/* Should be called after all Global TOC related init is done */
 	insert_magic_number();
-
-	/* hw mutex callbacks */
-	ipclite_hw_mutex->acquire = ipclite_hw_mutex_acquire;
-	ipclite_hw_mutex->release = ipclite_hw_mutex_release;
-
-	/* store to ipclite structure */
-	ipclite->ipclite_hw_mutex = ipclite_hw_mutex;
 
 	/* Update the Global Debug variable for FW cores */
 	ipclite_dbg_info->debug_level = ipclite_debug_level;

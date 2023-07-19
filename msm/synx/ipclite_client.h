@@ -32,7 +32,7 @@ struct global_region_info {
 	uint32_t size;
 };
 
-typedef int32_t (*IPCLite_Client)(uint32_t proc_id,  int64_t data,  void *priv);
+typedef int (*IPCLite_Client)(uint32_t proc_id,  int64_t data,  void *priv);
 
 /**
  * ipclite_msg_send() - Sends message to remote client.
@@ -42,7 +42,7 @@ typedef int32_t (*IPCLite_Client)(uint32_t proc_id,  int64_t data,  void *priv);
  *
  * @return Zero on successful registration, negative on failure.
  */
-int32_t ipclite_msg_send(int32_t proc_id, uint64_t data);
+int ipclite_msg_send(int32_t proc_id, uint64_t data);
 
 /**
  * ipclite_register_client() - Registers client callback with framework.
@@ -52,7 +52,7 @@ int32_t ipclite_msg_send(int32_t proc_id, uint64_t data);
  *
  * @return Zero on successful registration, negative on failure.
  */
-int32_t ipclite_register_client(IPCLite_Client cb_func_ptr, void *priv);
+int ipclite_register_client(IPCLite_Client cb_func_ptr, void *priv);
 
 /**
  * ipclite_test_msg_send() - Sends message to remote client.
@@ -62,7 +62,7 @@ int32_t ipclite_register_client(IPCLite_Client cb_func_ptr, void *priv);
  *
  * @return Zero on successful registration, negative on failure.
  */
-int32_t ipclite_test_msg_send(int32_t proc_id, uint64_t data);
+int ipclite_test_msg_send(int32_t proc_id, uint64_t data);
 
 /**
  * ipclite_register_test_client() - Registers client callback with framework.
@@ -72,7 +72,7 @@ int32_t ipclite_test_msg_send(int32_t proc_id, uint64_t data);
  *
  * @return Zero on successful registration, negative on failure.
  */
-int32_t ipclite_register_test_client(IPCLite_Client cb_func_ptr, void *priv);
+int ipclite_register_test_client(IPCLite_Client cb_func_ptr, void *priv);
 
 /**
  * get_global_partition_info() - Gets info about IPCMEM's global partitions.
@@ -81,7 +81,7 @@ int32_t ipclite_register_test_client(IPCLite_Client cb_func_ptr, void *priv);
  *
  * @return Zero on successful registration, negative on failure.
  */
-int32_t get_global_partition_info(struct global_region_info *global_ipcmem);
+int get_global_partition_info(struct global_region_info *global_ipcmem);
 
 /**
  * ipclite_recover() - Recovers the ipclite if any core goes for SSR
@@ -91,6 +91,20 @@ int32_t get_global_partition_info(struct global_region_info *global_ipcmem);
  * @return None.
  */
 void ipclite_recover(enum ipcmem_host_type core_id);
+
+/**
+ * ipclite_hw_mutex_acquire() - Locks the hw mutex reserved for ipclite.
+ *
+ * @return Zero on successful acquire, negative on failure.
+ */
+int ipclite_hw_mutex_acquire(void);
+
+/**
+ * ipclite_hw_mutex_release() - Unlocks the hw mutex reserved for ipclite.
+ *
+ * @return Zero on successful release, negative on failure.
+ */
+int ipclite_hw_mutex_release(void);
 
 /**
  * ipclite_atomic_init_u32() - Initializes the global memory with uint32_t value.

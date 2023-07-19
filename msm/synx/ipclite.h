@@ -54,16 +54,17 @@
 #define IPCLITE_OS_LOG(__level, __fmt, arg...) \
 	do { \
 		if (ipclite_debug_level & __level) { \
-			if (ipclite_debug_control & IPCLITE_DMESG_LOG) { \
+			if (ipclite_debug_control & IPCLITE_DMESG_LOG) \
 				pr_info(IPCLITE_CORE_DBG_LABEL "%s:"__fmt, \
 							ipclite_dbg_label[__level], ## arg); \
-			} \
-			if (ipclite_debug_control & IPCLITE_INMEM_LOG) { \
-				IPCLITE_OS_INMEM_LOG(IPCLITE_CORE_DBG_LABEL "%s:"__fmt, \
+			if (ipclite_debug_control & IPCLITE_INMEM_LOG) \
+				ipclite_inmem_log(IPCLITE_CORE_DBG_LABEL "%s:"__fmt, \
 							ipclite_dbg_label[__level], ## arg); \
-			} \
 		} \
 	} while (0)
+
+#define ATOMIC_HW_MUTEX_ACQUIRE (global_atomic_support ?: ipclite_hw_mutex_acquire())
+#define ATOMIC_HW_MUTEX_RELEASE (global_atomic_support ?: ipclite_hw_mutex_release())
 
 /**
  * enum ipclite_channel_status - channel status
@@ -302,12 +303,6 @@ struct ipclite_fifo {
 	void (*reset)(struct ipclite_fifo *fifo);
 };
 
-struct ipclite_hw_mutex_ops {
-	unsigned long flags;
-	void (*acquire)(void);
-	void (*release)(void);
-};
-
 struct ipclite_irq_info {
 	struct mbox_client mbox_client;
 	struct mbox_chan *mbox_chan;
@@ -346,7 +341,7 @@ struct ipclite_info {
 	struct ipclite_channel channel[IPCMEM_NUM_HOSTS];
 	struct ipclite_mem ipcmem;
 	struct hwspinlock *hwlock;
-	struct ipclite_hw_mutex_ops *ipclite_hw_mutex;
+	unsigned long hw_mutex_flags;
 };
 
 /*Default partition parameters*/

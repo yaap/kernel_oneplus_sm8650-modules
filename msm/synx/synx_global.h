@@ -47,14 +47,6 @@ enum synx_core_id {
 #define SYNX_HWSPIN_TIMEOUT            500
 #define SYNX_HWSPIN_ID                 10
 
-/* internal signal states */
-#define SYNX_STATE_INVALID             0
-#define SYNX_STATE_ACTIVE              1
-#define SYNX_STATE_SIGNALED_ERROR      3
-#define SYNX_STATE_SIGNALED_EXTERNAL   5
-#define SYNX_STATE_SIGNALED_SSR        6
-#define SYNX_STATE_TIMEOUT             7
-
 /* dma fence states */
 #define SYNX_DMA_FENCE_STATE_MAX             4096
 
