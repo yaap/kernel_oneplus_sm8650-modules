@@ -1,5 +1,6 @@
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_SHS_DLKM_PLATFORMS_LIST := pineapple
+RMNET_SHS_DLKM_PLATFORMS_LIST += blair
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_SHS_DLKM_PLATFORMS_LIST)),true)
 #Make file to create RMNET_SHS DLKM
@@ -8,6 +9,9 @@ include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := -Wno-macro-redefined -Wno-unused-function -Wall -Werror
 LOCAL_CLANG :=true
+
+#Enabling BAZEL
+LOCAL_MODULE_DDK_BUILD := true
 
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE := rmnet_shs.ko

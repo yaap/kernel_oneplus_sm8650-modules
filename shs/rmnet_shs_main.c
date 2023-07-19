@@ -40,7 +40,8 @@
 #include <linux/cpumask.h>
 #include <linux/icmp.h>
 #include <linux/inet.h>
-static char*verinfo[]={"\x33\x35\x32\x37\x62\x38\x30\x65",
+static char*verinfo[]={"\x62\x66\x61\x30\x39\x34\x62\x35"
+"\x62\x38\x38\x39\x38\x62\x66\x32","\x33\x35\x32\x37\x62\x38\x30\x65",
 "\x63\x30\x39\x37\x35\x35\x62\x33","\x32\x36\x66\x64\x33\x30\x36\x35",
 "\x65\x36\x66\x64\x34\x31\x33\x37","\x36\x64\x38\x31\x37\x39\x62\x63",
 "\x64\x66\x39\x32\x65\x35\x33\x34","\x30\x38\x61\x39\x34\x38\x64\x61",
@@ -81,7 +82,6 @@ DATARMNET758a55f103
 #define DATARMNET8fadb49f38 (0xd2d+202-0xdf7)
 #define DATARMNET48a89fcc16 (0xd26+209-0xdf6)
 #define DATARMNETbfe901fc62 (0xd2d+202-0xdf7)
-#define DATARMNETaa0602144b 11184810
 DEFINE_SPINLOCK(DATARMNET3764d083f0);DEFINE_HASHTABLE(DATARMNETe603c3a4b3,
 DATARMNET25437d35fd);struct DATARMNETe600c5b727 DATARMNET0997c5650d[
 DATARMNETc6782fed88];int DATARMNETcff375d916[DATARMNETc6782fed88];unsigned int 

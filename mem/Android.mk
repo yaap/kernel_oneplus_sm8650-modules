@@ -2,9 +2,13 @@ ifneq ($(TARGET_BOARD_AUTO),true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
 RMNET_MEM_DLKM_PLATFORMS_LIST := pineapple
+RMNET_MEM_DLKM_PLATFORMS_LIST += blair
 ifeq ($(call is-board-platform-in-list, $(RMNET_MEM_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
+
+#Enabling BAZEL
+LOCAL_MODULE_DDK_BUILD := true
 
 LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_CLANG :=true

@@ -76,11 +76,11 @@ rmnet_mem_id_recycled[j]++;page=mem_page->addr;page_ref_inc(mem_page->addr);
 list_rotate_left(&rmnet_mem_pool[j]);break;}list_rotate_left(&rmnet_mem_pool[j])
 ;i++;}while(i<=(0xd0a+237-0xdf2));if(page&&pageorder){*pageorder=j;break;}i=
 (0xd2d+202-0xdf7);}}if(!page){if(order<(0xd18+223-0xdf4)){page=__dev_alloc_pages
-(gfp_mask,order);if(page){if(static_pool_size[order]<max_pool_size[order]&&
+(GFP_ATOMIC,order);if(page){if(static_pool_size[order]<max_pool_size[order]&&
 pool_unbound_feature[order]){rmnet_mem_add_page(page,order);page_ref_inc(page);}
 if(pageorder){*pageorder=order;}}}else{if(static_pool_size[order]<max_pool_size[
-order]&&pool_unbound_feature[order]){page=__dev_alloc_pages(gfp_mask,order);if(
-page){rmnet_mem_add_page(page,order);page_ref_inc(page);}if(pageorder){*
+order]&&pool_unbound_feature[order]){page=__dev_alloc_pages(GFP_ATOMIC,order);if
+(page){rmnet_mem_add_page(page,order);page_ref_inc(page);}if(pageorder){*
 pageorder=order;}}}}spin_unlock_irqrestore(&rmnet_mem_lock,flags);if(pageorder&&
 code&&page){if(*pageorder==order)*code=RMNET_MEM_SUCCESS;else if(*pageorder>
 order)*code=RMNET_MEM_UPGRADE;else if(*pageorder<order)*code=RMNET_MEM_DOWNGRADE
