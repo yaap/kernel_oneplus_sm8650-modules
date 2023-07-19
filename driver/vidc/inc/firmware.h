@@ -13,6 +13,6 @@ int fw_load(struct msm_vidc_core *core);
 int fw_unload(struct msm_vidc_core *core);
 int fw_suspend(struct msm_vidc_core *core);
 int fw_resume(struct msm_vidc_core *core);
-
+void fw_coredump(struct msm_vidc_core *core);
 
 #endif

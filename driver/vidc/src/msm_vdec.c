@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include "msm_media_info.h"
 #include <linux/v4l2-common.h>
@@ -1759,39 +1759,6 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 	return rc;
 }
 
-static int msm_vdec_update_max_map_output_count(struct msm_vidc_inst *inst)
-{
-	int rc = 0;
-	struct v4l2_format *f;
-	u32 width, height, count;
-
-	f = &inst->fmts[OUTPUT_PORT];
-	width = f->fmt.pix_mp.width;
-	height = f->fmt.pix_mp.height;
-
-	/*
-	 * adjust max map output count based on resolution
-	 * to enhance performance.
-	 * For 8K session: count = 20
-	 * For 4K session: count = 32
-	 * For 1080p session: count = 48
-	 * For all remaining sessions: count = 64
-	 */
-	if (res_is_greater_than(width, height, 4096, 2160))
-		count = 20;
-	else if (res_is_greater_than(width, height, 1920, 1080))
-		count = 32;
-	else if (res_is_greater_than(width, height, 1280, 720))
-		count = 48;
-	else
-		count = 64;
-
-	inst->max_map_output_count = count;
-	i_vpr_h(inst, "%s: count: %d\n", __func__, inst->max_map_output_count);
-
-	return rc;
-}
-
 int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -1813,10 +1780,6 @@ int msm_vdec_streamon_output(struct msm_vidc_inst *inst)
 	}
 
 	rc = msm_vidc_check_session_supported(inst);
-	if (rc)
-		goto error;
-
-	rc = msm_vdec_update_max_map_output_count(inst);
 	if (rc)
 		goto error;
 
@@ -1973,13 +1936,6 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	int i = 0;
 	bool found = false;
 
-	/*
-	 * if DPB_LIST subscribed on output port then driver need to
-	 * hold MAX_BPB_COUNT of read only buffer at least.
-	 */
-	if (!inst->output_dpb_list_enabled)
-		goto release_buffers;
-
 	/* count read_only buffers which are not pending release in read_only list */
 	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
 		if (!(ro_buf->attr & MSM_VIDC_ATTR_READ_ONLY))
@@ -2025,7 +1981,6 @@ static int msm_vdec_release_nonref_buffers(struct msm_vidc_inst *inst)
 	i_vpr_l(inst, "%s: fw ro buf count %d, non-ref ro count %d\n",
 		__func__, fw_ro_count, nonref_ro_count);
 
-release_buffers:
 	/* release the eligible buffers as per above condition */
 	list_for_each_entry(ro_buf, &inst->buffers.read_only.list, list) {
 		found = false;
@@ -2704,7 +2659,6 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 			inst->buffers.output.min_count +
 			inst->buffers.output.extra_count;
 	inst->buffers.output.size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
-	inst->max_map_output_count = MAX_MAP_OUTPUT_COUNT;
 	inst->fw_min_count = 0;
 
 	f = &inst->fmts[OUTPUT_META_PORT];

@@ -291,16 +291,17 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	struct msm_vidc_core *core = file->private_data;
 	char *cur, *end, *dbuf = NULL;
 	ssize_t len = 0;
-	int rc = 0;
 
 	if (!core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, core);
 		return 0;
 	}
 
-	rc = msm_vidc_vmem_alloc(MAX_DBG_BUF_SIZE, (void **)&dbuf, __func__);
-	if (rc)
-		return rc;
+	dbuf = vzalloc(MAX_DBG_BUF_SIZE);
+	if (!dbuf) {
+		d_vpr_e("%s: allocation failed\n", __func__);
+		return -ENOMEM;
+	}
 
 	cur = dbuf;
 	end = cur + MAX_DBG_BUF_SIZE;
@@ -316,7 +317,7 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	len = simple_read_from_buffer(buf, count, ppos,
 		dbuf, cur - dbuf);
 
-	msm_vidc_vmem_free((void **)&dbuf);
+	vfree(dbuf);
 	return len;
 }
 
@@ -589,10 +590,13 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 		return 0;
 	}
 
-	if (msm_vidc_vmem_alloc(MAX_DBG_BUF_SIZE, (void **)&dbuf, __func__)) {
+	dbuf = vzalloc(MAX_DBG_BUF_SIZE);
+	if (!dbuf) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
 		len = -ENOMEM;
 		goto failed_alloc;
 	}
+
 	cur = dbuf;
 	end = cur + MAX_DBG_BUF_SIZE;
 
@@ -645,7 +649,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 	len = simple_read_from_buffer(buf, count, ppos,
 		dbuf, cur - dbuf);
 
-	msm_vidc_vmem_free((void **)&dbuf);
+	vfree(dbuf);
 failed_alloc:
 	put_inst(inst);
 	return len;
@@ -672,8 +676,11 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst, struct den
 
 	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%d", inst->session_id);
 
-	if (msm_vidc_vmem_alloc(sizeof(struct core_inst_pair), (void **)&idata, __func__))
+	idata = vzalloc(sizeof(*idata));
+	if (!idata) {
+		i_vpr_e(inst, "%s: allocation failed\n", __func__);
 		goto exit;
+	}
 
 	idata->core = inst->core;
 	idata->inst = inst;
@@ -703,7 +710,7 @@ failed_create_file:
 	debugfs_remove_recursive(dir);
 	dir = NULL;
 failed_create_dir:
-	msm_vidc_vmem_free((void **)&idata);
+	vfree(idata);
 exit:
 	return dir;
 }
@@ -719,7 +726,7 @@ void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst)
 	if (dentry->d_inode) {
 		i_vpr_l(inst, "%s: Destroy %pK\n",
 			__func__, dentry->d_inode->i_private);
-		msm_vidc_vmem_free(&dentry->d_inode->i_private);
+		vfree(dentry->d_inode->i_private);
 		dentry->d_inode->i_private = NULL;
 	}
 	debugfs_remove_recursive(dentry);

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #ifndef _MSM_VIDC_INST_H_
 #define _MSM_VIDC_INST_H_
@@ -137,7 +137,6 @@ struct msm_vidc_inst {
 	u32                                dpb_list_payload[MAX_DPB_LIST_ARRAY_SIZE];
 	bool                               input_dpb_list_enabled;
 	bool                               output_dpb_list_enabled;
-	u32                                max_map_output_count;
 	u32                                auto_framerate;
 	u32                                max_rate;
 	bool                               has_bframe;

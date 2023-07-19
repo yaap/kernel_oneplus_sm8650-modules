@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include <linux/iommu.h>
 #include <linux/qcom_scm.h>
@@ -116,9 +116,11 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 	enum vidc_msg_prio_fw log_level_fw = msm_fw_debug;
 
 	if (!packet || !packet_size) {
-		if (msm_vidc_vmem_alloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE,
-			(void **)&packet, __func__))
+		packet = vzalloc(VIDC_IFACEQ_VAR_HUGE_PKT_SIZE);
+		if (!packet) {
+			d_vpr_e("%s: allocation failed\n", __func__);
 			return;
+		}
 		packet_size = VIDC_IFACEQ_VAR_HUGE_PKT_SIZE;
 
 		local_packet = true;
@@ -157,7 +159,7 @@ static void __flush_debug_queue(struct msm_vidc_core *core,
 	}
 
 	if (local_packet)
-		msm_vidc_vmem_free((void **)&packet);
+		vfree(packet);
 }
 
 static int __cmdq_write(struct msm_vidc_core *core, void *pkt)

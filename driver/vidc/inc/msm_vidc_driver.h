@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
@@ -560,11 +560,8 @@ int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type type, enum msm_vidc_buffer_attributes attr);
 void core_lock(struct msm_vidc_core *core, const char *function);
 void core_unlock(struct msm_vidc_core *core, const char *function);
-bool core_lock_check(struct msm_vidc_core *core, const char *function);
 void inst_lock(struct msm_vidc_inst *inst, const char *function);
 void inst_unlock(struct msm_vidc_inst *inst, const char *function);
-bool inst_lock_check(struct msm_vidc_inst *inst, const char *function);
-bool client_lock_check(struct msm_vidc_inst *inst, const char *func);
 void client_lock(struct msm_vidc_inst *inst, const char *function);
 void client_unlock(struct msm_vidc_inst *inst, const char *function);
 int msm_vidc_update_bitstream_buffer_size(struct msm_vidc_inst *inst);

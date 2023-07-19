@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-/* Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved. */
 
 #include <linux/sort.h>
 #include <linux/clk.h>
@@ -29,6 +29,9 @@
 	((a) > (b) ? (a) - (b) < TRIVIAL_BW_THRESHOLD : \
 		(b) - (a) < TRIVIAL_BW_THRESHOLD)
 
+static struct clock_residency *get_residency_stats(struct clock_info *cl, u64 rate);
+static int __update_residency_stats(struct msm_vidc_core *core,
+		struct clock_info *cl, u64 rate);
 enum reset_state {
 	INIT = 1,
 	ASSERT,
@@ -174,7 +177,7 @@ static int devm_pm_runtime_get_sync(struct device *dev)
 	int rc = 0;
 
 	rc = pm_runtime_get_sync(dev);
-	if (rc) {
+	if (rc < 0) {
 		d_vpr_e("%s: pm domain get sync failed\n", __func__);
 		return rc;
 	}
@@ -906,7 +909,7 @@ static int __enable_power_domains(struct msm_vidc_core *core, const char *name)
 			continue;
 
 		rc = pm_runtime_get_sync(pdinfo->genpd_dev);
-		if (rc) {
+		if (rc < 0) {
 			d_vpr_e("%s: failed to get sync: %s\n", __func__, pdinfo->name);
 			return rc;
 		}
@@ -1164,7 +1167,14 @@ static int reset_residency_stats(struct msm_vidc_core *core, struct clock_info *
 		residency->start_time_us = 0;
 		residency->total_time_us = 0;
 	}
-
+	/*
+	 * During the reset make sure to update start time of the clk prev freq,
+	 * because the prev clk freq might not be 0 so when the next seesion start
+	 * voting from that freq, then those resideny print will not come in stats
+	 */
+	residency = get_residency_stats(cl, cl->prev);
+	if (residency)
+		residency->start_time_us = ktime_get_ns() / 1000;
 	return rc;
 }
 
@@ -1188,8 +1198,8 @@ static struct clock_residency *get_residency_stats(struct clock_info *cl, u64 ra
 	return found ? residency : NULL;
 }
 
-static int update_residency_stats(
-	struct msm_vidc_core *core, struct clock_info *cl, u64 rate)
+static int __update_residency_stats(struct msm_vidc_core *core,
+		struct clock_info *cl, u64 rate)
 {
 	struct clock_residency *cur_residency = NULL, *prev_residency = NULL;
 	u64 cur_time_us = 0;
@@ -1243,7 +1253,7 @@ static int __set_clk_rate(struct msm_vidc_core *core, struct clock_info *cl,
 	int rc = 0;
 
 	/* update clock residency stats */
-	update_residency_stats(core, cl, rate);
+	__update_residency_stats(core, cl, rate);
 
 	/* bail early if requested clk rate is not changed */
 	if (rate == cl->prev)
@@ -1644,6 +1654,12 @@ static int __print_clock_residency_stats(struct msm_vidc_core *core)
 		if (!cl->has_scaling)
 			continue;
 
+		/*
+		 * residency for the last clk corner entry will be updated in stats
+		 * only if we call update residency with rate 0
+		 */
+		__update_residency_stats(core, cl, 0);
+
 		/* print clock residency stats */
 		print_residency_stats(core, cl);
 	}
@@ -1687,6 +1703,7 @@ static const struct msm_vidc_resources_ops res_ops = {
 	.clk_disable = __disable_unprepare_clock,
 	.clk_print_residency_stats = __print_clock_residency_stats,
 	.clk_reset_residency_stats = __reset_clock_residency_stats,
+	.clk_update_residency_stats = __update_residency_stats,
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void)
