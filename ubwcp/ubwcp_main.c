@@ -30,6 +30,7 @@
 #include <linux/iommu.h>
 #include <linux/set_memory.h>
 #include <linux/range.h>
+#include <linux/qcom_scm.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 
@@ -116,6 +117,13 @@ enum ubwcp_state {
 	UBWCP_STATE_FAULT   = -2,
 };
 
+
+struct ubwcp_prefetch_tgt_ctrl {
+	atomic_t cpu_count;
+	bool enable;
+	int result;
+};
+
 struct ubwcp_driver {
 	/* cdev related */
 	dev_t devt;
@@ -129,6 +137,7 @@ struct ubwcp_driver {
 	bool write_err_irq_en;
 	bool decode_err_irq_en;
 	bool encode_err_irq_en;
+	bool single_tile_en;
 
 	/* ubwcp devices */
 	struct device *dev; //ubwcp device
@@ -187,6 +196,12 @@ struct ubwcp_driver {
 	spinlock_t err_handler_list_lock;  /* err_handler_list lock */
 
 	struct dev_pagemap pgmap;
+
+	/* power state tracking */
+	int power_on;
+	struct mutex power_ctrl_lock;
+
+	struct ubwcp_prefetch_tgt_ctrl ctrl;
 };
 
 struct ubwcp_buf {
@@ -216,6 +231,52 @@ struct ubwcp_buf {
 
 static struct ubwcp_driver *me;
 static u32 ubwcp_debug_trace_enable;
+
+static void prefetch_tgt_per_cpu(void *info)
+{
+	int ret = 0;
+	struct ubwcp_prefetch_tgt_ctrl *ctrl;
+
+	ctrl = (struct ubwcp_prefetch_tgt_ctrl *) info;
+
+	ret = qcom_scm_prefetch_tgt_ctrl(ctrl->enable);
+	if (ret) {
+		//ctrl->result = ret;
+		//ERR("scm call failed, ret: %d enable: %d", ret, ctrl->enable);
+		DBG("scm call failed, ret: %d missing the matching TZ?", ret);
+	}
+
+	atomic_dec(&ctrl->cpu_count);
+}
+
+/* Enable/disable generation of prefetch target opcode. smc call must be done from each core
+ * to update the core specific register. Not thread-safe.
+ */
+static int prefetch_tgt(struct ubwcp_driver *ubwcp, bool enable)
+{
+	int cpu;
+
+	trace_ubwcp_prefetch_tgt_start(enable);
+
+	DBG("enable: %d", enable);
+	ubwcp->ctrl.enable = enable;
+	ubwcp->ctrl.result = 0;
+	atomic_set(&ubwcp->ctrl.cpu_count, 0);
+
+	cpus_read_lock();
+	for_each_cpu(cpu, cpu_online_mask) {
+		atomic_inc(&ubwcp->ctrl.cpu_count);
+		smp_call_function_single(cpu, prefetch_tgt_per_cpu, (void *) &ubwcp->ctrl, false);
+	}
+	cpus_read_unlock();
+
+	while (atomic_read(&ubwcp->ctrl.cpu_count))
+		;
+	DBG("done");
+
+	trace_ubwcp_prefetch_tgt_end(enable);
+	return ubwcp->ctrl.result;
+}
 
 static struct ubwcp_driver *ubwcp_get_driver(void)
 {
@@ -318,32 +379,54 @@ static void ubwcp_disable_clocks(struct ubwcp_driver *ubwcp)
 		clk_disable_unprepare(ubwcp->clocks[i - 1]);
 }
 
-/* UBWCP Power control */
+/* UBWCP Power control
+ * Due to hw bug, ubwcp block cannot handle prefetch target opcode. Thus we disable the opcode
+ * when ubwcp is powered on and enable it back when ubwcp is powered off.
+ */
 static int ubwcp_power(struct ubwcp_driver *ubwcp, bool enable)
 {
 	int ret = 0;
 
-	if (enable)
-		ret = regulator_enable(ubwcp->vdd);
-	else
-		ret = regulator_disable(ubwcp->vdd);
+	mutex_lock(&ubwcp->power_ctrl_lock);
 
-	if (ret) {
-		ERR("regulator call (enable: %d) failed: %d", enable, ret);
-		return ret;
+	if (enable) {
+		ubwcp->power_on++;
+		if (ubwcp->power_on != 1)
+			goto done;
+	} else {
+		ubwcp->power_on--;
+		if (ubwcp->power_on != 0)
+			goto done;
 	}
 
 	if (enable) {
+		ret = prefetch_tgt(ubwcp, 0);
+		if (ret)
+			goto done;
+
+		ret = regulator_enable(ubwcp->vdd);
+		if (ret) {
+			ERR("regulator call (enable: %d) failed: %d", enable, ret);
+			goto done;
+		}
 		ret = ubwcp_enable_clocks(ubwcp);
 		if (ret) {
 			ERR("enable clocks failed: %d", ret);
 			regulator_disable(ubwcp->vdd);
-			return ret;
+			goto done;
 		}
 	} else {
+		ret = regulator_disable(ubwcp->vdd);
+		if (ret) {
+			ERR("regulator call (enable: %d) failed: %d", enable, ret);
+			goto done;
+		}
 		ubwcp_disable_clocks(ubwcp);
+		ret = prefetch_tgt(ubwcp, 1);
 	}
 
+done:
+	mutex_unlock(&ubwcp->power_ctrl_lock);
 	return ret;
 }
 
@@ -843,6 +926,11 @@ static bool ubwcp_buf_attrs_valid(struct ubwcp_driver *ubwcp, struct ubwcp_buffe
 	if (attr->unused1 || attr->unused2 || attr->unused3 || attr->unused4 || attr->unused5 ||
 	    attr->unused6 || attr->unused7 || attr->unused8 || attr->unused9) {
 		ERR("buf attr unused values must be set to 0");
+		goto err;
+	}
+
+	if (!attr->width || !attr->height || !attr->stride || !attr->scanlines) {
+		ERR("width/height/stride/scanlines cannot be 0");
 		goto err;
 	}
 
@@ -1627,6 +1715,11 @@ int ubwcp_set_buf_attrs(struct dma_buf *dmabuf, struct ubwcp_buffer_attrs *attr)
 	DBG_BUF_ATTR("iova_min_size   : %8d (0x%8zx)", iova_min_size, iova_min_size);
 	DBG_BUF_ATTR("");
 
+	if (!ula_size) {
+		ERR("Invalid ula_size (0)");
+		goto unlock;
+	}
+
 	/* assign ULA PA with uncompressed-size range */
 	ula_pa = ubwcp_ula_realloc(ubwcp, buf->ula_pa, buf->ula_size, ula_size);
 	if (!ula_pa) {
@@ -1934,15 +2027,12 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 			goto err_flush_failed;
 		}
 
-		/* Flush/invalidate ULA PA from CPU caches
-		 * Always invalidate cache, even when writing.
-		 * Upgrade direction to force invalidate.
-		 */
-		if (dir == DMA_TO_DEVICE)
-			dir = DMA_BIDIRECTIONAL;
-		trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size, dir);
-		dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
-		trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size, dir);
+		/* Only apply CMOs if there are potential CPU reads */
+		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL) {
+			trace_ubwcp_dma_sync_single_for_cpu_start(buf->ula_size, dir);
+			dma_sync_single_for_cpu(ubwcp->dev, buf->ula_pa, buf->ula_size, dir);
+			trace_ubwcp_dma_sync_single_for_cpu_end(buf->ula_size, dir);
+		}
 		buf->dma_dir = dir;
 	} else {
 		DBG("buf already locked");
@@ -1950,8 +2040,19 @@ static int ubwcp_lock(struct dma_buf *dmabuf, enum dma_data_direction dir)
 		 * A previous read lock will now become write lock.
 		 * This will ensure a flush when the last unlock comes in.
 		 */
-		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		if (buf->dma_dir == DMA_TO_DEVICE &&
+		    buf->dma_dir != dir) {
+			/*
+			 * Locking for read would require doing a cache invalidation which
+			 * we don't want to do while a client may be writing to the buffer
+			 * as that could drop valid lines from the cache.
+			 */
+			ret = -EINVAL;
+			ERR("no support for locking a write only buffer for read");
+			goto err;
+		} else if (buf->dma_dir != dir) {
 			buf->dma_dir = DMA_BIDIRECTIONAL;
+		}
 	}
 	buf->lock_count++;
 	DBG("new lock_count: %d", buf->lock_count);
@@ -1985,8 +2086,9 @@ static int unlock_internal(struct ubwcp_buf *buf, enum dma_data_direction dir, b
 		DBG("Forced lock_count: %d", buf->lock_count);
 	} else {
 		/* for write unlocks, remember the direction so we flush on last unlock */
-		if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		if (buf->dma_dir != dir)
 			buf->dma_dir = DMA_BIDIRECTIONAL;
+
 		buf->lock_count--;
 		DBG("new lock_count: %d", buf->lock_count);
 		if (buf->lock_count) {
@@ -2590,11 +2692,46 @@ static int reg_rw_trace_r_op(void *data, u64 *value)
 	return 0;
 }
 
+static int single_tile_r_op(void *data, u64 *value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp->state != UBWCP_STATE_READY)
+		return -EPERM;
+
+	*value = ubwcp->single_tile_en;
+	return 0;
+}
+
+static int single_tile_w_op(void *data, u64 value)
+{
+	struct ubwcp_driver *ubwcp = data;
+
+	if (ubwcp->state != UBWCP_STATE_READY)
+		return -EPERM;
+
+	if (ubwcp_power(ubwcp, true))
+		goto err;
+
+	ubwcp_hw_single_tile(ubwcp->base, value);
+	ubwcp->single_tile_en = value;
+
+	if (ubwcp_power(ubwcp, false))
+		goto err;
+
+	return 0;
+err:
+	ubwcp->state = UBWCP_STATE_FAULT;
+	ERR("state set to fault");
+	return -1;
+}
+
 DEFINE_DEBUGFS_ATTRIBUTE(read_err_fops, read_err_r_op, read_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(decode_err_fops, decode_err_r_op, decode_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(write_err_fops, write_err_r_op, write_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(encode_err_fops, encode_err_r_op, encode_err_w_op, "%d\n");
 DEFINE_DEBUGFS_ATTRIBUTE(reg_rw_trace_fops, reg_rw_trace_r_op, reg_rw_trace_w_op, "%d\n");
+DEFINE_DEBUGFS_ATTRIBUTE(single_tile_fops, single_tile_r_op, single_tile_w_op, "%d\n");
 
 static void ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
 {
@@ -2638,6 +2775,12 @@ static void ubwcp_debugfs_init(struct ubwcp_driver *ubwcp)
 					&encode_err_fops);
 	if (IS_ERR_OR_NULL(dfile)) {
 		ERR("failed to create encode_err_irq debugfs file");
+		goto err;
+	}
+
+	dfile = debugfs_create_file("single_tile_en", 0644, debugfs_root, ubwcp, &single_tile_fops);
+	if (IS_ERR_OR_NULL(dfile)) {
+		ERR("failed to create write_err_irq debugfs file");
 		goto err;
 	}
 
@@ -3062,6 +3205,7 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 	mutex_init(&ubwcp->ula_lock);
 	mutex_init(&ubwcp->ubwcp_flush_lock);
 	mutex_init(&ubwcp->hw_range_ck_lock);
+	mutex_init(&ubwcp->power_ctrl_lock);
 	spin_lock_init(&ubwcp->err_handler_list_lock);
 
 	/* Regulator */
@@ -3119,6 +3263,8 @@ static int qcom_ubwcp_probe(struct platform_device *pdev)
 
 	/* one time hw init */
 	ubwcp_hw_one_time_init(ubwcp->base);
+	ubwcp_hw_single_tile(ubwcp->base, 1);
+	ubwcp->single_tile_en = 1;
 	ubwcp_hw_version(ubwcp->base, &ubwcp->hw_ver_major, &ubwcp->hw_ver_minor);
 	pr_err("ubwcp: hw version: major %d, minor %d\n", ubwcp->hw_ver_major, ubwcp->hw_ver_minor);
 	if (ubwcp->hw_ver_major == 0) {

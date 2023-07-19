@@ -12,6 +12,7 @@
 #include <linux/cdev.h>
 #include <linux/qcom_scm.h>
 #include <linux/delay.h>
+#include <asm/barrier.h>
 
 #include "ubwcp_hw.h"
 
@@ -200,36 +201,53 @@ void ubwcp_hw_enable_range_check(void __iomem *base, u16 index)
 }
 EXPORT_SYMBOL(ubwcp_hw_enable_range_check);
 
-
-/* Disable range check with flush */
-int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
+int ubwcp_hw_flush(void __iomem *base)
 {
 	u32 flush_complete = 0;
-	u32 count = 20;
-	u32 val;
-	u16 ctrl_reg = index >> 5;
+	u32 count_no_delay = 1000;
+	u32 count_delay = 2000;
+	u32 count = count_no_delay + count_delay;
 
-	//assert flush
 	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
-
-	//poll for flush done
 	do {
+		if (count < count_delay)
+			udelay(1);
+
 		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
 		if (flush_complete) {
-			//disable range ck
-			val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
-			val &= ~(1 << (index & 0x1F));
-			UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
-
-			//clear flush
 			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
 			return 0;
 		}
-		udelay(100);
 	} while (count--);
 
 	ERR("~~~~~ FLUSH FAILED ~~~~~");
 	return -1;
+}
+EXPORT_SYMBOL(ubwcp_hw_flush);
+
+/* Disable range check with flush */
+int ubwcp_hw_disable_range_check_with_flush(void __iomem *base, u16 index)
+{
+	u32 val;
+	u16 ctrl_reg = index >> 5;
+
+	/*
+	 * It is not clear that the isb() calls in this sequence are
+	 * requried, we may be able to remove them.
+	 */
+
+	//ensure all CMOs have completed
+	isb();
+
+	//disable range ck
+	val = UBWCP_REG_READ(base, RANGE_CHECK_CONTROL + ctrl_reg*4);
+	val &= ~(1 << (index & 0x1F));
+	UBWCP_REG_WRITE(base, RANGE_CHECK_CONTROL + ctrl_reg*4, val);
+	isb();
+	//assert flush
+	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
+
+	return ubwcp_hw_flush(base);
 }
 EXPORT_SYMBOL(ubwcp_hw_disable_range_check_with_flush);
 
@@ -302,28 +320,6 @@ void ubwcp_hw_encoder_config(void __iomem *base)
 	UBWCP_REG_WRITE(base, ENCODER_CONFIG, 0x7);
 }
 
-
-int ubwcp_hw_flush(void __iomem *base)
-{
-	u32 flush_complete = 0;
-	u32 count = 20;
-
-	UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x3);
-	do {
-		flush_complete = UBWCP_REG_READ(base, FLUSH_STATUS) & 0x1;
-		if (flush_complete) {
-			UBWCP_REG_WRITE(base, FLUSH_CONTROL, 0x0);
-			return 0;
-		}
-		udelay(100);
-	} while (count--);
-
-	ERR("~~~~~ FLUSH FAILED ~~~~~");
-	return -1;
-}
-EXPORT_SYMBOL(ubwcp_hw_flush);
-
-
 void ubwcp_hw_power_vote_status(void __iomem *pwr_ctrl, u8 *vote, u8 *status)
 {
 	u32 reg;
@@ -332,6 +328,20 @@ void ubwcp_hw_power_vote_status(void __iomem *pwr_ctrl, u8 *vote, u8 *status)
 	*vote =   (reg & BIT(0)) >> 0;
 	*status = (reg & BIT(31)) >> 31;
 }
+
+/* process only one tile at a time */
+void ubwcp_hw_single_tile(void __iomem *base, bool en)
+{
+	u32 reg;
+
+	reg = UBWCP_REG_READ(base, SPARE);
+	if (en)
+		reg |= BIT(15);
+	else
+		reg &= ~BIT(15);
+	UBWCP_REG_WRITE(base, SPARE, reg);
+}
+EXPORT_SYMBOL(ubwcp_hw_single_tile);
 
 void ubwcp_hw_one_time_init(void __iomem *base)
 {
