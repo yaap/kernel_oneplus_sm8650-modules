@@ -1,3 +1,11 @@
+ENABLE_EVA_KERNEL := true
+ifeq ($(TARGET_USES_QMAA), true)
+ifneq ($(TARGET_USES_QMAA_OVERRIDE_CVP), true)
+ENABLE_EVA_KERNEL := false
+endif
+endif
+
+ifeq ($(ENABLE_EVA_KERNEL), true)
 ifneq ($(TARGET_BOARD_PLATFORM), qssi)
 ifeq ($(call is-board-platform-in-list, $(TARGET_BOARD_PLATFORM)),true)
 
@@ -54,3 +62,4 @@ include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
 endif # End of check for board platform
 endif # End of check for target product
+endif # End of enable eva kernel check

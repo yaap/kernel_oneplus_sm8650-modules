@@ -2054,6 +2054,7 @@ void __dsp_cvp_sess_start(struct cvp_dsp_cmd_msg *cmd)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst;
+	struct cvp_session_queue *sq;
 	int rc;
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
@@ -2069,6 +2070,21 @@ void __dsp_cvp_sess_start(struct cvp_dsp_cmd_msg *cmd)
 	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
+
+	if (!inst || !is_cvp_inst_valid(inst)) {
+		dprintk(CVP_ERR, "%s incorrect session ID %llx\n", __func__, inst);
+		cmd->ret = -1;
+		return;
+	}
+
+	sq = &inst->session_queue;
+	spin_lock(&sq->lock);
+	if (sq->state == QUEUE_START) {
+		spin_unlock(&sq->lock);
+		dprintk(CVP_WARN, "DSP double started session %llx\n", inst);
+		return;
+	}
+	spin_unlock(&sq->lock);
 
 	rc = msm_cvp_session_start(inst, (struct eva_kmd_arg *)NULL);
 	if (rc) {
@@ -2083,6 +2099,7 @@ void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst;
+	struct cvp_session_queue *sq;
 	int rc;
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
@@ -2098,6 +2115,21 @@ void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
 	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
 			dsp2cpu_cmd->session_cpu_low);
+
+	if (!inst || !is_cvp_inst_valid(inst)) {
+		dprintk(CVP_ERR, "%s incorrect session ID %llx\n", __func__, inst);
+		cmd->ret = -1;
+		return;
+	}
+
+	sq = &inst->session_queue;
+	spin_lock(&sq->lock);
+	if (sq->state == QUEUE_STOP) {
+		spin_unlock(&sq->lock);
+		dprintk(CVP_WARN, "DSP double stopped session %llx\n", inst);
+		return;
+	}
+	spin_unlock(&sq->lock);
 
 	rc = msm_cvp_session_stop(inst, (struct eva_kmd_arg *)NULL);
 	if (rc) {

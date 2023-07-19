@@ -289,10 +289,11 @@ check_again:
 static void msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
 {
 	bool empty;
-	int max_retries;
+	int rc, max_retries;
 	struct msm_cvp_frame *frame;
 	struct cvp_session_queue *sq, *sqf;
 	struct cvp_hfi_device *hdev;
+	struct msm_cvp_inst *tmp;
 
 	if (!inst) {
 		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
@@ -310,16 +311,21 @@ wait_dsp:
 	empty = list_empty(&inst->cvpdspbufs.list);
 	if (!empty && max_retries > 0) {
 		mutex_unlock(&inst->cvpdspbufs.lock);
-		usleep_range(1000, 2000);
+		usleep_range(2000, 3000);
 		max_retries--;
 		goto wait_dsp;
 	}
 	mutex_unlock(&inst->cvpdspbufs.lock);
 
-	if (!empty)
-		dprintk(CVP_WARN, "Failed sess %pK DSP frame retried %d\n",
-			inst,
-			(inst->core->resources.msm_cvp_hw_rsp_timeout >> 5));
+	if (!empty) {
+		dprintk(CVP_WARN, "Failed sess %pK DSP frame pending\n", inst);
+		/*
+		 * A session is either DSP session or CPU session, cannot have both
+		 * DSP and frame buffers
+		 */
+		goto stop_session;
+	}
+
 	max_retries =  inst->core->resources.msm_cvp_hw_rsp_timeout >> 1;
 wait_frame:
 	mutex_lock(&inst->frames.lock);
@@ -346,6 +352,32 @@ wait_frame:
 		inst->core->synx_ftbl->cvp_dump_fence_queue(inst);
 	}
 
+stop_session:
+	tmp = cvp_get_inst_validate(inst->core, inst);
+	if (!tmp) {
+		dprintk(CVP_ERR, "%s has a invalid session %llx\n",
+			__func__, inst);
+		return;
+	}
+	if (!empty) {
+		/* STOP SESSION to avoid SMMU fault after releasing ARP */
+		hdev = inst->core->device;
+		rc = call_hfi_op(hdev, session_stop, (void *)inst->session);
+		if (rc) {
+			dprintk(CVP_WARN, "%s: cannot stop session rc %d\n",
+				__func__, rc);
+			goto release_arp;
+		}
+
+		/*Fail stop session, release arp later may cause smmu fault*/
+		rc = wait_for_sess_signal_receipt(inst, HAL_SESSION_STOP_DONE);
+		if (rc)
+			dprintk(CVP_WARN, "%s: wait for sess_stop fail, rc %d\n",
+					__func__, rc);
+		/* Continue to release ARP anyway */
+	}
+release_arp:
+	cvp_put_inst(tmp);
 	if (cvp_release_arp_buffers(inst))
 		dprintk_rl(CVP_WARN,
 			"Failed to release persist buffers\n");
@@ -455,8 +487,16 @@ int msm_cvp_close(void *instance)
 		inst->proc_name, inst, hash32_ptr(inst->session),
 		inst->session_type, inst->state);
 
-	if (inst->session == 0 || inst->state == MSM_CVP_CORE_UNINIT)
-		return -EINVAL;
+	if (inst->session == 0) {
+		if (inst->state >= MSM_CVP_CORE_INIT_DONE &&
+			inst->state < MSM_CVP_OPEN_DONE) {
+			/* Session is not created, no ARP */
+			inst->state = MSM_CVP_CORE_UNINIT;
+			goto exit;
+		}
+		if (inst->state == MSM_CVP_CORE_UNINIT)
+			return -EINVAL;
+	}
 
 	if (inst->session_type != MSM_CVP_BOOT) {
 		msm_cvp_cleanup_instance(inst);
@@ -471,7 +511,7 @@ int msm_cvp_close(void *instance)
 	}
 
 	msm_cvp_comm_session_clean(inst);
-
+exit:
 	kref_put(&inst->kref, close_helper);
 	return 0;
 }
