@@ -1748,6 +1748,8 @@ typedef enum {
     /* Event to indicate completion on RF path */
     WMI_PDEV_SET_RF_PATH_RESP_EVENTID,
 
+    /* Event to get AOA phasedelta values for all gain tables from HALPHY */
+    WMI_PDEV_ENHANCED_AOA_PHASEDELTA_EVENTID,
 
     /* VDEV specific events */
     /** VDEV started event in response to VDEV_START request */
@@ -9241,6 +9243,27 @@ typedef enum {
      *  units are microseconds
      */
     WMI_PDEV_PARAM_SLOT_TIME,
+
+    /** VO dedicated time -
+     * allocate dedicated time slots for VO access category across all
+     * ATF groups in a pdev.
+     *   Note :
+     *   1.  Per AC airtime per group is already available through
+     *       ATF WMM WMI commands
+     *   2.  The dedicated time slot is applicable per second
+     *   3.  Units are in milli-seconds
+     */
+    WMI_PDEV_PARAM_ATF_VO_DEDICATED_TIME,
+
+    /** VI dedicated time -
+     * allocate dedicated time slots for VI access category across all
+     * ATF groups in a pdev.
+     *   Note :
+     *   1.  Per AC airtime per group is already given through ATF WMM WMI cmds
+     *   2.  The dedicated time slot is applicable per second
+     *   3.  Units are in milli-seconds
+     */
+    WMI_PDEV_PARAM_ATF_VI_DEDICATED_TIME,
 } WMI_PDEV_PARAM;
 
 #define WMI_PDEV_ONLY_BSR_TRIG_IS_ENABLED(trig_type) WMI_GET_BITS(trig_type, 0, 1)
@@ -15675,6 +15698,18 @@ typedef struct {
 #define WMI_VDEV_STATS_IS_MULTI_GROUP_KEY_ENABLED_GET(flag) \
     WMI_GET_BITS(flag, 31, 1)
 
+typedef struct {
+    /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_ctrl_path_sta_rrm_stats_struct */
+    A_UINT32 tlv_header;
+    A_UINT32 dot11GroupTransmittedFrameCount;
+    A_UINT32 dot11GroupReceivedFrameCount;
+    A_UINT32 dot11TransmittedFrameCount;
+    A_UINT32 dot11AckFailureCount;
+    A_UINT32 dot11FailedCount;
+    A_UINT32 dot11FCSErrorCount;
+    A_UINT32 dot11RTSSuccessCount;
+    A_UINT32 dot11RTSFailureCount;
+} wmi_ctrl_path_sta_rrm_stats_struct;
 
 /**
  *  peer statistics.
@@ -18084,6 +18119,18 @@ typedef enum {
      */
     WMI_VDEV_PARAM_RTT_11AZ_TB_MAX_SESSION_EXPIRY,        /* 0xBD */
 
+    /*
+     * WiFi Standard version to be supported.
+     * Value is from enum WMI_WIFI_STANDARD
+     */
+    WMI_VDEV_PARAM_WIFI_STANDARD_VERSION,                 /* 0xBE */
+
+    /*
+     * Allow to disable TWT on 2G channel
+     * if corresponding INI is set
+     */
+    WMI_VDEV_PARAM_DISABLE_2G_TWT,                        /* 0xBF */
+
 
     /*=== ADD NEW VDEV PARAM TYPES ABOVE THIS LINE ===
      * The below vdev param types are used for prototyping, and are
@@ -19076,6 +19123,12 @@ enum wmi_sta_ps_param_uapsd {
     WMI_STA_PS_UAPSD_AC3_TRIGGER_EN = (1 << 7),
 };
 
+enum wmi_sta_ps_scheme_cfg {
+    WMI_STA_PS_OPM_CONSERVATIVE = 0,
+    WMI_STA_PS_OPM_AGGRESSIVE = 1,
+    WMI_STA_PS_USER_DEF = 2,
+};
+
 enum wmi_sta_powersave_param {
 /**
  * Controls how frames are retrievd from AP while STA is sleeping
@@ -19121,9 +19174,10 @@ WMI_STA_PS_PARAM_UAPSD = 4,
 WMI_STA_PS_PARAM_QPOWER_PSPOLL_COUNT = 5,
 
 /**
- * Enable QPower
+ * Enable OPM
  */
 WMI_STA_PS_ENABLE_QPOWER = 6,
+    WMI_STA_PS_ENABLE_OPM = WMI_STA_PS_ENABLE_QPOWER, /* alias */
 
 /**
  * Number of TX frames before the entering the Active state
@@ -19152,6 +19206,12 @@ WMI_STA_PS_PARAM_MAX_RESET_ITO_COUNT_ON_TIM_NO_TXRX = 10,
  * in WOW
  */
 WMI_STA_PS_PARAM_ENABLE_PS_OPT_IN_WOW = 11,
+
+/**
+ *  Speculative interval in ms
+ */
+WMI_STA_PS_PARAM_SPEC_WAKE_INTERVAL = 12,
+
 };
 
 typedef struct {
@@ -34624,6 +34684,7 @@ typedef enum {
     WMI_REQUEST_CTRL_PATH_BLANKING_STAT     = 15,
     WMI_REQUEST_CTRL_PATH_PEER_STAT         = 16,
     WMI_REQUEST_CTRL_PATH_VDEV_DEBUG_STAT   = 17,
+    WMI_REQUEST_CTRL_STA_RRM_STAT           = 18,
 } wmi_ctrl_path_stats_id;
 
 typedef enum {
@@ -40385,6 +40446,131 @@ typedef struct {
     A_UINT32 perChainIbfCalVal[WMI_MAX_CHAINS_FOR_AOA_RCC];
 } wmi_pdev_aoa_phasedelta_evt_fixed_param;
 
+#define WMI_AOA_MAX_SUPPORTED_CHAINS_GET(chain_data) \
+    WMI_GET_BITS(chain_data, 0, 16)
+#define WMI_AOA_MAX_SUPPORTED_CHAINS_SET(chain_data, value) \
+    WMI_SET_BITS(chain_data, 0, 16, value)
+
+#define WMI_AOA_SUPPORTED_CHAINMASK_GET(chain_data) \
+    WMI_GET_BITS(chain_data, 16, 16)
+#define WMI_AOA_SUPPORTED_CHAINMASK_SET(chain_data, value) \
+    WMI_SET_BITS(chain_data, 16, 16, value)
+
+typedef struct {
+    /** TLV tag and len; tag equals
+      * WMITLV_TAG_STRUC_wmi_pdev_enhanced_aoa_phasedelta_eventid */
+    A_UINT32 tlv_header;
+    /* Current Operating Channel Frequency in MHz */
+    A_UINT32 freq;
+    /** pdev_id:
+     * Identify the MAC.
+     * See macros starting with WMI_PDEV_ID_ for values.
+     * In non-DBDC case host should set it to 0.
+     */
+    A_UINT32 pdev_id;
+    /** chain_info:
+     * B0 -- B15 : Max number of chains supported
+     * B16 --B31 : Data shared for chainmask -
+     *             indicates the chains to which the data shared.
+     */
+    union {
+        struct {
+            A_UINT32 max_supported_chains:16,
+                     data_for_chainmask:16;
+        };
+        A_UINT32 chain_info;
+    };
+    /** XBAR configuration to get RF2BB/BB2RF chain mapping
+     * Samples of xbar_config,
+     * If xbar_config is 0xFAC688(hex):
+     *     RF chains 0-7 are connected to BB chains 0-7
+     *     here,
+     *         bits 0 to 2 = 0, maps BB chain 0 for RF chain 0
+     *         bits 3 to 5 = 1, maps BB chain 1 for RF chain 1
+     *         bits 6 to 8 = 2, maps BB chain 2 for RF chain 2
+     *         bits 9 to 11 = 3, maps BB chain 3 for RF chain 3
+     *         bits 12 to 14 = 4, maps BB chain 4 for RF chain 4
+     *         bits 15 to 17 = 5, maps BB chain 5 for RF chain 5
+     *         bits 18 to 20 = 6, maps BB chain 6 for RF chain 6
+     *         bits 21 to 23 = 7, maps BB chain 7 for RF chain 7
+     *
+     * If xbar_config is 0x688FAC(hex):
+     *     RF chains 0-3 are connected to BB chains 4-7
+     *     RF chains 4-7 are connected to BB chains 0-3
+     *     here,
+     *         bits 0 to 2 = 4, maps BB chain 4 for RF chain 0
+     *         bits 3 to 5 = 5, maps BB chain 5 for RF chain 1
+     *         bits 6 to 8 = 6, maps BB chain 6 for RF chain 2
+     *         bits 9 to 11 = 7, maps BB chain 7 for RF chain 3
+     *         bits 12 to 14 = 0, maps BB chain 0 for RF chain 4
+     *         bits 15 to 17 = 1, maps BB chain 1 for RF chain 5
+     *         bits 18 to 20 = 2, maps BB chain 2 for RF chain 6
+     *         bits 21 to 23 = 3, maps BB chain 3 for RF chain 7
+     */
+    A_UINT32 xbar_config;
+    /**
+     * IBF cal values:
+     * Used for final AoA calculation
+     * [AoAPhase =  ( PhaseDeltaValue + IBFcalValue )   %   1024]
+     */
+    A_UINT32 per_chain_ibf_cal_val[WMI_MAX_CHAINS];
+    /**
+     * This TLV is followed by TLV arrays containing
+     * different types of data header and data buffer TLVs:
+     * 1.  wmi_enhanced_aoa_gain_phase_data_hdr.
+     *     This TLV contains the array of structure fields which indicate
+     *     the type and format of data carried in the following data buffer
+     *     TLV.
+     * 2.  aoa_data_buf[] - Data buffer TLV.
+     *     TLV header contains the total buffer size.
+     *     Data buffer contains the phase_delta_array[Chains][GainEntries]
+     *     in absolute phase values ranging 0-1024 and
+     *     gain_delta_array[Chains][GainEntries] are gain index values.
+     */
+} wmi_pdev_enhanced_aoa_phasedelta_evt_fixed_param;
+
+#define WMI_AOA_DATA_TYPE_GET(data_info) \
+    WMI_GET_BITS(data_info, 0, 8)
+#define WMI_AOA_DATA_TYPE_SET(data_info,value) \
+    WMI_SET_BITS(data_info, 0, 8, value)
+
+#define WMI_AOA_NUM_ENTIRES_GET(data_info) \
+    WMI_GET_BITS(data_info, 8, 8)
+#define WMI_AOA_NUM_DATA_ENTRIES_SET(data_info,value) \
+    WMI_SET_BITS(data_info, 8, 8, value)
+
+typedef enum _WMI_AOA_EVENT_DATA_TYPE {
+    WMI_PHASE_DELTA_ARRAY = 0x0,
+    WMI_GAIN_GROUP_STOP_ARRAY = 0x1,
+    /* add new types here */
+    WMI_MAX_DATA_TYPE_ARRAY,
+} WMI_AOA_EVENT_DATA_TYPE;
+
+typedef struct {
+    /** TLV tag and len; tag equals
+      * WMITLV_TAG_STRUC_wmi_pdev_enhanced_aoa_phasedelta_eventid */
+    A_UINT32 tlv_header;
+    /** data_info:
+     * Data follows the LSB first and MSB second order in a 32bit word
+     * bit mapping:
+     * B0 -- B7  : Data type
+     * B8 -- B15 : Number of entries to be parsed in terms of 32bit word
+     *
+     * If data is Phase delta values - Data type is 0x0
+     * group stop gain index values - Data type is 0x1
+     *
+     * num_entries - Total number of data entries in uint32
+     */
+    union {
+        struct {
+            A_UINT32 data_type:8,
+                     num_entries:8,
+                     reserved:16;
+        };
+        A_UINT32 data_info;
+    };
+} wmi_enhanced_aoa_gain_phase_data_hdr;
+
 /* WMI_HALPHY_CAL_LIST:
  *
  * Below is the list of HALPHY online CAL currently enabled in
@@ -45606,7 +45792,7 @@ typedef struct {
         struct {
             A_UINT32 vdev_id:8,     /* vdev id for this link */
                      link_id:8,     /* link id defined as in 802.11 BE spec. */
-                     link_status:2, /* link_status - 0: active, 1: inactive  */
+                     link_status:2, /* link_status - 0: inactive, 1: active  */
                      reserved:14;
         };
         A_UINT32 link_info;
