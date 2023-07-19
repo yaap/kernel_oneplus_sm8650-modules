@@ -128,8 +128,10 @@ void rmnet_map_pb_ind_notify(struct rmnet_port *port,
 {
 	struct rmnet_map_pb_ind *tmp;
 
-	list_for_each_entry(tmp, &port->pb_list, list)
+	list_for_each_entry(tmp, &port->pb_list, list) {
+		port->stats.pb_marker_seq = pbhdr->le.seq_num;
 		tmp->pb_ind_handler(pbhdr);
+	}
 }
 
 static void rmnet_map_process_pb_ind(struct sk_buff *skb,
@@ -388,7 +390,7 @@ int rmnet_map_dl_ind_deregister(struct rmnet_port *port,
 {
 	struct rmnet_map_dl_ind *tmp;
 
-	if (!port || !dl_ind)
+	if (!port || !dl_ind || !(port->dl_list.next))
 		return -EINVAL;
 
 	list_for_each_entry(tmp, &port->dl_list, list) {
@@ -447,7 +449,7 @@ int rmnet_map_pb_ind_deregister(struct rmnet_port *port,
 {
 	struct rmnet_map_pb_ind *tmp;
 
-	if (!port || !pb_ind)
+	if (!port || !pb_ind || !(port->pb_list.next))
 		return -EINVAL;
 
 	list_for_each_entry(tmp, &port->pb_list, list) {
