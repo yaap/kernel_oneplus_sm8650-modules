@@ -804,6 +804,34 @@ static struct qmi_elem_info wlfw_share_mem_info_s_v01_ei[] = {
 	},
 };
 
+static struct qmi_elem_info wlfw_host_pcie_link_info_s_v01_ei[] = {
+	{
+		.data_type      = QMI_UNSIGNED_4_BYTE,
+		.elem_len       = 1,
+		.elem_size      = sizeof(u32),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0,
+		.offset         = offsetof(struct
+					   wlfw_host_pcie_link_info_s_v01,
+					   pci_link_speed),
+	},
+	{
+		.data_type      = QMI_UNSIGNED_4_BYTE,
+		.elem_len       = 1,
+		.elem_size      = sizeof(u32),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0,
+		.offset         = offsetof(struct
+					   wlfw_host_pcie_link_info_s_v01,
+					   pci_link_width),
+	},
+	{
+		.data_type      = QMI_EOTI,
+		.array_type       = NO_ARRAY,
+		.tlv_type       = QMI_COMMON_TLV_TYPE,
+	},
+};
+
 struct qmi_elem_info wlfw_ind_register_req_msg_v01_ei[] = {
 	{
 		.data_type      = QMI_OPT_FLAG,
@@ -1204,6 +1232,26 @@ struct qmi_elem_info wlfw_ind_register_req_msg_v01_ei[] = {
 		.offset         = offsetof(struct
 					   wlfw_ind_register_req_msg_v01,
 					   m3_dump_upload_segments_req_enable),
+	},
+	{
+		.data_type      = QMI_OPT_FLAG,
+		.elem_len       = 1,
+		.elem_size      = sizeof(u8),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x24,
+		.offset         = offsetof(struct
+					   wlfw_ind_register_req_msg_v01,
+					   fw_ssr_enable_valid),
+	},
+	{
+		.data_type      = QMI_UNSIGNED_1_BYTE,
+		.elem_len       = 1,
+		.elem_size      = sizeof(u8),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x24,
+		.offset         = offsetof(struct
+					   wlfw_ind_register_req_msg_v01,
+					   fw_ssr_enable),
 	},
 	{
 		.data_type      = QMI_EOTI,
@@ -4063,6 +4111,27 @@ struct qmi_elem_info wlfw_host_cap_req_msg_v01_ei[] = {
 		.ei_array      = wlfw_host_mlo_chip_v2_info_s_v01_ei,
 	},
 	{
+		.data_type      = QMI_OPT_FLAG,
+		.elem_len       = 1,
+		.elem_size      = sizeof(u8),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x30,
+		.offset         = offsetof(struct
+					   wlfw_host_cap_req_msg_v01,
+					   pcie_link_info_valid),
+	},
+	{
+		.data_type      = QMI_STRUCT,
+		.elem_len       = 1,
+		.elem_size      = sizeof(struct wlfw_host_pcie_link_info_s_v01),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x30,
+		.offset         = offsetof(struct
+					   wlfw_host_cap_req_msg_v01,
+					   pcie_link_info),
+		.ei_array      = wlfw_host_pcie_link_info_s_v01_ei,
+	},
+	{
 		.data_type      = QMI_EOTI,
 		.array_type       = NO_ARRAY,
 		.tlv_type       = QMI_COMMON_TLV_TYPE,
@@ -6568,6 +6637,54 @@ struct qmi_elem_info wlfw_tme_lite_info_resp_msg_v01_ei[] = {
 	},
 };
 EXPORT_SYMBOL(wlfw_tme_lite_info_resp_msg_v01_ei);
+
+struct qmi_elem_info wlfw_fw_ssr_ind_msg_v01_ei[] = {
+	{
+		.data_type      = QMI_EOTI,
+		.array_type       = NO_ARRAY,
+		.tlv_type       = QMI_COMMON_TLV_TYPE,
+	},
+};
+EXPORT_SYMBOL(wlfw_fw_ssr_ind_msg_v01_ei);
+
+struct qmi_elem_info wlfw_bmps_ctrl_req_msg_v01_ei[] = {
+	{
+		.data_type      = QMI_SIGNED_4_BYTE_ENUM,
+		.elem_len       = 1,
+		.elem_size      = sizeof(enum wlfw_bmps_state_enum_v01),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x01,
+		.offset         = offsetof(struct
+					   wlfw_bmps_ctrl_req_msg_v01,
+					   bmps_state),
+	},
+	{
+		.data_type      = QMI_EOTI,
+		.array_type       = NO_ARRAY,
+		.tlv_type       = QMI_COMMON_TLV_TYPE,
+	},
+};
+EXPORT_SYMBOL(wlfw_bmps_ctrl_req_msg_v01_ei);
+
+struct qmi_elem_info wlfw_bmps_ctrl_resp_msg_v01_ei[] = {
+	{
+		.data_type      = QMI_STRUCT,
+		.elem_len       = 1,
+		.elem_size      = sizeof(struct qmi_response_type_v01),
+		.array_type       = NO_ARRAY,
+		.tlv_type       = 0x02,
+		.offset         = offsetof(struct
+					   wlfw_bmps_ctrl_resp_msg_v01,
+					   resp),
+		.ei_array      = qmi_response_type_v01_ei,
+	},
+	{
+		.data_type      = QMI_EOTI,
+		.array_type       = NO_ARRAY,
+		.tlv_type       = QMI_COMMON_TLV_TYPE,
+	},
+};
+EXPORT_SYMBOL(wlfw_bmps_ctrl_resp_msg_v01_ei);
 
 /**
  * wlfw_is_valid_dt_node_found - Check if valid device tree node present

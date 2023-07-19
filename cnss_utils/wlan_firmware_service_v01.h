@@ -37,6 +37,7 @@
 #define QMI_WLFW_CAL_DOWNLOAD_REQ_V01 0x0027
 #define QMI_WLFW_IND_REGISTER_RESP_V01 0x0020
 #define QMI_WLFW_CAL_UPDATE_RESP_V01 0x0029
+#define QMI_WLFW_BMPS_CTRL_RESP_V01 0x005D
 #define QMI_WLFW_AUX_UC_INFO_RESP_V01 0x005A
 #define QMI_WLFW_M3_INFO_REQ_V01 0x003C
 #define QMI_WLFW_PCIE_GEN_SWITCH_REQ_V01 0x0053
@@ -75,10 +76,12 @@
 #define QMI_WLFW_QDSS_TRACE_REQ_MEM_IND_V01 0x003F
 #define QMI_WLFW_INITIATE_CAL_DOWNLOAD_IND_V01 0x0028
 #define QMI_WLFW_ATHDIAG_WRITE_RESP_V01 0x0031
+#define QMI_WLFW_FW_SSR_IND_V01 0x005C
 #define QMI_WLFW_PHY_CAP_RESP_V01 0x0057
 #define QMI_WLFW_QDSS_TRACE_CONFIG_DOWNLOAD_RESP_V01 0x0044
 #define QMI_WLFW_SOC_WAKE_RESP_V01 0x004F
 #define QMI_WLFW_GET_INFO_RESP_V01 0x004A
+#define QMI_WLFW_BMPS_CTRL_REQ_V01 0x005D
 #define QMI_WLFW_PCIE_GEN_SWITCH_RESP_V01 0x0053
 #define QMI_WLFW_INI_REQ_V01 0x002F
 #define QMI_WLFW_M3_DUMP_UPLOAD_SEGMENTS_REQ_IND_V01 0x0054
@@ -354,6 +357,13 @@ enum wlfw_tme_lite_file_type_v01 {
 	WLFW_TME_LITE_FILE_TYPE_MAX_VAL_V01 = INT_MAX,
 };
 
+enum wlfw_bmps_state_enum_v01 {
+	WLFW_BMPS_STATE_ENUM_MIN_VAL_V01 = INT_MIN,
+	QMI_WLFW_BMPS_ENABLE_V01 = 0,
+	QMI_WLFW_BMPS_DISABLE_V01 = 1,
+	WLFW_BMPS_STATE_ENUM_MAX_VAL_V01 = INT_MAX,
+};
+
 #define QMI_WLFW_CE_ATTR_FLAGS_V01 ((u32)0x00)
 #define QMI_WLFW_CE_ATTR_NO_SNOOP_V01 ((u32)0x01)
 #define QMI_WLFW_CE_ATTR_BYTE_SWAP_DATA_V01 ((u32)0x02)
@@ -506,6 +516,11 @@ struct wlfw_share_mem_info_s_v01 {
 	u64 size;
 };
 
+struct wlfw_host_pcie_link_info_s_v01 {
+	u32 pci_link_speed;
+	u32 pci_link_width;
+};
+
 struct wlfw_ind_register_req_msg_v01 {
 	u8 fw_ready_enable_valid;
 	u8 fw_ready_enable;
@@ -547,8 +562,10 @@ struct wlfw_ind_register_req_msg_v01 {
 	u8 qdss_mem_ready_enable;
 	u8 m3_dump_upload_segments_req_enable_valid;
 	u8 m3_dump_upload_segments_req_enable;
+	u8 fw_ssr_enable_valid;
+	u8 fw_ssr_enable;
 };
-#define WLFW_IND_REGISTER_REQ_MSG_V01_MAX_MSG_LEN 86
+#define WLFW_IND_REGISTER_REQ_MSG_V01_MAX_MSG_LEN 90
 extern struct qmi_elem_info wlfw_ind_register_req_msg_v01_ei[];
 
 struct wlfw_ind_register_resp_msg_v01 {
@@ -976,8 +993,10 @@ struct wlfw_host_cap_req_msg_v01 {
 	u8 fw_ini_cfg_support;
 	u8 mlo_chip_v2_info_valid;
 	struct wlfw_host_mlo_chip_v2_info_s_v01 mlo_chip_v2_info[QMI_WLFW_MAX_NUM_MLO_V2_CHIPS_V01];
+	u8 pcie_link_info_valid;
+	struct wlfw_host_pcie_link_info_s_v01 pcie_link_info;
 };
-#define WLFW_HOST_CAP_REQ_MSG_V01_MAX_MSG_LEN 570
+#define WLFW_HOST_CAP_REQ_MSG_V01_MAX_MSG_LEN 581
 extern struct qmi_elem_info wlfw_host_cap_req_msg_v01_ei[];
 
 struct wlfw_host_cap_resp_msg_v01 {
@@ -1498,5 +1517,23 @@ struct wlfw_tme_lite_info_resp_msg_v01 {
 };
 #define WLFW_TME_LITE_INFO_RESP_MSG_V01_MAX_MSG_LEN 7
 extern struct qmi_elem_info wlfw_tme_lite_info_resp_msg_v01_ei[];
+
+struct wlfw_fw_ssr_ind_msg_v01 {
+	char placeholder;
+};
+#define WLFW_FW_SSR_IND_MSG_V01_MAX_MSG_LEN 0
+extern struct qmi_elem_info wlfw_fw_ssr_ind_msg_v01_ei[];
+
+struct wlfw_bmps_ctrl_req_msg_v01 {
+	enum wlfw_bmps_state_enum_v01 bmps_state;
+};
+#define WLFW_BMPS_CTRL_REQ_MSG_V01_MAX_MSG_LEN 7
+extern struct qmi_elem_info wlfw_bmps_ctrl_req_msg_v01_ei[];
+
+struct wlfw_bmps_ctrl_resp_msg_v01 {
+	struct qmi_response_type_v01 resp;
+};
+#define WLFW_BMPS_CTRL_RESP_MSG_V01_MAX_MSG_LEN 7
+extern struct qmi_elem_info wlfw_bmps_ctrl_resp_msg_v01_ei[];
 
 #endif

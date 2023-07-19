@@ -21,6 +21,7 @@ int cnss_bus_init(struct cnss_plat_data *plat_priv);
 void cnss_bus_deinit(struct cnss_plat_data *plat_priv);
 void cnss_bus_add_fw_prefix_name(struct cnss_plat_data *plat_priv,
 				 char *prefix_name, char *name);
+int cnss_bus_load_tme_patch(struct cnss_plat_data *plat_priv);
 int cnss_bus_load_m3(struct cnss_plat_data *plat_priv);
 int cnss_bus_load_aux(struct cnss_plat_data *plat_priv);
 int cnss_bus_handle_dev_sol_irq(struct cnss_plat_data *plat_priv);

@@ -4299,14 +4299,13 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 
 		icnss_get_msi_assignment(priv);
 		for (i = 0; i < priv->msi_config->total_vectors; i++) {
-			res = platform_get_resource(priv->pdev,
-						    IORESOURCE_IRQ, i);
-			if (!res) {
+			irq = platform_get_irq(priv->pdev, i);
+			if (irq < 0) {
 				icnss_pr_err("Fail to get IRQ-%d\n", i);
 				ret = -ENODEV;
 				goto put_clk;
 			} else {
-				priv->srng_irqs[i] = res->start;
+				priv->srng_irqs[i] = irq;
 			}
 		}
 	}
@@ -4621,7 +4620,7 @@ static void rproc_restart_level_notifier(void *data, struct rproc *rproc)
 	}
 }
 
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+#if IS_ENABLED(CONFIG_WCNSS_MEM_PRE_ALLOC)
 static void icnss_initialize_mem_pool(unsigned long device_id)
 {
 	cnss_initialize_prealloc_pool(device_id);

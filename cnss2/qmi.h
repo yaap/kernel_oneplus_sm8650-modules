@@ -44,6 +44,8 @@ int cnss_wlfw_respond_mem_send_sync(struct cnss_plat_data *plat_priv);
 int cnss_wlfw_tgt_cap_send_sync(struct cnss_plat_data *plat_priv);
 int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 				 u32 bdf_type);
+int cnss_wlfw_tme_patch_dnld_send_sync(struct cnss_plat_data *plat_priv,
+				       enum wlfw_tme_lite_file_type_v01 file);
 int cnss_wlfw_m3_dnld_send_sync(struct cnss_plat_data *plat_priv);
 int cnss_wlfw_aux_dnld_send_sync(struct cnss_plat_data *plat_priv);
 int cnss_wlfw_wlan_mode_send_sync(struct cnss_plat_data *plat_priv,
