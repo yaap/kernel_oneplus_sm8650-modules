@@ -629,7 +629,12 @@ static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 
 	tcm_hcd->report.id = tcm_hcd->status_report_code;
 
-	mutex_lock(&mod_pool.mutex);
+	if (!mutex_trylock(&mod_pool.mutex)) {
+		LOGI(tcm_hcd->pdev->dev.parent, "unable to acquire mod_pool.mutex\n");
+		UNLOCK_BUFFER(tcm_hcd->report.buffer);
+		UNLOCK_BUFFER(tcm_hcd->in);
+		return;
+	}
 
 	if (!list_empty(&mod_pool.list)) {
 		list_for_each_entry(mod_handler, &mod_pool.list, link) {
