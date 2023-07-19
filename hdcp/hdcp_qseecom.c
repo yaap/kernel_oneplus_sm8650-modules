@@ -20,7 +20,7 @@
 #define hdcp2_app_init_var(x) \
 	struct hdcp_##x##_req *req_buf = NULL; \
 	struct hdcp_##x##_rsp *rsp_buf = NULL; \
-	if (!handle->qseecom_handle) { \
+	if (!handle || !handle->qseecom_handle) { \
 		pr_err("invalid qseecom_handle while processing %s\n", #x); \
 		rc = -EINVAL; \
 		goto error; \
@@ -212,12 +212,17 @@ static void hdcp1_app_unload(struct hdcp1_qsee_handle *handle)
 			pr_warn("%s app unload failed (%d)\n", HDCP1OPS_APP_NAME, rc);
 	}
 
+	hdcp1_app_started--;
+	if (!hdcp1_app_started) {
 	/* deallocate the resources for qseecom HDCP 1.x handle */
-	rc = qseecom_shutdown_app(&handle->qseecom_handle);
-	if (rc) {
-		pr_err("%s app unload failed (%d)\n", handle->app_name, rc);
-		return;
+		rc = qseecom_shutdown_app(&hdcp1_qseecom_handle_g);
+		if (rc) {
+			pr_err("%s app unload failed (%d)\n", handle->app_name, rc);
+			return;
+		}
+		hdcp1_qseecom_handle_g = NULL;
 	}
+	handle->qseecom_handle = NULL;
 
 	handle->hdcp_state &= ~HDCP_STATE_APP_LOADED;
 	pr_debug("%s app unloaded\n", handle->app_name);
