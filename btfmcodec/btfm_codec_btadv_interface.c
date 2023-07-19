@@ -322,6 +322,6 @@ void btfmcodec_wq_prepare_bearer(struct work_struct *work)
 						struct btfmcodec_char_device,
 						wq_prepare_bearer);
 	int idx = BTM_PKT_TYPE_PREPARE_REQ;
-	BTFMCODEC_INFO(": with new transport:%d", btfmcodec_dev->status[idx]);
+	BTFMCODEC_INFO("with new transport:%d", btfmcodec_dev->status[idx]);
 	btfmcodec_prepare_bearer(btfmcodec_dev, btfmcodec_dev->status[idx]);
 }
