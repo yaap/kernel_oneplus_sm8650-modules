@@ -230,8 +230,8 @@ struct api_calculation_bw_output {
 };
 
 int msm_vidc_calculate_frequency(struct api_calculation_input codec_input,
-		struct api_calculation_freq_output *codec_output);
+				 struct api_calculation_freq_output *codec_output);
 int msm_vidc_calculate_bandwidth(struct api_calculation_input codec_input,
-		struct api_calculation_bw_output *codec_output);
+				 struct api_calculation_bw_output *codec_output);
 
 #endif /*_PERF_STATIC_MODEL_H_ */
