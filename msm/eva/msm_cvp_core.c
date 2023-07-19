@@ -388,7 +388,7 @@ release_arp:
 		if (inst->core->resources.pm_qos.off_vote_cnt > 0)
 			inst->core->resources.pm_qos.off_vote_cnt--;
 		else
-			dprintk(CVP_WARN, "%s Unexpected pm_qos off vote %d\n",
+			dprintk(CVP_INFO, "%s Unexpected pm_qos off vote %d\n",
 				__func__,
 				inst->core->resources.pm_qos.off_vote_cnt);
 		spin_unlock(&inst->core->resources.pm_qos.lock);
