@@ -2553,7 +2553,8 @@ if (active_panel)
 	raydium_enable_regulator(g_raydium_ts, false);
 	raydium_get_regulator(g_raydium_ts, false);
 
-	kfree(g_raydium_ts);
+	devm_kfree(&client->dev, g_raydium_ts);
+	g_raydium_ts = NULL;
 
 	i2c_set_clientdata(client, NULL);
 	LOGD(LOG_INFO, "[touch] %s: done\n", __func__);
@@ -2601,7 +2602,8 @@ if (active_panel)
 	raydium_enable_regulator(g_raydium_ts, false);
 	raydium_get_regulator(g_raydium_ts, false);
 
-	kfree(g_raydium_ts);
+	devm_kfree(&client->dev, g_raydium_ts);
+	g_raydium_ts = NULL;
 
 	i2c_set_clientdata(client, NULL);
 	LOGD(LOG_INFO, "[touch] %s: done\n", __func__);
