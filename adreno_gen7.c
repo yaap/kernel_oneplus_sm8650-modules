@@ -841,6 +841,9 @@ int gen7_scm_gpu_init_cx_regs(struct adreno_device *adreno_dev)
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_BCL))
 		gpu_req |= GPU_BCL_EN_REQ;
 
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_CLX))
+		gpu_req |= GPU_CLX_EN_REQ;
+
 	if (adreno_is_gen7_9_x(adreno_dev))
 		gpu_req |= GPU_TSENSE_EN_REQ;
 
@@ -852,6 +855,10 @@ int gen7_scm_gpu_init_cx_regs(struct adreno_device *adreno_dev)
 	 */
 	if (!ret && ADRENO_FEATURE(adreno_dev, ADRENO_BCL))
 		adreno_dev->bcl_enabled = true;
+
+	/* If programming TZ CLX was successful, then program KMD owned CLX regs */
+	if (!ret && ADRENO_FEATURE(adreno_dev, ADRENO_CLX))
+		adreno_dev->clx_enabled = true;
 
 	/*
 	 * If scm call returned EOPNOTSUPP, either we are on a kernel version
