@@ -304,6 +304,13 @@ int msm_cvp_map_buf_dsp(struct msm_cvp_inst *inst, struct eva_kmd_buffer *buf)
 		goto exit;
 	}
 
+	if (dma_buf->size < buf->size) {
+		dprintk(CVP_ERR, "%s DSP client buffer too large %d > %d\n",
+			__func__, buf->size, dma_buf->size);
+		rc =  -EINVAL;
+		goto exit;
+	}
+
 	dprintk(CVP_MEM, "dma_buf from internal %llu\n", dma_buf);
 
 	cbuf = cvp_kmem_cache_zalloc(&cvp_driver->buf_cache, GFP_KERNEL);
