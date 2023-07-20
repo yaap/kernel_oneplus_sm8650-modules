@@ -6,7 +6,7 @@ def define_mem(target, variant):
     include_base = "../../../{}".format(native.package_name())
 
     ddk_module(
-        name = "{}_mem".format(kernel_build_variant),
+        name = "{}_rmnet_mem".format(kernel_build_variant),
         out = "rmnet_mem.ko",
         srcs = [
             "rmnet_mem.h",
@@ -26,7 +26,7 @@ def define_mem(target, variant):
     copy_to_dist_dir(
         name = "{}_datarment-ext_dist".format(kernel_build_variant),
         data = [
-            ":{}_mem".format(kernel_build_variant),
+            ":{}_rmnet_mem".format(kernel_build_variant),
         ],
         dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
         flat = True,
