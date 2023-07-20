@@ -1520,7 +1520,15 @@ static void process_kernel_obj(void *buf, size_t buf_len)
 
 	switch (cb_req->hdr.op) {
 	case OBJECT_OP_MAP_REGION:
-		pr_err("Received a request to map memory region\n");
+		if (mem_obj_async_support) {
+			/* Mapping requests are not supposed to come
+			 * from TZ once memory object async support
+			 * is enabled.
+			 * If they are still coming, we would like to
+			 * know about it.
+			 */
+			pr_info("Received a request to map memory region\n");
+		}
 		cb_req->result = smcinvoke_process_map_mem_region_req(buf, buf_len);
 		break;
 	case OBJECT_OP_YIELD:
