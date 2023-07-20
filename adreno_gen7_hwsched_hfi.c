@@ -1761,6 +1761,27 @@ static int gmu_cntr_register_reply(struct adreno_device *adreno_dev, void *rcvd)
 	return gen7_hfi_cmdq_write(adreno_dev, (u32 *)&out, sizeof(out));
 }
 
+static int send_warmboot_start_msg(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	unsigned int seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	int ret = 0;
+	struct hfi_start_cmd cmd;
+
+	if (!adreno_dev->warmboot_enabled)
+		return ret;
+
+	ret = CMD_MSG_HDR(cmd, H2F_MSG_START);
+	if (ret)
+		return ret;
+
+	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr, seqnum);
+
+	cmd.hdr = RECORD_NOP_MSG_HDR(cmd.hdr);
+
+	return gen7_hfi_send_generic_req(adreno_dev, &cmd, sizeof(cmd));
+}
+
 static int send_start_msg(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
@@ -1899,7 +1920,7 @@ void gen7_hwsched_hfi_stop(struct adreno_device *adreno_dev)
 	reset_hfi_mem_records(adreno_dev);
 }
 
-static void enable_async_hfi(struct adreno_device *adreno_dev)
+static void gen7_hwsched_enable_async_hfi(struct adreno_device *adreno_dev)
 {
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 
@@ -1912,6 +1933,7 @@ static void enable_async_hfi(struct adreno_device *adreno_dev)
 static int enable_preemption(struct adreno_device *adreno_dev)
 {
 	const struct adreno_gen7_core *gen7_core = to_gen7_core(adreno_dev);
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	u32 data;
 	int ret;
 
@@ -1943,6 +1965,13 @@ static int enable_preemption(struct adreno_device *adreno_dev)
 				HFI_VALUE_RB_GPU_QOS, i,
 				gen7_core->qos_value[i]);
 		}
+	}
+
+	if (device->pwrctrl.rt_bus_hint) {
+		ret = gen7_hfi_send_set_value(adreno_dev, HFI_VALUE_RB_IB_RULE, 0,
+			device->pwrctrl.rt_bus_hint);
+		if (ret)
+			device->pwrctrl.rt_bus_hint = 0;
 	}
 
 	/*
@@ -2072,10 +2101,251 @@ static int gen7_hfi_send_dms_feature_ctrl(struct adreno_device *adreno_dev)
 	return ret;
 }
 
+static void gen7_spin_idle_debug_lpac(struct adreno_device *adreno_dev,
+				const char *str)
+{
+	struct kgsl_device *device = &adreno_dev->dev;
+	u32 rptr, wptr, status, status3, intstatus, hwfault;
+	bool val = adreno_is_preemption_enabled(adreno_dev);
+
+	dev_err(device->dev, str);
+
+	kgsl_regread(device, GEN7_CP_LPAC_RB_RPTR, &rptr);
+	kgsl_regread(device, GEN7_CP_LPAC_RB_WPTR, &wptr);
+
+	kgsl_regread(device, GEN7_RBBM_STATUS, &status);
+	kgsl_regread(device, GEN7_RBBM_STATUS3, &status3);
+	kgsl_regread(device, GEN7_RBBM_INT_0_STATUS, &intstatus);
+	kgsl_regread(device, GEN7_CP_HW_FAULT, &hwfault);
+
+	dev_err(device->dev,
+		"LPAC rb=%d pos=%X/%X rbbm_status=%8.8X/%8.8X int_0_status=%8.8X\n",
+		val ? KGSL_LPAC_RB_ID : 1, rptr, wptr,
+		status, status3, intstatus);
+
+	dev_err(device->dev, " hwfault=%8.8X\n", hwfault);
+
+	kgsl_device_snapshot(device, NULL, NULL, false);
+}
+
+static bool gen7_hwsched_warmboot_possible(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+
+	if (adreno_dev->warmboot_enabled && test_bit(GMU_PRIV_WARMBOOT_GMU_INIT_DONE, &gmu->flags)
+		&& test_bit(GMU_PRIV_WARMBOOT_GPU_BOOT_DONE, &gmu->flags) &&
+		!test_bit(ADRENO_DEVICE_FORCE_COLDBOOT, &adreno_dev->priv))
+		return true;
+
+	return false;
+}
+
+static int gen7_hwsched_hfi_send_warmboot_cmd(struct adreno_device *adreno_dev,
+		struct kgsl_memdesc *desc, u32 flag, bool async, struct pending_cmd *ack)
+{
+	struct hfi_warmboot_scratch_cmd cmd;
+	int ret;
+
+	if (!adreno_dev->warmboot_enabled)
+		return 0;
+
+	cmd.scratch_addr = desc->gmuaddr;
+	cmd.scratch_size =  desc->size;
+	cmd.flags = flag;
+
+	ret = CMD_MSG_HDR(cmd, H2F_MSG_WARMBOOT_CMD);
+	if (ret)
+		return ret;
+
+	if (async)
+		return gen7_hfi_send_cmd_async(adreno_dev, &cmd, sizeof(cmd));
+
+	return gen7_hfi_send_generic_req_v5(adreno_dev, &cmd, ack, sizeof(cmd));
+}
+
+static int gen7_hwsched_hfi_warmboot_gpu_cmd(struct adreno_device *adreno_dev,
+		struct pending_cmd *ret_cmd)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+	struct hfi_warmboot_scratch_cmd cmd = {
+		.scratch_addr = gmu->gpu_boot_scratch->gmuaddr,
+		.scratch_size = gmu->gpu_boot_scratch->size,
+		.flags = HFI_WARMBOOT_EXEC_SCRATCH,
+	};
+	int ret = 0;
+
+	if (!adreno_dev->warmboot_enabled)
+		return 0;
+
+	ret = CMD_MSG_HDR(cmd, H2F_MSG_WARMBOOT_CMD);
+	if (ret)
+		return ret;
+
+	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr,
+			atomic_inc_return(&gmu->hfi.seqnum));
+
+	add_waiter(hfi, cmd.hdr, ret_cmd);
+
+	ret = gen7_hfi_cmdq_write(adreno_dev, (u32 *)&cmd, sizeof(cmd));
+	if (ret)
+		goto err;
+
+	ret = adreno_hwsched_wait_ack_completion(adreno_dev, &gmu->pdev->dev, ret_cmd,
+		gen7_hwsched_process_msgq);
+err:
+	del_waiter(hfi, ret_cmd);
+
+	return ret;
+}
+
+static int gen7_hwsched_warmboot_gpu(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct pending_cmd ret_cmd = {0};
+	int ret = 0;
+
+	ret = gen7_hwsched_hfi_warmboot_gpu_cmd(adreno_dev, &ret_cmd);
+	if (!ret)
+		return ret;
+
+	if (MSG_HDR_GET_TYPE(ret_cmd.results[1]) != H2F_MSG_WARMBOOT_CMD)
+		goto err;
+
+	switch (MSG_HDR_GET_TYPE(ret_cmd.results[2])) {
+	case H2F_MSG_ISSUE_CMD_RAW: {
+		if (ret_cmd.results[2] == gmu->cp_init_hdr)
+			gen7_spin_idle_debug(adreno_dev,
+				"CP initialization failed to idle\n");
+		else if (ret_cmd.results[2] == gmu->switch_to_unsec_hdr)
+			gen7_spin_idle_debug(adreno_dev,
+				"Switch to unsecure failed to idle\n");
+		}
+		break;
+	case H2F_MSG_ISSUE_LPAC_CMD_RAW:
+		gen7_spin_idle_debug_lpac(adreno_dev,
+			"LPAC CP initialization failed to idle\n");
+		break;
+	}
+err:
+	/* Clear the bit on error so that in the next slumber exit we coldboot */
+	clear_bit(GMU_PRIV_WARMBOOT_GPU_BOOT_DONE, &gmu->flags);
+	gen7_disable_gpu_irq(adreno_dev);
+	return ret;
+}
+
+static int gen7_hwsched_coldboot_gpu(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
+	struct pending_cmd ack = {0};
+	int ret = 0;
+
+	/* Clear the bit so we can set it when GPU bootup message recording is successful */
+	clear_bit(GMU_PRIV_WARMBOOT_GPU_BOOT_DONE, &gmu->flags);
+
+	ret = gen7_hwsched_hfi_send_warmboot_cmd(adreno_dev, gmu->gpu_boot_scratch,
+		 HFI_WARMBOOT_SET_SCRATCH, true, &ack);
+	if (ret)
+		goto done;
+
+	ret = gen7_hwsched_cp_init(adreno_dev);
+	if (ret)
+		goto done;
+
+	ret = gen7_hwsched_lpac_cp_init(adreno_dev);
+	if (ret)
+		goto done;
+
+	ret = gen7_hwsched_hfi_send_warmboot_cmd(adreno_dev, gmu->gpu_boot_scratch,
+		HFI_WARMBOOT_QUERY_SCRATCH, true, &ack);
+	if (ret)
+		goto done;
+
+	if (adreno_dev->warmboot_enabled)
+		set_bit(GMU_PRIV_WARMBOOT_GPU_BOOT_DONE, &gmu->flags);
+
+done:
+	/* Clear the bitmask so that we don't send record bit with future HFI messages */
+	memset(hfi->wb_set_record_bitmask, 0x0, sizeof(hfi->wb_set_record_bitmask));
+
+	if (ret)
+		gen7_disable_gpu_irq(adreno_dev);
+
+	return ret;
+}
+
+int gen7_hwsched_boot_gpu(struct adreno_device *adreno_dev)
+{
+	/* If warmboot is possible just send the warmboot command else coldboot */
+	if (gen7_hwsched_warmboot_possible(adreno_dev))
+		return gen7_hwsched_warmboot_gpu(adreno_dev);
+	else
+		return gen7_hwsched_coldboot_gpu(adreno_dev);
+}
+
+static int gen7_hwsched_setup_default_votes(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	int ret = 0;
+
+	/* Request default DCVS level */
+	ret = kgsl_pwrctrl_set_default_gpu_pwrlevel(device);
+	if (ret)
+		return ret;
+
+	/* Request default BW vote */
+	return kgsl_pwrctrl_axi(device, true);
+}
+
+int gen7_hwsched_warmboot_init_gmu(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct pending_cmd ack = {0};
+	int ret = 0;
+
+	ret = gen7_hwsched_hfi_send_warmboot_cmd(adreno_dev, gmu->gmu_init_scratch,
+		 HFI_WARMBOOT_EXEC_SCRATCH, false, &ack);
+	if (ret)
+		goto err;
+
+	gen7_hwsched_enable_async_hfi(adreno_dev);
+
+	set_bit(GMU_PRIV_HFI_STARTED, &gmu->flags);
+
+	ret = gen7_hwsched_setup_default_votes(adreno_dev);
+
+err:
+	if (ret) {
+		/* Clear the bit in case of an error so next boot will be coldboot */
+		clear_bit(GMU_PRIV_WARMBOOT_GMU_INIT_DONE, &gmu->flags);
+		gen7_hwsched_hfi_stop(adreno_dev);
+	}
+
+	return ret;
+}
+
+static void warmboot_init_message_record_bitmask(struct adreno_device *adreno_dev)
+{
+	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
+
+	if (!adreno_dev->warmboot_enabled)
+		return;
+
+	/* Set the record bit for all the messages */
+	memset(hfi->wb_set_record_bitmask, 0xFF, sizeof(hfi->wb_set_record_bitmask));
+
+	/* These messages should not be recorded */
+	clear_bit(H2F_MSG_WARMBOOT_CMD, hfi->wb_set_record_bitmask);
+	clear_bit(H2F_MSG_START, hfi->wb_set_record_bitmask);
+	clear_bit(H2F_MSG_GET_VALUE, hfi->wb_set_record_bitmask);
+	clear_bit(H2F_MSG_GX_BW_PERF_VOTE, hfi->wb_set_record_bitmask);
+}
+
 int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct pending_cmd ack = {0};
 	int ret;
 
 	reset_hfi_queues(adreno_dev);
@@ -2084,8 +2354,27 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
+	if (gen7_hwsched_warmboot_possible(adreno_dev))
+		return gen7_hwsched_warmboot_init_gmu(adreno_dev);
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_GMU_WARMBOOT) &&
+		(!test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags))) {
+		if (gen7_hfi_send_get_value(adreno_dev, HFI_VALUE_GMU_WARMBOOT, 0) == 1)
+			adreno_dev->warmboot_enabled = true;
+	}
+
+	warmboot_init_message_record_bitmask(adreno_dev);
+
+	/* Reset the variable here and set it when we successfully record the scratch */
+	clear_bit(GMU_PRIV_WARMBOOT_GMU_INIT_DONE, &gmu->flags);
+
+	ret = gen7_hwsched_hfi_send_warmboot_cmd(adreno_dev, gmu->gmu_init_scratch,
+		HFI_WARMBOOT_SET_SCRATCH, false, &ack);
+	if (ret)
+		goto err;
+
 	ret = gen7_hfi_send_generic_req(adreno_dev, &gmu->hfi.dcvs_table,
-		sizeof(gmu->hfi.dcvs_table));
+			sizeof(gmu->hfi.dcvs_table));
 	if (ret)
 		goto err;
 
@@ -2181,28 +2470,30 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
-	enable_async_hfi(adreno_dev);
+	/*
+	 * Send this additional start message on cold boot if warmboot is enabled.
+	 * This message will be recorded and on a warmboot this will trigger the
+	 * sequence to replay memory allocation requests and ECP task setup
+	 */
+	ret = send_warmboot_start_msg(adreno_dev);
+	if (ret)
+		goto err;
+
+	gen7_hwsched_enable_async_hfi(adreno_dev);
 
 	set_bit(GMU_PRIV_HFI_STARTED, &gmu->flags);
 
-	/* Request default DCVS level */
-	ret = kgsl_pwrctrl_set_default_gpu_pwrlevel(device);
+	/* Send this message only on cold boot */
+	ret = gen7_hwsched_hfi_send_warmboot_cmd(adreno_dev, gmu->gmu_init_scratch,
+		HFI_WARMBOOT_QUERY_SCRATCH, true, &ack);
 	if (ret)
 		goto err;
 
-	/* Request default BW vote */
-	ret = kgsl_pwrctrl_axi(device, true);
-	if (ret)
-		goto err;
+	if (adreno_dev->warmboot_enabled)
+		set_bit(GMU_PRIV_WARMBOOT_GMU_INIT_DONE, &gmu->flags);
 
-	/* Switch to min GMU clock */
-	gen7_rdpm_cx_freq_update(gmu, gmu->freqs[0] / 1000);
+	ret = gen7_hwsched_setup_default_votes(adreno_dev);
 
-	ret = kgsl_clk_set_rate(gmu->clks, gmu->num_clks, "gmu_clk",
-			gmu->freqs[0]);
-	if (ret)
-		dev_err(&gmu->pdev->dev, "GMU clock:%d set failed:%d\n",
-			gmu->freqs[0], ret);
 err:
 	if (ret)
 		gen7_hwsched_hfi_stop(adreno_dev);
@@ -2227,33 +2518,6 @@ static int submit_raw_cmds(struct adreno_device *adreno_dev, void *cmds, u32 siz
 	return ret;
 }
 
-static void spin_idle_debug_lpac(struct adreno_device *adreno_dev,
-				const char *str)
-{
-	struct kgsl_device *device = &adreno_dev->dev;
-	u32 rptr, wptr, status, status3, intstatus, hwfault;
-	bool val = adreno_is_preemption_enabled(adreno_dev);
-
-	dev_err(device->dev, str);
-
-	kgsl_regread(device, GEN7_CP_LPAC_RB_RPTR, &rptr);
-	kgsl_regread(device, GEN7_CP_LPAC_RB_WPTR, &wptr);
-
-	kgsl_regread(device, GEN7_RBBM_STATUS, &status);
-	kgsl_regread(device, GEN7_RBBM_STATUS3, &status3);
-	kgsl_regread(device, GEN7_RBBM_INT_0_STATUS, &intstatus);
-	kgsl_regread(device, GEN7_CP_HW_FAULT, &hwfault);
-
-	dev_err(device->dev,
-		"LPAC rb=%d pos=%X/%X rbbm_status=%8.8X/%8.8X int_0_status=%8.8X\n",
-		val ? KGSL_LPAC_RB_ID : 1, rptr, wptr,
-		status, status3, intstatus);
-
-	dev_err(device->dev, " hwfault=%8.8X\n", hwfault);
-
-	kgsl_device_snapshot(device, NULL, NULL, false);
-}
-
 static int submit_lpac_raw_cmds(struct adreno_device *adreno_dev, void *cmds, u32 size_bytes,
 	const char *str)
 {
@@ -2266,66 +2530,54 @@ static int submit_lpac_raw_cmds(struct adreno_device *adreno_dev, void *cmds, u3
 	ret = gmu_core_timed_poll_check(KGSL_DEVICE(adreno_dev),
 			GEN7_GPU_GMU_AO_GPU_LPAC_BUSY_STATUS, 0, 200, BIT(23));
 	if (ret)
-		spin_idle_debug_lpac(adreno_dev, str);
+		gen7_spin_idle_debug_lpac(adreno_dev, str);
 
 	return ret;
 }
 
 static int cp_init(struct adreno_device *adreno_dev)
 {
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	u32 cmds[GEN7_CP_INIT_DWORDS + 1];
+	int ret = 0;
 
 	cmds[0] = CREATE_MSG_HDR(H2F_MSG_ISSUE_CMD_RAW, HFI_MSG_CMD);
 
 	gen7_cp_init_cmds(adreno_dev, &cmds[1]);
 
-	return submit_raw_cmds(adreno_dev, cmds, sizeof(cmds),
+	ret = submit_raw_cmds(adreno_dev, cmds, sizeof(cmds),
 			"CP initialization failed to idle\n");
+
+	/* Save the header incase we need a warmboot debug */
+	gmu->cp_init_hdr = cmds[0];
+
+	return ret;
 }
 
 static int send_switch_to_unsecure(struct adreno_device *adreno_dev)
 {
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	u32 cmds[3];
+	int ret = 0;
 
 	cmds[0] = CREATE_MSG_HDR(H2F_MSG_ISSUE_CMD_RAW, HFI_MSG_CMD);
 
 	cmds[1] = cp_type7_packet(CP_SET_SECURE_MODE, 1);
 	cmds[2] = 0;
 
-	return submit_raw_cmds(adreno_dev, cmds, sizeof(cmds),
+	ret = submit_raw_cmds(adreno_dev, cmds, sizeof(cmds),
 			"Switch to unsecure failed to idle\n");
+
+	/* Save the header incase we need a warmboot debug */
+	gmu->switch_to_unsec_hdr = cmds[0];
+
+	return ret;
 }
 
 int gen7_hwsched_cp_init(struct adreno_device *adreno_dev)
 {
 	const struct adreno_gen7_core *gen7_core = to_gen7_core(adreno_dev);
-	struct adreno_firmware *fw = ADRENO_FW(adreno_dev, ADRENO_FW_SQE);
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
-
-	/* Program the ucode base for CP */
-	kgsl_regwrite(device, GEN7_CP_SQE_INSTR_BASE_LO,
-		lower_32_bits(fw->memdesc->gpuaddr));
-	kgsl_regwrite(device, GEN7_CP_SQE_INSTR_BASE_HI,
-		upper_32_bits(fw->memdesc->gpuaddr));
-
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_AQE)) {
-		fw = ADRENO_FW(adreno_dev, ADRENO_FW_AQE);
-
-		/* Program the ucode base for AQE0 (BV coprocessor) */
-		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_0,
-			lower_32_bits(fw->memdesc->gpuaddr));
-		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_0,
-			upper_32_bits(fw->memdesc->gpuaddr));
-
-		/* Program the ucode base for AQE1 (LPAC coprocessor) */
-		if (adreno_dev->lpac_enabled) {
-			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_1,
-				      lower_32_bits(fw->memdesc->gpuaddr));
-			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_1,
-				      upper_32_bits(fw->memdesc->gpuaddr));
-		}
-	}
 
 	ret = cp_init(adreno_dev);
 	if (ret)

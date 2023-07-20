@@ -74,6 +74,7 @@ static ssize_t log_stream_enable_store(struct kobject *kobj,
 		return ret;
 
 	gmu->log_stream_enable = val;
+	adreno_mark_for_coldboot(gen7_gmu_to_adreno(gmu));
 	return count;
 }
 
@@ -96,6 +97,7 @@ static ssize_t log_group_mask_store(struct kobject *kobj,
 		return ret;
 
 	gmu->log_group_mask = val;
+	adreno_mark_for_coldboot(gen7_gmu_to_adreno(gmu));
 	return count;
 }
 
@@ -136,6 +138,7 @@ static ssize_t stats_enable_store(struct kobject *kobj,
 		return ret;
 
 	gmu->stats_enable = val;
+	adreno_mark_for_coldboot(gen7_gmu_to_adreno(gmu));
 	return count;
 }
 
@@ -158,6 +161,7 @@ static ssize_t stats_mask_store(struct kobject *kobj,
 		return ret;
 
 	gmu->stats_mask = val;
+	adreno_mark_for_coldboot(gen7_gmu_to_adreno(gmu));
 	return count;
 }
 
@@ -180,6 +184,7 @@ static ssize_t stats_interval_store(struct kobject *kobj,
 		return ret;
 
 	gmu->stats_interval = val;
+	adreno_mark_for_coldboot(gen7_gmu_to_adreno(gmu));
 	return count;
 }
 
@@ -565,18 +570,21 @@ int gen7_gmu_load_fw(struct adreno_device *adreno_dev)
 				GEN7_GMU_CM3_DTCM_START,
 				gmu->vma[GMU_DTCM].start, blk);
 		} else {
-			struct kgsl_memdesc *md =
-				find_gmu_memdesc(gmu, blk->addr, blk->size);
+			/* The firmware block for memory needs to be copied on first boot only */
+			if (!test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags)) {
+				struct kgsl_memdesc *md =
+					find_gmu_memdesc(gmu, blk->addr, blk->size);
 
-			if (!md) {
-				dev_err(&gmu->pdev->dev,
-					"No backing memory for GMU FW block addr:0x%x size:0x%x\n",
-					blk->addr, blk->size);
-				return -EINVAL;
+				if (!md) {
+					dev_err(&gmu->pdev->dev,
+						"No backing memory for GMU FW block addr:0x%x size:0x%x\n",
+						blk->addr, blk->size);
+					return -EINVAL;
+				}
+
+				memcpy(md->hostptr + (blk->addr - md->gmuaddr), fw,
+					blk->size);
 			}
-
-			memcpy(md->hostptr + (blk->addr - md->gmuaddr), fw,
-				blk->size);
 		}
 
 		fw += blk->size;
@@ -2508,8 +2516,10 @@ void gen7_gmu_remove(struct kgsl_device *device)
 	gen7_free_gmu_globals(gmu);
 
 	vfree(gmu->itcm_shadow);
-	kobject_put(&gmu->log_kobj);
-	kobject_put(&gmu->stats_kobj);
+	if (gmu->log_kobj.state_initialized)
+		kobject_put(&gmu->log_kobj);
+	if (gmu->stats_kobj.state_initialized)
+		kobject_put(&gmu->stats_kobj);
 }
 
 static int gen7_gmu_iommu_fault_handler(struct iommu_domain *domain,
@@ -3320,8 +3330,10 @@ int gen7_gmu_device_probe(struct platform_device *pdev,
 		return ret;
 
 	ret = adreno_dispatcher_init(adreno_dev);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "adreno dispatcher init failed ret %d\n", ret);
 		return ret;
+	}
 
 	device = KGSL_DEVICE(adreno_dev);
 

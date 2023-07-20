@@ -132,6 +132,8 @@
 #define ADRENO_DMS BIT(17)
 /* AQE supported on this target */
 #define ADRENO_AQE BIT(18)
+/* Warm Boot supported on this target */
+#define ADRENO_GMU_WARMBOOT BIT(19)
 
 
 /*
@@ -607,6 +609,8 @@ struct adreno_device {
 	bool lpac_enabled;
 	/** @dms_enabled: True if DMS is enabled */
 	bool dms_enabled;
+	/** @warmboot_enabled: True if warmboot is enabled */
+	bool warmboot_enabled;
 	/** @preempt_override: True if command line param enables preemption */
 	bool preempt_override;
 	struct kgsl_memdesc *profile_buffer;
@@ -716,6 +720,8 @@ struct adreno_device {
 	u32 ifpc_hyst;
 	/** @ifpc_hyst_floor: IFPC long hysteresis floor value */
 	u32 ifpc_hyst_floor;
+	/** @cx_misc_base: CX MISC register block base offset */
+	u32 cx_misc_base;
 };
 
 /**
@@ -753,6 +759,11 @@ enum adreno_device_flags {
 	ADRENO_DEVICE_DMS = 14,
 	/** @ADRENO_DEVICE_GMU_AB: Set if AB vote via GMU is enabled */
 	ADRENO_DEVICE_GMU_AB = 15,
+	/*
+	 * @ADRENO_DEVICE_FORCE_COLDBOOT: Set if a feature is toggled
+	 * via sysfs/debugfs or when we are doing fault recovery
+	 */
+	ADRENO_DEVICE_FORCE_COLDBOOT = 16,
 };
 
 /**
@@ -1011,17 +1022,6 @@ long adreno_ioctl(struct kgsl_device_private *dev_priv,
 long adreno_ioctl_helper(struct kgsl_device_private *dev_priv,
 		unsigned int cmd, unsigned long arg,
 		const struct kgsl_ioctl *cmds, int len);
-
-/*
- * adreno_switch_to_unsecure_mode - Execute a zap shader
- * @adreno_dev: An Adreno GPU handle
- * @rb: The ringbuffer to execute on
- *
- * Execute the zap shader from the CP to take the GPU out of secure mode.
- * Return: 0 on success or negative on failure
- */
-int adreno_switch_to_unsecure_mode(struct adreno_device *adreno_dev,
-				struct adreno_ringbuffer *rb);
 
 int adreno_spin_idle(struct adreno_device *device, unsigned int timeout);
 int adreno_idle(struct kgsl_device *device);
@@ -1957,4 +1957,11 @@ const char *adreno_get_gpu_model(struct kgsl_device *device);
 int adreno_verify_cmdobj(struct kgsl_device_private *dev_priv,
 		struct kgsl_context *context, struct kgsl_drawobj *drawobj[],
 		uint32_t count);
+
+/**
+ * adreno_mark_for_coldboot - Set a flag to coldboot gpu in the slumber exit
+ * @adreno_dev: Adreno device handle
+ *
+ */
+void adreno_mark_for_coldboot(struct adreno_device *adreno_dev);
 #endif /*__ADRENO_H */

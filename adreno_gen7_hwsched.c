@@ -454,6 +454,25 @@ void gen7_hwsched_snapshot(struct adreno_device *adreno_dev,
 	read_unlock(&device->context_lock);
 }
 
+static int gmu_clock_set_rate(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	int ret = 0;
+
+	/* Switch to min GMU clock */
+	gen7_rdpm_cx_freq_update(gmu, gmu->freqs[0] / 1000);
+
+	ret = kgsl_clk_set_rate(gmu->clks, gmu->num_clks, "gmu_clk",
+			gmu->freqs[0]);
+	if (ret)
+		dev_err(&gmu->pdev->dev, "GMU clock:%d set failed:%d\n",
+			gmu->freqs[0], ret);
+
+	trace_kgsl_gmu_pwrlevel(gmu->freqs[0], gmu->freqs[GMU_MAX_PWRLEVELS - 1]);
+
+	return ret;
+}
+
 static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -519,6 +538,12 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	ret = gen7_hwsched_hfi_start(adreno_dev);
 	if (ret)
 		goto err;
+
+	ret = gmu_clock_set_rate(adreno_dev);
+	if (ret) {
+		gen7_hwsched_hfi_stop(adreno_dev);
+		goto err;
+	}
 
 	if (gen7_hwsched_hfi_get_value(adreno_dev, HFI_VALUE_GMU_AB_VOTE) == 1) {
 		adreno_dev->gmu_ab = true;
@@ -595,6 +620,12 @@ static int gen7_hwsched_gmu_boot(struct adreno_device *adreno_dev)
 	ret = gen7_hwsched_hfi_start(adreno_dev);
 	if (ret)
 		goto err;
+
+	ret = gmu_clock_set_rate(adreno_dev);
+	if (ret) {
+		gen7_hwsched_hfi_stop(adreno_dev);
+		goto err;
+	}
 
 	device->gmu_fault = false;
 
@@ -718,6 +749,36 @@ error:
 	return ret;
 }
 
+static void gen7_hwsched_init_ucode_regs(struct adreno_device *adreno_dev)
+{
+	struct adreno_firmware *fw = ADRENO_FW(adreno_dev, ADRENO_FW_SQE);
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+	/* Program the ucode base for CP */
+	kgsl_regwrite(device, GEN7_CP_SQE_INSTR_BASE_LO,
+		lower_32_bits(fw->memdesc->gpuaddr));
+	kgsl_regwrite(device, GEN7_CP_SQE_INSTR_BASE_HI,
+		upper_32_bits(fw->memdesc->gpuaddr));
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_AQE)) {
+		fw = ADRENO_FW(adreno_dev, ADRENO_FW_AQE);
+
+		/* Program the ucode base for AQE0 (BV coprocessor) */
+		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_0,
+			lower_32_bits(fw->memdesc->gpuaddr));
+		kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_0,
+			upper_32_bits(fw->memdesc->gpuaddr));
+
+		/* Program the ucode base for AQE1 (LPAC coprocessor) */
+		if (adreno_dev->lpac_enabled) {
+			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_LO_1,
+				      lower_32_bits(fw->memdesc->gpuaddr));
+			kgsl_regwrite(device, GEN7_CP_AQE_INSTR_BASE_HI_1,
+				      upper_32_bits(fw->memdesc->gpuaddr));
+		}
+	}
+}
+
 static int gen7_hwsched_gpu_boot(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -749,17 +810,11 @@ static int gen7_hwsched_gpu_boot(struct adreno_device *adreno_dev)
 
 	gen7_enable_gpu_irq(adreno_dev);
 
-	ret = gen7_hwsched_cp_init(adreno_dev);
-	if (ret) {
-		gen7_disable_gpu_irq(adreno_dev);
-		goto err;
-	}
+	gen7_hwsched_init_ucode_regs(adreno_dev);
 
-	ret = gen7_hwsched_lpac_cp_init(adreno_dev);
-	if (ret) {
-		gen7_disable_gpu_irq(adreno_dev);
+	ret = gen7_hwsched_boot_gpu(adreno_dev);
+	if (ret)
 		goto err;
-	}
 
 	/*
 	 * At this point it is safe to assume that we recovered. Setting
@@ -770,6 +825,13 @@ static int gen7_hwsched_gpu_boot(struct adreno_device *adreno_dev)
 		device->snapshot->recovered = true;
 
 	device->reset_counter++;
+
+	/*
+	 * If warmboot is enabled and we switched a sysfs node, we will do a coldboot
+	 * in the subseqent slumber exit. Once that is done we need to mark this bool
+	 * as false so that in the next run we can do warmboot
+	 */
+	clear_bit(ADRENO_DEVICE_FORCE_COLDBOOT, &adreno_dev->priv);
 err:
 	gen7_gmu_oob_clear(device, oob_gpu);
 
@@ -787,6 +849,31 @@ static void hwsched_idle_timer(struct timer_list *t)
 	kgsl_schedule_work(&device->idle_check_ws);
 }
 
+static int gen7_gmu_warmboot_init(struct adreno_device *adreno_dev)
+{
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	int ret = 0;
+
+	if (!ADRENO_FEATURE(adreno_dev, ADRENO_GMU_WARMBOOT))
+		return ret;
+
+	if (IS_ERR_OR_NULL(gmu->gmu_init_scratch)) {
+		gmu->gmu_init_scratch = gen7_reserve_gmu_kernel_block(gmu, 0,
+				SZ_4K, GMU_CACHE, 0);
+		ret = PTR_ERR_OR_ZERO(gmu->gmu_init_scratch);
+		if (ret)
+			return ret;
+	}
+
+	if (IS_ERR_OR_NULL(gmu->gpu_boot_scratch)) {
+		gmu->gpu_boot_scratch = gen7_reserve_gmu_kernel_block(gmu, 0,
+				SZ_4K, GMU_CACHE, 0);
+		ret = PTR_ERR_OR_ZERO(gmu->gpu_boot_scratch);
+	}
+
+	return ret;
+}
+
 static int gen7_hwsched_gmu_init(struct adreno_device *adreno_dev)
 {
 	int ret;
@@ -796,6 +883,10 @@ static int gen7_hwsched_gmu_init(struct adreno_device *adreno_dev)
 		return ret;
 
 	ret = gen7_gmu_memory_init(adreno_dev);
+	if (ret)
+		return ret;
+
+	ret = gen7_gmu_warmboot_init(adreno_dev);
 	if (ret)
 		return ret;
 
@@ -1632,6 +1723,12 @@ int gen7_hwsched_reset_replay(struct adreno_device *adreno_dev)
 
 	spin_unlock(&hfi->hw_fence.lock);
 
+	/*
+	 * When we reset, we want to coldboot incase any scratch corruption
+	 * has occurred before we faulted.
+	 */
+	adreno_mark_for_coldboot(adreno_dev);
+
 	ret = gen7_hwsched_boot(adreno_dev);
 	if (ret)
 		goto done;
@@ -1702,7 +1799,11 @@ int gen7_hwsched_probe(struct platform_device *pdev,
 
 	kgsl_mmu_set_feature(device, KGSL_MMU_PAGEFAULT_TERMINATE);
 
-	return adreno_hwsched_init(adreno_dev, &gen7_hwsched_ops);
+	ret = adreno_hwsched_init(adreno_dev, &gen7_hwsched_ops);
+	if (ret)
+		dev_err(&pdev->dev, "adreno hardware scheduler init failed ret %d\n", ret);
+
+	return ret;
 }
 
 int gen7_hwsched_add_to_minidump(struct adreno_device *adreno_dev)

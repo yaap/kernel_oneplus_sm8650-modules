@@ -39,6 +39,7 @@
 /* Include the master list of GPU cores that are supported */
 #include "adreno-gpulist.h"
 
+static void adreno_unbind(struct device *dev);
 static void adreno_input_work(struct work_struct *work);
 static int adreno_soft_reset(struct kgsl_device *device);
 static unsigned int counter_delta(struct kgsl_device *device,
@@ -1239,13 +1240,13 @@ int adreno_device_probe(struct platform_device *pdev,
 
 	status = adreno_read_speed_bin(pdev);
 	if (status < 0)
-		return status;
+		goto err;
 
 	device->speed_bin = status;
 
 	status = adreno_of_get_power(adreno_dev, pdev);
 	if (status)
-		return status;
+		goto err;
 
 	status = kgsl_bus_init(device, pdev);
 	if (status)
@@ -1254,7 +1255,7 @@ int adreno_device_probe(struct platform_device *pdev,
 	status = kgsl_regmap_init(pdev, &device->regmap, "kgsl_3d0_reg_memory",
 		&adreno_regmap_ops, device);
 	if (status)
-		goto err;
+		goto err_bus_close;
 
 	/*
 	 * The SMMU APIs use unsigned long for virtual addresses which means
@@ -1292,7 +1293,7 @@ int adreno_device_probe(struct platform_device *pdev,
 	/* Probe the LLCC - this could return -EPROBE_DEFER */
 	status = adreno_probe_llcc(adreno_dev, pdev);
 	if (status)
-		goto err;
+		goto err_bus_close;
 
 	/*
 	 * IF the GPU HTW slice was successsful set the MMU feature so the
@@ -1304,17 +1305,17 @@ int adreno_device_probe(struct platform_device *pdev,
 	 /* Bind the components before doing the KGSL platform probe. */
 	status = component_bind_all(dev, NULL);
 	if (status)
-		goto err;
+		goto err_remove_llcc;
 
 	status = kgsl_request_irq(pdev, "kgsl_3d0_irq", adreno_irq_handler, device);
 	if (status < 0)
-		goto err;
+		goto err_unbind;
 
 	device->pwrctrl.interrupt_num = status;
 
 	status = kgsl_device_platform_probe(device);
 	if (status)
-		goto err;
+		goto err_unbind;
 
 	adreno_fence_trace_array_init(device);
 
@@ -1336,8 +1337,9 @@ int adreno_device_probe(struct platform_device *pdev,
 
 	status = PTR_ERR_OR_ZERO(device->memstore);
 	if (status) {
+		trace_array_put(device->fence_trace_array);
 		kgsl_device_platform_remove(device);
-		goto err;
+		goto err_unbind;
 	}
 
 	/* Initialize the snapshot engine */
@@ -1360,6 +1362,7 @@ int adreno_device_probe(struct platform_device *pdev,
 
 	adreno_sysfs_init(adreno_dev);
 
+	/* Ignore return value, as driver can still function without pwrscale enabled */
 	kgsl_pwrscale_init(device, pdev, CONFIG_QCOM_ADRENO_DEFAULT_GOVERNOR);
 
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_L3_VOTE))
@@ -1387,13 +1390,23 @@ int adreno_device_probe(struct platform_device *pdev,
 	place_marker("M - DRIVER GPU Ready");
 
 	return 0;
-err:
-	device->pdev = NULL;
 
+err_unbind:
 	component_unbind_all(dev, NULL);
 
+err_remove_llcc:
+	if (!IS_ERR_OR_NULL(adreno_dev->gpu_llc_slice))
+		llcc_slice_putd(adreno_dev->gpu_llc_slice);
+
+	if (!IS_ERR_OR_NULL(adreno_dev->gpuhtw_llc_slice))
+		llcc_slice_putd(adreno_dev->gpuhtw_llc_slice);
+
+err_bus_close:
 	kgsl_bus_close(device);
 
+err:
+	device->pdev = NULL;
+	dev_err_probe(&pdev->dev, status, "adreno device probe failed\n");
 	return status;
 }
 
@@ -1415,6 +1428,12 @@ static int adreno_bind(struct device *dev)
 
 		device->pdev_loaded = true;
 		srcu_init_notifier_head(&device->nh);
+	} else {
+		/*
+		 * Handle resource clean up through unbind, instead of a
+		 * lengthy goto error path.
+		 */
+		adreno_unbind(dev);
 	}
 
 	return ret;
@@ -1430,8 +1449,14 @@ static void adreno_unbind(struct device *dev)
 	if (!device)
 		return;
 
-	device->pdev_loaded = false;
-	srcu_cleanup_notifier_head(&device->nh);
+	/* Return if cleanup happens in adreno_device_probe */
+	if (!device->pdev)
+		return;
+
+	if (device->pdev_loaded) {
+		srcu_cleanup_notifier_head(&device->nh);
+		device->pdev_loaded = false;
+	}
 
 	adreno_dev = ADRENO_DEVICE(device);
 	gpudev = ADRENO_GPU_DEVICE(adreno_dev);
@@ -1467,6 +1492,7 @@ static void adreno_unbind(struct device *dev)
 	component_unbind_all(dev, NULL);
 
 	kgsl_bus_close(device);
+	device->pdev = NULL;
 
 	if (device->num_l3_pwrlevels != 0)
 		qcom_dcvs_unregister_voter(KGSL_L3_DEVICE, DCVS_L3,
@@ -3214,6 +3240,14 @@ static void adreno_drawctxt_sched(struct kgsl_device *device,
 		ADRENO_CONTEXT(context));
 }
 
+void adreno_mark_for_coldboot(struct adreno_device *adreno_dev)
+{
+	if (!adreno_dev->warmboot_enabled)
+		return;
+
+	set_bit(ADRENO_DEVICE_FORCE_COLDBOOT, &adreno_dev->priv);
+}
+
 int adreno_power_cycle(struct adreno_device *adreno_dev,
 	void (*callback)(struct adreno_device *adreno_dev, void *priv),
 	void *priv)
@@ -3227,6 +3261,7 @@ int adreno_power_cycle(struct adreno_device *adreno_dev,
 
 	if (!ret) {
 		callback(adreno_dev, priv);
+		adreno_mark_for_coldboot(adreno_dev);
 		ops->pm_resume(adreno_dev);
 	}
 

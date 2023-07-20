@@ -548,10 +548,6 @@ struct kgsl_mem_entry *gpumem_alloc_entry(struct kgsl_device_private *dev_priv,
 long gpumem_free_entry(struct kgsl_mem_entry *entry);
 
 enum kgsl_mmutype kgsl_mmu_get_mmutype(struct kgsl_device *device);
-void kgsl_mmu_add_global(struct kgsl_device *device,
-	struct kgsl_memdesc *memdesc, const char *name);
-void kgsl_mmu_remove_global(struct kgsl_device *device,
-		struct kgsl_memdesc *memdesc);
 
 /* Helper functions */
 int kgsl_request_irq(struct platform_device *pdev, const  char *name,

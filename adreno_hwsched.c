@@ -1092,6 +1092,8 @@ static int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 
 	}
 
+	adreno_track_context(adreno_dev, NULL, drawctxt);
+
 	spin_unlock(&drawctxt->lock);
 
 	/* Add the context to the dispatcher pending list */

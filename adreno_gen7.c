@@ -1527,10 +1527,13 @@ int gen7_probe_common(struct platform_device *pdev,
 {
 	const struct adreno_gpudev *gpudev = gpucore->gpudev;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	const struct adreno_gen7_core *gen7_core = container_of(gpucore,
+			struct adreno_gen7_core, base);
 	int ret;
 
 	adreno_dev->gpucore = gpucore;
 	adreno_dev->chipid = chipid;
+	adreno_dev->cx_misc_base = GEN7_CX_MISC_BASE;
 
 	adreno_reg_offset_init(gpudev->reg_offsets);
 
@@ -1538,6 +1541,8 @@ int gen7_probe_common(struct platform_device *pdev,
 	adreno_dev->uche_client_pf = 1;
 
 	device->pwrscale.avoid_ddr_stall = true;
+
+	device->pwrctrl.rt_bus_hint = gen7_core->rt_bus_hint;
 
 	ret = adreno_device_probe(pdev, adreno_dev);
 	if (ret)
@@ -1803,7 +1808,11 @@ static int gen7_lpac_store(struct adreno_device *adreno_dev, bool enable)
 
 static void gen7_remove(struct adreno_device *adreno_dev)
 {
-	if (adreno_preemption_feature_set(adreno_dev))
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+
+	/* Make sure timer is initialized, otherwise WARN_ON is generated */
+	if (adreno_preemption_feature_set(adreno_dev) &&
+	    (test_bit(GMU_PRIV_FIRST_BOOT_DONE, &gmu->flags)))
 		del_timer(&adreno_dev->preempt.timer);
 }
 
