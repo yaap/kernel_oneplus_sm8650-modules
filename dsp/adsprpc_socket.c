@@ -83,7 +83,7 @@ struct remote_domain_configuration {
  * glist_session_ctrl
  * Static list containing socket session information for all remote domains.
  */
-static struct frpc_transport_session_control *glist_session_ctrl[MAX_DOMAIN_ID][MAX_REMOTE_ID];
+static struct frpc_transport_session_control *glist_session_ctrl[NUM_CHANNELS][MAX_REMOTE_ID];
 
 
 static const struct remote_domain_configuration configurations[] = {
@@ -555,6 +555,16 @@ int fastrpc_transport_init(void)
 		}
 		cid = configurations[ii].channel_id;
 		remote_domain = configurations[ii].remote_domain;
+		VERIFY(err, remote_domain < MAX_REMOTE_ID);
+		if (err) {
+			err = -ECHRNG;
+			goto bail;
+		}
+		VERIFY(err, VALID_FASTRPC_CID(cid));
+		if (err) {
+			err = -ECHRNG;
+			goto bail;
+		}
 
 		session_control->remote_server_online = false;
 		frpc_socket = &session_control->frpc_socket;
@@ -610,13 +620,23 @@ bail:
  */
 void fastrpc_transport_deinit(void)
 {
-	int ii = 0, cid = -1, remote_domain = -1;
+	int ii = 0, cid = -1, remote_domain = -1, err = 0;
 	struct fastrpc_socket *frpc_socket = NULL;
 	struct frpc_transport_session_control *session_control = NULL;
 
 	for (ii = 0; ii < ARRAY_SIZE(configurations); ii++) {
 		cid = configurations[ii].channel_id;
 		remote_domain = configurations[ii].remote_domain;
+		VERIFY(err, remote_domain < MAX_REMOTE_ID);
+		if (err) {
+			err = -ECHRNG;
+			goto bail;
+		}
+		VERIFY(err, VALID_FASTRPC_CID(cid));
+		if (err) {
+			err = -ECHRNG;
+			goto bail;
+		}
 
 		session_control = glist_session_ctrl[cid][remote_domain];
 		if (!session_control)
@@ -637,4 +657,7 @@ void fastrpc_transport_deinit(void)
 		kfree(session_control);
 		glist_session_ctrl[cid][remote_domain] = NULL;
 	}
+bail:
+	if (err)
+		ADSPRPC_ERR("fastrpc_socket_deinit failed with err %d\n", err);
 }
