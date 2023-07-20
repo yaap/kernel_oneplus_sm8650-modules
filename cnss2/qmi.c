@@ -779,6 +779,9 @@ int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,
 	unsigned int remaining;
 	bool backup_supported = false;
 
+	cnss_pr_dbg("Sending QMI_WLFW_INI_FILE_DOWNLOAD_REQ_V01 message for ini_type: %d, state: 0x%lx\n",
+		    file_type, plat_priv->driver_state);
+
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 	if (!req)
 		return -ENOMEM;
@@ -802,19 +805,27 @@ int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,
 	}
 
 	snprintf(filename, sizeof(filename), "%s%s", tmp_filename, INI_EXT);
+
+	cnss_pr_dbg("Invoke firmware_request_nowarn for %s\n", filename);
 	/* Fetch the file */
 	ret = firmware_request_nowarn(&fw, filename, &plat_priv->plat_dev->dev);
 	if (ret) {
+		cnss_pr_dbg("Failed to read %s, ret: %d\n", filename, ret);
 		if (!backup_supported)
 			goto err_req_fw;
 
 		snprintf(filename, sizeof(filename),
 			 "%s-%s%s", tmp_filename, "backup", INI_EXT);
 
+		cnss_pr_dbg("Invoke firmware_request_nowarn for %s\n",
+			    filename);
 		ret = firmware_request_nowarn(&fw, filename,
 					      &plat_priv->plat_dev->dev);
-		if (ret)
+		if (ret) {
+			cnss_pr_dbg("Failed to read %s, ret: %d\n", filename,
+				    ret);
 			goto err_req_fw;
+		}
 	}
 
 	temp = fw->data;
@@ -926,6 +937,7 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 	if (ret)
 		goto err_req_fw;
 
+	cnss_pr_dbg("Invoke firmware_request_nowarn for %s\n", filename);
 	if (bdf_type == CNSS_BDF_REGDB)
 		ret = cnss_request_firmware_direct(plat_priv, &fw_entry,
 						   filename);
@@ -1494,6 +1506,9 @@ int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv)
 
 	cnss_get_qdss_cfg_filename(plat_priv, qdss_cfg_filename,
 				   sizeof(qdss_cfg_filename), false);
+
+	cnss_pr_dbg("Invoke firmware_request_nowarn for %s\n",
+		    qdss_cfg_filename);
 	ret = cnss_request_firmware_direct(plat_priv, &fw_entry,
 					   qdss_cfg_filename);
 	if (ret) {
@@ -1502,6 +1517,8 @@ int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv)
 		cnss_get_qdss_cfg_filename(plat_priv, qdss_cfg_filename,
 					   sizeof(qdss_cfg_filename),
 					   true);
+		cnss_pr_dbg("Invoke firmware_request_nowarn for %s\n",
+			    qdss_cfg_filename);
 		ret = cnss_request_firmware_direct(plat_priv, &fw_entry,
 						   qdss_cfg_filename);
 		if (ret) {
