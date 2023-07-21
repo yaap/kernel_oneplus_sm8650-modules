@@ -13,6 +13,7 @@
 
 static struct snd_soc_dai_driver *btfmcodec_dai_info;
 uint32_t bits_per_second;
+uint8_t num_channels;
 
 static int btfm_codec_get_mixer_control(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
@@ -344,7 +345,7 @@ static void btfmcodec_dai_shutdown(struct snd_pcm_substream *substream,
 }
 
 int btfmcodec_hwep_hw_params (struct btfmcodec_data *btfmcodec, uint32_t bps,
-			   uint32_t direction)
+			      uint32_t direction, uint8_t num_channels)
 {
 	struct hwep_data *hwep_info = btfmcodec->hwep_info;
 	struct hwep_dai_driver *dai_drv = (struct hwep_dai_driver *)
@@ -352,7 +353,8 @@ int btfmcodec_hwep_hw_params (struct btfmcodec_data *btfmcodec, uint32_t bps,
 
 	if (dai_drv && dai_drv->dai_ops && dai_drv->dai_ops->hwep_hw_params) {
 		return dai_drv->dai_ops->hwep_hw_params((void *)btfmcodec->hwep_info,
-							bps, direction);
+							bps, direction,
+							num_channels);
 	} else {
 		return -1;
 	}
@@ -364,20 +366,21 @@ static int btfmcodec_dai_hw_params(struct snd_pcm_substream *substream,
 {
 	struct btfmcodec_data *btfmcodec = snd_soc_component_get_drvdata(dai->component);
 	struct btfmcodec_state_machine *state = &btfmcodec->states;
-	uint32_t bps = params_width(params);
 	uint32_t direction = substream->stream;
 
 	BTFMCODEC_DBG("dai->name = %s DAI-ID %x rate %d bps %d num_ch %d",
 		dai->name, dai->id, params_rate(params), params_width(params),
 		params_channels(params));
 
+	bits_per_second = params_width(params);
+	num_channels = params_channels(params);
 	if (btfmcodec_get_current_transport(state) != IDLE &&
 		btfmcodec_get_current_transport(state) != BT_Connected) {
-		BTFMCODEC_WARN("caching bps as state is :%s",
+		BTFMCODEC_WARN("caching bps and num_channels as state is :%s",
 			coverttostring(btfmcodec_get_current_transport(state)));
-		bits_per_second = bps;
 	} else {
-		return btfmcodec_hwep_hw_params(btfmcodec, bps, direction);
+		return btfmcodec_hwep_hw_params(btfmcodec, bits_per_second,
+						direction, num_channels);
 	}
 
 	return 0;
@@ -424,6 +427,7 @@ static int btfmcodec_check_and_cache_configs(struct btfmcodec_data *btfmcodec,
 	hwep_configs->bit_width = bits_per_second;
 	hwep_configs->codectype = codectype;
 	hwep_configs->direction = direction;
+	hwep_configs->num_channels = num_channels;
 
 	list_add(&hwep_configs->dai_list, head);
 	BTFMCODEC_INFO("added dai id:%d to list with sampling_rate :%u, direction:%u", id, sampling_rate, direction);
@@ -535,24 +539,24 @@ static int btfmcodec_dai_prepare(struct snd_pcm_substream *substream,
 	uint32_t sampling_rate = dai->rate;
 	uint32_t direction = substream->stream;
 	int id = dai->id;
-	int ret;
+	int ret ;
 
 	BTFMCODEC_INFO("dai->name: %s, dai->id: %d, dai->rate: %d direction: %d",
 		dai->name, id, sampling_rate, direction);
 
+	ret = btfmcodec_check_and_cache_configs(btfmcodec, sampling_rate,
+						direction, id, *codectype);
 	if (btfmcodec_get_current_transport(state) != IDLE &&
 	    btfmcodec_get_current_transport(state) != BT_Connected) {
-		BTFMCODEC_WARN("caching required info as state is:%s",
+		BTFMCODEC_WARN("cached required info as state is:%s",
 			coverttostring(btfmcodec_get_current_transport(state)));
-		ret = btfmcodec_check_and_cache_configs(btfmcodec, sampling_rate, direction,
-					      id, *codectype);
 	} else {
 	        ret = btfmcodec_hwep_prepare(btfmcodec, sampling_rate, direction, id);
-		if (ret >= 0) {
+/*		if (ret >= 0) {
 			btfmcodec_check_and_cache_configs(btfmcodec,  sampling_rate, direction,
 						id, *codectype);
 		}
-	}
+*/	}
 
 	return ret;
 }
@@ -641,7 +645,7 @@ void btfmcodec_wq_hwep_configure(struct work_struct *work)
 	int ret;
 	int idx = BTM_PKT_TYPE_HWEP_CONFIG;
 	uint32_t sample_rate, direction;
-	uint8_t id, bit_width, codectype;
+	uint8_t id, bit_width, codectype, num_channels;
 
 	list_for_each_entry(hwep_configs, head, dai_list) {
 		id = hwep_configs->stream_id;
@@ -649,11 +653,12 @@ void btfmcodec_wq_hwep_configure(struct work_struct *work)
 		bit_width = hwep_configs->bit_width;
 		codectype = hwep_configs->codectype;
 		direction = hwep_configs->direction;
+		num_channels = hwep_configs->num_channels;
 
 		BTFMCODEC_INFO("configuring dai id:%d with sampling rate:%d bit_width:%d", id, sample_rate, bit_width);
 		ret = btfmcodec_hwep_startup(btfmcodec);
 		if (ret >= 0)
-			ret = btfmcodec_hwep_hw_params(btfmcodec, bit_width, direction);
+			ret = btfmcodec_hwep_hw_params(btfmcodec, bit_width, direction, num_channels);
 		if (ret >= 0)
 			ret = btfmcodec_hwep_prepare(btfmcodec, sample_rate, direction, id);
 		if (ret < 0) {
