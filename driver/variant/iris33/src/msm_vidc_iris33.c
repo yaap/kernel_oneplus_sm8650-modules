@@ -486,7 +486,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 		d_vpr_e("%s: AON spare register is not zero\n", __func__);
 
 	/* enable bit(1) to avoid cvp noc xo reset */
-	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
+	rc = __write_register(core, AON_WRAPPER_SPARE, value | 0x2);
 	if (rc)
 		return rc;
 
