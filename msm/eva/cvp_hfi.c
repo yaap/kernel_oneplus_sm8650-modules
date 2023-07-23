@@ -115,7 +115,7 @@ static int __reset_control_release(struct iris_hfi_device *device, const char *n
 static bool __is_ctl_power_on(struct iris_hfi_device *device);
 
 
-static struct iris_hfi_vpu_ops iris2_ops = {
+static struct cvp_hal_ops hal_ops = {
 	.interrupt_init = interrupt_init_iris2,
 	.setup_dsp_uc_memmap = setup_dsp_uc_memmap_vpu5,
 	.clock_config_on_enable = clock_config_on_enable_vpu5,
@@ -179,7 +179,7 @@ int get_hfi_version(void)
 	struct iris_hfi_device *hfi;
 
 	core = cvp_driver->cvp_core;
-	hfi = (struct iris_hfi_device *)core->device->hfi_device_data;
+	hfi = (struct iris_hfi_device *)core->dev_ops->hfi_device_data;
 
 	return hfi->version;
 }
@@ -192,7 +192,7 @@ unsigned int get_msg_size(struct cvp_hfi_msg_session_hdr *hdr)
 
 	core = cvp_driver->cvp_core;
 	if (core)
-		device = core->device->hfi_device_data;
+		device = core->dev_ops->hfi_device_data;
 	else
 		return 0;
 
@@ -2994,7 +2994,7 @@ static void iris_hfi_pm_handler(struct work_struct *work)
 
 	core = cvp_driver->cvp_core;
 	if (core)
-		device = core->device->hfi_device_data;
+		device = core->dev_ops->hfi_device_data;
 	else
 		return;
 
@@ -3492,7 +3492,7 @@ irqreturn_t iris_hfi_core_work_handler(int irq, void *data)
 
 	core = cvp_driver->cvp_core;
 	if (core)
-		device = core->device->hfi_device_data;
+		device = core->dev_ops->hfi_device_data;
 	else
 		return IRQ_HANDLED;
 
@@ -3572,7 +3572,7 @@ static void iris_hfi_wd_work_handler(struct work_struct *work)
 	enum hal_command_response cmd = HAL_SYS_WATCHDOG_TIMEOUT;
 	core = cvp_driver->cvp_core;
 	if (core)
-		device = core->device->hfi_device_data;
+		device = core->dev_ops->hfi_device_data;
 	else
 		return;
 	if (msm_cvp_hw_wd_recovery) {
@@ -5318,7 +5318,7 @@ static int __initialize_packetization(struct iris_hfi_device *device)
 
 void __init_cvp_ops(struct iris_hfi_device *device)
 {
-	device->vpu_ops = &iris2_ops;
+	device->hal_ops = &hal_ops;
 }
 
 static struct iris_hfi_device *__add_device(struct msm_cvp_platform_resources *res,
@@ -5413,7 +5413,7 @@ void cvp_iris_hfi_delete_device(void *device)
 
 	core = cvp_driver->cvp_core;
 	if (core)
-		dev = core->device->hfi_device_data;
+		dev = core->dev_ops->hfi_device_data;
 
 	if (!dev)
 		return;
@@ -5450,55 +5450,55 @@ static int iris_hfi_validate_session(void *sess, const char *func)
 	return rc;
 }
 
-static void iris_init_hfi_callbacks(struct cvp_hfi_device *hdev)
+static void iris_init_hfi_callbacks(struct cvp_hfi_ops *ops_tbl)
 {
-	hdev->core_init = iris_hfi_core_init;
-	hdev->core_release = iris_hfi_core_release;
-	hdev->core_trigger_ssr = iris_hfi_core_trigger_ssr;
-	hdev->session_init = iris_hfi_session_init;
-	hdev->session_end = iris_hfi_session_end;
-	hdev->session_start = iris_hfi_session_start;
-	hdev->session_stop = iris_hfi_session_stop;
-	hdev->session_abort = iris_hfi_session_abort;
-	hdev->session_clean = iris_hfi_session_clean;
-	hdev->session_set_buffers = iris_hfi_session_set_buffers;
-	hdev->session_release_buffers = iris_hfi_session_release_buffers;
-	hdev->session_send = iris_hfi_session_send;
-	hdev->session_flush = iris_hfi_session_flush;
-	hdev->scale_clocks = iris_hfi_scale_clocks;
-	hdev->vote_bus = iris_hfi_vote_buses;
-	hdev->get_fw_info = iris_hfi_get_fw_info;
-	hdev->get_core_capabilities = iris_hfi_get_core_capabilities;
-	hdev->suspend = iris_hfi_suspend;
-	hdev->resume = iris_hfi_resume;
-	hdev->flush_debug_queue = iris_hfi_flush_debug_queue;
-	hdev->noc_error_info = iris_hfi_noc_error_info;
-	hdev->validate_session = iris_hfi_validate_session;
-	hdev->pm_qos_update = iris_pm_qos_update;
-	hdev->debug_hook = iris_debug_hook;
+	ops_tbl->core_init = iris_hfi_core_init;
+	ops_tbl->core_release = iris_hfi_core_release;
+	ops_tbl->core_trigger_ssr = iris_hfi_core_trigger_ssr;
+	ops_tbl->session_init = iris_hfi_session_init;
+	ops_tbl->session_end = iris_hfi_session_end;
+	ops_tbl->session_start = iris_hfi_session_start;
+	ops_tbl->session_stop = iris_hfi_session_stop;
+	ops_tbl->session_abort = iris_hfi_session_abort;
+	ops_tbl->session_clean = iris_hfi_session_clean;
+	ops_tbl->session_set_buffers = iris_hfi_session_set_buffers;
+	ops_tbl->session_release_buffers = iris_hfi_session_release_buffers;
+	ops_tbl->session_send = iris_hfi_session_send;
+	ops_tbl->session_flush = iris_hfi_session_flush;
+	ops_tbl->scale_clocks = iris_hfi_scale_clocks;
+	ops_tbl->vote_bus = iris_hfi_vote_buses;
+	ops_tbl->get_fw_info = iris_hfi_get_fw_info;
+	ops_tbl->get_core_capabilities = iris_hfi_get_core_capabilities;
+	ops_tbl->suspend = iris_hfi_suspend;
+	ops_tbl->resume = iris_hfi_resume;
+	ops_tbl->flush_debug_queue = iris_hfi_flush_debug_queue;
+	ops_tbl->noc_error_info = iris_hfi_noc_error_info;
+	ops_tbl->validate_session = iris_hfi_validate_session;
+	ops_tbl->pm_qos_update = iris_pm_qos_update;
+	ops_tbl->debug_hook = iris_debug_hook;
 }
 
-int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev,
+int cvp_iris_hfi_initialize(struct cvp_hfi_ops *ops_tbl,
 		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback)
 {
 	int rc = 0;
 
-	if (!hdev || !res || !callback) {
+	if (!ops_tbl || !res || !callback) {
 		dprintk(CVP_ERR, "Invalid params: %pK %pK %pK\n",
-			hdev, res, callback);
+			ops_tbl, res, callback);
 		rc = -EINVAL;
 		goto err_iris_hfi_init;
 	}
 
-	hdev->hfi_device_data = __get_device(res, callback);
+	ops_tbl->hfi_device_data = __get_device(res, callback);
 
-	if (IS_ERR_OR_NULL(hdev->hfi_device_data)) {
-		rc = PTR_ERR(hdev->hfi_device_data) ?: -EINVAL;
+	if (IS_ERR_OR_NULL(ops_tbl->hfi_device_data)) {
+		rc = PTR_ERR(ops_tbl->hfi_device_data) ?: -EINVAL;
 		goto err_iris_hfi_init;
 	}
 
-	iris_init_hfi_callbacks(hdev);
+	iris_init_hfi_callbacks(ops_tbl);
 
 err_iris_hfi_init:
 	return rc;

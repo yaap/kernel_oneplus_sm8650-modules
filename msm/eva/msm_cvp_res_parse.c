@@ -1061,10 +1061,10 @@ int msm_cvp_smmu_fault_handler(struct iommu_domain *domain,
 		cvp_print_inst(CVP_ERR, inst);
 		msm_cvp_print_inst_bufs(inst, log);
 	}
-	hdev = core->device->hfi_device_data;
+	hdev = core->dev_ops->hfi_device_data;
 	if (hdev) {
 		hdev->error = CVP_ERR_NOC_ERROR;
-		call_hfi_op(core->device, debug_hook, hdev);
+		call_hfi_op(core->dev_ops, debug_hook, hdev);
 	}
 	mutex_unlock(&core->lock);
 	/*

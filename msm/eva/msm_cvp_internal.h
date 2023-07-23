@@ -320,7 +320,7 @@ struct msm_cvp_core {
 	struct cdev cdev;
 	struct class *class;
 	struct device *dev;
-	struct cvp_hfi_device *device;
+	struct cvp_hfi_ops *dev_ops;
 	struct msm_cvp_platform_data *platform_data;
 	struct msm_cvp_synx_ops *synx_ftbl;
 	struct list_head instances;

@@ -292,7 +292,7 @@ static int msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
 	int rc, max_retries;
 	struct msm_cvp_frame *frame;
 	struct cvp_session_queue *sq, *sqf;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct msm_cvp_inst *tmp;
 
 	if (!inst) {
@@ -361,8 +361,8 @@ stop_session:
 	}
 	if (!empty) {
 		/* STOP SESSION to avoid SMMU fault after releasing ARP */
-		hdev = inst->core->device;
-		rc = call_hfi_op(hdev, session_stop, (void *)inst->session);
+		ops_tbl = inst->core->dev_ops;
+		rc = call_hfi_op(ops_tbl, session_stop, (void *)inst->session);
 		if (rc) {
 			dprintk(CVP_WARN, "%s: cannot stop session rc %d\n",
 				__func__, rc);
@@ -392,8 +392,8 @@ release_arp:
 				__func__,
 				inst->core->resources.pm_qos.off_vote_cnt);
 		spin_unlock(&inst->core->resources.pm_qos.lock);
-		hdev = inst->core->device;
-		call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
+		ops_tbl = inst->core->dev_ops;
+		call_hfi_op(ops_tbl, pm_qos_update, ops_tbl->hfi_device_data);
 	}
 	return 0;
 }

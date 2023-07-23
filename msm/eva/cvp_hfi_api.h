@@ -249,7 +249,7 @@ struct msm_cvp_hfi_defs {
 	bool force_kernel_fence;
 };
 
-struct cvp_hfi_device {
+struct cvp_hfi_ops {
 	void *hfi_device_data;
 	/*Add function pointers for all the hfi functions below*/
 	int (*core_init)(void *device);
@@ -297,11 +297,11 @@ enum cvp_status hfi_process_session_init_done_prop_read(
 	struct cvp_hfi_msg_sys_session_init_done_packet *pkt,
 	struct cvp_hal_session_init_done *session_init_done);
 
-struct cvp_hfi_device *cvp_hfi_initialize(enum msm_cvp_hfi_type hfi_type,
+struct cvp_hfi_ops *cvp_hfi_initialize(enum msm_cvp_hfi_type hfi_type,
 		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback);
 void cvp_hfi_deinitialize(enum msm_cvp_hfi_type hfi_type,
-			struct cvp_hfi_device *hdev);
+			struct cvp_hfi_ops *hdev);
 
 int get_pkt_index(struct cvp_hal_session_cmd_pkt *hdr);
 int get_pkt_fenceoverride(struct cvp_hal_session_cmd_pkt* hdr);
@@ -313,5 +313,5 @@ unsigned int get_msg_errorcode(void *msg);
 int get_msg_opconfigs(void *msg, unsigned int *session_id,
 		unsigned int *error_type, unsigned int *config_id);
 extern const struct msm_cvp_hfi_defs cvp_hfi_defs[MAX_PKT_IDX];
-void print_hfi_queue_info(struct cvp_hfi_device *hdev);
+void print_hfi_queue_info(struct cvp_hfi_ops *hdev);
 #endif /*__CVP_HFI_API_H__ */

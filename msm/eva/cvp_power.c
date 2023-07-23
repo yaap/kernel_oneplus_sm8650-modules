@@ -145,7 +145,7 @@ static int adjust_bw_freqs(unsigned int max_bw, unsigned int min_bw)
 
 	core = cvp_driver->cvp_core;
 
-	hdev = core->device->hfi_device_data;
+	hdev = core->dev_ops->hfi_device_data;
 	tbl = core->resources.allowed_clks_tbl;
 	tbl_size = core->resources.allowed_clks_tbl_size;
 	cvp_min_rate = tbl[0].clock_rate;

@@ -64,12 +64,12 @@ static void dump_hfi_queue(struct iris_hfi_device *device)
 	mutex_unlock(&device->lock);
 }
 
-void print_hfi_queue_info(struct cvp_hfi_device *hdev)
+void print_hfi_queue_info(struct cvp_hfi_ops *ops_tbl)
 {
-       if(hdev && hdev->hfi_device_data){
-		call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
-		dump_hfi_queue(hdev->hfi_device_data);
-       }
+	if (ops_tbl && ops_tbl->hfi_device_data) {
+		call_hfi_op(ops_tbl, flush_debug_queue, ops_tbl->hfi_device_data);
+		dump_hfi_queue(ops_tbl->hfi_device_data);
+	}
 }
 
 static void handle_sys_init_done(enum hal_command_response cmd, void *data)
@@ -191,7 +191,7 @@ struct msm_cvp_inst *cvp_get_inst_validate(struct msm_cvp_core *core,
 		void *session_id)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct msm_cvp_inst *s;
 
 	s = cvp_get_inst(core, session_id);
@@ -200,8 +200,8 @@ struct msm_cvp_inst *cvp_get_inst_validate(struct msm_cvp_core *core,
 		return NULL;
 	}
 
-	hdev = s->core->device;
-	rc = call_hfi_op(hdev, validate_session, s->session, __func__);
+	ops_tbl = s->core->dev_ops;
+	rc = call_hfi_op(ops_tbl, validate_session, s->session, __func__);
 	if (rc) {
 		cvp_put_inst(s);
 		s = NULL;
@@ -350,13 +350,13 @@ int wait_for_sess_signal_receipt(struct msm_cvp_inst *inst,
 	enum hal_command_response cmd)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 	if (!IS_HAL_SESSION_CMD(cmd)) {
 		dprintk(CVP_ERR, "Invalid inst cmd response: %d\n", cmd);
 		return -EINVAL;
 	}
-	hdev = (struct cvp_hfi_device *)(inst->core->device);
+	ops_tbl = (struct cvp_hfi_ops *)(inst->core->dev_ops);
 	rc = wait_for_completion_timeout(
 		&inst->completions[SESSION_MSG_INDEX(cmd)],
 		msecs_to_jiffies(
@@ -365,7 +365,7 @@ int wait_for_sess_signal_receipt(struct msm_cvp_inst *inst,
 		dprintk(CVP_WARN, "Wait interrupted or timed out: %d\n",
 				SESSION_MSG_INDEX(cmd));
 		if (inst->state != MSM_CVP_CORE_INVALID)
-			print_hfi_queue_info(hdev);
+			print_hfi_queue_info(ops_tbl);
 		rc = -ETIMEDOUT;
 	} else if (inst->state == MSM_CVP_CORE_INVALID) {
 		rc = -ECONNRESET;
@@ -519,7 +519,7 @@ static void handle_session_ctrl(enum hal_command_response cmd, void *data)
 static void handle_session_error(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
-	struct cvp_hfi_device *hdev = NULL;
+	struct cvp_hfi_ops *ops_tbl = NULL;
 	struct msm_cvp_inst *inst = NULL;
 	//unsigned long flags = 0;
 	//int i;
@@ -537,7 +537,7 @@ static void handle_session_error(enum hal_command_response cmd, void *data)
 		return;
 	}
 
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 	dprintk(CVP_ERR, "Sess error 0x%x received for inst %pK sess %x\n",
 		response->status, inst, hash32_ptr(inst->session));
 	cvp_print_inst(CVP_WARN, inst);
@@ -562,7 +562,7 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 {
 	struct msm_cvp_cb_cmd_done *response = data;
 	struct msm_cvp_core *core = NULL;
-	struct cvp_hfi_device *hdev = NULL;
+	struct cvp_hfi_ops *ops_tbl = NULL;
 	struct iris_hfi_device *hfi_device;
 	struct msm_cvp_inst *inst = NULL;
 	int i, rc = 0;
@@ -581,7 +581,7 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 				"Got SYS_ERR but unable to identify core\n");
 		return;
 	}
-	hdev = core->device;
+	ops_tbl = core->dev_ops;
 
 	mutex_lock(&core->lock);
 	core->ssr_count++;
@@ -598,12 +598,12 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 	dprintk(CVP_WARN, "SYS_ERROR from core %pK cmd %x total: %d\n",
 			core, cmd, core->ssr_count);
 	mutex_lock(&core->clk_lock);
-	hfi_device = hdev->hfi_device_data;
+	hfi_device = ops_tbl->hfi_device_data;
 	if (hfi_device->error == CVP_ERR_NOC_ERROR) {
 		dprintk(CVP_WARN, "Got NOC error");
 		msm_cvp_noc_error_info(core);
 	}
-	call_hfi_op(hdev, flush_debug_queue, hdev->hfi_device_data);
+	call_hfi_op(ops_tbl, flush_debug_queue, ops_tbl->hfi_device_data);
 	list_for_each_entry(inst, &core->instances, list) {
 		cvp_print_inst(CVP_WARN, inst);
 		if (inst->state != MSM_CVP_CORE_INVALID) {
@@ -628,7 +628,7 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 	msm_cvp_handle_hw_error(core);
 
 	dprintk(CVP_CORE, "Calling core_release\n");
-	rc = call_hfi_op(hdev, core_release, hdev->hfi_device_data);
+	rc = call_hfi_op(ops_tbl, core_release, ops_tbl->hfi_device_data);
 	if (rc) {
 		dprintk(CVP_ERR, "core_release failed\n");
 		core->state = cur_state;
@@ -646,9 +646,9 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 void msm_cvp_comm_session_clean(struct msm_cvp_inst *inst)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev = NULL;
+	struct cvp_hfi_ops *ops_tbl = NULL;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid params\n", __func__);
 		return;
 	}
@@ -658,10 +658,10 @@ void msm_cvp_comm_session_clean(struct msm_cvp_inst *inst)
 		return;
 	}
 
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 	mutex_lock(&inst->lock);
 	dprintk(CVP_SESS, "%s: inst %pK\n", __func__, inst);
-	rc = call_hfi_op(hdev, session_clean,
+	rc = call_hfi_op(ops_tbl, session_clean,
 			(void *)inst->session);
 	if (rc) {
 		dprintk(CVP_ERR,
@@ -772,16 +772,16 @@ static inline enum msm_cvp_thermal_level msm_comm_cvp_thermal_level(int level)
 static int msm_comm_session_abort(struct msm_cvp_inst *inst)
 {
 	int rc = 0, abort_completion = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	hdev = inst->core->device;
-	print_hfi_queue_info(hdev);
+	ops_tbl = inst->core->dev_ops;
+	print_hfi_queue_info(ops_tbl);
 	if (1)
 		return 0;
 
@@ -790,7 +790,7 @@ static int msm_comm_session_abort(struct msm_cvp_inst *inst)
 
 	dprintk(CVP_WARN, "%s: inst %pK session %x\n", __func__,
 		inst, hash32_ptr(inst->session));
-	rc = call_hfi_op(hdev, session_abort, (void *)inst->session);
+	rc = call_hfi_op(ops_tbl, session_abort, (void *)inst->session);
 	if (rc) {
 		dprintk(CVP_ERR,
 			"%s session_abort failed rc: %d\n", __func__, rc);
@@ -803,7 +803,7 @@ static int msm_comm_session_abort(struct msm_cvp_inst *inst)
 	if (!rc) {
 		dprintk(CVP_ERR, "%s: inst %pK session %x abort timed out\n",
 				__func__, inst, hash32_ptr(inst->session));
-		print_hfi_queue_info(hdev);
+		print_hfi_queue_info(ops_tbl);
 		msm_cvp_comm_generate_sys_error(inst);
 		rc = -EBUSY;
 	} else {
@@ -821,7 +821,7 @@ void msm_cvp_comm_handle_thermal_event(void)
 int msm_cvp_comm_check_core_init(struct msm_cvp_core *core)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 	mutex_lock(&core->lock);
 	if (core->state >= CVP_CORE_INIT_DONE) {
@@ -836,8 +836,8 @@ int msm_cvp_comm_check_core_init(struct msm_cvp_core *core)
 	if (!rc) {
 		dprintk(CVP_ERR, "%s: Wait interrupted or timed out: %d\n",
 				__func__, SYS_MSG_INDEX(HAL_SYS_INIT_DONE));
-		hdev = core->device;
-		print_hfi_queue_info(hdev);
+		ops_tbl = core->dev_ops;
+		print_hfi_queue_info(ops_tbl);
 		rc = -EIO;
 		goto exit;
 	} else {
@@ -867,14 +867,14 @@ static int msm_comm_init_core_done(struct msm_cvp_inst *inst)
 static int msm_comm_init_core(struct msm_cvp_inst *inst)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct msm_cvp_core *core;
 
-	if (!inst || !inst->core || !inst->core->device)
+	if (!inst || !inst->core || !inst->core->dev_ops)
 		return -EINVAL;
 
 	core = inst->core;
-	hdev = core->device;
+	ops_tbl = core->dev_ops;
 	mutex_lock(&core->lock);
 	if (core->state >= CVP_CORE_INIT) {
 		dprintk(CVP_CORE, "CVP core: is already in state: %d\n",
@@ -897,7 +897,7 @@ static int msm_comm_init_core(struct msm_cvp_inst *inst)
 			__func__);
 	}
 	dprintk(CVP_CORE, "%s: core %pK\n", __func__, core);
-	rc = call_hfi_op(hdev, core_init, hdev->hfi_device_data);
+	rc = call_hfi_op(ops_tbl, core_init, ops_tbl->hfi_device_data);
 	if (rc) {
 		dprintk(CVP_ERR, "Failed to init core\n");
 		goto fail_core_init;
@@ -923,15 +923,15 @@ fail_cap_alloc:
 int msm_cvp_deinit_core(struct msm_cvp_inst *inst)
 {
 	struct msm_cvp_core *core;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid parameters\n", __func__);
 		return -EINVAL;
 	}
 
 	core = inst->core;
-	hdev = core->device;
+	ops_tbl = core->dev_ops;
 
 	mutex_lock(&core->lock);
 	change_cvp_inst_state(inst, MSM_CVP_CORE_UNINIT);
@@ -959,13 +959,13 @@ static int msm_comm_session_init(int flipped_state,
 	struct msm_cvp_inst *inst)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid parameters\n", __func__);
 		return -EINVAL;
 	}
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 
 	if (IS_ALREADY_IN_STATE(flipped_state, MSM_CVP_OPEN)) {
 		dprintk(CVP_INFO, "inst: %pK is already in state: %d\n",
@@ -974,13 +974,13 @@ static int msm_comm_session_init(int flipped_state,
 	}
 
 	dprintk(CVP_SESS, "%s: inst %pK\n", __func__, inst);
-	rc = call_hfi_op(hdev, session_init, hdev->hfi_device_data,
+	rc = call_hfi_op(ops_tbl, session_init, ops_tbl->hfi_device_data,
 			inst, &inst->session);
 
 	if (rc || !inst->session) {
 		dprintk(CVP_ERR,
 			"Failed to call session init for: %pK, %pK, %d\n",
-			inst->core->device, inst, inst->session_type);
+			inst->core->dev_ops, inst, inst->session_type);
 		rc = -EINVAL;
 		goto exit;
 	}
@@ -994,9 +994,9 @@ static int msm_comm_session_close(int flipped_state,
 			struct msm_cvp_inst *inst)
 {
 	int rc = 0;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid params\n", __func__);
 		return -EINVAL;
 	}
@@ -1006,9 +1006,9 @@ static int msm_comm_session_close(int flipped_state,
 						inst, inst->state);
 		goto exit;
 	}
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 	dprintk(CVP_SESS, "%s: inst %pK\n", __func__, inst);
-	rc = call_hfi_op(hdev, session_end, (void *) inst->session);
+	rc = call_hfi_op(ops_tbl, session_end, (void *) inst->session);
 	if (rc) {
 		dprintk(CVP_ERR,
 			"Failed to send close\n");
@@ -1021,7 +1021,7 @@ exit:
 
 int msm_cvp_comm_suspend(void)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct msm_cvp_core *core;
 	int rc = 0;
 
@@ -1032,13 +1032,13 @@ int msm_cvp_comm_suspend(void)
 		return -EINVAL;
 	}
 
-	hdev = (struct cvp_hfi_device *)core->device;
-	if (!hdev) {
+	ops_tbl = (struct cvp_hfi_ops *)core->dev_ops;
+	if (!ops_tbl) {
 		dprintk(CVP_ERR, "%s Invalid device handle\n", __func__);
 		return -EINVAL;
 	}
 
-	rc = call_hfi_op(hdev, suspend, hdev->hfi_device_data);
+	rc = call_hfi_op(ops_tbl, suspend, ops_tbl->hfi_device_data);
 
 	return rc;
 }
@@ -1163,10 +1163,10 @@ int msm_cvp_comm_try_state(struct msm_cvp_inst *inst, int state)
 
 int msm_cvp_noc_error_info(struct msm_cvp_core *core)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	static u32 last_fault_count = 0;
 
-	if (!core || !core->device) {
+	if (!core || !core->dev_ops) {
 		dprintk(CVP_WARN, "%s: Invalid parameters: %pK\n",
 			__func__, core);
 		return -EINVAL;
@@ -1180,8 +1180,8 @@ int msm_cvp_noc_error_info(struct msm_cvp_core *core)
 	dprintk(CVP_ERR, "cvp ssr count %d %d %d\n", core->ssr_count,
 			core->resources.max_ssr_allowed,
 			core->smmu_fault_count);
-	hdev = core->device;
-	call_hfi_op(hdev, noc_error_info, hdev->hfi_device_data);
+	ops_tbl = core->dev_ops;
+	call_hfi_op(ops_tbl, noc_error_info, ops_tbl->hfi_device_data);
 
 	if (core->smmu_fault_count >= core->resources.max_ssr_allowed)
 		BUG_ON(!core->resources.non_fatal_pagefaults);
@@ -1205,17 +1205,17 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 {
 	int rc;
 	struct msm_cvp_core *core;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 	if (!work)
 		return;
 
 	core = container_of(work, struct msm_cvp_core, ssr_work);
-	if (!core || !core->device) {
+	if (!core || !core->dev_ops) {
 		dprintk(CVP_ERR, "%s: Invalid params\n", __func__);
 		return;
 	}
-	hdev = core->device;
+	ops_tbl = core->dev_ops;
 
 	if (core->ssr_type == SSR_SESSION_ABORT) {
 		struct msm_cvp_inst *inst = NULL, *s;
@@ -1232,7 +1232,7 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 			s = cvp_get_inst_validate(inst->core, inst);
 			if (!s)
 				return;
-			print_hfi_queue_info(hdev);
+			print_hfi_queue_info(ops_tbl);
 			cvp_put_inst(s);
 		} else {
 			dprintk(CVP_WARN, "No active CVP session to abort\n");
@@ -1253,8 +1253,8 @@ send_again:
 		 * user SSR as non-fatal.
 		 */
 		core->trigger_ssr = true;
-		rc = call_hfi_op(hdev, core_trigger_ssr,
-				hdev->hfi_device_data, core->ssr_type);
+		rc = call_hfi_op(ops_tbl, core_trigger_ssr,
+				ops_tbl->hfi_device_data, core->ssr_type);
 		if (rc) {
 			if (rc == -EAGAIN) {
 				core->trigger_ssr = false;
@@ -1295,7 +1295,7 @@ int msm_cvp_comm_kill_session(struct msm_cvp_inst *inst)
 	int rc = 0;
 	unsigned long flags = 0;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s: invalid input parameters\n", __func__);
 		return -EINVAL;
 	} else if (!inst->session) {
@@ -1329,24 +1329,24 @@ int msm_cvp_comm_kill_session(struct msm_cvp_inst *inst)
 static int set_internal_buf_on_fw(struct msm_cvp_inst *inst,
 				struct msm_cvp_smem *handle)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	int rc = 0;
 	u32 iova;
 	u32 size;
 
-	if (!inst || !inst->core || !inst->core->device || !handle) {
+	if (!inst || !inst->core || !inst->core->dev_ops || !handle) {
 		dprintk(CVP_ERR, "%s - invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 
 	iova = handle->device_addr;
 	size = handle->size;
 
 	dprintk(CVP_SESS, "%s: allocated ARP buffer : %x\n", __func__, iova);
 
-	rc = call_hfi_op(hdev, session_set_buffers,
+	rc = call_hfi_op(ops_tbl, session_set_buffers,
 			(void *) inst->session, iova, size);
 	if (rc) {
 		dprintk(CVP_ERR, "cvp_session_set_buffers failed\n");
@@ -1361,7 +1361,7 @@ int cvp_comm_set_arp_buffers(struct msm_cvp_inst *inst)
 	int rc = 0;
 	struct cvp_internal_buf *buf;
 
-	if (!inst || !inst->core || !inst->core->device) {
+	if (!inst || !inst->core || !inst->core->dev_ops) {
 		dprintk(CVP_ERR, "%s invalid parameters\n", __func__);
 		return -EINVAL;
 	}
