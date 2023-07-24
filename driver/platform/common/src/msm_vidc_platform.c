@@ -1126,9 +1126,8 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
 
-	if (enh_layer_count && msm_vidc_check_all_layer_bitrate_set(inst)) {
+	if (enh_layer_count && msm_vidc_check_all_layer_bitrate_set(inst))
 		bitrate = msm_vidc_get_cumulative_bitrate(inst);
-	}
 
 	fps = inst->capabilities[FRAME_RATE].value >> 16;
 	if (fps > MAX_SLICES_FRAME_RATE ||
@@ -2263,11 +2262,10 @@ int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl 
 		META_OUTBUF_FENCE, &meta_outbuf_fence, __func__))
 		return -EINVAL;
 
-	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
 		adjusted_value = MSM_VIDC_FENCE_DIR_TX;
-	} else {
+	else
 		adjusted_value = MSM_VIDC_FENCE_DIR_NONE;
-	}
 
 	msm_vidc_update_cap_value(inst, OUTBUF_FENCE_DIRECTION,
 		adjusted_value, __func__);

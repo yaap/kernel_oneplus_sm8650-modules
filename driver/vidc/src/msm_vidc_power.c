@@ -273,11 +273,11 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 			 * 0 index - dpb colorformat
 			 * 1 index - opb colorformat
 			 */
-			if (is_10bit_colorformat(color_format)) {
+			if (is_10bit_colorformat(color_format))
 				vote_data->color_formats[0] = MSM_VIDC_FMT_TP10C;
-			} else {
+			else
 				vote_data->color_formats[0] = MSM_VIDC_FMT_NV12;
-			}
+
 			vote_data->color_formats[1] = color_format;
 		} else if (inst->codec == MSM_VIDC_AV1 &&
 			inst->capabilities[FILM_GRAIN].value) {

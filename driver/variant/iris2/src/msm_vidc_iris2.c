@@ -867,9 +867,8 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 
 	if (adjusted_value == MSM_VIDC_BLUR_EXTERNAL) {
-		if (is_scaling_enabled(inst) || min_quality) {
+		if (is_scaling_enabled(inst) || min_quality)
 			adjusted_value = MSM_VIDC_BLUR_NONE;
-		}
 	} else if (adjusted_value == MSM_VIDC_BLUR_ADAPTIVE) {
 		if (is_scaling_enabled(inst) || min_quality ||
 			(rc_type != HFI_RC_VBR_CFR) ||

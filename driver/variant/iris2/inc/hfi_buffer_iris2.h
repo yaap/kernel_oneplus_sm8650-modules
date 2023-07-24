@@ -128,8 +128,8 @@ typedef HFI_U32 HFI_BOOL;
 
 #define HFI_YUV420_TP10_CALC_Y_STRIDE(stride, frame_width, stride_multiple) \
 	do { \
-	stride = HFI_ALIGN(frame_width, 192); \
-	stride = HFI_ALIGN(stride * 4 / 3, stride_multiple); \
+		stride = HFI_ALIGN(frame_width, 192); \
+		stride = HFI_ALIGN(stride * 4 / 3, stride_multiple); \
 	} while (0)
 
 #define HFI_YUV420_TP10_CALC_Y_BUFHEIGHT(buf_height, frame_height, \
@@ -150,9 +150,9 @@ typedef HFI_U32 HFI_BOOL;
 #define HFI_YUV420_TP10_CALC_BUF_SIZE(buf_size, y_buf_size, y_stride,\
 		y_buf_height, uv_buf_size, uv_stride, uv_buf_height) \
 	do { \
-	y_buf_size = (y_stride * y_buf_height); \
-	uv_buf_size = (uv_stride * uv_buf_height); \
-	buf_size = y_buf_size + uv_buf_size; \
+		y_buf_size = (y_stride * y_buf_height); \
+		uv_buf_size = (uv_stride * uv_buf_height); \
+		buf_size = y_buf_size + uv_buf_size; \
 	} while (0)
 
 #define HFI_YUV420_TP10_UBWC_CALC_Y_BUF_SIZE(y_buf_size, y_stride, \

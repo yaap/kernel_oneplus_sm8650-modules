@@ -682,8 +682,8 @@ void msm_vb2_request_complete(struct vb2_buffer *vb)
 	}
 	inst = vb2_get_drv_priv(vb->vb2_queue);
 	if (!inst) {
-		 d_vpr_e("%s: invalid inst\n", __func__);
-		 return;
+		d_vpr_e("%s: invalid inst\n", __func__);
+		return;
 	}
 
 	i_vpr_l(inst, "%s: vb type %d, index %d\n",

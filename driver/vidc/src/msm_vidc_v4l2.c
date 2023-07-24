@@ -39,9 +39,8 @@ unsigned int msm_v4l2_poll(struct file *filp, struct poll_table_struct *pt)
 		goto exit;
 	}
 	poll = msm_vidc_poll((void *)inst, filp, pt);
-	if (poll) {
+	if (poll)
 		goto exit;
-	}
 
 exit:
 	put_inst(inst);
