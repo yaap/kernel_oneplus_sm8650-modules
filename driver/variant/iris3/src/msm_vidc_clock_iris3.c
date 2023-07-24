@@ -211,7 +211,8 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		 *
 		 *  8KUHD60fps with B frame
 		 *     - bitrate_entry = 0
-		 *     - Clock=NOMINAL for H264 & 2Stage H265. Because bitrate table entry for TURBO is 0.
+		 *     - Clock=NOMINAL for H264 & 2Stage H265. Because bitrate
+		 *       table entry for TURBO is 0.
 		 *
 		 *  TODO : Reduce these conditions by removing the zero entries from Bitrate table.
 		 */
@@ -234,10 +235,12 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 			|| (codec_input.codec == CODEC_AV1)) {
 			if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_kalama_2stage_fp[codec][0] * fw_sw_vsp_offset));
+					(bitrate_table_kalama_2stage_fp[codec][0] *
+					fw_sw_vsp_offset));
 			} else {
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_kalama_1stage_fp[codec][0] * fw_sw_vsp_offset));
+					(bitrate_table_kalama_1stage_fp[codec][0] *
+					fw_sw_vsp_offset));
 			}
 		}
 	} else {
@@ -290,7 +293,8 @@ static u32 calculate_pipe_penalty(struct api_calculation_input codec_input)
 					pipe_penalty_kalama[avid_commercial_content + 1][1]) / 2;
 			else if ((pixel_count == 3840 * 2160) ||
 				(pixel_count == 4096 * 2160) || (pixel_count == 4096 * 2304))
-				pipe_penalty_codec = pipe_penalty_kalama[avid_commercial_content + 1][1];
+				pipe_penalty_codec =
+					pipe_penalty_kalama[avid_commercial_content + 1][1];
 			else if (pixel_count < 7680 * 4320)
 				pipe_penalty_codec =
 					(pipe_penalty_kalama[avid_commercial_content + 1][1] +
@@ -360,7 +364,8 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 				1050 : decoder_vpp_fw_overhead;
 
 			/* VPP HW + FW */
-			if (codec_input.linear_opb == 1 && codec_input.bitdepth == CODEC_BITDEPTH_10)
+			if (codec_input.linear_opb == 1 &&
+			    codec_input.bitdepth == CODEC_BITDEPTH_10)
 				/* multiply by 1.20 for 10b case */
 				decoder_vpp_fw_overhead = 1200 + decoder_vpp_fw_overhead - 1000;
 
@@ -375,7 +380,8 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 				vpp_hw_min_frequency : vsp_hw_min_frequency;
 		} else {
 			/* 1-stage need SW cycles + FW cycles + HW time */
-			if (codec_input.linear_opb == 1 && codec_input.bitdepth == CODEC_BITDEPTH_10)
+			if (codec_input.linear_opb == 1 &&
+			    codec_input.bitdepth == CODEC_BITDEPTH_10)
 				/* multiply by 1.20 for 10b linear case */
 				vpp_hw_min_frequency =
 					(vpp_hw_min_frequency * 1200 + 999) / 1000;

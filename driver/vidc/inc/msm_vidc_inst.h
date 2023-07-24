@@ -100,7 +100,7 @@ struct msm_vidc_inst {
 	struct msm_vidc_buffers_info       buffers;
 	struct msm_vidc_mem_list_info      mem_info;
 	struct msm_vidc_timestamps         timestamps;
-	struct msm_vidc_timestamps         ts_reorder; /* list of struct msm_vidc_timestamp */
+	struct msm_vidc_timestamps         ts_reorder; /* struct msm_vidc_timestamp */
 	struct msm_vidc_subscription_params       subcr_params[MAX_PORT];
 	struct msm_vidc_hfi_frame_info     hfi_frame_info;
 	struct msm_vidc_decode_batch       decode_batch;
@@ -111,13 +111,13 @@ struct msm_vidc_inst {
 	struct msm_vidc_stability          stability;
 	struct workqueue_struct           *workq;
 	struct list_head                   enc_input_crs;
-	struct list_head                   dmabuf_tracker; /* list of struct msm_memory_dmabuf */
-	struct list_head                   input_timer_list; /* list of struct msm_vidc_input_timer */
+	struct list_head                   dmabuf_tracker; /* struct msm_memory_dmabuf */
+	struct list_head                   input_timer_list; /* struct msm_vidc_input_timer */
 	struct list_head                   caps_list;
 	struct list_head                   children_list; /* struct msm_vidc_inst_cap_entry */
 	struct list_head                   firmware_list; /* struct msm_vidc_inst_cap_entry */
-	struct list_head                   pending_pkts; /* list of struct hfi_pending_packet */
-	struct list_head                   fence_list; /* list of struct msm_vidc_fence */
+	struct list_head                   pending_pkts; /* struct hfi_pending_packet */
+	struct list_head                   fence_list; /* struct msm_vidc_fence */
 	struct list_head                   buffer_stats_list; /* struct msm_vidc_buffer_stats */
 	bool                               once_per_session_set;
 	bool                               ipsc_properties_set;

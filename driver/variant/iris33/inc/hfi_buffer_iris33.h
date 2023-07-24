@@ -1203,14 +1203,17 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			frame_width_coded, codec_standard); \
 		mbs_in_one_tile = (tile_size * frame_height_coded) / (lcu_size * lcu_size); \
 		slice_count_per_tile = \
-			(mbs_in_one_tile + multi_slice_max_mb_count - 1) / (multi_slice_max_mb_count); \
+			(mbs_in_one_tile + multi_slice_max_mb_count - 1) / \
+			(multi_slice_max_mb_count); \
 		if (last_tile_size) { \
 			mbs_in_last_tile = \
 				(last_tile_size * frame_height_coded) / (lcu_size * lcu_size); \
 			slice_count_in_last_tile = \
-				(mbs_in_last_tile + multi_slice_max_mb_count - 1) / (multi_slice_max_mb_count); \
+				(mbs_in_last_tile + multi_slice_max_mb_count - 1) / \
+				(multi_slice_max_mb_count); \
 			total_slice_count = \
-				(slice_count_per_tile * (tile_count - 1)) + slice_count_in_last_tile; \
+				(slice_count_per_tile * (tile_count - 1)) + \
+				slice_count_in_last_tile; \
 		} else { \
 			total_slice_count = (slice_count_per_tile * tile_count); \
 		} \

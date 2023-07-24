@@ -3920,7 +3920,8 @@ int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst)
 		if (!buffers)
 			continue;
 
-		i_vpr_h(inst, "buf: type: %15s, min %2d, extra %2d, actual %2d, size %9u, reuse %d\n",
+		i_vpr_h(inst,
+			"buf: type: %15s, min %2d, extra %2d, actual %2d, size %9u, reuse %d\n",
 			buf_name(i), buffers->min_count,
 			buffers->extra_count, buffers->actual_count,
 			buffers->size, buffers->reuse);
@@ -4263,9 +4264,11 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 				buf->attr & MSM_VIDC_ATTR_DEFERRED) {
 				print_vidc_buffer(VIDC_HIGH, "high", "flushing buffer", inst, buf);
 				if (!(buf->attr & MSM_VIDC_ATTR_BUFFER_DONE)) {
-					if (is_decode_session(inst) && is_output_buffer(buf->type)) {
+					if (is_decode_session(inst) &&
+					    is_output_buffer(buf->type)) {
 						if (buf->dbuf_get) {
-							call_mem_op(core, dma_buf_put, inst, buf->dmabuf);
+							call_mem_op(core, dma_buf_put,
+								    inst, buf->dmabuf);
 							buf->dbuf_get = 0;
 						}
 					}
@@ -4391,7 +4394,8 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 			if (buf->attach && buf->dmabuf)
 				call_mem_op(core, dma_buf_detach, core, buf->dmabuf, buf->attach);
 			if (buf->dbuf_get) {
-				print_vidc_buffer(VIDC_ERR, "err ", "destroying: put dmabuf", inst, buf);
+				print_vidc_buffer(VIDC_ERR, "err ", "destroying: put dmabuf",
+						  inst, buf);
 				call_mem_op(core, dma_buf_put, inst, buf->dmabuf);
 			}
 			list_del_init(&buf->list);
@@ -5244,10 +5248,12 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 			num_8k_sessions += 1;
 			num_4k_sessions += 2;
 			num_1080p_sessions += 4;
-		} else if (res_is_greater_than(width, height, 1920 + (1920 >> 1), 1088 + (1088 >> 1))) {
+		} else if (res_is_greater_than(width, height, 1920 + (1920 >> 1),
+					       1088 + (1088 >> 1))) {
 			num_4k_sessions += 1;
 			num_1080p_sessions += 2;
-		} else if (res_is_greater_than(width, height, 1280 + (1280 >> 1), 736 + (736 >> 1))) {
+		} else if (res_is_greater_than(width, height, 1280 + (1280 >> 1),
+					       736 + (736 >> 1))) {
 			num_1080p_sessions += 1;
 		}
 	}

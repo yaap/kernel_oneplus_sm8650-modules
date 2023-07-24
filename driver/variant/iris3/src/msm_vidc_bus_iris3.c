@@ -97,14 +97,18 @@ u32 get_compression_factors(struct compression_factors *compression_factor,
 		 */
 		if (frame_width < 3840) {
 			compression_factor->ipb_cr =
-				ipblossless_ubwc30_cr_table_cratio_kalama[cr_index_entry][cr_index_uni];
+				ipblossless_ubwc30_cr_table_cratio_kalama[cr_index_entry]
+					[cr_index_uni];
 			compression_factor->ipb_cr_y =
-				ipblossless_ubwc30_cr_table_cratio_kalama[cr_index_entry][cr_index_y];
+				ipblossless_ubwc30_cr_table_cratio_kalama[cr_index_entry]
+					[cr_index_y];
 		} else {
 			compression_factor->ipb_cr =
-				ipblossy_ubwc30_cr_table_cratio_kalama[cr_index_entry][cr_index_uni];
+				ipblossy_ubwc30_cr_table_cratio_kalama[cr_index_entry]
+					[cr_index_uni];
 			compression_factor->ipb_cr_y =
-				ipblossy_ubwc30_cr_table_cratio_kalama[cr_index_entry][cr_index_y];
+				ipblossy_ubwc30_cr_table_cratio_kalama[cr_index_entry]
+					[cr_index_y];
 		}
 
 		compression_factor->dpb_cf_y =
@@ -764,12 +768,13 @@ static int calculate_bandwidth_encoder_iris3(
 	/*
 	 * Summary:
 	 * by default (for both HFR and HSR cases) :
-	 * 	-Any resolution and fps >= 120, enable layering.
+	 *      -Any resolution and fps >= 120, enable layering.
 	 * (120 -> 3, 240 -> 4, 480 -> 5)
-	 * 	- (once we enable layering) : 50 per cent frames are Non - reference
+	 *      - (once we enable layering) : 50 per cent frames are Non - reference
 	 *  frames.recon write is disable by Venus firmware
 	 * 	- Customer has ability to enable / disable layering.
-	 *  Hence, recon write savings would not be there if customer explicitly disables layer encoding.
+	 *  Hence, recon write savings would not be there if
+	 *  customer explicitly disables layer encoding.
 	 */
 
 	/*HFR Cases use alternating rec write if not PWC*/
@@ -822,8 +827,8 @@ static int calculate_bandwidth_encoder_iris3(
 			codec_output->ipb_rd_total_noc = large_bw_calculation_fp;
 			if (codec_input.linear_ipb == 0) {
 				codec_output->ipb_rd_total_noc =
-					(large_bw_calculation_fp * 100 + ipb_compression_factor - 1) /
-					ipb_compression_factor;
+					(large_bw_calculation_fp * 100 +
+					ipb_compression_factor - 1) / ipb_compression_factor;
 			}
 		} else { /* rgb */
 			large_bw_calculation_fp = frame420_y_bw_linear_8bpp;
@@ -832,7 +837,8 @@ static int calculate_bandwidth_encoder_iris3(
 				if (codec_input.complexity_setting == 0) /* pwc */
 					codec_output->ipb_rd_total_noc =
 						(large_bw_calculation_fp * 100 +
-						en_original_compression_factor_rgba_pwd_kalama - 1) /
+						en_original_compression_factor_rgba_pwd_kalama
+						- 1) /
 						en_original_compression_factor_rgba_pwd_kalama;
 				else
 					codec_output->ipb_rd_total_noc =
