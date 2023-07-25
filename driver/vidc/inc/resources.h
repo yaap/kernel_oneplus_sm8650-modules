@@ -284,7 +284,7 @@ struct msm_vidc_resources_ops {
 	int (*clk_print_residency_stats)(struct msm_vidc_core *core);
 	int (*clk_reset_residency_stats)(struct msm_vidc_core *core);
 	int (*clk_update_residency_stats)(
-		struct msm_vidc_core *core,struct clock_info *cl, u64 rate);
+		struct msm_vidc_core *core, struct clock_info *cl, u64 rate);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);

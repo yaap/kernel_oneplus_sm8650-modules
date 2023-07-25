@@ -42,6 +42,7 @@ enum v4l2_mpeg_vidc_blur_types {
 	VIDC_BLUR_EXTERNAL           = 0x1,
 	VIDC_BLUR_ADAPTIVE           = 0x2,
 };
+
 /* (blur width) << 16 | (blur height) */
 #define V4L2_CID_MPEG_VIDC_VIDEO_BLUR_RESOLUTION                              \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x11)
@@ -163,6 +164,7 @@ enum v4l2_mpeg_vidc_av1_tier {
 	V4L2_MPEG_VIDC_AV1_TIER_MAIN  = 0,
 	V4L2_MPEG_VIDC_AV1_TIER_HIGH  = 1,
 };
+
 /* Decoder Timestamp Reorder control */
 #define V4L2_CID_MPEG_VIDC_TS_REORDER           (V4L2_CID_MPEG_VIDC_BASE + 0x34)
 /* AV1 Decoder Film Grain */
