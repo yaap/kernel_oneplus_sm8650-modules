@@ -480,6 +480,16 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(proxy_tx),
 	},
+	{
+		.name = LPASS_BE_RT_PROXY_PCM_TX_2,
+		.stream_name = LPASS_BE_RT_PROXY_PCM_TX_2,
+		.capture_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		.ops = &msm_common_be_ops,
+		SND_SOC_DAILINK_REG(proxy_tx2),
+	},
 	/* Proxy Rx BACK END DAI Link */
 	{
 		.name = LPASS_BE_RT_PROXY_PCM_RX,
@@ -491,6 +501,17 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.ignore_suspend = 1,
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(proxy_rx),
+	},
+	{
+		.name = LPASS_BE_RT_PROXY_PCM_RX_2,
+		.stream_name = LPASS_BE_RT_PROXY_PCM_RX_2,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+		.ops = &msm_common_be_ops,
+		SND_SOC_DAILINK_REG(proxy_rx2),
 	},
 	{
 		.name = LPASS_BE_USB_AUDIO_RX,
