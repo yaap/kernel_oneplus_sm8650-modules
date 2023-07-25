@@ -93,25 +93,25 @@ DATARMNET0f6b7f3f93,.open=DATARMNET6069bf201a,.fault=DATARMNET1ab1f570f2,};
 static const struct vm_operations_struct DATARMNET41944cc550={.close=
 DATARMNET0f6b7f3f93,.open=DATARMNET6069bf201a,.fault=DATARMNETe421c4e1db,};
 static int DATARMNET54418f934d(struct file*DATARMNET3cc114dce0,struct 
-vm_area_struct*vma){vma->vm_ops=&DATARMNETfa4e968e7d;vma->vm_flags|=
-VM_DONTEXPAND|VM_DONTDUMP;vma->vm_private_data=DATARMNET3cc114dce0->private_data
-;return(0xd2d+202-0xdf7);}static int DATARMNETc55748448d(struct file*
-DATARMNET3cc114dce0,struct vm_area_struct*vma){vma->vm_ops=&DATARMNETe9c0626068;
-vma->vm_flags|=VM_DONTEXPAND|VM_DONTDUMP;vma->vm_private_data=
+vm_area_struct*vma){vma->vm_ops=&DATARMNETfa4e968e7d;vm_flags_set(vma,
+VM_DONTEXPAND|VM_DONTDUMP);vma->vm_private_data=DATARMNET3cc114dce0->
+private_data;return(0xd2d+202-0xdf7);}static int DATARMNETc55748448d(struct file
+*DATARMNET3cc114dce0,struct vm_area_struct*vma){vma->vm_ops=&DATARMNETe9c0626068
+;vm_flags_set(vma,VM_DONTEXPAND|VM_DONTDUMP);vma->vm_private_data=
 DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}static int 
 DATARMNET43c6d751a2(struct file*DATARMNET3cc114dce0,struct vm_area_struct*vma){
-vma->vm_ops=&DATARMNET9a89317a86;vma->vm_flags|=VM_DONTEXPAND|VM_DONTDUMP;vma->
-vm_private_data=DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}
+vma->vm_ops=&DATARMNET9a89317a86;vm_flags_set(vma,VM_DONTEXPAND|VM_DONTDUMP);vma
+->vm_private_data=DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}
 static int DATARMNET7cc042bdf3(struct file*DATARMNET3cc114dce0,struct 
-vm_area_struct*vma){vma->vm_ops=&DATARMNET5462c2ce60;vma->vm_flags|=
-VM_DONTEXPAND|VM_DONTDUMP;vma->vm_private_data=DATARMNET3cc114dce0->private_data
-;return(0xd2d+202-0xdf7);}static int DATARMNET150e284e90(struct file*
-DATARMNET3cc114dce0,struct vm_area_struct*vma){vma->vm_ops=&DATARMNET523167fa26;
-vma->vm_flags|=VM_DONTEXPAND|VM_DONTDUMP;vma->vm_private_data=
+vm_area_struct*vma){vma->vm_ops=&DATARMNET5462c2ce60;vm_flags_set(vma,
+VM_DONTEXPAND|VM_DONTDUMP);vma->vm_private_data=DATARMNET3cc114dce0->
+private_data;return(0xd2d+202-0xdf7);}static int DATARMNET150e284e90(struct file
+*DATARMNET3cc114dce0,struct vm_area_struct*vma){vma->vm_ops=&DATARMNET523167fa26
+;vm_flags_set(vma,VM_DONTEXPAND|VM_DONTDUMP);vma->vm_private_data=
 DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}static int 
 DATARMNET444e2eb654(struct file*DATARMNET3cc114dce0,struct vm_area_struct*vma){
-vma->vm_ops=&DATARMNET41944cc550;vma->vm_flags|=VM_DONTEXPAND|VM_DONTDUMP;vma->
-vm_private_data=DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}
+vma->vm_ops=&DATARMNET41944cc550;vm_flags_set(vma,VM_DONTEXPAND|VM_DONTDUMP);vma
+->vm_private_data=DATARMNET3cc114dce0->private_data;return(0xd2d+202-0xdf7);}
 static int DATARMNET33a80d3bf7(struct inode*inode,struct file*
 DATARMNET3cc114dce0){struct DATARMNETa41d4c4a12*DATARMNET54338da2ff;rm_err(
 "\x25\x73",
