@@ -991,8 +991,8 @@ int synx_async_wait(struct synx_session *session,
 				synx_native_signal_fence(synx_obj, status);
 		}
 	}
-	else
-		status = synx_util_get_object_status(synx_obj);
+
+	status = synx_util_get_object_status(synx_obj);
 
 	synx_cb->session = session;
 	synx_cb->idx = idx;
@@ -1375,7 +1375,6 @@ int synx_wait(struct synx_session *session,
 			else
 				synx_native_signal_fence(synx_obj, rc);
 			mutex_unlock(&synx_obj->obj_lock);
-			goto status;
 		}
 	}
 
@@ -1389,7 +1388,6 @@ int synx_wait(struct synx_session *session,
 		goto fail;
 	}
 
-status:
 	mutex_lock(&synx_obj->obj_lock);
 	rc = synx_util_get_object_status(synx_obj);
 	mutex_unlock(&synx_obj->obj_lock);
