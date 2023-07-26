@@ -796,6 +796,13 @@ static int msm_vdec_destroy_internal_buffers(struct msm_vidc_inst *inst,
 		}
 
 		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+			/*
+			 * do not destroy internal buffer (DPB buffer) if firmware
+			 * did not return it, so skip if QUEUED flag is present
+			 */
+			if (buf->attr & MSM_VIDC_ATTR_QUEUED)
+				continue;
+
 			i_vpr_h(inst,
 				"%s: destroying internal buffer: type %d idx %d fd %d addr %#llx size %d\n",
 				__func__, buf->type, buf->index, buf->fd,
