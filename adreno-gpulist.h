@@ -2353,7 +2353,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 			ADRENO_L3_VOTE | ADRENO_BCL | ADRENO_DMS |
 			ADRENO_HW_FENCE | ADRENO_PREEMPTION | ADRENO_ACD,
 		.gpudev = &adreno_gen7_9_0_hwsched_gpudev.base,
-		.perfcounters = &adreno_gen7_hwsched_perfcounters,
+		.perfcounters = &adreno_gen7_9_0_hwsched_perfcounters,
 		.uche_gmem_alignment = SZ_16M,
 		.gmem_size = 3 * SZ_1M,
 		.bus_width = 32,
@@ -2388,7 +2388,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
 			ADRENO_L3_VOTE | ADRENO_BCL | ADRENO_DMS |
 			ADRENO_HW_FENCE | ADRENO_PREEMPTION | ADRENO_ACD,
 		.gpudev = &adreno_gen7_9_0_hwsched_gpudev.base,
-		.perfcounters = &adreno_gen7_hwsched_perfcounters,
+		.perfcounters = &adreno_gen7_9_0_hwsched_perfcounters,
 		.uche_gmem_alignment = SZ_16M,
 		.gmem_size = 3 * SZ_1M,
 		.bus_width = 32,
