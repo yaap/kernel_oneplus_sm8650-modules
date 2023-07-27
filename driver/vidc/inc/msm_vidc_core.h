@@ -20,7 +20,7 @@ struct msm_vidc_core;
 
 #define call_venus_op(d, op, ...)			\
 	(((d) && (d)->venus_ops && (d)->venus_ops->op) ? \
-	((d)->venus_ops->op(__VA_ARGS__)):0)
+	((d)->venus_ops->op(__VA_ARGS__)) : 0)
 
 struct msm_vidc_venus_ops {
 	int (*boot_firmware)(struct msm_vidc_core *core);
@@ -76,8 +76,8 @@ struct msm_vidc_core {
 	char                                   fw_version[MAX_NAME_LENGTH];
 	enum msm_vidc_core_state               state;
 	int                                  (*state_handle)(struct msm_vidc_core *core,
-					       enum msm_vidc_core_event_type type,
-					       struct msm_vidc_event_data *data);
+							     enum msm_vidc_core_event_type type,
+							     struct msm_vidc_event_data *data);
 	enum msm_vidc_core_sub_state           sub_state;
 	char                                   sub_state_name[MAX_NAME_LENGTH];
 	struct mutex                           lock;
@@ -88,7 +88,7 @@ struct msm_vidc_core {
 	u32                                    reg_count;
 	u32                                    enc_codecs_count;
 	u32                                    dec_codecs_count;
-	struct msm_vidc_core_capability        capabilities[CORE_CAP_MAX+1];
+	struct msm_vidc_core_capability        capabilities[CORE_CAP_MAX + 1];
 	struct msm_vidc_inst_capability       *inst_caps;
 	struct msm_vidc_mem_addr               sfr;
 	struct msm_vidc_mem_addr               iface_q_table;

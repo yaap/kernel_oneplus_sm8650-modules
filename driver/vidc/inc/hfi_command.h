@@ -13,7 +13,6 @@
 
 #define HFI_VIDEO_ARCH_LX               0x1
 
-
 struct hfi_header {
 	u32 size;
 	u32 session_id;

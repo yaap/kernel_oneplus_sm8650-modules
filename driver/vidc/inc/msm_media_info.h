@@ -12,7 +12,7 @@
 /* Width and Height should be multiple of 16 */
 #define INTERLACE_WIDTH_MAX 1920
 #define INTERLACE_HEIGHT_MAX 1920
-#define INTERLACE_MB_PER_FRAME_MAX ((1920*1088)/256)
+#define INTERLACE_MB_PER_FRAME_MAX ((1920 * 1088) / 256)
 
 #ifndef MSM_MEDIA_ALIGN
 #define MSM_MEDIA_ALIGN(__sz, __align) (((__align) & ((__align) - 1)) ?\
@@ -32,7 +32,7 @@
  * Interlaced: width
  */
 static inline unsigned int video_y_stride_bytes(unsigned int colorformat,
-	unsigned int width)
+						unsigned int width)
 {
 	unsigned int alignment, stride = 0;
 
@@ -49,7 +49,7 @@ static inline unsigned int video_y_stride_bytes(unsigned int colorformat,
 	case MSM_VIDC_FMT_TP10C:
 		alignment = 256;
 		stride = MSM_MEDIA_ALIGN(width, 192);
-		stride = MSM_MEDIA_ALIGN(stride * 4/3, alignment);
+		stride = MSM_MEDIA_ALIGN(stride * 4 / 3, alignment);
 		break;
 	case MSM_VIDC_FMT_P010:
 		alignment = 256;
@@ -70,7 +70,7 @@ invalid_input:
  * Interlaced: width
  */
 static inline unsigned int video_y_stride_pix(unsigned int colorformat,
-	unsigned int width)
+					      unsigned int width)
 {
 	unsigned int alignment, stride = 0;
 
@@ -105,7 +105,7 @@ invalid_input:
  * Interlaced: width
  */
 static inline unsigned int video_uv_stride_bytes(unsigned int colorformat,
-	unsigned int width)
+						 unsigned int width)
 {
 	unsigned int alignment, stride = 0;
 
@@ -122,7 +122,7 @@ static inline unsigned int video_uv_stride_bytes(unsigned int colorformat,
 	case MSM_VIDC_FMT_TP10C:
 		alignment = 256;
 		stride = MSM_MEDIA_ALIGN(width, 192);
-		stride = MSM_MEDIA_ALIGN(stride * 4/3, alignment);
+		stride = MSM_MEDIA_ALIGN(stride * 4 / 3, alignment);
 		break;
 	case MSM_VIDC_FMT_P010:
 		alignment = 256;
@@ -143,7 +143,7 @@ invalid_input:
  * Interlaced: width
  */
 static inline unsigned int video_uv_stride_pix(unsigned int colorformat,
-	unsigned int width)
+					       unsigned int width)
 {
 	unsigned int alignment, stride = 0;
 
@@ -177,7 +177,7 @@ invalid_input:
  * Interlaced: (height+1)>>1
  */
 static inline unsigned int video_y_scanlines(unsigned int colorformat,
-	unsigned int height)
+					     unsigned int height)
 {
 	unsigned int alignment, sclines = 0;
 
@@ -210,7 +210,7 @@ invalid_input:
  * Interlaced: (height+1)>>1
  */
 static inline unsigned int video_uv_scanlines(unsigned int colorformat,
-	unsigned int height)
+					      unsigned int height)
 {
 	unsigned int alignment, sclines = 0;
 
@@ -231,7 +231,7 @@ static inline unsigned int video_uv_scanlines(unsigned int colorformat,
 		goto invalid_input;
 	}
 
-	sclines = MSM_MEDIA_ALIGN((height+1)>>1, alignment);
+	sclines = MSM_MEDIA_ALIGN((height + 1) >> 1, alignment);
 
 invalid_input:
 	return sclines;
@@ -245,7 +245,7 @@ invalid_input:
  * Interlaced: width
  */
 static inline unsigned int video_y_meta_stride(unsigned int colorformat,
-	unsigned int width)
+					       unsigned int width)
 {
 	int y_tile_width = 0, y_meta_stride = 0;
 
@@ -278,7 +278,7 @@ invalid_input:
  * Interlaced: (height+1)>>1
  */
 static inline unsigned int video_y_meta_scanlines(unsigned int colorformat,
-	unsigned int height)
+						  unsigned int height)
 {
 	int y_tile_height = 0, y_meta_scanlines = 0;
 
@@ -311,7 +311,7 @@ invalid_input:
  * Interlaced: width
  */
 static inline unsigned int video_uv_meta_stride(unsigned int colorformat,
-	unsigned int width)
+						unsigned int width)
 {
 	int uv_tile_width = 0, uv_meta_stride = 0;
 
@@ -329,7 +329,7 @@ static inline unsigned int video_uv_meta_stride(unsigned int colorformat,
 		goto invalid_input;
 	}
 
-	uv_meta_stride = MSM_MEDIA_ROUNDUP((width+1)>>1, uv_tile_width);
+	uv_meta_stride = MSM_MEDIA_ROUNDUP((width + 1) >> 1, uv_tile_width);
 	uv_meta_stride = MSM_MEDIA_ALIGN(uv_meta_stride, 64);
 
 invalid_input:
@@ -343,8 +343,8 @@ invalid_input:
  * Progressive: height
  * Interlaced: (height+1)>>1
  */
-static inline unsigned int video_uv_meta_scanlines(
-	unsigned int colorformat, unsigned int height)
+static inline unsigned int video_uv_meta_scanlines(unsigned int colorformat,
+						   unsigned int height)
 {
 	int uv_tile_height = 0, uv_meta_scanlines = 0;
 
@@ -362,15 +362,15 @@ static inline unsigned int video_uv_meta_scanlines(
 		goto invalid_input;
 	}
 
-	uv_meta_scanlines = MSM_MEDIA_ROUNDUP((height+1)>>1, uv_tile_height);
+	uv_meta_scanlines = MSM_MEDIA_ROUNDUP((height + 1) >> 1, uv_tile_height);
 	uv_meta_scanlines = MSM_MEDIA_ALIGN(uv_meta_scanlines, 16);
 
 invalid_input:
 	return uv_meta_scanlines;
 }
 
-static inline unsigned int video_rgb_stride_bytes(
-	unsigned int colorformat, unsigned int width)
+static inline unsigned int video_rgb_stride_bytes(unsigned int colorformat,
+						  unsigned int width)
 {
 	unsigned int alignment = 0, stride = 0, bpp = 4;
 
@@ -393,7 +393,7 @@ invalid_input:
 }
 
 static inline unsigned int video_rgb_stride_pix(unsigned int colorformat,
-	unsigned int width)
+						unsigned int width)
 {
 	unsigned int bpp = 4;
 
@@ -401,7 +401,7 @@ static inline unsigned int video_rgb_stride_pix(unsigned int colorformat,
 }
 
 static inline unsigned int video_rgb_scanlines(unsigned int colorformat,
-	unsigned int height)
+					       unsigned int height)
 {
 	unsigned int alignment = 0, scanlines = 0;
 
@@ -425,8 +425,8 @@ invalid_input:
 	return scanlines;
 }
 
-static inline unsigned int video_rgb_meta_stride(
-	unsigned int colorformat, unsigned int width)
+static inline unsigned int video_rgb_meta_stride(unsigned int colorformat,
+						 unsigned int width)
 {
 	int rgb_tile_width = 0, rgb_meta_stride = 0;
 
@@ -449,8 +449,8 @@ invalid_input:
 	return rgb_meta_stride;
 }
 
-static inline unsigned int video_rgb_meta_scanlines(
-	unsigned int colorformat, unsigned int height)
+static inline unsigned int video_rgb_meta_scanlines(unsigned int colorformat,
+						    unsigned int height)
 {
 	int rgb_tile_height = 0, rgb_meta_scanlines = 0;
 
@@ -474,7 +474,9 @@ invalid_input:
 }
 
 static inline unsigned int video_buffer_size(unsigned int colorformat,
-	unsigned int pix_width, unsigned int pix_height, unsigned int interlace)
+					     unsigned int pix_width,
+					     unsigned int pix_height,
+					     unsigned int interlace)
 {
 	unsigned int size = 0;
 	unsigned int y_plane, uv_plane, y_stride,
@@ -513,12 +515,13 @@ static inline unsigned int video_buffer_size(unsigned int colorformat,
 			uv_ubwc_plane = MSM_MEDIA_ALIGN(uv_stride * uv_sclines, 4096);
 			y_meta_scanlines =
 				video_y_meta_scanlines(colorformat, pix_height);
-			y_meta_plane = MSM_MEDIA_ALIGN(
-				y_meta_stride * y_meta_scanlines, 4096);
+			y_meta_plane = MSM_MEDIA_ALIGN(y_meta_stride *
+						       y_meta_scanlines, 4096);
 			uv_meta_scanlines =
 				video_uv_meta_scanlines(colorformat, pix_height);
 			uv_meta_plane = MSM_MEDIA_ALIGN(uv_meta_stride *
-				uv_meta_scanlines, 4096);
+							uv_meta_scanlines,
+							4096);
 			size = (y_ubwc_plane + uv_ubwc_plane + y_meta_plane +
 				uv_meta_plane);
 		} else {
@@ -526,21 +529,23 @@ static inline unsigned int video_buffer_size(unsigned int colorformat,
 				pix_height <= INTERLACE_HEIGHT_MAX &&
 				(pix_height * pix_width) / 256 <= INTERLACE_MB_PER_FRAME_MAX) {
 				y_sclines =
-					video_y_scanlines(colorformat, (pix_height+1)>>1);
+					video_y_scanlines(colorformat, (pix_height + 1) >> 1);
 				y_ubwc_plane =
 					MSM_MEDIA_ALIGN(y_stride * y_sclines, 4096);
 				uv_sclines =
-					video_uv_scanlines(colorformat, (pix_height+1)>>1);
+					video_uv_scanlines(colorformat, (pix_height + 1) >> 1);
 				uv_ubwc_plane =
 					MSM_MEDIA_ALIGN(uv_stride * uv_sclines, 4096);
 				y_meta_scanlines =
-				video_y_meta_scanlines(colorformat, (pix_height+1)>>1);
-				y_meta_plane = MSM_MEDIA_ALIGN(
-					y_meta_stride * y_meta_scanlines, 4096);
+				video_y_meta_scanlines(colorformat, (pix_height + 1) >> 1);
+				y_meta_plane = MSM_MEDIA_ALIGN(y_meta_stride *
+							       y_meta_scanlines,
+							       4096);
 				uv_meta_scanlines =
-				video_uv_meta_scanlines(colorformat, (pix_height+1)>>1);
+				video_uv_meta_scanlines(colorformat, (pix_height + 1) >> 1);
 				uv_meta_plane = MSM_MEDIA_ALIGN(uv_meta_stride *
-					uv_meta_scanlines, 4096);
+								uv_meta_scanlines,
+								4096);
 				size = (y_ubwc_plane + uv_ubwc_plane + y_meta_plane +
 					uv_meta_plane)*2;
 			} else {
@@ -552,12 +557,14 @@ static inline unsigned int video_buffer_size(unsigned int colorformat,
 					MSM_MEDIA_ALIGN(uv_stride * uv_sclines, 4096);
 				y_meta_scanlines =
 					video_y_meta_scanlines(colorformat, pix_height);
-				y_meta_plane = MSM_MEDIA_ALIGN(
-					y_meta_stride * y_meta_scanlines, 4096);
+				y_meta_plane = MSM_MEDIA_ALIGN(y_meta_stride *
+							       y_meta_scanlines,
+							       4096);
 				uv_meta_scanlines =
 					video_uv_meta_scanlines(colorformat, pix_height);
 				uv_meta_plane = MSM_MEDIA_ALIGN(uv_meta_stride *
-					uv_meta_scanlines, 4096);
+								uv_meta_scanlines,
+								4096);
 				size = (y_ubwc_plane + uv_ubwc_plane + y_meta_plane +
 					uv_meta_plane);
 			}
@@ -568,24 +575,25 @@ static inline unsigned int video_buffer_size(unsigned int colorformat,
 		uv_ubwc_plane = MSM_MEDIA_ALIGN(uv_stride * uv_sclines, 4096);
 		y_meta_stride = video_y_meta_stride(colorformat, pix_width);
 		y_meta_scanlines = video_y_meta_scanlines(colorformat, pix_height);
-		y_meta_plane = MSM_MEDIA_ALIGN(
-			y_meta_stride * y_meta_scanlines, 4096);
+		y_meta_plane = MSM_MEDIA_ALIGN(y_meta_stride *
+					       y_meta_scanlines, 4096);
 		uv_meta_stride = video_uv_meta_stride(colorformat, pix_width);
 		uv_meta_scanlines = video_uv_meta_scanlines(colorformat, pix_height);
 		uv_meta_plane = MSM_MEDIA_ALIGN(uv_meta_stride *
-			uv_meta_scanlines, 4096);
+						uv_meta_scanlines,
+						4096);
 
 		size = y_ubwc_plane + uv_ubwc_plane + y_meta_plane +
 			uv_meta_plane;
 		break;
 	case MSM_VIDC_FMT_RGBA8888C:
 		rgb_ubwc_plane = MSM_MEDIA_ALIGN(rgb_stride * rgb_scanlines,
-			4096);
+						 4096);
 		rgb_meta_stride = video_rgb_meta_stride(colorformat, pix_width);
 		rgb_meta_scanlines = video_rgb_meta_scanlines(colorformat,
-			pix_height);
+							      pix_height);
 		rgb_meta_plane = MSM_MEDIA_ALIGN(rgb_meta_stride *
-			rgb_meta_scanlines, 4096);
+						 rgb_meta_scanlines, 4096);
 		size = rgb_ubwc_plane + rgb_meta_plane;
 		break;
 	case MSM_VIDC_FMT_RGBA8888:

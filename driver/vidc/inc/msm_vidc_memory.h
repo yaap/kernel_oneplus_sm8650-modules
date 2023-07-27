@@ -46,7 +46,7 @@ struct msm_memory_pool {
 };
 
 void *msm_vidc_pool_alloc(struct msm_vidc_inst *inst,
-		enum msm_memory_pool_type type);
+			  enum msm_memory_pool_type type);
 void msm_vidc_pool_free(struct msm_vidc_inst *inst, void *vidc_buf);
 int msm_vidc_pools_init(struct msm_vidc_inst *inst);
 void msm_vidc_pools_deinit(struct msm_vidc_inst *inst);
@@ -57,33 +57,35 @@ void msm_vidc_pools_deinit(struct msm_vidc_inst *inst);
 
 struct msm_vidc_memory_ops {
 	struct dma_buf *(*dma_buf_get)(struct msm_vidc_inst *inst,
-		int fd);
+				       int fd);
 	void (*dma_buf_put)(struct msm_vidc_inst *inst,
-		struct dma_buf *dmabuf);
+			    struct dma_buf *dmabuf);
 	void (*dma_buf_put_completely)(struct msm_vidc_inst *inst,
-		struct msm_memory_dmabuf *buf);
+				       struct msm_memory_dmabuf *buf);
 	struct dma_buf_attachment *(*dma_buf_attach)(struct msm_vidc_core *core,
-		struct dma_buf *dbuf, struct device *dev);
+						     struct dma_buf *dbuf, struct device *dev);
 	int (*dma_buf_detach)(struct msm_vidc_core *core, struct dma_buf *dbuf,
-		struct dma_buf_attachment *attach);
-	struct sg_table *(*dma_buf_map_attachment)(struct msm_vidc_core *core,
-		struct dma_buf_attachment *attach);
+			      struct dma_buf_attachment *attach);
+	struct sg_table
+		*(*dma_buf_map_attachment)(struct msm_vidc_core *core,
+					   struct dma_buf_attachment *attach);
 	int (*dma_buf_unmap_attachment)(struct msm_vidc_core *core,
-		struct dma_buf_attachment *attach, struct sg_table *table);
+					struct dma_buf_attachment *attach,
+					struct sg_table *table);
 	int (*memory_alloc_map)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+				struct msm_vidc_mem *mem);
 	int (*memory_unmap_free)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+				 struct msm_vidc_mem *mem);
 	int (*mem_dma_map_page)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+				struct msm_vidc_mem *mem);
 	int (*mem_dma_unmap_page)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+				  struct msm_vidc_mem *mem);
 	u32 (*buffer_region)(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
+			     enum msm_vidc_buffer_type buffer_type);
 	int (*iommu_map)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+			 struct msm_vidc_mem *mem);
 	int (*iommu_unmap)(struct msm_vidc_core *core,
-		struct msm_vidc_mem *mem);
+			   struct msm_vidc_mem *mem);
 };
 
 const struct msm_vidc_memory_ops *get_mem_ops(void);
