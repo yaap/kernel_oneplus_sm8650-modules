@@ -6039,6 +6039,8 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s %12s %d\n", "tgid", ":", fl->tgid);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
+			"%s %14s %d\n", "tgid_frpc", ":", fl->tgid_frpc);
+		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s %7s %d\n", "sessionid", ":", fl->sessionid);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s %8s %u\n", "ssrcount", ":", fl->ssrcount);
@@ -6402,6 +6404,8 @@ static int fastrpc_set_process_info(struct fastrpc_file *fl, uint32_t cid)
 		err = -EUSERS;
 		goto bail;
 	}
+	ADSPRPC_INFO("HLOS pid %d, cid %d is mapped to unique sessions pid %d",
+			fl->tgid, cid, fl->tgid_frpc);
 
 	/*
 	 * Third-party apps don't have permission to open the fastrpc device, so
