@@ -31,7 +31,7 @@ static bool is_subblock_profile_existed(struct msm_cvp_inst *inst)
 			inst->prop.cycles[HFI_HW_LSR]);
 }
 
-static char hw_names[HFI_MAX_HW_THREADS][8] = {{"FDU"}, {"OD"}, {"MPU"}, {"ICA"},
+static char hw_names[HFI_MAX_HW_THREADS][8] = {{"FDU"}, {"MPU"}, {"OD"}, {"ICA"},
 				{"VADL"}, {"TOF"}, {"RGE"}, {"XRA"},
 				{"LSR"}};
 static void aggregate_power_update(struct msm_cvp_core *core,
