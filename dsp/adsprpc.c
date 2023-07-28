@@ -4931,16 +4931,18 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 				&src_perms, dst_perms, rhvm->vmcount);
 		kfree(dst_perms);
 		if (err) {
+			int unmap_err = 0;
+
 			ADSPRPC_ERR(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
 				err, phys, size);
 			err = -EADDRNOTAVAIL;
-			err = fastrpc_unmap_on_dsp(fl,
+			unmap_err = fastrpc_unmap_on_dsp(fl,
 				*raddr, phys, size, flags);
-			if (err) {
+			if (unmap_err) {
 				ADSPRPC_ERR(
 					"failed to unmap %d for phys 0x%llx, size %zd\n",
-					err, phys, size);
+					unmap_err, phys, size);
 			}
 			goto bail;
 		}
