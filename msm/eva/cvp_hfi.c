@@ -112,6 +112,7 @@ static int __reset_control_assert_name(struct iris_hfi_device *device, const cha
 static int __reset_control_deassert_name(struct iris_hfi_device *device, const char *name);
 static int __reset_control_acquire(struct iris_hfi_device *device, const char *name);
 static int __reset_control_release(struct iris_hfi_device *device, const char *name);
+static bool __is_ctl_power_on(struct iris_hfi_device *device);
 
 
 static struct iris_hfi_vpu_ops iris2_ops = {
@@ -444,16 +445,15 @@ static int __write_queue(struct cvp_iface_q_info *qinfo, u8 *packet,
 
 	cmd_pkt = (struct cvp_hfi_cmd_session_hdr *)packet;
 
-	if (cmd_pkt->size >= sizeof(struct cvp_hfi_cmd_session_hdr)) 
-		dprintk(CVP_CMD, "%s: "
-			"pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
+	if (cmd_pkt->size >= sizeof(struct cvp_hfi_cmd_session_hdr))
+		dprintk(CVP_CMD, "%s: pkt_type %08x sess_id %08x trans_id %u ktid %llu\n",
 			__func__, cmd_pkt->packet_type,
 			cmd_pkt->session_id,
 			cmd_pkt->client_data.transaction_id,
 			cmd_pkt->client_data.kdata & (FENCE_BIT - 1));
-	else 
-		dprintk(CVP_CMD, "%s: "
-			"pkt_type %08x", __func__, cmd_pkt->packet_type);
+	else if (cmd_pkt->size >= 12)
+		dprintk(CVP_CMD, "%s: pkt_type %08x sess_id %08x\n", __func__,
+			cmd_pkt->packet_type, cmd_pkt->session_id);
 
 	if (msm_cvp_debug & CVP_PKT) {
 		dprintk(CVP_PKT, "%s: %pK\n", __func__, qinfo);
@@ -808,6 +808,21 @@ static int __read_register(struct iris_hfi_device *device, u32 reg)
 		base_addr, reg, rc);
 
 	return rc;
+}
+
+static bool __is_ctl_power_on(struct iris_hfi_device *device)
+{
+	u32 reg;
+
+	reg = __read_register(device, CVP_CC_MVS1C_GDSCR);
+	if (!(reg & 0x80000000))
+		return false;
+
+	reg = __read_register(device, CVP_CC_MVS1C_CBCR);
+	if (reg & 0x80000000)
+		return false;
+
+	return true;
 }
 
 static int __set_registers(struct iris_hfi_device *device)
@@ -1409,6 +1424,8 @@ static int __iface_cmdq_write(struct iris_hfi_device *device, void *pkt)
 	if (!rc && needs_interrupt) {
 		/* Consumer of cmdq prefers that we raise an interrupt */
 		rc = 0;
+		if (!__is_ctl_power_on(device))
+			dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
 		__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
 	}
 
@@ -1442,8 +1459,11 @@ static int __iface_msgq_read(struct iris_hfi_device *device, void *pkt)
 	}
 
 	if (!__read_queue(q_info, (u8 *)pkt, &tx_req_is_set)) {
-		if (tx_req_is_set)
+		if (tx_req_is_set) {
+			if (!__is_ctl_power_on(device))
+				dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
 			__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
+		}
 		rc = 0;
 	} else
 		rc = -ENODATA;
@@ -1473,8 +1493,11 @@ static int __iface_dbgq_read(struct iris_hfi_device *device, void *pkt)
 	}
 
 	if (!__read_queue(q_info, (u8 *)pkt, &tx_req_is_set)) {
-		if (tx_req_is_set)
+		if (tx_req_is_set) {
+			if (!__is_ctl_power_on(device))
+				dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
 			__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
+		}
 		rc = 0;
 	} else
 		rc = -ENODATA;
