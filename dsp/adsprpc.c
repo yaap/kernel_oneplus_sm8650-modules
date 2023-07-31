@@ -201,7 +201,7 @@
 #define MAX_PERSISTENT_HEADERS    (25)
 
 /* Max value of unique fastrpc tgid */
-#define MAX_FRPC_TGID 256
+#define MAX_FRPC_TGID 65
 
 #define PERF_CAPABILITY_SUPPORT	(1 << 1)
 #define KERNEL_ERROR_CODE_V1_SUPPORT	1
@@ -230,7 +230,7 @@
 static int md_unique_index_flag[MAX_UNIQUE_ID] = { 0, 0, 0, 0, 0 };
 
 /* Array to keep track unique tgid_frpc usage */
-static bool frpc_tgid_usage_array[MAX_FRPC_TGID] = {0};
+static bool frpc_tgid_usage_array[NUM_CHANNELS][MAX_FRPC_TGID] = {0};
 
 /* Fastrpc remote process attributes */
 enum fastrpc_proc_attr {
@@ -5824,8 +5824,8 @@ skip_dump_wait:
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
 	/* Reset the tgid usage to false */
-	if (fl->tgid_frpc != -1)
-		frpc_tgid_usage_array[fl->tgid_frpc] = false;
+	if (VALID_FASTRPC_CID(cid) && fl->tgid_frpc != -1)
+		frpc_tgid_usage_array[cid][fl->tgid_frpc] = false;
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
 
@@ -6339,17 +6339,17 @@ bail:
 }
 
 // Generate a unique process ID to DSP process
-static int get_unique_hlos_process_id(void)
+static int get_unique_hlos_process_id(uint32_t cid)
 {
 	int tgid_frpc = -1, tgid_index = 1;
 	struct fastrpc_apps *me = &gfa;
 
 	spin_lock(&me->hlock);
 	for (tgid_index = 1; tgid_index < MAX_FRPC_TGID; tgid_index++) {
-		if (!frpc_tgid_usage_array[tgid_index]) {
+		if (!frpc_tgid_usage_array[cid][tgid_index]) {
 			tgid_frpc = tgid_index;
 			/* Set the tgid usage to false */
-			frpc_tgid_usage_array[tgid_index] = true;
+			frpc_tgid_usage_array[cid][tgid_index] = true;
 			break;
 		}
 	}
@@ -6366,7 +6366,7 @@ static int fastrpc_set_process_info(struct fastrpc_file *fl, uint32_t cid)
 	memcpy(cur_comm, current->comm, TASK_COMM_LEN);
 	cur_comm[TASK_COMM_LEN-1] = '\0';
 	fl->tgid = current->tgid;
-	fl->tgid_frpc = get_unique_hlos_process_id();
+	fl->tgid_frpc = get_unique_hlos_process_id(cid);
 	VERIFY(err, fl->tgid_frpc != -1);
 	if (err) {
 		ADSPRPC_ERR("too many fastrpc clients, max %u allowed\n", MAX_FRPC_TGID);
