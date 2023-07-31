@@ -75,6 +75,10 @@ static bool is_ssr_disabled;
 #define CMAC_SIZE_IN_BYTES (128/8) /* 128 bit = 16 bytes */
 #define CMAC_SIZE_IN_DWORDS (CMAC_SIZE_IN_BYTES/sizeof(u32)) /* 4 dwords */
 
+// MCP code size register holds size divided by a factor
+// To get the actual size, need to multiply by the same factor
+#define MCP_SIZE_MUL_FACTOR (4)
+
 static u32 pil_addr;
 static u32 pil_size;
 
@@ -726,6 +730,34 @@ static void spss_utils_destroy_chardev(void)
 /*		Device Tree */
 /*==========================================================================*/
 
+/* get the ACTUAL spss PIL firmware size from spu reg */
+static int get_pil_size(phys_addr_t base_addr)
+{
+	u32 spss_code_size_addr = 0;
+	void __iomem *spss_code_size_reg = NULL;
+	u32 pil_size = 0;
+
+	spss_code_size_addr = base_addr + SPSS_RMB_CODE_SIZE_REG_OFFSET;
+	spss_code_size_reg = ioremap(spss_code_size_addr, sizeof(u32));
+	if (!spss_code_size_reg) {
+		pr_err("can't map spss_code_size_addr\n");
+		return -EINVAL;
+	}
+	pil_size = readl_relaxed(spss_code_size_reg);
+	iounmap(spss_code_size_reg);
+
+	// Multiply the value read from code size register by factor
+	// to get the actual size (see MCP_SIZE_MUL_FACTOR documentation)
+	pil_size *= MCP_SIZE_MUL_FACTOR;
+
+	if (pil_size % SZ_4K) {
+		pr_err("pil_size [0x%08x] is not 4K aligned.\n", pil_size);
+		return -EFAULT;
+	}
+
+	return pil_size;
+}
+
 /**
  * spss_parse_dt() - Parse Device Tree info.
  */
@@ -919,7 +951,7 @@ static int spss_parse_dt(struct device_node *node)
 
 	spss_regs_base_addr =
 		(spss_debug_reg_addr & SPSS_BASE_ADDR_MASK);
-	ret = get_spss_image_size(spss_regs_base_addr);
+	ret = get_pil_size(spss_regs_base_addr);
 	if (ret < 0) {
 		pr_err("failed to get pil_size.\n");
 		return -EFAULT;
