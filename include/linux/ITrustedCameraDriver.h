@@ -30,7 +30,7 @@ typedef struct {
 	uint64_t reserved;
 } ITCDriverSensorInfo;
 
-#define ITrustedCameraDriver_ERROR_NOT_ALLOWED INT32_C(10)
+#define ITrustedCameraDriver_ERROR_NOT_ALLOWED 10
 
 #define ITrustedCameraDriver_OP_dynamicProtectSensor 0
 #define ITrustedCameraDriver_OP_getVersion 1
@@ -91,7 +91,7 @@ ITrustedCameraDriver_getVersion(struct Object self, uint32_t *arch_ver_ptr,
 		uint32_t m_arch_ver;
 		uint32_t m_max_ver;
 		uint32_t m_min_ver;
-	} o;
+	} o = {0};
 
 	a[0].b = (struct ObjectBuf) { &o, 12 };
 
