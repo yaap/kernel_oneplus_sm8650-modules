@@ -122,17 +122,30 @@ typedef enum {
  * --------------------------------------------------------------------------
  */
 #define NOC_BASE_OFFS   0x00010000
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW   (NOC_BASE_OFFS + 0xA008)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW    (NOC_BASE_OFFS + 0xA018)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW   (NOC_BASE_OFFS + 0xA020)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH  (NOC_BASE_OFFS + 0xA024)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW   (NOC_BASE_OFFS + 0xA028)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH   (NOC_BASE_OFFS + 0xA02C)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW   (NOC_BASE_OFFS + 0xA030)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH  (NOC_BASE_OFFS + 0xA034)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW   (NOC_BASE_OFFS + 0xA038)
-#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH  (NOC_BASE_OFFS + 0xA03C)
-#define NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW (NOC_BASE_OFFS + 0x7040)
+
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW_IRIS33   (NOC_BASE_OFFS + 0xA008)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW_IRIS33    (NOC_BASE_OFFS + 0xA018)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW_IRIS33   (NOC_BASE_OFFS + 0xA020)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH_IRIS33  (NOC_BASE_OFFS + 0xA024)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW_IRIS33   (NOC_BASE_OFFS + 0xA028)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH_IRIS33  (NOC_BASE_OFFS + 0xA02C)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW_IRIS33   (NOC_BASE_OFFS + 0xA030)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH_IRIS33  (NOC_BASE_OFFS + 0xA034)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW_IRIS33   (NOC_BASE_OFFS + 0xA038)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH_IRIS33  (NOC_BASE_OFFS + 0xA03C)
+#define NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW_IRIS33 (NOC_BASE_OFFS + 0x7040)
+
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW_IRIS33_2P   (NOC_BASE_OFFS + 0x3508)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW_IRIS33_2P    (NOC_BASE_OFFS + 0x3518)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW_IRIS33_2P   (NOC_BASE_OFFS + 0x3520)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH_IRIS33_2P  (NOC_BASE_OFFS + 0x3524)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW_IRIS33_2P   (NOC_BASE_OFFS + 0x3528)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH_IRIS33_2P  (NOC_BASE_OFFS + 0x352C)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW_IRIS33_2P   (NOC_BASE_OFFS + 0x3530)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH_IRIS33_2P  (NOC_BASE_OFFS + 0x3534)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW_IRIS33_2P   (NOC_BASE_OFFS + 0x3538)
+#define NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH_IRIS33_2P  (NOC_BASE_OFFS + 0x353C)
+#define NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW_IRIS33_2P (NOC_BASE_OFFS + 0x3240)
 
 static int __interrupt_init_iris33(struct msm_vidc_core *core)
 {
@@ -739,30 +752,60 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	 * Programm NOC error registers before releasing xo reset
 	 * Clear error logger registers and then enable StallEn
 	 */
-	rc = __write_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW, 0x1);
-	if (rc) {
-		d_vpr_e(
-			"%s: error clearing NOC_MAIN_ERRORLOGGER_ERRCLR_LOW\n",
-			__func__);
-		goto fail_program_noc_regs;
-	}
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS33) {
+		rc = __write_register(core,
+				NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW_IRIS33, 0x1);
+		if (rc) {
+			d_vpr_e(
+				"%s: error clearing NOC_MAIN_ERRORLOGGER_ERRCLR_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
 
-	rc = __write_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW, 0x3);
-	if (rc) {
-		d_vpr_e(
-			"%s: failed to set NOC_ERL_MAIN_ERRORLOGGER_MAINCTL_LOW\n",
-			__func__);
-		goto fail_program_noc_regs;
-	}
-	rc = __write_register(core,
-			NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW, 0x1);
-	if (rc) {
-		d_vpr_e(
-			"%s: failed to set NOC_SIDEBANDMANAGER_FAULTINEN0_LOW\n",
-			__func__);
-		goto fail_program_noc_regs;
+		rc = __write_register(core,
+				NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW_IRIS33, 0x3);
+		if (rc) {
+			d_vpr_e(
+				"%s: failed to set NOC_ERL_MAIN_ERRORLOGGER_MAINCTL_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
+		rc = __write_register(core,
+				NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW_IRIS33,
+				0x1);
+		if (rc) {
+			d_vpr_e(
+				"%s: failed to set NOC_SIDEBANDMANAGER_FAULTINEN0_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
+	} else if (core->platform->data.vpu_ver == VPU_VERSION_IRIS33_2P) {
+		rc = __write_register(core,
+				NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRCLR_LOW_IRIS33_2P, 0x1);
+		if (rc) {
+			d_vpr_e(
+				"%s: error clearing NOC_MAIN_ERRORLOGGER_ERRCLR_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
+
+		rc = __write_register(core,
+				NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_MAINCTL_LOW_IRIS33_2P, 0x3);
+		if (rc) {
+			d_vpr_e(
+				"%s: failed to set NOC_ERL_MAIN_ERRORLOGGER_MAINCTL_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
+		rc = __write_register(core,
+				NOC_SIDEBANDMANAGER_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW_IRIS33_2P,
+				0x1);
+		if (rc) {
+			d_vpr_e(
+				"%s: failed to set NOC_SIDEBANDMANAGER_FAULTINEN0_LOW\n",
+				__func__);
+			goto fail_program_noc_regs;
+		}
 	}
 
 	/* release reset control for other consumers */
@@ -877,9 +920,107 @@ static int __watchdog_iris33(struct msm_vidc_core *core, u32 intr_status)
 	return rc;
 }
 
+static int __read_noc_err_register_iris33(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	u32 value;
+
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH_IRIS33, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH:  %#x\n",
+			__func__, value);
+
+	return rc;
+}
+
+static int __read_noc_err_register_iris33_2p(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	u32 value;
+
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
+			__func__, value);
+	rc = __read_register(core,
+			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH_IRIS33_2P, &value);
+	if (!rc)
+		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH:  %#x\n",
+			__func__, value);
+
+	return rc;
+}
+
 static int __noc_error_info_iris33(struct msm_vidc_core *core)
 {
-	u32 value, count = 0;
+	u32 count = 0;
 	int rc = 0;
 
 	/*
@@ -947,46 +1088,11 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 		goto fail_assert_xo_reset;
 	}
 
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_LOW:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG0_HIGH:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_LOW:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG1_HIGH:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_LOW:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG2_HIGH:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_LOW:  %#x\n",
-			__func__, value);
-	rc = __read_register(core,
-			NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH, &value);
-	if (!rc)
-		d_vpr_e("%s: NOC_ERL_ERRORLOGGER_MAIN_ERRORLOGGER_ERRLOG3_HIGH:  %#x\n",
-			__func__, value);
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS33)
+		rc = __read_noc_err_register_iris33(core);
+	else if (core->platform->data.vpu_ver == VPU_VERSION_IRIS33_2P)
+		rc = __read_noc_err_register_iris33_2p(core);
+
 	/* release reset control for other consumers */
 	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
 	if (rc) {
