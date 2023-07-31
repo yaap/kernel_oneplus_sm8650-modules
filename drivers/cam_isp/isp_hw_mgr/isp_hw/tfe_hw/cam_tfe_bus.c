@@ -1015,6 +1015,8 @@ static int cam_tfe_bus_release_wm(void   *bus_priv,
 	rsrc_data->en_cfg = 0;
 	rsrc_data->is_dual = 0;
 	rsrc_data->limiter_blob_status = false;
+	rsrc_data->is_buffer_aligned = false;
+	rsrc_data->buffer_offset = 0;
 
 	wm_res->tasklet_info = NULL;
 	wm_res->res_state = CAM_ISP_RESOURCE_STATE_AVAILABLE;
