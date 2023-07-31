@@ -9,7 +9,7 @@
 #include <linux/scatterlist.h>
 #include <linux/align.h>
 
-#include <smmu-proxy/uapi/linux/qti-smmu-proxy.h>
+#include <smmu-proxy/include/uapi/linux/qti-smmu-proxy.h>
 
 #define SMMU_PROXY_MEM_ALIGNMENT (1 << 21)
 
