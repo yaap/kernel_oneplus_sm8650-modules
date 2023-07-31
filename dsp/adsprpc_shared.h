@@ -923,8 +923,6 @@ struct fastrpc_file {
 	struct fastrpc_proc_sharedbuf_info sharedbuf_info;
 	/* Flag to indicate 4 session support available */
 	bool multi_session_support;
-	/* Flag to indicate session info is set */
-	bool set_session_info;
 };
 
 int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
