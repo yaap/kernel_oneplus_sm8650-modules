@@ -1998,14 +1998,6 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 	list_for_each_entry_safe(cbuf, dummy, &inst->cvpdspbufs.list, list) {
 		print_internal_buffer(CVP_MEM, "remove dspbufs", inst, cbuf);
 		if (cbuf->ownership == CLIENT) {
-			rc = cvp_dsp_deregister_buffer(hash32_ptr(session),
-				cbuf->fd, cbuf->smem->dma_buf->size, cbuf->size,
-				cbuf->offset, cbuf->index,
-				(uint32_t)cbuf->smem->device_addr);
-			if (rc)
-				dprintk(CVP_ERR,
-				"%s: failed dsp deregistration fd=%d rc=%d",
-				__func__, cbuf->fd, rc);
 			msm_cvp_unmap_smem(inst, cbuf->smem, "unmap dsp");
 			msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
 		} else if (cbuf->ownership == DSP) {

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef MSM_CVP_DSP_H
@@ -48,7 +49,7 @@ struct fastrpc_driver {
 #define DSP_VM_NUM 2
 #define CVP_DSP_MAX_RESERVED 5
 #define CVP_DSP2CPU_RESERVED 8
-#define CVP_DSP_RESPONSE_TIMEOUT 300
+#define CVP_DSP_RESPONSE_TIMEOUT 600
 #define CVP_INVALID_RPMSG_TYPE 0xBADDFACE
 #define MAX_FRAME_BUF_NUM 16
 
@@ -266,22 +267,6 @@ int cvp_dsp_resume(void);
  * cvp subsystem error.
  */
 int cvp_dsp_shutdown(void);
-
-/*
- * API to de-register iova buffer address from CDSP
- *
- * @session_id:     cvp session id
- * @buff_fd:        buffer fd
- * @buff_fd_size:   total size of fd in bytes
- * @buff_size:      size in bytes of cvp buffer
- * @buff_offset:    buffer offset
- * @buff_index:     buffer index
- * @iova_buff_addr: IOVA buffer address
- */
-int cvp_dsp_deregister_buffer(uint32_t session_id, uint32_t buff_fd,
-			uint32_t buff_fd_size, uint32_t buff_size,
-			uint32_t buff_offset, uint32_t buff_index,
-			uint32_t buff_fd_iova);
 
 int cvp_dsp_fastrpc_unmap(uint32_t handle, struct cvp_internal_buf *buf);
 
