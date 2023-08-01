@@ -57,6 +57,13 @@
 #define MAX_TAP 1023
 #define RDOWN_TIMER_PERIOD_MSEC 100
 
+#define WCD_USBSS_WRITE true
+#define WCD_USBSS_READ false
+#define WCD_USBSS_EXT_LIN_EN 0x3D
+#define WCD_USBSS_EXT_SW_CTRL_1 0x43
+#define WCD_USBSS_MG1_BIAS 0x25
+#define WCD_USBSS_MG2_BIAS 0x29
+
 static struct wcd_mbhc_register
 	wcd_mbhc_registers[WCD_MBHC_REG_FUNC_MAX] = {
 	WCD_MBHC_REGISTER("WCD_MBHC_L_DET_EN",
@@ -967,6 +974,11 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	struct wcd939x_mbhc_zdet_param zdet_param = {4, 0, 6, 0x18, 0x60, 0x78};
 	struct wcd939x_mbhc_zdet_param *zdet_param_ptr = &zdet_param;
 	s16 d1[] = {0, 30, 30, 6};
+	uint32_t cached_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0}, {WCD_USBSS_EXT_SW_CTRL_1, 0},
+				      {WCD_USBSS_MG1_BIAS, 0}, {WCD_USBSS_MG2_BIAS, 0}};
+	uint32_t l_3_6V_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0x00},
+				      {WCD_USBSS_MG1_BIAS, 0x0E}, {WCD_USBSS_MG2_BIAS, 0x0E}};
+	uint32_t diff_regs[2][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0xE8}};
 
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
@@ -987,6 +999,11 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 		/* Wait 500us for settling */
 		usleep_range(500, 510);
 	}
+
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	/* Cache relevant USB-SS registers */
+	wcd_usbss_register_update(cached_regs, WCD_USBSS_READ, ARRAY_SIZE(cached_regs));
+#endif
 
 	/* Store register values */
 	reg0 = snd_soc_component_read(component, WCD939X_MBHC_BTN5);
@@ -1028,6 +1045,9 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 #endif
 
 	/* L-channel impedance */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_register_update(l_3_6V_regs, WCD_USBSS_WRITE, ARRAY_SIZE(l_3_6V_regs));
+#endif
 	wcd939x_mbhc_zdet_ramp(component, zdet_param_ptr, &z1L, NULL, d1);
 	if ((z1L == WCD939X_ZDET_FLOATING_IMPEDANCE) || (z1L > WCD939X_ZDET_VAL_100K)) {
 		*zl = WCD939X_ZDET_FLOATING_IMPEDANCE;
@@ -1063,6 +1083,7 @@ diff_impedance:
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Disable AGND switch */
 	wcd_usbss_set_switch_settings_enable(AGND_SWITCHES, USBSS_SWITCH_DISABLE);
+	wcd_usbss_register_update(diff_regs, WCD_USBSS_WRITE, ARRAY_SIZE(diff_regs));
 #endif
 	/* Enable HPHR NCLAMP */
 	regmap_update_bits(wcd939x->regmap, WCD939X_HPHLR_SURGE_MISC1, 0x08, 0x08);
@@ -1191,6 +1212,10 @@ zdet_complete:
 	if (is_fsm_disable)
 		regmap_update_bits(wcd939x->regmap,
 				   WCD939X_MBHC_ELECT, 0x80, 0x80);
+
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_register_update(cached_regs, WCD_USBSS_WRITE, ARRAY_SIZE(cached_regs));
+#endif
 
 	/* Turn off RX supplies */
 	if (wcd939x->version == WCD939X_VERSION_2_0) {
