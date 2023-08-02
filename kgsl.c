@@ -1313,6 +1313,9 @@ int kgsl_add_rcu_notifier(struct notifier_block *nb)
 {
 	struct kgsl_device *device = kgsl_get_device(0);
 
+	if (!device)
+		return -ENODEV;
+
 	return srcu_notifier_chain_register(&device->nh, nb);
 }
 EXPORT_SYMBOL(kgsl_add_rcu_notifier);
@@ -1320,6 +1323,9 @@ EXPORT_SYMBOL(kgsl_add_rcu_notifier);
 int kgsl_del_rcu_notifier(struct notifier_block *nb)
 {
 	struct kgsl_device *device = kgsl_get_device(0);
+
+	if (!device)
+		return -ENODEV;
 
 	return srcu_notifier_chain_unregister(&device->nh, nb);
 }

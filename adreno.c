@@ -1524,8 +1524,14 @@ static void adreno_resume(struct adreno_device *adreno_dev)
 static int adreno_pm_resume(struct device *dev)
 {
 	struct kgsl_device *device = dev_get_drvdata(dev);
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	const struct adreno_power_ops *ops = ADRENO_POWER_OPS(adreno_dev);
+	struct adreno_device *adreno_dev;
+	const struct adreno_power_ops *ops;
+
+	if (!device)
+		return 0;
+
+	adreno_dev = ADRENO_DEVICE(device);
+	ops = ADRENO_POWER_OPS(adreno_dev);
 
 #if IS_ENABLED(CONFIG_DEEPSLEEP)
 	if (pm_suspend_via_firmware()) {
@@ -1559,9 +1565,15 @@ static int adreno_suspend(struct adreno_device *adreno_dev)
 static int adreno_pm_suspend(struct device *dev)
 {
 	struct kgsl_device *device = dev_get_drvdata(dev);
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	const struct adreno_power_ops *ops = ADRENO_POWER_OPS(adreno_dev);
+	struct adreno_device *adreno_dev;
+	const struct adreno_power_ops *ops;
 	int status;
+
+	if (!device)
+		return 0;
+
+	adreno_dev = ADRENO_DEVICE(device);
+	ops = ADRENO_POWER_OPS(adreno_dev);
 
 	mutex_lock(&device->mutex);
 	status = ops->pm_suspend(adreno_dev);
@@ -3606,12 +3618,15 @@ static int adreno_secure_pt_restore(struct adreno_device *adreno_dev)
 static int adreno_hibernation_suspend(struct device *dev)
 {
 	struct kgsl_device *device = dev_get_drvdata(dev);
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	const struct adreno_power_ops *ops = ADRENO_POWER_OPS(adreno_dev);
-	int status = -EINVAL;
+	struct adreno_device *adreno_dev;
+	const struct adreno_power_ops *ops;
+	int status;
 
 	if (!device)
-		return -EINVAL;
+		return 0;
+
+	adreno_dev = ADRENO_DEVICE(device);
+	ops = ADRENO_POWER_OPS(adreno_dev);
 
 	mutex_lock(&device->mutex);
 
@@ -3635,14 +3650,19 @@ err:
 static int adreno_hibernation_resume(struct device *dev)
 {
 	struct kgsl_device *device = dev_get_drvdata(dev);
-	struct kgsl_iommu *iommu = &device->mmu.iommu;
-	struct kgsl_pwrscale *pwrscale = &device->pwrscale;
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	const struct adreno_power_ops *ops = ADRENO_POWER_OPS(adreno_dev);
-	int ret = 0;
+	struct kgsl_iommu *iommu;
+	struct kgsl_pwrscale *pwrscale;
+	struct adreno_device *adreno_dev;
+	const struct adreno_power_ops *ops;
+	int ret;
 
 	if (!device)
-		return -EINVAL;
+		return 0;
+
+	iommu = &device->mmu.iommu;
+	pwrscale = &device->pwrscale;
+	adreno_dev = ADRENO_DEVICE(device);
+	ops = ADRENO_POWER_OPS(adreno_dev);
 
 	mutex_lock(&device->mutex);
 
