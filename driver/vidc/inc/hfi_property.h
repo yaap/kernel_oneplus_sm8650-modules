@@ -27,6 +27,7 @@ enum hfi_debug_config {
     HFI_DEBUG_CONFIG_WFI     = 0x00000002,
     HFI_DEBUG_CONFIG_ARM9WD  = 0x00000004,
 };
+
 #define HFI_PROP_DEBUG_CONFIG                                   0x0300000a
 
 enum hfi_debug_log_level {
@@ -44,6 +45,7 @@ struct hfi_debug_header {
 	u32   debug_level;
 	u32   reserved[2];
 };
+
 #define HFI_PROP_DEBUG_LOG_LEVEL                                0x0300000b
 
 #define HFI_PROP_FENCE_CLIENT_DATA                              0x0300000d
@@ -57,6 +59,7 @@ enum hfi_codec_type {
     HFI_CODEC_DECODE_MPEG2 = 6,
     HFI_CODEC_DECODE_AV1   = 7,
 };
+
 #define HFI_PROP_CODEC                                          0x03000100
 
 enum hfi_color_format {
@@ -69,6 +72,7 @@ enum hfi_color_format {
     HFI_COLOR_FMT_RGBA8888_UBWC = 6,
     HFI_COLOR_FMT_NV21          = 7,
 };
+
 #define HFI_PROP_COLOR_FORMAT                                   0x03000101
 
 #define HFI_PROP_SECURE                                         0x03000102
@@ -276,6 +280,7 @@ enum hfi_deblock_mode {
     HFI_DEBLOCK_DISABLE                   = 0x1,
     HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY = 0x2,
 };
+
 #define HFI_PROP_DEBLOCKING_MODE                                0x03000129
 
 enum hfi_rate_control {
@@ -286,6 +291,7 @@ enum hfi_rate_control {
     HFI_RC_CBR_VFR        = 0x00000004,
     HFI_RC_LOSSLESS       = 0x00000005,
 };
+
 #define HFI_PROP_RATE_CONTROL                                   0x0300012a
 
 #define HFI_PROP_TIME_DELTA_BASED_RATE_CONTROL                  0x0300012b
@@ -324,6 +330,7 @@ enum hfi_layer_encoding_type {
     HFI_HIER_P_HYBRID_LTR     = 0x2,
     HFI_HIER_B                = 0x3,
 };
+
 #define HFI_PROP_LAYER_ENCODING_TYPE                            0x03000138
 
 #define HFI_PROP_LAYER_COUNT                                    0x03000139
@@ -332,6 +339,7 @@ enum hfi_chromaqp_offset_mode {
     HFI_ADAPTIVE_CHROMAQP_OFFSET = 0x0,
     HFI_FIXED_CHROMAQP_OFFSET = 0x1,
 };
+
 #define HFI_BITMASK_CHROMA_CB_OFFSET     0x0000ffff
 #define HFI_BITMASK_CHROMA_CR_OFFSET     0xffff0000
 #define HFI_PROP_CHROMA_QP_OFFSET                               0x0300013a
@@ -360,6 +368,7 @@ enum hfi_syncframe_request_mode {
     HFI_SYNC_FRAME_REQUEST_WITHOUT_SEQ_HDR           = 0x00000001,
     HFI_SYNC_FRAME_REQUEST_WITH_PREFIX_SEQ_HDR       = 0x00000002,
 };
+
 #define HFI_PROP_REQUEST_SYNC_FRAME                             0x03000145
 
 #define HFI_PROP_MAX_GOP_FRAMES                                 0x03000146
@@ -379,6 +388,7 @@ enum hfi_seq_header_mode {
     HFI_SEQ_HEADER_PREFIX_WITH_SYNC_FRAME = 0x00000004,
     HFI_SEQ_HEADER_METADATA               = 0x00000008,
 };
+
 #define HFI_PROP_SEQ_HEADER_MODE                                0x03000149
 
 #define HFI_PROP_METADATA_SEQ_HEADER_NAL                        0x0300014a
@@ -389,6 +399,7 @@ enum hfi_rotation {
     HFI_ROTATION_180  = 0x00000002,
     HFI_ROTATION_270  = 0x00000003,
 };
+
 #define HFI_PROP_ROTATION                                       0x0300014b
 
 enum hfi_flip {
@@ -396,6 +407,7 @@ enum hfi_flip {
     HFI_HORIZONTAL_FLIP = 0x00000001,
     HFI_VERTICAL_FLIP   = 0x00000002,
 };
+
 #define HFI_PROP_FLIP                                           0x0300014c
 
 #define HFI_PROP_SCALAR                                         0x0300014d
@@ -405,6 +417,7 @@ enum hfi_blur_types {
     HFI_BLUR_EXTERNAL = 0x00000001,
     HFI_BLUR_ADAPTIVE = 0x00000002,
 };
+
 #define HFI_PROP_BLUR_TYPES                                     0x0300014e
 
 #define HFI_BITMASK_BLUR_WIDTH        0xffff0000
@@ -438,6 +451,7 @@ enum hfi_interlace_info {
     HFI_FRAME_INTERLACE_TOPFIELD_FIRST     = 0x00000010,
     HFI_FRAME_INTERLACE_BOTTOMFIELD_FIRST  = 0x00000020,
 };
+
 #define HFI_PROP_INTERLACE_INFO                                 0x03000156
 
 #define HFI_PROP_CSC                                            0x03000157
@@ -473,6 +487,7 @@ enum hfi_picture_type {
     HFI_PICTURE_BLA = 0x00000020,
     HFI_PICTURE_NOSHOW = 0x00000040,
 };
+
 #define HFI_PROP_PICTURE_TYPE                                   0x03000162
 
 #define HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR                   0x03000163
@@ -529,6 +544,7 @@ enum hfi_nal_length_field_type {
     HFI_NAL_LENGTH_STARTCODES           = 0,
     HFI_NAL_LENGTH_SIZE_4               = 4,
 };
+
 #define HFI_PROP_NAL_LENGTH_FIELD                               0x0300017B
 
 #define HFI_PROP_TOTAL_PEAK_BITRATE                             0x0300017C
@@ -557,6 +573,7 @@ enum hfi_saliency_type {
      HFI_SALIENCY_NONE,
      HFI_SALIENCY_TYPE0,
 };
+
 #define HFI_PROP_ROI_AS_SALIENCY_INFO                           0x0300018A
 
 #define HFI_PROP_FENCE                                          0x0300018B

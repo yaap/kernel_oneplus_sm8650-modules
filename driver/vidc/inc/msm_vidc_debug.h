@@ -76,6 +76,7 @@ enum vidc_msg_prio_drv {
 	VIDC_PRINTK     = 0x10000000,
 	VIDC_FTRACE     = 0x20000000,
 };
+
 enum vidc_msg_prio_fw {
 	FW_LOW          = 0x00000001,
 	FW_MED          = 0x00000002,

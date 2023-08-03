@@ -397,7 +397,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 	 *      hfi_id,
 	 *      flags}
 	 */
-	{DRV_VERSION, DEC|ENC, CODECS_ALL,
+	{DRV_VERSION, DEC | ENC, CODECS_ALL,
 		0, INT_MAX, 1, DRIVER_VERSION,
 		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
@@ -1420,7 +1420,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1) |
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_5_2) |
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_6) |
-		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1)|
+		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1) |
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2),
 		V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1,
 		V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
@@ -1636,14 +1636,14 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_CONCEAL_COLOR_10BIT,
 		CAP_FLAG_INPUT_PORT},
 
-	{STAGE, DEC|ENC, CODECS_ALL,
+	{STAGE, DEC | ENC, CODECS_ALL,
 		MSM_VIDC_STAGE_1,
 		MSM_VIDC_STAGE_2, 1,
 		MSM_VIDC_STAGE_2,
 		0,
 		HFI_PROP_STAGE},
 
-	{PIPE, DEC|ENC, CODECS_ALL,
+	{PIPE, DEC | ENC, CODECS_ALL,
 		MSM_VIDC_PIPE_1,
 		MSM_VIDC_PIPE_4, 1,
 		MSM_VIDC_PIPE_4,
@@ -1712,7 +1712,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_SEQ_CHANGE_AT_SYNC_FRAME,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{PRIORITY, DEC|ENC, CODECS_ALL,
+	{PRIORITY, DEC | ENC, CODECS_ALL,
 		0, 4, 1, 4,
 		V4L2_CID_MPEG_VIDC_PRIORITY,
 		HFI_PROP_SESSION_PRIORITY,
@@ -1753,7 +1753,7 @@ static struct msm_platform_inst_capability instance_cap_data_pineapple[] = {
 		HFI_PROP_AV1_DRAP_CONFIG,
 		CAP_FLAG_INPUT_PORT},
 
-	{LAST_FLAG_EVENT_ENABLE, DEC|ENC, CODECS_ALL,
+	{LAST_FLAG_EVENT_ENABLE, DEC | ENC, CODECS_ALL,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_LAST_FLAG_EVENT_ENABLE},
 
@@ -2570,7 +2570,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_stage},
 
-	{PIPE, DEC|ENC, CODECS_ALL,
+	{PIPE, DEC | ENC, CODECS_ALL,
 		{0},
 		NULL,
 		msm_vidc_set_pipe},
@@ -2590,7 +2590,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_pine
 		NULL,
 		msm_vidc_set_u32},
 
-	{PRIORITY, DEC|ENC, CODECS_ALL,
+	{PRIORITY, DEC | ENC, CODECS_ALL,
 		{0},
 		msm_vidc_adjust_session_priority,
 		msm_vidc_set_session_priority},

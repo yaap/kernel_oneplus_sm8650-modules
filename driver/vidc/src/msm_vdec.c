@@ -282,6 +282,7 @@ static int msm_vdec_set_bit_depth(struct msm_vidc_inst *inst,
 
 	return rc;
 }
+
 //todo: enable when needed
 /*
 static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,

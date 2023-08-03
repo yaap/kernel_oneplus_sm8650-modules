@@ -145,7 +145,7 @@ static int __interrupt_init_iris33(struct msm_vidc_core *core)
 		return rc;
 
 	/* Write 0 to unmask CPU and WD interrupts */
-	mask_val &= ~(WRAPPER_INTR_MASK_A2HWD_BMSK_IRIS33|
+	mask_val &= ~(WRAPPER_INTR_MASK_A2HWD_BMSK_IRIS33 |
 			WRAPPER_INTR_MASK_A2HCPU_BMSK_IRIS33);
 	rc = __write_register(core, WRAPPER_INTR_MASK_IRIS33, mask_val);
 	if (rc)

@@ -211,6 +211,7 @@ exit:
 
 	return rc;
 }
+
 static int __sys_set_power_control(struct msm_vidc_core *core, bool enable)
 {
 	int rc = 0;
@@ -294,6 +295,7 @@ skip_power_off:
 	d_vpr_e("%s: skipped\n", __func__);
 	return -EAGAIN;
 }
+
 static int __release_subcaches(struct msm_vidc_core *core)
 {
 	int rc = 0;
