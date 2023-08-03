@@ -110,6 +110,11 @@ struct adreno_hwsched {
 	struct kmem_cache *hw_fence_cache;
 	/** @hw_fence_count: Number of hardware fences that haven't yet been sent to Tx Queue */
 	atomic_t hw_fence_count;
+	/**
+	 * @submission_seqnum: Sequence number for sending submissions to GMU context queues or
+	 * dispatch queues
+	 */
+	atomic_t submission_seqnum;
 
 };
 

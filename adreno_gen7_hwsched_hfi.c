@@ -121,7 +121,7 @@ static void gen7_receive_ack_async(struct adreno_device *adreno_dev, void *rcvd)
 	read_lock(&hfi->msglock);
 
 	list_for_each_entry(cmd, &hfi->msglist, node) {
-		if (HDR_CMP_SEQNUM(cmd->sent_hdr, req_hdr)) {
+		if (CMP_HFI_ACK_HDR(cmd->sent_hdr, req_hdr)) {
 			memcpy(cmd->results, ack,
 				min_t(u32, size_bytes,
 					sizeof(cmd->results)));
@@ -818,7 +818,6 @@ static void gen7_syncobj_query_reply(struct adreno_device *adreno_dev,
 	struct kgsl_drawobj *drawobj, struct hfi_syncobj_query_cmd *cmd)
 {
 	struct hfi_syncobj_query_cmd reply = {0};
-	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
 	int i, j, fence_index = 0;
 	struct kgsl_drawobj_sync *syncobj = SYNCOBJ(drawobj);
 	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
@@ -850,8 +849,6 @@ static void gen7_syncobj_query_reply(struct adreno_device *adreno_dev,
 	}
 
 	reply.hdr = CREATE_MSG_HDR(F2H_MSG_SYNCOBJ_QUERY, HFI_MSG_CMD);
-	reply.hdr = MSG_HDR_SET_SEQNUM(reply.hdr,
-			atomic_inc_return(&hfi->seqnum));
 	reply.gmu_ctxt_id = cmd->gmu_ctxt_id;
 	reply.sync_obj_ts = cmd->sync_obj_ts;
 
@@ -1015,11 +1012,13 @@ static void _increment_hw_fence_unack_count(struct adreno_device *adreno_dev)
 static int _send_hw_fence_no_ack(struct adreno_device *adreno_dev,
 	struct adreno_hw_fence_entry *entry)
 {
-	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+	u32 seqnum;
 	int ret;
 
-	entry->cmd.hdr = MSG_HDR_SET_SEQNUM(entry->cmd.hdr,
-		atomic_inc_return(&gmu->hfi.seqnum));
+
+	seqnum = atomic_inc_return(&hfi->hw_fence.seqnum);
+	entry->cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(entry->cmd.hdr, seqnum, sizeof(entry->cmd) >> 2);
 
 	ret = gen7_hfi_cmdq_write(adreno_dev, (u32 *)&entry->cmd, sizeof(entry->cmd));
 	if (!ret)
@@ -1183,7 +1182,7 @@ static void process_hw_fence_ack(struct adreno_device *adreno_dev, u32 received_
 	spin_lock(&hfi->hw_fence.lock);
 
 	/* If this ack is being waited on, we don't need to touch the unack count */
-	if (hw_fence_ack.sent_hdr && HDR_CMP_SEQNUM(hw_fence_ack.sent_hdr, received_hdr)) {
+	if (hw_fence_ack.sent_hdr && CMP_HFI_ACK_HDR(hw_fence_ack.sent_hdr, received_hdr)) {
 		spin_unlock(&hfi->hw_fence.lock);
 		complete(&hw_fence_ack.complete);
 		return;
@@ -1404,11 +1403,12 @@ int gen7_hfi_send_cmd_async(struct adreno_device *adreno_dev, void *data, u32 si
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 	u32 *cmd = data;
-	u32 seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	u32 seqnum;
 	int rc;
 	struct pending_cmd pending_ack;
 
-	*cmd = MSG_HDR_SET_SEQNUM(*cmd, seqnum);
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	*cmd = MSG_HDR_SET_SEQNUM_SIZE(*cmd, seqnum, size_bytes >> 2);
 
 	add_waiter(hfi, *cmd, &pending_ack);
 
@@ -1708,6 +1708,7 @@ static int mem_alloc_reply(struct adreno_device *adreno_dev, void *rcvd)
 	struct hfi_mem_alloc_desc desc = {0};
 	struct hfi_mem_alloc_reply_cmd out = {0};
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	u32 seqnum;
 	int ret;
 
 	hfi_get_mem_alloc_desc(rcvd, &desc);
@@ -1720,8 +1721,8 @@ static int mem_alloc_reply(struct adreno_device *adreno_dev, void *rcvd)
 
 	out.hdr = ACK_MSG_HDR(F2H_MSG_MEM_ALLOC);
 
-	out.hdr = MSG_HDR_SET_SEQNUM(out.hdr,
-			atomic_inc_return(&gmu->hfi.seqnum));
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	out.hdr = MSG_HDR_SET_SEQNUM_SIZE(out.hdr, seqnum, sizeof(out) >> 2);
 
 	out.req_hdr = *(u32 *)rcvd;
 
@@ -1732,7 +1733,8 @@ static int gmu_cntr_register_reply(struct adreno_device *adreno_dev, void *rcvd)
 {
 	struct hfi_gmu_cntr_register_cmd *in = (struct hfi_gmu_cntr_register_cmd *)rcvd;
 	struct hfi_gmu_cntr_register_reply_cmd out = {0};
-	u32 lo = 0, hi = 0;
+	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	u32 lo = 0, hi = 0, seqnum;
 
 	/*
 	 * Failure to allocate counter is not fatal. Sending lo = 0, hi = 0
@@ -1742,6 +1744,8 @@ static int gmu_cntr_register_reply(struct adreno_device *adreno_dev, void *rcvd)
 		in->group_id, in->countable, &lo, &hi, PERFCOUNTER_FLAG_KERNEL);
 
 	out.hdr = ACK_MSG_HDR(F2H_MSG_GMU_CNTR_REGISTER);
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	out.hdr = MSG_HDR_SET_SEQNUM_SIZE(out.hdr, seqnum, sizeof(out) >> 2);
 	out.req_hdr = in->hdr;
 	out.group_id = in->group_id;
 	out.countable = in->countable;
@@ -1754,8 +1758,6 @@ static int gmu_cntr_register_reply(struct adreno_device *adreno_dev, void *rcvd)
 
 static int send_warmboot_start_msg(struct adreno_device *adreno_dev)
 {
-	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
-	unsigned int seqnum = atomic_inc_return(&gmu->hfi.seqnum);
 	int ret = 0;
 	struct hfi_start_cmd cmd;
 
@@ -1766,8 +1768,6 @@ static int send_warmboot_start_msg(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr, seqnum);
-
 	cmd.hdr = RECORD_NOP_MSG_HDR(cmd.hdr);
 
 	return gen7_hfi_send_generic_req(adreno_dev, &cmd, sizeof(cmd));
@@ -1777,7 +1777,7 @@ static int send_start_msg(struct adreno_device *adreno_dev)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	unsigned int seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	u32 seqnum;
 	int read_size, rc = 0;
 	struct hfi_start_cmd cmd;
 	u32 rcvd[MAX_RCVD_SIZE];
@@ -1787,7 +1787,8 @@ static int send_start_msg(struct adreno_device *adreno_dev)
 	if (rc)
 		return rc;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr, seqnum);
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd.hdr, seqnum, sizeof(cmd) >> 2);
 
 	pending_ack.sent_hdr = cmd.hdr;
 
@@ -2023,13 +2024,14 @@ u32 gen7_hwsched_hfi_get_value(struct adreno_device *adreno_dev, u32 prop)
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 	struct pending_cmd pending_ack;
 	int rc;
+	u32 seqnum;
 
 	rc = CMD_MSG_HDR(cmd, H2F_MSG_GET_VALUE);
 	if (rc)
 		return 0;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr,
-			atomic_inc_return(&gmu->hfi.seqnum));
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd.hdr, seqnum, sizeof(cmd) >> 2);
 	cmd.type = prop;
 	cmd.subtype = 0;
 
@@ -2173,6 +2175,7 @@ static int gen7_hwsched_hfi_warmboot_gpu_cmd(struct adreno_device *adreno_dev,
 		.flags = HFI_WARMBOOT_EXEC_SCRATCH,
 	};
 	int ret = 0;
+	u32 seqnum;
 
 	if (!adreno_dev->warmboot_enabled)
 		return 0;
@@ -2181,8 +2184,8 @@ static int gen7_hwsched_hfi_warmboot_gpu_cmd(struct adreno_device *adreno_dev,
 	if (ret)
 		return ret;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr,
-			atomic_inc_return(&gmu->hfi.seqnum));
+	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
+	cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd.hdr, seqnum, sizeof(cmd) >> 2);
 
 	add_waiter(hfi, cmd.hdr, ret_cmd);
 
@@ -3032,8 +3035,6 @@ int gen7_gmu_context_queue_write(struct adreno_device *adreno_dev,
 	if (!IS_ALIGNED(size_bytes, sizeof(u32)))
 		return -EINVAL;
 
-	*msg = MSG_HDR_SET_SIZE(*msg, size_dwords);
-
 	for (i = 0; i < size_dwords; i++) {
 		queue[write_idx] = msg[i];
 		write_idx = (write_idx + 1) % hdr->queue_size;
@@ -3131,12 +3132,12 @@ static int _submit_hw_fence(struct adreno_device *adreno_dev,
 	struct kgsl_drawobj *drawobj, void *cmdbuf)
 {
 	struct adreno_context *drawctxt = ADRENO_CONTEXT(drawobj->context);
-	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
 	int i, j;
 	u32 cmd_sizebytes;
 	struct kgsl_drawobj_sync *syncobj = SYNCOBJ(drawobj);
 	struct hfi_submit_syncobj *cmd;
 	struct hfi_syncobj *obj = NULL;
+	u32 seqnum;
 
 	/* Add hfi_syncobj struct for sync object */
 	cmd_sizebytes = sizeof(*cmd) +
@@ -3215,9 +3216,9 @@ static int _submit_hw_fence(struct adreno_device *adreno_dev,
 	drawobj->timestamp = ++drawctxt->syncobj_timestamp;
 	cmd->timestamp = drawobj->timestamp;
 
+	seqnum = atomic_inc_return(&adreno_dev->hwsched.submission_seqnum);
 	cmd->hdr = CREATE_MSG_HDR(H2F_MSG_ISSUE_SYNCOBJ, HFI_MSG_CMD);
-	cmd->hdr = MSG_HDR_SET_SEQNUM(cmd->hdr,
-			atomic_inc_return(&hfi->seqnum));
+	cmd->hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd->hdr, seqnum, cmd_sizebytes >> 2);
 
 	return gen7_gmu_context_queue_write(adreno_dev, drawctxt, (u32 *)cmd, cmd_sizebytes,
 			drawobj, NULL);
@@ -3358,6 +3359,7 @@ int gen7_send_hw_fence_hfi_wait_ack(struct adreno_device *adreno_dev,
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	u32 seqnum;
 	int ret = 0;
 
 	/* Device mutex is necessary to ensure only one hardware fence ack is being waited for */
@@ -3369,8 +3371,8 @@ int gen7_send_hw_fence_hfi_wait_ack(struct adreno_device *adreno_dev,
 	init_completion(&hw_fence_ack.complete);
 
 	entry->cmd.flags |= flags;
-	entry->cmd.hdr = MSG_HDR_SET_SEQNUM(entry->cmd.hdr,
-		atomic_inc_return(&gmu->hfi.seqnum));
+	seqnum = atomic_inc_return(&hfi->hw_fence.seqnum);
+	entry->cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(entry->cmd.hdr, seqnum, sizeof(entry->cmd) >> 2);
 
 	hw_fence_ack.sent_hdr = entry->cmd.hdr;
 
@@ -3695,8 +3697,6 @@ static int gen7_hfi_dispatch_queue_write(struct adreno_device *adreno_dev, u32 q
 	if (empty_space <= align_size)
 		return -ENOSPC;
 
-	*msg = MSG_HDR_SET_SIZE(*msg, size_dwords);
-
 	write = hdr->write_index;
 
 	for (i = 0; i < size_dwords; i++) {
@@ -3732,9 +3732,8 @@ static int gen7_hfi_dispatch_queue_write(struct adreno_device *adreno_dev, u32 q
 
 int gen7_hwsched_submit_drawobj(struct adreno_device *adreno_dev, struct kgsl_drawobj *drawobj)
 {
-	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
 	int ret = 0;
-	u32 cmd_sizebytes;
+	u32 cmd_sizebytes, seqnum;
 	struct kgsl_drawobj_cmd *cmdobj = NULL;
 	struct hfi_submit_cmd *cmd;
 	struct adreno_submit_time time = {0};
@@ -3814,9 +3813,9 @@ int gen7_hwsched_submit_drawobj(struct adreno_device *adreno_dev, struct kgsl_dr
 skipib:
 	adreno_drawobj_set_constraint(KGSL_DEVICE(adreno_dev), drawobj);
 
+	seqnum = atomic_inc_return(&adreno_dev->hwsched.submission_seqnum);
 	cmd->hdr = CREATE_MSG_HDR(H2F_MSG_ISSUE_CMD, HFI_MSG_CMD);
-	cmd->hdr = MSG_HDR_SET_SEQNUM(cmd->hdr,
-			atomic_inc_return(&hfi->seqnum));
+	cmd->hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd->hdr, seqnum, cmd_sizebytes >> 2);
 
 	if (adreno_hwsched_context_queue_enabled(adreno_dev))
 		ret = gen7_gmu_context_queue_write(adreno_dev,
@@ -3849,7 +3848,6 @@ int gen7_hwsched_send_recurring_cmdobj(struct adreno_device *adreno_dev,
 {
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
-	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
 	struct hfi_submit_cmd *cmd;
 	struct kgsl_memobj_node *ib;
 	u32 cmd_sizebytes;
@@ -3907,8 +3905,6 @@ int gen7_hwsched_send_recurring_cmdobj(struct adreno_device *adreno_dev,
 	}
 
 	cmd->hdr = CREATE_MSG_HDR(H2F_MSG_ISSUE_RECURRING_CMD, HFI_MSG_CMD);
-	cmd->hdr = MSG_HDR_SET_SEQNUM(cmd->hdr,
-			atomic_inc_return(&hfi->seqnum));
 
 	ret = gen7_hfi_send_cmd_async(adreno_dev, cmd, sizeof(*cmd));
 
@@ -4015,7 +4011,7 @@ static int send_context_unregister_hfi(struct adreno_device *adreno_dev,
 	cmd.ts = ts,
 
 	seqnum = atomic_inc_return(&gmu->hfi.seqnum);
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr, seqnum);
+	cmd.hdr = MSG_HDR_SET_SEQNUM_SIZE(cmd.hdr, seqnum, sizeof(cmd) >> 2);
 
 	add_waiter(hfi, cmd.hdr, &pending_ack);
 
