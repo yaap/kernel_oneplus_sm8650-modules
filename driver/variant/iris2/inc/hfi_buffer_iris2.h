@@ -892,10 +892,11 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define SIZE_ROI_METADATA_ENC(size_roi, frame_width, frame_height, lcu_size)\
 	do { \
 		HFI_U32 width_in_lcus = 0, height_in_lcus = 0, n_shift = 0;    \
-		while (lcu_size && !(lcu_size & 0x1)) { \
+		HFI_U32 n_lcu_size = lcu_size;              \
+		while (n_lcu_size && !(n_lcu_size & 0x1)) { \
 			n_shift++;                          \
-			lcu_size = lcu_size >> 1;          \
-		}                                      \
+			n_lcu_size = n_lcu_size >> 1;       \
+		}                                           \
 		width_in_lcus = (frame_width + (lcu_size - 1)) >> n_shift; \
 		height_in_lcus = (frame_height + (lcu_size - 1)) >> n_shift;  \
 		size_roi = (((width_in_lcus + 7) >> 3) << 3) * \
