@@ -76,7 +76,10 @@ static u32 bitrate_table_kalama_2stage_fp[5][10] = {
 	{130, 130, 120, 120, 120, 120, 120, 120, 120, 120},
 };
 
-/* HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered) */
+/*
+ * HW limit bitrate table (these values are measured
+ * end to end fw/sw impacts are also considered)
+ */
 static u32 bitrate_table_kalama_1stage_fp[5][10] = { /* 1-stage assume IPPP */
 	/* h264 cavlc */
 	{0, 220, 220, 220, 220, 220, 220, 220, 220, 220},

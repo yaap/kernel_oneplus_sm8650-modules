@@ -732,7 +732,8 @@ u64 msm_vidc_calc_freq_iris33_legacy(struct msm_vidc_inst *inst, u32 data_size)
 	freq = max(vpp_cycles, vsp_cycles);
 	freq = max(freq, fw_cycles);
 
-	i_vpr_p(inst, "%s: filled len %d, required freq %llu, vpp %llu, vsp %llu, fw_cycles %llu, fps %u, mbpf %u\n",
+	i_vpr_p(inst,
+		"%s: filled len %d, required freq %llu, vpp %llu, vsp %llu, fw_cycles %llu, fps %u, mbpf %u\n",
 		__func__, data_size, freq,
 		vpp_cycles, vsp_cycles, fw_cycles, fps, mbpf);
 
