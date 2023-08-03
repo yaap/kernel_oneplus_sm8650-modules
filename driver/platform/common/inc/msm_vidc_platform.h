@@ -279,6 +279,7 @@ static inline bool is_mmrm_supported(struct msm_vidc_core *core)
 }
 
 int msm_vidc_init_platform(struct msm_vidc_core *core);
+int msm_vidc_read_efuse(struct msm_vidc_core *core);
 
 /* control framework support functions */
 

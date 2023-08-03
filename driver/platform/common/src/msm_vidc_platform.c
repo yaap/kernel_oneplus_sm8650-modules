@@ -24,6 +24,7 @@
 
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
 #include "msm_vidc_pineapple.h"
+#include "msm_vidc_cliffs.h"
 #include "msm_vidc_iris33.h"
 #endif
 #if defined(CONFIG_MSM_VIDC_KALAMA)
@@ -217,6 +218,11 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 		.init_platform              = msm_vidc_init_platform_pineapple,
 		.init_iris                  = msm_vidc_init_iris33,
 	},
+	{
+		.compat                     = "qcom,cliffs-vidc",
+		.init_platform              = msm_vidc_init_platform_cliffs,
+		.init_iris                  = msm_vidc_init_iris33,
+	},
 #endif
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 	{
@@ -358,6 +364,49 @@ int msm_vidc_init_platform(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	return rc;
+}
+
+int msm_vidc_read_efuse(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	void __iomem *base;
+	u32 i = 0, efuse = 0, efuse_data_count = 0;
+	struct msm_vidc_efuse_data *efuse_data = NULL;
+	struct msm_vidc_platform_data *platform_data;
+
+	platform_data = &core->platform->data;
+	efuse_data = platform_data->efuse_data;
+	efuse_data_count = platform_data->efuse_data_size;
+
+	if (!efuse_data)
+		return 0;
+
+	for (i = 0; i < efuse_data_count; i++) {
+		switch (efuse_data[i].purpose) {
+		case SKU_VERSION:
+			base = devm_ioremap(&core->pdev->dev, efuse_data[i].start_address,
+					efuse_data[i].size);
+			if (!base) {
+				d_vpr_e("failed efuse: start %#x, size %d\n",
+					efuse_data[i].start_address,
+					efuse_data[i].size);
+				return -EINVAL;
+			}
+			efuse = readl_relaxed(base);
+			platform_data->sku_version =
+					(efuse & efuse_data[i].mask) >>
+					efuse_data[i].shift;
+			break;
+		default:
+			break;
+		}
+		if (platform_data->sku_version) {
+			d_vpr_h("efuse 0x%x, platform version 0x%x\n",
+				efuse, platform_data->sku_version);
+			break;
+		}
+	}
 	return rc;
 }
 
