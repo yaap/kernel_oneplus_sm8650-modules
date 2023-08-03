@@ -8963,29 +8963,33 @@ static int __init fastrpc_device_init(void)
 		if (i == CDSP_DOMAIN_ID) {
 			me->channel[i].dev = me->non_secure_dev;
 #if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+			/*
+			 * Allocate CMA memory for mini dump.
+			 * Ignore error as CMA node may not be available on all targets.
+			 */
 			err = fastrpc_alloc_cma_memory(&region_phys,
 								&region_vaddr,
 								MINI_DUMP_DBG_SIZE,
 								(unsigned long)attr);
 #endif
-			if (err)
-				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
-						__func__, err);
+			if (err) {
+				ADSPRPC_WARN("CMA alloc failed err 0x%x\n", err);
+				err = 0;
+			}
 			VERIFY(err, NULL != (buf = kzalloc(sizeof(*buf), GFP_KERNEL)));
 			if (err) {
 				err = -ENOMEM;
-				ADSPRPC_ERR("%s: CMA alloc failed  err 0x%x\n",
-							__func__, err);
-				goto device_create_bail;
+				ADSPRPC_WARN("kzalloc failed err 0x%x\n", err);
+				err = 0;
+			} else {
+				INIT_HLIST_NODE(&buf->hn);
+				buf->virt = region_vaddr;
+				buf->phys = (uintptr_t)region_phys;
+				buf->size = MINI_DUMP_DBG_SIZE;
+				buf->dma_attr = attr;
+				buf->raddr = 0;
+				me->channel[i].buf = buf;
 			}
-			INIT_HLIST_NODE(&buf->hn);
-			buf->virt = region_vaddr;
-			buf->phys = (uintptr_t)region_phys;
-			buf->size = MINI_DUMP_DBG_SIZE;
-			buf->dma_attr = attr;
-			buf->raddr = 0;
-			ktime_get_real_ts64(&buf->buf_start_time);
-			me->channel[i].buf = buf;
 		}
 		if (IS_ERR_OR_NULL(me->channel[i].handle))
 			pr_warn("adsprpc: %s: SSR notifier register failed for %s with err %d\n",
