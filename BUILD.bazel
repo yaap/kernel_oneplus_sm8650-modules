@@ -22,16 +22,8 @@ ddk_headers(
 )
 
 ddk_headers(
-    name = "test_headers",
-    hdrs = glob([
-      "test/*.h",
-    ]),
-    includes = ["test"]
-)
-
-ddk_headers(
     name = "mmrm_driver_headers",
-    hdrs = [":mmrm_drivers_configs", "driver_headers", "test_headers"]
+    hdrs = [":mmrm_drivers_configs", "driver_headers"]
 )
 
 load(":target.bzl", "define_pineapple")

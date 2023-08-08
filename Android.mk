@@ -21,7 +21,7 @@ DLKM_DIR   := device/qcom/common/dlkm
 
 LOCAL_PATH := $(call my-dir)
 LOCAL_MODULE_DDK_BUILD    := true
-LOCAL_MODULE_KO_DIRS      := driver/msm-mmrm.ko test/mmrm_test_module.ko
+LOCAL_MODULE_KO_DIRS      := driver/msm-mmrm.ko
 
 include $(CLEAR_VARS)
 # For incremental compilation
@@ -46,17 +46,17 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
-include $(CLEAR_VARS)
-# For incremental compilation
-LOCAL_SRC_FILES           := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
-LOCAL_MODULE              := mmrm_test_module.ko
-LOCAL_MODULE_KBUILD_NAME  := test/mmrm_test_module.ko
-LOCAL_MODULE_TAGS         := optional
-LOCAL_MODULE_DEBUG_ENABLE := true
-LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-# Include kp_module.ko in the /vendor/lib/modules (vendor.img)
-# BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
-include $(DLKM_DIR)/Build_external_kernelmodule.mk
+# include $(CLEAR_VARS)
+# # For incremental compilation
+# LOCAL_SRC_FILES           := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+# LOCAL_MODULE              := mmrm_test_module.ko
+# LOCAL_MODULE_KBUILD_NAME  := test/mmrm_test_module.ko
+# LOCAL_MODULE_TAGS         := optional
+# LOCAL_MODULE_DEBUG_ENABLE := true
+# LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+# # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
+# # BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
+# include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
 ifeq ($(CONFIG_MSM_MMRM_VM),y)
 	include $(CLEAR_VARS)
