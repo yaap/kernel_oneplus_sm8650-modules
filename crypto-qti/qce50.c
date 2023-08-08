@@ -3014,8 +3014,6 @@ static int _qce_sps_transfer(struct qce_device *pce_dev, int req_info)
 		pr_err("sps_xfr() fail (producer pipe=0x%lx) rc = %d\n",
 			(uintptr_t)pce_dev->ce_bam_info.producer[op].pipe, rc);
 ret:
-	if (rc)
-		_qce_dump_descr_fifos(pce_dev, req_info);
 	return rc;
 }
 
