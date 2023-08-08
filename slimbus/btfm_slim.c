@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -26,7 +26,7 @@
 #include "btfm_slim_hw_interface.h"
 #endif
 
-#define DELAY_FOR_PORT_OPEN_MS (200)
+#define DELAY_FOR_PORT_OPEN_MS (20)
 #define SLIM_MANF_ID_QCOM	0x217
 #define SLIM_PROD_CODE		0x221
 #define BT_CMD_SLIM_TEST	0xbfac
@@ -37,6 +37,8 @@ static int btfm_slim_major;
 struct btfmslim *btfm_slim_drv_data;
 
 static int btfm_num_ports_open;
+
+static bool is_registered;
 
 int btfm_slim_write(struct btfmslim *btfmslim,
 		uint16_t reg, uint8_t reg_val, uint8_t pgd)
@@ -250,7 +252,8 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 		chipset_ver == QCA_APACHE_SOC_ID_0100 ||
 		chipset_ver == QCA_APACHE_SOC_ID_0110 ||
 		chipset_ver == QCA_APACHE_SOC_ID_0121)) {
-		BTFMSLIM_INFO("SB reset needed after all ports disabled, sleeping");
+		BTFMSLIM_INFO("SB reset needed after all ports disabled, send suspend and sleep");
+		slim_vote_for_suspend(btfmslim->slim_pgd);
 		msleep(DELAY_FOR_PORT_OPEN_MS);
 	}
 
@@ -576,13 +579,20 @@ static int btfm_slim_status(struct slim_device *sdev,
 	btfm_slim = dev_get_drvdata(dev);
 
 #if IS_ENABLED(CONFIG_BTFM_SLIM)
-	ret = btfm_slim_register_codec(btfm_slim);
+	if (!is_registered) {
+		ret = btfm_slim_register_codec(btfm_slim);
+	}
 #else
-	btfm_slim_get_hwep_details(sdev, btfm_slim);
-	ret = btfm_slim_register_hw_ep(btfm_slim);
+	if (!is_registered) {
+		btfm_slim_get_hwep_details(sdev, btfm_slim);
+		ret = btfm_slim_register_hw_ep(btfm_slim);
+	}
 #endif
-	if (ret)
+	if (!ret)
+		is_registered = true;
+	else
 		BTFMSLIM_ERR("error, registering slimbus codec failed");
+
 	return ret;
 }
 
@@ -612,6 +622,7 @@ static int btfm_slim_probe(struct slim_device *slim)
 	pr_info("%s: name = %s\n", __func__, dev_name(&slim->dev));
 	/*this as true during the probe then slimbus won't check for logical address*/
 	slim->is_laddr_valid = true;
+	is_registered = false;
 
 	dev_set_name(&slim->dev, "%s", BTFMSLIM_DEV_NAME);
 	pr_info("%s: name = %s\n", __func__, dev_name(&slim->dev));
