@@ -201,7 +201,7 @@
 #define MAX_PERSISTENT_HEADERS    (25)
 
 /* Max value of unique fastrpc tgid */
-#define MAX_FRPC_TGID 65
+#define MAX_FRPC_TGID 256
 
 #define PERF_CAPABILITY_SUPPORT	(1 << 1)
 #define KERNEL_ERROR_CODE_V1_SUPPORT	1
@@ -230,7 +230,7 @@
 static int md_unique_index_flag[MAX_UNIQUE_ID] = { 0, 0, 0, 0, 0 };
 
 /* Array to keep track unique tgid_frpc usage */
-static bool frpc_tgid_usage_array[NUM_CHANNELS][MAX_FRPC_TGID] = {0};
+static bool frpc_tgid_usage_array[MAX_FRPC_TGID] = {0};
 
 /* Fastrpc remote process attributes */
 enum fastrpc_proc_attr {
@@ -1089,6 +1089,14 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		if (!IS_ERR_OR_NULL(map->buf))
 			dma_buf_put(map->buf);
 	}
+	if (fl) {
+		spin_lock(&fl->hlock);
+		if ((map->flags == ADSP_MMAP_ADD_PAGES) || (map->flags == ADSP_MMAP_ADD_PAGES_LLC))
+			fl->mem_snap.heap_bufs_size -= map->size;
+		else
+			fl->mem_snap.nonheap_bufs_size -= map->size;
+		spin_unlock(&fl->hlock);
+	}
 bail:
 	if (!map->is_persistent)
 		kfree(map);
@@ -1163,6 +1171,8 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 	struct fastrpc_mmap *map = NULL;
 	int err = 0, vmid, sgl_index = 0;
 	struct scatterlist *sgl = NULL;
+	bool dma_attach_fail =  false;
+	size_t tot_bufs_size = 0;
 
 	if (!fl) {
 		err = -EBADF;
@@ -1227,6 +1237,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 			ADSPRPC_ERR(
 			"dma_buf_attach for fd %d for len 0x%zx failed to map buffer on SMMU device %s ret %ld\n",
 				fd, len, dev_name(me->dev), PTR_ERR(map->attach));
+			dma_attach_fail = true;
 			err = -EFAULT;
 			goto bail;
 		}
@@ -1319,6 +1330,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 			"dma_buf_attach for fd %d failed for len 0x%zx to map buffer on SMMU device %s ret %ld\n",
 				fd, len, dev_name(sess->smmu.dev),
 				PTR_ERR(map->attach));
+			dma_attach_fail = true;
 			err = -EFAULT;
 			goto bail;
 		}
@@ -1398,10 +1410,24 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 	}
 	map->len = len;
 
+	spin_lock(&fl->hlock);
+	if ((mflags == ADSP_MMAP_ADD_PAGES) || (mflags == ADSP_MMAP_ADD_PAGES_LLC))
+		fl->mem_snap.heap_bufs_size += map->size;
+	else
+		fl->mem_snap.nonheap_bufs_size += map->size;
+	spin_unlock(&fl->hlock);
+
 	fastrpc_mmap_add(map);
 	*ppmap = map;
 
 bail:
+	if (dma_attach_fail && fl) {
+		tot_bufs_size = fl->mem_snap.heap_bufs_size
+				+ fl->mem_snap.nonheap_bufs_size;
+		ADSPRPC_INFO("Heapbufs size: %zu, non-heapbufs size: %zu, total size: %zu\n",
+				fl->mem_snap.heap_bufs_size, fl->mem_snap.nonheap_bufs_size,
+				tot_bufs_size);
+	}
 	if (map)
 		ktime_get_real_ts64(&map->map_end_time);
 	if (err && map)
@@ -2812,9 +2838,9 @@ static void inv_args(struct smq_invoke_ctx *ctx)
 				ctx->overps[i]->mstart)) == map->size) ||
 				ctx->overps[i]->do_cmo) {
 					dma_buf_begin_cpu_access(map->buf,
-						DMA_TO_DEVICE);
-					dma_buf_end_cpu_access(map->buf,
 						DMA_FROM_DEVICE);
+					dma_buf_end_cpu_access(map->buf,
+						DMA_TO_DEVICE);
 					ADSPRPC_DEBUG(
 						"sc 0x%x pv 0x%llx, mend 0x%llx mstart 0x%llx, len %zu size %zu\n",
 						sc, rpra[over].buf.pv,
@@ -2848,10 +2874,10 @@ static void inv_args(struct smq_invoke_ctx *ctx)
 					}
 					up_read(&current->mm->mmap_lock);
 					dma_buf_begin_cpu_access_partial(
-						map->buf, DMA_TO_DEVICE, offset,
+						map->buf, DMA_FROM_DEVICE, offset,
 						inv_len);
 					dma_buf_end_cpu_access_partial(map->buf,
-						DMA_FROM_DEVICE, offset,
+						DMA_TO_DEVICE, offset,
 						inv_len);
 					ADSPRPC_DEBUG(
 						"sc 0x%x vm_start 0x%llx pv 0x%llx, offset 0x%llx, mend 0x%llx mstart 0x%llx, len %zu size %zu\n",
@@ -3547,6 +3573,11 @@ static int fastrpc_set_session_info(
 	int err = 0;
 	struct fastrpc_apps *me = &gfa;
 
+	if (fl->set_session_info) {
+		ADSPRPC_ERR("Set session info invoked multiple times\n");
+		err = -EBADR;
+		goto bail;
+	}
 	/*
 	 * Third-party apps don't have permission to open the fastrpc device, so
 	 * it is opened on their behalf by DSP HAL. This is detected by
@@ -4900,16 +4931,18 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 				&src_perms, dst_perms, rhvm->vmcount);
 		kfree(dst_perms);
 		if (err) {
+			int unmap_err = 0;
+
 			ADSPRPC_ERR(
 				"rh hyp assign failed with %d for phys 0x%llx, size %zu\n",
 				err, phys, size);
 			err = -EADDRNOTAVAIL;
-			err = fastrpc_unmap_on_dsp(fl,
+			unmap_err = fastrpc_unmap_on_dsp(fl,
 				*raddr, phys, size, flags);
-			if (err) {
+			if (unmap_err) {
 				ADSPRPC_ERR(
 					"failed to unmap %d for phys 0x%llx, size %zd\n",
-					err, phys, size);
+					unmap_err, phys, size);
 			}
 			goto bail;
 		}
@@ -5818,10 +5851,9 @@ skip_dump_wait:
 	fl->is_ramdump_pend = false;
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
-	VERIFY(err, VALID_FASTRPC_CID(cid));
 	/* Reset the tgid usage to false */
-	if (!err)
-		frpc_tgid_usage_array[cid][fl->tgid_frpc] = false;
+	if (fl->tgid_frpc != -1)
+		frpc_tgid_usage_array[fl->tgid_frpc] = false;
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
 
@@ -6006,6 +6038,8 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 			"\n%s %13s %d\n", "cid", ":", fl->cid);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s %12s %d\n", "tgid", ":", fl->tgid);
+		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
+			"%s %14s %d\n", "tgid_frpc", ":", fl->tgid_frpc);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s %7s %d\n", "sessionid", ":", fl->sessionid);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
@@ -6285,6 +6319,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->exit_notif = false;
 	fl->exit_async = false;
 	fl->multi_session_support = false;
+	fl->set_session_info = false;
 	init_completion(&fl->work);
 	init_completion(&fl->dma_invoke);
 	fl->file_close = FASTRPC_PROCESS_DEFAULT_STATE;
@@ -6334,21 +6369,22 @@ bail:
 }
 
 // Generate a unique process ID to DSP process
-static int get_unique_hlos_process_id(uint32_t cid)
+static int get_unique_hlos_process_id(void)
 {
 	int tgid_frpc = -1, tgid_index = 1;
 	struct fastrpc_apps *me = &gfa;
+	unsigned long irq_flags = 0;
 
-	spin_lock(&me->hlock);
+	spin_lock_irqsave(&me->hlock, irq_flags);
 	for (tgid_index = 1; tgid_index < MAX_FRPC_TGID; tgid_index++) {
-		if (!frpc_tgid_usage_array[cid][tgid_index]) {
+		if (!frpc_tgid_usage_array[tgid_index]) {
 			tgid_frpc = tgid_index;
 			/* Set the tgid usage to false */
-			frpc_tgid_usage_array[cid][tgid_index] = true;
+			frpc_tgid_usage_array[tgid_index] = true;
 			break;
 		}
 	}
-	spin_unlock(&me->hlock);
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
 	return tgid_frpc;
 }
 
@@ -6361,13 +6397,15 @@ static int fastrpc_set_process_info(struct fastrpc_file *fl, uint32_t cid)
 	memcpy(cur_comm, current->comm, TASK_COMM_LEN);
 	cur_comm[TASK_COMM_LEN-1] = '\0';
 	fl->tgid = current->tgid;
-	fl->tgid_frpc = get_unique_hlos_process_id(cid);
+	fl->tgid_frpc = get_unique_hlos_process_id();
 	VERIFY(err, fl->tgid_frpc != -1);
 	if (err) {
 		ADSPRPC_ERR("too many fastrpc clients, max %u allowed\n", MAX_FRPC_TGID);
 		err = -EUSERS;
 		goto bail;
 	}
+	ADSPRPC_INFO("HLOS pid %d, cid %d is mapped to unique sessions pid %d",
+			fl->tgid, cid, fl->tgid_frpc);
 
 	/*
 	 * Third-party apps don't have permission to open the fastrpc device, so
@@ -6430,6 +6468,16 @@ int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 		err = -EBADF;
 		goto bail;
 	}
+	spin_lock(&fl->hlock);
+	if (fl->set_session_info) {
+		spin_unlock(&fl->hlock);
+		ADSPRPC_ERR("Set session info invoked multiple times\n");
+		err = -EBADR;
+		goto bail;
+	}
+	// Set set_session_info to true
+	fl->set_session_info = true;
+	spin_unlock(&fl->hlock);
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (err) {
 		err = -ECHRNG;
@@ -7642,6 +7690,7 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 	struct hlist_node *n;
 	int cid = -1;
 	struct timespec64 startT = {0};
+	unsigned long irq_flags = 0;
 
 	ctx = container_of(nb, struct fastrpc_channel_ctx, nb);
 	cid = ctx - &me->channel[0];
@@ -7661,13 +7710,13 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 	case QCOM_SSR_AFTER_SHUTDOWN:
 		fastrpc_rproc_trace_events(gcinfo[cid].subsys,
 			"QCOM_SSR_AFTER_SHUTDOWN", "fastrpc_restart_notifier-enter");
-		spin_lock(&me->hlock);
+		spin_lock_irqsave(&me->hlock, irq_flags);
 		hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
 			if (fl->cid != cid)
 				continue;
 			complete(&fl->shutdown);
 		}
-		spin_unlock(&me->hlock);
+		spin_unlock_irqrestore(&me->hlock, irq_flags);
 		ctx->subsystemstate = SUBSYSTEM_DOWN;
 		pr_info("adsprpc: %s: received RAMDUMP notification for %s\n",
 			__func__, gcinfo[cid].subsys);

@@ -827,6 +827,13 @@ struct fastrpc_dspsignal {
 	int state;
 };
 
+struct memory_snapshot {
+	/* Total size of heap buffers allocated in userspace */
+	size_t heap_bufs_size;
+	/* Total size of non-heap buffers allocated in userspace */
+	size_t nonheap_bufs_size;
+};
+
 struct fastrpc_file {
 	struct hlist_node hn;
 	spinlock_t hlock;
@@ -844,6 +851,8 @@ struct fastrpc_file {
 	struct fastrpc_buf *pers_hdr_buf;
 	/* Pre-allocated buffer divided into N chunks */
 	struct fastrpc_buf *hdr_bufs;
+	/* Store snapshot of memory occupied by different buffers */
+	struct memory_snapshot mem_snap;
 
 	struct fastrpc_session_ctx *secsctx;
 	uint32_t mode;
@@ -923,6 +932,8 @@ struct fastrpc_file {
 	struct fastrpc_proc_sharedbuf_info sharedbuf_info;
 	/* Flag to indicate 4 session support available */
 	bool multi_session_support;
+	/* Flag to indicate session info is set */
+	bool set_session_info;
 };
 
 int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
