@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_cvp_common.h"
@@ -458,7 +459,23 @@ void msm_cvp_deinit_clocks(struct iris_hfi_device *device)
 	}
 }
 
-int msm_cvp_set_bw(struct bus_info *bus, unsigned long bw)
+int msm_cvp_set_bw(struct msm_cvp_core *core, struct bus_info *bus, unsigned long bw)
+{
+	struct cvp_hfi_device *hdev;
+	int rc;
+
+	if (!core || !core->device) {
+		dprintk(CVP_ERR, "%s Invalid args: %pK\n", __func__, core);
+		return -EINVAL;
+	}
+
+	hdev = core->device;
+	rc = call_hfi_op(hdev, vote_bus, hdev->hfi_device_data, bus, bw);
+	return rc;
+
+}
+
+int cvp_set_bw(struct bus_info *bus, unsigned long bw)
 {
 	int rc = 0;
 

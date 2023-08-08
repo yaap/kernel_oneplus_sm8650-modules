@@ -11,7 +11,6 @@
 #include "cvp_hfi_api.h"
 #include "msm_cvp_dsp.h"
 
-#define CREATE_TRACE_POINTS
 #define MAX_SSR_STRING_LEN 10
 int msm_cvp_debug = CVP_ERR | CVP_WARN | CVP_FW;
 EXPORT_SYMBOL(msm_cvp_debug);

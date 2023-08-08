@@ -1079,7 +1079,8 @@ static int msm_cvp_get_sysprop(struct msm_cvp_inst *inst,
 		}
 		case EVA_KMD_PROP_SESSION_ERROR:
 		{
-			rc = dma_buf_fd(hfi->mem_addr.mem_data.dma_buf, O_RDONLY | O_CLOEXEC);
+			get_dma_buf(hfi->sfr.mem_data.dma_buf);
+			rc = dma_buf_fd(hfi->sfr.mem_data.dma_buf, O_RDONLY | O_CLOEXEC);
 			if (rc < 0) {
 				dprintk(CVP_WARN, "Failed get dma_buf fd %d\n", rc);
 				break;

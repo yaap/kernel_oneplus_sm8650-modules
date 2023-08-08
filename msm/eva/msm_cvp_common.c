@@ -1234,7 +1234,6 @@ void msm_cvp_ssr_handler(struct work_struct *work)
 			if (!s)
 				return;
 			print_hfi_queue_info(hdev);
-			msm_cvp_comm_kill_session(inst);
 			cvp_put_inst(s);
 		} else {
 			dprintk(CVP_WARN, "No active CVP session to abort\n");

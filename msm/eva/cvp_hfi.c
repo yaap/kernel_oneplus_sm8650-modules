@@ -911,7 +911,7 @@ static int __unvote_buses(struct iris_hfi_device *device)
 	device->bus_vote.data_count = 0;
 
 	iris_hfi_for_each_bus(device, bus) {
-		rc = msm_cvp_set_bw(bus, 0);
+		rc = cvp_set_bw(bus, 0);
 		if (rc) {
 			dprintk(CVP_ERR,
 			"%s: Failed unvoting bus\n", __func__);
@@ -952,7 +952,7 @@ no_data_count:
 
 	iris_hfi_for_each_bus(device, bus) {
 		if (bus) {
-			rc = msm_cvp_set_bw(bus, bus->range[1]);
+			rc = cvp_set_bw(bus, bus->range[1]);
 			if (rc)
 				dprintk(CVP_ERR,
 				"Failed voting bus %s to ab %u\n",
@@ -964,7 +964,7 @@ err_no_mem:
 	return rc;
 }
 
-static int iris_hfi_vote_buses(void *dev, struct cvp_bus_vote_data *d, int n)
+static int iris_hfi_vote_buses(void *dev, struct bus_info *bus, unsigned long bw)
 {
 	int rc = 0;
 	struct iris_hfi_device *device = dev;
@@ -973,11 +973,10 @@ static int iris_hfi_vote_buses(void *dev, struct cvp_bus_vote_data *d, int n)
 		return -EINVAL;
 
 	mutex_lock(&device->lock);
-	rc = __vote_buses(device, d, n);
+	rc = cvp_set_bw(bus, bw);
 	mutex_unlock(&device->lock);
 
 	return rc;
-
 }
 
 static int __core_set_resource(struct iris_hfi_device *device,
@@ -5127,7 +5126,7 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device)
 {
 	struct msm_cvp_core *core;
 	struct cvp_noc_log *noc_log;
-	u32 val = 0, regi, regii, regiii, i;
+	u32 val = 0, regi, regii, regiii;
 	bool log_required = false;
 	int rc;
 
@@ -5251,20 +5250,6 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device)
 	__write_register(device, CVP_SS_CLK_HALT, 0);
 	__write_register(device, CVP_SS_CLK_EN, 0x3f);
 	__write_register(device, CVP_VPU_WRAPPER_CORE_CONFIG, 0);
-
-	for (i = 0; i < 15; i++) {
-		regi = 0xC0000000 + i;
-		__write_register(device, CVP_SS_ARP_TEST_BUS_CONTROL, regi);
-		val = __read_register(device, CVP_SS_ARP_TEST_BUS_REGISTER);
-		noc_log->arp_test_bus[i] = val;
-	}
-
-	for (i = 0; i < 512; i++) {
-		regi = 0x40000000 + i;
-		__write_register(device, CVP_DMA_TEST_BUS_CONTROL, regi);
-		val = __read_register(device, CVP_DMA_TEST_BUS_REGISTER);
-		noc_log->dma_test_bus[i] = val;
-	}
 }
 
 static int iris_hfi_noc_error_info(void *dev)
