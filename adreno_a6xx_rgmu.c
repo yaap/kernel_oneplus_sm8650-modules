@@ -516,7 +516,6 @@ static void a6xx_rgmu_disable_clks(struct adreno_device *adreno_dev)
 static int a6xx_rgmu_disable_gdsc(struct adreno_device *adreno_dev)
 {
 	struct a6xx_rgmu_device *rgmu = to_a6xx_rgmu(adreno_dev);
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	kgsl_mmu_send_tlb_hint(&device->mmu, true);
 
@@ -525,8 +524,6 @@ static int a6xx_rgmu_disable_gdsc(struct adreno_device *adreno_dev)
 		return 0;
 
 	dev_err(&rgmu->pdev->dev, "RGMU CX gdsc off timeout\n");
-
-	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 
 	return -ETIMEDOUT;
 }
@@ -556,6 +553,8 @@ static void a6xx_rgmu_suspend(struct adreno_device *adreno_dev)
 
 	a6xx_rgmu_disable_clks(adreno_dev);
 	a6xx_rgmu_disable_gdsc(adreno_dev);
+
+	kgsl_pwrctrl_set_state(KGSL_DEVICE(adreno_dev), KGSL_STATE_NONE);
 }
 
 static int a6xx_rgmu_enable_clks(struct adreno_device *adreno_dev)
@@ -716,6 +715,8 @@ static void a6xx_rgmu_power_off(struct adreno_device *adreno_dev)
 	a6xx_rgmu_disable_gdsc(adreno_dev);
 
 	kgsl_pwrctrl_clear_l3_vote(device);
+
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 }
 
 static int a6xx_rgmu_clock_set(struct adreno_device *adreno_dev,
