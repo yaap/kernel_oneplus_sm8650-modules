@@ -694,7 +694,8 @@ void synx_signal_handler(struct work_struct *cb_dispatch)
 		goto fail;
 	}
 
-	if (rc == SYNX_SUCCESS)
+	if (rc == SYNX_SUCCESS && synx_util_get_object_status(synx_obj)
+		!= SYNX_STATE_ACTIVE)
 		rc = synx_native_signal_core(synx_obj, status,
 			(signal_cb->flag & SYNX_SIGNAL_FROM_CALLBACK) ?
 			true : false, signal_cb->ext_sync_id);
@@ -990,8 +991,8 @@ int synx_async_wait(struct synx_session *session,
 				synx_native_signal_fence(synx_obj, status);
 		}
 	}
-	else
-		status = synx_util_get_object_status(synx_obj);
+
+	status = synx_util_get_object_status(synx_obj);
 
 	synx_cb->session = session;
 	synx_cb->idx = idx;
@@ -1374,7 +1375,6 @@ int synx_wait(struct synx_session *session,
 			else
 				synx_native_signal_fence(synx_obj, rc);
 			mutex_unlock(&synx_obj->obj_lock);
-			goto status;
 		}
 	}
 
@@ -1388,7 +1388,6 @@ int synx_wait(struct synx_session *session,
 		goto fail;
 	}
 
-status:
 	mutex_lock(&synx_obj->obj_lock);
 	rc = synx_util_get_object_status(synx_obj);
 	mutex_unlock(&synx_obj->obj_lock);

@@ -10,21 +10,26 @@
 #include <linux/mailbox_controller.h>
 #include "ipclite_client.h"
 
+/* version related entries */
+#define MAJOR_VERSION		1
+#define MINOR_VERSION		0
+
 #define IPCMEM_INIT_COMPLETED	0x1
 #define ACTIVE_CHANNEL			0x1
 
 #define IPCMEM_TOC_SIZE			(4*1024)
 #define IPCMEM_TOC_VAR_OFFSET	0x100
-#define MAX_CHANNEL_SIGNALS		6
 
 #define GLOBAL_ATOMIC_SUPPORT_BMSK 0x1UL
 
+/* IPCC signal info */
 #define IPCLITE_MSG_SIGNAL		0
 #define IPCLITE_MEM_INIT_SIGNAL 1
 #define IPCLITE_VERSION_SIGNAL  2
 #define IPCLITE_TEST_SIGNAL		3
 #define IPCLITE_SSR_SIGNAL		4
 #define IPCLITE_DEBUG_SIGNAL	5
+#define MAX_CHANNEL_SIGNALS		6
 
 /** Flag definitions for the entries */
 #define IPCMEM_FLAGS_ENABLE_READ_PROTECTION   (0x01)
@@ -41,6 +46,11 @@
 /* Timeout (ms) for the trylock of remote spinlocks */
 #define HWSPINLOCK_TIMEOUT	1000
 
+/* queue related entries */
+#define FIFO_FULL_RESERVE		8
+#define FIFO_ALIGNMENT			8
+
+/* debug related entries */
 #define IPCLITE_DEBUG_INFO_SIZE		256
 #define IPCLITE_CORE_DBG_LABEL		"APSS:"
 #define IPCLITE_LOG_MSG_SIZE		100
@@ -51,6 +61,7 @@
 
 #define ADD_OFFSET(x, y)	((void *)((size_t)x + y))
 
+/* IPCLite Logging Mechanism */
 #define IPCLITE_OS_LOG(__level, __fmt, arg...) \
 	do { \
 		if (ipclite_debug_level & __level) { \
@@ -63,8 +74,28 @@
 		} \
 	} while (0)
 
-#define ATOMIC_HW_MUTEX_ACQUIRE (global_atomic_support ?: ipclite_hw_mutex_acquire())
-#define ATOMIC_HW_MUTEX_RELEASE (global_atomic_support ?: ipclite_hw_mutex_release())
+/* IPCLite Debug enable status */
+#define IS_DEBUG_CONFIG(ipclite_debug) (ipclite_debug_control & ipclite_debug)
+
+/* IPCLite Feature enable status */
+#define IS_FEATURE_CONFIG(ipclite_feature) (feature_mask & ipclite_feature)
+
+/* Global Atomic status */
+#define ATOMIC_HW_MUTEX_ACQUIRE \
+(IS_FEATURE_CONFIG(IPCLITE_GLOBAL_ATOMIC) ?: ipclite_hw_mutex_acquire())
+#define ATOMIC_HW_MUTEX_RELEASE \
+(IS_FEATURE_CONFIG(IPCLITE_GLOBAL_ATOMIC) ?: ipclite_hw_mutex_release())
+
+/* API Structure */
+struct ipclite_api_list {
+	int (*init)(struct platform_device *pdev);
+	int32_t (*register_client)(IPCLite_Client cb_func_ptr, void *priv);
+	int32_t (*register_test_client)(IPCLite_Client cb_func_ptr, void *priv);
+	int32_t (*msg_send)(int32_t proc_id, uint64_t data);
+	int32_t (*test_msg_send)(int32_t proc_id, uint64_t data);
+	int32_t (*partition_info)(struct global_region_info *global_ipcmem);
+	void (*recover)(enum ipcmem_host_type core_id);
+} api_list_t;
 
 /**
  * enum ipclite_channel_status - channel status
@@ -77,6 +108,11 @@ enum ipclite_channel_status {
 	INACTIVE				= 0,
 	IN_PROGRESS				= 1,
 	ACTIVE					= 2,
+};
+
+enum ipclite_feature_mask {
+	IPCLITE_GLOBAL_ATOMIC = 0x0001ULL,
+	IPCLITE_TEST_SUITE = 0x0002ULL,
 };
 
 enum ipclite_debug_level {
