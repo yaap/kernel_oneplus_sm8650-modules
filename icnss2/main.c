@@ -4753,7 +4753,7 @@ static int icnss_probe(struct platform_device *pdev)
 
 		init_completion(&priv->smp2p_soc_wake_wait);
 		icnss_runtime_pm_init(priv);
-		icnss_aop_mbox_init(priv);
+		icnss_aop_interface_init(priv);
 		set_bit(ICNSS_COLD_BOOT_CAL, &priv->state);
 		priv->bdf_download_support = true;
 		register_trace_android_vh_rproc_recovery_set(rproc_restart_level_notifier, NULL);
@@ -4865,8 +4865,6 @@ static int icnss_remove(struct platform_device *pdev)
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		icnss_genl_exit();
 		icnss_runtime_pm_deinit(priv);
-		if (!IS_ERR_OR_NULL(priv->mbox_chan))
-			mbox_free_channel(priv->mbox_chan);
 		unregister_trace_android_vh_rproc_recovery_set(rproc_restart_level_notifier, NULL);
 		complete_all(&priv->smp2p_soc_wake_wait);
 		icnss_destroy_ramdump_device(priv->m3_dump_phyareg);
@@ -4876,6 +4874,7 @@ static int icnss_remove(struct platform_device *pdev)
 		icnss_destroy_ramdump_device(priv->m3_dump_phyapdmem);
 		if (priv->soc_wake_wq)
 			destroy_workqueue(priv->soc_wake_wq);
+		icnss_aop_interface_deinit(priv);
 	}
 
 	class_destroy(priv->icnss_ramdump_class);

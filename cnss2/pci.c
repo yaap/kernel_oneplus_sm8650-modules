@@ -1424,7 +1424,8 @@ int cnss_suspend_pci_link(struct cnss_pci_data *pci_priv)
 	pci_disable_device(pci_priv->pci_dev);
 
 	if (pci_priv->pci_dev->device != QCA6174_DEVICE_ID) {
-		if (pci_set_power_state(pci_priv->pci_dev, PCI_D3hot))
+		ret = pci_set_power_state(pci_priv->pci_dev, PCI_D3hot);
+		if (ret)
 			cnss_pr_err("Failed to set D3Hot, err =  %d\n", ret);
 	}
 
@@ -2828,6 +2829,7 @@ int cnss_pci_call_driver_probe(struct cnss_pci_data *pci_priv)
 		if (ret) {
 			cnss_pr_err("Failed to probe host driver, err = %d\n",
 				    ret);
+			complete_all(&plat_priv->power_up_complete);
 			goto out;
 		}
 		clear_bit(CNSS_DRIVER_LOADING, &plat_priv->driver_state);
@@ -7044,28 +7046,6 @@ static bool cnss_should_suspend_pwroff(struct pci_dev *pci_dev)
 }
 #endif
 
-static void cnss_pci_suspend_pwroff(struct pci_dev *pci_dev)
-{
-	struct cnss_pci_data *pci_priv = cnss_get_pci_priv(pci_dev);
-	int rc_num = pci_dev->bus->domain_nr;
-	struct cnss_plat_data *plat_priv;
-	int ret = 0;
-	bool suspend_pwroff = cnss_should_suspend_pwroff(pci_dev);
-
-	plat_priv = cnss_get_plat_priv_by_rc_num(rc_num);
-
-	if (suspend_pwroff) {
-		ret = cnss_suspend_pci_link(pci_priv);
-		if (ret)
-			cnss_pr_err("Failed to suspend PCI link, err = %d\n",
-				    ret);
-		cnss_power_off_device(plat_priv);
-	} else {
-		cnss_pr_dbg("bus suspend and dev power off disabled for device [0x%x]\n",
-			    pci_dev->device);
-	}
-}
-
 #ifdef CONFIG_CNSS2_ENUM_WITH_LOW_SPEED
 static void
 cnss_pci_downgrade_rc_speed(struct cnss_plat_data *plat_priv, u32 rc_num)
@@ -7092,15 +7072,24 @@ cnss_pci_restore_rc_speed(struct cnss_pci_data *pci_priv)
 		if (ret)
 			cnss_pr_err("Failed to reset max PCIe RC%x link speed to default, err = %d\n",
 				     plat_priv->rc_num, ret);
-
-		/* suspend/resume will trigger retain to re-establish link speed */
-		ret = cnss_suspend_pci_link(pci_priv);
-		if (ret)
-			cnss_pr_err("Failed to suspend PCI link, err = %d\n", ret);
-
-		ret = cnss_resume_pci_link(pci_priv);
-		cnss_pr_err("Failed to resume PCI link, err = %d\n", ret);
 	}
+}
+
+static void
+cnss_pci_link_retrain_trigger(struct cnss_pci_data *pci_priv)
+{
+	int ret;
+
+	/* suspend/resume will trigger retain to re-establish link speed */
+	ret = cnss_suspend_pci_link(pci_priv);
+	if (ret)
+		cnss_pr_err("Failed to suspend PCI link, err = %d\n", ret);
+
+	ret = cnss_resume_pci_link(pci_priv);
+	if (ret)
+		cnss_pr_err("Failed to resume PCI link, err = %d\n", ret);
+
+	cnss_pci_get_link_status(pci_priv);
 }
 #else
 static void
@@ -7112,7 +7101,35 @@ static void
 cnss_pci_restore_rc_speed(struct cnss_pci_data *pci_priv)
 {
 }
+
+static void
+cnss_pci_link_retrain_trigger(struct cnss_pci_data *pci_priv)
+{
+}
 #endif
+
+static void cnss_pci_suspend_pwroff(struct pci_dev *pci_dev)
+{
+	struct cnss_pci_data *pci_priv = cnss_get_pci_priv(pci_dev);
+	int rc_num = pci_dev->bus->domain_nr;
+	struct cnss_plat_data *plat_priv;
+	int ret = 0;
+	bool suspend_pwroff = cnss_should_suspend_pwroff(pci_dev);
+
+	plat_priv = cnss_get_plat_priv_by_rc_num(rc_num);
+
+	if (suspend_pwroff) {
+		ret = cnss_suspend_pci_link(pci_priv);
+		if (ret)
+			cnss_pr_err("Failed to suspend PCI link, err = %d\n",
+				    ret);
+		cnss_power_off_device(plat_priv);
+	} else {
+		cnss_pr_dbg("bus suspend and dev power off disabled for device [0x%x]\n",
+			    pci_dev->device);
+		cnss_pci_link_retrain_trigger(pci_priv);
+	}
+}
 
 static int cnss_pci_probe(struct pci_dev *pci_dev,
 			  const struct pci_device_id *id)

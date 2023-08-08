@@ -12,6 +12,10 @@
 #include <linux/platform_device.h>
 #include <linux/ipc_logging.h>
 #include <linux/power_supply.h>
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/mailbox/qmp.h>
+#include <linux/soc/qcom/qcom_aoss.h>
+#endif
 #ifdef CONFIG_CNSS_OUT_OF_TREE
 #include "icnss2.h"
 #else
@@ -485,6 +489,10 @@ struct icnss_priv {
 	bool root_pd_shutdown;
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
+#if IS_ENABLED(CONFIG_MSM_QMP)
+	struct qmp *qmp;
+#endif
+	bool use_direct_qmp;
 	u32 wlan_en_delay_ms;
 	u32 wlan_en_delay_ms_user;
 	struct class *icnss_ramdump_class;
@@ -542,7 +550,8 @@ int icnss_get_iova_ipa(struct icnss_priv *priv, u64 *addr, u64 *size);
 int icnss_update_cpr_info(struct icnss_priv *priv);
 void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 			      char *name);
-int icnss_aop_mbox_init(struct icnss_priv *priv);
+int icnss_aop_interface_init(struct icnss_priv *priv);
+void icnss_aop_interface_deinit(struct icnss_priv *priv);
 void icnss_recovery_timeout_hdlr(struct timer_list *t);
 void icnss_wpss_ssr_timeout_hdlr(struct timer_list *t);
 #endif
