@@ -23,6 +23,7 @@
 #include "rmnet_private.h"
 #include "rmnet_handlers.h"
 #include "rmnet_ll.h"
+#include "rmnet_mem.h"
 
 #define RMNET_MAP_PKT_COPY_THRESHOLD 64
 #define RMNET_MAP_DEAGGR_SPACING  64
@@ -1333,7 +1334,7 @@ static void rmnet_free_agg_pages(struct rmnet_aggregation_state *state)
 
 	list_for_each_entry_safe(agg_page, idx, &state->agg_list, list) {
 		list_del(&agg_page->list);
-		put_page(agg_page->page);
+		rmnet_mem_put_page_entry(agg_page->page);
 		kfree(agg_page);
 	}
 
@@ -1345,6 +1346,8 @@ static struct page *rmnet_get_agg_pages(struct rmnet_aggregation_state *state)
 	struct rmnet_agg_page *agg_page;
 	struct page *page = NULL;
 	int i = 0;
+	int rc;
+	int pageorder = 2;
 
 	if (!(state->params.agg_features & RMNET_PAGE_RECYCLE))
 		goto alloc;
@@ -1369,7 +1372,9 @@ static struct page *rmnet_get_agg_pages(struct rmnet_aggregation_state *state)
 
 alloc:
 	if (!page) {
-		page =  __dev_alloc_pages(GFP_ATOMIC, state->agg_size_order);
+		page = rmnet_mem_get_pages_entry(GFP_ATOMIC, state->agg_size_order, &rc,
+						 &pageorder, RMNET_CORE_ID);
+
 		state->stats->ul_agg_alloc++;
 	}
 
@@ -1381,12 +1386,16 @@ __rmnet_alloc_agg_pages(struct rmnet_aggregation_state *state)
 {
 	struct rmnet_agg_page *agg_page;
 	struct page *page;
+	int rc;
+	int pageorder = 2;
 
 	agg_page = kzalloc(sizeof(*agg_page), GFP_ATOMIC);
 	if (!agg_page)
 		return NULL;
 
-	page = __dev_alloc_pages(GFP_ATOMIC, state->agg_size_order);
+	page = rmnet_mem_get_pages_entry(GFP_ATOMIC, state->agg_size_order, &rc,
+					 &pageorder, RMNET_CORE_ID);
+
 	if (!page) {
 		kfree(agg_page);
 		return NULL;
