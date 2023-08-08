@@ -310,7 +310,7 @@ static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,
 
 	return rc;
 }
-*/
+ */
 static int msm_vdec_set_coded_frames(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
@@ -796,6 +796,13 @@ static int msm_vdec_destroy_internal_buffers(struct msm_vidc_inst *inst,
 		}
 
 		list_for_each_entry_safe(buf, dummy, &buffers->list, list) {
+			/*
+			 * do not destroy internal buffer (DPB buffer) if firmware
+			 * did not return it, so skip if QUEUED flag is present
+			 */
+			if (buf->attr & MSM_VIDC_ATTR_QUEUED)
+				continue;
+
 			i_vpr_h(inst,
 				"%s: destroying internal buffer: type %d idx %d fd %d addr %#llx size %d\n",
 				__func__, buf->type, buf->index, buf->fd,
@@ -1197,12 +1204,12 @@ static int msm_vdec_set_delivery_mode_property(struct msm_vidc_inst *inst,
 				if (is_meta_rx_inp_enabled(inst,
 					META_OUTBUF_FENCE)) {
 					/*
-					* if output buffer fence enabled via
-					* META_OUTBUF_FENCE, then driver will send
-					* fence id via HFI_PROP_FENCE to firmware.
-					* So enable HFI_PROP_FENCE property as
-					* delivery mode property.
-					*/
+					 * if output buffer fence enabled via
+					 * META_OUTBUF_FENCE, then driver will send
+					 * fence id via HFI_PROP_FENCE to firmware.
+					 * So enable HFI_PROP_FENCE property as
+					 * delivery mode property.
+					 */
 					payload[++count] =
 						inst->capabilities[property_output_list[i]].hfi_id;
 				}

@@ -99,9 +99,8 @@ static void msm_vidc_synx_fence_destroy(struct msm_vidc_inst *inst, u64 fence_id
 	struct msm_vidc_fence *fence;
 
 	fence = msm_vidc_get_synx_fence_from_id(inst, fence_id);
-	if (!fence) {
+	if (!fence)
 		return;
-	}
 
 	i_vpr_e(inst, "%s: fence %s\n", __func__, fence->name);
 	list_del_init(&fence->list);

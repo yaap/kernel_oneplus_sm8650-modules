@@ -995,17 +995,15 @@ int msm_vidc_state_change_streamoff(struct msm_vidc_inst *inst,
 		return 0;
 
 	if (port == INPUT_PORT) {
-		if (is_state(inst, MSM_VIDC_INPUT_STREAMING)) {
+		if (is_state(inst, MSM_VIDC_INPUT_STREAMING))
 			new_state = MSM_VIDC_OPEN;
-		} else if (is_state(inst, MSM_VIDC_STREAMING)) {
+		else if (is_state(inst, MSM_VIDC_STREAMING))
 			new_state = MSM_VIDC_OUTPUT_STREAMING;
-		}
 	} else if (port == OUTPUT_PORT) {
-		if (is_state(inst, MSM_VIDC_OUTPUT_STREAMING)) {
+		if (is_state(inst, MSM_VIDC_OUTPUT_STREAMING))
 			new_state = MSM_VIDC_OPEN;
-		} else if (is_state(inst, MSM_VIDC_STREAMING)) {
+		else if (is_state(inst, MSM_VIDC_STREAMING))
 			new_state = MSM_VIDC_INPUT_STREAMING;
-		}
 	}
 	rc = msm_vidc_change_state(inst, new_state, __func__);
 	if (rc)
@@ -1668,6 +1666,7 @@ int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us)
 	struct msm_vidc_core *core;
 	u64 counter = 0;
 	u64 input_timer_sum_us = 0;
+
 	core = inst->core;
 
 	input_timer = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_BUF_TIMER);
@@ -1705,6 +1704,7 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_input_timer *input_timer, *dummy_timer;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	i_vpr_l(inst, "%s: flush input_timer list\n", __func__);
@@ -1793,6 +1793,7 @@ int msm_vidc_flush_ts(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_timestamp *temp, *ts = NULL;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	list_for_each_entry_safe(ts, temp, &inst->timestamps.list, sort.list) {
@@ -1816,6 +1817,7 @@ int msm_vidc_update_timestamp_rate(struct msm_vidc_inst *inst, u64 timestamp)
 	u32 timestamp_rate = 0;
 	u64 ts_ms = 0;
 	u32 counter = 0;
+
 	core = inst->core;
 
 	ts = msm_vidc_pool_alloc(inst, MSM_MEM_POOL_TIMESTAMP);
@@ -1872,6 +1874,7 @@ int msm_vidc_ts_reorder_insert_timestamp(struct msm_vidc_inst *inst, u64 timesta
 	struct msm_vidc_timestamp *ts;
 	struct msm_vidc_core *core;
 	int rc = 0;
+
 	core = inst->core;
 
 	/* allocate ts from pool */
@@ -1896,6 +1899,7 @@ int msm_vidc_ts_reorder_remove_timestamp(struct msm_vidc_inst *inst, u64 timesta
 {
 	struct msm_vidc_timestamp *ts, *temp;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	/* remove matching node */
@@ -1942,6 +1946,7 @@ int msm_vidc_ts_reorder_flush(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_timestamp *temp, *ts = NULL;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	/* flush all entries */
@@ -1998,6 +2003,7 @@ int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf = NULL;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
@@ -2030,6 +2036,7 @@ int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, *dummy;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	buffers = msm_vidc_get_buffers(inst, buf_type, __func__);
@@ -2625,6 +2632,7 @@ int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_mem *mem, *mem_dummy;
 	struct msm_vidc_buffer *buf, *dummy;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	if (!is_internal_buffer(buffer->type)) {
@@ -2670,6 +2678,7 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	u32 buf_count;
 	struct msm_vidc_core *core;
 	struct msm_vidc_buffers *buffers;
+
 	core = inst->core;
 
 	buf_size = call_session_op(core, buffer_size,
@@ -2710,7 +2719,9 @@ int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buffer;
 	struct msm_vidc_mem *mem;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
+
 	if (!is_internal_buffer(buffer_type)) {
 		i_vpr_e(inst, "%s: type %s is not internal\n",
 			__func__, buf_name(buffer_type));
@@ -2793,6 +2804,7 @@ int msm_vidc_queue_internal_buffers(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buffer, *dummy;
+
 	if (!is_internal_buffer(buffer_type)) {
 		i_vpr_e(inst, "%s: %s is not internal\n", __func__, buf_name(buffer_type));
 		return 0;
@@ -2963,6 +2975,7 @@ int msm_vidc_v4l2_fh_init(struct msm_vidc_inst *inst)
 	int rc = 0;
 	int index;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	/* do not init, if already inited */
@@ -3063,6 +3076,7 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	if (inst->m2m_dev) {
@@ -3169,6 +3183,7 @@ int msm_vidc_add_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i;
 	struct msm_vidc_core *core;
 	u32 count = 0;
+
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3199,6 +3214,7 @@ int msm_vidc_remove_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
 	u32 count = 0;
+
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3222,6 +3238,7 @@ int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst)
 	struct msm_vidc_inst *i, *temp;
 	struct msm_vidc_core *core;
 	u32 count = 0, dcount = 0;
+
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -3392,6 +3409,7 @@ int msm_vidc_session_close(struct msm_vidc_inst *inst)
 	int rc = 0;
 	struct msm_vidc_core *core;
 	bool wait_for_response;
+
 	core = inst->core;
 
 	wait_for_response = true;
@@ -3448,6 +3466,7 @@ int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst)
 	int i;
 	u32 codecs_count = 0;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	codecs_count = core->enc_codecs_count + core->dec_codecs_count;
@@ -3854,6 +3873,7 @@ int msm_vidc_inst_timeout(struct msm_vidc_inst *inst)
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
 	bool found;
+
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -4218,6 +4238,7 @@ int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
 	struct msm_vidc_buffer *buf, *dummy;
 	enum msm_vidc_buffer_type buffer_type[2];
 	int i;
+
 	core = inst->core;
 
 	if (is_input_buffer(type)) {
@@ -4264,6 +4285,7 @@ int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
 	int rc = 0;
 	struct msm_vidc_buffer *ro_buf, *dummy;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	if (!is_decode_session(inst) || !is_output_buffer(type))
@@ -4412,9 +4434,8 @@ void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst)
 		dmabuf = dbuf->dmabuf;
 		if (dmabuf && dmabuf->file) {
 			f_inode = file_inode(dmabuf->file);
-			if (f_inode) {
+			if (f_inode)
 				inode_num = f_inode->i_ino;
-			}
 		}
 		i_vpr_e(inst, "%s: removing dma_buf %p, inode %lu, refcount %u\n",
 			__func__, dbuf->dmabuf, inode_num, dbuf->refcount);
@@ -4562,6 +4583,7 @@ int msm_vidc_update_bitstream_buffer_size(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	struct v4l2_format *fmt;
+
 	core = inst->core;
 
 	if (is_decode_session(inst)) {
@@ -4577,6 +4599,7 @@ int msm_vidc_update_meta_port_settings(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
 	struct v4l2_format *fmt;
+
 	core = inst->core;
 
 	fmt = &inst->fmts[INPUT_META_PORT];
@@ -4606,6 +4629,7 @@ int msm_vidc_update_meta_port_settings(struct msm_vidc_inst *inst)
 int msm_vidc_update_buffer_count(struct msm_vidc_inst *inst, u32 port)
 {
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	switch (port) {
@@ -4917,6 +4941,7 @@ int msm_vidc_check_core_mbpf(struct msm_vidc_inst *inst)
 	u32 critical_mbpf = 0;
 	struct msm_vidc_core *core;
 	struct msm_vidc_inst *instance;
+
 	core = inst->core;
 
 	core_lock(core, __func__);
@@ -5184,6 +5209,7 @@ static int msm_vidc_check_max_sessions(struct msm_vidc_inst *inst)
 	u32 num_1080p_sessions = 0, num_4k_sessions = 0, num_8k_sessions = 0;
 	struct msm_vidc_inst *i;
 	struct msm_vidc_core *core;
+
 	core = inst->core;
 
 	core_lock(core, __func__);

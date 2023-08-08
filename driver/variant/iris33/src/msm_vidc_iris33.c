@@ -486,7 +486,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 		d_vpr_e("%s: AON spare register is not zero\n", __func__);
 
 	/* enable bit(1) to avoid cvp noc xo reset */
-	rc = __write_register(core, AON_WRAPPER_SPARE, value|0x2);
+	rc = __write_register(core, AON_WRAPPER_SPARE, value | 0x2);
 	if (rc)
 		return rc;
 
@@ -916,7 +916,7 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW:     %#x\n", val);
 	val = __read_register(core, VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH);
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH:     %#x\n", val);
-	*/
+	 */
 
 	if (is_iris33_hw_power_collapsed(core)) {
 		d_vpr_e("%s: video hardware already power collapsed\n", __func__);
@@ -1224,7 +1224,7 @@ decision_done:
 int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 	u32 width, height, frame_rate;
 	struct v4l2_format *f;
@@ -1258,7 +1258,7 @@ int msm_vidc_adjust_bitrate_boost_iris33(void *instance, struct v4l2_ctrl *ctrl)
 	 * honor client set bitrate boost
 	 * if client did not set, keep max bitrate boost upto 4k@60fps
 	 * and remove bitrate boost after 4k@60fps
-	*/
+	 */
 	if (inst->capabilities[BITRATE_BOOST].flags & CAP_FLAG_CLIENT_SET) {
 		/* accept client set bitrate boost value as is */
 	} else {

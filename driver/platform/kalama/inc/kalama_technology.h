@@ -226,7 +226,7 @@ static u32 av1_num_tiles_kalama[7][3] = {
  *
  * Total W = SUMPRODUCT(H16:J16, K16 : M16) / SUM(H16:J16)
  * Total R = SUMPRODUCT(H16:J16, N16 : P16) / SUM(H16:J16)
-*/
+ */
 
 /* 1000x */
 static u32 kalama_en_readfactor[7] = {1000, 1500, 1750, 1875, 1000, 2000, 2000};

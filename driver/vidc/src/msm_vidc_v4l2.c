@@ -39,9 +39,8 @@ unsigned int msm_v4l2_poll(struct file *filp, struct poll_table_struct *pt)
 		goto exit;
 	}
 	poll = msm_vidc_poll((void *)inst, filp, pt);
-	if (poll) {
+	if (poll)
 		goto exit;
-	}
 
 exit:
 	put_inst(inst);
@@ -505,18 +504,33 @@ int msm_v4l2_qbuf(struct file *filp, void *fh,
 	}
 
 	/*
-	 * do not acquire inst lock here. acquire it in msm_vb2_buf_queue.
-	 * for requests, msm_vb2_buf_queue() is not called from here.
-	 * instead it's called as part of msm_v4l2_request_queue().
-	 * hence acquire the inst lock in common function i.e
-	 * msm_vb2_buf_queue, to handle both requests and non-request
-	 * scenarios.
+	 * [1] If request_fd enabled, msm_vb2_buf_queue() is not called from here.
+	 *   instead it's called as part of msm_v4l2_request_queue().
+	 *   Hence inst lock should be acquired in common function i.e
+	 *   msm_vb2_buf_queue, to handle both requests and non-request
+	 *   scenarios.
+	 * [2] If request_fd is disabled, inst_lock can be acquired here.
+	 *   Acquiring inst_lock from here will ensure RO list insertion
+	 *   and deletion i.e. attach/map will happen under lock.
+	 * Currently, request_fd is disabled. Therefore, acquire inst_lock
+	 * from this function to ensure RO list insertion/updation is under
+	 * lock to avoid stability usecase.
 	 */
+	client_lock(inst, __func__);
+	inst_lock(inst, __func__);
+	if (is_session_error(inst)) {
+		i_vpr_e(inst, "%s: inst in error state\n", __func__);
+		rc = -EINVAL;
+		goto exit;
+	}
+
 	rc = msm_vidc_qbuf(inst, vdev->v4l2_dev->mdev, b);
 	if (rc)
 		goto exit;
 
 exit:
+	inst_unlock(inst, __func__);
+	client_unlock(inst, __func__);
 	put_inst(inst);
 
 	return rc;
@@ -560,11 +574,21 @@ int msm_v4l2_streamon(struct file *filp, void *fh,
 		return -EINVAL;
 	}
 
+	client_lock(inst, __func__);
+	inst_lock(inst, __func__);
+	if (is_session_error(inst)) {
+		i_vpr_e(inst, "%s: inst in error state\n", __func__);
+		rc = -EBUSY;
+		goto exit;
+	}
+
 	rc = msm_vidc_streamon((void *)inst, i);
 	if (rc)
 		goto exit;
 
 exit:
+	inst_unlock(inst, __func__);
+	client_unlock(inst, __func__);
 	put_inst(inst);
 
 	return rc;

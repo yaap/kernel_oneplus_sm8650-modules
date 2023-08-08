@@ -280,8 +280,8 @@ static struct matrix_coeff_info matrix_coeff_data_kalama[] = {
 
 static struct msm_platform_core_capability core_data_kalama[] = {
 	/* {type, value} */
-	{ENC_CODECS, H264|HEVC|HEIC},
-	{DEC_CODECS, H264|HEVC|VP9|AV1|HEIC},
+	{ENC_CODECS, H264 | HEVC | HEIC},
+	{DEC_CODECS, H264 | HEVC | VP9 | AV1 | HEIC},
 	{MAX_SESSION_COUNT, 16},
 	{MAX_NUM_720P_SESSIONS, 16},
 	{MAX_NUM_1080P_SESSIONS, 16},
@@ -290,11 +290,12 @@ static struct msm_platform_core_capability core_data_kalama[] = {
 	{MAX_SECURE_SESSION_COUNT, 3},
 	{MAX_RT_MBPF, 174080},	/* (8192x4352)/256 + (4096x2176)/256*/
 	{MAX_MBPF, 278528}, /* ((8192x4352)/256) * 2 */
-	{MAX_MBPS, 7833600},	/* max_load
-					 * 7680x4320@60fps or 3840x2176@240fps
-					 * which is greater than 4096x2176@120fps,
-					 * 8192x4320@48fps
-					 */
+	{MAX_MBPS, 7833600},
+	/* max_load
+	 * 7680x4320@60fps or 3840x2176@240fps
+	 * which is greater than 4096x2176@120fps,
+	 * 8192x4320@48fps
+	 */
 	{MAX_IMAGE_MBPF, 1048576},  /* (16384x16384)/256 */
 	{MAX_MBPF_HQ, 8160}, /* ((1920x1088)/256) */
 	{MAX_MBPS_HQ, 489600}, /* ((1920x1088)/256)@60fps */
@@ -320,7 +321,7 @@ static struct msm_platform_core_capability core_data_kalama[] = {
 	{DEVICE_CAPS, V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_META_CAPTURE |
 		V4L2_CAP_STREAMING},
 	{SUPPORTS_SYNX_FENCE, 0},
-	{SUPPORTS_REQUESTS, 1},
+	{SUPPORTS_REQUESTS, 0},
 };
 
 static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
@@ -330,7 +331,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	 *      hfi_id,
 	 *      flags}
 	 */
-	{DRV_VERSION, DEC|ENC, CODECS_ALL,
+	{DRV_VERSION, DEC | ENC, CODECS_ALL,
 		0, INT_MAX, 1, DRIVER_VERSION,
 		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
@@ -374,13 +375,13 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{SECURE_FRAME_HEIGHT, ENC, HEVC, 96, 4096, 1, 1080},
 
-	{PIX_FMTS, ENC|DEC, H264,
+	{PIX_FMTS, ENC | DEC, H264,
 		MSM_VIDC_FMT_NV12,
 		MSM_VIDC_FMT_NV12C,
 		MSM_VIDC_FMT_NV12 | MSM_VIDC_FMT_NV21 | MSM_VIDC_FMT_NV12C,
 		MSM_VIDC_FMT_NV12C},
 
-	{PIX_FMTS, ENC|DEC, HEVC|VP9|AV1,
+	{PIX_FMTS, ENC | DEC, HEVC | VP9 | AV1,
 		MSM_VIDC_FMT_NV12,
 		MSM_VIDC_FMT_TP10C,
 		MSM_VIDC_FMT_NV12 | MSM_VIDC_FMT_NV21 | MSM_VIDC_FMT_NV12C |
@@ -400,17 +401,17 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MSM_VIDC_FMT_P010 | MSM_VIDC_FMT_TP10C,
 		MSM_VIDC_FMT_NV12C},
 
-	{MIN_BUFFERS_INPUT, ENC|DEC, CODECS_ALL, 0, 64, 1, 4,
+	{MIN_BUFFERS_INPUT, ENC | DEC, CODECS_ALL, 0, 64, 1, 4,
 		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT,
 		0,
 		CAP_FLAG_VOLATILE},
 
-	{MIN_BUFFERS_INPUT, ENC|DEC, HEIC, 0, 64, 1, 1,
+	{MIN_BUFFERS_INPUT, ENC | DEC, HEIC, 0, 64, 1, 1,
 		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT,
 		0,
 		CAP_FLAG_VOLATILE},
 
-	{MIN_BUFFERS_OUTPUT, ENC|DEC, CODECS_ALL,
+	{MIN_BUFFERS_OUTPUT, ENC | DEC, CODECS_ALL,
 		0, 64, 1, 4,
 		V4L2_CID_MIN_BUFFERS_FOR_CAPTURE,
 		HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
@@ -433,16 +434,16 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	{MBPF, DEC, HEIC, 64, 262144,  1, 262144 },
 
 	/* (4096 * 2304) / 256 */
-	{LOSSLESS_MBPF, ENC, H264|HEVC, 64, 36864, 1, 36864},
+	{LOSSLESS_MBPF, ENC, H264 | HEVC, 64, 36864, 1, 36864},
 
 	/* Batch Mode Decode */
 	/* TODO: update with new values based on updated voltage corner */
-	{BATCH_MBPF, DEC, H264|HEVC|VP9|AV1, 64, 34816, 1, 34816},
+	{BATCH_MBPF, DEC, H264 | HEVC | VP9 | AV1, 64, 34816, 1, 34816},
 
 	/* (4096 * 2304) / 256 */
-	{BATCH_FPS, DEC, H264|HEVC|VP9|AV1, 1, 120, 1, 120},
+	{BATCH_FPS, DEC, H264 | HEVC | VP9 | AV1, 1, 120, 1, 120},
 
-	{SECURE_MBPF, ENC|DEC, H264|HEVC|VP9|AV1, 64, 36864, 1, 36864},
+	{SECURE_MBPF, ENC | DEC, H264 | HEVC | VP9 | AV1, 64, 36864, 1, 36864},
 
 	{SECURE_MBPF, ENC, HEVC, 36, 36864, 1, 36864},
 
@@ -496,21 +497,21 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_OUTPUT_PORT |
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{INPUT_RATE, ENC|DEC, CODECS_ALL,
+	{INPUT_RATE, ENC | DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), INT_MAX,
 		1, (DEFAULT_FPS << 16)},
 
-	{TIMESTAMP_RATE, ENC|DEC, CODECS_ALL,
+	{TIMESTAMP_RATE, ENC | DEC, CODECS_ALL,
 		(MINIMUM_FPS << 16), INT_MAX,
 		1, (DEFAULT_FPS << 16)},
 
-	{SCALE_FACTOR, ENC, H264|HEVC, 1, 8, 1, 8},
+	{SCALE_FACTOR, ENC, H264 | HEVC, 1, 8, 1, 8},
 
 	{MB_CYCLES_VSP, ENC, CODECS_ALL, 25, 25, 1, 25},
 
 	{MB_CYCLES_VSP, DEC, CODECS_ALL, 25, 25, 1, 25},
 
-	{MB_CYCLES_VSP, DEC, VP9|AV1, 60, 60, 1, 60},
+	{MB_CYCLES_VSP, DEC, VP9 | AV1, 60, 60, 1, 60},
 
 	{MB_CYCLES_VPP, ENC, CODECS_ALL, 675, 675, 1, 675},
 
@@ -520,17 +521,17 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 
 	{MB_CYCLES_LP, DEC, CODECS_ALL, 200, 200, 1, 200},
 
-	{MB_CYCLES_FW, ENC|DEC, CODECS_ALL, 489583, 489583, 1, 489583},
+	{MB_CYCLES_FW, ENC | DEC, CODECS_ALL, 489583, 489583, 1, 489583},
 
 	{MB_CYCLES_FW_VPP, ENC, CODECS_ALL, 48405, 48405, 1, 48405},
 
 	{MB_CYCLES_FW_VPP, DEC, CODECS_ALL, 66234, 66234, 1, 66234},
 
-	{CLIENT_ID, ENC|DEC, CODECS_ALL,
+	{CLIENT_ID, ENC | DEC, CODECS_ALL,
 		INVALID_CLIENT_ID, INT_MAX, 1, INVALID_CLIENT_ID,
 		V4L2_CID_MPEG_VIDC_CLIENT_ID},
 
-	{SECURE_MODE, ENC|DEC, H264|HEVC|VP9|AV1,
+	{SECURE_MODE, ENC | DEC, H264 | HEVC | VP9 | AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_SECURE,
 		HFI_PROP_SECURE,
@@ -540,7 +541,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	 * Client will enable V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE
 	 * to get fence_id in input metadata buffer done.
 	 */
-	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9|AV1,
+	{META_OUTBUF_FENCE, DEC, H264 | HEVC | VP9 | AV1,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -566,7 +567,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_VOLATILE},
 
 	/* Fence type for input buffer. Currently unused */
-	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9 | AV1,
 		MSM_VIDC_FENCE_NONE, MSM_VIDC_FENCE_NONE,
 		BIT(MSM_VIDC_FENCE_NONE),
 		MSM_VIDC_FENCE_NONE,
@@ -574,7 +575,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_FENCE_TYPE,
 		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
 
-	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9 | AV1,
 		MSM_VIDC_FENCE_NONE, MSM_VIDC_SYNX_V2_FENCE,
 		BIT(MSM_VIDC_FENCE_NONE) | BIT(MSM_VIDC_SW_FENCE),
 		MSM_VIDC_FENCE_NONE,
@@ -583,7 +584,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
 	/* Fence direction for input buffer. Currently unused */
-	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9 | AV1,
 		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_NONE,
 		BIT(MSM_VIDC_FENCE_DIR_NONE),
 		MSM_VIDC_FENCE_DIR_NONE,
@@ -591,7 +592,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_FENCE_DIRECTION,
 		CAP_FLAG_MENU | CAP_FLAG_INPUT_PORT},
 
-	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9 | AV1,
 		MSM_VIDC_FENCE_DIR_NONE, MSM_VIDC_FENCE_DIR_RX,
 		BIT(MSM_VIDC_FENCE_DIR_NONE) | BIT(MSM_VIDC_FENCE_DIR_TX),
 		MSM_VIDC_FENCE_DIR_NONE,
@@ -599,7 +600,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_FENCE_DIRECTION,
 		CAP_FLAG_MENU | CAP_FLAG_OUTPUT_PORT},
 
-	{TS_REORDER, DEC, H264|HEVC,
+	{TS_REORDER, DEC, H264 | HEVC,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_TS_REORDER},
 
@@ -623,7 +624,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_ROTATION,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{SUPER_FRAME, ENC, H264|HEVC,
+	{SUPER_FRAME, ENC, H264 | HEVC,
 		0, 32, 1, 0,
 		V4L2_CID_MPEG_VIDC_SUPERFRAME, 0,
 		CAP_FLAG_NONE},
@@ -675,7 +676,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	/* TODO: Firmware introduced enumeration type for this
 	 * with and without seq header.
 	 */
-	{REQUEST_I_FRAME, ENC, H264|HEVC,
+	{REQUEST_I_FRAME, ENC, H264 | HEVC,
 		0, 0, 0, 0,
 		V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 		HFI_PROP_REQUEST_SYNC_FRAME,
@@ -684,7 +685,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 	/* Enc: Keeping CABAC and CAVLC as same bitrate.
 	 * Dec: there's no use of Bitrate cap
 	 */
-	{BIT_RATE, ENC, H264|HEVC,
+	{BIT_RATE, ENC, H264 | HEVC,
 		1, MAX_BITRATE, 1, DEFAULT_BITRATE,
 		V4L2_CID_MPEG_VIDEO_BITRATE,
 		HFI_PROP_TOTAL_BITRATE,
@@ -721,16 +722,16 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_RATE_CONTROL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{CABAC_MAX_BITRATE, ENC, H264|HEVC, 0,
+	{CABAC_MAX_BITRATE, ENC, H264 | HEVC, 0,
 		160000000, 1, 160000000},
 
 	{CAVLC_MAX_BITRATE, ENC, H264, 0,
 		220000000, 1, 220000000},
 
-	{ALLINTRA_MAX_BITRATE, ENC, H264|HEVC, 0,
+	{ALLINTRA_MAX_BITRATE, ENC, H264 | HEVC, 0,
 		245000000, 1, 245000000},
 
-	{LOWLATENCY_MAX_BITRATE, ENC, H264|HEVC, 0,
+	{LOWLATENCY_MAX_BITRATE, ENC, H264 | HEVC, 0,
 		70000000, 1, 70000000},
 
 	{NUM_COMV, DEC, CODECS_ALL,
@@ -740,7 +741,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDEO_HEVC_LOSSLESS_CU},
 
-	{FRAME_SKIP_MODE, ENC, H264|HEVC|HEIC,
+	{FRAME_SKIP_MODE, ENC, H264 | HEVC | HEIC,
 		V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_DISABLED,
 		V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_BUF_LIMIT,
 		BIT(V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_DISABLED) |
@@ -751,7 +752,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{FRAME_RC_ENABLE, ENC, H264|HEVC|HEIC,
+	{FRAME_RC_ENABLE, ENC, H264 | HEVC | HEIC,
 		0, 1, 1, 1,
 		V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE},
 
@@ -783,12 +784,12 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		CAP_FLAG_OUTPUT_PORT |
 			CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{GOP_CLOSURE, ENC, H264|HEVC,
+	{GOP_CLOSURE, ENC, H264 | HEVC,
 		0, 1, 1, 1,
 		V4L2_CID_MPEG_VIDEO_GOP_CLOSURE,
 		0},
 
-	{B_FRAME, ENC, H264|HEVC,
+	{B_FRAME, ENC, H264 | HEVC,
 		0, 7, 1, 0,
 		V4L2_CID_MPEG_VIDEO_B_FRAMES,
 		HFI_PROP_MAX_B_FRAMES,
@@ -800,7 +801,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_MAX_B_FRAMES,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{BLUR_TYPES, ENC, H264|HEVC,
+	{BLUR_TYPES, ENC, H264 | HEVC,
 		MSM_VIDC_BLUR_NONE, MSM_VIDC_BLUR_EXTERNAL,
 		BIT(MSM_VIDC_BLUR_NONE) | BIT(MSM_VIDC_BLUR_EXTERNAL),
 		MSM_VIDC_BLUR_NONE,
@@ -808,7 +809,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_BLUR_TYPES,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{BLUR_RESOLUTION, ENC, H264|HEVC,
+	{BLUR_RESOLUTION, ENC, H264 | HEVC,
 		0, S32_MAX, 1, 0,
 		V4L2_CID_MPEG_VIDC_VIDEO_BLUR_RESOLUTION,
 		HFI_PROP_BLUR_RESOLUTION,
@@ -826,25 +827,25 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_CSC_MATRIX,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{LOWLATENCY_MODE, ENC, H264|HEVC,
+	{LOWLATENCY_MODE, ENC, H264 | HEVC,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_LOWLATENCY_REQUEST,
 		0,
 		CAP_FLAG_NONE},
 
-	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9|AV1,
+	{LOWLATENCY_MODE, DEC, H264 | HEVC | VP9 | AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_LOWLATENCY_REQUEST,
 		HFI_PROP_SEQ_CHANGE_AT_SYNC_FRAME,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{LTR_COUNT, ENC, H264|HEVC,
+	{LTR_COUNT, ENC, H264 | HEVC,
 		0, MAX_LTR_FRAME_COUNT_2, 1, 0,
 		V4L2_CID_MPEG_VIDEO_LTR_COUNT,
 		HFI_PROP_LTR_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{USE_LTR, ENC, H264|HEVC,
+	{USE_LTR, ENC, H264 | HEVC,
 		0,
 		((1 << MAX_LTR_FRAME_COUNT_2) - 1),
 		0, 0,
@@ -852,7 +853,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_LTR_USE,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{MARK_LTR, ENC, H264|HEVC,
+	{MARK_LTR, ENC, H264 | HEVC,
 		INVALID_DEFAULT_MARK_OR_USE_LTR,
 		(MAX_LTR_FRAME_COUNT_2 - 1),
 		1, INVALID_DEFAULT_MARK_OR_USE_LTR,
@@ -866,7 +867,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_BASELAYER_PRIORITYID,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{IR_TYPE, ENC, H264|HEVC,
+	{IR_TYPE, ENC, H264 | HEVC,
 		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM,
 		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC,
 		BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM) |
@@ -876,20 +877,20 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{IR_PERIOD, ENC, H264|HEVC,
+	{IR_PERIOD, ENC, H264 | HEVC,
 		0, INT_MAX, 1, 0,
 		V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD,
 		0,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_OUTPUT_PORT |
 		CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{AU_DELIMITER, ENC, H264|HEVC,
+	{AU_DELIMITER, ENC, H264 | HEVC,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDEO_AU_DELIMITER,
 		HFI_PROP_AUD,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{TIME_DELTA_BASED_RC, ENC, H264|HEVC,
+	{TIME_DELTA_BASED_RC, ENC, H264 | HEVC,
 		0, 1, 1, 1,
 		V4L2_CID_MPEG_VIDC_TIME_DELTA_BASED_RC,
 		HFI_PROP_TIME_DELTA_BASED_RATE_CONTROL,
@@ -901,13 +902,13 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_TIME_DELTA_BASED_RATE_CONTROL,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{CONTENT_ADAPTIVE_CODING, ENC, H264|HEVC,
+	{CONTENT_ADAPTIVE_CODING, ENC, H264 | HEVC,
 		0, 1, 1, 1,
 		V4L2_CID_MPEG_VIDC_CONTENT_ADAPTIVE_CODING,
 		HFI_PROP_CONTENT_ADAPTIVE_CODING,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{REQUEST_PREPROCESS, ENC, H264|HEVC,
+	{REQUEST_PREPROCESS, ENC, H264 | HEVC,
 		MSM_VIDC_PREPROCESS_NONE,
 		MSM_VIDC_PREPROCESS_TYPE0,
 		BIT(MSM_VIDC_PREPROCESS_NONE) |
@@ -916,25 +917,25 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0, HFI_PROP_REQUEST_PREPROCESS,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{BITRATE_BOOST, ENC, H264|HEVC,
+	{BITRATE_BOOST, ENC, H264 | HEVC,
 		0, MAX_BITRATE_BOOST, 25, MAX_BITRATE_BOOST,
 		V4L2_CID_MPEG_VIDC_QUALITY_BITRATE_BOOST,
 		HFI_PROP_BITRATE_BOOST,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{MIN_QUALITY, ENC, H264|HEVC,
+	{MIN_QUALITY, ENC, H264 | HEVC,
 		0, MAX_SUPPORTED_MIN_QUALITY, 70, MAX_SUPPORTED_MIN_QUALITY,
 		0,
 		HFI_PROP_MAINTAIN_MIN_QUALITY,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{VBV_DELAY, ENC, H264|HEVC,
+	{VBV_DELAY, ENC, H264 | HEVC,
 		200, 300, 100, 300,
 		V4L2_CID_MPEG_VIDEO_VBV_DELAY,
 		HFI_PROP_VBV_DELAY,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{PEAK_BITRATE, ENC, H264|HEVC,
+	{PEAK_BITRATE, ENC, H264 | HEVC,
 		/* default peak bitrate is 10% larger than avg bitrate */
 		1, MAX_BITRATE, 1, DEFAULT_BITRATE,
 		V4L2_CID_MPEG_VIDEO_BITRATE_PEAK,
@@ -948,7 +949,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_MIN_QP_PACKED,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{MIN_FRAME_QP, ENC, HEVC|HEIC,
+	{MIN_FRAME_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MIN_QP_10BIT,
 		V4L2_CID_MPEG_VIDEO_HEVC_MIN_QP,
 		HFI_PROP_MIN_QP_PACKED,
@@ -958,7 +959,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MIN_QP_8BIT,
 		V4L2_CID_MPEG_VIDEO_H264_I_FRAME_MIN_QP},
 
-	{I_FRAME_MIN_QP, ENC, HEVC|HEIC,
+	{I_FRAME_MIN_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MIN_QP_10BIT,
 		V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MIN_QP},
 
@@ -966,7 +967,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MIN_QP_8BIT,
 		V4L2_CID_MPEG_VIDEO_H264_P_FRAME_MIN_QP},
 
-	{P_FRAME_MIN_QP, ENC, HEVC|HEIC,
+	{P_FRAME_MIN_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MIN_QP_10BIT,
 		V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MIN_QP},
 
@@ -974,7 +975,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MIN_QP_8BIT,
 		V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MIN_QP},
 
-	{B_FRAME_MIN_QP, ENC, HEVC|HEIC,
+	{B_FRAME_MIN_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MIN_QP_10BIT,
 		V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MIN_QP},
 
@@ -984,7 +985,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_MAX_QP_PACKED,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{MAX_FRAME_QP, ENC, HEVC|HEIC,
+	{MAX_FRAME_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_HEVC_MAX_QP,
 		HFI_PROP_MAX_QP_PACKED,
@@ -994,7 +995,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_H264_I_FRAME_MAX_QP},
 
-	{I_FRAME_MAX_QP, ENC, HEVC|HEIC,
+	{I_FRAME_MAX_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_MAX_QP},
 
@@ -1002,7 +1003,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_H264_P_FRAME_MAX_QP},
 
-	{P_FRAME_MAX_QP, ENC, HEVC|HEIC,
+	{P_FRAME_MAX_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_MAX_QP},
 
@@ -1010,7 +1011,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MIN_QP_8BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_H264_B_FRAME_MAX_QP},
 
-	{B_FRAME_MAX_QP, ENC, HEVC|HEIC,
+	{B_FRAME_MAX_QP, ENC, HEVC | HEIC,
 		MIN_QP_10BIT, MAX_QP, 1, MAX_QP,
 		V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_MAX_QP},
 
@@ -1201,7 +1202,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_CABAC_SESSION,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{ENTROPY_MODE, DEC, H264|HEVC|VP9|AV1,
+	{ENTROPY_MODE, DEC, H264 | HEVC | VP9 | AV1,
 		V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC,
 		V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC,
 		BIT(V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC) |
@@ -1210,7 +1211,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		HFI_PROP_CABAC_SESSION},
 
-	{PROFILE, ENC|DEC, H264,
+	{PROFILE, ENC | DEC, H264,
 		V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
 		V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH,
 		BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
@@ -1223,7 +1224,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_PROFILE,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{PROFILE, ENC|DEC, HEVC|HEIC,
+	{PROFILE, ENC | DEC, HEVC | HEIC,
 		V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
 		V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10_STILL_PICTURE,
 		BIT(V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN) |
@@ -1280,7 +1281,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_LEVEL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{LEVEL, ENC, HEVC|HEIC,
+	{LEVEL, ENC, HEVC | HEIC,
 		V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
 		V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2,
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_1) |
@@ -1329,7 +1330,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_LEVEL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{LEVEL, DEC, HEVC|HEIC,
+	{LEVEL, DEC, HEVC | HEIC,
 		V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
 		V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2,
 		BIT(V4L2_MPEG_VIDEO_HEVC_LEVEL_1) |
@@ -1406,7 +1407,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_TIER,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{HEVC_TIER, ENC|DEC, HEVC,
+	{HEVC_TIER, ENC | DEC, HEVC,
 		V4L2_MPEG_VIDEO_HEVC_TIER_MAIN,
 		V4L2_MPEG_VIDEO_HEVC_TIER_HIGH,
 		BIT(V4L2_MPEG_VIDEO_HEVC_TIER_MAIN) |
@@ -1416,7 +1417,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_TIER,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{HEVC_TIER, ENC|DEC, HEIC,
+	{HEVC_TIER, ENC | DEC, HEIC,
 		V4L2_MPEG_VIDEO_HEVC_TIER_MAIN,
 		V4L2_MPEG_VIDEO_HEVC_TIER_MAIN,
 		BIT(V4L2_MPEG_VIDEO_HEVC_TIER_MAIN),
@@ -1436,7 +1437,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_DEBLOCKING_MODE,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{LF_MODE, ENC, HEVC|HEIC,
+	{LF_MODE, ENC, HEVC | HEIC,
 		V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_DISABLED,
 		DB_HEVC_DISABLE_SLICE_BOUNDARY,
 		BIT(V4L2_MPEG_VIDEO_HEVC_LOOP_FILTER_MODE_DISABLED) |
@@ -1451,7 +1452,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		-6, 6, 1, 0,
 		V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_ALPHA},
 
-	{LF_ALPHA, ENC, HEVC|HEIC,
+	{LF_ALPHA, ENC, HEVC | HEIC,
 		-6, 6, 1, 0,
 		V4L2_CID_MPEG_VIDEO_HEVC_LF_TC_OFFSET_DIV2},
 
@@ -1459,11 +1460,11 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		-6, 6, 1, 0,
 		V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_BETA},
 
-	{LF_BETA, ENC, HEVC|HEIC,
+	{LF_BETA, ENC, HEVC | HEIC,
 		-6, 6, 1, 0,
 		V4L2_CID_MPEG_VIDEO_HEVC_LF_BETA_OFFSET_DIV2},
 
-	{SLICE_MODE, ENC, H264|HEVC,
+	{SLICE_MODE, ENC, H264 | HEVC,
 		V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE,
 		V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_BYTES,
 		BIT(V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE) |
@@ -1483,20 +1484,20 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
-	{SLICE_MAX_BYTES, ENC, H264|HEVC,
+	{SLICE_MAX_BYTES, ENC, H264 | HEVC,
 		MIN_SLICE_BYTE_SIZE, MAX_SLICE_BYTE_SIZE,
 		1, MIN_SLICE_BYTE_SIZE,
 		V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES,
 		HFI_PROP_MULTI_SLICE_BYTES_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{SLICE_MAX_MB, ENC, H264|HEVC,
+	{SLICE_MAX_MB, ENC, H264 | HEVC,
 		1, MAX_SLICE_MB_SIZE, 1, 1,
 		V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
 		HFI_PROP_MULTI_SLICE_MB_COUNT,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{MB_RC, ENC, H264|HEVC,
+	{MB_RC, ENC, H264 | HEVC,
 		0, 1, 1, 1,
 		V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE,
 		0,
@@ -1515,32 +1516,32 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_CHROMA_QP_OFFSET,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{DISPLAY_DELAY_ENABLE, DEC, H264|HEVC|VP9|AV1,
+	{DISPLAY_DELAY_ENABLE, DEC, H264 | HEVC | VP9 | AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE,
 		HFI_PROP_DECODE_ORDER_OUTPUT,
 		CAP_FLAG_INPUT_PORT},
 
-	{DISPLAY_DELAY, DEC, H264|HEVC|VP9|AV1,
+	{DISPLAY_DELAY, DEC, H264 | HEVC | VP9 | AV1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY,
 		HFI_PROP_DECODE_ORDER_OUTPUT,
 		CAP_FLAG_INPUT_PORT},
 
-	{OUTPUT_ORDER, DEC, H264|HEVC|VP9|AV1,
+	{OUTPUT_ORDER, DEC, H264 | HEVC | VP9 | AV1,
 		0, 1, 1, 0,
 		0,
 		HFI_PROP_DECODE_ORDER_OUTPUT,
 		CAP_FLAG_INPUT_PORT},
 
-	{INPUT_BUF_HOST_MAX_COUNT, ENC|DEC, CODECS_ALL,
+	{INPUT_BUF_HOST_MAX_COUNT, ENC | DEC, CODECS_ALL,
 		DEFAULT_MAX_HOST_BUF_COUNT, DEFAULT_MAX_HOST_BURST_BUF_COUNT,
 		1, DEFAULT_MAX_HOST_BUF_COUNT,
 		0,
 		HFI_PROP_BUFFER_HOST_MAX_COUNT,
 		CAP_FLAG_INPUT_PORT},
 
-	{OUTPUT_BUF_HOST_MAX_COUNT, ENC|DEC, CODECS_ALL,
+	{OUTPUT_BUF_HOST_MAX_COUNT, ENC | DEC, CODECS_ALL,
 		DEFAULT_MAX_HOST_BUF_COUNT, DEFAULT_MAX_HOST_BURST_BUF_COUNT,
 		1, DEFAULT_MAX_HOST_BUF_COUNT,
 		0,
@@ -1559,14 +1560,14 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_CONCEAL_COLOR_10BIT,
 		CAP_FLAG_INPUT_PORT},
 
-	{STAGE, DEC|ENC, CODECS_ALL,
+	{STAGE, DEC | ENC, CODECS_ALL,
 		MSM_VIDC_STAGE_1,
 		MSM_VIDC_STAGE_2, 1,
 		MSM_VIDC_STAGE_2,
 		0,
 		HFI_PROP_STAGE},
 
-	{PIPE, DEC|ENC, CODECS_ALL,
+	{PIPE, DEC | ENC, CODECS_ALL,
 		MSM_VIDC_PIPE_1,
 		MSM_VIDC_PIPE_4, 1,
 		MSM_VIDC_PIPE_4,
@@ -1590,7 +1591,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		MSM_VIDC_POWER_SAVE_MODE, 1,
 		MSM_VIDC_POWER_SAVE_MODE},
 
-	{CODED_FRAMES, DEC, H264|HEVC|HEIC,
+	{CODED_FRAMES, DEC, H264 | HEVC | HEIC,
 		CODED_FRAMES_PROGRESSIVE, CODED_FRAMES_INTERLACE,
 		1, CODED_FRAMES_PROGRESSIVE,
 		V4L2_CID_MPEG_VIDC_INTERLACE,
@@ -1601,7 +1602,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		0,
 		HFI_PROP_LUMA_CHROMA_BIT_DEPTH},
 
-	{CODEC_CONFIG, DEC, H264|HEVC|HEIC|AV1, 0, 1, 1, 0,
+	{CODEC_CONFIG, DEC, H264 | HEVC | HEIC | AV1, 0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_CODEC_CONFIG, 0,
 		CAP_FLAG_DYNAMIC_ALLOWED},
 
@@ -1631,7 +1632,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEQ_CHANGE_AT_SYNC_FRAME,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{PRIORITY, DEC|ENC, CODECS_ALL,
+	{PRIORITY, DEC | ENC, CODECS_ALL,
 		0, 4, 1, 4,
 		V4L2_CID_MPEG_VIDC_PRIORITY,
 		HFI_PROP_SESSION_PRIORITY,
@@ -1694,13 +1695,13 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_CROP_OFFSETS,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{ALL_INTRA, ENC, H264|HEVC,
+	{ALL_INTRA, ENC, H264 | HEVC,
 		0, 1, 1, 0,
 		0,
 		0,
 		CAP_FLAG_OUTPUT_PORT},
 
-	{META_LTR_MARK_USE, ENC, H264|HEVC,
+	{META_LTR_MARK_USE, ENC, H264 | HEVC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1788,7 +1789,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_PICTURE_TYPE,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_SEI_MASTERING_DISP, ENC, HEVC|HEIC,
+	{META_SEI_MASTERING_DISP, ENC, HEVC | HEIC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1796,7 +1797,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_SEI_MASTERING_DISP, DEC, HEVC|HEIC|AV1,
+	{META_SEI_MASTERING_DISP, DEC, HEVC | HEIC | AV1,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT |
 			MSM_VIDC_META_RX_OUTPUT,
@@ -1805,7 +1806,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_SEI_CLL, ENC, HEVC|HEIC,
+	{META_SEI_CLL, ENC, HEVC | HEIC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1813,7 +1814,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEI_CONTENT_LIGHT_LEVEL,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_SEI_CLL, DEC, HEVC|HEIC|AV1,
+	{META_SEI_CLL, DEC, HEVC | HEIC | AV1,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT |
 			MSM_VIDC_META_RX_OUTPUT,
@@ -1822,7 +1823,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEI_CONTENT_LIGHT_LEVEL,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_HDR10PLUS, ENC, HEVC|HEIC,
+	{META_HDR10PLUS, ENC, HEVC | HEIC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1830,7 +1831,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_SEI_HDR10PLUS_USERDATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_HDR10PLUS, DEC, HEVC|HEIC|AV1,
+	{META_HDR10PLUS, DEC, HEVC | HEIC | AV1,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_INPUT |
 			MSM_VIDC_META_RX_OUTPUT,
@@ -1847,7 +1848,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_DOLBY_RPU_METADATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_DOLBY_RPU, DEC, H264|HEVC,
+	{META_DOLBY_RPU, DEC, H264 | HEVC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1918,7 +1919,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_ENC_QP_METADATA,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_ROI_INFO, ENC, H264|HEVC,
+	{META_ROI_INFO, ENC, H264 | HEVC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1926,7 +1927,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HFI_PROP_ROI_INFO,
 		CAP_FLAG_INPUT_PORT | CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_SALIENCY_INFO, ENC, H264|HEVC,
+	{META_SALIENCY_INFO, ENC, H264 | HEVC,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_TX_INPUT,
 		0, MSM_VIDC_META_DISABLE,
@@ -1953,7 +1954,7 @@ static struct msm_platform_inst_capability instance_cap_data_kalama[] = {
 		HEIC_GRID_WIDTH, HEIC_GRID_WIDTH,
 		V4L2_CID_MPEG_VIDC_GRID_WIDTH},
 
-	{COMPLEXITY, ENC, H264|HEVC,
+	{COMPLEXITY, ENC, H264 | HEVC,
 		0, 100,
 		1, DEFAULT_COMPLEXITY,
 		V4L2_CID_MPEG_VIDC_VENC_COMPLEXITY},
@@ -2003,7 +2004,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 	{PIX_FMTS, ENC, HEIC,
 		{PROFILE}},
 
-	{PIX_FMTS, DEC, HEVC|HEIC,
+	{PIX_FMTS, DEC, HEVC | HEIC,
 		{PROFILE}},
 
 	{FRAME_RATE, ENC, CODECS_ALL,
@@ -2019,32 +2020,32 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		{0},
 		msm_vidc_adjust_dec_operating_rate},
 
-	{SECURE_MODE, ENC|DEC, H264|HEVC|VP9|AV1,
+	{SECURE_MODE, ENC | DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		NULL,
 		msm_vidc_set_u32},
 
-	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9|AV1,
+	{META_OUTBUF_FENCE, DEC, H264 | HEVC | VP9 | AV1,
 		{LOWLATENCY_MODE, OUTBUF_FENCE_TYPE, OUTBUF_FENCE_DIRECTION},
 		NULL,
 		NULL},
 
-	{INBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+	{INBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		NULL,
 		NULL},
 
-	{OUTBUF_FENCE_TYPE, DEC, H264|HEVC|VP9|AV1,
+	{OUTBUF_FENCE_TYPE, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		msm_vidc_adjust_dec_outbuf_fence_type,
 		msm_vidc_set_outbuf_fence_type},
 
-	{INBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+	{INBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		NULL,
 		NULL},
 
-	{OUTBUF_FENCE_DIRECTION, DEC, H264|HEVC|VP9|AV1,
+	{OUTBUF_FENCE_DIRECTION, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		msm_vidc_adjust_dec_outbuf_fence_direction,
 		msm_vidc_set_outbuf_fence_direction},
@@ -2064,7 +2065,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_rotation},
 
-	{SUPER_FRAME, ENC, H264|HEVC,
+	{SUPER_FRAME, ENC, H264 | HEVC,
 		{INPUT_BUF_HOST_MAX_COUNT, OUTPUT_BUF_HOST_MAX_COUNT},
 		NULL,
 		NULL},
@@ -2084,7 +2085,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{REQUEST_I_FRAME, ENC, H264|HEVC,
+	{REQUEST_I_FRAME, ENC, H264 | HEVC,
 		{0},
 		NULL,
 		msm_vidc_set_req_sync_frame},
@@ -2122,7 +2123,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_adjust_bitrate_mode,
 		msm_vidc_set_u32_enum},
 
-	{CONSTANT_QUALITY, ENC, HEVC|HEIC,
+	{CONSTANT_QUALITY, ENC, HEVC | HEIC,
 		{0},
 		NULL,
 		msm_vidc_set_constant_quality},
@@ -2137,7 +2138,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{B_FRAME, ENC, H264|HEVC,
+	{B_FRAME, ENC, H264 | HEVC,
 		{ALL_INTRA},
 		msm_vidc_adjust_b_frame,
 		msm_vidc_set_u32},
@@ -2147,12 +2148,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{BLUR_TYPES, ENC, H264|HEVC,
+	{BLUR_TYPES, ENC, H264 | HEVC,
 		{BLUR_RESOLUTION},
 		msm_vidc_adjust_blur_type,
 		msm_vidc_set_u32_enum},
 
-	{BLUR_RESOLUTION, ENC, H264|HEVC,
+	{BLUR_RESOLUTION, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_blur_resolution,
 		msm_vidc_set_blur_resolution},
@@ -2167,32 +2168,32 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_adjust_enc_lowlatency_mode,
 		NULL},
 
-	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9|AV1,
+	{LOWLATENCY_MODE, DEC, H264 | HEVC | VP9 | AV1,
 		{STAGE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
-	{LTR_COUNT, ENC, H264|HEVC,
+	{LTR_COUNT, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_ltr_count,
 		msm_vidc_set_u32},
 
-	{USE_LTR, ENC, H264|HEVC,
+	{USE_LTR, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_use_ltr,
 		msm_vidc_set_use_and_mark_ltr},
 
-	{MARK_LTR, ENC, H264|HEVC,
+	{MARK_LTR, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_mark_ltr,
 		msm_vidc_set_use_and_mark_ltr},
 
-	{IR_PERIOD, ENC, H264|HEVC,
+	{IR_PERIOD, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_ir_period,
 		msm_vidc_set_ir_period},
 
-	{AU_DELIMITER, ENC, H264|HEVC,
+	{AU_DELIMITER, ENC, H264 | HEVC,
 		{0},
 		NULL,
 		msm_vidc_set_u32},
@@ -2202,17 +2203,17 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_adjust_delta_based_rc,
 		msm_vidc_set_u32},
 
-	{CONTENT_ADAPTIVE_CODING, ENC, H264|HEVC,
+	{CONTENT_ADAPTIVE_CODING, ENC, H264 | HEVC,
 		{REQUEST_PREPROCESS},
 		msm_vidc_adjust_brs,
 		msm_vidc_set_vbr_related_properties},
 
-	{REQUEST_PREPROCESS, ENC, H264|HEVC,
+	{REQUEST_PREPROCESS, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_preprocess,
 		msm_vidc_set_preprocess},
 
-	{BITRATE_BOOST, ENC, H264|HEVC,
+	{BITRATE_BOOST, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_bitrate_boost_iris3,
 		msm_vidc_set_vbr_related_properties},
@@ -2227,12 +2228,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_adjust_min_quality,
 		msm_vidc_set_u32},
 
-	{VBV_DELAY, ENC, H264|HEVC,
+	{VBV_DELAY, ENC, H264 | HEVC,
 		{0},
 		NULL,
 		msm_vidc_set_cbr_related_properties},
 
-	{PEAK_BITRATE, ENC, H264|HEVC,
+	{PEAK_BITRATE, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_peak_bitrate,
 		msm_vidc_set_cbr_related_properties},
@@ -2287,13 +2288,13 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_frame_qp},
 
-	{LAYER_TYPE, ENC, H264|HEVC,
+	{LAYER_TYPE, ENC, H264 | HEVC,
 		{CONTENT_ADAPTIVE_CODING, LTR_COUNT}},
 
-	{LAYER_ENABLE, ENC, H264|HEVC,
+	{LAYER_ENABLE, ENC, H264 | HEVC,
 		{CONTENT_ADAPTIVE_CODING}},
 
-	{ENH_LAYER_COUNT, ENC, H264|HEVC,
+	{ENH_LAYER_COUNT, ENC, H264 | HEVC,
 		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY, SLICE_MODE,
 			LTR_COUNT},
 		msm_vidc_adjust_layer_count,
@@ -2304,32 +2305,32 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{L0_BR, ENC, H264|HEVC,
+	{L0_BR, ENC, H264 | HEVC,
 		{L1_BR},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
 
-	{L1_BR, ENC, H264|HEVC,
+	{L1_BR, ENC, H264 | HEVC,
 		{L2_BR},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
 
-	{L2_BR, ENC, H264|HEVC,
+	{L2_BR, ENC, H264 | HEVC,
 		{L3_BR},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
 
-	{L3_BR, ENC, H264|HEVC,
+	{L3_BR, ENC, H264 | HEVC,
 		{L4_BR},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
 
-	{L4_BR, ENC, H264|HEVC,
+	{L4_BR, ENC, H264 | HEVC,
 		{L5_BR},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
 
-	{L5_BR, ENC, H264|HEVC,
+	{L5_BR, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_layer_bitrate,
 		msm_vidc_set_layer_bitrate},
@@ -2349,12 +2350,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32_enum},
 
-	{PROFILE, ENC|DEC, HEVC|HEIC,
+	{PROFILE, ENC | DEC, HEVC | HEIC,
 		{0},
 		msm_vidc_adjust_profile,
 		msm_vidc_set_u32_enum},
 
-	{PROFILE, DEC, VP9|AV1,
+	{PROFILE, DEC, VP9 | AV1,
 		{0},
 		NULL,
 		msm_vidc_set_u32_enum},
@@ -2374,7 +2375,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32_enum},
 
-	{HEVC_TIER, ENC|DEC, HEVC|HEIC,
+	{HEVC_TIER, ENC | DEC, HEVC | HEIC,
 		{0},
 		NULL,
 		msm_vidc_set_u32_enum},
@@ -2384,7 +2385,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_deblock_mode},
 
-	{SLICE_MODE, ENC, H264|HEVC,
+	{SLICE_MODE, ENC, H264 | HEVC,
 		{STAGE, DELIVERY_MODE},
 		msm_vidc_adjust_slice_count,
 		msm_vidc_set_slice_count},
@@ -2404,37 +2405,37 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		msm_vidc_adjust_chroma_qp_index_offset,
 		msm_vidc_set_chroma_qp_index_offset},
 
-	{DISPLAY_DELAY_ENABLE, DEC, H264|HEVC|VP9|AV1,
+	{DISPLAY_DELAY_ENABLE, DEC, H264 | HEVC | VP9 | AV1,
 		{OUTPUT_ORDER},
 		NULL,
 		NULL},
 
-	{DISPLAY_DELAY, DEC, H264|HEVC|VP9|AV1,
+	{DISPLAY_DELAY, DEC, H264 | HEVC | VP9 | AV1,
 		{OUTPUT_ORDER},
 		NULL,
 		NULL},
 
-	{OUTPUT_ORDER, DEC, H264|HEVC|VP9|AV1,
+	{OUTPUT_ORDER, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 
-	{INPUT_BUF_HOST_MAX_COUNT, ENC|DEC, CODECS_ALL,
+	{INPUT_BUF_HOST_MAX_COUNT, ENC | DEC, CODECS_ALL,
 		{0},
 		msm_vidc_adjust_input_buf_host_max_count,
 		msm_vidc_set_u32},
 
-	{INPUT_BUF_HOST_MAX_COUNT, ENC, H264|HEVC,
+	{INPUT_BUF_HOST_MAX_COUNT, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_input_buf_host_max_count,
 		msm_vidc_set_u32},
 
-	{OUTPUT_BUF_HOST_MAX_COUNT, ENC|DEC, CODECS_ALL,
+	{OUTPUT_BUF_HOST_MAX_COUNT, ENC | DEC, CODECS_ALL,
 		{0},
 		msm_vidc_adjust_output_buf_host_max_count,
 		msm_vidc_set_u32},
 
-	{OUTPUT_BUF_HOST_MAX_COUNT, ENC, H264|HEVC,
+	{OUTPUT_BUF_HOST_MAX_COUNT, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_output_buf_host_max_count,
 		msm_vidc_set_u32},
@@ -2454,22 +2455,22 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_stage},
 
-	{STAGE, ENC, H264|HEVC,
+	{STAGE, ENC, H264 | HEVC,
 		{0},
 		NULL,
 		msm_vidc_set_stage},
 
-	{STAGE, DEC, H264|HEVC|VP9|AV1,
+	{STAGE, DEC, H264 | HEVC | VP9 | AV1,
 		{0},
 		NULL,
 		msm_vidc_set_stage},
 
-	{PIPE, DEC|ENC, CODECS_ALL,
+	{PIPE, DEC | ENC, CODECS_ALL,
 		{0},
 		NULL,
 		msm_vidc_set_pipe},
 
-	{THUMBNAIL_MODE, DEC, H264|HEVC|VP9|AV1,
+	{THUMBNAIL_MODE, DEC, H264 | HEVC | VP9 | AV1,
 		{OUTPUT_ORDER},
 		NULL,
 		msm_vidc_set_u32},
@@ -2484,7 +2485,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{PRIORITY, DEC|ENC, CODECS_ALL,
+	{PRIORITY, DEC | ENC, CODECS_ALL,
 		{0},
 		msm_vidc_adjust_session_priority,
 		msm_vidc_set_session_priority},
@@ -2509,18 +2510,18 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{ALL_INTRA, ENC, H264|HEVC,
+	{ALL_INTRA, ENC, H264 | HEVC,
 		{LTR_COUNT, IR_PERIOD, SLICE_MODE, BIT_RATE},
 		msm_vidc_adjust_all_intra,
 		NULL},
 
-	{META_EVA_STATS, ENC, H264|HEVC,
+	{META_EVA_STATS, ENC, H264 | HEVC,
 		{ENH_LAYER_COUNT, REQUEST_PREPROCESS}},
 
 	{META_EVA_STATS, ENC, HEIC,
 		{0}},
 
-	{META_ROI_INFO, ENC, H264|HEVC,
+	{META_ROI_INFO, ENC, H264 | HEVC,
 		{MIN_QUALITY, IR_PERIOD, BLUR_TYPES},
 		msm_vidc_adjust_roi_info,
 		NULL},
@@ -2530,7 +2531,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
-	{DELIVERY_MODE, ENC, H264|HEVC,
+	{DELIVERY_MODE, ENC, H264 | HEVC,
 		{LOWLATENCY_MODE, OUTPUT_BUF_HOST_MAX_COUNT},
 		msm_vidc_adjust_delivery_mode,
 		msm_vidc_set_u32},

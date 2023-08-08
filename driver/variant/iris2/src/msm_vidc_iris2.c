@@ -674,7 +674,7 @@ static int __noc_error_info_iris2(struct msm_vidc_core *core)
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_LOW:     %#x\n", val);
 	val = __read_register(core, VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH);
 	d_vpr_e("VCODEC_NOC_ERL_MAIN_ERRLOG3_HIGH:     %#x\n", val);
-	*/
+	 */
 
 	return 0;
 }
@@ -846,7 +846,7 @@ exit:
 int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, cac = -1;
 	s32 pix_fmts = -1, min_quality = -1;
 
@@ -867,9 +867,8 @@ int msm_vidc_adjust_blur_type_iris2(void *instance, struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 
 	if (adjusted_value == MSM_VIDC_BLUR_EXTERNAL) {
-		if (is_scaling_enabled(inst) || min_quality) {
+		if (is_scaling_enabled(inst) || min_quality)
 			adjusted_value = MSM_VIDC_BLUR_NONE;
-		}
 	} else if (adjusted_value == MSM_VIDC_BLUR_ADAPTIVE) {
 		if (is_scaling_enabled(inst) || min_quality ||
 			(rc_type != HFI_RC_VBR_CFR) ||

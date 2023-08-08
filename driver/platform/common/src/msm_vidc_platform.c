@@ -673,7 +673,7 @@ int msm_vidc_packetize_control(struct msm_vidc_inst *inst,
 int msm_vidc_adjust_entropy_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 profile = -1;
 
 	/* ctrl is always NULL in streamon case */
@@ -703,7 +703,7 @@ int msm_vidc_adjust_entropy_mode(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_bitrate_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	int lossless, frame_rc, bitrate_mode, frame_skip;
 	u32 hfi_value = 0;
 
@@ -745,7 +745,7 @@ update:
 int msm_vidc_adjust_profile(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 pix_fmt = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[PROFILE].value;
@@ -781,7 +781,7 @@ int msm_vidc_adjust_profile(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_ltr_count(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, all_intra = 0, pix_fmts = MSM_VIDC_FMT_NONE;
 	s32 layer_type = -1, enh_layer_count = -1;
 	u32 num_ref_frames = 0, max_exceeding_ref_frames = 0;
@@ -855,7 +855,7 @@ exit:
 int msm_vidc_adjust_use_ltr(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value, ltr_count;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[USE_LTR].value;
 
@@ -890,7 +890,7 @@ int msm_vidc_adjust_use_ltr(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_mark_ltr(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value, ltr_count;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[MARK_LTR].value;
 
@@ -921,7 +921,7 @@ int msm_vidc_adjust_mark_ltr(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_delta_based_rc(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -943,7 +943,7 @@ int msm_vidc_adjust_delta_based_rc(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_output_order(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	s32 tn_mode = -1, display_delay = -1, display_delay_enable = -1;
 	u32 adjusted_value;
@@ -977,7 +977,7 @@ int msm_vidc_adjust_output_order(void *instance, struct v4l2_ctrl *ctrl)
 
 int msm_vidc_adjust_input_buf_host_max_count(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	u32 adjusted_value;
 
@@ -995,7 +995,7 @@ int msm_vidc_adjust_input_buf_host_max_count(void *instance, struct v4l2_ctrl *c
 
 int msm_vidc_adjust_output_buf_host_max_count(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	u32 adjusted_value;
 
@@ -1015,7 +1015,7 @@ int msm_vidc_adjust_output_buf_host_max_count(void *instance, struct v4l2_ctrl *
 int msm_vidc_adjust_transform_8x8(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 profile = -1;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -1046,7 +1046,7 @@ int msm_vidc_adjust_chroma_qp_index_offset(void *instance,
 	struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	adjusted_value = ctrl ? ctrl->val :
 		inst->capabilities[CHROMA_QP_INDEX_OFFSET].value;
@@ -1103,7 +1103,7 @@ static u32 msm_vidc_get_cumulative_bitrate(struct msm_vidc_inst *inst)
 
 int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	struct v4l2_format *output_fmt;
 	s32 adjusted_value, rc_type = -1, slice_mode, all_intra = 0,
@@ -1126,9 +1126,8 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
 
-	if (enh_layer_count && msm_vidc_check_all_layer_bitrate_set(inst)) {
+	if (enh_layer_count && msm_vidc_check_all_layer_bitrate_set(inst))
 		bitrate = msm_vidc_get_cumulative_bitrate(inst);
-	}
 
 	fps = inst->capabilities[FRAME_RATE].value >> 16;
 	if (fps > MAX_SLICES_FRAME_RATE ||
@@ -1308,7 +1307,7 @@ int msm_vidc_adjust_layer_count(void *instance, struct v4l2_ctrl *ctrl)
 	int rc = 0;
 
 	s32 client_layer_count;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	client_layer_count = ctrl ? ctrl->val :
 		inst->capabilities[ENH_LAYER_COUNT].value;
@@ -1412,7 +1411,7 @@ exit:
 int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int i, rc = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	s32 adjusted_value, enh_layer_count;
 	u32 cumulative_bitrate = 0, cap_id = 0, cap_value = 0;
@@ -1498,7 +1497,7 @@ int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	u32 cumulative_bitrate = 0;
 	u32 client_set_cap_id = INST_CAP_NONE;
@@ -1572,7 +1571,7 @@ int msm_vidc_adjust_layer_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_peak_bitrate(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, bitrate = -1;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -1643,7 +1642,7 @@ int msm_vidc_adjust_hevc_min_qp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (ctrl)
 		msm_vidc_update_cap_value(inst, MIN_FRAME_QP,
@@ -1658,7 +1657,7 @@ int msm_vidc_adjust_hevc_max_qp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (ctrl)
 		msm_vidc_update_cap_value(inst, MAX_FRAME_QP,
@@ -1673,7 +1672,7 @@ int msm_vidc_adjust_hevc_i_frame_qp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (ctrl)
 		msm_vidc_update_cap_value(inst, I_FRAME_QP,
@@ -1690,7 +1689,7 @@ int msm_vidc_adjust_hevc_p_frame_qp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (ctrl)
 		msm_vidc_update_cap_value(inst, P_FRAME_QP,
@@ -1707,7 +1706,7 @@ int msm_vidc_adjust_hevc_b_frame_qp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	int rc = 0;
 
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 
 	if (ctrl)
 		msm_vidc_update_cap_value(inst, B_FRAME_QP,
@@ -1723,7 +1722,7 @@ int msm_vidc_adjust_hevc_b_frame_qp(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_blur_type(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, roi_enable = -1;
 	s32 pix_fmts = -1, min_quality = -1;
 
@@ -1781,7 +1780,7 @@ int msm_vidc_adjust_all_intra(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
 	struct msm_vidc_core *core;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 gop_size = -1, bframe = -1;
 	u32 width, height, fps, mbps, max_mbps;
 
@@ -1820,7 +1819,7 @@ exit:
 int msm_vidc_adjust_blur_resolution(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 blur_type = -1;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -1842,7 +1841,7 @@ int msm_vidc_adjust_blur_resolution(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_brs(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, layer_enabled = -1, layer_type = -1;
 	bool hp_requested = false;
 
@@ -1896,7 +1895,7 @@ adjust:
 int msm_vidc_adjust_bitrate_boost(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 min_quality = -1, rc_type = -1;
 	u32 max_bitrate = 0, bitrate = 0;
 
@@ -1947,7 +1946,7 @@ adjust:
 int msm_vidc_adjust_min_quality(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 roi_enable = -1, rc_type = -1, enh_layer_count = -1, pix_fmts = -1;
 	u32 width, height, frame_rate;
 	struct v4l2_format *f;
@@ -2055,7 +2054,7 @@ update_and_exit:
 int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 brs = 0;
 	u32 width, height, frame_rate, operating_rate, max_fps;
 	struct v4l2_format *f;
@@ -2107,7 +2106,7 @@ update_preprocess:
 int msm_vidc_adjust_enc_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -2131,7 +2130,7 @@ int msm_vidc_adjust_enc_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_dec_lowlatency_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 outbuf_fence = MSM_VIDC_META_DISABLE;
 
 	adjusted_value = ctrl ? ctrl->val :
@@ -2190,7 +2189,7 @@ int msm_vidc_adjust_session_priority(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_roi_info(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1, pix_fmt = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_ROI_INFO].value;
@@ -2218,7 +2217,7 @@ int msm_vidc_adjust_dec_outbuf_fence_type(void *instance, struct v4l2_ctrl *ctrl
 {
 	struct msm_vidc_inst_cap *capability;
 	s32 adjusted_value, meta_outbuf_fence = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	struct msm_vidc_core *core;
 
 	capability = inst->capabilities;
@@ -2250,7 +2249,7 @@ int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl 
 {
 	struct msm_vidc_inst_cap *capability;
 	s32 adjusted_value, meta_outbuf_fence = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	struct msm_vidc_core *core;
 
 	capability = inst->capabilities;
@@ -2263,11 +2262,10 @@ int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl 
 		META_OUTBUF_FENCE, &meta_outbuf_fence, __func__))
 		return -EINVAL;
 
-	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE)) {
+	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
 		adjusted_value = MSM_VIDC_FENCE_DIR_TX;
-	} else {
+	else
 		adjusted_value = MSM_VIDC_FENCE_DIR_NONE;
-	}
 
 	msm_vidc_update_cap_value(inst, OUTBUF_FENCE_DIRECTION,
 		adjusted_value, __func__);
@@ -2277,7 +2275,7 @@ int msm_vidc_adjust_dec_outbuf_fence_direction(void *instance, struct v4l2_ctrl 
 
 int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	u32 adjusted_value = 0;
 	s32 low_latency = -1;
 	s32 picture_order = -1;
@@ -2306,7 +2304,7 @@ int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_eva_stats(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_EVA_STATS].value;
@@ -2330,7 +2328,7 @@ int msm_vidc_adjust_eva_stats(void *instance, struct v4l2_ctrl *ctrl)
 int msm_vidc_adjust_sei_mastering_disp(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 profile = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_SEI_MASTERING_DISP].value;
@@ -2361,7 +2359,7 @@ adjust:
 int msm_vidc_adjust_sei_cll(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 profile = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_SEI_CLL].value;
@@ -2391,7 +2389,7 @@ adjust:
 int msm_vidc_adjust_hdr10plus(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 profile = -1;
 
 	adjusted_value = ctrl ? ctrl->val : inst->capabilities[META_HDR10PLUS].value;
@@ -2421,7 +2419,7 @@ adjust:
 int msm_vidc_adjust_transcoding_stats(void *instance, struct v4l2_ctrl *ctrl)
 {
 	s32 adjusted_value;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 rc_type = -1;
 	u32 width, height, fps;
 	struct v4l2_format *f;
@@ -2479,7 +2477,7 @@ int msm_vidc_set_header_mode(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	int header_mode, prepend_sps_pps;
 	u32 hfi_value = 0;
 
@@ -2509,7 +2507,7 @@ int msm_vidc_set_deblock_mode(void *instance,
 	enum msm_vidc_inst_capability_type cap_id)
 {
 	int rc = 0;
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
 	s32 alpha = 0, beta = 0;
 	u32 lf_mode, hfi_value = 0, lf_offset = 6;
 

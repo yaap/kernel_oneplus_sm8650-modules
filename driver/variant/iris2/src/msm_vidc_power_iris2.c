@@ -564,9 +564,9 @@ static u64 __calculate_encoder(struct vidc_bus_vote_data *d)
 	}
 
 	if (llc_ref_chroma_cache_enabled) {
-	total_ref_read_crcb = ddr.ref_read_crcb;
-	ddr.ref_read_crcb = fp_div(ddr.ref_read_crcb,
-			ref_cbcr_read_bw_factor);
+		total_ref_read_crcb = ddr.ref_read_crcb;
+		ddr.ref_read_crcb = fp_div(ddr.ref_read_crcb,
+					   ref_cbcr_read_bw_factor);
 		llc.ref_read_crcb = total_ref_read_crcb - ddr.ref_read_crcb;
 	}
 

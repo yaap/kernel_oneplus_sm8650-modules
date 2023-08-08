@@ -1072,7 +1072,8 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define AV1_CABAC_HDR_RATIO_HD_TOT 2
 #define AV1_CABAC_RES_RATIO_HD_TOT 2
 /* some content need more bin buffer,
- * but limit buffer size for high resolution */
+ * but limit buffer size for high resolution
+ */
 #define SIZE_AV1D_HW_BIN_BUFFER(_size, frame_width, frame_height, delay, \
 				num_vpp_pipes) \
 	do { \
