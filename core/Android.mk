@@ -1,3 +1,4 @@
+ifeq ($(TARGET_DATARMNET_ENABLE), true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_CORE_DLKM_PLATFORMS_LIST := pineapple
 RMNET_CORE_DLKM_PLATFORMS_LIST += blair
@@ -35,3 +36,4 @@ include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
 endif #End of Check for target
 endif #End of Check for qssi target
+endif #End of Check for datarmnet
