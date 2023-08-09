@@ -8,8 +8,9 @@ def define_mem(target, variant):
     ddk_module(
         name = "{}_rmnet_mem".format(kernel_build_variant),
         out = "rmnet_mem.ko",
+	includes = ["."],
+	hdrs = [ "rmnet_mem.h" ],
         srcs = [
-            "rmnet_mem.h",
             "rmnet_mem_main.c",
             "rmnet_mem_nl.c",
             "rmnet_mem_nl.h",
