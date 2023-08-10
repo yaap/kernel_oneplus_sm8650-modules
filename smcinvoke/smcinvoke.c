@@ -2800,7 +2800,6 @@ static long process_invoke_req(struct file *filp, unsigned int cmd,
 	if (mem_obj_async_support) {
 		mutex_lock(&g_smcinvoke_lock);
 		add_mem_obj_info_to_async_side_channel_locked(out_msg, outmsg_size, &l_mem_objs_pending_async);
-		delete_pending_async_list_locked(&l_mem_objs_pending_async);
 		mutex_unlock(&g_smcinvoke_lock);
 	}
 
@@ -2858,6 +2857,7 @@ out:
 		release_map_obj_pending_async_list_locked(&l_mem_objs_pending_async);
 		release_tzhandles(tzhandles_to_release, OBJECT_COUNTS_MAX_OO);
 	}
+	delete_pending_async_list_locked(&l_mem_objs_pending_async);
 	qtee_shmbridge_free_shm(&in_shm);
 	qtee_shmbridge_free_shm(&out_shm);
 	kfree(args_buf);
