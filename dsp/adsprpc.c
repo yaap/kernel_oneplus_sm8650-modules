@@ -5652,6 +5652,7 @@ static void handle_remote_signal(uint64_t msg, int cid)
 				    (sig->state == DSPSIGNAL_STATE_SIGNALED)) {
 					DSPSIGNAL_VERBOSE("Signaling signal %u for PID %u\n",
 							  signal_id, pid);
+					trace_fastrpc_dspsignal("complete", signal_id, sig->state, 0);
 					complete(&sig->comp);
 					sig->state = DSPSIGNAL_STATE_SIGNALED;
 				} else if (sig->state == DSPSIGNAL_STATE_UNUSED) {
@@ -5682,7 +5683,7 @@ int fastrpc_handle_rpc_response(void *data, int len, int cid)
 	struct fastrpc_channel_ctx *chan = NULL;
 	unsigned long irq_flags = 0;
 	int64_t ns = 0;
-	uint64_t xo_time_in_us = 0;
+	uint64_t xo_time_in_us = 0, dspsig_msg = 0;
 
 	xo_time_in_us = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
 
@@ -5690,7 +5691,9 @@ int fastrpc_handle_rpc_response(void *data, int len, int cid)
 		/*
 		 * dspsignal message from the DSP
 		 */
-		handle_remote_signal(*((uint64_t *)data), cid);
+		dspsig_msg = *((uint64_t *)data);
+		trace_fastrpc_transport_response(cid, dspsig_msg, 0, 0, 0);
+		handle_remote_signal(dspsig_msg, cid);
 		goto bail;
 	}
 
@@ -6870,7 +6873,7 @@ int fastrpc_dspsignal_signal(struct fastrpc_file *fl,
 	msg = (((uint64_t)fl->tgid_frpc) << 32) | ((uint64_t)sig->signal_id);
 	err = fastrpc_transport_send(cid, (void *)&msg, sizeof(msg), fl->tvm_remote_domain);
 	mutex_unlock(&channel_ctx->smd_mutex);
-
+	trace_fastrpc_dspsignal("signal", sig->signal_id, 0, 0);
 bail:
 	return err;
 }
@@ -6923,10 +6926,12 @@ int fastrpc_dspsignal_wait(struct fastrpc_file *fl,
 	}
 	spin_unlock_irqrestore(&fl->dspsignals_lock, irq_flags);
 
+	trace_fastrpc_dspsignal("wait", signal_id, s->state, wait->timeout_usec);
 	if (timeout != 0xffffffff)
 		ret = wait_for_completion_interruptible_timeout(&s->comp, timeout);
 	else
 		ret = wait_for_completion_interruptible(&s->comp);
+	trace_fastrpc_dspsignal("wakeup", signal_id, s->state, wait->timeout_usec);
 
 	if (ret == 0) {
 		DSPSIGNAL_VERBOSE("Wait for signal %u timed out\n", signal_id);
@@ -7114,6 +7119,7 @@ int fastrpc_dspsignal_cancel_wait(struct fastrpc_file *fl,
 
 	if (s->state != DSPSIGNAL_STATE_CANCELED) {
 		s->state = DSPSIGNAL_STATE_CANCELED;
+		trace_fastrpc_dspsignal("cancel", signal_id, s->state, 0);
 		complete_all(&s->comp);
 	}
 

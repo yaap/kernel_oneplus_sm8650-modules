@@ -391,6 +391,36 @@ TRACE_EVENT(fastrpc_msg,
 	TP_printk(" %s", __get_str(buf))
 );
 
+TRACE_EVENT(fastrpc_dspsignal,
+
+	TP_PROTO(const char *event, uint32_t signal_id,
+		int state, uint32_t timeout),
+
+	TP_ARGS(event, signal_id, state, timeout),
+
+	TP_STRUCT__entry(
+		__string(buf, event)
+		__field(u32, signal_id)
+		__field(int, state)
+		__field(u32, timeout)
+	),
+
+	TP_fast_assign(
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+		memcpy(__get_str(buf), (event), (sizeof(event) - 1));
+		__get_str(buf)[sizeof(event) - 1] = '\0';
+#else
+		__assign_str(buf, event);
+#endif
+		__entry->signal_id = signal_id;
+		__entry->state = state;
+		__entry->timeout = timeout;
+	),
+
+	TP_printk("%s for sig id %u, state %d, timeout %u",
+		__get_str(buf), __entry->signal_id, __entry->state, __entry->timeout)
+);
+
 #endif
 
 /* This part must be outside protection */
