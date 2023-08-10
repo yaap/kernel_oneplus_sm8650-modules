@@ -156,7 +156,7 @@ enum msm_vidc_metadata_bits {
 #define VIDC_IFACEQ_MIN_PKT_SIZE                8
 #define VIDC_IFACEQ_VAR_SMALL_PKT_SIZE          100
 #define VIDC_IFACEQ_VAR_LARGE_PKT_SIZE          512
-#define VIDC_IFACEQ_VAR_HUGE_PKT_SIZE          (1024*4)
+#define VIDC_IFACEQ_VAR_HUGE_PKT_SIZE          (1024 * 4)
 
 #define NUM_MBS_PER_SEC(__height, __width, __fps) \
 	(NUM_MBS_PER_FRAME(__height, __width) * __fps)
@@ -672,15 +672,15 @@ struct msm_vidc_inst_cap {
 	enum msm_vidc_inst_capability_flags flags;
 	enum msm_vidc_inst_capability_type children[MAX_CAP_CHILDREN];
 	int (*adjust)(void *inst,
-		struct v4l2_ctrl *ctrl);
+		      struct v4l2_ctrl *ctrl);
 	int (*set)(void *inst,
-		enum msm_vidc_inst_capability_type cap_id);
+		   enum msm_vidc_inst_capability_type cap_id);
 };
 
 struct msm_vidc_inst_capability {
 	enum msm_vidc_domain_type domain;
 	enum msm_vidc_codec_type codec;
-	struct msm_vidc_inst_cap cap[INST_CAP_MAX+1];
+	struct msm_vidc_inst_cap cap[INST_CAP_MAX + 1];
 };
 
 struct msm_vidc_core_capability {
@@ -1046,7 +1046,7 @@ struct msm_vidc_stability {
 };
 
 struct msm_vidc_sfr {
-	u32 bufSize;
+	u32 buf_size;
 	u8 rg_data[1];
 };
 

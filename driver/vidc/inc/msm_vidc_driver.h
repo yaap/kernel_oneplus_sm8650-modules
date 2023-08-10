@@ -406,47 +406,48 @@ static inline bool is_enc_slice_delivery_mode(struct msm_vidc_inst *inst)
 const char *cap_name(enum msm_vidc_inst_capability_type cap_id);
 const char *v4l2_pixelfmt_name(struct msm_vidc_inst *inst, u32 pixelfmt);
 const char *v4l2_type_name(u32 port);
-void print_vidc_buffer(u32 tag, const char *tag_str, const char *str, struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *vbuf);
+void print_vidc_buffer(u32 tag, const char *tag_str, const char *str,
+		       struct msm_vidc_inst *inst, struct msm_vidc_buffer *vbuf);
 void print_vb2_buffer(const char *str, struct msm_vidc_inst *inst,
-		struct vb2_buffer *vb2);
+		      struct vb2_buffer *vb2);
 enum msm_vidc_codec_type v4l2_codec_to_driver(struct msm_vidc_inst *inst,
-	u32 v4l2_codec, const char *func);
+					      u32 v4l2_codec, const char *func);
 u32 v4l2_codec_from_driver(struct msm_vidc_inst *inst, enum msm_vidc_codec_type codec,
-	const char *func);
+			   const char *func);
 enum msm_vidc_colorformat_type v4l2_colorformat_to_driver(struct msm_vidc_inst *inst,
-	u32 colorformat, const char *func);
+							  u32 colorformat, const char *func);
 u32 v4l2_colorformat_from_driver(struct msm_vidc_inst *inst,
-	enum msm_vidc_colorformat_type colorformat, const char *func);
+				 enum msm_vidc_colorformat_type colorformat,
+				 const char *func);
 u32 v4l2_color_primaries_to_driver(struct msm_vidc_inst *inst,
-	u32 v4l2_primaries, const char *func);
+				   u32 v4l2_primaries, const char *func);
 u32 v4l2_color_primaries_from_driver(struct msm_vidc_inst *inst,
-	u32 vidc_color_primaries, const char *func);
+				     u32 vidc_color_primaries, const char *func);
 u32 v4l2_transfer_char_to_driver(struct msm_vidc_inst *inst,
-	u32 v4l2_transfer_char, const char *func);
+				 u32 v4l2_transfer_char, const char *func);
 u32 v4l2_transfer_char_from_driver(struct msm_vidc_inst *inst,
-	u32 vidc_transfer_char, const char *func);
+				   u32 vidc_transfer_char, const char *func);
 u32 v4l2_matrix_coeff_to_driver(struct msm_vidc_inst *inst,
-	u32 v4l2_matrix_coeff, const char *func);
+				u32 v4l2_matrix_coeff, const char *func);
 u32 v4l2_matrix_coeff_from_driver(struct msm_vidc_inst *inst,
-	u32 vidc_matrix_coeff, const char *func);
+				  u32 vidc_matrix_coeff, const char *func);
 int v4l2_type_to_driver_port(struct msm_vidc_inst *inst, u32 type,
-	const char *func);
+			     const char *func);
 const char *allow_name(enum msm_vidc_allow allow);
 int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type, u32 index);
+				    enum msm_vidc_buffer_type buffer_type, u32 index);
 int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type);
+				  enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_create_internal_buffers(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
+				     enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_queue_internal_buffers(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
+				    enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_alloc_and_queue_session_internal_buffers(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
+						      enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_release_internal_buffers(struct msm_vidc_inst *inst,
-		enum msm_vidc_buffer_type buffer_type);
+				      enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_vb2_buffer_done(struct msm_vidc_inst *inst,
-		struct msm_vidc_buffer *buf);
+			     struct msm_vidc_buffer *buf);
 int msm_vidc_remove_dangling_session(struct msm_vidc_inst *inst);
 int msm_vidc_remove_session(struct msm_vidc_inst *inst);
 int msm_vidc_add_session(struct msm_vidc_inst *inst);
@@ -455,15 +456,17 @@ int msm_vidc_session_set_codec(struct msm_vidc_inst *inst);
 int msm_vidc_session_set_secure_mode(struct msm_vidc_inst *inst);
 int msm_vidc_session_set_default_header(struct msm_vidc_inst *inst);
 int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
-		enum msm_vidc_port_type port);
+			       enum msm_vidc_port_type port);
 int msm_vidc_session_close(struct msm_vidc_inst *inst);
 int msm_vidc_kill_session(struct msm_vidc_inst *inst);
 int msm_vidc_get_inst_capability(struct msm_vidc_inst *inst);
 int msm_vidc_change_core_state(struct msm_vidc_core *core,
-	enum msm_vidc_core_state request_state, const char *func);
+			       enum msm_vidc_core_state request_state,
+			       const char *func);
 int msm_vidc_change_core_sub_state(struct msm_vidc_core *core,
-	enum msm_vidc_core_sub_state clear_sub_states,
-	enum msm_vidc_core_sub_state set_sub_states, const char *func);
+				   enum msm_vidc_core_sub_state clear_sub_states,
+				   enum msm_vidc_core_sub_state set_sub_states,
+				   const char *func);
 int msm_vidc_core_init(struct msm_vidc_core *core);
 int msm_vidc_core_init_wait(struct msm_vidc_core *core);
 int msm_vidc_core_deinit(struct msm_vidc_core *core, bool force);
@@ -475,12 +478,13 @@ int msm_vidc_print_buffer_info(struct msm_vidc_inst *inst);
 int msm_vidc_print_inst_info(struct msm_vidc_inst *inst);
 void msm_vidc_print_core_info(struct msm_vidc_core *core);
 int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
-		struct device *dev, unsigned long iova, int flags, void *data);
+				struct device *dev, unsigned long iova,
+				int flags, void *data);
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
-		u64 trigger_ssr_val);
+			 u64 trigger_ssr_val);
 void msm_vidc_ssr_handler(struct work_struct *work);
 int msm_vidc_trigger_stability(struct msm_vidc_core *core,
-		u64 trigger_stability_val);
+			       u64 trigger_stability_val);
 void msm_vidc_stability_handler(struct work_struct *work);
 int cancel_stability_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
@@ -492,48 +496,49 @@ int msm_vidc_vb2_queue_init(struct msm_vidc_inst *inst);
 int msm_vidc_vb2_queue_deinit(struct msm_vidc_inst *inst);
 int msm_vidc_get_control(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl);
 struct msm_vidc_buffers *msm_vidc_get_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buffer_type, const char *func);
-struct msm_vidc_mem_list *msm_vidc_get_mem_info(
-	struct msm_vidc_inst *inst, enum msm_vidc_buffer_type buffer_type,
-	const char *func);
+					      enum msm_vidc_buffer_type buffer_type,
+					      const char *func);
+struct msm_vidc_mem_list *msm_vidc_get_mem_info(struct msm_vidc_inst *inst,
+						enum msm_vidc_buffer_type buffer_type,
+						const char *func);
 struct msm_vidc_buffer *msm_vidc_get_driver_buf(struct msm_vidc_inst *inst,
-	struct vb2_buffer *vb2);
+						struct vb2_buffer *vb2);
 int msm_vidc_allocate_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buf_type, u32 num_buffers);
+			  enum msm_vidc_buffer_type buf_type, u32 num_buffers);
 int msm_vidc_free_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buf_type);
+			  enum msm_vidc_buffer_type buf_type);
 void msm_vidc_update_stats(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf, enum msm_vidc_debugfs_event etype);
+			   struct msm_vidc_buffer *buf,
+			   enum msm_vidc_debugfs_event etype);
 void msm_vidc_stats_handler(struct work_struct *work);
 int schedule_stats_work(struct msm_vidc_inst *inst);
 int cancel_stats_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_print_stats(struct msm_vidc_inst *inst);
 void msm_vidc_print_memory_stats(struct msm_vidc_inst *inst);
-enum msm_vidc_buffer_type v4l2_type_to_driver(u32 type,
-	const char *func);
+enum msm_vidc_buffer_type v4l2_type_to_driver(u32 type, const char *func);
 int msm_vidc_buf_queue(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf);
 int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst,
-	struct vb2_buffer *vb2);
+				 struct vb2_buffer *vb2);
 int msm_vidc_queue_deferred_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type buf_type);
+				    enum msm_vidc_buffer_type buf_type);
 int msm_vidc_destroy_internal_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buffer);
+				     struct msm_vidc_buffer *buffer);
 void msm_vidc_destroy_buffers(struct msm_vidc_inst *inst);
 int msm_vidc_flush_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type type);
+			   enum msm_vidc_buffer_type type);
 int msm_vidc_flush_read_only_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type type);
+				     enum msm_vidc_buffer_type type);
 struct msm_vidc_buffer *get_meta_buffer(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *vbuf);
+					struct msm_vidc_buffer *vbuf);
 struct msm_vidc_inst *get_inst_ref(struct msm_vidc_core *core,
-		struct msm_vidc_inst *instance);
+				   struct msm_vidc_inst *instance);
 struct msm_vidc_inst *get_inst(struct msm_vidc_core *core,
-		u32 session_id);
+			       u32 session_id);
 void put_inst(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_metadata_delivery(struct msm_vidc_inst *inst,
-	u32 cap_id, u32 port);
+				      u32 cap_id, u32 port);
 bool msm_vidc_allow_metadata_subscription(struct msm_vidc_inst *inst,
-	u32 cap_id, u32 port);
+					  u32 cap_id, u32 port);
 bool msm_vidc_allow_property(struct msm_vidc_inst *inst, u32 hfi_id);
 enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst);
 bool msm_vidc_allow_drain_last_flag(struct msm_vidc_inst *inst);
@@ -549,7 +554,7 @@ int msm_vidc_process_resume(struct msm_vidc_inst *inst);
 int msm_vidc_process_streamon_input(struct msm_vidc_inst *inst);
 int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst);
 int msm_vidc_process_stop_done(struct msm_vidc_inst *inst,
-	enum signal_session_response signal_type);
+			       enum signal_session_response signal_type);
 int msm_vidc_process_drain_done(struct msm_vidc_inst *inst);
 int msm_vidc_process_drain_last_flag(struct msm_vidc_inst *inst);
 int msm_vidc_process_psc_last_flag(struct msm_vidc_inst *inst);
@@ -557,7 +562,8 @@ int msm_vidc_get_mbs_per_frame(struct msm_vidc_inst *inst);
 u32 msm_vidc_get_max_bitrate(struct msm_vidc_inst *inst);
 int msm_vidc_get_fps(struct msm_vidc_inst *inst);
 int msm_vidc_num_buffers(struct msm_vidc_inst *inst,
-	enum msm_vidc_buffer_type type, enum msm_vidc_buffer_attributes attr);
+			 enum msm_vidc_buffer_type type,
+			 enum msm_vidc_buffer_attributes attr);
 void core_lock(struct msm_vidc_core *core, const char *function);
 void core_unlock(struct msm_vidc_core *core, const char *function);
 void inst_lock(struct msm_vidc_inst *inst, const char *function);
@@ -589,22 +595,22 @@ int msm_vidc_ts_reorder_get_first_timestamp(struct msm_vidc_inst *inst, u64 *tim
 int msm_vidc_ts_reorder_flush(struct msm_vidc_inst *inst);
 const char *buf_name(enum msm_vidc_buffer_type type);
 bool res_is_greater_than(u32 width, u32 height,
-	u32 ref_width, u32 ref_height);
+			 u32 ref_width, u32 ref_height);
 bool res_is_greater_than_or_equal_to(u32 width, u32 height,
-	u32 ref_width, u32 ref_height);
+				     u32 ref_width, u32 ref_height);
 bool res_is_less_than(u32 width, u32 height,
-	u32 ref_width, u32 ref_height);
+		      u32 ref_width, u32 ref_height);
 bool res_is_less_than_or_equal_to(u32 width, u32 height,
-	u32 ref_width, u32 ref_height);
+				  u32 ref_width, u32 ref_height);
 bool is_hevc_10bit_decode_session(struct msm_vidc_inst *inst);
 int signal_session_msg_receipt(struct msm_vidc_inst *inst,
-	enum signal_session_response cmd);
+			       enum signal_session_response cmd);
 int msm_vidc_get_properties(struct msm_vidc_inst *inst);
 int msm_vidc_update_input_rate(struct msm_vidc_inst *inst, u64 time_us);
 int msm_vidc_add_buffer_stats(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf, u64 timestamp);
+			      struct msm_vidc_buffer *buf, u64 timestamp);
 int msm_vidc_remove_buffer_stats(struct msm_vidc_inst *inst,
-	struct msm_vidc_buffer *buf, u64 timestamp);
+				 struct msm_vidc_buffer *buf, u64 timestamp);
 int msm_vidc_flush_buffer_stats(struct msm_vidc_inst *inst);
 int msm_vidc_get_input_rate(struct msm_vidc_inst *inst);
 int msm_vidc_get_frame_rate(struct msm_vidc_inst *inst);
@@ -612,11 +618,12 @@ int msm_vidc_get_operating_rate(struct msm_vidc_inst *inst);
 int msm_vidc_alloc_and_queue_input_internal_buffers(struct msm_vidc_inst *inst);
 int vb2_buffer_to_driver(struct vb2_buffer *vb2, struct msm_vidc_buffer *buf);
 struct msm_vidc_buffer *msm_vidc_fetch_buffer(struct msm_vidc_inst *inst,
-	struct vb2_buffer *vb2);
-struct context_bank_info *msm_vidc_get_context_bank_for_region(struct msm_vidc_core *core,
-	enum msm_vidc_buffer_region region);
-struct context_bank_info *msm_vidc_get_context_bank_for_device(
-	struct msm_vidc_core *core, struct device *dev);
+					      struct vb2_buffer *vb2);
+struct context_bank_info
+	*msm_vidc_get_context_bank_for_region(struct msm_vidc_core *core,
+					      enum msm_vidc_buffer_region region);
+struct context_bank_info
+	*msm_vidc_get_context_bank_for_device(struct msm_vidc_core *core, struct device *dev);
 
 #endif // _MSM_VIDC_DRIVER_H_
 

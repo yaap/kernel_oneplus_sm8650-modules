@@ -20,7 +20,7 @@ int msm_vidc_adjust_v4l2_properties(struct msm_vidc_inst *inst);
 int msm_vidc_set_v4l2_properties(struct msm_vidc_inst *inst);
 bool is_valid_cap_id(enum msm_vidc_inst_capability_type cap_id);
 bool is_valid_cap(struct msm_vidc_inst *inst,
-		enum msm_vidc_inst_capability_type cap_id);
-enum msm_vidc_inst_capability_type msm_vidc_get_cap_id(
-	struct msm_vidc_inst *inst, u32 id);
+		  enum msm_vidc_inst_capability_type cap_id);
+enum msm_vidc_inst_capability_type
+	msm_vidc_get_cap_id(struct msm_vidc_inst *inst, u32 id);
 #endif
