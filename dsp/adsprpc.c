@@ -8834,7 +8834,12 @@ static int __init fastrpc_device_init(void)
 	VERIFY(err, !IS_ERR(me->class));
 	if (err)
 		goto class_create_bail;
+
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+	me->compat = 1;
+#else
 	me->compat = (fops.compat_ioctl == NULL) ? 0 : 1;
+#endif
 
 	/*
 	 * Create devices and register with sysfs
