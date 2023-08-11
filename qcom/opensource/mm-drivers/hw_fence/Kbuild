@@ -22,7 +22,6 @@ endif
 
 msm_hw_fence-$(CONFIG_DEBUG_FS) += src/hw_fence_ioctl.o
 
-CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
 endif
 EXTRA_CFLAGS += -Wformat-extra-args -Wstrict-prototypes -Wformat-insufficient-args \
 		-Wformat-invalid-specifier -Wformat-zero-length -Wnonnull

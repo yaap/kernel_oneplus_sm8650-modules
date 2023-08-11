@@ -243,5 +243,3 @@ ifneq ($(CONFIG_ARCH_PINEAPPLE), y)
 			obj-$(CONFIG_MSM_TOUCH) += raydium_ts.o
 	endif
 endif # pineapple
-
-CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
