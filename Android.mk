@@ -1,15 +1,16 @@
 # Android makefile for securemsm kernel modules
 
-ENABLE_SECUREMSM_DLKM := false
-ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
-ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
 ENABLE_SECUREMSM_DLKM := true
-endif
-else
-ENABLE_SECUREMSM_DLKM := true
-endif
+ENABLE_SECUREMSM_QTEE_DLKM := true
 
-ifeq ($(ENABLE_SECUREMSM_DLKM), true)
+ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
+  ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE),false)
+    ENABLE_SECUREMSM_DLKM := false
+  endif
+  ifeq ($(TARGET_KERNEL_DLKM_SECUREMSM_QTEE_OVERRIDE),false)
+    ENABLE_SECUREMSM_QTEE_DLKM := false
+  endif
+endif
 
 LOCAL_PATH := $(call my-dir)
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
@@ -40,6 +41,8 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ###################################################
 ###################################################
+
+ifeq ($(ENABLE_SECUREMSM_QTEE_DLKM), true)
 include $(CLEAR_VARS)
 #LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
 LOCAL_MODULE              := smcinvoke_dlkm.ko
@@ -59,8 +62,20 @@ LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
+
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
+LOCAL_MODULE              := qseecom_dlkm.ko
+LOCAL_MODULE_KBUILD_NAME  := qseecom_dlkm.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif #ENABLE_SECUREMSM_QTEE_DLKM
 ###################################################
 ###################################################
+
+ifeq ($(ENABLE_SECUREMSM_DLKM), true)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
 LOCAL_MODULE              := qce50_dlkm.ko
@@ -105,16 +120,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
 LOCAL_MODULE              := qrng_dlkm.ko
 LOCAL_MODULE_KBUILD_NAME  := qrng_dlkm.ko
-LOCAL_MODULE_TAGS         := optional
-LOCAL_MODULE_DEBUG_ENABLE := true
-LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
-include $(DLKM_DIR)/Build_external_kernelmodule.mk
-###################################################
-###################################################
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES           := $(SSG_SRC_FILES)
-LOCAL_MODULE              := qseecom_dlkm.ko
-LOCAL_MODULE_KBUILD_NAME  := qseecom_dlkm.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
