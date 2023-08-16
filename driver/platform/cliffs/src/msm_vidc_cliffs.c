@@ -896,7 +896,8 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 	{CSC, ENC, CODECS_ALL_V0,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_CSC,
-		HFI_PROP_CSC},
+		HFI_PROP_CSC,
+		CAP_FLAG_OUTPUT_PORT},
 
 	{CSC_CUSTOM_MATRIX, ENC, CODECS_ALL_V0,
 		0, 1, 1, 0,
@@ -3166,7 +3167,8 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v1[] = {
 	{CSC, ENC, CODECS_ALL_V1,
 		0, 1, 1, 0,
 		V4L2_CID_MPEG_VIDC_CSC,
-		HFI_PROP_CSC},
+		HFI_PROP_CSC,
+		CAP_FLAG_OUTPUT_PORT},
 
 	{CSC_CUSTOM_MATRIX, ENC, CODECS_ALL_V1,
 		0, 1, 1, 0,
