@@ -1639,7 +1639,8 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 		 * case of callback objects.
 		 */
 	} else if (!TZHANDLE_IS_CB_OBJ(cb_req->hdr.tzhandle)) {
-		pr_err("Request object is not a callback object\n");
+		pr_err("Request object is not a callback object %x\n",
+			cb_req->hdr.tzhandle);
 		cb_req->result = OBJECT_ERROR_INVALID;
 		return;
 	}
@@ -1684,6 +1685,7 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 		mem_obj= find_mem_obj_locked(TZHANDLE_GET_OBJID(cb_req->hdr.tzhandle),SMCINVOKE_MEM_RGN_OBJ);
 		if(!mem_obj) {
 			pr_err("mem obj with tzhandle : %d not found",cb_req->hdr.tzhandle);
+			mutex_unlock(&g_smcinvoke_lock);
 			goto out;
 		}
 		server_id = mem_obj->server->server_id;
@@ -2383,7 +2385,17 @@ static void process_piggyback_data(void *buf, size_t buf_size)
 	struct smcinvoke_piggyback_msg *msg = buf;
 	int32_t *objs = msg->objs;
 
+	if (msg->version == 0) {
+		/* QTEE reset the buffer if it is unused. */
+		return;
+	}
+
 	for (i = 0; i < msg->counts; i++) {
+		if (msg->op != OBJECT_OP_RELEASE) {
+			/* We only support release handler. */
+			break;
+		}
+
 		req.hdr.op = msg->op;
 		req.hdr.counts = 0; /* release op does not require any args */
 		req.hdr.tzhandle = objs[i];
@@ -2392,6 +2404,9 @@ static void process_piggyback_data(void *buf, size_t buf_size)
 		process_tzcb_req(&req, sizeof(struct smcinvoke_tzcb_req), NULL);
 		/* cbobjs_in_flight will be adjusted during CB processing */
 	}
+
+	/* Reset output buffer after processing.*/
+	memset(buf, 0, buf_size);
 }
 
 
