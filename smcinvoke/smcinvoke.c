@@ -538,7 +538,7 @@ static void smcinvoke_shmbridge_post_process(void)
 			do {
 				ret = qtee_shmbridge_deregister(handle);
 				if (unlikely(ret)) {
-					pr_err_ratelimited("SHM failed: ret:%d ptr:0x%x h:%#llx\n",
+					pr_err_ratelimited("SHM failed: ret:%d ptr:0x%p h:%#llx\n",
 							ret,
 							dmabuf_to_free,
 							handle);
@@ -831,10 +831,10 @@ static inline void free_mem_obj_locked(struct smcinvoke_mem_obj *mem_obj)
 	if (shmbridge_handle)
 		ret = qtee_shmbridge_deregister(shmbridge_handle);
 	if (ret) {
-		pr_err("Error:%d delete bridge failed leaking memory 0x%x\n",
+		pr_err("Error:%d delete bridge failed leaking memory 0x%p\n",
 				ret, dmabuf_to_free);
 		if (ret == -EBUSY) {
-			pr_err("EBUSY: we postpone it 0x%x\n",
+			pr_err("EBUSY: we postpone it 0x%p\n",
 					dmabuf_to_free);
 			entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 			if (entry) {
@@ -1193,7 +1193,7 @@ static int32_t smcinvoke_map_mem_region_locked(struct smcinvoke_mem_obj* mem_obj
 
 		sgt = dma_buf_map_attachment(buf_attach, DMA_BIDIRECTIONAL);
 		if (IS_ERR(sgt)) {
-			pr_err("mapping dma buffers failed, ret: %d\n",
+			pr_err("mapping dma buffers failed, ret: %ld\n",
 					PTR_ERR(sgt));
 			ret = OBJECT_ERROR_KMEM;
 			goto out;
@@ -1614,7 +1614,7 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 	uint16_t server_id = 0;
 
 	if (buf_len < sizeof(struct smcinvoke_tzcb_req)) {
-		pr_err("smaller buffer length : %u\n", buf_len);
+		pr_err("smaller buffer length : %zu\n", buf_len);
 		return;
 	}
 
@@ -2452,7 +2452,7 @@ static void add_mem_obj_info_to_async_side_channel_locked(void *buf, size_t buf_
 
 	msg->count = index;
 
-	pr_debug("Added %d memory objects to the side channel, total size = %d\n", index, used);
+	pr_debug("Added %lu memory objects to the side channel, total size = %zu\n", index, used);
 
 	return;
 }
@@ -2631,7 +2631,7 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		 * new cb requests.
 		 */
 		if (!cb_txn) {
-			pr_err_ratelimited("%s txn %d either invalid or removed from Q\n",
+			pr_err_ratelimited("%s txn %llu either invalid or removed from Q\n",
 					__func__, user_args.txn_id);
 			goto start_waiting_for_requests;
 		}
@@ -3082,7 +3082,7 @@ int smcinvoke_release_filp(struct file *filp)
 		mutex_lock(&object_postprocess_lock);
 		list_add_tail(&entry->list, &g_object_postprocess);
 		mutex_unlock(&object_postprocess_lock);
-		pr_debug("Object release list: added a handle:0x%lx\n", tzhandle);
+		pr_debug("Object release list: added a handle:%u\n", tzhandle);
 		__wakeup_postprocess_kthread(&smcinvoke[OBJECT_WORKER_THREAD]);
 	}
 
