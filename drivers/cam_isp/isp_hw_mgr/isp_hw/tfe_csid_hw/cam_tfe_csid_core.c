@@ -3754,6 +3754,7 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	err_evt_info.err_type = evt_payload->evt_type;
 	event_info.hw_idx = evt_payload->hw_idx;
 	event_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
+	event_info.hw_type = CAM_ISP_HW_TYPE_TFE_CSID;
 
 	switch (evt_payload->evt_type) {
 	case CAM_ISP_HW_ERROR_CSID_FRAME_SIZE:

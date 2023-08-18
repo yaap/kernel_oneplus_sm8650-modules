@@ -556,6 +556,7 @@ static int cam_tfe_error_irq_bottom_half(
 	hw_info = core_info->tfe_hw_info;
 	evt_info.hw_idx = core_info->core_index;
 	evt_info.res_type = CAM_ISP_RESOURCE_TFE_IN;
+	evt_info.hw_type = CAM_ISP_HW_TYPE_TFE;
 
 	if (evt_payload->irq_reg_val[0] & hw_info->error_irq_mask[0]) {
 		err_evt_info.err_type = CAM_TFE_IRQ_STATUS_OVERFLOW;
