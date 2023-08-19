@@ -18,7 +18,7 @@ EXPORT_SYMBOL(msm_cvp_debug);
 int msm_cvp_debug_out = CVP_OUT_PRINTK;
 EXPORT_SYMBOL(msm_cvp_debug_out);
 
-int msm_cvp_fw_debug = 0x18;
+int msm_cvp_fw_debug = 0x10018;
 int msm_cvp_fw_debug_mode = 1;
 int msm_cvp_fw_low_power_mode = 1;
 bool msm_cvp_fw_coverage = !true;
