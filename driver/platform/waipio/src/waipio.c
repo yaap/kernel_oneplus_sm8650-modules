@@ -513,7 +513,8 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 	{CSC, ENC, CODECS_ALL,
 		0, 1, 1, 0,
 		0,
-		HFI_PROP_CSC},
+		HFI_PROP_CSC,
+		CAP_FLAG_OUTPUT_PORT},
 
 	{LOWLATENCY_MODE, ENC, H264 | HEVC,
 		0, 1, 1, 0,
