@@ -26,15 +26,12 @@
 #include "linux/qcedev.h"
 #include <linux/interconnect.h>
 #include <linux/delay.h>
-#include "linux/compat_qcedev.h"
 
 #include <crypto/hash.h>
 #include "qcedevi.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
 #include "qcom_crypto_device.h"
-
-#include <linux/compat.h>
 
 #define CACHE_LINE_SIZE 64
 #define CE_SHA_BLOCK_SIZE SHA256_BLOCK_SIZE
@@ -236,9 +233,6 @@ static int start_sha_req(struct qcedev_control *podev,
 static const struct file_operations qcedev_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = qcedev_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = compat_qcedev_ioctl,
-#endif
 	.open = qcedev_open,
 	.release = qcedev_release,
 };

@@ -358,6 +358,9 @@ struct  qcedev_unmap_buf_req {
 
 struct file;
 
+long qcedev_ioctl(struct file *file,
+			unsigned int cmd, unsigned long arg);
+
 #define QCEDEV_IOC_MAGIC	0x87
 
 #define QCEDEV_IOCTL_ENC_REQ		\
