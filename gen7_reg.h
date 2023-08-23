@@ -1200,6 +1200,7 @@
 #define GEN7_GMU_GENERAL_8			0x1f9cd
 #define GEN7_GMU_GENERAL_9			0x1f9ce
 #define GEN7_GMU_GENERAL_10			0x1f9cf
+#define GEN7_GMU_GENERAL_11			0x1f9d0
 
 /* FAL10 veto register */
 #define GEN7_GPU_GMU_CX_GMU_CX_FAL_INTF		0x1f8f0
