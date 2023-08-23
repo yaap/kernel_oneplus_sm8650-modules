@@ -286,7 +286,7 @@ check_again:
 	}
 }
 
-static int msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
+static void msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
 {
 	bool empty;
 	int rc, max_retries;
@@ -297,7 +297,7 @@ static int msm_cvp_cleanup_instance(struct msm_cvp_inst *inst)
 
 	if (!inst) {
 		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
-		return -EINVAL;
+		return;
 	}
 
 	sqf = &inst->session_queue_fence;
@@ -357,7 +357,7 @@ stop_session:
 	if (!tmp) {
 		dprintk(CVP_ERR, "%s has a invalid session %llx\n",
 			__func__, inst);
-		return -EINVAL;
+		return;
 	}
 	if (!empty) {
 		/* STOP SESSION to avoid SMMU fault after releasing ARP */
@@ -395,7 +395,6 @@ release_arp:
 		hdev = inst->core->device;
 		call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
 	}
-	return 0;
 }
 
 int msm_cvp_destroy(struct msm_cvp_inst *inst)
@@ -500,9 +499,7 @@ int msm_cvp_close(void *instance)
 	}
 
 	if (inst->session_type != MSM_CVP_BOOT) {
-		rc = msm_cvp_cleanup_instance(inst);
-		if (rc)
-			return -EINVAL;
+		msm_cvp_cleanup_instance(inst);
 		msm_cvp_session_deinit(inst);
 	}
 
