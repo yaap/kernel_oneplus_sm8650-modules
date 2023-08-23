@@ -3343,6 +3343,7 @@ static int adreno_interconnect_bus_set(struct adreno_device *adreno_dev,
 	if ((level == pwr->cur_buslevel) && (ab == pwr->cur_ab))
 		return 0;
 
+	kgsl_icc_set_tag(pwr, level);
 	pwr->cur_buslevel = level;
 	pwr->cur_ab = ab;
 
