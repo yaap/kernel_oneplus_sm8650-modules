@@ -187,13 +187,13 @@ static void adreno_hwsched_snapshot_rb_payload(struct adreno_device *adreno_dev,
 	u8 *buf = snapshot->ptr + sizeof(*section_header);
 	struct kgsl_snapshot_rb_v2 *header = (struct kgsl_snapshot_rb_v2 *)buf;
 	u32 *data = (u32 *)(buf + sizeof(*header));
-	u32 size = gen7_hwsched_parse_payload(payload, KEY_RB_SIZEDWORDS) << 2;
+	u32 size = adreno_hwsched_parse_payload(payload, KEY_RB_SIZEDWORDS) << 2;
 	u64 lo, hi, gpuaddr;
 	void *rb_hostptr;
 	char str[16];
 
-	lo = gen7_hwsched_parse_payload(payload, KEY_RB_GPUADDR_LO);
-	hi = gen7_hwsched_parse_payload(payload, KEY_RB_GPUADDR_HI);
+	lo = adreno_hwsched_parse_payload(payload, KEY_RB_GPUADDR_LO);
+	hi = adreno_hwsched_parse_payload(payload, KEY_RB_GPUADDR_HI);
 	gpuaddr = hi << 32 | lo;
 
 	/* Sanity check to make sure there is enough for the header */
@@ -223,16 +223,16 @@ static void adreno_hwsched_snapshot_rb_payload(struct adreno_device *adreno_dev,
 
 	header->start = 0;
 	header->end = size >> 2;
-	header->rptr = gen7_hwsched_parse_payload(payload, KEY_RB_RPTR);
-	header->wptr = gen7_hwsched_parse_payload(payload, KEY_RB_WPTR);
+	header->rptr = adreno_hwsched_parse_payload(payload, KEY_RB_RPTR);
+	header->wptr = adreno_hwsched_parse_payload(payload, KEY_RB_WPTR);
 	header->rbsize = size >> 2;
 	header->count = size >> 2;
-	header->timestamp_queued = gen7_hwsched_parse_payload(payload,
+	header->timestamp_queued = adreno_hwsched_parse_payload(payload,
 			KEY_RB_QUEUED_TS);
-	header->timestamp_retired = gen7_hwsched_parse_payload(payload,
+	header->timestamp_retired = adreno_hwsched_parse_payload(payload,
 			KEY_RB_RETIRED_TS);
 	header->gpuaddr = gpuaddr;
-	header->id = gen7_hwsched_parse_payload(payload, KEY_RB_ID);
+	header->id = adreno_hwsched_parse_payload(payload, KEY_RB_ID);
 
 	section_header->magic = SNAPSHOT_SECTION_MAGIC;
 	section_header->id = KGSL_SNAPSHOT_SECTION_RB_V2;

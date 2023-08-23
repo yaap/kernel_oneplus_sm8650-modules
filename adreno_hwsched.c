@@ -2363,3 +2363,16 @@ int adreno_hwsched_wait_ack_completion(struct adreno_device *adreno_dev,
 	gmu_core_fault_snapshot(KGSL_DEVICE(adreno_dev));
 	return -ETIMEDOUT;
 }
+
+u32 adreno_hwsched_parse_payload(struct payload_section *payload, u32 key)
+{
+	u32 i;
+
+	/* Each key-value pair is 2 dwords */
+	for (i = 0; i < payload->dwords; i += 2) {
+		if (payload->data[i] == key)
+			return payload->data[i + 1];
+	}
+
+	return 0;
+}

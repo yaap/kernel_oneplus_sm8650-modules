@@ -168,19 +168,6 @@ static void log_profiling_info(struct adreno_device *adreno_dev, u32 *rcvd)
 	kgsl_context_put(context);
 }
 
-u32 a6xx_hwsched_parse_payload(struct payload_section *payload, u32 key)
-{
-	u32 i;
-
-	/* Each key-value pair is 2 dwords */
-	for (i = 0; i < payload->dwords; i += 2) {
-		if (payload->data[i] == key)
-			return payload->data[i + 1];
-	}
-
-	return 0;
-}
-
 /* Look up a particular key's value for a given type of payload */
 static u32 a6xx_hwsched_lookup_key_value_legacy(struct adreno_device *adreno_dev,
 	u32 type, u32 key)
@@ -201,7 +188,7 @@ static u32 a6xx_hwsched_lookup_key_value_legacy(struct adreno_device *adreno_dev
 		struct payload_section *payload = start + i;
 
 		if (payload->type == type)
-			return a6xx_hwsched_parse_payload(payload, key);
+			return adreno_hwsched_parse_payload(payload, key);
 
 		i += struct_size(payload, data, payload->dwords);
 	}
@@ -228,10 +215,10 @@ static u32 get_payload_rb_key_legacy(struct adreno_device *adreno_dev,
 		struct payload_section *payload = start + i;
 
 		if (payload->type == PAYLOAD_RB) {
-			u32 id = a6xx_hwsched_parse_payload(payload, KEY_RB_ID);
+			u32 id = adreno_hwsched_parse_payload(payload, KEY_RB_ID);
 
 			if (id == rb_id)
-				return a6xx_hwsched_parse_payload(payload, key);
+				return adreno_hwsched_parse_payload(payload, key);
 		}
 
 		i += struct_size(payload, data, payload->dwords);
@@ -330,7 +317,7 @@ static u32 a6xx_hwsched_lookup_key_value(struct adreno_device *adreno_dev,
 		struct payload_section *payload = start + i;
 
 		if (payload->type == type)
-			return a6xx_hwsched_parse_payload(payload, key);
+			return adreno_hwsched_parse_payload(payload, key);
 
 		i += struct_size(payload, data, payload->dwords);
 	}
@@ -357,10 +344,10 @@ static u32 get_payload_rb_key(struct adreno_device *adreno_dev,
 		struct payload_section *payload = start + i;
 
 		if (payload->type == PAYLOAD_RB) {
-			u32 id = a6xx_hwsched_parse_payload(payload, KEY_RB_ID);
+			u32 id = adreno_hwsched_parse_payload(payload, KEY_RB_ID);
 
 			if (id == rb_id)
-				return a6xx_hwsched_parse_payload(payload, key);
+				return adreno_hwsched_parse_payload(payload, key);
 		}
 
 		i += struct_size(payload, data, payload->dwords);
