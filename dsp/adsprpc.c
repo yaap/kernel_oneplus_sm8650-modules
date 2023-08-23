@@ -3064,24 +3064,6 @@ static inline void fastrpc_pm_awake(struct fastrpc_file *fl, int channel_type)
 		pm_wakeup_ws_event(wake_source, fl->ws_timeout, true);
 }
 
-static inline void fastrpc_pm_relax(struct fastrpc_file *fl, int channel_type)
-{
-	struct fastrpc_apps *me = &gfa;
-	struct wakeup_source *wake_source = NULL;
-
-	if (!fl->wake_enable)
-		return;
-
-	if (channel_type == SECURE_CHANNEL)
-		wake_source = me->wake_source_secure;
-	else if (channel_type == NON_SECURE_CHANNEL)
-		wake_source = me->wake_source;
-
-	ADSPRPC_INFO("done for tgid %d\n", fl->tgid);
-	if (wake_source)
-		__pm_relax(wake_source);
-}
-
 static inline int fastrpc_wait_for_response(struct smq_invoke_ctx *ctx,
 						uint32_t kernel)
 {
@@ -5913,7 +5895,6 @@ skip_dump_wait:
 	} while (lmap);
 	mutex_unlock(&fl->map_mutex);
 	mutex_unlock(&fl->internal_map_mutex);
-	fastrpc_pm_relax(fl, gcinfo[fl->cid].secure);
 
 	if (fl->device && is_driver_closed)
 		device_unregister(&fl->device->dev);
