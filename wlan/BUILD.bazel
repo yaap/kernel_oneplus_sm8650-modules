@@ -4,3 +4,7 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 define_wlan("pineapple", "consolidate")
 
 define_wlan("pineapple", "gki")
+
+define_wlan("blair", "consolidate")
+
+define_wlan("blair", "gki")

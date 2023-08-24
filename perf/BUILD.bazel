@@ -4,3 +4,7 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 define_perf("pineapple", "consolidate")
 
 define_perf("pineapple", "gki")
+
+define_perf("blair", "consolidate")
+
+define_perf("blair", "gki")
