@@ -93,6 +93,12 @@ int load_app(char *app_name, struct Object *app_obj,
 	struct Object client_env = {NULL, NULL};
 	struct Object app_loader = {NULL, NULL};
 
+	buffer = firmware_request_from_smcinvoke(app_name, &size, &shm);
+	if (buffer == NULL) {
+		pr_err("firmware_request_from_smcinvoke failed\n");
+		return -EINVAL;
+	}
+
 	ret = get_client_env_object(&client_env);
 	if (ret) {
 		pr_err("get_client_env_object failed :%d\n", ret);
@@ -106,13 +112,6 @@ int load_app(char *app_name, struct Object *app_obj,
 		pr_err("IClientEnv_open failed :%d\n", ret);
 		app_loader.invoke = NULL;
 		app_loader.context = NULL;
-		goto error;
-	}
-
-	buffer = firmware_request_from_smcinvoke(app_name, &size, &shm);
-	if (buffer == NULL) {
-		pr_err("firmware_request_from_smcinvoke failed\n");
-		ret = -EINVAL;
 		goto error;
 	}
 
@@ -537,7 +536,9 @@ static int hdcp2_app_load(struct hdcp2_smcinvoke_handle *handle)
 
 	ret = load_app(HDCPSRM_APP_NAME, &(handle->hdcpsrm_app_obj),
 		   &(handle->hdcpsrm_appcontroller_obj));
-	if (ret) {
+	if (ret == 16) {
+		pr_err("hdcpsrm TA already loaded\n");
+	} else if (ret) {
 		pr_err("hdcpsrm TA load failed :%d\n", ret);
 		goto error;
 	}
