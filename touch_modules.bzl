@@ -40,6 +40,34 @@ module_entry(
     ]
 )
 
+#define ddk_module() for focaltech_fts
+module_entry(
+    name = "focaltech_fts",
+    config_option = "CONFIG_TOUCH_FOCALTECH",
+    srcs = [
+            "focaltech_touch/focaltech_core.c",
+            "focaltech_touch/focaltech_esdcheck.c",
+            "focaltech_touch/focaltech_ex_fun.c",
+            "focaltech_touch/focaltech_ex_mode.c",
+            "focaltech_touch/focaltech_flash/focaltech_upgrade_ft3518.c",
+            "focaltech_touch/focaltech_flash.c",
+            "focaltech_touch/focaltech_gesture.c",
+            "focaltech_touch/focaltech_i2c.c",
+            "focaltech_touch/focaltech_point_report_check.c"
+    ]
+)
+
+#define ddk_module() for synaptics_tcm_ts
+module_entry(
+    name = "synaptics_tcm_ts",
+    config_option = "CONFIG_TOUCHSCREEN_SYNAPTICS_TCM",
+    srcs = [
+            "synaptics_tcm/synaptics_tcm_core.c",
+            "synaptics_tcm/synaptics_tcm_i2c.c",
+            "synaptics_tcm/synaptics_tcm_touch.c"
+    ]
+)
+
 #define ddk_module() for atmel_mxt_ts
 module_entry(
     name = "atmel_mxt_ts",

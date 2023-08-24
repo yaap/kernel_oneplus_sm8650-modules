@@ -14,6 +14,11 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
        ifeq ($(TARGET_BOARD_PLATFORM), pineapple)
               LOCAL_MODULE_DDK_BUILD := true
        endif
+
+       ifeq ($(TARGET_BOARD_PLATFORM), blair)
+              LOCAL_MODULE_DDK_BUILD := true
+       endif
+
        include $(CLEAR_VARS)
 
        # This makefile is only for DLKM
