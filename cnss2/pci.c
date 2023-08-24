@@ -2105,7 +2105,7 @@ retry_mhi_suspend:
 			ret = mhi_pm_suspend(pci_priv->mhi_ctrl);
 		mutex_unlock(&pci_priv->mhi_ctrl->pm_mutex);
 		if (ret == -EBUSY && retry++ < MHI_SUSPEND_RETRY_MAX_TIMES) {
-			cnss_pr_dbg("Retry MHI suspend #%d\n", retry);
+			cnss_pr_vdbg("Retry MHI suspend #%d\n", retry);
 			usleep_range(MHI_SUSPEND_RETRY_DELAY_US,
 				     MHI_SUSPEND_RETRY_DELAY_US + 1000);
 			goto retry_mhi_suspend;
