@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -235,7 +236,7 @@ static struct msm_cvp_common_data sm8650_common_data[] = {
 	},
 	{
 		.key = "qcom,hw-resp-timeout",
-		.value = 2000,
+		.value = 1000,
 	},
 	{
 		.key = "qcom,dsp-resp-timeout",

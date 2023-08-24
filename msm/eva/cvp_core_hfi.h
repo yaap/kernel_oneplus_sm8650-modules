@@ -196,8 +196,8 @@ struct cvp_iface_q_info {
 	iris_hfi_for_each_thing_reverse(__device, __sinfo, subcache)
 
 #define call_iris_op(d, op, args...)			\
-	(((d) && (d)->vpu_ops && (d)->vpu_ops->op) ? \
-	((d)->vpu_ops->op(args)):0)
+	(((d) && (d)->hal_ops && (d)->hal_ops->op) ? \
+	((d)->hal_ops->op(args)):0)
 
 struct cvp_hal_data {
 	u32 irq;
@@ -226,7 +226,7 @@ enum reset_state {
 
 struct iris_hfi_device;
 
-struct iris_hfi_vpu_ops {
+struct cvp_hal_ops {
 	void (*interrupt_init)(struct iris_hfi_device *ptr);
 	void (*setup_dsp_uc_memmap)(struct iris_hfi_device *device);
 	void (*clock_config_on_enable)(struct iris_hfi_device *device);
@@ -276,7 +276,7 @@ struct iris_hfi_device {
 	struct pm_qos_request qos;
 	unsigned int skip_pc_count;
 	struct msm_cvp_capability *sys_init_capabilities;
-	struct iris_hfi_vpu_ops *vpu_ops;
+	struct cvp_hal_ops *hal_ops;
 };
 
 irqreturn_t cvp_hfi_isr(int irq, void *dev);
@@ -284,7 +284,7 @@ irqreturn_t iris_hfi_core_work_handler(int irq, void *data);
 irqreturn_t iris_hfi_isr_wd(int irq, void *dev);
 void cvp_iris_hfi_delete_device(void *device);
 
-int cvp_iris_hfi_initialize(struct cvp_hfi_device *hdev,
+int cvp_iris_hfi_initialize(struct cvp_hfi_ops *hdev,
 		struct msm_cvp_platform_resources *res,
 		hfi_cmd_response_callback callback);
 

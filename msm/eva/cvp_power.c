@@ -31,7 +31,7 @@ static bool is_subblock_profile_existed(struct msm_cvp_inst *inst)
 			inst->prop.cycles[HFI_HW_LSR]);
 }
 
-static char hw_names[HFI_MAX_HW_THREADS][8] = {{"FDU"}, {"OD"}, {"MPU"}, {"ICA"},
+static char hw_names[HFI_MAX_HW_THREADS][8] = {{"FDU"}, {"MPU"}, {"OD"}, {"ICA"},
 				{"VADL"}, {"TOF"}, {"RGE"}, {"XRA"},
 				{"LSR"}};
 static void aggregate_power_update(struct msm_cvp_core *core,
@@ -145,7 +145,7 @@ static int adjust_bw_freqs(unsigned int max_bw, unsigned int min_bw)
 
 	core = cvp_driver->cvp_core;
 
-	hdev = core->device->hfi_device_data;
+	hdev = core->dev_ops->hfi_device_data;
 	tbl = core->resources.allowed_clks_tbl;
 	tbl_size = core->resources.allowed_clks_tbl_size;
 	cvp_min_rate = tbl[0].clock_rate;

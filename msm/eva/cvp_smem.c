@@ -574,16 +574,16 @@ int msm_cvp_map_ipcc_regs(u32 *iova)
 {
 	struct context_bank_info *cb;
 	struct msm_cvp_core *core;
-	struct cvp_hfi_device *hfi_ops;
+	struct cvp_hfi_ops *ops_tbl;
 	struct iris_hfi_device *dev = NULL;
 	phys_addr_t paddr;
 	u32 size;
 
 	core = cvp_driver->cvp_core;
 	if (core) {
-		hfi_ops = core->device;
-		if (hfi_ops)
-			dev = hfi_ops->hfi_device_data;
+		ops_tbl = core->dev_ops;
+		if (ops_tbl)
+			dev = ops_tbl->hfi_device_data;
 	}
 
 	if (!dev)
@@ -612,15 +612,15 @@ int msm_cvp_unmap_ipcc_regs(u32 iova)
 {
 	struct context_bank_info *cb;
 	struct msm_cvp_core *core;
-	struct cvp_hfi_device *hfi_ops;
+	struct cvp_hfi_ops *ops_tbl;
 	struct iris_hfi_device *dev = NULL;
 	u32 size;
 
 	core = cvp_driver->cvp_core;
 	if (core) {
-		hfi_ops = core->device;
-		if (hfi_ops)
-			dev = hfi_ops->hfi_device_data;
+		ops_tbl = core->dev_ops;
+		if (ops_tbl)
+			dev = ops_tbl->hfi_device_data;
 	}
 
 	if (!dev)

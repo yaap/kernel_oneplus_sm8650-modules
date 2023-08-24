@@ -1998,14 +1998,6 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 	list_for_each_entry_safe(cbuf, dummy, &inst->cvpdspbufs.list, list) {
 		print_internal_buffer(CVP_MEM, "remove dspbufs", inst, cbuf);
 		if (cbuf->ownership == CLIENT) {
-			rc = cvp_dsp_deregister_buffer(hash32_ptr(session),
-				cbuf->fd, cbuf->smem->dma_buf->size, cbuf->size,
-				cbuf->offset, cbuf->index,
-				(uint32_t)cbuf->smem->device_addr);
-			if (rc)
-				dprintk(CVP_ERR,
-				"%s: failed dsp deregistration fd=%d rc=%d",
-				__func__, cbuf->fd, rc);
 			msm_cvp_unmap_smem(inst, cbuf->smem, "unmap dsp");
 			msm_cvp_smem_put_dma_buf(cbuf->smem->dma_buf);
 		} else if (cbuf->ownership == DSP) {
@@ -2195,7 +2187,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 	struct cvp_internal_buf *buf;
 	int rc = 0;
 	struct msm_cvp_core *core;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 	if (!inst) {
 		dprintk(CVP_ERR, "Invalid instance pointer = %pK\n", inst);
@@ -2207,9 +2199,9 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 		dprintk(CVP_ERR, "Invalid core pointer = %pK\n", core);
 		return -EINVAL;
 	}
-	hdev = core->device;
-	if (!hdev) {
-		dprintk(CVP_ERR, "Invalid device pointer = %pK\n", hdev);
+	ops_tbl = core->dev_ops;
+	if (!ops_tbl) {
+		dprintk(CVP_ERR, "Invalid device pointer = %pK\n", ops_tbl);
 		return -EINVAL;
 	}
 
@@ -2218,7 +2210,7 @@ int cvp_release_arp_buffers(struct msm_cvp_inst *inst)
 	mutex_lock(&inst->persistbufs.lock);
 	/* Workaround for FW: release buffer means release all */
 	if (inst->state > MSM_CVP_CORE_INIT_DONE && inst->state <= MSM_CVP_CLOSE_DONE) {
-		rc = call_hfi_op(hdev, session_release_buffers,
+		rc = call_hfi_op(ops_tbl, session_release_buffers,
 				(void *)inst->session);
 		if (!rc) {
 			mutex_unlock(&inst->persistbufs.lock);
@@ -2370,7 +2362,7 @@ int cvp_release_dsp_buffers(struct msm_cvp_inst *inst,
 int msm_cvp_register_buffer(struct msm_cvp_inst *inst,
 		struct eva_kmd_buffer *buf)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct cvp_hal_session *session;
 	struct msm_cvp_inst *s;
 	int rc = 0;
@@ -2390,7 +2382,7 @@ int msm_cvp_register_buffer(struct msm_cvp_inst *inst,
 		rc = -EINVAL;
 		goto exit;
 	}
-	hdev = inst->core->device;
+	ops_tbl = inst->core->dev_ops;
 	print_client_buffer(CVP_HFI, "register", inst, buf);
 
 	if (buf->index)

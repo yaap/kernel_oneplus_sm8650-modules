@@ -379,13 +379,13 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 	/* VM manager shall be started before HFI init */
 	vm_manager.vm_ops->vm_start(core);
 
-	core->device = cvp_hfi_initialize(core->hfi_type,
+	core->dev_ops = cvp_hfi_initialize(core->hfi_type,
 				&core->resources, &cvp_handle_cmd_response);
-	if (IS_ERR_OR_NULL(core->device)) {
+	if (IS_ERR_OR_NULL(core->dev_ops)) {
 		mutex_lock(&cvp_driver->lock);
 		mutex_unlock(&cvp_driver->lock);
 
-		rc = PTR_ERR(core->device) ?: -EBADHANDLE;
+		rc = PTR_ERR(core->dev_ops) ?: -EBADHANDLE;
 		if (rc != -EPROBE_DEFER)
 			dprintk(CVP_ERR, "Failed to create HFI device\n");
 		else
@@ -435,7 +435,7 @@ static int msm_probe_cvp_device(struct platform_device *pdev)
 	return rc;
 
 err_fail_sub_device_probe:
-	cvp_hfi_deinitialize(core->hfi_type, core->device);
+	cvp_hfi_deinitialize(core->hfi_type, core->dev_ops);
 	debugfs_remove_recursive(cvp_driver->debugfs_root);
 err_hfi_initialize:
 err_cores_exceeded:
@@ -510,7 +510,7 @@ static int msm_cvp_remove(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	cvp_hfi_deinitialize(core->hfi_type, core->device);
+	cvp_hfi_deinitialize(core->hfi_type, core->dev_ops);
 	msm_cvp_free_platform_resources(&core->resources);
 	sysfs_remove_group(&pdev->dev.kobj, &msm_cvp_core_attr_group);
 	dev_set_drvdata(&pdev->dev, NULL);

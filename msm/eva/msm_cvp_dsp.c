@@ -222,7 +222,7 @@ static int delete_dsp_session(struct msm_cvp_inst *inst,
 	struct list_head *ptr_dsp_buf = NULL, *next_dsp_buf = NULL;
 	struct cvp_internal_buf *buf = NULL;
 	struct task_struct *task = NULL;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	int rc;
 
 	if (!inst)
@@ -280,8 +280,8 @@ static int delete_dsp_session(struct msm_cvp_inst *inst,
 			inst->core->resources.pm_qos.off_vote_cnt);
 	spin_unlock(&inst->core->resources.pm_qos.lock);
 
-	hdev = inst->core->device;
-	call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
+	ops_tbl = inst->core->dev_ops;
+	call_hfi_op(ops_tbl, pm_qos_update, ops_tbl->hfi_device_data);
 
 	rc = msm_cvp_close(inst);
 	if (rc)
@@ -675,76 +675,6 @@ exit:
 	return rc;
 }
 
-int cvp_dsp_deregister_buffer(uint32_t session_id, uint32_t buff_fd,
-			uint32_t buff_fd_size, uint32_t buff_size,
-			uint32_t buff_offset, uint32_t buff_index,
-			uint32_t buff_fd_iova)
-{
-	struct cvp_dsp_cmd_msg cmd;
-	int rc;
-	struct cvp_dsp_apps *me = &gfa_cv;
-	struct cvp_dsp_rsp_msg rsp;
-	bool retried = false;
-
-	cmd.type = CPU2DSP_DEREGISTER_BUFFER;
-	cmd.session_id = session_id;
-	cmd.buff_fd = buff_fd;
-	cmd.buff_fd_size = buff_fd_size;
-	cmd.buff_size = buff_size;
-	cmd.buff_offset = buff_offset;
-	cmd.buff_index = buff_index;
-	cmd.buff_fd_iova = buff_fd_iova;
-
-	dprintk(CVP_DSP,
-		"%s: type=0x%x, buff_fd_iova=0x%x buff_index=0x%x\n",
-		__func__, cmd.type, buff_fd_iova,
-		cmd.buff_index);
-	dprintk(CVP_DSP, "%s: buff_size=0x%x session_id=0x%x\n",
-		__func__, cmd.buff_size, cmd.session_id);
-
-	mutex_lock(&me->tx_lock);
-retry:
-	rc = cvp_dsp_send_cmd_sync(&cmd, sizeof(struct cvp_dsp_cmd_msg), &rsp);
-	if (rc) {
-		dprintk(CVP_ERR, "%s send failed rc = %d\n", __func__, rc);
-		goto exit;
-	}
-
-	if (rsp.ret == CPU2DSP_EFAIL || rsp.ret == CPU2DSP_EUNSUPPORTED) {
-		dprintk(CVP_WARN, "%s, DSP return err %d\n", __func__, rsp.ret);
-		rc = -EINVAL;
-		goto exit;
-	}
-
-	if (rsp.ret == CPU2DSP_EUNAVAILABLE)
-		goto fatal_exit;
-
-	if (rsp.ret == CPU2DSP_EFATAL) {
-		if (!retried) {
-			mutex_unlock(&me->tx_lock);
-			retried = true;
-			rc = cvp_reinit_dsp();
-			mutex_lock(&me->tx_lock);
-			if (rc)
-				goto fatal_exit;
-			else
-				goto retry;
-		} else {
-			goto fatal_exit;
-		}
-	}
-
-	goto exit;
-
-fatal_exit:
-	me->state = DSP_INVALID;
-	cvp_hyp_assign_from_dsp();
-	rc = -ENOTSUPP;
-exit:
-	mutex_unlock(&me->tx_lock);
-	return rc;
-}
-
 static const struct rpmsg_device_id cvp_dsp_rpmsg_match[] = {
 	{ CVP_APPS_DSP_GLINK_GUID },
 	{ },
@@ -833,8 +763,8 @@ static int __reinit_dsp(void)
 	struct iris_hfi_device *device;
 
 	core = cvp_driver->cvp_core;
-	if (core && core->device)
-		device = core->device->hfi_device_data;
+	if (core && core->dev_ops)
+		device = core->dev_ops->hfi_device_data;
 	else
 		return -EINVAL;
 
@@ -1306,8 +1236,8 @@ void cvp_dsp_send_hfi_queue(void)
 	int rc;
 
 	core = cvp_driver->cvp_core;
-	if (core && core->device)
-		device = core->device->hfi_device_data;
+	if (core && core->dev_ops)
+		device = core->dev_ops->hfi_device_data;
 	else
 		return;
 
@@ -1458,7 +1388,7 @@ void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct pid *pid_s = NULL;
 	struct task_struct *task = NULL;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct fastrpc_device *frpc_device;
 
 	cmd->ret = 0;
@@ -1555,8 +1485,8 @@ void __dsp_cvp_sess_create(struct cvp_dsp_cmd_msg *cmd)
 	spin_lock(&inst->core->resources.pm_qos.lock);
 	inst->core->resources.pm_qos.off_vote_cnt++;
 	spin_unlock(&inst->core->resources.pm_qos.lock);
-	hdev = inst->core->device;
-	call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
+	ops_tbl = inst->core->dev_ops;
+	call_hfi_op(ops_tbl, pm_qos_update, ops_tbl->hfi_device_data);
 
 	return;
 
@@ -1580,7 +1510,7 @@ void __dsp_cvp_sess_delete(struct cvp_dsp_cmd_msg *cmd)
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 	struct cvp_dsp_fastrpc_driver_entry *frpc_node = NULL;
 	struct task_struct *task = NULL;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 
 	cmd->ret = 0;
 
@@ -1620,8 +1550,8 @@ void __dsp_cvp_sess_delete(struct cvp_dsp_cmd_msg *cmd)
 			inst->core->resources.pm_qos.off_vote_cnt);
 	spin_unlock(&inst->core->resources.pm_qos.lock);
 
-	hdev = inst->core->device;
-	call_hfi_op(hdev, pm_qos_update, hdev->hfi_device_data);
+	ops_tbl = inst->core->dev_ops;
+	call_hfi_op(ops_tbl, pm_qos_update, ops_tbl->hfi_device_data);
 
 	rc = msm_cvp_close(inst);
 	if (rc) {
@@ -2075,7 +2005,7 @@ static int cvp_dsp_thread(void *data)
 	int rc = 0, old_state;
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct cvp_dsp_cmd_msg cmd;
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	struct msm_cvp_core *core;
 
 	core = cvp_driver->cvp_core;
@@ -2085,8 +2015,8 @@ static int cvp_dsp_thread(void *data)
 		goto exit;
 	}
 
-	hdev = (struct cvp_hfi_device *)core->device;
-	if (!hdev) {
+	ops_tbl = (struct cvp_hfi_ops *)core->dev_ops;
+	if (!ops_tbl) {
 		dprintk(CVP_ERR, "%s Invalid device handle\n", __func__);
 		rc = -EINVAL;
 		goto exit;
@@ -2129,7 +2059,7 @@ wait_dsp:
 			mutex_lock(&me->tx_lock);
 			old_state = me->state;
 			me->state = DSP_READY;
-			rc = call_hfi_op(hdev, resume, hdev->hfi_device_data);
+			rc = call_hfi_op(ops_tbl, resume, ops_tbl->hfi_device_data);
 			if (rc) {
 				dprintk(CVP_WARN, "%s Failed to resume cvp\n",
 						__func__);

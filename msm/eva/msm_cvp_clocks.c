@@ -81,17 +81,17 @@ int msm_cvp_mmrm_notifier_cb(
 
 int msm_cvp_set_clocks(struct msm_cvp_core *core)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	int rc;
 
-	if (!core || !core->device) {
+	if (!core || !core->dev_ops) {
 		dprintk(CVP_ERR, "%s Invalid args: %pK\n", __func__, core);
 		return -EINVAL;
 	}
 
-	hdev = core->device;
-	rc = call_hfi_op(hdev, scale_clocks,
-		hdev->hfi_device_data, core->curr_freq);
+	ops_tbl = core->dev_ops;
+	rc = call_hfi_op(ops_tbl, scale_clocks,
+		ops_tbl->hfi_device_data, core->curr_freq);
 	return rc;
 }
 
@@ -461,16 +461,16 @@ void msm_cvp_deinit_clocks(struct iris_hfi_device *device)
 
 int msm_cvp_set_bw(struct msm_cvp_core *core, struct bus_info *bus, unsigned long bw)
 {
-	struct cvp_hfi_device *hdev;
+	struct cvp_hfi_ops *ops_tbl;
 	int rc;
 
-	if (!core || !core->device) {
+	if (!core || !core->dev_ops) {
 		dprintk(CVP_ERR, "%s Invalid args: %pK\n", __func__, core);
 		return -EINVAL;
 	}
 
-	hdev = core->device;
-	rc = call_hfi_op(hdev, vote_bus, hdev->hfi_device_data, bus, bw);
+	ops_tbl = core->dev_ops;
+	rc = call_hfi_op(ops_tbl, vote_bus, ops_tbl->hfi_device_data, bus, bw);
 	return rc;
 
 }
