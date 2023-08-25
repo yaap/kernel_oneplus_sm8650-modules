@@ -322,6 +322,7 @@ static int process_map_request(struct smmu_proxy_map_req *req, size_t size)
 		goto free_vmids;
 	}
 
+	retrieve_arg.fd_flags = O_RDWR;
 	retrieve_arg.memparcel_hdl = req->hdl;
 	retrieve_arg.sender_vmid = VMID_HLOS;
 	retrieve_arg.nr_acl_entries = n_acl_entries;
@@ -549,7 +550,7 @@ static int smmu_proxy_get_dma_buf(struct smmu_proxy_get_dma_buf_ctl *get_dma_buf
 	}
 
 	get_dma_buf(buf_state->dmabuf);
-	fd = dma_buf_fd(buf_state->dmabuf, O_RDWR | O_CLOEXEC);
+	fd = dma_buf_fd(buf_state->dmabuf, O_CLOEXEC);
 	if (fd < 0) {
 		ret = fd;
 		pr_err("%s: Failed to install FD for dma-buf rc: %d\n", __func__,
