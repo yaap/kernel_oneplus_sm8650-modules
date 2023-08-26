@@ -22,9 +22,10 @@ static inline u32 get_r_gnd_res_tot_mohms(u32 r_gnd_int_fet_mohms, u32 r_gnd_ext
 	return r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms;
 }
 
-static inline u32 get_r_aud_res_tot_mohms(u32 r_aud_int_fet_mohms, u32 r_aud_ext_fet_mohms)
+static inline u32 get_r_aud_res_tot_mohms(u32 r_aud_int_fet_mohms, u32 r_aud_ext_fet_mohms,
+					  u32 r_load_eff_mohms)
 {
-	return r_aud_int_fet_mohms + r_aud_ext_fet_mohms;
+	return r_aud_int_fet_mohms + r_aud_ext_fet_mohms + r_load_eff_mohms;
 }
 
 #if IS_ENABLED(CONFIG_SND_SOC_WCD939X)
