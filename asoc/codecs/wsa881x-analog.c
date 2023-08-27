@@ -1233,12 +1233,12 @@ static const struct snd_soc_component_driver soc_codec_dev_wsa881x = {
 
 static struct snd_soc_dai_driver wsa_dai[] = {
 	{
-		.name = "",
+		.name = "wsa_rx0",
 		.playback = {
 			.stream_name = "",
 			.rates = WSA881X_RATES | WSA881X_FRAC_RATES,
 			.formats = WSA881X_FORMATS,
-			.rate_max = 192000,
+			.rate_max = 384000,
 			.rate_min = 8000,
 			.channels_min = 1,
 			.channels_max = 2,

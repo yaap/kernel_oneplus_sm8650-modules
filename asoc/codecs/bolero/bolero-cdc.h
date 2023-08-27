@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef BOLERO_CDC_H
@@ -13,6 +14,7 @@
 #define BOLERO_VERSION_1_2 0x0003
 #define BOLERO_VERSION_2_0 0x0004
 #define BOLERO_VERSION_2_1 0x0005
+#define BOLERO_VERSION_2_2 0x0006
 
 enum {
 	START_MACRO,
@@ -115,6 +117,7 @@ int bolero_tx_mclk_enable(struct snd_soc_component *c, bool enable);
 int bolero_get_version(struct device *dev);
 int bolero_dmic_clk_enable(struct snd_soc_component *component,
 			   u32 dmic, u32 tx_mode, bool enable);
+void bolero_rx_pa_on(struct device *dev);
 #else
 static inline int bolero_register_res_clk(struct device *dev, rsc_clk_cb_t cb)
 {
@@ -215,5 +218,11 @@ static int bolero_tx_mclk_enable(struct snd_soc_component *c, bool enable)
 {
 	return 0;
 }
+
+static inline void bolero_rx_pa_on(struct device *dev)
+{
+	return 0;
+}
+
 #endif /* CONFIG_SND_SOC_BOLERO */
 #endif /* BOLERO_CDC_H */
