@@ -3343,6 +3343,7 @@ static int adreno_interconnect_bus_set(struct adreno_device *adreno_dev,
 	if ((level == pwr->cur_buslevel) && (ab == pwr->cur_ab))
 		return 0;
 
+	kgsl_icc_set_tag(pwr, level);
 	pwr->cur_buslevel = level;
 	pwr->cur_ab = ab;
 
@@ -3383,6 +3384,16 @@ static void adreno_create_hw_fence(struct kgsl_device *device, struct kgsl_sync_
 
 	if (adreno_dev->dispatch_ops->create_hw_fence)
 		adreno_dev->dispatch_ops->create_hw_fence(adreno_dev, kfence);
+}
+
+u64 adreno_read_cx_timer(struct adreno_device *adreno_dev)
+{
+	/* Check if the CX timer is initialized */
+	if (!test_bit(ADRENO_DEVICE_CX_TIMER_INITIALIZED, &adreno_dev->priv))
+		return 0;
+
+	/* Since the GPU CX and CPU timers are synchronized return the CPU timer */
+	return arch_timer_read_counter();
 }
 
 static const struct kgsl_functable adreno_functable = {

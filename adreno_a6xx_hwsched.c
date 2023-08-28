@@ -144,13 +144,13 @@ static void adreno_hwsched_snapshot_rb_payload(struct adreno_device *adreno_dev,
 	u8 *buf = snapshot->ptr + sizeof(*section_header);
 	struct kgsl_snapshot_rb_v2 *header = (struct kgsl_snapshot_rb_v2 *)buf;
 	u32 *data = (u32 *)(buf + sizeof(*header));
-	u32 size = a6xx_hwsched_parse_payload(payload, KEY_RB_SIZEDWORDS) << 2;
+	u32 size = adreno_hwsched_parse_payload(payload, KEY_RB_SIZEDWORDS) << 2;
 	u64 lo, hi, gpuaddr;
 	void *rb_hostptr;
 	char str[16];
 
-	lo = a6xx_hwsched_parse_payload(payload, KEY_RB_GPUADDR_LO);
-	hi = a6xx_hwsched_parse_payload(payload, KEY_RB_GPUADDR_HI);
+	lo = adreno_hwsched_parse_payload(payload, KEY_RB_GPUADDR_LO);
+	hi = adreno_hwsched_parse_payload(payload, KEY_RB_GPUADDR_HI);
 	gpuaddr = hi << 32 | lo;
 
 	/* Sanity check to make sure there is enough for the header */
@@ -178,16 +178,16 @@ static void adreno_hwsched_snapshot_rb_payload(struct adreno_device *adreno_dev,
 
 	header->start = 0;
 	header->end = size >> 2;
-	header->rptr = a6xx_hwsched_parse_payload(payload, KEY_RB_RPTR);
-	header->wptr = a6xx_hwsched_parse_payload(payload, KEY_RB_WPTR);
+	header->rptr = adreno_hwsched_parse_payload(payload, KEY_RB_RPTR);
+	header->wptr = adreno_hwsched_parse_payload(payload, KEY_RB_WPTR);
 	header->rbsize = size >> 2;
 	header->count = size >> 2;
-	header->timestamp_queued = a6xx_hwsched_parse_payload(payload,
+	header->timestamp_queued = adreno_hwsched_parse_payload(payload,
 			KEY_RB_QUEUED_TS);
-	header->timestamp_retired = a6xx_hwsched_parse_payload(payload,
+	header->timestamp_retired = adreno_hwsched_parse_payload(payload,
 			KEY_RB_RETIRED_TS);
 	header->gpuaddr = gpuaddr;
-	header->id = a6xx_hwsched_parse_payload(payload, KEY_RB_ID);
+	header->id = adreno_hwsched_parse_payload(payload, KEY_RB_ID);
 
 	section_header->magic = SNAPSHOT_SECTION_MAGIC;
 	section_header->id = KGSL_SNAPSHOT_SECTION_RB_V2;
@@ -652,6 +652,24 @@ static void hwsched_idle_timer(struct timer_list *t)
 	kgsl_schedule_work(&device->idle_check_ws);
 }
 
+static int a6xx_hwsched_gmu_memory_init(struct adreno_device *adreno_dev)
+{
+	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
+
+	/* GMU Virtual register bank */
+	if (IS_ERR_OR_NULL(gmu->vrb)) {
+		gmu->vrb = reserve_gmu_kernel_block(gmu, 0, GMU_VRB_SIZE,
+				GMU_NONCACHED_KERNEL, 0);
+
+		/* Populate size of the virtual register bank */
+		if (!IS_ERR(gmu->vrb))
+			gmu_core_set_vrb_register(gmu->vrb->hostptr,
+				VRB_SIZE_IDX, gmu->vrb->size >> 2);
+	}
+
+	return PTR_ERR_OR_ZERO(gmu->vrb);
+}
+
 static int a6xx_hwsched_gmu_init(struct adreno_device *adreno_dev)
 {
 	int ret;
@@ -661,6 +679,10 @@ static int a6xx_hwsched_gmu_init(struct adreno_device *adreno_dev)
 		return ret;
 
 	ret = a6xx_gmu_memory_init(adreno_dev);
+	if (ret)
+		return ret;
+
+	ret = a6xx_hwsched_gmu_memory_init(adreno_dev);
 	if (ret)
 		return ret;
 
@@ -1297,6 +1319,15 @@ int a6xx_hwsched_add_to_minidump(struct adreno_device *adreno_dev)
 					KGSL_HFIMEM_ENTRY,
 					a6xx_dev->gmu.hfi.hfi_mem->hostptr,
 					a6xx_dev->gmu.hfi.hfi_mem->size);
+		if (ret)
+			return ret;
+	}
+
+	if (!IS_ERR_OR_NULL(a6xx_dev->gmu.vrb)) {
+		ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+					KGSL_GMU_VRB_ENTRY,
+					a6xx_dev->gmu.vrb->hostptr,
+					a6xx_dev->gmu.vrb->size);
 		if (ret)
 			return ret;
 	}

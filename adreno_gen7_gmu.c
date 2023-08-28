@@ -1004,6 +1004,10 @@ void gen7_gmu_register_config(struct adreno_device *adreno_dev)
 	 */
 	kgsl_regwrite(device, GEN7_GBIF_HALT, 0x0);
 
+	/* Set vrb address before starting GMU */
+	if (!IS_ERR_OR_NULL(gmu->vrb))
+		gmu_core_regwrite(device, GEN7_GMU_GENERAL_11, gmu->vrb->gmuaddr);
+
 	/* Set the log wptr index */
 	gmu_core_regwrite(device, GEN7_GMU_GENERAL_9,
 			gmu->log_wptr_retention);
@@ -1937,6 +1941,9 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	ret = gen7_gmu_enable_clks(adreno_dev, 0);
 	if (ret)
 		goto gdsc_off;
+
+	/* Initialize the CX timer */
+	gen7_cx_timer_init(adreno_dev);
 
 	ret = gen7_gmu_load_fw(adreno_dev);
 	if (ret)
