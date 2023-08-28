@@ -58,6 +58,8 @@ struct gen7_gmu_device {
 	struct kgsl_memdesc *gpu_boot_scratch;
 	/** @vrb: GMU virtual register bank memory */
 	struct kgsl_memdesc *vrb;
+	/** @trace: gmu trace container */
+	struct kgsl_gmu_trace trace;
 	struct gen7_hfi hfi;
 	struct clk_bulk_data *clks;
 	/** @num_clks: Number of entries in the @clks array */

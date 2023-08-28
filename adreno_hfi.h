@@ -488,6 +488,7 @@ enum hfi_msg_type {
 	H2F_MSG_ISSUE_SYNCOBJ		= 152,
 	F2H_MSG_SYNCOBJ_QUERY		= 153,
 	H2F_MSG_WARMBOOT_CMD		= 154,
+	F2H_MSG_PROCESS_TRACE		= 155,
 	HFI_MAX_ID,
 };
 
@@ -759,6 +760,21 @@ struct hfi_debug_cmd {
 	u32 type;
 	u32 timestamp;
 	u32 data;
+} __packed;
+
+/* F2H */
+struct hfi_trace_cmd {
+	u32 hdr;
+	u32 version;
+	u64 identifier;
+} __packed;
+
+/* Trace packet definition */
+struct gmu_trace_packet {
+	u32 hdr;
+	u32 trace_id;
+	u64 ticks;
+	u32 payload[];
 } __packed;
 
 /* F2H */
