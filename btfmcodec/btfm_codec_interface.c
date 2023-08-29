@@ -273,7 +273,7 @@ void btfmcodec_wq_hwep_shutdown(struct work_struct *work)
 						wq_hwep_shutdown);
 	struct btfmcodec_data *btfmcodec = (struct btfmcodec_data *)btfmcodec_dev->btfmcodec;
 	struct list_head *head = &btfmcodec->config_head;
-	struct hwep_configurations *hwep_configs = NULL;
+	struct hwep_configurations *hwep_configs = NULL, *tmp;
 	int ret = -1;
 	int idx = BTM_PKT_TYPE_HWEP_SHUTDOWN;
 
@@ -281,7 +281,7 @@ void btfmcodec_wq_hwep_shutdown(struct work_struct *work)
 	/* Just check if first Rx has to be closed first or
 	 * any order should be ok.
 	 */
-	list_for_each_entry(hwep_configs, head, dai_list) {
+	list_for_each_entry_safe(hwep_configs, tmp, head, dai_list) {
 		BTFMCODEC_INFO("shuting down dai id:%d", hwep_configs->stream_id);
 		ret = btfmcodec_hwep_shutdown(btfmcodec, hwep_configs->stream_id, true);
 		if (ret < 0) {
@@ -301,10 +301,10 @@ void btfmcodec_wq_hwep_shutdown(struct work_struct *work)
 static int btfmcodec_delete_configs(struct btfmcodec_data *btfmcodec, uint8_t id)
 {
 	struct list_head *head = &btfmcodec->config_head;
-	struct hwep_configurations *hwep_configs;
+	struct hwep_configurations *hwep_configs, *tmp;
 	int ret = -1;
 
-	list_for_each_entry(hwep_configs, head, dai_list) {
+	list_for_each_entry_safe(hwep_configs, tmp, head, dai_list) {
 		if (hwep_configs->stream_id == id) {
 			BTFMCODEC_INFO("deleting configs with id %d", id);
 			list_del(&hwep_configs->dai_list);
@@ -389,10 +389,10 @@ static int btfmcodec_dai_hw_params(struct snd_pcm_substream *substream,
 bool btfmcodec_is_valid_cache_avb(struct btfmcodec_data *btfmcodec)
 {
 	struct list_head *head = &btfmcodec->config_head;
-	struct hwep_configurations *hwep_configs;
+	struct hwep_configurations *hwep_configs, *tmp;
 	bool cache_avb = false;
 
-	list_for_each_entry(hwep_configs, head, dai_list) {
+	list_for_each_entry_safe(hwep_configs, tmp, head, dai_list) {
 		cache_avb = true;
 		break;
 	}
@@ -405,9 +405,9 @@ static int btfmcodec_check_and_cache_configs(struct btfmcodec_data *btfmcodec,
 				   int id, uint8_t codectype)
 {
 	struct list_head *head = &btfmcodec->config_head;
-	struct hwep_configurations *hwep_configs;
+	struct hwep_configurations *hwep_configs, *tmp;
 
-	list_for_each_entry(hwep_configs, head, dai_list) {
+	list_for_each_entry_safe(hwep_configs, tmp, head, dai_list) {
 		if (hwep_configs->stream_id == id) {
 			BTFMCODEC_WARN("previous entry for %d is already available",
 				id);
@@ -641,13 +641,13 @@ void btfmcodec_wq_hwep_configure(struct work_struct *work)
 						wq_hwep_configure);
 	struct btfmcodec_data *btfmcodec = (struct btfmcodec_data *)btfmcodec_dev->btfmcodec;
 	struct list_head *head = &btfmcodec->config_head;
-	struct hwep_configurations *hwep_configs = NULL;
+	struct hwep_configurations *hwep_configs = NULL, *tmp;
 	int ret;
 	int idx = BTM_PKT_TYPE_HWEP_CONFIG;
 	uint32_t sample_rate, direction;
 	uint8_t id, bit_width, codectype, num_channels;
 
-	list_for_each_entry(hwep_configs, head, dai_list) {
+	list_for_each_entry_safe(hwep_configs, tmp, head, dai_list) {
 		id = hwep_configs->stream_id;
 		sample_rate = hwep_configs->sample_rate;
 		bit_width = hwep_configs->bit_width;
