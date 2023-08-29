@@ -4023,12 +4023,9 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	struct smq_phy_page pages[PAGESLEN_WITH_SHAREDBUF];
 	struct fastrpc_mmap *file = NULL;
 	struct fastrpc_buf *imem = NULL;
-	unsigned long imem_dma_attr = 0, irq_flags = 0;
+	unsigned long imem_dma_attr = 0;
 	remote_arg_t ra[6];
 	int fds[6];
-	struct fastrpc_apps *me = &gfa;
-	struct hlist_node *n = NULL;
-	struct fastrpc_file *fl_curr = NULL;
 	unsigned int gid = 0, one_mb = 1024*1024;
 	unsigned int dsp_userpd_memlen = 0;
 	struct fastrpc_buf *init_mem;
@@ -4076,20 +4073,6 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	if (uproc->attrs & FASTRPC_MODE_UNSIGNED_MODULE)
 		fl->is_unsigned_pd = true;
 
-	/* Validate that any existing sessions of process are of same pd type */
-	spin_lock_irqsave(&me->hlock, irq_flags);
-	hlist_for_each_entry_safe(fl_curr, n, &me->drivers, hn) {
-		if ((fl != fl_curr) && (fl->tgid == fl_curr->tgid) && (fl->cid == fl_curr->cid)) {
-			err = (fl->is_unsigned_pd != fl_curr->is_unsigned_pd) ? -ECONNREFUSED : 0;
-			break;
-		}
-	}
-	spin_unlock_irqrestore(&me->hlock, irq_flags);
-	if (err) {
-		ADSPRPC_ERR("existing session pd type %u not same as requested pd type %u \n",
-			fl_curr->is_unsigned_pd, fl->is_unsigned_pd);
-		goto bail;
-	}
 	/* Check if file memory passed by userspace is valid */
 	VERIFY(err, access_ok((void __user *)init->file, init->filelen));
 	if (err)
