@@ -3,9 +3,8 @@
  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include <include/linux/smcinvoke.h>
+#include "smcinvoke_object.h"
 #include <include/linux/IClientEnv.h>
-#include <include/linux/smcinvoke_object.h>
 #include <include/smci/uid/CAppClient.h>
 #include <include/smci/uid/CAppLoader.h>
 #include <include/smci/interface/IAppClient.h>
