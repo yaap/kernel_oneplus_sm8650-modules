@@ -74,6 +74,7 @@ def define_monaco(t,v):
             "pt_i2c",
             "pt_device_access",
             "pt_debug",
+            "raydium_ts",
         ],
         config_options = [
             "TOUCH_DLKM_ENABLE",
@@ -86,6 +87,7 @@ def define_monaco(t,v):
             "CONFIG_TOUCHSCREEN_PARADE_BUTTON",
             "CONFIG_TOUCHSCREEN_PARADE_PROXIMITY",
             "CONFIG_TOUCHSCREEN_PARADE_DEBUG_MDL",
+            "CONFIG_TOUCHSCREEN_RM_TS",
         ],
 )
 

@@ -127,3 +127,20 @@ module_entry(
             "pt/pt_debug.c"
     ]
 )
+
+#define ddk_module() for raydium_ts
+module_entry(
+    name = "raydium_ts",
+    config_option = "CONFIG_TOUCHSCREEN_RM_TS",
+    srcs = [
+            "raydium/drv_interface.c",
+            "raydium/raydium_driver.c",
+            "raydium/raydium_fw_update.c",
+            "raydium/raydium_selftest.c",
+            "raydium/raydium_sysfs.c",
+            "raydium/chip_raydium/f303_ic_control.c",
+            "raydium/chip_raydium/f303_ic_test.c",
+            "raydium/chip_raydium/ic_drv_global.c",
+            "raydium/chip_raydium/ic_drv_interface.c"
+    ]
+)
