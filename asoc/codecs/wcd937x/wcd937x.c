@@ -142,11 +142,6 @@ static int wcd937x_handle_post_irq(void *data)
 	struct wcd937x_priv *wcd937x = data;
 	u32 status1 = 0, status2 = 0, status3 = 0;
 
-	/* Clear the ACK registers. Temporary workaround.*/
-	regmap_write(wcd937x->regmap, WCD937X_DIGITAL_INTR_CLEAR_0, 0x0);
-	regmap_write(wcd937x->regmap, WCD937X_DIGITAL_INTR_CLEAR_1, 0x0);
-	regmap_write(wcd937x->regmap, WCD937X_DIGITAL_INTR_CLEAR_2, 0x0);
-
 	regmap_read(wcd937x->regmap, WCD937X_DIGITAL_INTR_STATUS_0, &status1);
 	regmap_read(wcd937x->regmap, WCD937X_DIGITAL_INTR_STATUS_1, &status2);
 	regmap_read(wcd937x->regmap, WCD937X_DIGITAL_INTR_STATUS_2, &status3);
@@ -159,8 +154,20 @@ static int wcd937x_handle_post_irq(void *data)
 
 static int wcd937x_init_reg(struct snd_soc_component *component)
 {
-	snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
+	u32 val = 0;
+
+	val = snd_soc_component_read(component, WCD937X_DIGITAL_EFUSE_REG_29)
+	     & 0x0F;
+
+	if (snd_soc_component_read(component, WCD937X_DIGITAL_EFUSE_REG_16)
+	    == 0x02 || snd_soc_component_read(component,
+	    WCD937X_DIGITAL_EFUSE_REG_17) > 0x09) {
+		snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
+				0x0E, val);
+	} else {
+		snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
 				0x0E, 0x0E);
+	}
 	snd_soc_component_update_bits(component, WCD937X_SLEEP_CTL,
 				0x80, 0x80);
 	usleep_range(1000, 1010);
@@ -187,6 +194,28 @@ static int wcd937x_init_reg(struct snd_soc_component *component)
 				0xFF, 0xFA);
 	snd_soc_component_update_bits(component, WCD937X_MICB3_TEST_CTL_1,
 				0xFF, 0xFA);
+	snd_soc_component_update_bits(component, WCD937X_MICB1_TEST_CTL_2,
+				      0x38, 0x00);
+	snd_soc_component_update_bits(component, WCD937X_MICB2_TEST_CTL_2,
+				      0x38, 0x00);
+	snd_soc_component_update_bits(component, WCD937X_MICB3_TEST_CTL_2,
+				      0x38, 0x00);
+	/* Set Bandgap Fine Adjustment to +5mV for Tanggu SMIC part */
+	if (snd_soc_component_read(component, WCD937X_DIGITAL_EFUSE_REG_16)
+	    == 0x01) {
+		snd_soc_component_update_bits(component,
+				WCD937X_BIAS_VBG_FINE_ADJ, 0xF0, 0xB0);
+	} else if (snd_soc_component_read(component,
+		WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) {
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L, 0x1F, 0x04);
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R, 0x1F, 0x04);
+		snd_soc_component_update_bits(component,
+				WCD937X_BIAS_VBG_FINE_ADJ, 0xF0, 0xB0);
+		snd_soc_component_update_bits(component,
+				WCD937X_HPH_NEW_INT_RDAC_GAIN_CTL, 0xF0, 0x50);
+	}
 	return 0;
 }
 
@@ -551,6 +580,12 @@ static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_COMP_DELAY, &wcd937x->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
+		if ((snd_soc_component_read(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x90);
 		if (hph_mode == CLS_AB_HIFI || hph_mode == CLS_H_HIFI)
 			snd_soc_component_update_bits(component,
 				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L,
@@ -592,6 +627,12 @@ static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 				WCD937X_HPH_NEW_INT_HPH_TIMER1, 0x02, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		if ((snd_soc_component_read(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x80);
 		snd_soc_component_update_bits(component,
 			WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_L,
 			0x0F, 0x01);
@@ -625,6 +666,12 @@ static int wcd937x_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_COMP_DELAY, &wcd937x->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
+		if ((snd_soc_component_read(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x90);
 		if (hph_mode == CLS_AB_HIFI || hph_mode == CLS_H_HIFI)
 			snd_soc_component_update_bits(component,
 				WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R,
@@ -666,6 +713,12 @@ static int wcd937x_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 				WCD937X_HPH_NEW_INT_HPH_TIMER1, 0x02, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		if ((snd_soc_component_read(component,
+		   WCD937X_DIGITAL_EFUSE_REG_16) == 0x02) &&
+		   ((snd_soc_component_read(component,
+			WCD937X_ANA_HPH) & 0x0C) == 0x0C))
+			snd_soc_component_update_bits(component,
+			WCD937X_RX_BIAS_HPH_LOWPOWER, 0xF0, 0x80);
 		snd_soc_component_update_bits(component,
 			WCD937X_HPH_NEW_INT_RDAC_HD2_CTL_R,
 			0x0F, 0x01);
@@ -1413,8 +1466,12 @@ static int wcd937x_tx_swr_ctrl(struct snd_soc_dapm_widget *w,
 			/* Enable BCS for Headset mic */
 			if (w->shift == 1 && !(snd_soc_component_read(component,
 				WCD937X_TX_NEW_TX_CH2_SEL) & 0x80)) {
-				wcd937x_tx_connect_port(component, MBHC, true);
-				set_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask);
+				if (!wcd937x->bcs_dis) {
+					wcd937x_tx_connect_port(
+							component, MBHC, true);
+					set_bit(AMIC2_BCS_ENABLE,
+							&wcd937x->status_mask);
+				}
 			}
 			wcd937x_tx_connect_port(component, ADC1 + (w->shift), true);
 		} else {
@@ -1449,6 +1506,7 @@ static int wcd937x_codec_enable_adc(struct snd_soc_dapm_widget *w,
 		mutex_lock(&wcd937x->ana_tx_clk_lock);
 		wcd937x->ana_clk_count++;
 		mutex_unlock(&wcd937x->ana_tx_clk_lock);
+		wcd937x->adc_count++;
 		snd_soc_component_update_bits(component,
 				WCD937X_DIGITAL_CDC_DIG_CLK_CTL, 0x80, 0x80);
 		snd_soc_component_update_bits(component,
@@ -1466,8 +1524,13 @@ static int wcd937x_codec_enable_adc(struct snd_soc_dapm_widget *w,
 			wcd937x_tx_connect_port(component, MBHC, false);
 			clear_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask);
 		}
-		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_CDC_ANA_CLK_CTL, 0x08, 0x00);
+
+		wcd937x->adc_count--;
+		if (wcd937x->adc_count <= 0) {
+			snd_soc_component_update_bits(component,
+					WCD937X_DIGITAL_CDC_ANA_CLK_CTL, 0x08, 0x00);
+			wcd937x->adc_count = 0;
+		}
 		break;
 	};
 
@@ -1507,14 +1570,19 @@ static int wcd937x_enable_req(struct snd_soc_dapm_widget *w,
 				WCD937X_ANA_TX_CH3, 0x80, 0x80);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		snd_soc_component_update_bits(component,
+		if (wcd937x->adc_count == 0) {
+			snd_soc_component_update_bits(component,
 				WCD937X_ANA_TX_CH1, 0x80, 0x00);
-		snd_soc_component_update_bits(component,
+			snd_soc_component_update_bits(component,
 				WCD937X_ANA_TX_CH2, 0x80, 0x00);
-		snd_soc_component_update_bits(component,
+			snd_soc_component_update_bits(component,
 				WCD937X_ANA_TX_CH3, 0x80, 0x00);
-		snd_soc_component_update_bits(component,
+			snd_soc_component_update_bits(component,
 				WCD937X_DIGITAL_CDC_DIG_CLK_CTL, 0x10, 0x00);
+			snd_soc_component_update_bits(component,
+				WCD937X_DIGITAL_CDC_DIG_CLK_CTL, 0x80, 0x00);
+		}
+
 		mutex_lock(&wcd937x->ana_tx_clk_lock);
 		wcd937x->ana_clk_count--;
 		if (wcd937x->ana_clk_count <= 0) {
@@ -1524,8 +1592,6 @@ static int wcd937x_enable_req(struct snd_soc_dapm_widget *w,
 		}
 
 		mutex_unlock(&wcd937x->ana_tx_clk_lock);
-		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_CDC_DIG_CLK_CTL, 0x80, 0x00);
 		break;
 	};
 	return 0;
@@ -2185,6 +2251,29 @@ static int wcd937x_tx_master_ch_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int wcd937x_bcs_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+				snd_soc_kcontrol_component(kcontrol);
+	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
+
+	ucontrol->value.integer.value[0] = wcd937x->bcs_dis;
+	return 0;
+}
+
+static int wcd937x_bcs_put(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
+
+	wcd937x->bcs_dis = ucontrol->value.integer.value[0];
+	dev_dbg(component->dev, "%s: BCS Disable %d\n", __func__, wcd937x->bcs_dis);
+	return 0;
+}
+
 static const char * const wcd937x_tx_ch_pwr_level_text[] = {
 	"L0", "L1", "L2", "L3",
 };
@@ -2216,6 +2305,8 @@ static const struct snd_kcontrol_new wcd937x_snd_controls[] = {
 		wcd937x_get_compander, wcd937x_set_compander),
 	SOC_SINGLE_EXT("HPHR_COMP Switch", SND_SOC_NOPM, 1, 1, 0,
 		wcd937x_get_compander, wcd937x_set_compander),
+	SOC_SINGLE_EXT("ADC2_BCS Disable", SND_SOC_NOPM, 0, 1, 0,
+		wcd937x_bcs_get, wcd937x_bcs_put),
 
 	SOC_SINGLE_TLV("HPHL Volume", WCD937X_HPH_L_EN, 0, 20, 1, line_gain),
 	SOC_SINGLE_TLV("HPHR Volume", WCD937X_HPH_R_EN, 0, 20, 1, line_gain),
@@ -2845,6 +2936,8 @@ static int wcd937x_soc_codec_probe(struct snd_soc_component *component)
 	variant = (snd_soc_component_read(
 			component, WCD937X_DIGITAL_EFUSE_REG_0) & 0x1E) >> 1;
 	wcd937x->variant = variant;
+
+	wcd937x->adc_count = 0;
 
 	wcd937x->fw_data = devm_kzalloc(component->dev,
 					sizeof(*(wcd937x->fw_data)),

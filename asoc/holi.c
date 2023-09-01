@@ -1774,7 +1774,16 @@ err:
 static int msm_asoc_machine_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct msm_asoc_mach_data *pdata = NULL;
+	struct msm_common_pdata *common_pdata = NULL;
 
+	if (card)
+		pdata = snd_soc_card_get_drvdata(card);
+
+	if (pdata)
+		common_pdata = pdata->common_pdata;
+
+	msm_common_snd_deinit(common_pdata);
 	snd_event_master_deregister(&pdev->dev);
 	snd_soc_unregister_card(card);
 

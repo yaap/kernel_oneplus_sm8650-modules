@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -462,6 +463,7 @@ struct rx_macro_priv {
 	u16 default_clk_id;
 	int8_t rx0_gain_val;
 	int8_t rx1_gain_val;
+	u32 rx_macro_wsa_slv;
 };
 
 static struct snd_soc_dai_driver rx_macro_dai[];
@@ -1249,7 +1251,11 @@ static int rx_macro_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 			}
 		}
 	}
-		break;
+
+	if (rx_priv->rx_macro_wsa_slv)
+		bolero_rx_pa_on(rx_dev);
+	break;
+
 	default:
 		break;
 	}
@@ -4112,7 +4118,7 @@ static int rx_macro_probe(struct platform_device *pdev)
 	struct rx_macro_priv *rx_priv = NULL;
 	u32 rx_base_addr = 0, muxsel = 0;
 	char __iomem *rx_io_base = NULL, *muxsel_io = NULL;
-	int ret = 0;
+	int ret = 0, val = 0;
 	u8 bcl_pmic_params[3];
 	u32 default_clk_id = 0;
 	u32 is_used_rx_swr_gpio = 1;
@@ -4144,6 +4150,14 @@ static int rx_macro_probe(struct platform_device *pdev)
 			__func__, "reg");
 		return ret;
 	}
+
+	ret = of_property_read_u32(pdev->dev.of_node, "qcom,rx-wsa-enable", &val);
+	if (ret == 0) {
+		rx_priv->rx_macro_wsa_slv = (val == 1) ? 1 : 0;
+		dev_info(&pdev->dev, "RX macro wsa slave is %s\n",
+			(val == 1) ? "connected" : "not connected");
+	}
+
 	ret = of_property_read_u32(pdev->dev.of_node, "qcom,default-clk-id",
 				   &default_clk_id);
 	if (ret) {
