@@ -965,9 +965,9 @@ static bool wcd_mbhc_moisture_detect(struct wcd_mbhc *mbhc, bool detection_type)
 
 static void wcd_mbhc_set_hsj_connect(struct wcd_mbhc *mbhc, bool connect)
 {
-	struct snd_soc_component *component = mbhc->component;
 
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	struct snd_soc_component *component = mbhc->component;
 	if (connect) {
 		if (mbhc->mbhc_cb && mbhc->mbhc_cb->zdet_leakage_resistance)
 			mbhc->mbhc_cb->zdet_leakage_resistance(mbhc, false); /* enable 1M pull-up */
