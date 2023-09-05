@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __SYNX_UTIL_H__
@@ -11,7 +11,8 @@
 #include "synx_private.h"
 
 extern struct synx_device *synx_dev;
-
+u32 __fence_state(struct dma_fence *fence, bool locked);
+void synx_util_destroy_coredata(struct kref *kref);
 extern void synx_fence_callback(struct dma_fence *fence,
 	struct dma_fence_cb *cb);
 extern int synx_native_signal_fence(struct synx_coredata *synx_obj,
@@ -99,7 +100,7 @@ struct synx_map_entry *synx_util_insert_to_map(struct synx_coredata *synx_obj,
 			u32 h_synx, u32 flags);
 struct synx_map_entry *synx_util_get_map_entry(u32 h_synx);
 void synx_util_release_map_entry(struct synx_map_entry *map_entry);
-
+void synx_util_destroy_map_entry(struct kref *kref);
 /* fence map functions */
 int synx_util_insert_fence_entry(struct synx_fence_entry *entry, u32 *h_synx,
 			u32 global);
@@ -157,6 +158,8 @@ struct synx_handle_coredata *synx_util_acquire_handle(struct synx_client *client
 void synx_util_release_handle(struct synx_handle_coredata *synx_data);
 int synx_util_update_handle(struct synx_client *client, u32 h_synx, u32 sync_id,
 			u32 type, struct synx_handle_coredata **handle);
+void synx_client_destroy(struct kref *kref);
+void synx_util_destroy_handle(struct kref *kref);
 
 /* client memory handler functions */
 struct synx_client *synx_get_client(struct synx_session *session);
@@ -172,6 +175,7 @@ struct synx_entry_64 *synx_util_retrieve_data(void *fence, u32 type);
 void synx_util_remove_data(void *fence, u32 type);
 
 /* misc */
+void synx_util_destroy_data(struct kref *kref);
 void synx_util_map_import_params_to_create(
 			struct synx_import_indv_params *params,
 			struct synx_create_params *c_params);

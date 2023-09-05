@@ -13,6 +13,7 @@ register_synx_module(
         "synx/synx_global.c",
         "synx/synx_util.c",
         "synx/synx_debugfs.c",
+        "synx/synx_debugfs_util.c",
     ],
 )
 
