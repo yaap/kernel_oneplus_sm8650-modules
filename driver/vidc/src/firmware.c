@@ -66,9 +66,8 @@ static int protect_cp_mem(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_e("Failed to protect memory(%d)\n", rc);
 
-	trace_venus_hfi_var_done(
-		memprot.cp_start, memprot.cp_size,
-		memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
+	trace_venus_hfi_var_done(memprot.cp_start, memprot.cp_size,
+				 memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 
 	return rc;
 }
@@ -141,14 +140,14 @@ static int __load_fw_to_memory(struct platform_device *pdev,
 	virt = memremap(phys, res_size, MEMREMAP_WC);
 	if (!virt) {
 		d_vpr_e("%s: failed to remap fw memory phys %pa[p]\n",
-				__func__, &phys);
+			__func__, &phys);
 		return -ENOMEM;
 	}
 
 	/* prevent system suspend during fw_load */
 	pm_stay_awake(pdev->dev.parent);
 	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name,
-		pas_id, virt, phys, res_size, NULL);
+			   pas_id, virt, phys, res_size, NULL);
 	pm_relax(pdev->dev.parent);
 	if (rc) {
 		d_vpr_e("%s: error %d loading fw \"%s\"\n",
@@ -165,7 +164,7 @@ static int __load_fw_to_memory(struct platform_device *pdev,
 	memunmap(virt);
 	release_firmware(firmware);
 	d_vpr_h("%s: firmware \"%s\" loaded successfully\n",
-					__func__, firmware_name);
+		__func__, firmware_name);
 
 	return pas_id;
 
@@ -184,10 +183,10 @@ int fw_load(struct msm_vidc_core *core)
 
 	if (!core->resource->fw_cookie) {
 		core->resource->fw_cookie = __load_fw_to_memory(core->pdev,
-							  core->platform->data.fwname);
+								core->platform->data.fwname);
 		if (core->resource->fw_cookie <= 0) {
 			d_vpr_e("%s: firmware download failed %d\n",
-					__func__, core->resource->fw_cookie);
+				__func__, core->resource->fw_cookie);
 			core->resource->fw_cookie = 0;
 			return -ENOMEM;
 		}

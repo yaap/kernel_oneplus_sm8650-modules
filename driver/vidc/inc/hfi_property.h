@@ -22,21 +22,22 @@
 #define HFI_PROP_UBWC_BANK_SPREADING                            0x03000009
 
 enum hfi_debug_config {
-    HFI_DEBUG_CONFIG_DEFAULT = 0x00000000,
-    HFI_DEBUG_CONFIG_CLRDBGQ = 0x00000001,
-    HFI_DEBUG_CONFIG_WFI     = 0x00000002,
-    HFI_DEBUG_CONFIG_ARM9WD  = 0x00000004,
+	HFI_DEBUG_CONFIG_DEFAULT = 0x00000000,
+	HFI_DEBUG_CONFIG_CLRDBGQ = 0x00000001,
+	HFI_DEBUG_CONFIG_WFI     = 0x00000002,
+	HFI_DEBUG_CONFIG_ARM9WD  = 0x00000004,
 };
+
 #define HFI_PROP_DEBUG_CONFIG                                   0x0300000a
 
 enum hfi_debug_log_level {
-    HFI_DEBUG_LOG_NONE   = 0x00000000,
-    HFI_DEBUG_LOG_ERROR  = 0x00000001,
-    HFI_DEBUG_LOG_FATAL  = 0x00000002,
-    HFI_DEBUG_LOG_PERF   = 0x00000004,
-    HFI_DEBUG_LOG_HIGH   = 0x00000008,
-    HFI_DEBUG_LOG_MEDIUM = 0x00000010,
-    HFI_DEBUG_LOG_LOW    = 0x00000020,
+	HFI_DEBUG_LOG_NONE   = 0x00000000,
+	HFI_DEBUG_LOG_ERROR  = 0x00000001,
+	HFI_DEBUG_LOG_FATAL  = 0x00000002,
+	HFI_DEBUG_LOG_PERF   = 0x00000004,
+	HFI_DEBUG_LOG_HIGH   = 0x00000008,
+	HFI_DEBUG_LOG_MEDIUM = 0x00000010,
+	HFI_DEBUG_LOG_LOW    = 0x00000020,
 };
 
 struct hfi_debug_header {
@@ -44,31 +45,34 @@ struct hfi_debug_header {
 	u32   debug_level;
 	u32   reserved[2];
 };
+
 #define HFI_PROP_DEBUG_LOG_LEVEL                                0x0300000b
 
 #define HFI_PROP_FENCE_CLIENT_DATA                              0x0300000d
 
 enum hfi_codec_type {
-    HFI_CODEC_DECODE_AVC   = 1,
-    HFI_CODEC_ENCODE_AVC   = 2,
-    HFI_CODEC_DECODE_HEVC  = 3,
-    HFI_CODEC_ENCODE_HEVC  = 4,
-    HFI_CODEC_DECODE_VP9   = 5,
-    HFI_CODEC_DECODE_MPEG2 = 6,
-    HFI_CODEC_DECODE_AV1   = 7,
+	HFI_CODEC_DECODE_AVC   = 1,
+	HFI_CODEC_ENCODE_AVC   = 2,
+	HFI_CODEC_DECODE_HEVC  = 3,
+	HFI_CODEC_ENCODE_HEVC  = 4,
+	HFI_CODEC_DECODE_VP9   = 5,
+	HFI_CODEC_DECODE_MPEG2 = 6,
+	HFI_CODEC_DECODE_AV1   = 7,
 };
+
 #define HFI_PROP_CODEC                                          0x03000100
 
 enum hfi_color_format {
-    HFI_COLOR_FMT_OPAQUE        = 0,
-    HFI_COLOR_FMT_NV12          = 1,
-    HFI_COLOR_FMT_NV12_UBWC     = 2,
-    HFI_COLOR_FMT_P010          = 3,
-    HFI_COLOR_FMT_TP10_UBWC     = 4,
-    HFI_COLOR_FMT_RGBA8888      = 5,
-    HFI_COLOR_FMT_RGBA8888_UBWC = 6,
-    HFI_COLOR_FMT_NV21          = 7,
+	HFI_COLOR_FMT_OPAQUE        = 0,
+	HFI_COLOR_FMT_NV12          = 1,
+	HFI_COLOR_FMT_NV12_UBWC     = 2,
+	HFI_COLOR_FMT_P010          = 3,
+	HFI_COLOR_FMT_TP10_UBWC     = 4,
+	HFI_COLOR_FMT_RGBA8888      = 5,
+	HFI_COLOR_FMT_RGBA8888_UBWC = 6,
+	HFI_COLOR_FMT_NV21          = 7,
 };
+
 #define HFI_PROP_COLOR_FORMAT                                   0x03000101
 
 #define HFI_PROP_SECURE                                         0x03000102
@@ -90,11 +94,11 @@ enum hfi_color_format {
 #define HFI_PROP_SESSION_PRIORITY                               0x03000106
 
 enum hfi_avc_profile_type {
-    HFI_AVC_PROFILE_BASELINE             = 0,
-    HFI_AVC_PROFILE_CONSTRAINED_BASELINE = 1,
-    HFI_AVC_PROFILE_MAIN                 = 2,
-    HFI_AVC_PROFILE_HIGH                 = 4,
-    HFI_AVC_PROFILE_CONSTRAINED_HIGH     = 17
+	HFI_AVC_PROFILE_BASELINE             = 0,
+	HFI_AVC_PROFILE_CONSTRAINED_BASELINE = 1,
+	HFI_AVC_PROFILE_MAIN                 = 2,
+	HFI_AVC_PROFILE_HIGH                 = 4,
+	HFI_AVC_PROFILE_CONSTRAINED_HIGH     = 17
 };
 
 enum hfi_hevc_profile_type {
@@ -105,128 +109,128 @@ enum hfi_hevc_profile_type {
 };
 
 enum hfi_vp9_profile_type {
-    HFI_VP9_PROFILE_0 = 0,
-    HFI_VP9_PROFILE_1 = 1,
-    HFI_VP9_PROFILE_2 = 2,
-    HFI_VP9_PROFILE_3 = 3,
+	HFI_VP9_PROFILE_0 = 0,
+	HFI_VP9_PROFILE_1 = 1,
+	HFI_VP9_PROFILE_2 = 2,
+	HFI_VP9_PROFILE_3 = 3,
 };
 
 enum hfi_mpeg2_profile_type {
-    HFI_MP2_PROFILE_SIMPLE = 0,
-    HFI_MP2_PROFILE_MAIN   = 1,
+	HFI_MP2_PROFILE_SIMPLE = 0,
+	HFI_MP2_PROFILE_MAIN   = 1,
 };
 
 enum hfi_av1_profile_type {
-    HFI_AV1_PROFILE_MAIN = 0,
-    HFI_AV1_PROFILE_HIGH = 1,
-    HFI_AV1_PROFILE_PROF = 2,
+	HFI_AV1_PROFILE_MAIN = 0,
+	HFI_AV1_PROFILE_HIGH = 1,
+	HFI_AV1_PROFILE_PROF = 2,
 };
 
 #define HFI_PROP_PROFILE                                        0x03000107
 
 enum hfi_avc_level_type {
-    HFI_AVC_LEVEL_1_0 = 0,
-    HFI_AVC_LEVEL_1B  = 1,
-    HFI_AVC_LEVEL_1_1 = 2,
-    HFI_AVC_LEVEL_1_2 = 3,
-    HFI_AVC_LEVEL_1_3 = 4,
-    HFI_AVC_LEVEL_2_0 = 5,
-    HFI_AVC_LEVEL_2_1 = 6,
-    HFI_AVC_LEVEL_2_2 = 7,
-    HFI_AVC_LEVEL_3_0 = 8,
-    HFI_AVC_LEVEL_3_1 = 9,
-    HFI_AVC_LEVEL_3_2 = 10,
-    HFI_AVC_LEVEL_4_0 = 11,
-    HFI_AVC_LEVEL_4_1 = 12,
-    HFI_AVC_LEVEL_4_2 = 13,
-    HFI_AVC_LEVEL_5_0 = 14,
-    HFI_AVC_LEVEL_5_1 = 15,
-    HFI_AVC_LEVEL_5_2 = 16,
-    HFI_AVC_LEVEL_6_0 = 17,
-    HFI_AVC_LEVEL_6_1 = 18,
-    HFI_AVC_LEVEL_6_2 = 19,
+	HFI_AVC_LEVEL_1_0 = 0,
+	HFI_AVC_LEVEL_1B  = 1,
+	HFI_AVC_LEVEL_1_1 = 2,
+	HFI_AVC_LEVEL_1_2 = 3,
+	HFI_AVC_LEVEL_1_3 = 4,
+	HFI_AVC_LEVEL_2_0 = 5,
+	HFI_AVC_LEVEL_2_1 = 6,
+	HFI_AVC_LEVEL_2_2 = 7,
+	HFI_AVC_LEVEL_3_0 = 8,
+	HFI_AVC_LEVEL_3_1 = 9,
+	HFI_AVC_LEVEL_3_2 = 10,
+	HFI_AVC_LEVEL_4_0 = 11,
+	HFI_AVC_LEVEL_4_1 = 12,
+	HFI_AVC_LEVEL_4_2 = 13,
+	HFI_AVC_LEVEL_5_0 = 14,
+	HFI_AVC_LEVEL_5_1 = 15,
+	HFI_AVC_LEVEL_5_2 = 16,
+	HFI_AVC_LEVEL_6_0 = 17,
+	HFI_AVC_LEVEL_6_1 = 18,
+	HFI_AVC_LEVEL_6_2 = 19,
 };
 
 enum hfi_hevc_level_type {
-    HFI_H265_LEVEL_1   = 0,
-    HFI_H265_LEVEL_2   = 1,
-    HFI_H265_LEVEL_2_1 = 2,
-    HFI_H265_LEVEL_3   = 3,
-    HFI_H265_LEVEL_3_1 = 4,
-    HFI_H265_LEVEL_4   = 5,
-    HFI_H265_LEVEL_4_1 = 6,
-    HFI_H265_LEVEL_5   = 7,
-    HFI_H265_LEVEL_5_1 = 8,
-    HFI_H265_LEVEL_5_2 = 9,
-    HFI_H265_LEVEL_6   = 10,
-    HFI_H265_LEVEL_6_1 = 11,
-    HFI_H265_LEVEL_6_2 = 12,
+	HFI_H265_LEVEL_1   = 0,
+	HFI_H265_LEVEL_2   = 1,
+	HFI_H265_LEVEL_2_1 = 2,
+	HFI_H265_LEVEL_3   = 3,
+	HFI_H265_LEVEL_3_1 = 4,
+	HFI_H265_LEVEL_4   = 5,
+	HFI_H265_LEVEL_4_1 = 6,
+	HFI_H265_LEVEL_5   = 7,
+	HFI_H265_LEVEL_5_1 = 8,
+	HFI_H265_LEVEL_5_2 = 9,
+	HFI_H265_LEVEL_6   = 10,
+	HFI_H265_LEVEL_6_1 = 11,
+	HFI_H265_LEVEL_6_2 = 12,
 };
 
 enum hfi_vp9_level_type {
-    HFI_VP9_LEVEL_1_0 = 0,
-    HFI_VP9_LEVEL_1_1 = 1,
-    HFI_VP9_LEVEL_2_0 = 2,
-    HFI_VP9_LEVEL_2_1 = 3,
-    HFI_VP9_LEVEL_3_0 = 4,
-    HFI_VP9_LEVEL_3_1 = 5,
-    HFI_VP9_LEVEL_4_0 = 6,
-    HFI_VP9_LEVEL_4_1 = 7,
-    HFI_VP9_LEVEL_5_0 = 8,
-    HFI_VP9_LEVEL_5_1 = 9,
-    HFI_VP9_LEVEL_6_0 = 10,
-    HFI_VP9_LEVEL_6_1 = 11,
+	HFI_VP9_LEVEL_1_0 = 0,
+	HFI_VP9_LEVEL_1_1 = 1,
+	HFI_VP9_LEVEL_2_0 = 2,
+	HFI_VP9_LEVEL_2_1 = 3,
+	HFI_VP9_LEVEL_3_0 = 4,
+	HFI_VP9_LEVEL_3_1 = 5,
+	HFI_VP9_LEVEL_4_0 = 6,
+	HFI_VP9_LEVEL_4_1 = 7,
+	HFI_VP9_LEVEL_5_0 = 8,
+	HFI_VP9_LEVEL_5_1 = 9,
+	HFI_VP9_LEVEL_6_0 = 10,
+	HFI_VP9_LEVEL_6_1 = 11,
 };
 
 enum hfi_mpeg2_level_type {
-    HFI_MP2_LEVEL_LOW       = 0,
-    HFI_MP2_LEVEL_MAIN      = 1,
-    HFI_MP2_LEVEL_HIGH_1440 = 2,
-    HFI_MP2_LEVEL_HIGH      = 3,
+	HFI_MP2_LEVEL_LOW       = 0,
+	HFI_MP2_LEVEL_MAIN      = 1,
+	HFI_MP2_LEVEL_HIGH_1440 = 2,
+	HFI_MP2_LEVEL_HIGH      = 3,
 };
 
 enum hfi_av1_level_type {
-    HFI_AV1_LEVEL_2_0 = 0,
-    HFI_AV1_LEVEL_2_1 = 1,
-    HFI_AV1_LEVEL_2_2 = 2,
-    HFI_AV1_LEVEL_2_3 = 3,
-    HFI_AV1_LEVEL_3_0 = 4,
-    HFI_AV1_LEVEL_3_1 = 5,
-    HFI_AV1_LEVEL_3_2 = 6,
-    HFI_AV1_LEVEL_3_3 = 7,
-    HFI_AV1_LEVEL_4_0 = 8,
-    HFI_AV1_LEVEL_4_1 = 9,
-    HFI_AV1_LEVEL_4_2 = 10,
-    HFI_AV1_LEVEL_4_3 = 11,
-    HFI_AV1_LEVEL_5_0 = 12,
-    HFI_AV1_LEVEL_5_1 = 13,
-    HFI_AV1_LEVEL_5_2 = 14,
-    HFI_AV1_LEVEL_5_3 = 15,
-    HFI_AV1_LEVEL_6_0 = 16,
-    HFI_AV1_LEVEL_6_1 = 17,
-    HFI_AV1_LEVEL_6_2 = 18,
-    HFI_AV1_LEVEL_6_3 = 19,
-    HFI_AV1_LEVEL_7_0 = 20,
-    HFI_AV1_LEVEL_7_1 = 21,
-    HFI_AV1_LEVEL_7_2 = 22,
-    HFI_AV1_LEVEL_7_3 = 23,
-    HFI_AV1_LEVEL_MAX = 31,
+	HFI_AV1_LEVEL_2_0 = 0,
+	HFI_AV1_LEVEL_2_1 = 1,
+	HFI_AV1_LEVEL_2_2 = 2,
+	HFI_AV1_LEVEL_2_3 = 3,
+	HFI_AV1_LEVEL_3_0 = 4,
+	HFI_AV1_LEVEL_3_1 = 5,
+	HFI_AV1_LEVEL_3_2 = 6,
+	HFI_AV1_LEVEL_3_3 = 7,
+	HFI_AV1_LEVEL_4_0 = 8,
+	HFI_AV1_LEVEL_4_1 = 9,
+	HFI_AV1_LEVEL_4_2 = 10,
+	HFI_AV1_LEVEL_4_3 = 11,
+	HFI_AV1_LEVEL_5_0 = 12,
+	HFI_AV1_LEVEL_5_1 = 13,
+	HFI_AV1_LEVEL_5_2 = 14,
+	HFI_AV1_LEVEL_5_3 = 15,
+	HFI_AV1_LEVEL_6_0 = 16,
+	HFI_AV1_LEVEL_6_1 = 17,
+	HFI_AV1_LEVEL_6_2 = 18,
+	HFI_AV1_LEVEL_6_3 = 19,
+	HFI_AV1_LEVEL_7_0 = 20,
+	HFI_AV1_LEVEL_7_1 = 21,
+	HFI_AV1_LEVEL_7_2 = 22,
+	HFI_AV1_LEVEL_7_3 = 23,
+	HFI_AV1_LEVEL_MAX = 31,
 };
 
 enum hfi_codec_level_type {
-    HFI_LEVEL_NONE = 0xFFFFFFFF,
+	HFI_LEVEL_NONE = 0xFFFFFFFF,
 };
 
 #define HFI_PROP_LEVEL                                          0x03000108
 
 enum hfi_hevc_tier_type {
-    HFI_H265_TIER_MAIN = 0,
-    HFI_H265_TIER_HIGH = 1,
+	HFI_H265_TIER_MAIN = 0,
+	HFI_H265_TIER_HIGH = 1,
 };
 
 enum hfi_av1_tier_type {
-    HFI_AV1_TIER_MAIN = 0,
-    HFI_AV1_TIER_HIGH = 1,
+	HFI_AV1_TIER_MAIN = 0,
+	HFI_AV1_TIER_HIGH = 1,
 };
 
 #define HFI_PROP_TIER                                           0x03000109
@@ -272,20 +276,22 @@ enum hfi_av1_tier_type {
 #define HFI_PROP_PIC_ORDER_CNT_TYPE                             0x03000128
 
 enum hfi_deblock_mode {
-    HFI_DEBLOCK_ALL_BOUNDARY              = 0x0,
-    HFI_DEBLOCK_DISABLE                   = 0x1,
-    HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY = 0x2,
+	HFI_DEBLOCK_ALL_BOUNDARY              = 0x0,
+	HFI_DEBLOCK_DISABLE                   = 0x1,
+	HFI_DEBLOCK_DISABLE_AT_SLICE_BOUNDARY = 0x2,
 };
+
 #define HFI_PROP_DEBLOCKING_MODE                                0x03000129
 
 enum hfi_rate_control {
-    HFI_RC_VBR_CFR        = 0x00000000,
-    HFI_RC_CBR_CFR        = 0x00000001,
-    HFI_RC_CQ             = 0x00000002,
-    HFI_RC_OFF            = 0x00000003,
-    HFI_RC_CBR_VFR        = 0x00000004,
-    HFI_RC_LOSSLESS       = 0x00000005,
+	HFI_RC_VBR_CFR        = 0x00000000,
+	HFI_RC_CBR_CFR        = 0x00000001,
+	HFI_RC_CQ             = 0x00000002,
+	HFI_RC_OFF            = 0x00000003,
+	HFI_RC_CBR_VFR        = 0x00000004,
+	HFI_RC_LOSSLESS       = 0x00000005,
 };
+
 #define HFI_PROP_RATE_CONTROL                                   0x0300012a
 
 #define HFI_PROP_TIME_DELTA_BASED_RATE_CONTROL                  0x0300012b
@@ -320,18 +326,20 @@ enum hfi_rate_control {
 #define HFI_PROP_LTR_MARK_USE_DETAILS                           0x03000137
 
 enum hfi_layer_encoding_type {
-    HFI_HIER_P_SLIDING_WINDOW = 0x1,
-    HFI_HIER_P_HYBRID_LTR     = 0x2,
-    HFI_HIER_B                = 0x3,
+	HFI_HIER_P_SLIDING_WINDOW = 0x1,
+	HFI_HIER_P_HYBRID_LTR     = 0x2,
+	HFI_HIER_B                = 0x3,
 };
+
 #define HFI_PROP_LAYER_ENCODING_TYPE                            0x03000138
 
 #define HFI_PROP_LAYER_COUNT                                    0x03000139
 
 enum hfi_chromaqp_offset_mode {
-    HFI_ADAPTIVE_CHROMAQP_OFFSET = 0x0,
-    HFI_FIXED_CHROMAQP_OFFSET = 0x1,
+	HFI_ADAPTIVE_CHROMAQP_OFFSET = 0x0,
+	HFI_FIXED_CHROMAQP_OFFSET = 0x1,
 };
+
 #define HFI_BITMASK_CHROMA_CB_OFFSET     0x0000ffff
 #define HFI_BITMASK_CHROMA_CR_OFFSET     0xffff0000
 #define HFI_PROP_CHROMA_QP_OFFSET                               0x0300013a
@@ -357,9 +365,10 @@ enum hfi_chromaqp_offset_mode {
 #define HFI_PROP_HEIC_GRID_ENABLE                               0x03000144
 
 enum hfi_syncframe_request_mode {
-    HFI_SYNC_FRAME_REQUEST_WITHOUT_SEQ_HDR           = 0x00000001,
-    HFI_SYNC_FRAME_REQUEST_WITH_PREFIX_SEQ_HDR       = 0x00000002,
+	HFI_SYNC_FRAME_REQUEST_WITHOUT_SEQ_HDR           = 0x00000001,
+	HFI_SYNC_FRAME_REQUEST_WITH_PREFIX_SEQ_HDR       = 0x00000002,
 };
+
 #define HFI_PROP_REQUEST_SYNC_FRAME                             0x03000145
 
 #define HFI_PROP_MAX_GOP_FRAMES                                 0x03000146
@@ -367,44 +376,48 @@ enum hfi_syncframe_request_mode {
 #define HFI_PROP_MAX_B_FRAMES                                   0x03000147
 
 enum hfi_quality_mode {
-    HFI_MODE_MAX_QUALITY = 0x1,
-    HFI_MODE_POWER_SAVE  = 0x2,
+	HFI_MODE_MAX_QUALITY = 0x1,
+	HFI_MODE_POWER_SAVE  = 0x2,
 };
 
 #define HFI_PROP_QUALITY_MODE                                   0x03000148
 
 enum hfi_seq_header_mode {
-    HFI_SEQ_HEADER_SEPERATE_FRAME         = 0x00000001,
-    HFI_SEQ_HEADER_JOINED_WITH_1ST_FRAME  = 0x00000002,
-    HFI_SEQ_HEADER_PREFIX_WITH_SYNC_FRAME = 0x00000004,
-    HFI_SEQ_HEADER_METADATA               = 0x00000008,
+	HFI_SEQ_HEADER_SEPERATE_FRAME         = 0x00000001,
+	HFI_SEQ_HEADER_JOINED_WITH_1ST_FRAME  = 0x00000002,
+	HFI_SEQ_HEADER_PREFIX_WITH_SYNC_FRAME = 0x00000004,
+	HFI_SEQ_HEADER_METADATA               = 0x00000008,
 };
+
 #define HFI_PROP_SEQ_HEADER_MODE                                0x03000149
 
 #define HFI_PROP_METADATA_SEQ_HEADER_NAL                        0x0300014a
 
 enum hfi_rotation {
-    HFI_ROTATION_NONE = 0x00000000,
-    HFI_ROTATION_90   = 0x00000001,
-    HFI_ROTATION_180  = 0x00000002,
-    HFI_ROTATION_270  = 0x00000003,
+	HFI_ROTATION_NONE = 0x00000000,
+	HFI_ROTATION_90   = 0x00000001,
+	HFI_ROTATION_180  = 0x00000002,
+	HFI_ROTATION_270  = 0x00000003,
 };
+
 #define HFI_PROP_ROTATION                                       0x0300014b
 
 enum hfi_flip {
-    HFI_DISABLE_FLIP    = 0x00000000,
-    HFI_HORIZONTAL_FLIP = 0x00000001,
-    HFI_VERTICAL_FLIP   = 0x00000002,
+	HFI_DISABLE_FLIP    = 0x00000000,
+	HFI_HORIZONTAL_FLIP = 0x00000001,
+	HFI_VERTICAL_FLIP   = 0x00000002,
 };
+
 #define HFI_PROP_FLIP                                           0x0300014c
 
 #define HFI_PROP_SCALAR                                         0x0300014d
 
 enum hfi_blur_types {
-    HFI_BLUR_NONE     = 0x00000000,
-    HFI_BLUR_EXTERNAL = 0x00000001,
-    HFI_BLUR_ADAPTIVE = 0x00000002,
+	HFI_BLUR_NONE     = 0x00000000,
+	HFI_BLUR_EXTERNAL = 0x00000001,
+	HFI_BLUR_ADAPTIVE = 0x00000002,
 };
+
 #define HFI_PROP_BLUR_TYPES                                     0x0300014e
 
 #define HFI_BITMASK_BLUR_WIDTH        0xffff0000
@@ -430,14 +443,15 @@ enum hfi_blur_types {
 #define HFI_PROP_SIGNAL_COLOR_INFO                              0x03000155
 
 enum hfi_interlace_info {
-    HFI_INTERLACE_INFO_NONE                = 0x00000000,
-    HFI_FRAME_PROGRESSIVE                  = 0x00000001,
-    HFI_FRAME_MBAFF                        = 0x00000002,
-    HFI_FRAME_INTERLEAVE_TOPFIELD_FIRST    = 0x00000004,
-    HFI_FRAME_INTERLEAVE_BOTTOMFIELD_FIRST = 0x00000008,
-    HFI_FRAME_INTERLACE_TOPFIELD_FIRST     = 0x00000010,
-    HFI_FRAME_INTERLACE_BOTTOMFIELD_FIRST  = 0x00000020,
+	HFI_INTERLACE_INFO_NONE                = 0x00000000,
+	HFI_FRAME_PROGRESSIVE                  = 0x00000001,
+	HFI_FRAME_MBAFF                        = 0x00000002,
+	HFI_FRAME_INTERLEAVE_TOPFIELD_FIRST    = 0x00000004,
+	HFI_FRAME_INTERLEAVE_BOTTOMFIELD_FIRST = 0x00000008,
+	HFI_FRAME_INTERLACE_TOPFIELD_FIRST     = 0x00000010,
+	HFI_FRAME_INTERLACE_BOTTOMFIELD_FIRST  = 0x00000020,
 };
+
 #define HFI_PROP_INTERLACE_INFO                                 0x03000156
 
 #define HFI_PROP_CSC                                            0x03000157
@@ -465,14 +479,15 @@ enum hfi_interlace_info {
 #define HFI_PROP_HISTOGRAM_INFO                                 0x03000161
 
 enum hfi_picture_type {
-    HFI_PICTURE_IDR = 0x00000001,
-    HFI_PICTURE_P   = 0x00000002,
-    HFI_PICTURE_B   = 0x00000004,
-    HFI_PICTURE_I   = 0x00000008,
-    HFI_PICTURE_CRA = 0x00000010,
-    HFI_PICTURE_BLA = 0x00000020,
-    HFI_PICTURE_NOSHOW = 0x00000040,
+	HFI_PICTURE_IDR = 0x00000001,
+	HFI_PICTURE_P   = 0x00000002,
+	HFI_PICTURE_B   = 0x00000004,
+	HFI_PICTURE_I   = 0x00000008,
+	HFI_PICTURE_CRA = 0x00000010,
+	HFI_PICTURE_BLA = 0x00000020,
+	HFI_PICTURE_NOSHOW = 0x00000040,
 };
+
 #define HFI_PROP_PICTURE_TYPE                                   0x03000162
 
 #define HFI_PROP_SEI_MASTERING_DISPLAY_COLOUR                   0x03000163
@@ -526,9 +541,10 @@ enum hfi_picture_type {
 #define HFI_PROP_DPB_LIST                                       0x0300017A
 
 enum hfi_nal_length_field_type {
-    HFI_NAL_LENGTH_STARTCODES           = 0,
-    HFI_NAL_LENGTH_SIZE_4               = 4,
+	HFI_NAL_LENGTH_STARTCODES           = 0,
+	HFI_NAL_LENGTH_SIZE_4               = 4,
 };
+
 #define HFI_PROP_NAL_LENGTH_FIELD                               0x0300017B
 
 #define HFI_PROP_TOTAL_PEAK_BITRATE                             0x0300017C
@@ -554,9 +570,10 @@ enum hfi_nal_length_field_type {
 #define HFI_PROP_AV1_DRAP_CONFIG                                0x03000189
 
 enum hfi_saliency_type {
-     HFI_SALIENCY_NONE,
-     HFI_SALIENCY_TYPE0,
+	HFI_SALIENCY_NONE,
+	HFI_SALIENCY_TYPE0,
 };
+
 #define HFI_PROP_ROI_AS_SALIENCY_INFO                           0x0300018A
 
 #define HFI_PROP_FENCE                                          0x0300018B
@@ -581,15 +598,15 @@ enum hfi_saliency_type {
 
 /* u32 */
 enum hfi_fence_type {
-    HFI_SW_FENCE                      = 0x00000001,
-    HFI_SYNX_V2_FENCE                 = 0x00000002,
+	HFI_SW_FENCE                      = 0x00000001,
+	HFI_SYNX_V2_FENCE                 = 0x00000002,
 };
 
 #define HFI_PROP_FENCE_TYPE                                     0x0300019D
 
 enum hfi_fence_direction_type {
-    HFI_FENCE_TX_ENABLE          = 0x00000001,
-    HFI_FENCE_RX_ENABLE          = 0x00000002,
+	HFI_FENCE_TX_ENABLE          = 0x00000001,
+	HFI_FENCE_RX_ENABLE          = 0x00000002,
 };
 
 #define HFI_PROP_FENCE_DIRECTION                                0x0300019E

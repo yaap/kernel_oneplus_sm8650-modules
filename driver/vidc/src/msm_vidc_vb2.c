@@ -133,7 +133,8 @@ void msm_vb2_detach_dmabuf(void *buf_priv)
 	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
 		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
 			if (ro_buf->dmabuf == vbuf->dmabuf) {
-				print_vidc_buffer(VIDC_LOW, "low ", "detach: found ro buf", inst, ro_buf);
+				print_vidc_buffer(VIDC_LOW, "low ", "detach: found ro buf",
+						  inst, ro_buf);
 				ro_buf->attach = vbuf->attach;
 				vbuf->attach = NULL;
 				goto exit;
@@ -210,7 +211,8 @@ void msm_vb2_unmap_dmabuf(void *buf_priv)
 	if (is_decode_session(inst) && is_output_buffer(vbuf->type)) {
 		list_for_each_entry_safe(ro_buf, dummy, &inst->buffers.read_only.list, list) {
 			if (ro_buf->dmabuf == vbuf->dmabuf) {
-				print_vidc_buffer(VIDC_LOW, "low ", "unmap: found ro buf", inst, ro_buf);
+				print_vidc_buffer(VIDC_LOW, "low ", "unmap: found ro buf",
+						  inst, ro_buf);
 				ro_buf->sg_table = vbuf->sg_table;
 				ro_buf->attach = vbuf->attach;
 				vbuf->sg_table = NULL;

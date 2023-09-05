@@ -1203,14 +1203,17 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			frame_width_coded, codec_standard); \
 		mbs_in_one_tile = (tile_size * frame_height_coded) / (lcu_size * lcu_size); \
 		slice_count_per_tile = \
-			(mbs_in_one_tile + multi_slice_max_mb_count - 1) / (multi_slice_max_mb_count); \
+			(mbs_in_one_tile + multi_slice_max_mb_count - 1) / \
+			(multi_slice_max_mb_count); \
 		if (last_tile_size) { \
 			mbs_in_last_tile = \
 				(last_tile_size * frame_height_coded) / (lcu_size * lcu_size); \
 			slice_count_in_last_tile = \
-				(mbs_in_last_tile + multi_slice_max_mb_count - 1) / (multi_slice_max_mb_count); \
+				(mbs_in_last_tile + multi_slice_max_mb_count - 1) / \
+				(multi_slice_max_mb_count); \
 			total_slice_count = \
-				(slice_count_per_tile * (tile_count - 1)) + slice_count_in_last_tile; \
+				(slice_count_per_tile * (tile_count - 1)) + \
+				slice_count_in_last_tile; \
 		} else { \
 			total_slice_count = (slice_count_per_tile * tile_count); \
 		} \
@@ -1219,10 +1222,11 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 #define SIZE_ROI_METADATA_ENC(size_roi, frame_width, frame_height, lcu_size)\
 	do { \
 		HFI_U32 width_in_lcus = 0, height_in_lcus = 0, n_shift = 0;    \
-		while (lcu_size && !(lcu_size & 0x1)) { \
+		HFI_U32 n_lcu_size = lcu_size;              \
+		while (n_lcu_size && !(n_lcu_size & 0x1)) { \
 			n_shift++;                          \
-			lcu_size = lcu_size >> 1;          \
-		}                                      \
+			n_lcu_size = n_lcu_size >> 1;       \
+		}                                           \
 		width_in_lcus = (frame_width + (lcu_size - 1)) >> n_shift; \
 		height_in_lcus = (frame_height + (lcu_size - 1)) >> n_shift;  \
 		size_roi = (((width_in_lcus + 7) >> 3) << 3) * \

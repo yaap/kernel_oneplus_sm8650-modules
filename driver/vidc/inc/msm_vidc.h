@@ -30,11 +30,11 @@ int msm_vidc_reqbufs(struct msm_vidc_inst *inst, struct v4l2_requestbuffers *b);
 int msm_vidc_querybuf(struct msm_vidc_inst *inst, struct v4l2_buffer *b);
 int msm_vidc_create_bufs(struct msm_vidc_inst *inst, struct v4l2_create_buffers *b);
 int msm_vidc_prepare_buf(struct msm_vidc_inst *inst, struct media_device *mdev,
-	struct v4l2_buffer *b);
+			 struct v4l2_buffer *b);
 int msm_vidc_release_buffer(struct msm_vidc_inst *inst, int buffer_type,
-		unsigned int buffer_index);
+			    unsigned int buffer_index);
 int msm_vidc_qbuf(struct msm_vidc_inst *inst, struct media_device *mdev,
-		struct v4l2_buffer *b);
+		  struct v4l2_buffer *b);
 int msm_vidc_dqbuf(struct msm_vidc_inst *inst, struct v4l2_buffer *b);
 int msm_vidc_streamon(struct msm_vidc_inst *inst, enum v4l2_buf_type i);
 int msm_vidc_query_ctrl(struct msm_vidc_inst *inst, struct v4l2_queryctrl *ctrl);
@@ -44,11 +44,11 @@ int msm_vidc_try_cmd(struct msm_vidc_inst *inst, union msm_v4l2_cmd *cmd);
 int msm_vidc_start_cmd(struct msm_vidc_inst *inst);
 int msm_vidc_stop_cmd(struct msm_vidc_inst *inst);
 int msm_vidc_poll(struct msm_vidc_inst *inst, struct file *filp,
-		struct poll_table_struct *pt);
+		  struct poll_table_struct *pt);
 int msm_vidc_subscribe_event(struct msm_vidc_inst *inst,
-		const struct v4l2_event_subscription *sub);
+			     const struct v4l2_event_subscription *sub);
 int msm_vidc_unsubscribe_event(struct msm_vidc_inst *inst,
-		const struct v4l2_event_subscription *sub);
+			       const struct v4l2_event_subscription *sub);
 int msm_vidc_dqevent(struct msm_vidc_inst *inst, struct v4l2_event *event);
 int msm_vidc_g_crop(struct msm_vidc_inst *inst, struct v4l2_crop *a);
 int msm_vidc_enum_framesizes(struct msm_vidc_inst *inst, struct v4l2_frmsizeenum *fsize);

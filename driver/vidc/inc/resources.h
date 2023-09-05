@@ -258,13 +258,13 @@ struct msm_vidc_resources_ops {
 
 	int (*reset_bridge)(struct msm_vidc_core *core);
 	int (*reset_control_acquire)(struct msm_vidc_core *core,
-			const char *name);
+				     const char *name);
 	int (*reset_control_release)(struct msm_vidc_core *core,
-			const char *name);
+				     const char *name);
 	int (*reset_control_assert)(struct msm_vidc_core *core,
-			const char *name);
+				    const char *name);
 	int (*reset_control_deassert)(struct msm_vidc_core *core,
-			const char *name);
+				      const char *name);
 
 	int (*gdsc_init)(struct msm_vidc_core *core);
 	int (*gdsc_on)(struct msm_vidc_core *core, const char *name);
@@ -280,11 +280,12 @@ struct msm_vidc_resources_ops {
 	int (*clk_disable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_enable)(struct msm_vidc_core *core, const char *name);
 	int (*clk_set_flag)(struct msm_vidc_core *core,
-		const char *name, enum msm_vidc_branch_mem_flags flag);
+			    const char *name,
+			    enum msm_vidc_branch_mem_flags flag);
 	int (*clk_print_residency_stats)(struct msm_vidc_core *core);
 	int (*clk_reset_residency_stats)(struct msm_vidc_core *core);
-	int (*clk_update_residency_stats)(
-		struct msm_vidc_core *core,struct clock_info *cl, u64 rate);
+	int (*clk_update_residency_stats)(struct msm_vidc_core *core,
+					  struct clock_info *cl, u64 rate);
 };
 
 const struct msm_vidc_resources_ops *get_resources_ops(void);

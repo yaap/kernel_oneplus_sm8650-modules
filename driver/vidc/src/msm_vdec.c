@@ -89,7 +89,7 @@ exit:
 }
 
 static int msm_vdec_set_bitstream_resolution(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+					      enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 resolution;
@@ -97,16 +97,16 @@ static int msm_vdec_set_bitstream_resolution(struct msm_vidc_inst *inst,
 	resolution = inst->fmts[INPUT_PORT].fmt.pix_mp.width << 16 |
 		inst->fmts[INPUT_PORT].fmt.pix_mp.height;
 	i_vpr_h(inst, "%s: width: %d height: %d\n", __func__,
-			inst->fmts[INPUT_PORT].fmt.pix_mp.width,
-			inst->fmts[INPUT_PORT].fmt.pix_mp.height);
+		inst->fmts[INPUT_PORT].fmt.pix_mp.width,
+		inst->fmts[INPUT_PORT].fmt.pix_mp.height);
 	inst->subcr_params[port].bitstream_resolution = resolution;
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_BITSTREAM_RESOLUTION,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32,
-			&resolution,
-			sizeof(u32));
+					HFI_PROP_BITSTREAM_RESOLUTION,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32,
+					&resolution,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -123,7 +123,8 @@ static int msm_vdec_set_linear_stride_scanline(struct msm_vidc_inst *inst)
 	enum msm_vidc_colorformat_type colorformat;
 
 	colorformat = v4l2_colorformat_to_driver(inst,
-		inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat, __func__);
+						 inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat,
+						 __func__);
 
 	if (!is_linear_yuv_colorformat(colorformat))
 		return 0;
@@ -139,12 +140,12 @@ static int msm_vdec_set_linear_stride_scanline(struct msm_vidc_inst *inst)
 		"stride_uv: %d, scanline_uv: %d", __func__,
 		stride_y, scanline_y, stride_uv, scanline_uv);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_LINEAR_STRIDE_SCANLINE,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, OUTPUT_PORT),
-			HFI_PAYLOAD_U64,
-			&payload,
-			sizeof(u64));
+					HFI_PROP_LINEAR_STRIDE_SCANLINE,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, OUTPUT_PORT),
+					HFI_PAYLOAD_U64,
+					&payload,
+					sizeof(u64));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -197,12 +198,12 @@ static int msm_vdec_set_ubwc_stride_scanline(struct msm_vidc_inst *inst)
 		meta_stride_y, meta_scanline_y,
 		meta_stride_uv, meta_scanline_uv);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_UBWC_STRIDE_SCANLINE,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, OUTPUT_PORT),
-			HFI_PAYLOAD_U32_ARRAY,
-			&payload[0],
-			sizeof(u32) * 4);
+					HFI_PROP_UBWC_STRIDE_SCANLINE,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, OUTPUT_PORT),
+					HFI_PAYLOAD_U32_ARRAY,
+					&payload[0],
+					sizeof(u32) * 4);
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -212,7 +213,7 @@ static int msm_vdec_set_ubwc_stride_scanline(struct msm_vidc_inst *inst)
 }
 
 static int msm_vdec_set_crop_offsets(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+				      enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 left_offset, top_offset, right_offset, bottom_offset;
@@ -233,12 +234,12 @@ static int msm_vdec_set_crop_offsets(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].crop_offsets[0] = payload[0];
 	inst->subcr_params[port].crop_offsets[1] = payload[1];
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_CROP_OFFSETS,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_64_PACKED,
-			&payload,
-			sizeof(u64));
+					HFI_PROP_CROP_OFFSETS,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_64_PACKED,
+					&payload,
+					sizeof(u64));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -248,7 +249,7 @@ static int msm_vdec_set_crop_offsets(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_bit_depth(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+				   enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 pix_fmt;
@@ -269,12 +270,12 @@ static int msm_vdec_set_bit_depth(struct msm_vidc_inst *inst,
 	msm_vidc_update_cap_value(inst, BIT_DEPTH, bitdepth, __func__);
 	i_vpr_h(inst, "%s: bit depth: %#x", __func__, bitdepth);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32,
-			&bitdepth,
-			sizeof(u32));
+					HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32,
+					&bitdepth,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -282,6 +283,7 @@ static int msm_vdec_set_bit_depth(struct msm_vidc_inst *inst,
 
 	return rc;
 }
+
 //todo: enable when needed
 /*
 static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,
@@ -312,7 +314,7 @@ static int msm_vdec_set_cabac(struct msm_vidc_inst *inst,
 }
  */
 static int msm_vdec_set_coded_frames(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+				      enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 coded_frames = 0;
@@ -328,12 +330,12 @@ static int msm_vdec_set_coded_frames(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].coded_frames = coded_frames;
 	i_vpr_h(inst, "%s: coded frames: %d", __func__, coded_frames);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_CODED_FRAMES,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32,
-			&coded_frames,
-			sizeof(u32));
+					HFI_PROP_CODED_FRAMES,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32,
+					&coded_frames,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -400,7 +402,7 @@ static int msm_vdec_set_picture_order_count(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_max_num_reorder_frames(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+						enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 reorder_frames = 0;
@@ -413,12 +415,12 @@ static int msm_vdec_set_max_num_reorder_frames(struct msm_vidc_inst *inst,
 	reorder_frames = inst->subcr_params[port].max_num_reorder_frames;
 	i_vpr_h(inst, "%s: max reorder frames count: %d", __func__, reorder_frames);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_MAX_NUM_REORDER_FRAMES,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32,
-			&reorder_frames,
-			sizeof(u32));
+					HFI_PROP_MAX_NUM_REORDER_FRAMES,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32,
+					&reorder_frames,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -428,7 +430,7 @@ static int msm_vdec_set_max_num_reorder_frames(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_colorspace(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+				    enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 primaries = MSM_VIDC_PRIMARIES_RESERVED;
@@ -479,12 +481,12 @@ static int msm_vdec_set_colorspace(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].color_info = color_info;
 	i_vpr_h(inst, "%s: color info: %#x\n", __func__, color_info);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_SIGNAL_COLOR_INFO,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_32_PACKED,
-			&color_info,
-			sizeof(u32));
+					HFI_PROP_SIGNAL_COLOR_INFO,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_32_PACKED,
+					&color_info,
+						sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -494,7 +496,7 @@ static int msm_vdec_set_colorspace(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_profile(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+				 enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 profile;
@@ -508,12 +510,12 @@ static int msm_vdec_set_profile(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].profile = profile;
 	i_vpr_h(inst, "%s: profile: %d", __func__, profile);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_PROFILE,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32_ENUM,
-			&profile,
-			sizeof(u32));
+					HFI_PROP_PROFILE,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32_ENUM,
+					&profile,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -523,7 +525,7 @@ static int msm_vdec_set_profile(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_level(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+			       enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 level;
@@ -537,12 +539,12 @@ static int msm_vdec_set_level(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].level = level;
 	i_vpr_h(inst, "%s: level: %d", __func__, level);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_LEVEL,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32_ENUM,
-			&level,
-			sizeof(u32));
+					HFI_PROP_LEVEL,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32_ENUM,
+					&level,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -566,12 +568,12 @@ static int msm_vdec_set_tier(struct msm_vidc_inst *inst,
 	inst->subcr_params[port].tier = tier;
 	i_vpr_h(inst, "%s: tier: %d", __func__, tier);
 	rc = venus_hfi_session_property(inst,
-			HFI_PROP_TIER,
-			HFI_HOST_FLAGS_NONE,
-			get_hfi_port(inst, port),
-			HFI_PAYLOAD_U32_ENUM,
-			&tier,
-			sizeof(u32));
+					HFI_PROP_TIER,
+					HFI_HOST_FLAGS_NONE,
+					get_hfi_port(inst, port),
+					HFI_PAYLOAD_U32_ENUM,
+					&tier,
+					sizeof(u32));
 	if (rc) {
 		i_vpr_e(inst, "%s: set property failed\n", __func__);
 		return rc;
@@ -581,7 +583,7 @@ static int msm_vdec_set_tier(struct msm_vidc_inst *inst,
 }
 
 static int msm_vdec_set_av1_film_grain_present(struct msm_vidc_inst *inst,
-	enum msm_vidc_port_type port)
+						enum msm_vidc_port_type port)
 {
 	int rc = 0;
 	u32 fg_present;

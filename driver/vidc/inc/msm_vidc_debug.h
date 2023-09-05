@@ -76,6 +76,7 @@ enum vidc_msg_prio_drv {
 	VIDC_PRINTK     = 0x10000000,
 	VIDC_FTRACE     = 0x20000000,
 };
+
 enum vidc_msg_prio_fw {
 	FW_LOW          = 0x00000001,
 	FW_MED          = 0x00000002,
@@ -186,10 +187,10 @@ enum msm_vidc_bug_on_error {
 struct dentry *msm_vidc_debugfs_init_drv(void);
 struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core);
 struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
-		struct dentry *parent);
+					  struct dentry *parent);
 void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst);
 void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
-		enum msm_vidc_debugfs_event e);
+			     enum msm_vidc_debugfs_event e);
 int msm_vidc_check_ratelimit(void);
 void msm_vidc_show_stats(struct msm_vidc_inst *inst);
 

@@ -21,11 +21,11 @@ struct msm_vidc_fence_ops {
 	int (*fence_deregister)(struct msm_vidc_core *core);
 	struct msm_vidc_fence *(*fence_create)(struct msm_vidc_inst *inst);
 	int (*fence_create_fd)(struct msm_vidc_inst *inst,
-		struct msm_vidc_fence *fence);
+			       struct msm_vidc_fence *fence);
 	void (*fence_destroy)(struct msm_vidc_inst *inst,
-		u64 fence_id);
+			      u64 fence_id);
 	int (*fence_signal)(struct msm_vidc_inst *inst,
-		u64 fence_id);
+			    u64 fence_id);
 	void (*fence_recover)(struct msm_vidc_core *core);
 };
 

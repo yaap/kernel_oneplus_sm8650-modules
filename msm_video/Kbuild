@@ -16,6 +16,7 @@ endif
 
 ifeq ($(CONFIG_MSM_VIDC_PINEAPPLE), y)
 LINUXINCLUDE   += -I$(VIDEO_DRIVER_ABS_PATH)/platform/pineapple/inc \
+                  -I$(VIDEO_DRIVER_ABS_PATH)/platform/cliffs/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/variant/iris33/inc
 endif
 ifeq ($(CONFIG_MSM_VIDC_KALAMA), y)
@@ -37,6 +38,7 @@ obj-m += msm_video.o
 
 ifeq ($(CONFIG_MSM_VIDC_PINEAPPLE), y)
 msm_video-objs += $(VIDEO_DRIVER_REL_PATH)/platform/pineapple/src/msm_vidc_pineapple.o \
+                  $(VIDEO_DRIVER_REL_PATH)/platform/cliffs/src/msm_vidc_cliffs.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_buffer_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_power_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_bus_iris33.o \

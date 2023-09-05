@@ -42,6 +42,7 @@ enum v4l2_mpeg_vidc_blur_types {
 	VIDC_BLUR_EXTERNAL           = 0x1,
 	VIDC_BLUR_ADAPTIVE           = 0x2,
 };
+
 /* (blur width) << 16 | (blur height) */
 #define V4L2_CID_MPEG_VIDC_VIDEO_BLUR_RESOLUTION                              \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x11)
@@ -163,6 +164,7 @@ enum v4l2_mpeg_vidc_av1_tier {
 	V4L2_MPEG_VIDC_AV1_TIER_MAIN  = 0,
 	V4L2_MPEG_VIDC_AV1_TIER_HIGH  = 1,
 };
+
 /* Decoder Timestamp Reorder control */
 #define V4L2_CID_MPEG_VIDC_TS_REORDER           (V4L2_CID_MPEG_VIDC_BASE + 0x34)
 /* AV1 Decoder Film Grain */
@@ -258,9 +260,9 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_set_ir_period(void *instance,
-	enum msm_vidc_inst_capability_type cap_id);
+			   enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_set_signal_color_info(void *instance,
-	enum msm_vidc_inst_capability_type cap_id);
+				   enum msm_vidc_inst_capability_type cap_id);
 int msm_vidc_adjust_csc(void *instance, struct v4l2_ctrl *ctrl);
 
 #endif
