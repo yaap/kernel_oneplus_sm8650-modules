@@ -2906,6 +2906,7 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.fwname = "vpu33_4v",
 	.pas_id = 9,
 	.supports_mmrm = 1,
+	.vpu_ver = VPU_VERSION_IRIS33,
 
 	/* caps related resorces */
 	.core_data = core_data_pineapple,
