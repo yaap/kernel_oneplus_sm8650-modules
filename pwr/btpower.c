@@ -218,6 +218,12 @@ static struct bt_power bt_vreg_info_kiwi = {
 	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
 };
 
+static struct bt_power bt_vreg_info_kiwi_no_share_ant_power = {
+	.compatible = "qcom,kiwi-no-share-ant-power",
+	.vregs = bt_vregs_info_kiwi,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
+};
+
 static struct bt_power bt_vreg_info_converged = {
 	.compatible = "qcom,bt-qca-converged",
 	.vregs = bt_vregs_info_kiwi,
@@ -236,6 +242,8 @@ static const struct of_device_id bt_power_match_table[] = {
 	{	.compatible = "qcom,qca6390", .data = &bt_vreg_info_qca6390},
 	{	.compatible = "qcom,qca6490", .data = &bt_vreg_info_qca6490},
 	{	.compatible = "qcom,kiwi",    .data = &bt_vreg_info_kiwi},
+	{	.compatible = "qcom,kiwi-no-share-ant-power",
+			.data = &bt_vreg_info_kiwi_no_share_ant_power},
 	{	.compatible = "qcom,wcn6750-bt", .data = &bt_vreg_info_wcn6750},
 	{	.compatible = "qcom,bt-qca-converged", .data = &bt_vreg_info_converged},
 	{},
