@@ -3036,6 +3036,10 @@ static int syna_tcm_suspend(struct device *dev)
 		}
 	}
 
+#ifndef WAKEUP_GESTURE
+	tcm_hcd->enable_irq(tcm_hcd, false, true);
+#endif
+
 	retval = syna_tcm_enable_regulator(tcm_hcd, false);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
