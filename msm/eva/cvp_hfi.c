@@ -1166,7 +1166,7 @@ static const char boot_states[0x40][32] = {
 static inline int __boot_firmware(struct iris_hfi_device *device)
 {
 	int rc = 0, loop = 10;
-	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 500;
+	u32 ctrl_init_val = 0, ctrl_status = 0, count = 0, max_tries = 5000;
 	u32 reg_gdsc;
 
 	/*
@@ -1206,8 +1206,8 @@ skip_core_power_check:
 			break;
 		}
 
-		/* Reduce to 500, 1000 on silicon */
-		usleep_range(500, 1000);
+		/* Reduce to 50, 100 on silicon */
+		usleep_range(50, 100);
 		count++;
 	}
 
@@ -4392,7 +4392,7 @@ static int __power_on_controller(struct iris_hfi_device *device)
 	if (rc)
 		dprintk(CVP_ERR, "%s: assert cvp_core_reset failed\n", __func__);
 	/* wait for deassert */
-	usleep_range(1000, 1050);
+	usleep_range(300, 400);
 
 	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_axi_reset");
 	if (rc)
