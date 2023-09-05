@@ -11,8 +11,8 @@
 #define IPA_ID (0xd26+209-0xdf6)
 #define RMNET_CORE_ID (0xd1f+216-0xdf5)
 #define POOL_LEN (0xd11+230-0xdf3)
-#define MAX_STATIC_POOL (0xcc7+5761-0x221c)
-#define MAX_POOL_O3 (0xbb7+4453-0x1c3c)
+#define MAX_STATIC_POOL (0xc07+1233-0xe1c)
+#define MAX_POOL_O3 (0xbb7+1296-0xe24)
 #define MAX_POOL_O2 (0xbb7+4453-0x1c3c)
 void rmnet_mem_adjust(unsigned perm_size,u8 order);
 #define rm_err(DATARMNET6c3cf5865b, ...)  \

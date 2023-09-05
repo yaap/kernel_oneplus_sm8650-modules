@@ -1,3 +1,4 @@
+ifeq ($(TARGET_DATARMNET_EXT_ENABLE), true)
 ifneq ($(TARGET_BOARD_AUTO),true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
@@ -40,3 +41,4 @@ include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif #End of check for target
 endif #End of Check for qssi target
 endif #End of check for AUTO Target
+endif #End of Check for datarmnet
