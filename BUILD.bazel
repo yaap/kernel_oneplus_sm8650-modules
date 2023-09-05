@@ -68,7 +68,7 @@ ddk_headers(
     hdrs = glob([
         "smmu-proxy/*.h",
         "smmu-proxy/linux/*.h",
-        "smmu-proxy/uapi/linux/*.h"
+        "smmu-proxy/include/uapi/linux/*.h"
     ]),
     includes = [".", "smmu-proxy"],
 )
