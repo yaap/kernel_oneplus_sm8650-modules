@@ -14,7 +14,6 @@
 #include <linux/power_supply.h>
 #if IS_ENABLED(CONFIG_MSM_QMP)
 #include <linux/mailbox/qmp.h>
-#include <linux/soc/qcom/qcom_aoss.h>
 #endif
 #ifdef CONFIG_CNSS_OUT_OF_TREE
 #include "icnss2.h"

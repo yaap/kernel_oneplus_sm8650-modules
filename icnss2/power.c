@@ -13,6 +13,9 @@
 #include "qmi.h"
 #include "debug.h"
 #include "power.h"
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/soc/qcom/qcom_aoss.h>
+#endif
 
 static struct icnss_vreg_cfg icnss_wcn6750_vreg_list[] = {
 	{"vdd-cx-mx", 824000, 952000, 0, 0, 0, false, true},
