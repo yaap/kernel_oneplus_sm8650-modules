@@ -43,6 +43,7 @@
 #include "adsprpc_shared.h"
 #include <soc/qcom/qcom_ramdump.h>
 #include <soc/qcom/minidump.h>
+#include <soc/qcom/secure_buffer.h>
 #include <linux/delay.h>
 #include <linux/debugfs.h>
 #include <linux/pm_qos.h>
@@ -1159,6 +1160,77 @@ bail:
 	return err;
 }
 
+static int get_buffer_attr(struct dma_buf *buf, bool *exclusive_access, bool *hlos_access)
+{
+	const int *vmids_list = NULL, *perms = NULL;
+	int err = 0, vmids_list_len = 0;
+
+	*exclusive_access = false;
+	*hlos_access = false;
+	err = mem_buf_dma_buf_get_vmperm(buf, &vmids_list, &perms, &vmids_list_len);
+	if (err)
+		goto bail;
+
+	/*
+	 * If one VM has access to buffer and is the current VM,
+	 * then VM has exclusive access to buffer
+	 */
+	if (vmids_list_len == 1 && vmids_list[0] == mem_buf_current_vmid())
+		*exclusive_access = true;
+
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+	/*
+	 * PVM (HLOS) can share buffers with TVM. In that case,
+	 * it is expected to relinquish its ownership to those buffers
+	 * before sharing. But if the PVM still retains access, then
+	 * these buffers cannot be used by TVM.
+	 */
+
+	for (int ii = 0; ii < vmids_list_len; ii++) {
+		if (vmids_list[ii] == VMID_HLOS) {
+			*hlos_access = true;
+			break;
+		}
+	}
+#endif
+
+bail:
+	return err;
+}
+
+static int set_buffer_secure_type(struct fastrpc_mmap *map)
+{
+	int err = 0;
+	bool hlos_access = false, exclusive_access = false;
+
+	VERIFY(err, 0 == (err = get_buffer_attr(map->buf, &exclusive_access, &hlos_access)));
+	if (err) {
+		ADSPRPC_ERR("failed to obtain buffer attributes for fd %d ret %d\n", map->fd, err);
+		err = -EBADFD;
+		goto bail;
+	}
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+	if (hlos_access) {
+		ADSPRPC_ERR("Sharing HLOS buffer (fd %d) not allowed on TVM\n", map->fd);
+		err = -EACCES;
+		goto bail;
+	}
+#endif
+	/*
+	 * Secure buffers would always be owned by multiple VMs.
+	 * If current VM is the exclusive owner of a buffer, it is considered non-secure.
+	 * In PVM:
+	 *	- CPZ buffers are secure
+	 *	- All other buffers are non-secure
+	 * In TVM:
+	 *	- Since it is a secure environment by default, there are no explicit "secure" buffers
+	 *	- All buffers are marked "non-secure"
+	 */
+	map->secure = (exclusive_access) ? 0 : 1;
+bail:
+	return err;
+}
+
 static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *buf,
 	unsigned int attr, uintptr_t va, size_t len, int mflags,
 	struct fastrpc_mmap **ppmap)
@@ -1224,10 +1296,10 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 			err = -EBADFD;
 			goto bail;
 		}
+		err = set_buffer_secure_type(map);
+		if (err)
+			goto bail;
 
-#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
-		map->secure = (mem_buf_dma_buf_exclusive_owner(map->buf)) ? 0 : 1;
-#endif
 		map->va = 0;
 		map->phys = 0;
 
@@ -1293,10 +1365,10 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				goto bail;
 			}
 		}
+		err = set_buffer_secure_type(map);
+		if (err)
+			goto bail;
 
-#if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
-		map->secure = (mem_buf_dma_buf_exclusive_owner(map->buf)) ? 0 : 1;
-#endif
 		if (map->secure) {
 			if (!fl->secsctx)
 				err = fastrpc_session_alloc_secure_memory(chan, 1,
@@ -2488,6 +2560,10 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 			err = -EFAULT;
 			goto bail;
 		}
+		if (templen > DEBUG_PRINT_SIZE_LIMIT)
+			ADSPRPC_WARN(
+				"user passed non ion buffer size %zu, mend 0x%llx mstart 0x%llx, sc 0x%x  handle 0x%x\n",
+				templen, mend, mstart, sc, ctx->handle);
 		copylen += templen;
 	}
 	totallen = ALIGN(totallen, BALIGN) + copylen;
@@ -3943,9 +4019,12 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	struct smq_phy_page pages[PAGESLEN_WITH_SHAREDBUF];
 	struct fastrpc_mmap *file = NULL;
 	struct fastrpc_buf *imem = NULL;
-	unsigned long imem_dma_attr = 0;
+	unsigned long imem_dma_attr = 0, irq_flags = 0;
 	remote_arg_t ra[6];
 	int fds[6];
+	struct fastrpc_apps *me = &gfa;
+	struct hlist_node *n = NULL;
+	struct fastrpc_file *fl_curr = NULL;
 	unsigned int gid = 0, one_mb = 1024*1024;
 	unsigned int dsp_userpd_memlen = 0;
 	struct fastrpc_buf *init_mem;
@@ -3993,6 +4072,20 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	if (uproc->attrs & FASTRPC_MODE_UNSIGNED_MODULE)
 		fl->is_unsigned_pd = true;
 
+	/* Validate that any existing sessions of process are of same pd type */
+	spin_lock_irqsave(&me->hlock, irq_flags);
+	hlist_for_each_entry_safe(fl_curr, n, &me->drivers, hn) {
+		if ((fl != fl_curr) && (fl->tgid == fl_curr->tgid) && (fl->cid == fl_curr->cid)) {
+			err = (fl->is_unsigned_pd != fl_curr->is_unsigned_pd) ? -ECONNREFUSED : 0;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
+	if (err) {
+		ADSPRPC_ERR("existing session pd type %u not same as requested pd type %u \n",
+			fl_curr->is_unsigned_pd, fl->is_unsigned_pd);
+		goto bail;
+	}
 	/* Check if file memory passed by userspace is valid */
 	VERIFY(err, access_ok((void __user *)init->file, init->filelen));
 	if (err)
@@ -5652,6 +5745,7 @@ static void handle_remote_signal(uint64_t msg, int cid)
 				    (sig->state == DSPSIGNAL_STATE_SIGNALED)) {
 					DSPSIGNAL_VERBOSE("Signaling signal %u for PID %u\n",
 							  signal_id, pid);
+					trace_fastrpc_dspsignal("complete", signal_id, sig->state, 0);
 					complete(&sig->comp);
 					sig->state = DSPSIGNAL_STATE_SIGNALED;
 				} else if (sig->state == DSPSIGNAL_STATE_UNUSED) {
@@ -5682,7 +5776,7 @@ int fastrpc_handle_rpc_response(void *data, int len, int cid)
 	struct fastrpc_channel_ctx *chan = NULL;
 	unsigned long irq_flags = 0;
 	int64_t ns = 0;
-	uint64_t xo_time_in_us = 0;
+	uint64_t xo_time_in_us = 0, dspsig_msg = 0;
 
 	xo_time_in_us = CONVERT_CNT_TO_US(__arch_counter_get_cntvct());
 
@@ -5690,7 +5784,9 @@ int fastrpc_handle_rpc_response(void *data, int len, int cid)
 		/*
 		 * dspsignal message from the DSP
 		 */
-		handle_remote_signal(*((uint64_t *)data), cid);
+		dspsig_msg = *((uint64_t *)data);
+		trace_fastrpc_transport_response(cid, dspsig_msg, 0, 0, 0);
+		handle_remote_signal(dspsig_msg, cid);
 		goto bail;
 	}
 
@@ -6762,12 +6858,6 @@ int fastrpc_setmode(unsigned long ioctl_param,
 		fl->profile = (uint32_t)ioctl_param;
 		break;
 	case FASTRPC_MODE_SESSION:
-		if (fl->untrusted_process) {
-			err = -EPERM;
-			ADSPRPC_ERR(
-				"multiple sessions not allowed for untrusted apps\n");
-			goto bail;
-		}
 		if (!fl->multi_session_support)
 			fl->sessionid = 1;
 		break;
@@ -6775,7 +6865,6 @@ int fastrpc_setmode(unsigned long ioctl_param,
 		err = -ENOTTY;
 		break;
 	}
-bail:
 	return err;
 }
 
@@ -6870,7 +6959,7 @@ int fastrpc_dspsignal_signal(struct fastrpc_file *fl,
 	msg = (((uint64_t)fl->tgid_frpc) << 32) | ((uint64_t)sig->signal_id);
 	err = fastrpc_transport_send(cid, (void *)&msg, sizeof(msg), fl->tvm_remote_domain);
 	mutex_unlock(&channel_ctx->smd_mutex);
-
+	trace_fastrpc_dspsignal("signal", sig->signal_id, 0, 0);
 bail:
 	return err;
 }
@@ -6923,10 +7012,12 @@ int fastrpc_dspsignal_wait(struct fastrpc_file *fl,
 	}
 	spin_unlock_irqrestore(&fl->dspsignals_lock, irq_flags);
 
+	trace_fastrpc_dspsignal("wait", signal_id, s->state, wait->timeout_usec);
 	if (timeout != 0xffffffff)
 		ret = wait_for_completion_interruptible_timeout(&s->comp, timeout);
 	else
 		ret = wait_for_completion_interruptible(&s->comp);
+	trace_fastrpc_dspsignal("wakeup", signal_id, s->state, wait->timeout_usec);
 
 	if (ret == 0) {
 		DSPSIGNAL_VERBOSE("Wait for signal %u timed out\n", signal_id);
@@ -7114,6 +7205,7 @@ int fastrpc_dspsignal_cancel_wait(struct fastrpc_file *fl,
 
 	if (s->state != DSPSIGNAL_STATE_CANCELED) {
 		s->state = DSPSIGNAL_STATE_CANCELED;
+		trace_fastrpc_dspsignal("cancel", signal_id, s->state, 0);
 		complete_all(&s->comp);
 	}
 
@@ -8828,7 +8920,12 @@ static int __init fastrpc_device_init(void)
 	VERIFY(err, !IS_ERR(me->class));
 	if (err)
 		goto class_create_bail;
+
+#if IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+	me->compat = 1;
+#else
 	me->compat = (fops.compat_ioctl == NULL) ? 0 : 1;
+#endif
 
 	/*
 	 * Create devices and register with sysfs
@@ -8866,29 +8963,33 @@ static int __init fastrpc_device_init(void)
 		if (i == CDSP_DOMAIN_ID) {
 			me->channel[i].dev = me->non_secure_dev;
 #if !IS_ENABLED(CONFIG_MSM_ADSPRPC_TRUSTED)
+			/*
+			 * Allocate CMA memory for mini dump.
+			 * Ignore error as CMA node may not be available on all targets.
+			 */
 			err = fastrpc_alloc_cma_memory(&region_phys,
 								&region_vaddr,
 								MINI_DUMP_DBG_SIZE,
 								(unsigned long)attr);
 #endif
-			if (err)
-				ADSPRPC_WARN("%s: CMA alloc failed  err 0x%x\n",
-						__func__, err);
+			if (err) {
+				ADSPRPC_WARN("CMA alloc failed err 0x%x\n", err);
+				err = 0;
+			}
 			VERIFY(err, NULL != (buf = kzalloc(sizeof(*buf), GFP_KERNEL)));
 			if (err) {
 				err = -ENOMEM;
-				ADSPRPC_ERR("%s: CMA alloc failed  err 0x%x\n",
-							__func__, err);
-				goto device_create_bail;
+				ADSPRPC_WARN("kzalloc failed err 0x%x\n", err);
+				err = 0;
+			} else {
+				INIT_HLIST_NODE(&buf->hn);
+				buf->virt = region_vaddr;
+				buf->phys = (uintptr_t)region_phys;
+				buf->size = MINI_DUMP_DBG_SIZE;
+				buf->dma_attr = attr;
+				buf->raddr = 0;
+				me->channel[i].buf = buf;
 			}
-			INIT_HLIST_NODE(&buf->hn);
-			buf->virt = region_vaddr;
-			buf->phys = (uintptr_t)region_phys;
-			buf->size = MINI_DUMP_DBG_SIZE;
-			buf->dma_attr = attr;
-			buf->raddr = 0;
-			ktime_get_real_ts64(&buf->buf_start_time);
-			me->channel[i].buf = buf;
 		}
 		if (IS_ERR_OR_NULL(me->channel[i].handle))
 			pr_warn("adsprpc: %s: SSR notifier register failed for %s with err %d\n",
