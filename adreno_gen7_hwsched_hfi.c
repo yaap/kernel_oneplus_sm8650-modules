@@ -1809,6 +1809,7 @@ static int send_start_msg(struct adreno_device *adreno_dev)
 				"Timed out processing MSG_START seqnum: %d\n",
 				seqnum);
 			gmu_core_fault_snapshot(device);
+			BUG_ON(1);
 			return rc;
 		}
 
@@ -1852,9 +1853,18 @@ static int send_start_msg(struct adreno_device *adreno_dev)
 			if (rc)
 				return rc;
 
-			/* Clear the interrupt before checking the queue again */
-			gmu_core_regwrite(device, GEN7_GMU_GMU2HOST_INTR_CLR, HFI_IRQ_MSGQ_MASK);
 			read_size = gen7_hfi_queue_read(gmu, HFI_MSG_ID, rcvd, sizeof(rcvd));
+			/* Clear the interrupt if we have read from the queue again */
+			if (read_size > 0) {
+				gmu_core_regwrite(device, GEN7_GMU_GMU2HOST_INTR_CLR,
+							HFI_IRQ_MSGQ_MASK);
+				/*
+				 * Make sure GMU2HOST_INTR_INFO reg accesses occur after previous
+				 * regwrite is posted
+				 */
+				mb();
+			}
+
 		}
 	}
 }
