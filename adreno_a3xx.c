@@ -1331,31 +1331,6 @@ static void a3xx_microcode_load(struct adreno_device *adreno_dev)
 		&adreno_dev->fw[ADRENO_FW_PFP].fwvirt[1], pfp_size - 1);
 }
 
-#if IS_ENABLED(CONFIG_COMMON_CLK_QCOM)
-static void a3xx_clk_set_options(struct adreno_device *adreno_dev,
-	const char *name, struct clk *clk, bool on)
-{
-	if (!clk || !adreno_is_a306a(adreno_dev))
-		return;
-
-	/* Handle clock settings for GFX PSCBCs */
-	if (on) {
-		if (!strcmp(name, "mem_iface_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_MEM);
-		} else if (!strcmp(name, "core_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_RETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_RETAIN_MEM);
-		}
-	} else {
-		if (!strcmp(name, "core_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_MEM);
-		}
-	}
-}
-#endif
-
 static u64 a3xx_read_alwayson(struct adreno_device *adreno_dev)
 {
 	/* A3XX does not have a always on timer */
@@ -1508,9 +1483,6 @@ const struct adreno_gpudev adreno_a3xx_gpudev = {
 	.init = a3xx_init,
 	.start = a3xx_start,
 	.snapshot = a3xx_snapshot,
-#if IS_ENABLED(CONFIG_COMMON_CLK_QCOM)
-	.clk_set_options = a3xx_clk_set_options,
-#endif
 	.read_alwayson = a3xx_read_alwayson,
 	.hw_isidle = a3xx_hw_isidle,
 	.power_ops = &adreno_power_operations,

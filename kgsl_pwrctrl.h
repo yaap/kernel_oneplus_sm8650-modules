@@ -20,7 +20,6 @@
 #define KGSL_PWRFLAGS_CLK_ON   1
 #define KGSL_PWRFLAGS_AXI_ON   2
 #define KGSL_PWRFLAGS_IRQ_ON   3
-#define KGSL_PWRFLAGS_NAP_OFF  5
 
 /* Use to enable all the force power on states at once */
 #define KGSL_PWR_ON GENMASK(5, 0)
@@ -158,10 +157,6 @@ struct kgsl_pwrctrl {
 	struct icc_path *icc_path;
 	/** cur_ab: The last ab voted by the driver */
 	u32 cur_ab;
-	/** @minbw_timer - Timer struct for entering minimum bandwidth state */
-	struct timer_list minbw_timer;
-	/** @minbw_timeout - Timeout for entering minimum bandwidth state */
-	u32 minbw_timeout;
 	/** @sysfs_thermal_req - PM QoS maximum frequency request from user (via sysfs) */
 	struct dev_pm_qos_request sysfs_thermal_req;
 	/** @time_in_pwrlevel: Each pwrlevel active duration in usec */

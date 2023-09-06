@@ -2061,31 +2061,6 @@ update:
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_COMMON_CLK_QCOM)
-static void a6xx_clk_set_options(struct adreno_device *adreno_dev,
-	const char *name, struct clk *clk, bool on)
-{
-	if (!clk)
-		return;
-
-	/* Handle clock settings for GFX PSCBCs */
-	if (on) {
-		if (!strcmp(name, "mem_iface_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_MEM);
-		} else if (!strcmp(name, "core_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_RETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_RETAIN_MEM);
-		}
-	} else {
-		if (!strcmp(name, "core_clk")) {
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_PERIPH);
-			qcom_clk_set_flags(clk, CLKFLAG_NORETAIN_MEM);
-		}
-	}
-}
-#endif
-
 u64 a6xx_read_alwayson(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
@@ -2344,9 +2319,6 @@ const struct adreno_gpudev adreno_a6xx_gpudev = {
 	.reset = a6xx_reset,
 	.preemption_schedule = a6xx_preemption_schedule,
 	.preemption_context_init = a6xx_preemption_context_init,
-#if IS_ENABLED(CONFIG_COMMON_CLK_QCOM)
-	.clk_set_options = a6xx_clk_set_options,
-#endif
 	.read_alwayson = a6xx_read_alwayson,
 	.power_ops = &adreno_power_operations,
 	.clear_pending_transactions = a6xx_clear_pending_transactions,
@@ -2455,9 +2427,6 @@ const struct adreno_gpudev adreno_a619_holi_gpudev = {
 	.reset = a6xx_reset,
 	.preemption_schedule = a6xx_preemption_schedule,
 	.preemption_context_init = a6xx_preemption_context_init,
-#if IS_ENABLED(CONFIG_COMMON_CLK_QCOM)
-	.clk_set_options = a6xx_clk_set_options,
-#endif
 	.read_alwayson = a6xx_read_alwayson,
 	.power_ops = &adreno_power_operations,
 	.clear_pending_transactions = a6xx_clear_pending_transactions,
