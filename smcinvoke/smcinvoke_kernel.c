@@ -254,7 +254,7 @@ static int invoke_over_smcinvoke(void *cxt,
 			struct smcinvoke_obj obj = argptr[i].o;
 
 			if (obj.fd >= 0) {
-				pr_err("Close OO[%zu].fd = %d\n", i, obj.fd);
+				pr_err("Close OO[%zu].fd = %lld\n", i, obj.fd);
 				close_fd(obj.fd);
 			}
 		}
@@ -383,7 +383,7 @@ static int __qseecom_start_app(struct qseecom_handle **handle,
 	int ret = 0;
 	struct qseecom_compat_context *cxt = NULL;
 
-	pr_warn("%s, start app %s, size %zu\n",
+	pr_warn("%s, start app %s, size %u\n",
 		__func__, app_name, size);
 	if (app_name == NULL || handle == NULL) {
 		pr_err("app_name is null or invalid handle\n");
@@ -478,7 +478,7 @@ static int __qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 		__func__, sbuf_len, rbuf_len);
 
 	if (!handle || !send_buf || !resp_buf || !sbuf_len || !rbuf_len) {
-		pr_err("One of params is invalid. %s, handle %x, send_buf %x,resp_buf %x,sbuf_len %u, rbuf_len %u\n",
+		pr_err("One of params is invalid. %s, handle %p, send_buf %p,resp_buf %p,sbuf_len %u, rbuf_len %u\n",
 			 __func__, handle, send_buf, resp_buf, sbuf_len, rbuf_len);
 		return -EINVAL;
 	}
