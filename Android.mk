@@ -28,7 +28,7 @@ LOCAL_PATH := vendor/qcom/opensource/audio-kernel
 endif
 
 # Build/Package only in case of supported target
-ifeq ($(call is-board-platform-in-list,taro kalama bengal pineapple cliffs pitti holi blair gen4 msmnile), true)
+ifeq ($(call is-board-platform-in-list,taro kalama bengal pineapple cliffs pitti holi blair gen4 msmnile niobe), true)
 
 # This makefile is only for DLKM
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
@@ -391,6 +391,8 @@ LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ########################### WCD939x CODEC  ################################
+
+ifneq ($(call is-board-platform-in-list, niobe),true)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
 LOCAL_MODULE              := wcd939x_dlkm.ko
@@ -408,6 +410,7 @@ LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif
 ###########################################################
 ifeq ($(AUDIO_DLKM_ENABLE), true)
 include $(CLEAR_VARS)
