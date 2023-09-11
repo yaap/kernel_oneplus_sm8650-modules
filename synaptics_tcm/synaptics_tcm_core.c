@@ -94,6 +94,8 @@
 
 #define HOST_DOWNLOAD_TIMEOUT_MS 1000
 
+/* #define CREATE_SYSFS */
+
 #define DYNAMIC_CONFIG_SYSFS_DIR_NAME "dynamic_config"
 
 #define dynamic_config_sysfs(c_name, id) \
@@ -3350,7 +3352,9 @@ err_pinctrl_get:
 static int syna_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
+#ifdef CREATE_SYSFS
 	int idx;
+#endif
 	struct syna_tcm_hcd *tcm_hcd;
 	const struct syna_tcm_board_data *bdata;
 	const struct syna_tcm_hw_interface *hw_if;
@@ -3489,6 +3493,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		}
 	}
 
+#ifdef CREATE_SYSFS
 	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
 			&pdev->dev.kobj);
 	if (!sysfs_dir) {
@@ -3529,6 +3534,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 			goto err_sysfs_create_dynamic_config_file;
 		}
 	}
+#endif
 
 #ifdef CONFIG_DRM
 	if (active_panel) {
@@ -3592,6 +3598,7 @@ err_create_run_kthread:
 	fb_unregister_client(&tcm_hcd->fb_notifier);
 #endif
 
+#ifdef CREATE_SYSFS
 err_sysfs_create_dynamic_config_file:
 	for (idx--; idx >= 0; idx--) {
 		sysfs_remove_file(tcm_hcd->dynamnic_config_sysfs_dir,
@@ -3619,6 +3626,7 @@ err_sysfs_create_dir:
 	if (bdata->reset_gpio >= 0)
 		syna_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
 
+#endif
 err_config_gpio:
 	syna_tcm_enable_regulator(tcm_hcd, false);
 
