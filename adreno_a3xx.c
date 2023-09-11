@@ -1318,17 +1318,20 @@ static void a3xx_microcode_load(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	size_t pm4_size = adreno_dev->fw[ADRENO_FW_PM4].size;
 	size_t pfp_size = adreno_dev->fw[ADRENO_FW_PFP].size;
+	int i;
 
 	/* load the CP ucode using AHB writes */
 	kgsl_regwrite(device, A3XX_CP_ME_RAM_WADDR, 0);
 
-	kgsl_regmap_bulk_write(&device->regmap, A3XX_CP_ME_RAM_DATA,
-		&adreno_dev->fw[ADRENO_FW_PM4].fwvirt[1], pm4_size - 1);
+	for (i = 1; i < pm4_size; i++)
+		kgsl_regwrite(device, A3XX_CP_ME_RAM_DATA,
+				adreno_dev->fw[ADRENO_FW_PM4].fwvirt[i]);
 
 	kgsl_regwrite(device, A3XX_CP_PFP_UCODE_ADDR, 0);
 
-	kgsl_regmap_bulk_write(&device->regmap, A3XX_CP_PFP_UCODE_DATA,
-		&adreno_dev->fw[ADRENO_FW_PFP].fwvirt[1], pfp_size - 1);
+	for (i = 1; i < pfp_size; i++)
+		kgsl_regwrite(device, A3XX_CP_PFP_UCODE_DATA,
+				adreno_dev->fw[ADRENO_FW_PFP].fwvirt[i]);
 }
 
 static u64 a3xx_read_alwayson(struct adreno_device *adreno_dev)
