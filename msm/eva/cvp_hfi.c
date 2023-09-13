@@ -868,12 +868,22 @@ static int __set_registers(struct iris_hfi_device *device)
 				pdata->noc_qos->dangerlut_low);
 	__write_register(device, CVP_NOC_RGE_SAFELUT_LOW,
 				pdata->noc_qos->safelut_low);
+	__write_register(device, CVP_NOC_GCE_PRIORITYLUT_LOW,
+				pdata->noc_qos->prioritylut_low);
+	__write_register(device, CVP_NOC_GCE_PRIORITYLUT_HIGH,
+				pdata->noc_qos->prioritylut_high);
+	__write_register(device, CVP_NOC_GCE_URGENCY_LOW,
+				pdata->noc_qos->urgency_low);
+	__write_register(device, CVP_NOC_GCE_DANGERLUT_LOW,
+				pdata->noc_qos->dangerlut_low);
+	__write_register(device, CVP_NOC_GCE_SAFELUT_LOW,
+				pdata->noc_qos->safelut_low);
 	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_LOW,
 				pdata->noc_qos->prioritylut_low);
 	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_HIGH,
 				pdata->noc_qos->prioritylut_high);
 	__write_register(device, CVP_NOC_CDM_URGENCY_LOW,
-				pdata->noc_qos->urgency_low);
+				pdata->noc_qos->urgency_low_ro);
 	__write_register(device, CVP_NOC_CDM_DANGERLUT_LOW,
 				pdata->noc_qos->dangerlut_low);
 	__write_register(device, CVP_NOC_CDM_SAFELUT_LOW,

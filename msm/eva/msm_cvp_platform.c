@@ -309,6 +309,16 @@ static struct msm_cvp_qos_setting waipio_noc_qos = {
 	.safelut_low = 0xffff,
 };
 
+static struct msm_cvp_qos_setting lanai_noc_qos = {
+	.axi_qos = 0x99,
+	.prioritylut_low = 0x33333333,
+	.prioritylut_high = 0x33333333,
+	.urgency_low = 0x1033,
+	.urgency_low_ro = 0x1003,
+	.dangerlut_low = 0x0,
+	.safelut_low = 0xffff,
+};
+
 static struct msm_cvp_platform_data default_data = {
 	.common_data = default_common_data,
 	.common_data_length =  ARRAY_SIZE(default_common_data),
@@ -355,7 +365,7 @@ static struct msm_cvp_platform_data sm8650_data = {
 	.sku_version = 0,
 	.vpu_ver = VPU_VERSION_5,
 	.ubwc_config = kona_ubwc_data,	/*Reuse Kona setting*/
-	.noc_qos = &waipio_noc_qos,	/*Reuse Waipio setting*/
+	.noc_qos = &lanai_noc_qos,
 	.vm_id = 1,
 };
 
