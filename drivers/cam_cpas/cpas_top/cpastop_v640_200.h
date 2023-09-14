@@ -547,6 +547,9 @@ static struct cam_camnoc_err_logger_info cam640_cpas200_err_logger_offsets = {
 };
 
 static struct cam_cpas_hw_errata_wa_list cam640_cpas200_errata_wa_list = {
+	.enable_icp_clk_for_qchannel = {
+		.enable = true,
+	},
 };
 
 static struct cam_camnoc_info cam640_cpas200_camnoc_info = {
