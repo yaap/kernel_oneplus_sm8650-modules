@@ -12,6 +12,11 @@ define_mem("blair", "gki")
 define_mem("monaco", "consolidate")
 
 define_mem("monaco", "gki")
+
+define_mem("pitti", "consolidate")
+
+define_mem("pitti", "gki")
+
 package(
 	default_visibility = [
 	"//visibility:public", ],

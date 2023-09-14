@@ -4,3 +4,7 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 define_sch("pineapple", "consolidate")
 
 define_sch("pineapple", "gki")
+
+define_sch("pitti", "consolidate")
+
+define_sch("pitti", "gki")

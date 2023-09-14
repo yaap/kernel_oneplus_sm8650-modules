@@ -4,3 +4,7 @@ load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 define_aps("pineapple", "consolidate")
 
 define_aps("pineapple", "gki")
+
+define_aps("pitti", "consolidate")
+
+define_aps("pitti", "gki")
