@@ -79,6 +79,19 @@
 #define HFI_FEATURE_DMS		27
 #define HFI_FEATURE_AQE		29
 
+/* Types to be used with H2F_MSG_TABLE */
+enum hfi_table_type {
+	HFI_TABLE_BW_VOTE	= 0,
+	HFI_TABLE_GPU_PERF	= 1,
+	HFI_TABLE_DIDT		= 2,
+	HFI_TABLE_ACD		= 3,
+	HFI_TABLE_CLX_V1	= 4,
+	HFI_TABLE_CLX_V2	= 5,
+	HFI_TABLE_THERM		= 6,
+	HFI_TABLE_DCVS_DATA	= 7,
+	HFI_TABLE_MAX,
+};
+
 /* A6xx uses a different value for KPROF */
 #define HFI_FEATURE_A6XX_KPROF	14
 
@@ -448,6 +461,7 @@ enum hfi_msg_type {
 	H2F_MSG_GET_VALUE		= 12,
 	H2F_MSG_SET_VALUE		= 13,
 	H2F_MSG_CORE_FW_START		= 14,
+	H2F_MSG_TABLE			= 15,
 	F2H_MSG_MEM_ALLOC		= 20,
 	H2F_MSG_GX_BW_PERF_VOTE		= 30,
 	H2F_MSG_FW_HALT			= 32,
@@ -515,7 +529,7 @@ struct hfi_bwtable_cmd {
 	u32 cnoc_cmd_addrs[MAX_CNOC_CMDS];
 	u32 cnoc_cmd_data[MAX_CNOC_LEVELS][MAX_CNOC_CMDS];
 	u32 ddr_cmd_addrs[MAX_BW_CMDS];
-	u32 ddr_cmd_data[MAX_GX_LEVELS][MAX_BW_CMDS];
+	u32 ddr_cmd_data[MAX_BW_LEVELS][MAX_BW_CMDS];
 } __packed;
 
 struct opp_gx_desc {
@@ -535,7 +549,7 @@ struct hfi_dcvstable_v1_cmd {
 	u32 hdr;
 	u32 gpu_level_num;
 	u32 gmu_level_num;
-	struct opp_desc gx_votes[MAX_GX_LEVELS];
+	struct opp_desc gx_votes[MAX_GX_LEVELS_LEGACY];
 	struct opp_desc cx_votes[MAX_CX_LEVELS];
 } __packed;
 
@@ -544,8 +558,22 @@ struct hfi_dcvstable_cmd {
 	u32 hdr;
 	u32 gpu_level_num;
 	u32 gmu_level_num;
-	struct opp_gx_desc gx_votes[MAX_GX_LEVELS];
+	struct opp_gx_desc gx_votes[MAX_GX_LEVELS_LEGACY];
 	struct opp_desc cx_votes[MAX_CX_LEVELS];
+} __packed;
+
+/* H2F */
+struct hfi_table_entry {
+	u32 count;
+	u32 stride;
+	u32 data[];
+} __packed;
+
+struct hfi_table_cmd {
+	u32 hdr;
+	u32 version;
+	u32 type;
+	struct hfi_table_entry entry[];
 } __packed;
 
 #define MAX_ACD_STRIDE 2

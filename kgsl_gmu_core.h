@@ -12,8 +12,10 @@
 /* GMU_DEVICE - Given an KGSL device return the GMU specific struct */
 #define GMU_DEVICE_OPS(_a) ((_a)->gmu_core.dev_ops)
 
-#define MAX_GX_LEVELS		16
+#define MAX_GX_LEVELS		32
+#define MAX_GX_LEVELS_LEGACY	16
 #define MAX_CX_LEVELS		4
+#define MAX_BW_LEVELS		16
 #define MAX_CNOC_LEVELS		2
 #define MAX_CNOC_CMDS		6
 #define MAX_BW_CMDS		8
@@ -98,6 +100,11 @@ enum gmu_pwrctrl_mode {
 #define GMU_MAX_PWRLEVELS	2
 #define GMU_FREQ_MIN   200000000
 #define GMU_FREQ_MAX   500000000
+
+#define HFI_VERSION(major, minor, step) \
+	(FIELD_PREP(GENMASK(31, 28), major) | \
+	 FIELD_PREP(GENMASK(27, 16), minor) | \
+	 FIELD_PREP(GENMASK(15, 0), step))
 
 #define GMU_VER_MAJOR(ver) (((ver) >> 28) & 0xF)
 #define GMU_VER_MINOR(ver) (((ver) >> 16) & 0xFFF)
