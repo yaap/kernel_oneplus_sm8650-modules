@@ -3651,7 +3651,7 @@ ccflags-$(CONFIG_CONNECTIVITY_PKTLOG) += -DCONNECTIVITY_PKTLOG
 
 ifeq ($(CONFIG_WLAN_NAPI), y)
 ccflags-y += -DFEATURE_NAPI
-ccflags-y += -DHIF_IRQ_AFFINITY
+#ccflags-y += -DHIF_IRQ_AFFINITY
 ifeq ($(CONFIG_WLAN_NAPI_DEBUG), y)
 ccflags-y += -DFEATURE_NAPI_DEBUG
 endif
