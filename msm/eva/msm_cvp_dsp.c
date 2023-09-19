@@ -1264,8 +1264,15 @@ void cvp_dsp_send_hfi_queue(void)
 		goto exit;
 	}
 
-	if (me->state != DSP_PROBED && me->state != DSP_INACTIVE)
+	if (me->state != DSP_PROBED && me->state != DSP_INACTIVE) {
+		dprintk(CVP_DSP,
+			"%s: Either DSP is not probed or is not in proper state. me->state = %d\n",
+			__func__, me->state);
 		goto exit;
+	}
+	dprintk(CVP_DSP,
+		"%s: DSP probe Successful, going ahead with hyp_assign, me->state = %d\n",
+		__func__, me->state);
 
 	rc = cvp_hyp_assign_to_dsp(addr, size);
 	if (rc) {
@@ -2191,7 +2198,13 @@ int cvp_dsp_device_init(void)
 		goto register_bail;
 	}
 	snprintf(tname, sizeof(tname), "cvp-dsp-thread");
-	me->state = DSP_UNINIT;
+	mutex_lock(&me->tx_lock);
+
+	if (me->state == DSP_INVALID)
+		me->state = DSP_UNINIT;
+
+	mutex_unlock(&me->tx_lock);
+
 	me->dsp_thread = kthread_run(cvp_dsp_thread, me, tname);
 	if (!me->dsp_thread) {
 		dprintk(CVP_ERR, "%s create %s fail", __func__, tname);
