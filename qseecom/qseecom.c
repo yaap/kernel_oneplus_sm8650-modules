@@ -7639,6 +7639,16 @@ long qseecom_ioctl(struct file *file,
 	struct qseecom_dev_handle *data = file->private_data;
 	void __user *argp = (void __user *) arg;
 	bool perf_enabled = false;
+
+	if (atomic_read(&qseecom.qseecom_state) != QSEECOM_STATE_READY) {
+		pr_err("Not allowed to be called in %d state\n",
+				atomic_read(&qseecom.qseecom_state));
+		/* since the state is not ready returning device not configured yet
+		 * i.e operation can't be performed on device yet.
+		 */
+		return -ENXIO;
+	}
+
 	if (!data) {
 		pr_err("Invalid/uninitialized device handle\n");
 		return -EINVAL;
