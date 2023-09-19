@@ -198,6 +198,11 @@ struct msm_vidc_format_capability {
 	u32 matrix_coeff_info_size;
 };
 
+enum vpu_version {
+	VPU_VERSION_IRIS33 = 1,
+	VPU_VERSION_IRIS33_2P, // IRIS3 2 PIPE
+};
+
 struct msm_vidc_platform_data {
 	const struct bw_table *bw_tbl;
 	unsigned int bw_tbl_size;
@@ -235,6 +240,7 @@ struct msm_vidc_platform_data {
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
+	unsigned int vpu_ver;
 	struct msm_vidc_format_capability *format_data;
 	const u32 *psc_avc_tbl;
 	unsigned int psc_avc_tbl_size;

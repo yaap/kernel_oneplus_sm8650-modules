@@ -22,6 +22,7 @@ static u32 frequency_table_iris33[2][6] = {
 	{840, 720, 652, 570, 450, 294},
 };
 
+
  /*
   * TODO Move to pineapple.c
   * TODO Replace hardcoded values with

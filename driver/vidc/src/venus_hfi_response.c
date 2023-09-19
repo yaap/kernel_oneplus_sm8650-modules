@@ -728,10 +728,12 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	}
 
 	if (is_decode_session(inst) && inst->codec == MSM_VIDC_AV1) {
-		inst->power.fw_av1_tile_rows =
-			inst->hfi_frame_info.av1_tile_rows_columns >> 16;
-		inst->power.fw_av1_tile_columns =
-			inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
+		if (inst->hfi_frame_info.av1_tile_rows_columns) {
+			inst->power.fw_av1_tile_rows =
+				inst->hfi_frame_info.av1_tile_rows_columns >> 16;
+			inst->power.fw_av1_tile_columns =
+				inst->hfi_frame_info.av1_tile_rows_columns & 0x0000FFFF;
+		}
 
 		if (inst->hfi_frame_info.av1_non_uniform_tile_spacing)
 			i_vpr_l(inst, "%s: av1_non_uniform_tile_spacing %d\n",

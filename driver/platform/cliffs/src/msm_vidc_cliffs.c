@@ -4943,18 +4943,7 @@ static struct freq_table cliffs_freq_table[] = {
 
 /* register, value, mask */
 static const struct reg_preset_table cliffs_reg_preset_table[] = {
-	{ 0xB0088, 0x0,        0x11      },
-	{ 0x13030, 0x33332222, 0xFFFFFFFF},
-	{ 0x13034, 0x44444444, 0xFFFFFFFF},
-	{ 0x13038, 0x1022,     0xFFFFFFFF},
-	{ 0x13040, 0x0,        0xFFFFFFFF},
-	{ 0x13048, 0xFFFF,     0xFFFFFFFF},
-	{ 0x13430, 0x33332222, 0xFFFFFFFF},
-	{ 0x13434, 0x44444444, 0xFFFFFFFF},
-	{ 0x13438, 0x1022,     0xFFFFFFFF},
-	{ 0x13440, 0x0,        0xFFFFFFFF},
-	{ 0x13448, 0xFFFF,     0xFFFFFFFF},
-	{ 0xA013C, 0x99,       0xFFFFFFFF},
+	{ 0xB0088, 0x0, 0x11},
 };
 
 /* name, phys_addr, size, device_addr, device region type */
@@ -5110,6 +5099,7 @@ static const struct msm_vidc_platform_data cliffs_data_v0 = {
 	.fwname = "vpu30_2v",
 	.pas_id = 9,
 	.supports_mmrm = 1,
+	.vpu_ver = VPU_VERSION_IRIS33_2P,
 
 	/* caps related resorces */
 	.core_data = core_data_cliffs_v0,
@@ -5196,6 +5186,7 @@ static const struct msm_vidc_platform_data cliffs_data_v1 = {
 	.csc_data.vpe_csc_custom_limit_coeff = vpe_csc_custom_limit_coeff,
 	.ubwc_config = ubwc_config_cliffs,
 	.format_data = &format_data_cliffs_v1,
+	.vpu_ver = VPU_VERSION_IRIS33_2P,
 
 	/* decoder properties related*/
 	.psc_avc_tbl = cliffs_vdec_psc_avc,
