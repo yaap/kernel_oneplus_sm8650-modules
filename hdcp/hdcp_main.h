@@ -14,7 +14,6 @@
 #include <linux/fs.h>
 #include <linux/hdcp_qseecom.h>
 #include <linux/io.h>
-#include <linux/ion.h>
 #include <linux/kernel.h>
 #include <linux/kthread.h>
 #include <linux/list.h>
