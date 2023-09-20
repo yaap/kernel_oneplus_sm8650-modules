@@ -54,6 +54,9 @@ struct btm_ctrl_pkt {
 #define BTM_LOG_LVL_IND_LEN                             1
 #define BTM_ADSP_STATE_IND_LEN				4
 
+#define BTM_BTFMCODEC_USECASE_START_IND			0x58000008
+#define BTM_USECASE_START_IND_LEN                       1
+
 enum rx_status {
 	/* Waiting for response */
 	BTM_WAITING_RSP,
@@ -90,6 +93,12 @@ struct btm_master_config_req {
 	uint8_t codec_id;
 }__attribute__((packed));
 
+
+struct btm_usecase_start_ind {
+	btm_opcode opcode;
+	uint32_t len;
+	uint8_t transport;
+} __packed;
 
 struct btm_master_shutdown_req {
 	btm_opcode opcode;
