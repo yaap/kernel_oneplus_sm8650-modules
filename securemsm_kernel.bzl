@@ -109,3 +109,4 @@ def define_target_variant_modules(target, variant, modules, extra_options = [], 
 def define_consolidate_gki_modules(target, modules, extra_options = [], config_option = None):
     define_target_variant_modules(target, "consolidate", modules, extra_options, config_option)
     define_target_variant_modules(target, "gki", modules, extra_options, config_option)
+    define_target_variant_modules(target, "perf", modules, extra_options, config_option)
