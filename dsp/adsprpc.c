@@ -5952,13 +5952,15 @@ skip_dump_wait:
 	fl->is_ramdump_pend = false;
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
-	/* Reset the tgid usage to false */
-	if (fl->tgid_frpc != -1)
-		frpc_tgid_usage_array[fl->tgid_frpc] = false;
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
 
 	if (!fl->sctx) {
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		/* Reset the tgid usage to false */
+		if (fl->tgid_frpc != -1)
+			frpc_tgid_usage_array[fl->tgid_frpc] = false;
+		spin_unlock_irqrestore(&me->hlock, irq_flags);
 		kfree(fl);
 		return 0;
 	}
@@ -6000,6 +6002,12 @@ skip_dump_wait:
 
 	if (fl->device && is_driver_closed)
 		device_unregister(&fl->device->dev);
+
+	spin_lock_irqsave(&me->hlock, irq_flags);
+	/* Reset the tgid usage to false */
+	if (fl->tgid_frpc != -1)
+		frpc_tgid_usage_array[fl->tgid_frpc] = false;
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
 
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (!err && fl->sctx)
