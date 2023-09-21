@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #undef TRACE_SYSTEM
@@ -60,7 +61,7 @@ TRACE_EVENT(invoke_cmd_handler,
 		__entry->ret		= ret;
 		__entry->cmd		= cmd;
 	),
-	TP_printk("cmd=0x%x (%d), response_type=%ld, result=0x%x (%d), ret=%d",
+	TP_printk("cmd=0x%x (%d), response_type=%llu, result=0x%x (%d), ret=%d",
 			__entry->cmd, __entry->cmd, __entry->response_type,
 			__entry->result, __entry->result, __entry->ret)
 );
@@ -166,7 +167,7 @@ TRACE_EVENT(prepare_send_scm_msg,
 		__entry->response_type	= response_type;
 		__entry->result		= result;
 	),
-	TP_printk("response_type=0x%lx (%ld), result=0x%x (%d)",
+	TP_printk("response_type=%llu (%llu), result=0x%x (%d)",
 			__entry->response_type, __entry->response_type,
 			__entry->result, __entry->result)
 );
@@ -186,7 +187,7 @@ TRACE_EVENT(marshal_in_invoke_req,
 		__entry->cb_server_fd	= cb_server_fd;
 		__entry->tzhandle	= tzhandle;
 	),
-	TP_printk("OI[%d]: fd=0x%x cb_server_fd=0x%x tzhandle=0x%x",
+	TP_printk("OI[%d]: fd=%lld cb_server_fd=0x%x tzhandle=0x%x",
 			__entry->i, __entry->fd, __entry->cb_server_fd, __entry->tzhandle)
 );
 
