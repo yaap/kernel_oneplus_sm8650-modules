@@ -14,7 +14,7 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/of_device.h>
-//#include <linux/soc/qcom/fsa4480-i2c.h>
+#include <linux/soc/qcom/fsa4480-i2c.h>
 #include <linux/pm_qos.h>
 #include <linux/nvmem-consumer.h>
 #include <sound/control.h>
@@ -276,8 +276,7 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component,
 	if (!pdata->fsa_handle)
 		return false;
 
-	//return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
-	return true;
+	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
 }
 
 static bool msm_swap_gnd_mic(struct snd_soc_component *component, bool active)
