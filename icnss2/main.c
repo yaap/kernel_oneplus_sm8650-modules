@@ -162,7 +162,8 @@ static ssize_t icnss_sysfs_store(struct kobject *kobj,
 	icnss_pr_dbg("Received shutdown indication");
 
 	atomic_set(&priv->is_shutdown, true);
-	if (priv->wpss_supported && priv->device_id == ADRASTEA_DEVICE_ID)
+	if ((priv->wpss_supported || priv->rproc_fw_download) &&
+	    priv->device_id == ADRASTEA_DEVICE_ID)
 		icnss_wpss_unload(priv);
 	return count;
 }
@@ -1589,15 +1590,22 @@ out:
 static int icnss_fw_crashed(struct icnss_priv *priv,
 			    struct icnss_event_pd_service_down_data *event_data)
 {
+	struct icnss_uevent_fw_down_data fw_down_data = {0};
+
 	icnss_pr_dbg("FW crashed, state: 0x%lx\n", priv->state);
 
 	set_bit(ICNSS_PD_RESTART, &priv->state);
-	clear_bit(ICNSS_FW_READY, &priv->state);
 
 	icnss_pm_stay_awake(priv);
 
-	if (test_bit(ICNSS_DRIVER_PROBED, &priv->state))
-		icnss_call_driver_uevent(priv, ICNSS_UEVENT_FW_CRASHED, NULL);
+	if (test_bit(ICNSS_DRIVER_PROBED, &priv->state) &&
+	    test_bit(ICNSS_FW_READY, &priv->state)) {
+		clear_bit(ICNSS_FW_READY, &priv->state);
+		fw_down_data.crashed = true;
+		icnss_call_driver_uevent(priv,
+					 ICNSS_UEVENT_FW_DOWN,
+					 &fw_down_data);
+	}
 
 	if (event_data && event_data->fw_rejuvenate)
 		wlfw_rejuvenate_ack_send_sync_msg(priv);
@@ -2831,7 +2839,8 @@ static int icnss_enable_recovery(struct icnss_priv *priv)
 		return 0;
 	}
 
-	icnss_modem_ssr_register_notifier(priv);
+	if (!(priv->rproc_fw_download))
+		icnss_modem_ssr_register_notifier(priv);
 
 	if (priv->is_slate_rfa) {
 		icnss_slate_ssr_register_notifier(priv);
@@ -4069,7 +4078,7 @@ static ssize_t wpss_boot_store(struct device *dev,
 	struct icnss_priv *priv = dev_get_drvdata(dev);
 	int wpss_rproc = 0;
 
-	if (!priv->wpss_supported)
+	if (!priv->wpss_supported && !priv->rproc_fw_download)
 		return count;
 
 	if (sscanf(buf, "%du", &wpss_rproc) != 1) {
@@ -4561,6 +4570,10 @@ static void icnss_init_control_params(struct icnss_priv *priv)
 				  "bdf-download-support"))
 		priv->bdf_download_support = true;
 
+	if (of_property_read_bool(priv->pdev->dev.of_node,
+				  "rproc-fw-download"))
+		priv->rproc_fw_download = true;
+
 	if (priv->bdf_download_support && priv->device_id == ADRASTEA_DEVICE_ID)
 		priv->ctrl_params.bdf_type = ICNSS_BDF_BIN;
 }
@@ -4766,8 +4779,10 @@ static int icnss_probe(struct platform_device *pdev)
 		priv->use_nv_mac = icnss_use_nv_mac(priv);
 		icnss_pr_dbg("NV MAC feature is %s\n",
 			     priv->use_nv_mac ? "Mandatory":"Not Mandatory");
-		INIT_WORK(&wpss_loader, icnss_wpss_load);
 	}
+
+	if (priv->wpss_supported || priv->rproc_fw_download)
+		INIT_WORK(&wpss_loader, icnss_wpss_load);
 
 	timer_setup(&priv->recovery_timer,
 		    icnss_recovery_timeout_hdlr, 0);

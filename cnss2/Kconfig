@@ -144,6 +144,13 @@ config CNSS_HW_SECURE_DISABLE
 	  handle WLAN cold boot initialization sequence changes if HW is
 	  disabled at boot and WLAN resume sequence after WLAN HW is enabled.
 
+config CNSS_HW_SECURE_SMEM
+	bool "Enable SMEM API based HW peripheral security"
+	depends on CNSS2
+	help
+	  If enabled, CNSS platform driver will use SMEM APIs intead of SCM
+	  APIs to check peripheral secure state of HW.
+
 config CNSS2_SSR_DRIVER_DUMP
 	bool "Enable Host SSR DRIVER DUMP Collection"
 	depends on CNSS2

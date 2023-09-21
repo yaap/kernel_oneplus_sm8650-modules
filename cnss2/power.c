@@ -18,6 +18,9 @@
 #include "main.h"
 #include "debug.h"
 #include "bus.h"
+#if IS_ENABLED(CONFIG_MSM_QMP)
+#include <linux/soc/qcom/qcom_aoss.h>
+#endif
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
 static struct cnss_vreg_cfg cnss_vreg_list[] = {
