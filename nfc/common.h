@@ -35,7 +35,6 @@
 
 #ifdef NFC_SECURE_PERIPHERAL_ENABLED
 /*secure library headers*/
-#include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
 #endif
