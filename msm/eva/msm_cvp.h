@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_CVP_H_
@@ -22,10 +23,14 @@ static inline bool is_buf_param_valid(u32 buf_num, u32 offset)
 
 	if (buf_num > max_buf_num)
 		return false;
-
+	if ((offset > U32_MAX/sizeof(u32)) ||
+			(offset*sizeof(u32) > U32_MAX - buf_num * sizeof(struct cvp_buf_type)))
+		return false;
 	if ((offset * sizeof(u32) + buf_num * sizeof(struct cvp_buf_type)) >
 			sizeof(struct eva_kmd_hfi_packet))
 		return false;
+
+
 
 	return true;
 }
