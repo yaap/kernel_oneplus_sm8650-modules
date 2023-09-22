@@ -45,7 +45,7 @@ static int hdcp1_key_set(struct hdcp1_smcinvoke_handle *handle,
 	uint8_t *ksvRes = NULL;
 	size_t ksvResLen = 0;
 
-	ksvRes = kmalloc(HDCP1_AKSV_SIZE, GFP_KERNEL);
+	ksvRes = kzalloc(HDCP1_AKSV_SIZE, GFP_KERNEL);
 	if (!ksvRes)
 		return -EINVAL;
 

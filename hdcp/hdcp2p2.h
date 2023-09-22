@@ -90,7 +90,7 @@ static inline int32_t hdcp2p2_rcvd_msg(
 		uint32_t m_timeout;
 		uint32_t m_flag;
 		uint32_t m_state;
-	} o;
+	} o = {0, 0, 0};
 	a[2].b = (struct ObjectBuf) {&o, 12};
 	a[0].bi = (struct ObjectBufIn) {reqMsg_ptr, reqMsg_len * 1};
 	a[1].b = (struct ObjectBuf) {&ctxhandle_val, sizeof(uint32_t)};
@@ -219,7 +219,7 @@ static inline int32_t hdcp2p2_start_auth(struct Object self, uint32_t ctxhandle_
 		uint32_t m_timeout;
 		uint32_t m_flag;
 		uint32_t m_tzctxhandle;
-	} o;
+	} o = {0, 0, 0};
 
 	a[1].b = (struct ObjectBuf) {&o, 12};
 	a[0].b = (struct ObjectBuf) {&ctxhandle_val, sizeof(uint32_t)};
@@ -249,7 +249,7 @@ static inline int32_t hdcp2p2_session_open_stream(struct Object self,
 		uint32_t m_vcpayloadid;
 		uint32_t m_stream_number;
 		uint32_t m_streamMediaType;
-	} i;
+	} i = {0, 0, 0, 0};
 
 	a[0].b = (struct ObjectBuf) {&i, 16};
 	i.m_sessionid = sessionid_val;
@@ -270,7 +270,7 @@ static inline int32_t hdcp2p2_session_close_stream(struct Object self,
 	struct {
 		uint32_t m_sessionid;
 		uint32_t m_streamId;
-	} i;
+	} i = {0, 0};
 
 	a[0].b = (struct ObjectBuf) {&i, 8};
 	i.m_sessionid = sessionid_val;
@@ -288,7 +288,7 @@ static inline int32_t hdcp2p2_force_encryption(struct Object self,
 	struct {
 		uint32_t m_ctxhandle;
 		uint32_t m_enable;
-	} i;
+	} i = {0, 0};
 
 	a[0].b = (struct ObjectBuf) {&i, 8};
 	i.m_ctxhandle = ctxhandle_val;
