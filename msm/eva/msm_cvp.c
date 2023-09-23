@@ -272,7 +272,8 @@ static bool cvp_fence_wait(struct cvp_fence_queue *q,
 		return false;
 
 	*fence = NULL;
-	mutex_lock(&q->lock);
+	if (!mutex_trylock(&q->lock))
+		return false;
 	*state = q->state;
 	if (*state != QUEUE_START) {
 		mutex_unlock(&q->lock);
@@ -422,8 +423,10 @@ wait:
 	if (state != QUEUE_START)
 		goto exit;
 
-	if (!f)
+	if (!f) {
+		usleep_range(100, 200);
 		goto wait;
+	}
 
 	pkt = f->pkt;
 	synx = (u32 *)f->synx;
