@@ -137,16 +137,16 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 		/* check resolution and tile info */
 		codec_input->av1d_commer_tile_enable = 1;
 
-		if (res_is_less_than_or_equal_to(1920, 1088, codec_input->frame_width,
-				codec_input->frame_height)) {
+		if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 1920, 1088)) {
 			if (tile_rows_columns <= 2)
 				codec_input->av1d_commer_tile_enable = 0;
-		} else if (res_is_less_than_or_equal_to(4096, 2172, codec_input->frame_width,
-				codec_input->frame_height)) {
+		} else if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 4096, 2172)) {
 			if (tile_rows_columns <= 4)
 				codec_input->av1d_commer_tile_enable = 0;
-		} else if (res_is_less_than_or_equal_to(8192, 4320, codec_input->frame_width,
-				codec_input->frame_height)) {
+		} else if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 8192, 4320)) {
 			if (tile_rows_columns <= 16)
 				codec_input->av1d_commer_tile_enable = 0;
 		}
@@ -304,16 +304,16 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		/* check resolution and tile info */
 		codec_input->av1d_commer_tile_enable = 1;
 
-		if (res_is_less_than_or_equal_to(1920, 1088, codec_input->frame_width,
-				codec_input->frame_height)) {
+		if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 1920, 1088)) {
 			if (tile_rows_columns <= 2)
 				codec_input->av1d_commer_tile_enable = 0;
-		} else if (res_is_less_than_or_equal_to(4096, 2172, codec_input->frame_width,
-				codec_input->frame_height)) {
+		} else if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 4096, 2172)) {
 			if (tile_rows_columns <= 4)
 				codec_input->av1d_commer_tile_enable = 0;
-		} else if (res_is_less_than_or_equal_to(8192, 4320, codec_input->frame_width,
-				codec_input->frame_height)) {
+		} else if (res_is_less_than_or_equal_to(codec_input->frame_width,
+				codec_input->frame_height, 8192, 4320)) {
 			if (tile_rows_columns <= 16)
 				codec_input->av1d_commer_tile_enable = 0;
 		}
