@@ -316,9 +316,9 @@ static struct msm_platform_core_capability core_data_cliffs_v0[] = {
 	{MAX_NUM_4K_SESSIONS, 4},
 	{MAX_NUM_8K_SESSIONS, 1},
 	{MAX_SECURE_SESSION_COUNT, 3},
-	{MAX_RT_MBPF, 138240}, /* ((8192x4320)/256) */
-	{MAX_MBPF, 173056}, /* (8192x4320)/256 + (4096*2176)/256*/
-	/* max_load 4096x2176@120fps which is greater than 8192x4320@30fps */
+	{MAX_RT_MBPF, 139264}, /* (4 * ((4096*2176)/256)) */
+	{MAX_MBPF, 139264}, /* (4 * ((4096*2176)/256)) */
+	/* max_load 4096x2176@120fps which is greater than 7680x4320@30fps */
 	/* Concurrency: UHD@30 decode + uhd@30 encode */
 	{MAX_MBPS, 4177920},
 	{MAX_IMAGE_MBPF, 1048576}, /* (16384x16384)/256 */
@@ -401,7 +401,7 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 		0, INT_MAX, 1, DRIVER_VERSION,
 		V4L2_CID_MPEG_VIDC_DRIVER_VERSION},
 
-	{FRAME_WIDTH, DEC, CODECS_ALL_V0, 96, 8192, 1, 1920},
+	{FRAME_WIDTH, DEC, CODECS_ALL_V0, 96, 7680, 1, 1920},
 
 	{FRAME_WIDTH, DEC, VP9, 96, 4096, 1, 1920},
 
@@ -421,7 +421,7 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 
 	{SECURE_FRAME_WIDTH, ENC, HEVC, 96, 4096, 1, 1920},
 
-	{FRAME_HEIGHT, DEC, CODECS_ALL_V0, 96, 8192, 1, 1080},
+	{FRAME_HEIGHT, DEC, CODECS_ALL_V0, 96, 7680, 1, 1080},
 
 	{FRAME_HEIGHT, DEC, VP9, 96, 4096, 1, 1080},
 
@@ -491,8 +491,8 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 	/* ((16384x16384)/256) */
 	{MBPF, ENC, HEIC, 36, 1048576, 1, 1048576},
 
-	/* (8192 * 4320) / 256 */
-	{MBPF, DEC, CODECS_ALL_V0, 36, 138240, 1, 138240},
+	/* (4 * ((4096 * 2176)/256) */
+	{MBPF, DEC, CODECS_ALL_V0, 36, 139264, 1, 139264},
 
 	/* (4096 * 2176) / 256 */
 	{MBPF, DEC, VP9, 36, 34816, 1, 34816},
