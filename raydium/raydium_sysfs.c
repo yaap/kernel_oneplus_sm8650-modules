@@ -36,6 +36,8 @@ static void raydium_ts_touch_entry(void);
 static void raydium_ts_touch_exit(void);
 static int raydium_ts_gpio_config(bool on);
 
+uint32_t slate_ack_resp;
+
 static ssize_t raydium_touch_calibration_show(struct device *dev,
 		struct device_attribute *attr,
 		char *p_i8_buf)
@@ -296,62 +298,84 @@ static void raydium_ts_touch_entry(void)
 
 	int glink_touch_enter_prep = TOUCH_ENTER_PREPARE;
 	int glink_touch_enter = TOUCH_ENTER;
+	int rc = 0;
+
+	LOGD(LOG_INFO, "%s[touch] raydium_ts_touch_entry Start\n", __func__);
 
 	/*glink touch enter prepare cmd */
 	glink_send_msg = &glink_touch_enter_prep;
-	LOGD(LOG_INFO, "[touch] glink_send_msg = %d\n", glink_send_msg);
+	LOGD(LOG_INFO, "[touch] glink_send_msg = %0x\n", glink_send_msg);
 	glink_touch_tx_msg(glink_send_msg, TOUCH_MSG_SIZE);
 
+	if (slate_ack_resp != 0) {
+		rc = -EINVAL;
+		goto err_ret;
+	}
 	/*glink touch enter cmd */
 	glink_send_msg = &glink_touch_enter;
-	LOGD(LOG_INFO, "[touch]glink_send_msg = %d\n", glink_send_msg);
+	LOGD(LOG_INFO, "[touch]glink_send_msg = %0x\n", glink_send_msg);
 	glink_touch_tx_msg(glink_send_msg, TOUCH_MSG_SIZE);
 
-	//Release the gpio's
-	if (gpio_is_valid(g_raydium_ts->rst_gpio))
-		gpio_free(g_raydium_ts->rst_gpio);
+	if(slate_ack_resp == 0) {
+		//Release the gpio's
+		if (gpio_is_valid(g_raydium_ts->rst_gpio))
+			gpio_free(g_raydium_ts->rst_gpio);
 
-	if (gpio_is_valid(g_raydium_ts->irq_gpio))
-		gpio_free(g_raydium_ts->irq_gpio);
+		if (gpio_is_valid(g_raydium_ts->irq_gpio))
+			gpio_free(g_raydium_ts->irq_gpio);
 
-	raydium_irq_control(DISABLE);
+		raydium_irq_control(DISABLE);
 
-	if (!cancel_work_sync(&g_raydium_ts->work))
-		LOGD(LOG_DEBUG, "[touch]workqueue is empty!\n");
+		if (!cancel_work_sync(&g_raydium_ts->work))
+			LOGD(LOG_DEBUG, "[touch]workqueue is empty!\n");
 
-	/* release all touches */
-	for (u8_i = 0; u8_i < g_raydium_ts->u8_max_touchs; u8_i++) {
-		pr_err("[touch]%s 1111\n", __func__);
-		input_mt_slot(g_raydium_ts->input_dev, u8_i);
-		input_mt_report_slot_state(g_raydium_ts->input_dev,
+		/* release all touches */
+		for (u8_i = 0; u8_i < g_raydium_ts->u8_max_touchs; u8_i++) {
+			pr_err("[touch]%s 1111\n", __func__);
+			input_mt_slot(g_raydium_ts->input_dev, u8_i);
+			input_mt_report_slot_state(g_raydium_ts->input_dev,
 					   MT_TOOL_FINGER,
 					   false);
+		}
+
+		input_mt_report_pointer_emulation(g_raydium_ts->input_dev, false);
+		input_sync(g_raydium_ts->input_dev);
 	}
 
-	input_mt_report_pointer_emulation(g_raydium_ts->input_dev, false);
-	input_sync(g_raydium_ts->input_dev);
-
+	LOGD(LOG_INFO, "%s[touch] raydium_ts_touch_entry Start End\n", __func__);
+err_ret:
+	return;
 }
 
 
 static void raydium_ts_touch_exit(void)
 {
 
-	int ret = 0;
+	int ret = 0, rc = 0;
 	void *glink_send_msg;
 	int glink_touch_exit_prep = TOUCH_EXIT_PREPARE;
 	int glink_touch_exit = TOUCH_EXIT;
 
+
+	LOGD(LOG_INFO, "%s[touch]raydium_ts_touch_exit Start\n", __func__);
+
 	/*glink touch exit prepare cmd */
 	glink_send_msg = &glink_touch_exit_prep;
-	LOGD(LOG_INFO, "[touch]glink_send_msg = %d\n", glink_send_msg);
+	LOGD(LOG_INFO, "[touch]glink_send_msg = %0x\n", glink_send_msg);
 	glink_touch_tx_msg(glink_send_msg, TOUCH_MSG_SIZE);
 
-	//Configure the gpio's
-	ret = raydium_ts_gpio_config(true);
-	if (ret < 0) {
-		LOGD(LOG_ERR, "[touch]failed to configure the gpios\n");
-		goto err_gpio_req;
+	if (slate_ack_resp != 0) {
+		rc = -EINVAL;
+		goto err_ret;
+	}
+
+	else if(slate_ack_resp == 0) {
+		//Configure the gpio's
+		ret = raydium_ts_gpio_config(true);
+		if (ret < 0) {
+			LOGD(LOG_ERR, "[touch]failed to configure the gpios\n");
+			goto err_ret;
+		}
 	}
 
 	/*glink touch exit cmd */
@@ -359,8 +383,8 @@ static void raydium_ts_touch_exit(void)
 	LOGD(LOG_INFO, "[touch]glink_send_msg = %d\n", glink_send_msg);
 	glink_touch_tx_msg(glink_send_msg, TOUCH_MSG_SIZE);
 
-
-err_gpio_req:
+	LOGD(LOG_INFO, "%s[touch] raydium_ts_touch_exit End\n", __func__);
+err_ret:
 	return;
 
 }

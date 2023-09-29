@@ -21,7 +21,7 @@
 #include <linux/rpmsg.h>
 
 
-#define	TOUCH_GLINK_INTENT_SIZE	0x04
+#define	TOUCH_GLINK_INTENT_SIZE	0x0c
 #define TOUCH_MSG_SIZE 0x08
 #define TIMEOUT_MS 2000
 
@@ -59,6 +59,7 @@ struct touch_channel_ops {
 };
 
 void glink_touch_channel_init(void (*fn1)(bool), void (*fn2)(void *, int));
+
 
 
 #if IS_ENABLED(CONFIG_MSM_SLATERSB_RPMSG)

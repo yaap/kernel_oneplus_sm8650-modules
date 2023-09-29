@@ -2112,20 +2112,27 @@ void touch_notify_glink_channel_state(bool state)
 
 void glink_touch_rx_msg(void *data, int len)
 {
-	struct glink_touch_priv *dev =
-		container_of(glink_touch_drv, struct glink_touch_priv, lhndl);
-	LOGD(LOG_INFO, "%s:[touch] TOUCH_RX_MSG Start:\n", __func__);
+	int rc = 0;
+
+	LOGD(LOG_INFO, "%s:[touch]TOUCH_RX_MSG Start:\n", __func__);
 
 	if (len > TOUCH_GLINK_INTENT_SIZE) {
 		LOGD(LOG_ERR, "Invalid TOUCH glink intent size\n");
 		return;
 	}
-	dev->glink_touch_cmplt = true;
-	wake_up(&dev->link_state_wait);
-	memcpy(dev->rx_buf, data, len);
-	LOGD(LOG_INFO, "%s: TOUCH_RX_MSG End:\n", __func__);
-}
 
+	/* check SLATE response */
+	slate_ack_resp = *(uint32_t *)&data[8];
+	LOGD(LOG_INFO, "[touch]slate_ack_resp :%0x\n", slate_ack_resp);
+	if (slate_ack_resp == 0x01) {
+			LOGD(LOG_INFO,"Bad SLATE response\n");
+			rc = -EINVAL;
+			goto err_ret;
+	}
+	LOGD(LOG_INFO, "%s:[touch]TOUCH_RX_MSG End:\n", __func__);
+err_ret:
+return;
+}
 
 static int raydium_set_resolution(void)
 {
