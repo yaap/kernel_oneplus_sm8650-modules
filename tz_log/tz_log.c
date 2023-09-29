@@ -20,10 +20,14 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/dma-buf.h>
+#include <linux/version.h>
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+#include <linux/firmware/qcom/qcom_scm.h>
+#else
 #include <linux/qcom_scm.h>
+#endif
 #include <linux/qtee_shmbridge.h>
 #include <linux/proc_fs.h>
-#include <linux/version.h>
 #if IS_ENABLED(CONFIG_MSM_TMECOM_QMP)
 #include <linux/tmelog.h>
 #endif

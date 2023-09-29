@@ -25,7 +25,12 @@
 #include <linux/mem-buf.h>
 #include <linux/of_platform.h>
 #include <linux/firmware.h>
+#include <linux/version.h>
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+#include <linux/firmware/qcom/qcom_scm.h>
+#else
 #include <linux/qcom_scm.h>
+#endif
 #include <linux/freezer.h>
 #include <linux/ratelimit.h>
 #include <asm/cacheflush.h>
@@ -3170,7 +3175,11 @@ static int smcinvoke_probe(struct platform_device *pdev)
 		pr_err("chrdev_region failed %d for %s\n", rc, SMCINVOKE_DEV);
 		goto exit_destroy_wkthread;
 	}
+#if  (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	driver_class = class_create(SMCINVOKE_DEV);
+#else
 	driver_class = class_create(THIS_MODULE, SMCINVOKE_DEV);
+#endif
 	if (IS_ERR(driver_class)) {
 		rc = -ENOMEM;
 		pr_err("class_create failed %d\n", rc);
