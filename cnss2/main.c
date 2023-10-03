@@ -699,6 +699,20 @@ int cnss_wlan_disable(struct device *dev, enum cnss_driver_mode mode)
 }
 EXPORT_SYMBOL(cnss_wlan_disable);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
+int cnss_iommu_map(struct iommu_domain *domain,
+		   unsigned long iova, phys_addr_t paddr, size_t size, int prot)
+{
+	return iommu_map(domain, iova, paddr, size, prot);
+}
+#else
+int cnss_iommu_map(struct iommu_domain *domain,
+		   unsigned long iova, phys_addr_t paddr, size_t size, int prot)
+{
+	return iommu_map(domain, iova, paddr, size, prot, GFP_KERNEL);
+}
+#endif
+
 int cnss_audio_smmu_map(struct device *dev, phys_addr_t paddr,
 			dma_addr_t iova, size_t size)
 {
@@ -718,9 +732,9 @@ int cnss_audio_smmu_map(struct device *dev, phys_addr_t paddr,
 	iova -= page_offset;
 	paddr -= page_offset;
 
-	return iommu_map(plat_priv->audio_iommu_domain, iova, paddr,
-			 roundup(size, PAGE_SIZE), IOMMU_READ | IOMMU_WRITE |
-			 IOMMU_CACHE);
+	return cnss_iommu_map(plat_priv->audio_iommu_domain, iova, paddr,
+			      roundup(size, PAGE_SIZE), IOMMU_READ |
+			      IOMMU_WRITE | IOMMU_CACHE);
 }
 EXPORT_SYMBOL(cnss_audio_smmu_map);
 

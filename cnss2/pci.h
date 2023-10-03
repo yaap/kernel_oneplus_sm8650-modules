@@ -20,6 +20,11 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/pci.h>
 #include <linux/sched_clock.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+#include <linux/sched/clock.h>
+#endif
+
 
 #include "main.h"
 

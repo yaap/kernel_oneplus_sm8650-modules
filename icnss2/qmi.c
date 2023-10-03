@@ -1123,7 +1123,7 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 	if (ret)
 		goto err_req_fw;
 
-	ret = request_firmware(&fw_entry, filename, &priv->pdev->dev);
+	ret = firmware_request_nowarn(&fw_entry, filename, &priv->pdev->dev);
 	if (ret) {
 		icnss_pr_err("Failed to load %s: %s ret:%d\n",
 			     icnss_bdf_type_to_str(bdf_type), filename, ret);
@@ -1361,8 +1361,8 @@ int icnss_wlfw_qdss_dnld_send_sync(struct icnss_priv *priv)
 	}
 
 	icnss_add_fw_prefix_name(priv, filename, QDSS_TRACE_CONFIG_FILE);
-	ret = request_firmware(&fw_entry, filename,
-			       &priv->pdev->dev);
+	ret = firmware_request_nowarn(&fw_entry, filename,
+				      &priv->pdev->dev);
 	if (ret) {
 		icnss_pr_err("Failed to load QDSS: %s ret:%d\n",
 			     filename, ret);
