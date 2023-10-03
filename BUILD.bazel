@@ -75,6 +75,8 @@ ddk_headers(
 
 load(":build/pineapple.bzl", "define_pineapple")
 load(":build/blair.bzl", "define_blair")
+load(":build/sun.bzl", "define_sun")
 
 define_pineapple()
 define_blair()
+define_sun()

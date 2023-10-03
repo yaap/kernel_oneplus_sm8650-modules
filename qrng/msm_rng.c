@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2011-2013, 2015, 2017-2021 The Linux Foundation. All rights
  * reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -367,6 +367,9 @@ static int msm_rng_remove(struct platform_device *pdev)
 {
 	struct msm_rng_device *msm_rng_dev = platform_get_drvdata(pdev);
 
+	cdev_del(&msm_rng_cdev);
+	device_destroy(msm_rng_class, MKDEV(QRNG_IOC_MAGIC, 0));
+	class_destroy(msm_rng_class);
 	unregister_chrdev(QRNG_IOC_MAGIC, DRIVER_NAME);
 	hwrng_unregister(&msm_rng);
 	if (msm_rng_dev->prng_clk)

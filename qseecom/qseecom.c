@@ -22,7 +22,6 @@
 #include <linux/mutex.h>
 #include <linux/io.h>
 #include <linux/dma-buf.h>
-#include <linux/ion.h>
 #include <linux/msm_ion.h>
 #include <linux/types.h>
 #include <linux/clk.h>
@@ -2034,8 +2033,8 @@ static int qseecom_set_client_mem_param(struct qseecom_dev_handle *data,
 
 	if ((req.ifd_data_fd <= 0) || (req.virt_sb_base == NULL) ||
 					(req.sb_len == 0)) {
-		pr_err("Invalid input(s)ion_fd(%d), sb_len(%d), vaddr(0x%pK)\n",
-			req.ifd_data_fd, req.sb_len, req.virt_sb_base);
+		pr_err("Invalid input(s)ion_fd(%d), sb_len(%d)\n",
+			req.ifd_data_fd, req.sb_len);
 		return -EFAULT;
 	}
 	if (!access_ok((void __user *)req.virt_sb_base,
