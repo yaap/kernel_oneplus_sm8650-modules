@@ -627,6 +627,10 @@ typedef enum {
     /** pause vdev's Tx, Rx, or both for a specific duration */
     WMI_VDEV_PAUSE_CMDID,
 
+    /** WMI Command to set status of CSA event from HOST */
+    WMI_CSA_EVENT_STATUS_INDICATION_CMDID,
+
+
     /* peer specific commands */
 
     /** create a peer */
@@ -2414,6 +2418,8 @@ typedef enum {
     WMI_MLO_LINK_SWITCH_REQUEST_EVENTID,
     /** Response event for WMI_MLO_PRIMARY_LINK_PEER_MIGRATION_CMDID */
     WMI_MLO_PRIMARY_LINK_PEER_MIGRATION_EVENTID,
+    /** WMI Event to spcify reason for link state switch */
+    WMI_MLO_LINK_STATE_SWITCH_EVENTID,
 
     /* WMI event specific to Quiet handling */
     WMI_QUIET_HANDLING_EVENTID = WMI_EVT_GRP_START_ID(WMI_GRP_QUIET_OFL),
@@ -9303,6 +9309,9 @@ typedef enum {
      *   3.  Units are in milli-seconds
      */
     WMI_PDEV_PARAM_ATF_VI_DEDICATED_TIME,
+
+    /** Parameter used for enabling/disabling RFA toggle for SAP mode */
+    WMI_PDEV_PARAM_SET_SAP_RFA_TOGGLE,
 } WMI_PDEV_PARAM;
 
 #define WMI_PDEV_ONLY_BSR_TRIG_IS_ENABLED(trig_type) WMI_GET_BITS(trig_type, 0, 1)
@@ -34534,6 +34543,13 @@ typedef enum wmi_coex_config_type {
      * config BT RX PER threshold
      */
     WMI_COEX_CONFIG_BT_RX_PER_THRESHOLD = 49,
+    /* WMI_COEX_SET_TRAFFIC_SHAPING_MODE
+     * arg1: 0 (WMI_COEX_TRAFFIC_SHAPING_MODE_DISABLED)
+     *         Disable coex policies and set fixed arbitration config.
+     *       1 (WMI_COEX_TRAFFIC_SHAPING_MODE_ENABLED)
+     *         Enable all coex policies.
+     */
+    WMI_COEX_SET_TRAFFIC_SHAPING_MODE = 50,
 } WMI_COEX_CONFIG_TYPE;
 
 typedef struct {
@@ -34553,6 +34569,11 @@ typedef enum wmi_coex_dbam_mode_type {
     WMI_COEX_DBAM_ENABLE = 1,
     WMI_COEX_DBAM_FORCED = 2,
 } WMI_COEX_DBAM_MODE_TYPE;
+
+typedef enum {
+    WMI_COEX_TRAFFIC_SHAPING_MODE_DISABLED = 0,
+    WMI_COEX_TRAFFIC_SHAPING_MODE_ENABLED = 1,
+} WMI_COEX_TRAFFIC_SHAPING_MODE;
 
 typedef struct {
     A_UINT32 tlv_header;
@@ -35845,10 +35866,22 @@ typedef struct {
      **************************************************************************/
 } WMI_OEM_DMA_RING_CAPABILITIES;
 
+typedef enum {
+    WMI_SAR_VERSION_0_ORIGINAL    = 0x00,
+    WMI_SAR_VERSION_1_FULL_TABLE  = 0x01,
+    WMI_SAR_VERSION_2_DBS_SAR     = 0x02,
+    WMI_SAR_VERSION_3_SBS_SAR     = 0x03,
+
+    WMI_SAR_VERSION_SMART_TX      = 0x04,
+    WMI_SAR_VERSION_TAS           = 0x05,
+
+    WMI_SAR_VERSION_INVALID       = 0x80
+} wmi_sar_version_t;
+
 typedef struct {
     A_UINT32 tlv_header; /* TLV tag and len; tag equals WMITLV_TAG_STRUC_WMI_SAR_CAPABILITIES*/
     /* sar version in bdf */
-    A_UINT32 active_version;
+    A_UINT32 active_version; /* contains a wmi_sar_version_t value */
 
     /**************************************************************************
      * DON'T ADD ANY FURTHER FIELDS HERE -
@@ -36875,6 +36908,7 @@ static INLINE A_UINT8 *wmi_id_to_name(A_UINT32 wmi_command)
         WMI_RETURN_STRING(WMI_MLO_LINK_RECOMMENDATION_CMDID);
         WMI_RETURN_STRING(WMI_NAN_OEM_DATA_CMDID);
         WMI_RETURN_STRING(WMI_PDEV_WSI_STATS_INFO_CMDID);
+        WMI_RETURN_STRING(WMI_CSA_EVENT_STATUS_INDICATION_CMDID);
     }
 
     return (A_UINT8 *) "Invalid WMI cmd";
@@ -44586,8 +44620,14 @@ typedef struct {
 } wmi_mlo_ready_cmd_fixed_param;
 
 typedef enum wmi_mlo_tear_down_reason_code_type {
-    WMI_MLO_TEARDOWN_SSR_REASON,
-    WMI_MLO_TEARDOWN_HOST_INITIATED_REASON,
+    WMI_MLO_TEARDOWN_REASON_SSR,
+        /* keep old name as alias for new name */
+        WMI_MLO_TEARDOWN_SSR_REASON = WMI_MLO_TEARDOWN_REASON_SSR,
+    WMI_MLO_TEARDOWN_REASON_HOST_INITIATED,
+        /* keep old name as alias for new name */
+        WMI_MLO_TEARDOWN_HOST_INITIATED_REASON =
+            WMI_MLO_TEARDOWN_REASON_HOST_INITIATED,
+    WMI_MLO_TEARDOWN_REASON_STANDBY_DOWN,
 } WMI_MLO_TEARDOWN_REASON_TYPE;
 
 typedef struct {
@@ -46207,14 +46247,15 @@ typedef struct {
     A_UINT32 dsnr_params;
     /** Peer mac address */
     wmi_mac_addr peer_mac_address;
-    /**
+    /** fb_params:
     * [1:0] Nc
+    *       Refer to WMI_DMA_BUF_RELEASE_CV_UPLOAD_[SET,GET]_FB_PARAMS_NC
     * [3:2] nss_num
-    * [4:5] ddr_buffer_idx
+    *       Refer to WMI_DMA_BUF_RELEASE_CV_UPLOAD_[SET,GET]_FB_PARAMS_NSS_NUM
+    * [5:4] ddr_buffer_idx
+    *       Refer to WMI_DMA_BUF_RELEASE_CV_UPLOAD_[SET,GET]_DDR_BUF_IDX
     */
-    A_UINT32 fb_params:       4,
-             ddr_buffer_idx:  2,
-             reserved:       26;
+    A_UINT32 fb_params;
 } wmi_dma_buf_release_cv_upload_meta_data;
 
 typedef struct {
@@ -46488,9 +46529,41 @@ typedef struct {
     A_UINT32 tlv_header;
 
     A_UINT32 vdev_id;
-    A_UINT32 status;  /*see definition of WMI_LINK_SWITCH_CNF_STATUS*/
-    A_UINT32 reason;  /*see definition of WMI_LINK_SWITCH_CNF_REASON*/
+    A_UINT32 status;  /* see definition of WMI_LINK_SWITCH_CNF_STATUS */
+    A_UINT32 reason;  /* see definition of WMI_LINK_SWITCH_CNF_REASON */
 } wmi_mlo_link_switch_cnf_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header; /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_mlo_link_state_switch_req_evt_fixed_param */
+    A_UINT32 link_state_switch_count; /* Number of link state switch event pending, MAX 5 iteration */
+} wmi_mlo_link_state_switch_req_evt_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header;               /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_mlo_link_state_switch_trigger_reason_tlv_param */
+    A_UINT32 cur_active_ieee_bitmap;   /* current active ieee linkbitmap */
+    A_UINT32 prev_active_ieee_bitmap;  /* previous active iee linkbitmap */
+    A_UINT32 host_ref_fw_timestamp_ms; /* fw time stamp on refrence of TIME_STAMP_SYNC_CMD */
+    A_UINT32 reason_code;              /* reason for link state switch trigger -
+                                        * refer to WMI_LINK_STATE_SWITCH_REASON
+                                        */
+    wmi_mac_addr  ml_bssid;  /* mac address of mld device */
+} wmi_mlo_link_state_switch_trigger_reason;
+
+typedef enum _WMI_LINK_STATE_SWITCH_REASON {
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_VDEV_READY = 0,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_ULL_MODE = 1,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_T2LM_ENABLED = 2,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_T2LM_DISABLED = 3,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_FORCE_ENABLED = 4,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_FORCE_DISABLED = 5,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_LINK_QUALITY = 6,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_LINK_CAPACITY = 7,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_RSSI = 8,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_BMISS = 9,
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_BT_STATUS = 10,
+
+    WMI_MLO_PS_LINK_STATE_SWITCH_REASON_MAX,
+} WMI_LINK_STATE_SWITCH_REASON;
 
 #define WMI_MLO_PRIMARY_LINK_PEER_MIGRATION_ML_PEER_ID_GET(new_link_info) WMI_GET_BITS(new_link_info, 0, 16)
 #define WMI_MLO_PRIMARY_LINK_PEER_MIGRATION_ML_PEER_ID_SET(new_link_info, value) WMI_SET_BITS(new_link_info, 0, 16, value)
@@ -46672,6 +46745,15 @@ typedef struct {
     A_UINT32 wsi_ingress_load_info;
     A_UINT32 wsi_egress_load_info;
 } wmi_pdev_wsi_stats_info_cmd_fixed_param;
+
+typedef struct {
+    /** TLV tag and len; tag equals
+     * WMITLV_TAG_STRUC_wmi_csa_event_status_ind_fixed_param
+     */
+    A_UINT32 tlv_header;
+    A_UINT32 vdev_id;
+    A_UINT32 status; /* accept: 1 reject : 0 */
+} wmi_csa_event_status_ind_fixed_param;
 
 
 
