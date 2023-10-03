@@ -136,6 +136,8 @@
 #define ADRENO_GMU_WARMBOOT BIT(19)
 /* The GPU supports CLX */
 #define ADRENO_CLX BIT(20)
+/* Supports voting minimum CPU perf */
+#define ADRENO_CPU_PERF BIT(21)
 
 /*
  * Adreno GPU quirks - control bits for various workarounds
