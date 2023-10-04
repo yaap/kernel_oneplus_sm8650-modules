@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -21,7 +22,7 @@ static struct mmrm_common_data common_pt_data[] = {
 static struct mmrm_throttle_clients_data common_pt_throttle_clients_data[] = {
 	{
 		.domain = MMRM_CLIENT_DOMAIN_DISPLAY,
-		.id = 0x3d,
+		.id = 0x3e,
 	},
 	{
 		.domain = MMRM_CLIENT_DOMAIN_VIDEO,
@@ -29,11 +30,11 @@ static struct mmrm_throttle_clients_data common_pt_throttle_clients_data[] = {
 	},
 	{
 		.domain = MMRM_CLIENT_DOMAIN_CAMERA,
-		.id = 0x46,
+		.id = 0x58,
 	},
 	{
 		.domain = MMRM_CLIENT_DOMAIN_CVP,
-		.id = 0x08,
+		.id = 0x0a,
 	},
 	{
 		.domain = MMRM_CLIENT_DOMAIN_CAMERA,
