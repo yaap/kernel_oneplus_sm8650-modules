@@ -1,7 +1,5 @@
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
-load("//build/kernel/kleaf:kernel.bzl", "kernel_module",
-                                        "kernel_modules_install",
-                                        "ddk_module",
+load("//build/kernel/kleaf:kernel.bzl", "ddk_module",
                                         "ddk_submodule")
 
 def _create_module_conditional_src_map(conditional_srcs):
@@ -17,7 +15,24 @@ def _create_module_conditional_src_map(conditional_srcs):
 
     return processed_conditional_srcs
 
-def _get_module_srcs(module, options, formatter):
+def _get_enabled_module_objs(registry, modules):
+    undefined_modules = []
+    enabled_module_objs = []
+
+    for module_name in modules:
+        module_obj = registry.get(module_name)
+
+        if not module_obj:
+            undefined_modules.append(module_name)
+        else:
+            enabled_module_objs.append(module_obj)
+
+    if undefined_modules:
+        fail("FAILED. Tried to enable the following undefined modules: \n{}".format("\n".join(undefined_modules)))
+    else:
+        return enabled_module_objs
+
+def _get_module_srcs(module, options):
     srcs = [] + module.srcs
     module_path = "{}/".format(module.path) if module.path else ""
 
@@ -25,13 +40,59 @@ def _get_module_srcs(module, options, formatter):
         is_option_enabled = option in options
         srcs.extend(module.conditional_srcs[option].get(is_option_enabled, []))
 
-    return ["{}{}".format(module_path, formatter(src)) for src in srcs]
+    return ["{}{}".format(module_path, src) for src in srcs]
 
-def _combine_target_module_options(modules, config_options):
+def _combine_target_module_options(enabled_modules, config_options):
     all_options = {option: True for option in config_options}
-    all_options = all_options | {module.config_option: True for module in modules if module.config_option}
+    modules_options = {module.config_option: True for module in enabled_modules if module.config_option}
 
-    return all_options
+    return all_options | modules_options
+
+def _define_target_modules(target, variant, registry, modules, product = None, config_options = []):
+    dep_formatter = lambda s : s.replace("%t", target)\
+                                .replace("%v", variant)\
+                                .replace("%p", product if product else "")\
+                                .replace("%b", "{}_{}".format(target, variant))
+    rule_prefix = "{}_{}_{}".format(target, variant, product) if product else "{}_{}".format(target, variant)
+    enabled_modules = _get_enabled_module_objs(registry, modules)
+    options = _combine_target_module_options(enabled_modules, config_options)
+    headers = ["//msm-kernel:all_headers"] + registry.hdrs
+    submodule_rules = []
+
+    for module in enabled_modules:
+        rule_name = "{}_{}".format(rule_prefix, module.name)
+        srcs = _get_module_srcs(module, options)
+        deps = headers + [dep_formatter(dep) for dep in module.deps]
+
+        if not srcs:
+            continue
+
+        ddk_submodule(
+            name = rule_name,
+            srcs = srcs,
+            out = "{}.ko".format(module.name),
+            deps = deps,
+            local_defines = options.keys(),
+        )
+
+        submodule_rules.append(rule_name)
+
+    ddk_module(
+        name = "{}_modules".format(rule_prefix),
+        kernel_build = "//msm-kernel:{}_{}".format(target, variant),
+        deps = submodule_rules
+    )
+
+    copy_to_dist_dir(
+        name = "{}_modules_dist".format(rule_prefix),
+        data = [":{}_modules".format(rule_prefix)],
+        dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
+        flat = True,
+        wipe_dist_dir = False,
+        allow_duplicate_filenames = False,
+        mode_overrides = {"**/*": "644"},
+        log = "info"
+    )
 
 def create_module_registry(hdrs = []):
     module_map = {}
@@ -53,52 +114,19 @@ def create_module_registry(hdrs = []):
         get = module_map.get,
     )
 
-def define_target_modules(target, variant, registry, modules, config_options = []):
-    formatter = lambda s : s.replace("%t", target)\
-                            .replace("%v", variant)\
-                            .replace("%b", "{}_{}".format(target, variant))
-    kernel_build = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
-    modules = [registry.get(module_name) for module_name in modules]
-    options = _combine_target_module_options(modules, config_options)
-    headers = ["//msm-kernel:all_headers"] + registry.hdrs
-    all_module_rules = []
-
-    for module in modules:
-        rule_name = "{}_{}".format(kernel_build, module.name)
-        srcs = _get_module_srcs(module, options, formatter)
-        deps = headers + [formatter(dep) for dep in module.deps]
-
-        if not srcs:
-            continue
-
-        ddk_submodule(
-            name = rule_name,
-            srcs = srcs,
-            out = "{}.ko".format(module.name),
-            deps = deps,
-            local_defines = options.keys(),
-        )
-
-        all_module_rules.append(rule_name)
-
-    ddk_module(
-        name = "{}_modules".format(kernel_build),
-        kernel_build = kernel_build_label,
-        deps = all_module_rules
-    )
-
-    copy_to_dist_dir(
-        name = "{}_modules_dist".format(kernel_build),
-        data = [":{}_modules".format(kernel_build)],
-        dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
-        flat = True,
-        wipe_dist_dir = False,
-        allow_duplicate_filenames = False,
-        mode_overrides = {"**/*": "644"},
-        log = "info"
-    )
-
-def define_consolidate_gki_modules(target, registry, modules, config_options = []):
-    define_target_modules(target, "consolidate", registry, modules, config_options)
-    define_target_modules(target, "gki", registry, modules, config_options)
+def define_target_modules(target, variants, registry, modules, config_options = [], products = []):
+    for variant in variants:
+        if products:
+            for product in products:
+                _define_target_modules(target = target,
+                                       variant = variant,
+                                       registry = registry,
+                                       modules = modules,
+                                       product = product,
+                                       config_options = config_options)
+        else:
+            _define_target_modules(target = target,
+                                   variant = variant,
+                                   registry = registry,
+                                   modules = modules,
+                                   config_options = config_options)

@@ -1,5 +1,5 @@
 /* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -189,6 +189,12 @@ typedef struct prm_cmd_request_hw_core_t
         uint32_t hw_core_id;
 }prm_cmd_request_hw_core_t;
 
+#define LPR_CPU_SS_SLEEP_DISABLED 1
+struct prm_cpu_lpr_request_t {
+	apm_cmd_header_t payload_header;
+	apm_module_param_data_t module_payload_0;
+	uint32_t lpr_state;
+};
 
 #define PRM_CMD_REQUEST_HW_RSC 0x0100100F
 
@@ -201,6 +207,9 @@ typedef struct prm_cmd_request_hw_core_t
 /* Param ID for audio hardware clock */
 
 #define PARAM_ID_RSC_AUDIO_HW_CLK 0x0800102C
+
+/** Param ID for CPU low power resource */
+#define PARAM_ID_RSC_CPU_LPR 0x08001A6E
 
 /* Param ID for lpass core clock */
 
