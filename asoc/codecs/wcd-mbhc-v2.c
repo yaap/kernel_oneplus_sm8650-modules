@@ -1746,13 +1746,13 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 		WCD_MBHC_REG_READ(WCD_MBHC_L_DET_EN, l_det_en);
 		WCD_MBHC_REG_READ(WCD_MBHC_MECH_DETECTION_TYPE, detection_type);
 		if ((mode == TYPEC_ACCESSORY_NONE) && !detection_type) {
-			wcd_usbss_switch_update(WCD_USBSS_AATC, WCD_USBSS_CABLE_DISCONNECT);
 			if (unlikely((mbhc->mbhc_cb->lock_sleep(mbhc, true)) == false))
 				pr_warn("%s: failed to hold suspend\n", __func__);
 			else {
 				wcd_mbhc_swch_irq_handler(mbhc);
 				mbhc->mbhc_cb->lock_sleep(mbhc, false);
 			}
+			wcd_usbss_switch_update(WCD_USBSS_AATC, WCD_USBSS_CABLE_DISCONNECT);
 			dev_dbg(mbhc->component->dev, "leave, %s: mode = %lu\n", __func__, mode);
 		}
 #endif
