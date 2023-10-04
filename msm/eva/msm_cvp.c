@@ -944,7 +944,7 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	}
 	sq->state = QUEUE_STOP;
 
-	pr_info_ratelimited(CVP_DBG_TAG "Stop session: %pK session_id = %d\n",
+	pr_info_ratelimited(CVP_DBG_TAG "Stop session: %pK session_id = %#x\n",
 			"sess", inst, hash32_ptr(inst->session));
 	spin_unlock(&sq->lock);
 

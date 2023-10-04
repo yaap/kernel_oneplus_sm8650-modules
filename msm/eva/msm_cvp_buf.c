@@ -2036,6 +2036,40 @@ int msm_cvp_session_deinit_buffers(struct msm_cvp_inst *inst)
 	return rc;
 }
 
+void msm_cvp_populate_dsp_buf_info(struct cvp_internal_buf *buf,
+								struct cvp_hal_session *session,
+								u32 session_id,
+								struct msm_cvp_core *core)
+{
+	struct cvp_hfi_ops *dev_ops = (struct cvp_hfi_ops *) core->dev_ops;
+	struct iris_hfi_device *cvp_device = (struct iris_hfi_device *) dev_ops->hfi_device_data;
+	struct cvp_iface_q_info dsp_debugQ_info = cvp_device->dsp_iface_queues[DEBUG_Q];
+	struct cvp_dsp_trace_buf *trace_buf;
+	struct cvp_dsp_trace *dsp_debug_trace;
+
+	dsp_debug_trace = (struct cvp_dsp_trace *) dsp_debugQ_info.q_array.align_virtual_addr;
+
+	if (!dsp_debug_trace) {
+		dprintk(CVP_ERR, "dsp trace is NULL\n");
+		return;
+	}
+	for (int session_idx = 0; session_idx < EVA_TRACE_MAX_SESSION_NUM; session_idx++) {
+		if (dsp_debug_trace->sessions[session_idx].session_id == session_id) {
+			u32 buf_cnt = dsp_debug_trace->sessions[session_idx].buf_cnt;
+
+			for (int buf_idx = 0; buf_idx < buf_cnt; buf_idx++) {
+				trace_buf = &dsp_debug_trace->sessions[session_idx].buf[buf_idx];
+				if (buf->smem->device_addr == trace_buf->iova) {
+					buf->smem->buf_idx = trace_buf->buf_idx;
+					buf->smem->pkt_type = trace_buf->pkt_type;
+					buf->smem->fd = trace_buf->fd;
+					return;
+				}
+			}
+		}
+	}
+}
+
 #define MAX_NUM_FRAMES_DUMP 4
 void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 {
@@ -2044,6 +2078,13 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	struct msm_cvp_core *core;
 	struct inst_snapshot *snap = NULL;
 	int i = 0, c = 0;
+
+	// DSP trace related variables
+	struct cvp_hal_session *session;
+	u32 session_id;
+
+	session = (struct cvp_hal_session *)inst->session;
+	session_id = hash32_ptr(session);
 
 	core = cvp_driver->cvp_core;
 	if (log && core->log.snapshot_index < 16) {
@@ -2088,9 +2129,14 @@ void msm_cvp_print_inst_bufs(struct msm_cvp_inst *inst, bool log)
 	mutex_unlock(&inst->frames.lock);
 
 	mutex_lock(&inst->cvpdspbufs.lock);
+
 	dprintk(CVP_ERR, "dsp buffer list:\n");
-	list_for_each_entry(buf, &inst->cvpdspbufs.list, list)
+	list_for_each_entry(buf, &inst->cvpdspbufs.list, list) {
+		// Populate DSP buffer info from debug queue to kernel instance
+		msm_cvp_populate_dsp_buf_info(buf, session, session_id, core);
+		// Log print buffer info
 		_log_buf(snap, SMEM_CDSP, inst, buf, log);
+	}
 	mutex_unlock(&inst->cvpdspbufs.lock);
 
 	mutex_lock(&inst->cvpwnccbufs.lock);

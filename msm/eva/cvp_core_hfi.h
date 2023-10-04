@@ -224,6 +224,14 @@ enum reset_state {
 	DEASSERT,
 };
 
+/* Indices of hfi queues in hfi queue arrays (iface_queues & dsp_iface_queues) */
+enum hfi_queue_idx {
+	CMD_Q, /* Command queue */
+	MSG_Q, /* Message queue */
+	DEBUG_Q, /* Debug queue */
+	MAX_Q
+};
+
 struct iris_hfi_device;
 
 struct cvp_hal_ops {

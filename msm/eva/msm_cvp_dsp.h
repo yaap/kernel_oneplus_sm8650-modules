@@ -249,6 +249,43 @@ struct cvp_dsp_apps {
 	struct driver_name cvp_fastrpc_name[MAX_FASTRPC_DRIVER_NUM];
 };
 
+#define EVA_TRACE_MAX_SESSION_NUM       16
+#define EVA_TRACE_MAX_INSTANCE_NUM      6
+#define EVA_TRACE_MAX_BUF_NUM           256
+
+#define CONFIG_SIZE_IN_BYTES        2048
+#define CONFIG_SIZE_IN_WORDS        (CONFIG_SIZE_IN_BYTES >> 2)
+
+// iova is eva_dsp_buf->iova
+// pkt_type is frame packet type using the buffer
+// buf_idx is the index of the buffer in a frame packet
+// transaction_id is the transaction id of frame packet
+struct cvp_dsp_trace_buf {
+	u32	iova;
+	u32	pkt_type;
+	u32	buf_idx;
+	u32	transaction_id;
+	u32	fd;
+};
+
+// Saving config packet for each intance
+struct cvp_dsp_trace_instance {
+	u32    feature_type;
+	u32    config_pkt[CONFIG_SIZE_IN_WORDS];
+};
+
+struct cvp_dsp_trace_session {
+	u32                session_id;
+	u32                buf_cnt;
+	u32                inst_cnt;
+	struct cvp_dsp_trace_instance  instance[EVA_TRACE_MAX_INSTANCE_NUM];
+	struct cvp_dsp_trace_buf       buf[EVA_TRACE_MAX_BUF_NUM];
+};
+
+struct cvp_dsp_trace {
+	struct cvp_dsp_trace_session   sessions[EVA_TRACE_MAX_SESSION_NUM];
+};
+
 extern struct cvp_dsp_apps gfa_cv;
 /*
  * API for CVP driver to suspend CVP session during
