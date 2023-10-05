@@ -1268,12 +1268,11 @@ static int qseecom_dmabuf_cache_operations(struct dma_buf *dmabuf,
 
 	switch (cache_op) {
 	case QSEECOM_CACHE_CLEAN: /* Doing CLEAN and INVALIDATE */
-		dma_buf_begin_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 		dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
+		dma_buf_begin_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 		break;
 	case QSEECOM_CACHE_INVALIDATE:
-		dma_buf_begin_cpu_access(dmabuf, DMA_TO_DEVICE);
-		dma_buf_end_cpu_access(dmabuf, DMA_FROM_DEVICE);
+		dma_buf_begin_cpu_access(dmabuf, DMA_FROM_DEVICE);
 		break;
 	default:
 		pr_err("cache (%d) operation not supported\n",
