@@ -4947,7 +4947,11 @@ static struct freq_table cliffs_freq_table[] = {
 
 /* register, value, mask */
 static const struct reg_preset_table cliffs_reg_preset_table[] = {
-	{ 0xB0088, 0x0, 0x11},
+	{ 0xB0088, 0x0,        0x11      },
+	{ 0x10830, 0x33332222, 0xFFFFFFFF},
+	{ 0x10834, 0x44444444, 0xFFFFFFFF},
+	{ 0x10838, 0x00001022, 0xFFFFFFFF},
+	{ 0xA013C, 0x99,       0xFFFFFFFF},
 };
 
 /* name, phys_addr, size, device_addr, device region type */
