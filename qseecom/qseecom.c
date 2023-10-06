@@ -9347,7 +9347,11 @@ static int qseecom_init_dev(struct platform_device *pdev)
 		pr_err("alloc_chrdev_region failed %d\n", rc);
 		return rc;
 	}
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	qseecom.driver_class = class_create(QSEECOM_DEV);
+#else
 	qseecom.driver_class = class_create(THIS_MODULE, QSEECOM_DEV);
+#endif
 	if (IS_ERR(qseecom.driver_class)) {
 		rc = PTR_ERR(qseecom.driver_class);
 		pr_err("class_create failed %x\n", rc);
