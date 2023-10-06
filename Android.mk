@@ -9,7 +9,9 @@ endif
 
 ifeq ($(TOUCH_DLKM_ENABLE),  true)
        TOUCH_SELECT := CONFIG_MSM_TOUCH=m
-
+       BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+       BOARD_COMMON_DIR ?= device/qcom/common
+       
        LOCAL_PATH := $(call my-dir)
        ifeq ($(TARGET_BOARD_PLATFORM), pineapple)
               LOCAL_MODULE_DDK_BUILD := true
@@ -29,10 +31,10 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
        ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
        ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-               TOUCH_BLD_DIR := $(shell pwd)/vendor/qcom/opensource/touch-drivers
+               TOUCH_BLD_DIR := $(shell pwd)/$(BOARD_OPENSOURCE_DIR)/touch-drivers
        endif # opensource
 
-       DLKM_DIR := $(TOP)/device/qcom/common/dlkm
+       DLKM_DIR := $(TOP)/$(BOARD_COMMON_DIR)/dlkm
 
        LOCAL_ADDITIONAL_DEPENDENCIES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
