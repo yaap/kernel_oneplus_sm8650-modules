@@ -352,7 +352,7 @@ static struct msm_platform_core_capability core_data_cliffs_v0[] = {
 static struct msm_platform_core_capability core_data_cliffs_v1[] = {
 	/* {type, value} */
 	{ENC_CODECS, H264 | HEVC | HEIC},
-	{DEC_CODECS, H264 | HEVC | VP9 | AV1 | HEIC},
+	{DEC_CODECS, H264 | HEVC | VP9 | HEIC},
 	{MAX_SESSION_COUNT, 16},
 	{MAX_NUM_720P_SESSIONS, 16},
 	{MAX_NUM_1080P_SESSIONS, 8},
@@ -5072,8 +5072,8 @@ static const u32 cliffs_vdec_output_properties_av1[] = {
 };
 
 static struct msm_vidc_efuse_data efuse_data_cliffs[] = {
-	EFUSE_ENTRY(0x221C8118, 4, 0x1000, 0xB, SKU_VERSION),
-	EFUSE_ENTRY(0x221C812C, 4, 0x40, 0x6, SKU_VERSION),
+	/* IRIS_DISABLE_AV1, SKU VERSION: 1 */
+	EFUSE_ENTRY(0x221C8118, 4, 0x2000, 0xD, SKU_VERSION),
 };
 
 static const struct msm_vidc_platform_data cliffs_data_v0 = {
