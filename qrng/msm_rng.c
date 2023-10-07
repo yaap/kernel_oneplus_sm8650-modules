@@ -24,6 +24,7 @@
 #include <crypto/internal/rng.h>
 #include <linux/interconnect.h>
 #include <linux/sched/signal.h>
+#include <linux/version.h>
 
 #define DRIVER_NAME "msm_rng"
 
@@ -325,7 +326,11 @@ static int msm_rng_probe(struct platform_device *pdev)
 		goto err_reg_chrdev;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	msm_rng_class = class_create("msm-rng");
+#else
 	msm_rng_class = class_create(THIS_MODULE, "msm-rng");
+#endif
 	if (IS_ERR(msm_rng_class)) {
 		pr_err("class_create failed\n");
 		error = PTR_ERR(msm_rng_class);

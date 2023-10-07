@@ -3,6 +3,7 @@
  * QTI Over the Air (OTA) Crypto driver
  *
  * Copyright (c) 2010-2014,2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -21,7 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
 #include <linux/cache.h>
-
+#include <linux/version.h>
 
 #include "linux/qcota.h"
 #include "qce.h"
@@ -673,7 +674,11 @@ static int qcota_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	driver_class = class_create(QCOTA_DEV);
+#else
 	driver_class = class_create(THIS_MODULE, QCOTA_DEV);
+#endif
 	if (IS_ERR(driver_class)) {
 		rc = -ENOMEM;
 		pr_err("class_create failed %d\n", rc);
