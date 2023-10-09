@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_CVP_RESOURCES_H__
@@ -214,6 +215,11 @@ struct msm_cvp_platform_resources {
 	uint32_t vpu_ver;
 	uint32_t fw_cycles;
 	struct msm_cvp_ubwc_config_data *ubwc_config;
+	uint32_t qos_noc_rge_niu_offset;
+	uint32_t qos_noc_gce_vadl_tof_niu_offset;
+	uint32_t qos_noc_cdm_niu_offset;
+	uint32_t noc_core_err_offset;
+	uint32_t noc_main_sidebandmanager_offset;
 };
 
 static inline bool is_iommu_present(struct msm_cvp_platform_resources *res)

@@ -878,6 +878,19 @@ int cvp_read_platform_resources_from_drv_data(
 	res->non_fatal_pagefaults = find_key_value(platform_data,
 			"qcom,domain-attr-non-fatal-faults");
 
+	//Address offsets for QOS setting.
+	//There are diff between lanai and palawan for QOS register addresses
+	res->qos_noc_rge_niu_offset = find_key_value(platform_data,
+			"qcom,qos_noc_rge_niu_offset");
+	res->qos_noc_gce_vadl_tof_niu_offset = find_key_value(platform_data,
+			"qcom,qos_noc_gce_vadl_tof_niu_offset");
+	res->qos_noc_cdm_niu_offset = find_key_value(platform_data,
+			"qcom,qos_noc_cdm_niu_offset");
+	res->noc_core_err_offset = find_key_value(platform_data,
+			"qcom,noc_core_err_offset");
+	res->noc_main_sidebandmanager_offset = find_key_value(platform_data,
+			"qcom,noc_main_sidebandmanager_offset");
+
 	res->vpu_ver = platform_data->vpu_ver;
 	res->ubwc_config = platform_data->ubwc_config;
 	res->fatal_ssr = false;

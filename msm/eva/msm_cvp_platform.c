@@ -249,6 +249,26 @@ static struct msm_cvp_common_data sm8650_common_data[] = {
 	{
 		.key = "qcom,dsp-enabled",
 		.value = 1,
+	},
+	{
+		.key = "qcom,qos_noc_rge_niu_offset",
+		.value = 0x0,
+	},
+	{
+		.key = "qcom,qos_noc_gce_vadl_tof_niu_offset",
+		.value = 0x0,
+	},
+	{
+		.key = "qcom,qos_noc_cdm_niu_offset",
+		.value = 0x0,
+	},
+	{
+		.key = "qcom,noc_core_err_offset",
+		.value = 0xA000,
+	},
+	{
+		.key = "qcom,noc_main_sidebandmanager_offset",
+		.value = 0x6E00,
 	}
 };
 
@@ -292,6 +312,26 @@ static struct msm_cvp_common_data sm7650_common_data[] = {
 	{
 		.key = "qcom,dsp-enabled",
 		.value = 1,
+	},
+	{
+		.key = "qcom,qos_noc_rge_niu_offset",
+		.value = 0x200,
+	},
+	{
+		.key = "qcom,qos_noc_gce_vadl_tof_niu_offset",
+		.value = 0xE00,
+	},
+	{
+		.key = "qcom,qos_noc_cdm_niu_offset",
+		.value = 0x1A00,
+	},
+	{
+		.key = "qcom,noc_core_err_offset",
+		.value = 0x0,
+	},
+	{
+		.key = "qcom,noc_main_sidebandmanager_offset",
+		.value = 0x0,
 	}
 };
 
@@ -314,6 +354,16 @@ static struct msm_cvp_qos_setting lanai_noc_qos = {
 	.prioritylut_low = 0x33333333,
 	.prioritylut_high = 0x33333333,
 	.urgency_low = 0x1033,
+	.urgency_low_ro = 0x1003,
+	.dangerlut_low = 0x0,
+	.safelut_low = 0xffff,
+};
+
+static struct msm_cvp_qos_setting palawan_noc_qos = {
+	.axi_qos = 0x99,
+	.prioritylut_low = 0x33333333,
+	.prioritylut_high = 0x33333333,
+	.urgency_low = 0x1003,
 	.urgency_low_ro = 0x1003,
 	.dangerlut_low = 0x0,
 	.safelut_low = 0xffff,
@@ -375,7 +425,7 @@ static struct msm_cvp_platform_data sm7650_data = {
 	.sku_version = 0,
 	.vpu_ver = VPU_VERSION_5,
 	.ubwc_config = kona_ubwc_data,	/*Reuse Kona setting*/
-	.noc_qos = &waipio_noc_qos,	/*Reuse Waipio setting*/
+	.noc_qos = &palawan_noc_qos,
 	.vm_id = 1,
 };
 
