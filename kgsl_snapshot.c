@@ -608,9 +608,9 @@ void kgsl_device_snapshot(struct kgsl_device *device,
 		 *    previously recovered fault, then set the sysfs knob
 		 *    prioritize_recoverable to true.
 		 */
-		//if (!device->prioritize_unrecoverable ||
-		//	!device->snapshot->recovered || !gmu_fault)
-		//	return;
+		if (!device->prioritize_unrecoverable ||
+			!device->snapshot->recovered || !gmu_fault)
+			return;
 
 		/*
 		 * If another thread is currently reading it, that thread
