@@ -858,50 +858,94 @@ static int __set_registers(struct iris_hfi_device *device)
 
 	__write_register(device, CVP_CPU_CS_AXI4_QOS,
 				pdata->noc_qos->axi_qos);
-	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_LOW,
-				pdata->noc_qos->prioritylut_low);
-	__write_register(device, CVP_NOC_RGE_PRIORITYLUT_HIGH,
-				pdata->noc_qos->prioritylut_high);
-	__write_register(device, CVP_NOC_RGE_URGENCY_LOW,
-				pdata->noc_qos->urgency_low);
-	__write_register(device, CVP_NOC_RGE_DANGERLUT_LOW,
-				pdata->noc_qos->dangerlut_low);
-	__write_register(device, CVP_NOC_RGE_SAFELUT_LOW,
-				pdata->noc_qos->safelut_low);
-	__write_register(device, CVP_NOC_GCE_PRIORITYLUT_LOW,
-				pdata->noc_qos->prioritylut_low);
-	__write_register(device, CVP_NOC_GCE_PRIORITYLUT_HIGH,
-				pdata->noc_qos->prioritylut_high);
-	__write_register(device, CVP_NOC_GCE_URGENCY_LOW,
-				pdata->noc_qos->urgency_low);
-	__write_register(device, CVP_NOC_GCE_DANGERLUT_LOW,
-				pdata->noc_qos->dangerlut_low);
-	__write_register(device, CVP_NOC_GCE_SAFELUT_LOW,
-				pdata->noc_qos->safelut_low);
-	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_LOW,
-				pdata->noc_qos->prioritylut_low);
-	__write_register(device, CVP_NOC_CDM_PRIORITYLUT_HIGH,
-				pdata->noc_qos->prioritylut_high);
-	__write_register(device, CVP_NOC_CDM_URGENCY_LOW,
-				pdata->noc_qos->urgency_low_ro);
-	__write_register(device, CVP_NOC_CDM_DANGERLUT_LOW,
-				pdata->noc_qos->dangerlut_low);
-	__write_register(device, CVP_NOC_CDM_SAFELUT_LOW,
-				pdata->noc_qos->safelut_low);
+	__write_register(device,
+			CVP_NOC_RGE_PRIORITYLUT_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			pdata->noc_qos->prioritylut_low);
+	__write_register(device,
+			CVP_NOC_RGE_PRIORITYLUT_HIGH +
+			device->res->qos_noc_rge_niu_offset,
+			pdata->noc_qos->prioritylut_high);
+	__write_register(device,
+			CVP_NOC_RGE_URGENCY_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			pdata->noc_qos->urgency_low);
+	__write_register(device,
+			CVP_NOC_RGE_DANGERLUT_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			pdata->noc_qos->dangerlut_low);
+	__write_register(device,
+			CVP_NOC_RGE_SAFELUT_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			pdata->noc_qos->safelut_low);
+	__write_register(device,
+			CVP_NOC_GCE_PRIORITYLUT_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			pdata->noc_qos->prioritylut_low);
+	__write_register(device,
+			CVP_NOC_GCE_PRIORITYLUT_HIGH +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			pdata->noc_qos->prioritylut_high);
+	__write_register(device,
+			CVP_NOC_GCE_URGENCY_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			pdata->noc_qos->urgency_low);
+	__write_register(device,
+			CVP_NOC_GCE_DANGERLUT_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			pdata->noc_qos->dangerlut_low);
+	__write_register(device,
+			CVP_NOC_GCE_SAFELUT_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			pdata->noc_qos->safelut_low);
+
+	__write_register(device,
+			CVP_NOC_CDM_PRIORITYLUT_LOW +
+			device->res->qos_noc_cdm_niu_offset,
+			pdata->noc_qos->prioritylut_low);
+	__write_register(device,
+			CVP_NOC_CDM_PRIORITYLUT_HIGH +
+			device->res->qos_noc_cdm_niu_offset,
+			pdata->noc_qos->prioritylut_high);
+	__write_register(device,
+			CVP_NOC_CDM_URGENCY_LOW +
+			device->res->qos_noc_cdm_niu_offset,
+			pdata->noc_qos->urgency_low_ro);
+	__write_register(device,
+			CVP_NOC_CDM_DANGERLUT_LOW +
+			device->res->qos_noc_cdm_niu_offset,
+			pdata->noc_qos->dangerlut_low);
+	__write_register(device,
+			CVP_NOC_CDM_SAFELUT_LOW +
+			device->res->qos_noc_cdm_niu_offset,
+			pdata->noc_qos->safelut_low);
 
 	/* Below registers write moved from FW to SW to enable UBWC */
-	__write_register(device, CVP_NOC_RGE_NIU_DECCTL_LOW,
-				0x1);
-	__write_register(device, CVP_NOC_RGE_NIU_ENCCTL_LOW,
-				0x1);
-	__write_register(device, CVP_NOC_GCE_VADL_TOF_NIU_DECCTL_LOW,
-				0x1);
-	__write_register(device, CVP_NOC_GCE_VADL_TOF_NIU_ENCCTL_LOW,
-				0x1);
-	__write_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS,
-				0x3);
-	__write_register(device, CVP_NOC_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW,
-				0x1);
+	__write_register(device,
+			CVP_NOC_RGE_NIU_DECCTL_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			0x1);
+	__write_register(device,
+			CVP_NOC_RGE_NIU_ENCCTL_LOW +
+			device->res->qos_noc_rge_niu_offset,
+			0x1);
+	__write_register(device,
+			CVP_NOC_GCE_VADL_TOF_NIU_DECCTL_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			0x1);
+	__write_register(device,
+			CVP_NOC_GCE_VADL_TOF_NIU_ENCCTL_LOW +
+			device->res->qos_noc_gce_vadl_tof_niu_offset,
+			0x1);
+
+	__write_register(device,
+			CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS +
+			device->res->noc_core_err_offset,
+			0x3);
+	__write_register(device,
+			CVP_NOC_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW +
+			device->res->noc_main_sidebandmanager_offset,
+			0x1);
 
 	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 	return 0;
@@ -4633,11 +4677,14 @@ static void __print_sidebandmanager_regs(struct iris_hfi_device *device)
 		goto exit;
 	}
 	main_sbm_ln0_low = __read_register(device,
-			CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN0_LOW);
+						CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN0_LOW +
+						device->res->noc_main_sidebandmanager_offset);
 	main_sbm_ln0_high = __read_register(device,
-			CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN0_HIGH);
+						CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN0_HIGH +
+						device->res->noc_main_sidebandmanager_offset);
 	main_sbm_ln1_high = __read_register(device,
-			CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN1_HIGH);
+						CVP_NOC_MAIN_SIDEBANDMANAGER_SENSELN1_HIGH +
+						device->res->noc_main_sidebandmanager_offset);
 	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 
 exit:
@@ -5231,47 +5278,61 @@ static void __noc_error_info_iris2(struct iris_hfi_device *device)
 		return;
 	}
 
-	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_SWID_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_swid_low,
 			"CVP_NOC__CORE_ERL_MAIN_SWID_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_HIGH_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_SWID_HIGH_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_swid_high,
 			"CVP_NOC_CORE_ERL_MAIN_SWID_HIGH", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_mainctl_low,
 			"CVP_NOC_CORE_ERL_MAIN_MAINCTL_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRVLD_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRVLD_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errvld_low,
 			"CVP_NOC_CORE_ERL_MAIN_ERRVLD_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errclr_low,
 			"CVP_NOC_CORE_ERL_MAIN_ERRCLR_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG0_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog0_low,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG0_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_HIGH_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG0_HIGH_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog0_high,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG0_HIGH", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG1_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog1_low,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG1_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_HIGH_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG1_HIGH_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog1_high,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG1_HIGH", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_LOW_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG2_LOW_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog2_low,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG2_LOW", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_HIGH_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG2_HIGH_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog2_high,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG2_HIGH", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_LOW_OFFS);
-	__err_log(log_required, &noc_log->err_core_errlog3_low, 
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG3_LOW_OFFS + device->res->noc_core_err_offset);
+	__err_log(log_required, &noc_log->err_core_errlog3_low,
 			"CORE ERRLOG3_LOW, below details", val);
 	__print_reg_details(val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_HIGH_OFFS);
+	val = __read_register(device,
+			CVP_NOC_CORE_ERR_ERRLOG3_HIGH_OFFS + device->res->noc_core_err_offset);
 	__err_log(log_required, &noc_log->err_core_errlog3_high,
 			"CVP_NOC_CORE_ERL_MAIN_ERRLOG3_HIGH", val);
-	__write_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS, 0x1);
+	__write_register(device,
+			CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS + device->res->noc_core_err_offset, 0x1);
 	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 #define CVP_SS_CLK_HALT 0x8
 #define CVP_SS_CLK_EN 0xC
