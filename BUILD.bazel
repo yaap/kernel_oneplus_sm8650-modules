@@ -48,8 +48,25 @@ ddk_headers(
 )
 
 ddk_headers(
+    name = "pt_headers",
+    hdrs = glob([
+            "pt/*.h"
+        ]
+    )
+)
+
+ddk_headers(
+    name = "raydium_headers",
+    hdrs = glob([
+            "raydium/*.h",
+            "raydium/chip_raydium/*.h"
+        ]
+    )
+)
+
+ddk_headers(
     name = "touch_drivers_headers",
-    hdrs = [":goodix_ts_headers", ":nt36xxx_headers", ":focaltech_headers", ":synaptics_tcm_headers", ":config_headers"]
+    hdrs = [":goodix_ts_headers", ":nt36xxx_headers", ":focaltech_headers", ":synaptics_tcm_headers", ":pt_headers", ":raydium_headers", ":config_headers"]
 )
 
 load(":target.bzl", "define_touch_target")

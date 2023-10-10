@@ -85,3 +85,62 @@ module_entry(
             "dummy_touch/dummy_touch.c"
     ]
 )
+
+#define ddk_module() for pt_ts
+module_entry(
+    name = "pt_ts",
+    config_option = "CONFIG_TOUCHSCREEN_PARADE",
+    srcs = [
+            "pt/pt_core.c",
+            "pt/pt_devtree.c",
+            "pt/pt_mt_common.c",
+            "pt/pt_platform.c",
+            "pt/pt_btn.c",
+            "pt/pt_mtb.c",
+            "pt/pt_proximity.c"
+    ]
+)
+
+#define ddk_module() for pt_i2c
+module_entry(
+    name = "pt_i2c",
+    config_option = "CONFIG_TOUCHSCREEN_PARADE_I2C",
+    srcs = [
+            "pt/pt_i2c.c"
+    ]
+)
+
+#define ddk_module() for pt_device_access
+module_entry(
+    name = "pt_device_access",
+    config_option = "CONFIG_TOUCHSCREEN_PARADE_DEVICE_ACCESS",
+    srcs = [
+            "pt/pt_device_access.c"
+    ]
+)
+
+#define ddk_module() for pt_debug
+module_entry(
+    name = "pt_debug",
+    config_option = "CONFIG_TOUCHSCREEN_PARADE_DEBUG_MDL",
+    srcs = [
+            "pt/pt_debug.c"
+    ]
+)
+
+#define ddk_module() for raydium_ts
+module_entry(
+    name = "raydium_ts",
+    config_option = "CONFIG_TOUCHSCREEN_RM_TS",
+    srcs = [
+            "raydium/drv_interface.c",
+            "raydium/raydium_driver.c",
+            "raydium/raydium_fw_update.c",
+            "raydium/raydium_selftest.c",
+            "raydium/raydium_sysfs.c",
+            "raydium/chip_raydium/f303_ic_control.c",
+            "raydium/chip_raydium/f303_ic_test.c",
+            "raydium/chip_raydium/ic_drv_global.c",
+            "raydium/chip_raydium/ic_drv_interface.c"
+    ]
+)

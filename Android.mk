@@ -25,6 +25,10 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
               LOCAL_MODULE_DDK_BUILD := true
        endif
 
+       ifeq ($(TARGET_BOARD_PLATFORM), monaco)
+              LOCAL_MODULE_DDK_BUILD := true
+       endif
+
        include $(CLEAR_VARS)
 
        # This makefile is only for DLKM
