@@ -4868,8 +4868,8 @@ static int __power_off_controller(struct iris_hfi_device *device)
 	/* de-assert EVA_NoC reset */
 	__write_register(device, CVP_AON_WRAPPER_CVP_NOC_CORE_SW_RESET, 0x0);
 
-	/* de-assert EVA video_cc XO reset and enable video_cc XO clock after 125us */
-	usleep_range(200, 300);
+	/* de-assert EVA video_cc XO reset and enable video_cc XO clock after 80us */
+	usleep_range(80, 100);
 	rc = call_iris_op(device, reset_control_deassert_name, device, "cvp_xo_reset");
 	if (rc)
 		dprintk(CVP_ERR, "%s: de-assert cvp_xo_reset failed\n", __func__);
