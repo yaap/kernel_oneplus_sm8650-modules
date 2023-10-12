@@ -5,6 +5,7 @@
 
 #include "perf_static_model.h"
 #include "msm_vidc_debug.h"
+#include "msm_vidc_platform.h"
 
 #define ENABLE_FINEBITRATE_SUBUHD60 0
 
@@ -322,8 +323,8 @@ u32 get_bitrate_entry(u32 pixle_count)
 static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		struct api_calculation_freq_output *codec_output)
 {
-	u32 frequency_table_value[2][6];
-	u32 bitrate_table_2stage_value[5][10];
+	u32 (*frequency_table_value)[6];
+	u32 (*bitrate_table_2stage_value)[10];
 	/*
 	 * VSP calculation
 	 * different methodology from Lahaina
@@ -345,16 +346,12 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 
 	input_bitrate_fp = ((u32)(codec_input.bitrate_mbps * 100 + 99)) / 100;
 
-	if (codec_input.pipe_num == 4) {
-		memcpy(frequency_table_value, frequency_table_iris33,
-		       sizeof(frequency_table_value));
-		memcpy(bitrate_table_2stage_value, bitrate_table_iris33_2stage_fp,
-		       sizeof(bitrate_table_2stage_value));
-	} else if (codec_input.pipe_num == 2) {
-		memcpy(frequency_table_value, frequency_table_iris33_2p,
-		       sizeof(frequency_table_value));
-		memcpy(bitrate_table_2stage_value, bitrate_table_iris33_2p_2stage_fp,
-		       sizeof(bitrate_table_2stage_value));
+	if (codec_input.vpu_ver == VPU_VERSION_IRIS33) {
+		frequency_table_value = frequency_table_iris33;
+		bitrate_table_2stage_value = bitrate_table_iris33_2stage_fp;
+	} else if (codec_input.vpu_ver == VPU_VERSION_IRIS33_2P) {
+		frequency_table_value = frequency_table_iris33_2p;
+		bitrate_table_2stage_value = bitrate_table_iris33_2p_2stage_fp;
 	}
 
 	/* 8KUHD60fps with B frame */
@@ -438,12 +435,12 @@ static u32 calculate_pipe_penalty(struct api_calculation_input codec_input)
 	u32 pipe_penalty_codec = 0;
 	u8 avid_commercial_content = 0;
 	u32 pixel_count = 0;
-	u32 pipe_penalty_value[3][3];
+	u32 (*pipe_penalty_value)[3];
 
-	if (codec_input.pipe_num == 4)
-		memcpy(pipe_penalty_value, pipe_penalty_iris33, sizeof(pipe_penalty_value));
-	else if (codec_input.pipe_num == 2)
-		memcpy(pipe_penalty_value, pipe_penalty_iris33_2p, sizeof(pipe_penalty_value));
+	if (codec_input.vpu_ver == VPU_VERSION_IRIS33)
+		pipe_penalty_value = pipe_penalty_iris33;
+	else if (codec_input.vpu_ver == VPU_VERSION_IRIS33_2P)
+		pipe_penalty_value = pipe_penalty_iris33_2p;
 
 	/* decoder */
 	if (codec_input.decoder_or_encoder == CODEC_DECODER) {
