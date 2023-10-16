@@ -5106,7 +5106,7 @@ static const struct msm_vidc_platform_data cliffs_data_v0 = {
 	.dev_reg_tbl_size = ARRAY_SIZE(cliffs_device_region_table),
 	.fwname = "vpu30_2v",
 	.pas_id = 9,
-	.supports_mmrm = 1,
+	.supports_mmrm = 0,
 	.vpu_ver = VPU_VERSION_IRIS33_2P,
 
 	/* caps related resorces */
@@ -5180,7 +5180,7 @@ static const struct msm_vidc_platform_data cliffs_data_v1 = {
 	.dev_reg_tbl_size = ARRAY_SIZE(cliffs_device_region_table),
 	.fwname = "vpu30_2v",
 	.pas_id = 9,
-	.supports_mmrm = 1,
+	.supports_mmrm = 0,
 
 	/* caps related resorces */
 	.core_data = core_data_cliffs_v1,
