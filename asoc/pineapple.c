@@ -1487,7 +1487,6 @@ static int msm_snd_card_late_probe(struct snd_soc_card *card)
 	default:
 		return -EINVAL;
 	}
-	ret = wcd939x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
 	if (ret) {
 		dev_err(component->dev, "%s: mbhc hs detect failed, err:%d\n",
 			__func__, ret);
