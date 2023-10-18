@@ -3731,7 +3731,7 @@ static int __reset_control_acquire(struct iris_hfi_device *device,
 	struct reset_info *rcinfo = NULL;
 	int rc = 0;
 	bool found = false;
-	int max_retries = 10;
+	int max_retries = 1000;
 
 	iris_hfi_for_each_reset_clock(device, rcinfo) {
 		if (strcmp(rcinfo->name, name))
@@ -3743,15 +3743,15 @@ acquire_again:
 		rc = reset_control_acquire(rcinfo->rst);
 		if (rc) {
 			if (rc == -EBUSY) {
-				usleep_range(500, 1000);
+				usleep_range(1000, 1500);
 				max_retries--;
 				if (max_retries) {
 					goto acquire_again;
 				} else {
 					dprintk(CVP_ERR,
 						"%s acquire %s -EBUSY\n",
-					        __func__, rcinfo->name);
-					rc = -EINVAL;
+							__func__, rcinfo->name);
+					BUG_ON(1);
 				}
 			} else {
 				dprintk(CVP_ERR,
