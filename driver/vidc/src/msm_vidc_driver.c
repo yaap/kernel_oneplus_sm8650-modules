@@ -1114,7 +1114,8 @@ int msm_vidc_process_streamon_input(struct msm_vidc_inst *inst)
 	 * input port will be resumed.
 	 */
 	if (is_sub_state(inst, MSM_VIDC_DRC) ||
-		is_sub_state(inst, MSM_VIDC_DRAIN)) {
+		is_sub_state(inst, MSM_VIDC_DRAIN) ||
+		is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
 		if (!is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
 			rc = venus_hfi_session_pause(inst, INPUT_PORT);
 			if (rc)
@@ -1200,6 +1201,9 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 			clear_sub_state |= MSM_VIDC_INPUT_PAUSE;
 		}
 	}
+
+	if (is_sub_state(inst, MSM_VIDC_FIRST_IPSC))
+		clear_sub_state |= MSM_VIDC_FIRST_IPSC;
 
 	rc = venus_hfi_start(inst, OUTPUT_PORT);
 	if (rc)
@@ -1330,7 +1334,7 @@ int msm_vidc_state_change_input_psc(struct msm_vidc_inst *inst)
 	 */
 	if (is_state(inst, MSM_VIDC_INPUT_STREAMING) ||
 		is_state(inst, MSM_VIDC_OPEN))
-		set_sub_state = MSM_VIDC_INPUT_PAUSE;
+		set_sub_state = MSM_VIDC_INPUT_PAUSE | MSM_VIDC_FIRST_IPSC;
 	else
 		set_sub_state = MSM_VIDC_DRC | MSM_VIDC_INPUT_PAUSE;
 
@@ -2699,8 +2703,12 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	 * To ensure buffers->reuse is set to false, add check to detect
 	 * if buf_size has become zero. Do the same for buf_count as well.
 	 */
-	if (buf_size && buf_size <= buffers->size &&
-	    buf_count && buf_count <= buffers->min_count) {
+	if (is_split_mode_enabled(inst) && is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
+		buffers->reuse = false;
+		buffers->size = buf_size;
+		buffers->min_count = buf_count;
+	} else if (buf_size && buf_size <= buffers->size &&
+		buf_count && buf_count <= buffers->min_count) {
 		buffers->reuse = true;
 	} else {
 		buffers->reuse = false;
