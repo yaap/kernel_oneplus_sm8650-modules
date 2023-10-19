@@ -1210,15 +1210,6 @@ static int setup_fd_gpio_irq(struct platform_device *pdev,
 		goto end;
 	}
 
-	rc = devm_gpio_request_one(&pdev->dev, drvdata->fd_gpio.gpio,
-		GPIOF_IN, desc);
-	if (rc < 0) {
-		pr_err("failed to request gpio %d, error %d\n",
-			drvdata->fd_gpio.gpio, rc);
-		goto end;
-	}
-
-
 	irq = gpio_to_irq(drvdata->fd_gpio.gpio);
 	if (irq < 0) {
 		rc = irq;
@@ -1304,8 +1295,8 @@ static int qbt_read_device_tree(struct platform_device *pdev,
 	struct qbt_drvdata *drvdata)
 {
 	int rc = 0;
-	int gpio;
-	enum of_gpio_flags flags;
+	struct gpio_desc *fd_gpio_desc;
+	enum gpiod_flags flags = 0;
 
 	drvdata->intr2_gpio = of_get_named_gpio(pdev->dev.of_node,
 			"qcom,intr2-gpio", 0);
@@ -1321,17 +1312,18 @@ static int qbt_read_device_tree(struct platform_device *pdev,
 		goto end;
 	}
 
-	gpio = of_get_named_gpio_flags(pdev->dev.of_node,
-				"qcom,finger-detect-gpio", 0, &flags);
-	if (gpio < 0) {
+	fd_gpio_desc = devm_gpiod_get_optional(&pdev->dev,
+				"qcom,finger-detect", flags);
+	rc = PTR_ERR_OR_ZERO(fd_gpio_desc);
+	if (rc) {
 		pr_err("failed to get gpio flags\n");
 		drvdata->is_wuhb_connected = 0;
 		goto end;
 	}
 
 	drvdata->is_wuhb_connected = 1;
-	drvdata->fd_gpio.gpio = gpio;
-	drvdata->fd_gpio.active_low = flags & OF_GPIO_ACTIVE_LOW;
+	drvdata->fd_gpio.gpio = desc_to_gpio(fd_gpio_desc);
+	drvdata->fd_gpio.active_low = flags & GPIOF_ACTIVE_LOW;
 	pr_debug("is_wuhb_connected=%d\n", drvdata->is_wuhb_connected);
 
 end:
