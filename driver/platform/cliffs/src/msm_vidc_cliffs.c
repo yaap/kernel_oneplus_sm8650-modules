@@ -5,7 +5,7 @@
  */
 
 #include <dt-bindings/clock/qcom,gcc-cliffs.h>
-#include <dt-bindings/clock/qcom,videocc-cliffs.h>
+#include <dt-bindings/clock/qcom,videocc-pineapple.h>
 
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/of_common.h>
