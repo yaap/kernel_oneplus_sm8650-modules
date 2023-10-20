@@ -600,11 +600,11 @@ void handle_sys_error(enum hal_command_response cmd, void *data)
 			core, cmd, core->ssr_count);
 	mutex_lock(&core->clk_lock);
 	hfi_device = ops_tbl->hfi_device_data;
+	call_hfi_op(ops_tbl, flush_debug_queue, ops_tbl->hfi_device_data);
 	if (hfi_device->error == CVP_ERR_NOC_ERROR) {
 		dprintk(CVP_WARN, "Got NOC error");
 		msm_cvp_noc_error_info(core);
 	}
-	call_hfi_op(ops_tbl, flush_debug_queue, ops_tbl->hfi_device_data);
 	list_for_each_entry(inst, &core->instances, list) {
 		cvp_print_inst(CVP_WARN, inst);
 		if (inst->state != MSM_CVP_CORE_INVALID) {
