@@ -2091,12 +2091,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_req_sync_frame},
 
-	{BIT_RATE, ENC, H264,
-		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
-		msm_vidc_adjust_bitrate,
-		msm_vidc_set_bitrate},
-
-	{BIT_RATE, ENC, HEVC,
+	{BIT_RATE, ENC, H264 | HEVC,
 		{PEAK_BITRATE, BITRATE_BOOST, L0_BR},
 		msm_vidc_adjust_bitrate,
 		msm_vidc_set_bitrate},
