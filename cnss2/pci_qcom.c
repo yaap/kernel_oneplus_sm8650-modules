@@ -234,12 +234,14 @@ static void cnss_pci_event_cb(struct msm_pcie_notify *notify)
 		cnss_pci_handle_linkdown(pci_priv);
 		break;
 	case MSM_PCIE_EVENT_WAKEUP:
+		cnss_pr_dbg("PCI Wake up event callback\n");
 		if ((cnss_pci_get_monitor_wake_intr(pci_priv) &&
 		     cnss_pci_get_auto_suspended(pci_priv)) ||
 		     dev->power.runtime_status == RPM_SUSPENDING) {
 			cnss_pci_set_monitor_wake_intr(pci_priv, false);
 			cnss_pci_pm_request_resume(pci_priv);
 		}
+		complete(&pci_priv->wake_event_complete);
 		break;
 	case MSM_PCIE_EVENT_DRV_CONNECT:
 		cnss_pr_dbg("DRV subsystem is connected\n");

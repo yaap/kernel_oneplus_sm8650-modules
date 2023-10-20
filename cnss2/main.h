@@ -279,7 +279,7 @@ enum cnss_fw_dump_type {
 };
 
 struct cnss_dump_entry {
-	u32 type;
+	int type;
 	u32 entry_start;
 	u32 entry_num;
 };

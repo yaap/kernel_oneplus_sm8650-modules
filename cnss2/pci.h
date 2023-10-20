@@ -169,6 +169,7 @@ struct cnss_pci_data {
 	struct mhi_controller *mhi_ctrl;
 	unsigned long mhi_state;
 	u32 remap_window;
+	struct completion wake_event_complete;
 	struct timer_list dev_rddm_timer;
 	struct timer_list boot_debug_timer;
 	struct delayed_work time_sync_work;

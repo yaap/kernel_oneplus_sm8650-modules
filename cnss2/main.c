@@ -3269,7 +3269,98 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		[CNSS_HOST_CE_HISTORY_MAX] = "hif_ce_history_max",
 		[CNSS_HOST_ONLY_FOR_CRIT_CE] = "hif_ce_only_for_crit",
 		[CNSS_HOST_HIF_EVENT_HISTORY] = "hif_event_history",
-		[CNSS_HOST_HIF_EVENT_HIST_MAX] = "hif_event_hist_max"
+		[CNSS_HOST_HIF_EVENT_HIST_MAX] = "hif_event_hist_max",
+		[CNSS_HOST_DP_WBM_DESC_REL] = "wbm_desc_rel_ring",
+		[CNSS_HOST_DP_WBM_DESC_REL_HANDLE] = "wbm_desc_rel_ring_handle",
+		[CNSS_HOST_DP_TCL_CMD] = "tcl_cmd_ring",
+		[CNSS_HOST_DP_TCL_CMD_HANDLE] = "tcl_cmd_ring_handle",
+		[CNSS_HOST_DP_TCL_STATUS] = "tcl_status_ring",
+		[CNSS_HOST_DP_TCL_STATUS_HANDLE] = "tcl_status_ring_handle",
+		[CNSS_HOST_DP_REO_REINJ] = "reo_reinject_ring",
+		[CNSS_HOST_DP_REO_REINJ_HANDLE] = "reo_reinject_ring_handle",
+		[CNSS_HOST_DP_RX_REL] = "rx_rel_ring",
+		[CNSS_HOST_DP_RX_REL_HANDLE] = "rx_rel_ring_handle",
+		[CNSS_HOST_DP_REO_EXP] = "reo_exception_ring",
+		[CNSS_HOST_DP_REO_EXP_HANDLE] = "reo_exception_ring_handle",
+		[CNSS_HOST_DP_REO_CMD] = "reo_cmd_ring",
+		[CNSS_HOST_DP_REO_CMD_HANDLE] = "reo_cmd_ring_handle",
+		[CNSS_HOST_DP_REO_STATUS] = "reo_status_ring",
+		[CNSS_HOST_DP_REO_STATUS_HANDLE] = "reo_status_ring_handle",
+		[CNSS_HOST_DP_TCL_DATA_0] = "tcl_data_ring_0",
+		[CNSS_HOST_DP_TCL_DATA_0_HANDLE] = "tcl_data_ring_0_handle",
+		[CNSS_HOST_DP_TX_COMP_0] = "tx_comp_ring_0",
+		[CNSS_HOST_DP_TX_COMP_0_HANDLE] = "tx_comp_ring_0_handle",
+		[CNSS_HOST_DP_TCL_DATA_1] = "tcl_data_ring_1",
+		[CNSS_HOST_DP_TCL_DATA_1_HANDLE] = "tcl_data_ring_1_handle",
+		[CNSS_HOST_DP_TX_COMP_1] = "tx_comp_ring_1",
+		[CNSS_HOST_DP_TX_COMP_1_HANDLE] = "tx_comp_ring_1_handle",
+		[CNSS_HOST_DP_TCL_DATA_2] = "tcl_data_ring_2",
+		[CNSS_HOST_DP_TCL_DATA_2_HANDLE] = "tcl_data_ring_2_handle",
+		[CNSS_HOST_DP_TX_COMP_2] = "tx_comp_ring_2",
+		[CNSS_HOST_DP_TX_COMP_2_HANDLE] = "tx_comp_ring_2_handle",
+		[CNSS_HOST_DP_REO_DST_0] = "reo_dest_ring_0",
+		[CNSS_HOST_DP_REO_DST_0_HANDLE] = "reo_dest_ring_0_handle",
+		[CNSS_HOST_DP_REO_DST_1] = "reo_dest_ring_1",
+		[CNSS_HOST_DP_REO_DST_1_HANDLE] = "reo_dest_ring_1_handle",
+		[CNSS_HOST_DP_REO_DST_2] = "reo_dest_ring_2",
+		[CNSS_HOST_DP_REO_DST_2_HANDLE] = "reo_dest_ring_2_handle",
+		[CNSS_HOST_DP_REO_DST_3] = "reo_dest_ring_3",
+		[CNSS_HOST_DP_REO_DST_3_HANDLE] = "reo_dest_ring_3_handle",
+		[CNSS_HOST_DP_REO_DST_4] = "reo_dest_ring_4",
+		[CNSS_HOST_DP_REO_DST_4_HANDLE] = "reo_dest_ring_4_handle",
+		[CNSS_HOST_DP_REO_DST_5] = "reo_dest_ring_5",
+		[CNSS_HOST_DP_REO_DST_5_HANDLE] = "reo_dest_ring_5_handle",
+		[CNSS_HOST_DP_REO_DST_6] = "reo_dest_ring_6",
+		[CNSS_HOST_DP_REO_DST_6_HANDLE] = "reo_dest_ring_6_handle",
+		[CNSS_HOST_DP_REO_DST_7] = "reo_dest_ring_7",
+		[CNSS_HOST_DP_REO_DST_7_HANDLE] = "reo_dest_ring_7_handle",
+		[CNSS_HOST_DP_PDEV_0] = "dp_pdev_0",
+		[CNSS_HOST_DP_WLAN_CFG_CTX] = "wlan_cfg_ctx",
+		[CNSS_HOST_DP_SOC] = "dp_soc",
+		[CNSS_HOST_HAL_RX_FST] = "hal_rx_fst",
+		[CNSS_HOST_DP_FISA] = "dp_fisa",
+		[CNSS_HOST_DP_FISA_HW_FSE_TABLE] = "dp_fisa_hw_fse_table",
+		[CNSS_HOST_DP_FISA_SW_FSE_TABLE] = "dp_fisa_sw_fse_table",
+		[CNSS_HOST_HIF] = "hif",
+		[CNSS_HOST_QDF_NBUF_HIST] = "qdf_nbuf_history",
+		[CNSS_HOST_TCL_WBM_MAP] = "tcl_wbm_map_array",
+		[CNSS_HOST_RX_MAC_BUF_RING_0] = "rx_mac_buf_ring_0",
+		[CNSS_HOST_RX_MAC_BUF_RING_0_HANDLE] = "rx_mac_buf_ring_0_handle",
+		[CNSS_HOST_RX_MAC_BUF_RING_1] = "rx_mac_buf_ring_1",
+		[CNSS_HOST_RX_MAC_BUF_RING_1_HANDLE] = "rx_mac_buf_ring_1_handle",
+		[CNSS_HOST_RX_REFILL_0] = "rx_refill_buf_ring_0",
+		[CNSS_HOST_RX_REFILL_0_HANDLE] = "rx_refill_buf_ring_0_handle",
+		[CNSS_HOST_CE_0] = "ce_0",
+		[CNSS_HOST_CE_0_SRC_RING] = "ce_0_src_ring",
+		[CNSS_HOST_CE_0_SRC_RING_CTX] = "ce_0_src_ring_ctx",
+		[CNSS_HOST_CE_1] = "ce_1",
+		[CNSS_HOST_CE_1_STATUS_RING] = "ce_1_status_ring",
+		[CNSS_HOST_CE_1_STATUS_RING_CTX] = "ce_1_status_ring_ctx",
+		[CNSS_HOST_CE_1_DEST_RING] = "ce_1_dest_ring",
+		[CNSS_HOST_CE_1_DEST_RING_CTX] = "ce_1_dest_ring_ctx",
+		[CNSS_HOST_CE_2] = "ce_2",
+		[CNSS_HOST_CE_2_STATUS_RING] = "ce_2_status_ring",
+		[CNSS_HOST_CE_2_STATUS_RING_CTX] = "ce_2_status_ring_ctx",
+		[CNSS_HOST_CE_2_DEST_RING] = "ce_2_dest_ring",
+		[CNSS_HOST_CE_2_DEST_RING_CTX] = "ce_2_dest_ring_ctx",
+		[CNSS_HOST_CE_3] = "ce_3",
+		[CNSS_HOST_CE_3_SRC_RING] = "ce_3_src_ring",
+		[CNSS_HOST_CE_3_SRC_RING_CTX] = "ce_3_src_ring_ctx",
+		[CNSS_HOST_CE_4] = "ce_4",
+		[CNSS_HOST_CE_4_SRC_RING] = "ce_4_src_ring",
+		[CNSS_HOST_CE_4_SRC_RING_CTX] = "ce_4_src_ring_ctx",
+		[CNSS_HOST_CE_5] = "ce_5",
+		[CNSS_HOST_CE_6] = "ce_6",
+		[CNSS_HOST_CE_7] = "ce_7",
+		[CNSS_HOST_CE_7_STATUS_RING] = "ce_7_status_ring",
+		[CNSS_HOST_CE_7_STATUS_RING_CTX] = "ce_7_status_ring_ctx",
+		[CNSS_HOST_CE_7_DEST_RING] = "ce_7_dest_ring",
+		[CNSS_HOST_CE_7_DEST_RING_CTX] = "ce_7_dest_ring_ctx",
+		[CNSS_HOST_CE_8] = "ce_8",
+		[CNSS_HOST_DP_TCL_DATA_3] = "tcl_data_ring_3",
+		[CNSS_HOST_DP_TCL_DATA_3_HANDLE] = "tcl_data_ring_3_handle",
+		[CNSS_HOST_DP_TX_COMP_3] = "tx_comp_ring_3",
+		[CNSS_HOST_DP_TX_COMP_3_HANDLE] = "tx_comp_ring_3_handle"
 	};
 	int i;
 	int ret = 0;
@@ -3296,6 +3387,14 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 
 	INIT_LIST_HEAD(&head);
 	for (i = 0; i < num_entries_loaded; i++) {
+		/* If region name registered by driver is not present in
+		 * wlan_str. type for that entry will not be set, but entry will
+		 * be added. Which will result in entry type being 0. Currently
+		 * entry type 0 is for wlan_logs, which will result in parsing
+		 * issue for wlan_logs as parsing is done based upon type field.
+		 * So initialize type with -1(Invalid) to avoid such issues.
+		 */
+		meta_info.entry[i].type = -1;
 		seg = kcalloc(1, sizeof(*seg), GFP_KERNEL);
 		if (!seg) {
 			cnss_pr_err("Failed to alloc seg entry %d\n", i);
@@ -3307,8 +3406,7 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 		seg->size = ssr_entry[i].buffer_size;
 
 		for (j = 0; j < CNSS_HOST_DUMP_TYPE_MAX; j++) {
-			if (strncmp(ssr_entry[i].region_name, wlan_str[j],
-				    strlen(wlan_str[j])) == 0) {
+			if (strcmp(ssr_entry[i].region_name, wlan_str[j]) == 0) {
 				meta_info.entry[i].type = j;
 			}
 		}

@@ -9,7 +9,7 @@ _default_module_enablement_list = [
     "wlan_firmware_service"
 ]
 
-_cnss2_enabled_target = ["pineapple", "sun"]
+_cnss2_enabled_target = ["niobe", "pineapple", "sun"]
 _icnss2_enabled_target = ["blair", "pineapple"]
 
 def _get_module_list(target, variant):
