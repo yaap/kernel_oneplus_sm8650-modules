@@ -1268,12 +1268,11 @@ static int qseecom_dmabuf_cache_operations(struct dma_buf *dmabuf,
 
 	switch (cache_op) {
 	case QSEECOM_CACHE_CLEAN: /* Doing CLEAN and INVALIDATE */
-		dma_buf_begin_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 		dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
+		dma_buf_begin_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 		break;
 	case QSEECOM_CACHE_INVALIDATE:
-		dma_buf_begin_cpu_access(dmabuf, DMA_TO_DEVICE);
-		dma_buf_end_cpu_access(dmabuf, DMA_FROM_DEVICE);
+		dma_buf_begin_cpu_access(dmabuf, DMA_FROM_DEVICE);
 		break;
 	default:
 		pr_err("cache (%d) operation not supported\n",
@@ -1443,10 +1442,10 @@ static int qseecom_vaddr_map(int ion_fd,
 
 	*paddr = sg_dma_address(new_sgt->sgl);
 	*sb_length = new_sgt->sgl->length;
-
+	//Invalidate the Buffer
 	dma_buf_begin_cpu_access(new_dma_buf, DMA_BIDIRECTIONAL);
 	ret = dma_buf_vmap(new_dma_buf, &new_dma_buf_map);
-    new_va = ret ? NULL : new_dma_buf_map.vaddr;
+	new_va = ret ? NULL : new_dma_buf_map.vaddr;
 	if (!new_va) {
 		pr_err("dma_buf_vmap failed\n");
 		ret = -ENOMEM;
@@ -1459,7 +1458,9 @@ static int qseecom_vaddr_map(int ion_fd,
 	return ret;
 
 err_unmap:
+	//Flush the buffer (i.e. Clean and invalidate)
 	dma_buf_end_cpu_access(new_dma_buf, DMA_BIDIRECTIONAL);
+	dma_buf_begin_cpu_access(new_dma_buf, DMA_BIDIRECTIONAL);
 	qseecom_dmabuf_unmap(new_sgt, new_attach, new_dma_buf);
 	MAKE_NULL(*sgt, *attach, *dmabuf);
 err:
@@ -7639,6 +7640,16 @@ long qseecom_ioctl(struct file *file,
 	struct qseecom_dev_handle *data = file->private_data;
 	void __user *argp = (void __user *) arg;
 	bool perf_enabled = false;
+
+	if (atomic_read(&qseecom.qseecom_state) != QSEECOM_STATE_READY) {
+		pr_err("Not allowed to be called in %d state\n",
+				atomic_read(&qseecom.qseecom_state));
+		/* since the state is not ready returning device not configured yet
+		 * i.e operation can't be performed on device yet.
+		 */
+		return -ENXIO;
+	}
+
 	if (!data) {
 		pr_err("Invalid/uninitialized device handle\n");
 		return -EINVAL;
@@ -9336,7 +9347,11 @@ static int qseecom_init_dev(struct platform_device *pdev)
 		pr_err("alloc_chrdev_region failed %d\n", rc);
 		return rc;
 	}
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	qseecom.driver_class = class_create(QSEECOM_DEV);
+#else
 	qseecom.driver_class = class_create(THIS_MODULE, QSEECOM_DEV);
+#endif
 	if (IS_ERR(qseecom.driver_class)) {
 		rc = PTR_ERR(qseecom.driver_class);
 		pr_err("class_create failed %x\n", rc);

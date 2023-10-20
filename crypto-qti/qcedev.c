@@ -26,6 +26,7 @@
 #include "linux/qcedev.h"
 #include <linux/interconnect.h>
 #include <linux/delay.h>
+#include <linux/version.h>
 
 #include <crypto/hash.h>
 #include "qcedevi.h"
@@ -2519,7 +2520,11 @@ static int qcedev_probe_device(struct platform_device *pdev)
 		return rc;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	driver_class = class_create(QCEDEV_DEV);
+#else
 	driver_class = class_create(THIS_MODULE, QCEDEV_DEV);
+#endif
 	if (IS_ERR(driver_class)) {
 		rc = -ENOMEM;
 		pr_err("class_create failed %d\n", rc);

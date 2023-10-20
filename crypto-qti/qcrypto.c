@@ -28,6 +28,7 @@
 #include <linux/cache.h>
 #include <linux/interconnect.h>
 #include <linux/hardirq.h>
+#include <linux/version.h>
 #include "qcrypto.h"
 #include "qcom_crypto_device.h"
 
@@ -912,9 +913,12 @@ static void _qcrypto_ahash_cra_exit(struct crypto_tfm *tfm)
 	}
 }
 
-
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _crypto_sha_hmac_ahash_req_complete(void *data, int err);
+#else
 static void _crypto_sha_hmac_ahash_req_complete(
-	struct crypto_async_request *req, int err);
+	    struct crypto_async_request *req, int err);
+#endif
 
 static int _qcrypto_ahash_hmac_cra_init(struct crypto_tfm *tfm)
 {
@@ -3134,14 +3138,22 @@ static void _qcrypto_aead_aes_192_fb_a_cb(struct qcrypto_cipher_req_ctx *rctx,
 	areq->complete(areq, res);
 }
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _aead_aes_fb_stage2_ahash_complete(void *data, int err)
+#else
 static void _aead_aes_fb_stage2_ahash_complete(
-				struct crypto_async_request *base, int err)
+		struct crypto_async_request *base, int err)
+#endif
 {
 	struct qcrypto_cipher_req_ctx *rctx;
 	struct aead_request *req;
 	struct qcrypto_cipher_ctx *ctx;
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	rctx = data;
+#else
 	rctx = base->data;
+#endif
 	req = rctx->aead_req;
 	ctx = crypto_tfm_ctx(req->base.tfm);
 	/* copy icv */
@@ -3152,7 +3164,6 @@ static void _aead_aes_fb_stage2_ahash_complete(
 					ctx->authsize, 1);
 	_qcrypto_aead_aes_192_fb_a_cb(rctx, err);
 }
-
 
 static int _start_aead_aes_fb_stage2_hmac(struct qcrypto_cipher_req_ctx *rctx)
 {
@@ -3165,12 +3176,20 @@ static int _start_aead_aes_fb_stage2_hmac(struct qcrypto_cipher_req_ctx *rctx)
 	return crypto_ahash_digest(ahash_req);
 }
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _aead_aes_fb_stage2_decrypt_complete(void *data, int err)
+#else
 static void _aead_aes_fb_stage2_decrypt_complete(
-			struct crypto_async_request *base, int err)
+		struct crypto_async_request *base, int err)
+#endif
 {
 	struct qcrypto_cipher_req_ctx *rctx;
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	rctx = data;
+#else
 	rctx = base->data;
+#endif
 	_qcrypto_aead_aes_192_fb_a_cb(rctx, err);
 }
 
@@ -3185,14 +3204,22 @@ static int _start_aead_aes_fb_stage2_decrypt(
 	return crypto_skcipher_decrypt(aes_req);
 }
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _aead_aes_fb_stage1_ahash_complete(void *data, int err)
+#else
 static void _aead_aes_fb_stage1_ahash_complete(
-				struct crypto_async_request *base, int err)
+		struct crypto_async_request *base, int err)
+#endif
 {
 	struct qcrypto_cipher_req_ctx *rctx;
 	struct aead_request *req;
 	struct qcrypto_cipher_ctx *ctx;
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	rctx = data;
+#else
 	rctx = base->data;
+#endif
 	req = rctx->aead_req;
 	ctx = crypto_tfm_ctx(req->base.tfm);
 
@@ -3222,14 +3249,22 @@ ret:
 
 }
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _aead_aes_fb_stage1_encrypt_complete(void *data, int err)
+#else
 static void _aead_aes_fb_stage1_encrypt_complete(
-				struct crypto_async_request *base, int err)
+		struct crypto_async_request *base, int err)
+#endif
 {
 	struct qcrypto_cipher_req_ctx *rctx;
 	struct aead_request *req;
 	struct qcrypto_cipher_ctx *ctx;
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	rctx = data;
+#else
 	rctx = base->data;
+#endif
 	req = rctx->aead_req;
 	ctx = crypto_tfm_ctx(req->base.tfm);
 
@@ -3926,10 +3961,16 @@ static int _sha256_digest(struct ahash_request *req)
 	return _sha_digest(req);
 }
 
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+static void _crypto_sha_hmac_ahash_req_complete(void *data, int err)
+{
+	struct completion *ahash_req_complete = data;
+#else
 static void _crypto_sha_hmac_ahash_req_complete(
-	struct crypto_async_request *req, int err)
+		struct crypto_async_request *req, int err)
 {
 	struct completion *ahash_req_complete = req->data;
+#endif
 
 	if (err == -EINPROGRESS)
 		return;

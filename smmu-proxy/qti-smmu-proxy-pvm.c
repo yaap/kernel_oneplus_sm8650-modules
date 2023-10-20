@@ -259,7 +259,7 @@ static int sender_probe_handler(struct platform_device *pdev)
 	msgq_hdl = gh_msgq_register(GH_MSGQ_LABEL_SMMU_PROXY);
 	if (IS_ERR(msgq_hdl)) {
 		ret = PTR_ERR(msgq_hdl);
-		pr_err("%s: Queue registration failed rc: %d!\n", __func__, PTR_ERR(msgq_hdl));
+		pr_err("%s: Queue registration failed rc: %ld!\n", __func__, PTR_ERR(msgq_hdl));
 		return ret;
 	}
 

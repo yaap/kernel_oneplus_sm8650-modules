@@ -415,6 +415,7 @@ static int _probe_ce_engine(struct qce_device *pce_dev)
 {
 	unsigned int rev;
 	unsigned int maj_rev, min_rev, step_rev;
+	int i = 0;
 
 	rev = readl_relaxed(pce_dev->iobase + CRYPTO_VERSION_REG);
 	/*
@@ -461,12 +462,17 @@ static int _probe_ce_engine(struct qce_device *pce_dev)
 
 	pce_dev->ce_bam_info.ce_burst_size = MAX_CE_BAM_BURST_SIZE;
 
-	dev_dbg(pce_dev->pdev, "CE device = %#x IO base, CE = %pK Consumer (IN) PIPE %d,\nProducer (OUT) PIPE %d IO base BAM = %pK\nBAM IRQ %d Engines Availability = %#x\n",
+	dev_dbg(pce_dev->pdev, "CE device = %#x IO base, CE = %pK, IO base BAM = %pK\nBAM IRQ %d Engines Availability = %#x\n",
 			pce_dev->ce_bam_info.ce_device, pce_dev->iobase,
-			pce_dev->ce_bam_info.dest_pipe_index,
-			pce_dev->ce_bam_info.src_pipe_index,
 			pce_dev->ce_bam_info.bam_iobase,
 			pce_dev->ce_bam_info.bam_irq, pce_dev->engines_avail);
+
+	for (i = 0; i < QCE_OFFLOAD_OPER_LAST; i++) {
+		dev_dbg(pce_dev->pdev, "Consumer pipe IN [%d] = %d, Producer Pipe OUT [%d] = %d\n",
+				i, pce_dev->ce_bam_info.src_pipe_index[i],
+				i, pce_dev->ce_bam_info.dest_pipe_index[i]);
+	}
+
 	return 0;
 };
 
