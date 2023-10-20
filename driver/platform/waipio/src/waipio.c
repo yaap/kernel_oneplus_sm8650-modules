@@ -1559,17 +1559,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 		msm_vidc_adjust_input_buf_host_max_count,
 		msm_vidc_set_u32},
 
-	{INPUT_BUF_HOST_MAX_COUNT, ENC, H264 | HEVC,
-		{0},
-		msm_vidc_adjust_input_buf_host_max_count,
-		msm_vidc_set_u32},
-
 	{OUTPUT_BUF_HOST_MAX_COUNT, ENC | DEC, CODECS_ALL,
-		{0},
-		msm_vidc_adjust_output_buf_host_max_count,
-		msm_vidc_set_u32},
-
-	{OUTPUT_BUF_HOST_MAX_COUNT, ENC, H264 | HEVC,
 		{0},
 		msm_vidc_adjust_output_buf_host_max_count,
 		msm_vidc_set_u32},
