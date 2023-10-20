@@ -439,7 +439,7 @@ static int btfmcodec_configure_master(struct btfmcodec_data *btfmcodec, uint8_t 
 	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
 	struct hwep_data *hwep_info = btfmcodec->hwep_info;
 	struct master_hwep_configurations hwep_configs;
-	struct btm_master_config_req config_reg;
+	struct btm_master_config_req config_req;
 	struct hwep_dai_driver *dai_drv = (struct hwep_dai_driver *)
 					      btfmcodec_get_dai_drvdata(hwep_info);
 	wait_queue_head_t *rsp_wait_q =
@@ -456,32 +456,99 @@ static int btfmcodec_configure_master(struct btfmcodec_data *btfmcodec, uint8_t 
 	}
 
 	BTFMCODEC_INFO("framing packet for %d", id);
-	config_reg.opcode = BTM_BTFMCODEC_MASTER_CONFIG_REQ;
-	config_reg.len = BTM_MASTER_CONFIG_REQ_LEN;
-	config_reg.stream_id = hwep_configs.stream_id;
-	config_reg.device_id = hwep_configs.device_id;
-	config_reg.sample_rate = hwep_configs.sample_rate;
-	config_reg.bit_width = hwep_configs.bit_width;
-	config_reg.num_channels = hwep_configs.num_channels;
-	config_reg.channel_num = hwep_configs.chan_num;
-	config_reg.codec_id = hwep_configs.codectype;
+	config_req.opcode = BTM_BTFMCODEC_MASTER_CONFIG_REQ;
+	config_req.len = BTM_MASTER_CONFIG_REQ_LEN;
+	config_req.stream_id = hwep_configs.stream_id;
+	config_req.device_id = hwep_configs.device_id;
+	config_req.sample_rate = hwep_configs.sample_rate;
+	config_req.bit_width = hwep_configs.bit_width;
+	config_req.num_channels = hwep_configs.num_channels;
+	config_req.channel_num = hwep_configs.chan_num;
+	config_req.codec_id = hwep_configs.codectype;
 	BTFMCODEC_DBG("================================================\n");
-	BTFMCODEC_DBG("config_reg.len :%d", config_reg.len);
-	BTFMCODEC_DBG("config_reg.stream_id :%d", config_reg.stream_id);
-	BTFMCODEC_DBG("config_reg.device_id :%d", config_reg.device_id);
-	BTFMCODEC_DBG("config_reg.sample_rate :%d", config_reg.sample_rate);
-	BTFMCODEC_DBG("config_reg.bit_width :%d", config_reg.bit_width);
-	BTFMCODEC_DBG("config_reg.num_channels :%d", config_reg.num_channels);
-	BTFMCODEC_DBG("config_reg.channel_num :%d", config_reg.channel_num);
-	BTFMCODEC_DBG("config_reg.codec_id :%d", config_reg.codec_id);
+	BTFMCODEC_DBG("dma_config_req.len :%d", config_req.len);
+	BTFMCODEC_DBG("dma_config_req.stream_id :%d", config_req.stream_id);
+	BTFMCODEC_DBG("dma_config_req.device_id :%d", config_req.device_id);
+	BTFMCODEC_DBG("dma_config_req.sample_rate :%d", config_req.sample_rate);
+	BTFMCODEC_DBG("dma_config_req.bit_width :%d", config_req.bit_width);
+	BTFMCODEC_DBG("dma_config_req.num_channels :%d", config_req.num_channels);
+	BTFMCODEC_DBG("dma_config_req.channel_num :%d", config_req.channel_num);
+	BTFMCODEC_DBG("dma_config_req.codec_id :%d", config_req.codec_id);
 	BTFMCODEC_DBG("================================================\n");
 	/* See if we need to protect below with lock */
 	*status = BTM_WAITING_RSP;
-	btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &config_reg, (config_reg.len +
+	btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &config_req, (config_req.len +
 				BTM_HEADER_LEN));
 	ret = wait_event_interruptible_timeout(*rsp_wait_q,
 		(*status) != BTM_WAITING_RSP,
 		msecs_to_jiffies(BTM_MASTER_CONFIG_RSP_TIMEOUT));
+	if (ret == 0) {
+		BTFMCODEC_ERR("failed to recevie response from BTADV audio Manager");
+		ret = -ETIMEDOUT;
+	} else {
+		if (*status == BTM_RSP_RECV)
+			return 0;
+		else if (*status == BTM_FAIL_RESP_RECV ||
+			 *status == BTM_RSP_NOT_RECV_CLIENT_KILLED)
+			return -1;
+	}
+
+	return ret;
+}
+
+static int btfmcodec_configure_dma(struct btfmcodec_data *btfmcodec, uint8_t id)
+{
+	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
+	struct hwep_data *hwep_info = btfmcodec->hwep_info;
+	struct hwep_dma_configurations dma_config;
+	struct btm_dma_config_req dma_config_req;
+	struct hwep_dai_driver *dai_drv = (struct hwep_dai_driver *)
+					      btfmcodec_get_dai_drvdata(hwep_info);
+	wait_queue_head_t *rsp_wait_q =
+		&btfmcodec_dev->rsp_wait_q[BTM_PKT_TYPE_DMA_CONFIG_RSP];
+	uint8_t *status = &btfmcodec_dev->status[BTM_PKT_TYPE_DMA_CONFIG_RSP];
+	int ret = 0;
+
+	if (dai_drv && dai_drv->dai_ops && dai_drv->dai_ops->hwep_get_configs) {
+		dai_drv->dai_ops->hwep_get_configs((void *)btfmcodec->hwep_info,
+						   &dma_config, id);
+	} else {
+		BTFMCODEC_ERR("No hwep_get_configs is set by hw ep driver");
+		return -1;
+	}
+
+	BTFMCODEC_INFO("framing packet for %d", id);
+	dma_config_req.opcode = BTM_BTFMCODEC_CODEC_CONFIG_DMA_REQ;
+	dma_config_req.len = BTM_CODEC_CONFIG_DMA_REQ_LEN;
+	dma_config_req.stream_id = dma_config.stream_id;
+	dma_config_req.sample_rate = dma_config.sample_rate;
+	dma_config_req.bit_width = dma_config.bit_width;
+	dma_config_req.num_channels = dma_config.num_channels;
+	dma_config_req.codec_id = dma_config.codectype;
+	dma_config_req.lpaif = dma_config.lpaif;
+	dma_config_req.inf_index = dma_config.inf_index;
+	dma_config_req.active_channel_mask = dma_config.active_channel_mask;
+
+	BTFMCODEC_DBG("================================================\n");
+	BTFMCODEC_DBG("dma_config_req.len :%d", dma_config_req.len);
+	BTFMCODEC_DBG("dma_config_req.stream_id :%d", dma_config_req.stream_id);
+	BTFMCODEC_DBG("dma_config_req.sample_rate :%d", dma_config_req.sample_rate);
+	BTFMCODEC_DBG("dma_config_req.bit_width :%d", dma_config_req.bit_width);
+	BTFMCODEC_DBG("dma_config_req.num_channels :%d", dma_config_req.num_channels);
+	BTFMCODEC_DBG("dma_config_req.codec_id :%d", dma_config_req.codec_id);
+	BTFMCODEC_DBG("dma_config_req.lpaif :%d", dma_config_req.lpaif);
+	BTFMCODEC_DBG("dma_config_req.inf_index :%d", dma_config_req.inf_index);
+	BTFMCODEC_DBG("dma_config_req.active_channel_mask :%d", dma_config_req.active_channel_mask);
+	BTFMCODEC_DBG("================================================\n");
+
+	*status = BTM_WAITING_RSP;
+	btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &dma_config_req, (dma_config_req.len +
+				BTM_HEADER_LEN));
+
+	ret = wait_event_interruptible_timeout(*rsp_wait_q,
+		(*status) != BTM_WAITING_RSP,
+		msecs_to_jiffies(BTM_MASTER_DMA_CONFIG_RSP_TIMEOUT));
+
 	if (ret == 0) {
 		BTFMCODEC_ERR("failed to recevie response from BTADV audio Manager");
 		ret = -ETIMEDOUT;
@@ -508,14 +575,20 @@ int btfmcodec_hwep_prepare(struct btfmcodec_data *btfmcodec, uint32_t sampling_r
 	if (dai_drv && dai_drv->dai_ops && dai_drv->dai_ops->hwep_prepare) {
 		ret = dai_drv->dai_ops->hwep_prepare((void *)hwep_info, sampling_rate,
 						      direction, id);
+		BTFMCODEC_ERR("%s: hwep info %d", __func__, hwep_info->flags);
 		if (ret == 0 && test_bit(BTADV_AUDIO_MASTER_CONFIG, &hwep_info->flags)) {
 			ret = btfmcodec_configure_master(btfmcodec, (uint8_t)id);
 			if (ret < 0) {
 				BTFMCODEC_ERR("failed to configure master error %d", ret);
-				/* close slave port and reset the state*/
 				btfmcodec_set_current_state(state, IDLE);
-				/* we don't need to do shutdown, ASOC is doing it */
-//				btfmcodec_hwep_shutdown(btfmcodec, id);
+			} else {
+				btfmcodec_set_current_state(state, BT_Connected);
+			}
+		} else if (ret == 0 && test_bit(BTADV_CONFIGURE_DMA, &hwep_info->flags)) {
+			ret  = btfmcodec_configure_dma(btfmcodec, (uint8_t)id);
+			if (ret < 0) {
+				BTFMCODEC_ERR("failed to configure Codec DMA %d", ret);
+				btfmcodec_set_current_state(state, IDLE);
 			} else {
 				btfmcodec_set_current_state(state, BT_Connected);
 			}
@@ -525,6 +598,19 @@ int btfmcodec_hwep_prepare(struct btfmcodec_data *btfmcodec, uint32_t sampling_r
 	}
 
 	return ret;
+}
+
+static int btfmcodec_notify_usecase_start(struct btfmcodec_data *btfmcodec,
+					  uint8_t transport)
+{
+	struct btfmcodec_char_device *btfmcodec_dev = btfmcodec->btfmcodec_dev;
+	struct btm_usecase_start_ind ind;
+
+	ind.opcode = BTM_BTFMCODEC_USECASE_START_IND;
+	ind.len = BTM_USECASE_START_IND_LEN;
+	ind.transport = transport;
+	return btfmcodec_dev_enqueue_pkt(btfmcodec_dev, &ind, (ind.len +
+					 BTM_HEADER_LEN));
 }
 
 static int btfmcodec_dai_prepare(struct snd_pcm_substream *substream,
@@ -550,6 +636,7 @@ static int btfmcodec_dai_prepare(struct snd_pcm_substream *substream,
 	    btfmcodec_get_current_transport(state) != BT_Connected) {
 		BTFMCODEC_WARN("cached required info as state is:%s",
 			coverttostring(btfmcodec_get_current_transport(state)));
+		btfmcodec_notify_usecase_start(btfmcodec, BTADV);
 	} else {
 	        ret = btfmcodec_hwep_prepare(btfmcodec, sampling_rate, direction, id);
 /*		if (ret >= 0) {
@@ -770,6 +857,17 @@ int btfm_register_codec(struct hwep_data *hwep_info)
 	BTFMCODEC_INFO("after wq_prepare_bearer:%p", btfmcodec_dev->wq_prepare_bearer);
 	BTFMCODEC_INFO("btfmcodec_wq_prepare_bearer:%p", btfmcodec_wq_prepare_bearer);
 	BTFMCODEC_INFO("btfmcodec_wq_hwep_shutdown:%p", btfmcodec_wq_hwep_shutdown);
+
+	if (isCpSupported()) {
+		if (!strcmp(hwep_info->driver_name, "btfmslim"))
+			set_bit(BTADV_AUDIO_MASTER_CONFIG, &hwep_info->flags);
+		else if (!strcmp(hwep_info->driver_name, "btfmswr_slave"))
+			set_bit(BTADV_CONFIGURE_DMA, &hwep_info->flags);
+
+	BTFMCODEC_INFO("%s: master %d dma codec %d", __func__,
+			(int)test_bit(BTADV_AUDIO_MASTER_CONFIG, &hwep_info->flags),
+			(int)test_bit(BTADV_CONFIGURE_DMA, &hwep_info->flags));
+	}
 
 	return ret;
 }

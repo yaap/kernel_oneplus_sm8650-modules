@@ -397,16 +397,17 @@ static int btfm_slim_dai_get_channel_map(void *dai,
 	return 0;
 }
 
-int btfm_slim_dai_get_configs (void * dai,
-				struct master_hwep_configurations *hwep_config,
-				uint8_t id)
+int btfm_slim_dai_get_configs(void *dai, void *config, uint8_t id)
 {
 	struct hwep_data *hwep_info = (struct hwep_data *)dai;
 	struct btfmslim *btfmslim = dev_get_drvdata(hwep_info->dev);
+	struct master_hwep_configurations *hwep_config;
 	struct btfmslim_ch *ch = NULL;
 	int i = 0;
 
 	BTFMSLIM_DBG("");
+
+	hwep_config = (struct master_hwep_configurations *) config;
 	hwep_config->stream_id = id;
 	hwep_config->device_id = btfmslim->device_id;
 	hwep_config->sample_rate = btfmslim->sample_rate;
@@ -436,6 +437,7 @@ int btfm_slim_dai_get_configs (void * dai,
 
 	return 1;
 }
+
 static struct hwep_dai_ops  btfmslim_hw_dai_ops = {
 	.hwep_startup = btfm_slim_dai_startup,
 	.hwep_shutdown = btfm_slim_dai_shutdown,
@@ -519,7 +521,6 @@ int btfm_slim_register_hw_ep(struct btfmslim *btfm_slim)
 	hwep_info->num_dai = 2;
 	hwep_info->num_mixer_ctrl = ARRAY_SIZE(status_controls);
 	hwep_info->mixer_ctrl = status_controls;
-	set_bit(BTADV_AUDIO_MASTER_CONFIG, &hwep_info->flags);
 	/* Register to hardware endpoint */
 	ret = btfmcodec_register_hw_ep(hwep_info);
 	if (ret) {

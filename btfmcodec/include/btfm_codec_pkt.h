@@ -38,6 +38,9 @@ struct btm_ctrl_pkt {
 #define BTM_BTFMCODEC_MASTER_CONFIG_RSP                         0x50000003
 #define BTM_BTFMCODEC_MASTER_SHUTDOWN_REQ                       0x50000004
 #define BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP                  0x50000005
+#define BTM_BTFMCODEC_CODEC_CONFIG_DMA_REQ                      0x58000006
+#define BTM_BTFMCODEC_CODEC_CONFIG_DMA_RSP                      0x58000007
+
 #define BTM_BTFMCODEC_BEARER_SWITCH_IND                         0x58000001
 #define BTM_BTFMCODEC_TRANSPORT_SWITCH_FAILED_IND               0x58000002
 #define BTM_BTFMCODEC_ADSP_STATE_IND                            0x58000003
@@ -45,14 +48,20 @@ struct btm_ctrl_pkt {
 
 #define BTM_MASTER_CONFIG_REQ_LEN			13
 #define BTM_MASTER_CONFIG_RSP_TIMEOUT			5000
+#define BTM_MASTER_DMA_CONFIG_RSP_TIMEOUT		5000
 #define BTM_HEADER_LEN					8
 #define BTM_PREPARE_AUDIO_BEARER_SWITCH_RSP_LEN		2
 #define BTM_MASTER_CONFIG_RSP_LEN			2
+#define BTM_CODEC_CONFIG_DMA_RSP_LEN			2
 #define BTM_MASTER_SHUTDOWN_REQ_LEN			1
 #define BTM_PREPARE_AUDIO_BEARER_SWITCH_REQ_LEN		1
 #define BTM_BEARER_SWITCH_IND_LEN			1
 #define BTM_LOG_LVL_IND_LEN                             1
 #define BTM_ADSP_STATE_IND_LEN				4
+#define BTM_CODEC_CONFIG_DMA_REQ_LEN			11
+
+#define BTM_BTFMCODEC_USECASE_START_IND			0x58000008
+#define BTM_USECASE_START_IND_LEN                       1
 
 enum rx_status {
 	/* Waiting for response */
@@ -78,6 +87,7 @@ enum btfm_kp_status {
 	MSG_FAILED_TO_SHUTDOWN_HWEP,
 	MSG_ERR_WHILE_SHUTING_DOWN_HWEP,
 };
+
 struct btm_master_config_req {
 	btm_opcode opcode;
 	uint32_t len;
@@ -90,6 +100,24 @@ struct btm_master_config_req {
 	uint8_t codec_id;
 }__attribute__((packed));
 
+struct btm_dma_config_req {
+	btm_opcode opcode;
+	uint32_t len;
+	uint8_t stream_id;
+	uint32_t sample_rate;
+	uint8_t bit_width;
+	uint8_t num_channels;
+	uint8_t codec_id;
+	uint8_t lpaif;     // Low power audio interface
+	uint8_t inf_index; // interface index
+	uint8_t active_channel_mask;
+} __packed;
+
+struct btm_usecase_start_ind {
+	btm_opcode opcode;
+	uint32_t len;
+	uint8_t transport;
+} __packed;
 
 struct btm_master_shutdown_req {
 	btm_opcode opcode;

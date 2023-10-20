@@ -6,17 +6,14 @@
 #include "btfm_codec_hw_interface.h"
 #include "btfm_codec_interface.h"
 
-struct mutex hwep_drv_lock;
-
 int btfmcodec_register_hw_ep (struct hwep_data *ep_info)
 {
 	struct btfmcodec_data *btfmcodec;
 	struct hwep_data *hwep_info;
 	int ret = 0;
 
-	// ToDo Check wether we need mutex_init api
-	mutex_lock(&hwep_drv_lock);
 	btfmcodec = btfm_get_btfmcodec();
+	mutex_lock(&btfmcodec->hwep_drv_lock);
 	if (!btfmcodec) {
 		BTFMCODEC_ERR("btfm codec driver it not initialized");
 		ret = -EPERM;
@@ -54,7 +51,7 @@ int btfmcodec_register_hw_ep (struct hwep_data *ep_info)
 		&hwep_info->flags));
 	ret = btfm_register_codec(hwep_info);
 end:
-	mutex_unlock(&hwep_drv_lock);
+	mutex_unlock(&btfmcodec->hwep_drv_lock);
 	return ret;
 }
 
@@ -64,8 +61,8 @@ int btfmcodec_unregister_hw_ep (char *driver_name)
 	struct hwep_data *hwep_info;
 	int ret;
 
-	mutex_lock(&hwep_drv_lock);
 	btfmcodec = btfm_get_btfmcodec();
+	mutex_lock(&btfmcodec->hwep_drv_lock);
 	if (!btfmcodec) {
 		BTFMCODEC_ERR("btfm codec driver it not initialized");
 		ret = -EPERM;
@@ -91,7 +88,7 @@ int btfmcodec_unregister_hw_ep (char *driver_name)
 		goto end;
 	}
 end:
-	mutex_unlock(&hwep_drv_lock);
+	mutex_unlock(&btfmcodec->hwep_drv_lock);
 	return ret;
 }
 

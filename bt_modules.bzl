@@ -1,6 +1,7 @@
 PWR_PATH = "pwr"
 SLIMBUS_PATH = "slimbus"
 FMRTC_PATH = "rtc6226"
+BTFMCODEC_PATH = "btfmcodec"
 
 # This dictionary holds all the BT modules included in the bt-kernel
 bt_modules = {}
@@ -75,11 +76,10 @@ register_bt_modules(
     deps = [":%b_btpower"],
 )
 
-# Not enabled/compiling until btfmcodec is enabled
 register_bt_modules(
     name = "btfm_slim_codec",
     path = SLIMBUS_PATH,
-    # config_opt = "CONFIG_SLIM_BTFM_CODEC",
+    config_opt = "CONFIG_SLIM_BTFM_CODEC",
     srcs = [
         "btfm_slim.c",
         "btfm_slim.h",
@@ -88,7 +88,20 @@ register_bt_modules(
         "btfm_slim_hw_interface.c",
         "btfm_slim_hw_interface.h",
     ],
-    deps = [":%b_btpower", ":btfmcodec_headers"],
+    deps = [":%b_btpower", ":%b_btfmcodec", ":btfmcodec_headers"],
+)
+
+register_bt_modules(
+   name = "btfmcodec",
+   path = BTFMCODEC_PATH,
+   config_opt = "CONFIG_BTFM_CODEC",
+   srcs = [
+        "btfm_codec.c",
+        "btfm_codec_btadv_interface.c",
+	"btfm_codec_hw_interface.c",
+	"btfm_codec_interface.c",
+	],
+   deps = [":btfmcodec_headers"],
 )
 
 register_bt_modules(
