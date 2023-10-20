@@ -3496,29 +3496,11 @@ static int __response_handler(struct iris_hfi_device *device)
 	}
 
 	if (device->intr_status & CVP_FATAL_INTR_BMSK) {
-		struct cvp_hfi_sfr_struct *vsfr = (struct cvp_hfi_sfr_struct *)
-			device->sfr.align_virtual_addr;
-		struct msm_cvp_cb_info info = {
-			.response_type = HAL_SYS_WATCHDOG_TIMEOUT,
-			.response.cmd = {
-				.device_id = 0,
-			}
-		};
-
-		if (vsfr)
-			dprintk(CVP_ERR, "SFR Message from FW: %s\n",
-					vsfr->rg_data);
 		if (device->intr_status & CVP_WRAPPER_INTR_MASK_CPU_NOC_BMSK)
 			dprintk(CVP_ERR, "Received Xtensa NOC error\n");
 
 		if (device->intr_status & CVP_WRAPPER_INTR_MASK_CORE_NOC_BMSK)
 			dprintk(CVP_ERR, "Received CVP core NOC error\n");
-
-		if (device->intr_status & CVP_WRAPPER_INTR_MASK_A2HWD_BMSK)
-			dprintk(CVP_ERR, "Received CVP watchdog timeout\n");
-
-		packets[packet_count++] = info;
-		goto exit;
 	}
 
 	/* Bleed the msg queue dry of packets */
@@ -3594,7 +3576,6 @@ static int __response_handler(struct iris_hfi_device *device)
 		}
 	}
 
-exit:
 	__flush_debug_queue(device, raw_packet);
 	return packet_count;
 }
