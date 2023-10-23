@@ -36,6 +36,8 @@ def define_pineapple():
             "lpass_cdc_tx_macro_dlkm",
             "wsa883x_dlkm",
             "wsa884x_dlkm",
+            "wcd937x_dlkm",
+            "wcd937x_slave_dlkm",
             "wcd938x_dlkm",
             "wcd938x_slave_dlkm",
             "wcd939x_dlkm",

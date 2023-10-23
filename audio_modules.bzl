@@ -393,7 +393,7 @@ audio_modules.register(
         "wcd937x-regmap.c",
         "wcd937x-tables.c",
         "wcd937x-mbhc.c",
-    ],
+    ]
 )
 audio_modules.register(
     name = "wcd937x_slave_dlkm",

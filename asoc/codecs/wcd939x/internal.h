@@ -17,11 +17,14 @@
 #define SWR_SCP_CONTROL 0x44
 #define SWR_SCP_HOST_CLK_DIV2_CTL_BANK 0xE0
 #define WCD939X_MAX_MICBIAS 4
+#define R_COMMON_GND_BUFFER_SIZE 4
 #define MAX_XTALK_SCALE 31
 #define MIN_XTALK_ALPHA 0
 #define MIN_K_TIMES_100 -90
 #define MAX_K_TIMES_100 10000
 #define MAX_USBCSS_HS_IMPEDANCE_MOHMS 20000
+#define MIN_DIFF_SLOPE_FACTOR 9800
+#define MAX_DIFF_SLOPE_FACTOR 10000
 
 /* Convert from vout ctl to micbias voltage in mV */
 #define  WCD_VOUT_CTL_TO_MICB(v)  (1000 + v * 50)
@@ -162,80 +165,100 @@ struct wcd939x_micbias_setting {
 	u8 bias1_cfilt_sel;
 };
 
-struct wcd939x_usbcss_hs_params {
-	/* Resistance of ground-side internal FET for SBU1 */
-	u32 r_gnd_sbu1_int_fet_mohms;
-	/* Resistance of ground-side internal FET for SBU2 */
-	u32 r_gnd_sbu2_int_fet_mohms;
-	/* Customer-characterized resistance for the ground-side external FET */
-	u32 r_gnd_ext_fet_customer_mohms;
-	/* SW-computed resistance for the ground-side external FET */
-	u32 r_gnd_ext_fet_mohms;
+struct aud_ch_params {
+	/* Resistance of audio-side internal FET */
+	u32 r_aud_int_fet_mohms;
+	/* Resistance of audio-side external FET */
+	u32 r_aud_ext_fet_mohms;
+	/* Total right audio-side resistance */
+	u32 r_aud_res_tot_mohms;
+	/* Sum of audio-side parasitics and the left/right side of the load */
+	u32 r_load_eff_mohms;
+	/* DT audio parasitics between HPH_L/R and HPHL/R_FB, in milliohms */
+	u32 r1;
+	/* DT audio-side parasitics between the WCD and external FET,
+	 * in milliohms
+	 */
+	u32 r3;
+	/* Calibrated and adjusted SE zdet measurement value */
+	u32 zval;
+};
+
+struct aud_params {
+	/* Left-side audio params */
+	struct aud_ch_params l;
+	/* Right-side audio params */
+	struct aud_ch_params r;
+	/* Surge switch resistance */
+	u32 r_surge_mohms;
+	/* Tap out linearizer constant for the audio path, multiplied by 100 from the original
+	 * constants to support decimal values up to the hundredth place
+	 */
+	s32 k_aud_times_100;
+	/* Fixed offset to be applied to audio taps */
+	s32 aud_tap_offset;
+};
+
+struct gnd_sbu_params {
+	/* Resistance of ground-side internal FET */
+	u32 r_gnd_int_fet_mohms;
 	/* Total ground-side parasitics between the WCD and external FET */
 	u32 r_gnd_par_route1_mohms;
 	/* Total ground-side parasitics between the external FET and connector */
 	u32 r_gnd_par_route2_mohms;
 	/* Total ground-side parasitics between the WCD and connector; sum of route1 and route2 */
 	u32 r_gnd_par_tot_mohms;
-	/* Total ground-side resistance for SBU1 */
-	u32 r_gnd_sbu1_res_tot_mohms;
-	/* Total ground-side resistance for SBU2 */
-	u32 r_gnd_sbu2_res_tot_mohms;
-	/* Customer-characterized positive parasitics introduced from the connector */
-	u32 r_conn_par_load_pos_mohms;
-	/* Resistance of left audio-side internal FET */
-	u32 r_aud_int_fet_l_mohms;
-	/* Resistance of right audio-side internal FET */
-	u32 r_aud_int_fet_r_mohms;
-	/* Resistance of left audio-side external FET */
-	u32 r_aud_ext_fet_l_mohms;
-	/* Resistance of right audio-side external FET */
-	u32 r_aud_ext_fet_r_mohms;
-	/* Total left audio-side resistance */
-	u32 r_aud_res_tot_l_mohms;
-	/* Total right audio-side resistance */
-	u32 r_aud_res_tot_r_mohms;
-	/* Surge switch resistance */
-	u32 r_surge_mohms;
-	/* Sum of left audio-side parasitics and the left side of the load */
-	u32 r_load_eff_l_mohms;
-	/* Sum of right audio-side parasitics and the right side of the load */
-	u32 r_load_eff_r_mohms;
-	/* Customer-characterized audio-side parasitics between the WCD and external FET,
-	 * in milliohms
-	 */
-	u32 r3;
-	/* Customer-characterized ground-side parasitics between the external FET and connector,
-	 * in milliohms
-	 */
+	/* Total ground-side resistance */
+	u32 r_gnd_res_tot_mohms;
+	/* DT ground-side parasitics between the external FET and connector, in milliohms */
 	u32 r4;
-	/* For digital crosstalk with remote sensed analog crosstalk mode, customer-characterized
-	 * ground path parasitic resistance between the WCD SBU pin and the external MOSFET,
-	 * in milliohms
+	/* For digital crosstalk with remote sensed analog crosstalk mode, DT ground path parasitic
+	 * resistance between the WCD SBU pin and the external MOSFET, in milliohms
 	 */
 	u32 r5;
-	/* For digital crosstalk with local sensed analog crosstalk mode, customer-characterized
-	 * ground path parasitic resistance between the WCD GSBU tap point and the external MOSFET,
-	 * in milliohms
+	/* For digital crosstalk with local sensed analog crosstalk mode, DT ground path parasitic
+	 * resistance between the WCD GSBU tap point and the external MOSFET, in milliohms
 	 */
 	u32 r6;
-	/* For digital crosstalk with local sensed analog crosstalk mode, customer-characterized
-	 * ground path parasitic resistance between the WCD GSBU tap point and the WCD SBU pin,
-	 * in milliohms
+	/* For digital crosstalk with local sensed analog crosstalk mode, DT ground path parasitic
+	 * resistance between the WCD GSBU tap point and the WCD SBU pin, in milliohms
 	 */
 	u32 r7;
-	/* Tap out linearizer constant for the audio path, multiplied by 100 from the original
-	 * constants to support decimal values up to the hundredth place
-	 */
-	s32 k_aud_times_100;
-	/* Tap out linearizer constant for the ground path, multiplied by 100 from the original
-	 * constants to support decimal values up to the hundredth place
-	 */
-	s32 k_gnd_times_100;
-	/* Fixed offset to be applied to audio taps */
-	s32 aud_tap_offset;
-	/* Fixed offset to be applied to ground taps */
-	s32 gnd_tap_offset;
+};
+
+struct r_common_gnd_buffer {
+	/* Data for elements in buffer */
+	u32 data[R_COMMON_GND_BUFFER_SIZE];
+	/* Index to write next element in buffer */
+	size_t write_index;
+};
+
+struct gnd_params {
+	/* SBU1-ground params */
+	struct gnd_sbu_params sbu1;
+	/* SBU2-ground params */
+	struct gnd_sbu_params sbu2;
+	/* FIFO circular buffer for storing previous values of r_common_gnd_mohms */
+	struct r_common_gnd_buffer r_cm_gnd_buffer;
+	/* DT resistance of the ground-side external FET, in milliohms */
+	u32 rdson_mohms;
+	/* DT resistance of the ground-side external FET, Vgs=3.6V, in milliohms */
+	u32 rdson_3p6v_mohms;
+	/* Difference between the ground external FET, Vgs=3.6V and Vgs=6V */
+	u32 gnd_ext_fet_delta_mohms;
+	/* Minimum value used for linearizer audio tap calculations */
+	u32 gnd_ext_fet_min_mohms;
+	/* SW-computed resistance for the ground-side external FET */
+	u32 r_gnd_ext_fet_mohms;
+	/* Total ground-side resistance, with the internal FET and the route1 parasitic removed */
+	u32 r_common_gnd_mohms;
+	/* Ground path offset for testing debug, in milliohms */
+	s32 r_common_gnd_offset;
+	/* Margin to check if the calculated r_common_gnd is in a reasonable range, in milliohms */
+	u32 r_common_gnd_margin;
+};
+
+struct xtalk_params {
 	/* Computed optimal d-xtalk left-side scale value */
 	u8 scale_l;
 	/* Computed optimal d-xtalk left-side alpha value */
@@ -244,12 +267,27 @@ struct wcd939x_usbcss_hs_params {
 	u8 scale_r;
 	/* Computed optimal d-xtalk right-side alpha value */
 	u8 alpha_r;
-	/* Customer-tuned configuration for d-xtalk:
+	/* DT configuration for d-xtalk:
 	 * 0 for digital crosstalk disabled,
 	 * 1 for digital crosstalk with local sensed a-xtalk enabled, and
 	 * 2 for digital crosstalk with remote sensed a-xtalk enabled.
 	 */
 	enum xtalk_mode xtalk_config;
+};
+
+struct wcd939x_usbcss_hs_params {
+	/* Audio-side USBCSS-HS impedance parameters */
+	struct aud_params aud;
+	/* Ground-side USBCSS-HS impedance parameters */
+	struct gnd_params gnd;
+	/* Xtalk-specific parameters */
+	struct xtalk_params xtalk;
+	/* Calibrated and adjusted differential zdet measurement value */
+	u32 zdiffval;
+	/* Multiplicative scale factor to adjust differential zdet measurement value, times 1000 */
+	u32 diff_slope_factor_times_1000;
+	/* Multiplicative scale factor to adjust single-ended zdet measurement value, times 1000 */
+	u32 se_slope_factor_times_1000;
 };
 
 struct wcd939x_pdata {
