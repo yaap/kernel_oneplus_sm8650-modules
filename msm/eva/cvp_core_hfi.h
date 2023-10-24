@@ -298,4 +298,5 @@ int cvp_iris_hfi_initialize(struct cvp_hfi_ops *hdev,
 
 int load_cvp_fw_impl(struct iris_hfi_device *device);
 int unload_cvp_fw_impl(struct iris_hfi_device *device);
+void cvp_dump_csr(struct iris_hfi_device *dev);
 #endif

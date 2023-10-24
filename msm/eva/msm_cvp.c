@@ -308,6 +308,7 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 	struct cvp_session_queue *sq;
 	u32 hfi_err = HFI_ERR_NONE;
 	struct cvp_hfi_msg_session_hdr_ext hdr;
+	struct iris_hfi_device *device;
 
 	dprintk(CVP_SYNX, "%s %s\n", current->comm, __func__);
 
@@ -354,6 +355,12 @@ static int cvp_fence_proc(struct msm_cvp_inst *inst,
 		dprintk(CVP_INFO, "%s %s: cvp_wait_process_msg non-fatal %d\n",
 		current->comm, __func__, hfi_err);
 		synx_state = SYNX_STATE_SIGNALED_SUCCESS;
+	} else if (hfi_err == HFI_ERR_SESSION_HW_HANG_DETECTED) {
+		dprintk(CVP_ERR, "%s %s: cvp_wait_process_message hfi HW hang err %d\n",
+			current->comm, __func__, hfi_err);
+		synx_state = SYNX_STATE_SIGNALED_CANCEL;
+		device = ops_tbl->hfi_device_data;
+		cvp_dump_csr(device);
 	} else if (hfi_err != HFI_ERR_NONE) {
 		dprintk(CVP_ERR, "%s %s: cvp_wait_process_message hfi err %d\n",
 			current->comm, __func__, hfi_err);
