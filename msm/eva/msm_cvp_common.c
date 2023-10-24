@@ -542,6 +542,7 @@ static void handle_session_error(enum hal_command_response cmd, void *data)
 		response->status, inst, hash32_ptr(inst->session));
 	cvp_print_inst(CVP_WARN, inst);
 
+	print_hfi_queue_info(ops_tbl);
 	//if (inst->state != MSM_CVP_CORE_INVALID) {
 	//	change_cvp_inst_state(inst, MSM_CVP_CORE_INVALID);
 	//	if (cvp_clean_session_queues(inst))
