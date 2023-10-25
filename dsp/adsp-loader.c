@@ -160,7 +160,7 @@ load_adsp:
 				dev_info(&pdev->dev, "%s: Load ADSP DTB with fw name %s\n",
 					__func__, priv->adsp_dtb_name);
 				rc = qcom_rproc_set_dtb_firmware(priv->pil_h,
-					priv->adsp_fw_name);
+					priv->adsp_dtb_name);
 				if (rc) {
 					dev_err(&pdev->dev, "%s: rproc set dtb firmware failed,\n",
 						__func__);
