@@ -776,9 +776,12 @@ static void update_ext_fet_res(struct wcd939x_pdata *pdata, u32 r_aud_ext_fet_mo
 
 static void get_linearizer_taps(struct wcd939x_pdata *pdata, u32 *aud_tap)
 {
-	u32 r_gnd_res_tot_mohms = 0, r_gnd_int_fet_mohms = 0, r_gnd_par_tot_mohms = 0;
+	u32 r_gnd_int_fet_mohms = 0, r_gnd_par_tot_mohms = 0;
 	u32 v_aud1 = 0, v_aud2 = 0, aud_denom = 0;
 	u32 r_load_eff_mohms = 0, r3 = 0, r_aud_ext_fet_mohms = 0, r_aud_int_fet_mohms = 0;
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	u32 r_gnd_res_tot_mohms = 0;
+#endif
 
 	if (!pdata)
 		goto err_data;
@@ -1300,7 +1303,9 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 
 	if (update_linearizer) {
 		get_linearizer_taps(pdata, &aud_tap);
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		wcd_usbss_set_linearizer_sw_tap(aud_tap, LINEARIZER_DEFAULT_TAP);
+#endif
 		dev_err(wcd939x->dev, "%s: Updated linearizer thru sysfs\n",
 			__func__);
 		dev_dbg(wcd939x->dev, "%s: Linearizer aud_tap is 0x%x\n",
@@ -1433,12 +1438,13 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	struct wcd939x_mbhc_zdet_param zdet_param = {4, 0, 6, 0x18, 0x60, 0x78};
 	struct wcd939x_mbhc_zdet_param *zdet_param_ptr = &zdet_param;
 	s16 d1[] = {0, 30, 30, 6};
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	uint32_t cached_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0}, {WCD_USBSS_EXT_SW_CTRL_1, 0},
 				      {WCD_USBSS_MG1_BIAS, 0}, {WCD_USBSS_MG2_BIAS, 0}};
 	uint32_t l_3_6V_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0x00},
 				      {WCD_USBSS_MG1_BIAS, 0x0E}, {WCD_USBSS_MG2_BIAS, 0x0E}};
 	uint32_t diff_regs[2][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0x00}};
-
+#endif
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
 	/* Turn on RX supplies */
@@ -1806,7 +1812,7 @@ mono_stereo_detection:
 		mbhc->hph_type = WCD_MBHC_HPH_MONO;
 	}
 	goto zdet_complete;
-
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 default_vals:
 	pdata->usbcss_hs.xtalk.scale_l = MAX_XTALK_SCALE;
 	pdata->usbcss_hs.xtalk.scale_r = MAX_XTALK_SCALE;
@@ -1819,7 +1825,7 @@ default_vals:
 	dev_dbg(component->dev,
 		"%s: Right-channel: Xtalk scale is 0x%x and alpha is 0x%x\n", __func__,
 		pdata->usbcss_hs.xtalk.scale_r, pdata->usbcss_hs.xtalk.alpha_r);
-
+#endif
 zdet_complete:
 	/* Configure linearizer */
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
