@@ -323,6 +323,12 @@ static int hdcp1_verify_key(struct hdcp1_qsee_handle *hdcp1_handle)
 	}
 
 	rc = key_verify_rsp->ret;
+
+	if (rc == QSEECOMD_ERROR)
+		qseecomd_down = true;
+	else
+		qseecomd_down = false;
+
 	if (rc) {
 		pr_err("key_verify failed, rsp=%d\n", key_verify_rsp->ret);
 		return -EINVAL;
@@ -384,6 +390,11 @@ static int hdcp2_verify_key(struct hdcp2_qsee_handle *handle)
 
 	rc = hdcp2_app_process_cmd(verify_key);
 	pr_debug("verify_key = %d\n", rc);
+
+	if (rsp_buf->status == QSEECOMD_ERROR)
+		qseecomd_down = true;
+	else
+		qseecomd_down = false;
 
 error:
 	return rc;
@@ -468,6 +479,7 @@ bool hdcp1_feature_supported_qseecom(void *data)
 	bool supported = false;
 	struct hdcp1_qsee_handle *handle = data;
 	int rc = 0;
+	int retry = 0;
 
 	if (!handle) {
 		pr_err("invalid handle\n");
@@ -480,11 +492,31 @@ bool hdcp1_feature_supported_qseecom(void *data)
 	}
 
 	rc = hdcp1_app_load(handle);
+
+	/* Other than in SUCCESS case, if there is a FAILURE when
+	 * handle is NULL, the hdcp1_app_load will return zero.
+	 * Checking the hdcp_state will ensure that the conditional
+	 * is ONLY true when hdcp1_app_load had no Failures.
+	 */
 	if (!rc && (handle->hdcp_state & HDCP_STATE_APP_LOADED)) {
-		if (!hdcp1_verify_key(handle)) {
-			pr_debug("HDCP 1.x supported\n");
-			handle->feature_supported = true;
-			supported = true;
+		do {
+			if (!hdcp1_verify_key(handle)) {
+				pr_debug("HDCP 1.x supported\n");
+				pr_debug("hdcp1_verify_key succeeded on %d retry.\n", retry);
+				handle->feature_supported = true;
+				supported = true;
+				break;
+			} else if (qseecomd_down) {
+				pr_debug("Qseecomd is not up. Going to sleep.\n");
+				msleep(SLEEP_QSEECOMD_WAIT_MS);
+				retry++;
+			} else
+				break;
+		} while (handle->max_hdcp_key_verify_retries >= retry);
+
+		if (qseecomd_down) {
+			pr_err("hdcp1_verify_key failed after %d retries as Qseecomd is not up.\n",
+				handle->max_hdcp_key_verify_retries);
 		}
 		hdcp1_app_unload(handle);
 	}
@@ -1252,6 +1284,7 @@ error:
 bool hdcp2_feature_supported_qseecom(void *ctx)
 {
 	int rc = 0;
+	int retry = 0;
 	bool supported = false;
 	struct hdcp2_qsee_handle *handle = (struct hdcp2_qsee_handle *)ctx;
 
@@ -1268,10 +1301,24 @@ bool hdcp2_feature_supported_qseecom(void *ctx)
 
 	rc = hdcp2_app_load(handle);
 	if (!rc) {
-		if (!hdcp2_verify_key(handle)) {
-			pr_debug("HDCP 2.2 supported\n");
-			handle->feature_supported = true;
-			supported = true;
+		do {
+			if (!hdcp2_verify_key(handle)) {
+				pr_debug("HDCP 2.2 supported.\n");
+				pr_debug("hdcp2_verify_key succeeded on %d retry.\n", retry);
+				handle->feature_supported = true;
+				supported = true;
+				break;
+			} else if (qseecomd_down) {
+				pr_debug("Qseecomd is not up. Going to sleep.\n");
+				msleep(SLEEP_QSEECOMD_WAIT_MS);
+				retry++;
+			} else
+				break;
+		} while (handle->max_hdcp_key_verify_retries >= retry);
+
+		if (qseecomd_down) {
+			pr_err("hdcp2_verify_key failed after %d retries as Qseecomd is not up.\n",
+				handle->max_hdcp_key_verify_retries);
 		}
 		hdcp2_app_unload(handle);
 	}

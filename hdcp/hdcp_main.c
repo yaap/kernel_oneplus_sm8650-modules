@@ -105,7 +105,7 @@ bool hdcp2_feature_supported(void *data)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp2_feature_supported);
+EXPORT_SYMBOL_GPL(hdcp2_feature_supported);
 
 int hdcp2_force_encryption(void *ctx, uint32_t enable)
 {
@@ -117,7 +117,7 @@ int hdcp2_force_encryption(void *ctx, uint32_t enable)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp2_force_encryption);
+EXPORT_SYMBOL_GPL(hdcp2_force_encryption);
 
 int hdcp2_app_comm(void *ctx, enum hdcp2_app_cmd cmd,
 				   struct hdcp2_app_data *app_data)
@@ -168,7 +168,7 @@ error:
 	mutex_unlock(&hdcp2_mutex_g);
 	return ret;
 }
-EXPORT_SYMBOL(hdcp2_app_comm);
+EXPORT_SYMBOL_GPL(hdcp2_app_comm);
 
 int hdcp2_open_stream(void *ctx, uint8_t vc_payload_id, uint8_t stream_number,
 		  uint32_t *stream_id)
@@ -182,7 +182,7 @@ int hdcp2_open_stream(void *ctx, uint8_t vc_payload_id, uint8_t stream_number,
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp2_open_stream);
+EXPORT_SYMBOL_GPL(hdcp2_open_stream);
 
 int hdcp2_close_stream(void *ctx, uint32_t stream_id)
 {
@@ -194,7 +194,7 @@ int hdcp2_close_stream(void *ctx, uint32_t stream_id)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp2_close_stream);
+EXPORT_SYMBOL_GPL(hdcp2_close_stream);
 
 void *hdcp2_init(u32 device_type)
 {
@@ -206,13 +206,23 @@ void *hdcp2_init(u32 device_type)
 
 	return data;
 }
-EXPORT_SYMBOL(hdcp2_init);
+EXPORT_SYMBOL_GPL(hdcp2_init);
+
+void hdcp2_set_hdcp_key_verify_retries(void *ctx, u32 max_hdcp_key_verify_retries)
+{
+	struct hdcp2_qsee_handle *handle = ctx;
+
+	handle->max_hdcp_key_verify_retries = max_hdcp_key_verify_retries;
+
+	pr_debug("hdcp2 max_hdcp_key_verify_retries %d\n", handle->max_hdcp_key_verify_retries);
+}
+EXPORT_SYMBOL_GPL(hdcp2_set_hdcp_key_verify_retries);
 
 void hdcp2_deinit(void *ctx)
 {
 	ta_interface.trusted_app_hdcp2_deinit(ctx);
 }
-EXPORT_SYMBOL(hdcp2_deinit);
+EXPORT_SYMBOL_GPL(hdcp2_deinit);
 
 void *hdcp1_init(void)
 {
@@ -224,13 +234,23 @@ void *hdcp1_init(void)
 
 	return data;
 }
-EXPORT_SYMBOL(hdcp1_init);
+EXPORT_SYMBOL_GPL(hdcp1_init);
+
+void hdcp1_set_hdcp_key_verify_retries(void *ctx, u32 max_hdcp_key_verify_retries)
+{
+	struct hdcp1_qsee_handle *handle = ctx;
+
+	handle->max_hdcp_key_verify_retries = max_hdcp_key_verify_retries;
+
+	pr_debug("hdcp1 max_hdcp_key_verify_retries %d\n", handle->max_hdcp_key_verify_retries);
+}
+EXPORT_SYMBOL_GPL(hdcp1_set_hdcp_key_verify_retries);
 
 void hdcp1_deinit(void *data)
 {
 	kfree(data);
 }
-EXPORT_SYMBOL(hdcp1_deinit);
+EXPORT_SYMBOL_GPL(hdcp1_deinit);
 
 bool hdcp1_feature_supported(void *data)
 {
@@ -242,7 +262,7 @@ bool hdcp1_feature_supported(void *data)
 
 	return supported;
 }
-EXPORT_SYMBOL(hdcp1_feature_supported);
+EXPORT_SYMBOL_GPL(hdcp1_feature_supported);
 
 int hdcp1_set_enc(void *data, bool enable)
 {
@@ -254,7 +274,7 @@ int hdcp1_set_enc(void *data, bool enable)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp1_set_enc);
+EXPORT_SYMBOL_GPL(hdcp1_set_enc);
 
 int hdcp1_ops_notify(void *data, void *topo, bool is_authenticated)
 {
@@ -264,7 +284,7 @@ int hdcp1_ops_notify(void *data, void *topo, bool is_authenticated)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp1_ops_notify);
+EXPORT_SYMBOL_GPL(hdcp1_ops_notify);
 
 int hdcp1_start(void *data, u32 *aksv_msb, u32 *aksv_lsb)
 {
@@ -276,7 +296,7 @@ int hdcp1_start(void *data, u32 *aksv_msb, u32 *aksv_lsb)
 
 	return ret;
 }
-EXPORT_SYMBOL(hdcp1_start);
+EXPORT_SYMBOL_GPL(hdcp1_start);
 
 void hdcp1_stop(void *data)
 {
@@ -284,7 +304,7 @@ void hdcp1_stop(void *data)
 	ta_interface.trusted_app_hdcp1_stop(data);
 	mutex_unlock(&hdcp1_mutex_g);
 }
-EXPORT_SYMBOL(hdcp1_stop);
+EXPORT_SYMBOL_GPL(hdcp1_stop);
 
 static int __init hdcp_module_init(void)
 {
