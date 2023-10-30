@@ -1,5 +1,5 @@
 /* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,6 @@
 #include <dsp/spf-core.h>
 #include <dsp/digital-cdc-rsc-mgr.h>
 
-#define APM_STATE_READY_TIMEOUT_MS    10000
 #define Q6_READY_TIMEOUT_MS 1000
 #define Q6_CLOSE_ALL_TIMEOUT_MS 5000
 #define APM_CMD_GET_SPF_STATE 0x01001021
@@ -32,6 +31,7 @@
 #define APM_CMD_RSP_GET_SPF_STATE 0x02001007
 #define APM_MODULE_INSTANCE_ID   0x00000001
 #define GPR_SVC_ADSP_CORE 0x3
+#define ADD_CHILD_DEVICES_APM_TIMEOUT_MS 5000
 
 struct spf_core {
 	struct gpr_device *adev;
@@ -158,7 +158,7 @@ done:
  *
  * Return: Will return true if apm is ready and false if not.
  */
-bool spf_core_is_apm_ready(void)
+bool spf_core_is_apm_ready(int timeout_ms)
 {
 	unsigned long  timeout;
 	bool ret = false;
@@ -172,13 +172,16 @@ bool spf_core_is_apm_ready(void)
 	if (!core)
 		goto done;
 
-	timeout = jiffies + msecs_to_jiffies(APM_STATE_READY_TIMEOUT_MS);
+	timeout = jiffies + msecs_to_jiffies(timeout_ms);
 	mutex_lock(&core->lock);
 	for (;;) {
 		if (__spf_core_is_apm_ready(core)) {
 			ret = true;
 			break;
 		}
+		if (!timeout_ms)
+			break;
+
 		usleep_range(50000, 50050);
 		if (!time_after(timeout, jiffies)) {
 			ret = false;
@@ -336,7 +339,7 @@ static void spf_core_add_child_devices(struct work_struct *work)
 	int ret;
         pr_err("%s:enumarate machine driver\n", __func__);
 
-	if(spf_core_is_apm_ready()) {
+	if (spf_core_is_apm_ready(ADD_CHILD_DEVICES_APM_TIMEOUT_MS)) {
 		dev_err(spf_core_priv->dev, "%s: apm is up\n",
 			__func__);
 	} else {
