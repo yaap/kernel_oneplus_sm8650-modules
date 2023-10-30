@@ -22,12 +22,12 @@
 #include <asoc/msm-cdc-pinctrl.h>
 #include <bindings/audio-codec-port-types.h>
 #include <asoc/msm-cdc-supply.h>
+#include <linux/qti-regmap-debugfs.h>
 
 #include "wcd937x-registers.h"
 #include "wcd937x.h"
 #include "internal.h"
 #include "asoc/bolero-slave-internal.h"
-#include <linux/qti-regmap-debugfs.h>
 
 #define WCD9370_VARIANT 0
 #define WCD9375_VARIANT 5
@@ -104,9 +104,7 @@ static struct regmap_irq_chip wcd937x_regmap_irq_chip = {
 	.mask_base = WCD937X_DIGITAL_INTR_MASK_0,
 	.ack_base = WCD937X_DIGITAL_INTR_CLEAR_0,
 	.use_ack = 1,
-//#if IS_ENABLED(CONFIG_AUDIO_QGKI)
 	.clear_ack = 1,
-//#endif
 	.type_base = WCD937X_DIGITAL_INTR_LEVEL_0,
 	.runtime_pm = false,
 	.handle_post_irq = wcd937x_handle_post_irq,
@@ -158,7 +156,6 @@ static int wcd937x_init_reg(struct snd_soc_component *component)
 
 	val = snd_soc_component_read(component, WCD937X_DIGITAL_EFUSE_REG_29)
 	     & 0x0F;
-
 	if (snd_soc_component_read(component, WCD937X_DIGITAL_EFUSE_REG_16)
 	    == 0x02 || snd_soc_component_read(component,
 	    WCD937X_DIGITAL_EFUSE_REG_17) > 0x09) {
@@ -853,7 +850,7 @@ static int wcd937x_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 		usleep_range(100, 110);
 		set_bit(HPH_PA_DELAY, &wcd937x->status_mask);
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL1, 0x17, 0x13);
+				WCD937X_DIGITAL_PDM_WD_CTL1, 0x07, 0x03);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		/*
@@ -910,7 +907,7 @@ static int wcd937x_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 		}
 
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL1, 0x17, 0x00);
+				WCD937X_DIGITAL_PDM_WD_CTL1, 0x07, 0x00);
 		blocking_notifier_call_chain(&wcd937x->mbhc->notifier,
 					     WCD_EVENT_POST_HPHR_PA_OFF,
 					     &wcd937x->mbhc->wcd_mbhc);
@@ -952,7 +949,7 @@ static int wcd937x_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 		usleep_range(100, 110);
 		set_bit(HPH_PA_DELAY, &wcd937x->status_mask);
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL0, 0x17, 0x13);
+				WCD937X_DIGITAL_PDM_WD_CTL0, 0x07, 0x03);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		/*
@@ -1009,7 +1006,7 @@ static int wcd937x_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 		}
 
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL0, 0x17, 0x00);
+				WCD937X_DIGITAL_PDM_WD_CTL0, 0x07, 0x00);
 		blocking_notifier_call_chain(&wcd937x->mbhc->notifier,
 					     WCD_EVENT_POST_HPHL_PA_OFF,
 					     &wcd937x->mbhc->wcd_mbhc);
@@ -1043,7 +1040,7 @@ static int wcd937x_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 			    wcd937x->rx_swr_dev->dev_num,
 			    true);
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL2, 0x05, 0x05);
+				WCD937X_DIGITAL_PDM_WD_CTL2, 0x01, 0x01);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		usleep_range(1000, 1010);
@@ -1072,7 +1069,7 @@ static int wcd937x_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 			     WCD_CLSH_STATE_AUX,
 			     hph_mode);
 		snd_soc_component_update_bits(component,
-				WCD937X_DIGITAL_PDM_WD_CTL2, 0x05, 0x00);
+				WCD937X_DIGITAL_PDM_WD_CTL2, 0x01, 0x00);
 		break;
 	};
 	return ret;
@@ -1106,11 +1103,11 @@ static int wcd937x_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 		if (wcd937x->ear_rx_path & EAR_RX_PATH_AUX)
 			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_PDM_WD_CTL2,
-					0x05, 0x05);
+					0x01, 0x01);
 		else
 			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_PDM_WD_CTL0,
-					0x17, 0x13);
+					0x07, 0x03);
 		if (!wcd937x->comp1_enable)
 			snd_soc_component_update_bits(component,
 				WCD937X_ANA_EAR_COMPANDER_CTL, 0x80, 0x80);
@@ -1158,11 +1155,11 @@ static int wcd937x_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 		if (wcd937x->ear_rx_path & EAR_RX_PATH_AUX)
 			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_PDM_WD_CTL2,
-					0x05, 0x00);
+					0x01, 0x00);
 		else
 			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_PDM_WD_CTL0,
-					0x17, 0x00);
+					0x07, 0x00);
 		break;
 	};
 	return ret;
@@ -2171,7 +2168,7 @@ const char * const tx_master_ch_text[] = {
 	"ZERO", "SWRM_TX1_CH1", "SWRM_TX1_CH2", "SWRM_TX1_CH3", "SWRM_TX1_CH4",
 	"SWRM_TX2_CH1", "SWRM_TX2_CH2", "SWRM_TX2_CH3", "SWRM_TX2_CH4",
 	"SWRM_TX3_CH1", "SWRM_TX3_CH2", "SWRM_TX3_CH3", "SWRM_TX3_CH4",
-	"SWRM_PCM_IN",
+	"SWRM_TX_PCM_IN",
 };
 
 const struct soc_enum tx_master_ch_enum =
