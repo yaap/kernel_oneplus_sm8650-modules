@@ -57,6 +57,15 @@
 #define COMP_MAX_COEFF 25
 #define HPH_MODE_MAX 4
 
+#define WCD_USBSS_WRITE true
+#define WCD_USBSS_READ false
+#define WCD_USBSS_DP_EN 0x1E
+#define WCD_USBSS_DN_EN 0x21
+#define P_THRESH_SEL_MASK 0x0E
+#define P_THRESH_SEL_SHIFT 0x01
+#define VTH_4P0 0x04
+#define VTH_4P2 0x06
+
 #define DAPM_MICBIAS1_STANDALONE "MIC BIAS1 Standalone"
 #define DAPM_MICBIAS2_STANDALONE "MIC BIAS2 Standalone"
 #define DAPM_MICBIAS3_STANDALONE "MIC BIAS3 Standalone"
@@ -4640,6 +4649,21 @@ static struct snd_soc_component_driver soc_codec_dev_wcd939x = {
 	.resume = wcd939x_soc_codec_resume,
 };
 
+static void wcd_usbss_set_ovp_threshold(u32 threshold)
+{
+	uint32_t ovp_regs[2][2] = {{WCD_USBSS_DP_EN, 0x00}, {WCD_USBSS_DN_EN, 0x00}};
+
+	/* Get current register values */
+	wcd_usbss_register_update(ovp_regs, WCD_USBSS_READ, ARRAY_SIZE(ovp_regs));
+	/* Overwrite OVP tresholds */
+	ovp_regs[0][1] &= (~P_THRESH_SEL_MASK);
+	ovp_regs[0][1] |= (threshold << P_THRESH_SEL_SHIFT);
+	ovp_regs[1][1] &= (~P_THRESH_SEL_MASK);
+	ovp_regs[1][1] |= (threshold << P_THRESH_SEL_SHIFT);
+	/* Write updated register values */
+	wcd_usbss_register_update(ovp_regs, WCD_USBSS_WRITE, ARRAY_SIZE(ovp_regs));
+}
+
 static int wcd939x_reset(struct device *dev)
 {
 	struct wcd939x_priv *wcd939x = NULL;
@@ -4663,6 +4687,11 @@ static int wcd939x_reset(struct device *dev)
 	if (value > 0)
 		return 0;
 
+	/* Set OVP threshold to 4.0V before reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P0);
+#endif
+
 	rc = msm_cdc_pinctrl_select_sleep_state(wcd939x->rst_np);
 	if (rc) {
 		dev_err_ratelimited(dev, "%s: wcd sleep state request fail!\n",
@@ -4680,6 +4709,11 @@ static int wcd939x_reset(struct device *dev)
 	}
 	/* 20us sleep required after pulling the reset gpio to HIGH */
 	usleep_range(20, 30);
+
+	/* Set OVP threshold to 4.2V after reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P2);
+#endif
 
 	return rc;
 }
@@ -5037,6 +5071,11 @@ static int wcd939x_reset_low(struct device *dev)
 				__func__);
 		return -EINVAL;
 	}
+
+	/* Set OVP threshold to 4.0V before reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P0);
+#endif
 
 	rc = msm_cdc_pinctrl_select_sleep_state(wcd939x->rst_np);
 	if (rc) {
