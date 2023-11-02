@@ -159,6 +159,7 @@ struct msm_asoc_mach_data {
 	bool mclk_used;
 	struct msm_pinctrl_info mclk_pinctrl_info[MCLK_MAX];
 	struct msm_mclk_conf mclk_conf[MCLK_MAX];
+	struct snd_pcm_hardware hw_params;
 };
 
 static struct platform_device *spdev;
@@ -578,6 +579,9 @@ static int tdm_snd_startup(struct snd_pcm_substream *substream)
 	struct msm_pinctrl_info *pinctrl_info = NULL;
 	int ret_pinctrl = 0;
 	int index, mclk_index;
+
+	if (!dai_link->no_pcm)
+		snd_soc_set_runtime_hwparams(substream, &pdata->hw_params);
 
 	index = msm_tdm_get_intf_idx(dai_link->id);
 	if (index < 0) {
@@ -1190,6 +1194,75 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
+static int msm_get_hwparams(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
+	u32 pcm_info = 0;
+	u32 buffer_bytes_max = 0;
+	u32 periods_bytes[2] = {0};
+	u32 periods_count[2] = {0};
+	int ret = 0;
+
+	card = platform_get_drvdata(pdev);
+	if (!card) {
+		pr_err("%s: card is NULL\n",
+			__func__);
+		return -EINVAL;
+	}
+	pdata = snd_soc_card_get_drvdata(card);
+	if (!pdata) {
+		pr_err("%s: pdata is NULL\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,hw_pcm_info",
+			&pcm_info);
+	if (ret) {
+		pr_err("%s: read pcm info failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,hw_buffer_size_max",
+			&buffer_bytes_max);
+	if (ret) {
+		pr_err("%s: read buffer size max failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"qcom,hw_period_byte_size",
+			periods_bytes, 2);
+	if (ret) {
+		pr_err("%s: read period byte size failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"qcom,hw_period_count_size",
+			periods_count, 2);
+	if (ret) {
+		pr_err("%s: read period count size failed\n",
+			__func__);
+		return ret;
+	}
+
+	pdata->hw_params.info = pcm_info;
+	pdata->hw_params.buffer_bytes_max = buffer_bytes_max;
+	pdata->hw_params.period_bytes_min = periods_bytes[0];
+	pdata->hw_params.period_bytes_max = periods_bytes[1];
+	pdata->hw_params.periods_min = periods_count[0];
+	pdata->hw_params.periods_max = periods_count[1];
+
+	return ret;
+}
+
 struct msm_common_pdata *msm_common_get_pdata(struct snd_soc_card *card)
 {
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
@@ -1516,6 +1589,14 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 				__func__, ret);
 			ret = 0;
 		}
+	}
+
+	ret = msm_get_hwparams(pdev);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"%s: hwparams get failed with %d\n",
+			__func__, ret);
+		goto err;
 	}
 
 	dev_info(&pdev->dev, "Sound card %s registered\n",
