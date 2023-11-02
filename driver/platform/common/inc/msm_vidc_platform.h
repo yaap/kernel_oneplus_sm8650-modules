@@ -266,6 +266,9 @@ struct msm_vidc_platform_data {
 	unsigned int dec_output_prop_size_vp9;
 	const u32 *dec_output_prop_av1;
 	unsigned int dec_output_prop_size_av1;
+	const u32  *msm_vidc_ssr_type;
+	unsigned int msm_vidc_ssr_type_size;
+
 };
 
 struct msm_vidc_platform {

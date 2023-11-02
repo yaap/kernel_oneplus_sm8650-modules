@@ -922,15 +922,27 @@ int venus_hfi_suspend(struct msm_vidc_core *core)
 	return rc;
 }
 
+bool is_ssr_type_allowed(struct msm_vidc_core *core, u32 type)
+{
+	u32 i;
+	const u32 *ssr_type = core->platform->data.msm_vidc_ssr_type;
+	u32 ssr_type_size = core->platform->data.msm_vidc_ssr_type_size;
+
+	for (i = 0; i < ssr_type_size; i++) {
+		if (type == ssr_type[i])
+			return true;
+	}
+	return false;
+}
+
 int venus_hfi_trigger_ssr(struct msm_vidc_core *core, u32 type,
 	u32 client_id, u32 addr)
 {
 	int rc = 0;
 	u32 payload[2];
 
-	// WA for CR: 3584248
-	if (type != HFI_SSR_TYPE_SW_ERR_FATAL) {
-		d_vpr_h("SSR Type 0x1 is only allowed for pineapple\n");
+	if (!is_ssr_type_allowed(core, type)) {
+		d_vpr_h("SSR Type %d is not allowed\n", type);
 		return rc;
 	}
 
