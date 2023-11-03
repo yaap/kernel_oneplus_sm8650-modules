@@ -330,6 +330,15 @@ static int __acquire_regulator(struct regulator_info *rinfo,
 	int rc = 0;
 
 	if (rinfo->has_hw_power_collapse) {
+		/*Acquire XO_RESET to avoid race condition with video*/
+		rc = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+		if (rc) {
+			dprintk(CVP_ERR,
+				"XO_RESET could not be acquired: skip acquiring the regulator %s from FW\n",
+				rinfo->name);
+			return -EINVAL;
+		}
+
 		rc = regulator_set_mode(rinfo->regulator,
 				REGULATOR_MODE_NORMAL);
 		if (rc) {
@@ -348,6 +357,8 @@ static int __acquire_regulator(struct regulator_info *rinfo,
 					rinfo->name);
 
 		}
+		/*Release XO_RESET after regulator is enabled.*/
+		call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 	}
 
 	if (!regulator_is_enabled(rinfo->regulator)) {
@@ -359,13 +370,26 @@ static int __acquire_regulator(struct regulator_info *rinfo,
 	return rc;
 }
 
-static int __hand_off_regulator(struct regulator_info *rinfo)
+static int __hand_off_regulator(struct iris_hfi_device *device, struct regulator_info *rinfo)
 {
 	int rc = 0;
 
 	if (rinfo->has_hw_power_collapse) {
+		/*Acquire XO_RESET to avoid race condition with video*/
+		rc = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+		if (rc) {
+			dprintk(CVP_ERR,
+				"XO_RESET could not be acquired: skip hand off the regulator %s to FW\n",
+				rinfo->name);
+			return -EINVAL;
+		}
+
 		rc = regulator_set_mode(rinfo->regulator,
 				REGULATOR_MODE_FAST);
+
+		/*Release XO_RESET after regulator is enabled.*/
+		call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
+
 		if (rc) {
 			dprintk(CVP_WARN,
 				"Failed to hand off regulator control: %s\n",
@@ -386,7 +410,7 @@ static int __hand_off_regulators(struct iris_hfi_device *device)
 	int rc = 0, c = 0;
 
 	iris_hfi_for_each_regulator(device, rinfo) {
-		rc = __hand_off_regulator(rinfo);
+		rc = __hand_off_regulator(device, rinfo);
 		/*
 		 * If one regulator hand off failed, driver should take
 		 * the control for other regulators back.
@@ -4099,7 +4123,20 @@ static int __disable_regulator_impl(struct regulator_info *rinfo,
 		goto disable_regulator_failed;
 	}
 
+	/*Acquire XO_RESET to avoid race condition with video*/
+	rc = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+	if (rc) {
+		dprintk(CVP_ERR,
+			"XO_RESET could not be acquired: skip disabling the regulator %s\n",
+			rinfo->name);
+		return -EINVAL;
+	}
+
 	rc = regulator_disable(rinfo->regulator);
+
+	/*Release XO_RESET after regulator is enabled.*/
+	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
+
 	if (rc) {
 		dprintk(CVP_WARN,
 			"Failed to disable %s: %d\n",
@@ -4158,7 +4195,21 @@ static int __enable_regulator(struct iris_hfi_device *device,
 	iris_hfi_for_each_regulator(device, rinfo) {
 		if (strcmp(rinfo->name, name))
 			continue;
+
+		/*Acquire XO_RESET to avoid race condition with video*/
+		rc = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+		if (rc) {
+			dprintk(CVP_ERR,
+				"XO_RESET could not be acquired: skip enabling the regulator %s\n",
+				rinfo->name);
+			return -EINVAL;
+		}
+
 		rc = regulator_enable(rinfo->regulator);
+
+		/*Release XO_RESET after regulator is enabled.*/
+		call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
+
 		if (rc) {
 			dprintk(CVP_ERR, "Failed to enable %s: %d\n",
 					rinfo->name, rc);
@@ -5713,7 +5764,7 @@ static void dump_noc_reg(struct iris_hfi_device *device)
 		iris_hfi_for_each_regulator(device, rinfo) {
 			if (strcmp(rinfo->name, "cvp-core"))
 				continue;
-			rc = __hand_off_regulator(rinfo);
+			rc = __hand_off_regulator(device, rinfo);
 		}
 	}
 	__write_register(device, CVP_WRAPPER_CORE_CLOCK_CONFIG, config);
