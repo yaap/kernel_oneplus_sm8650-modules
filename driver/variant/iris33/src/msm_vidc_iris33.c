@@ -383,7 +383,6 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	int value = 0;
-	u32 count = 0;
 
 	/*
 	 * mask fal10_veto QLPAC error since fal10_veto can go 1
@@ -473,22 +472,9 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	 * drivers (eva driver) operating on this shared reset clock
 	 * and AON_WRAPPER_SPARE register in parallel.
 	 */
-	count = 0;
-	do {
-		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
-		if (!rc) {
-			break;
-		} else {
-			d_vpr_e(
-				"%s: failed to acquire video_xo_reset control, count %d\n",
-				__func__, count);
-			count++;
-			usleep_range(1000, 1000);
-		}
-	} while (count < 100);
-
-	if (count >= 100) {
-		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+	rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
 		goto skip_video_xo_reset;
 	}
 
@@ -501,7 +487,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	/* enable bit(1) to avoid cvp noc xo reset */
 	rc = __write_register(core, AON_WRAPPER_SPARE, value | 0x2);
 	if (rc)
-		return rc;
+		goto exit;
 
 	/* assert video_cc XO reset */
 	rc = call_res_op(core, reset_control_assert, core, "video_xo_reset");
@@ -523,7 +509,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 	/* reset AON spare register */
 	rc = __write_register(core, AON_WRAPPER_SPARE, 0x0);
 	if (rc)
-		return rc;
+		goto exit;
 
 	/* release reset control for other consumers */
 	rc = call_res_op(core, reset_control_release, core, "video_xo_reset");
@@ -569,6 +555,10 @@ skip_video_xo_reset:
 		rc = 0;
 	}
 
+	return rc;
+
+exit:
+	call_res_op(core, reset_control_release, core, "video_xo_reset");
 	return rc;
 }
 
@@ -677,7 +667,6 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	struct frequency_table *freq_tbl;
 	u32 freq = 0;
 	int rc = 0;
-	int count = 0;
 
 	if (is_core_sub_state(core, CORE_SUBSTATE_POWER_ENABLE))
 		return 0;
@@ -728,21 +717,9 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	 * access failure, so acquire video_xo_reset to ensure EVA module is
 	 * not doing assert or de-assert on video_xo_reset.
 	 */
-	do {
-		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
-		if (!rc) {
-			break;
-		} else {
-			d_vpr_e(
-				"%s: failed to acquire video_xo_reset control, count %d\n",
-				__func__, count);
-			count++;
-			usleep_range(1000, 1000);
-		}
-	} while (count < 100);
-
-	if (count >= 100) {
-		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+	rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
 		goto fail_assert_xo_reset;
 	}
 
@@ -822,6 +799,7 @@ static int __power_on_iris33(struct msm_vidc_core *core)
 	return rc;
 
 fail_program_noc_regs:
+	call_res_op(core, reset_control_release, core, "video_xo_reset");
 fail_deassert_xo_reset:
 fail_assert_xo_reset:
 fail_power_on_substate:
@@ -1020,7 +998,6 @@ static int __read_noc_err_register_iris33_2p(struct msm_vidc_core *core)
 
 static int __noc_error_info_iris33(struct msm_vidc_core *core)
 {
-	u32 count = 0;
 	int rc = 0;
 
 	/*
@@ -1070,21 +1047,9 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 	 * while reading noc registers
 	 */
 	d_vpr_e("%s: read NOC ERR LOG registers\n", __func__);
-	do {
-		rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
-		if (!rc) {
-			break;
-		} else {
-			d_vpr_e(
-				"%s: failed to acquire video_xo_reset control, count %d\n",
-				__func__, count);
-			count++;
-			usleep_range(1000, 1000);
-		}
-	} while (count < 100);
-
-	if (count >= 100) {
-		d_vpr_e("%s: timeout acquiring video_xo_reset\n", __func__);
+	rc = call_res_op(core, reset_control_acquire, core, "video_xo_reset");
+	if (rc) {
+		d_vpr_e("%s: failed to acquire video_xo_reset control\n", __func__);
 		goto fail_assert_xo_reset;
 	}
 
