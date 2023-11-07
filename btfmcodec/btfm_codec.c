@@ -141,6 +141,7 @@ static void btfmcodec_dev_rxwork(struct work_struct *work)
 	uint32_t len;
 	uint8_t status;
 	int idx;
+	uint8_t *bearer_switch_ind;
 
 	BTFMCODEC_DBG("start");
 	while ((skb = skb_dequeue(&btfmcodec_dev->rxq))) {
@@ -163,6 +164,10 @@ static void btfmcodec_dev_rxwork(struct work_struct *work)
 				  wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[BTM_PKT_TYPE_BEARER_SWITCH_IND]);
 				}
 				btfmcodec_dev->status[idx] = skb->data[0];
+				/* Reset bearer switch ind flag */
+				bearer_switch_ind =
+					&btfmcodec_dev->status[BTM_PKT_TYPE_BEARER_SWITCH_IND];
+				*bearer_switch_ind = BTM_WAITING_RSP;
 				queue_work(btfmcodec_dev->workqueue, &btfmcodec_dev->wq_prepare_bearer);
 			} else {
 				BTFMCODEC_ERR("wrong packet format with len:%d", len);
@@ -215,6 +220,9 @@ static void btfmcodec_dev_rxwork(struct work_struct *work)
 			BTFMCODEC_INFO("Rx BTM_BTFMCODEC_CTRL_MASTER_SHUTDOWN_RSP status:%d",
 				status);
 			wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
+			BTFMCODEC_INFO("%s: waiting to cancel prepare bearer wq", __func__);
+			cancel_work_sync(&btfmcodec_dev->wq_prepare_bearer);
+			BTFMCODEC_INFO("%s: prepare bearer wq canceled", __func__);
 			break;
 		case BTM_BTFMCODEC_BEARER_SWITCH_IND:
 			idx = BTM_PKT_TYPE_BEARER_SWITCH_IND;
