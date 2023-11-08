@@ -902,6 +902,7 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 	struct dma_buf* dmabuf;
 	struct eva_buf_map map;
 	__u32 num_layers, metadata_bufs_offset;
+	_buf_map_set_vaddr(&map, (void *)0xdeadbeaf);
 
 	if (!in_pkt || !wncc_metadata || !wncc_oob) {
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
@@ -915,7 +916,7 @@ static int _wncc_map_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 	if (metadata_bufs_offset > ((sizeof(in_pkt->pkt_data)
-		- sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
+		- num_layers * sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
 		dprintk(CVP_ERR, "%s: invalid wncc metadata bufs offset",
 			__func__);
 		return -EINVAL;
@@ -1000,7 +1001,7 @@ static int _wncc_unmap_metadata_bufs(struct eva_kmd_hfi_packet* in_pkt,
 		return -EINVAL;
 	}
 	if (metadata_bufs_offset > ((sizeof(in_pkt->pkt_data)
-		- sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
+		- num_layers * sizeof(struct cvp_buf_type)) / sizeof(__u32))) {
 		dprintk(CVP_ERR, "%s: invalid wncc metadata bufs offset",
 			__func__);
 		return -EINVAL;
@@ -2196,7 +2197,7 @@ struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
 	buf->smem = cvp_kmem_cache_zalloc(&cvp_driver->smem_cache, GFP_KERNEL);
 	if (!buf->smem) {
 		dprintk(CVP_ERR, "%s Out of memory\n", __func__);
-		goto fail_kzalloc;
+		goto err_no_smem;
 	}
 
 	buf->smem->flags = smem_flags;
@@ -2206,7 +2207,6 @@ struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
 		dprintk(CVP_ERR, "Failed to allocate ARP memory\n");
 		goto err_no_mem;
 	}
-	buf->smem->pkt_type = buf->smem->buf_idx = 0;
 
 	buf->smem->pkt_type = buf->smem->buf_idx = 0;
 	atomic_inc(&buf->smem->refcount);
@@ -2220,6 +2220,8 @@ struct cvp_internal_buf *cvp_allocate_arp_bufs(struct msm_cvp_inst *inst,
 	return buf;
 
 err_no_mem:
+	cvp_kmem_cache_free(&cvp_driver->smem_cache, buf->smem);
+err_no_smem:
 	cvp_kmem_cache_free(&cvp_driver->buf_cache, buf);
 fail_kzalloc:
 	return NULL;
