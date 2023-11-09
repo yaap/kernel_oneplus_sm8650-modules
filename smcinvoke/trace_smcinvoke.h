@@ -7,10 +7,7 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM smcinvoke
 
-#undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE trace_smcinvoke
-
-#if !defined(_TRACE_SMCINVOKE) || defined(TRACE_HEADER_MULTI_READ)
+#if !defined(_TRACE_SMCINVOKE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_SMCINVOKE_H
 #include <linux/types.h>
 #include <linux/tracepoint.h>

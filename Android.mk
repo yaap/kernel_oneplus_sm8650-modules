@@ -41,9 +41,13 @@ ifeq ($(TARGET_USES_GY), true)
 endif #TARGET_USES_GY
 
 LOCAL_PATH := $(call my-dir)
-DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
-SEC_KERNEL_DIR := $(TOP)/vendor/qcom/opensource/securemsm-kernel
+VENDOR_OPENSOURCE_DIR ?= vendor/qcom/opensource
+VENDOR_COMMON_DIR ?= device/qcom/common
+
+DLKM_DIR := $(TOP)/$(VENDOR_COMMON_DIR)/dlkm
+
+SEC_KERNEL_DIR := $(TOP)/$(VENDOR_OPENSOURCE_DIR)/securemsm-kernel
 
 LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/ \
                                 $(LOCAL_PATH)/include/uapi
