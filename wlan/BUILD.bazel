@@ -8,3 +8,7 @@ define_wlan("pineapple", "gki")
 define_wlan("blair", "consolidate")
 
 define_wlan("blair", "gki")
+
+define_wlan("monaco", "consolidate")
+
+define_wlan("monaco", "gki")
