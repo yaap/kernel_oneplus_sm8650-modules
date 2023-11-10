@@ -5716,48 +5716,68 @@ static void dump_noc_reg(struct iris_hfi_device *device)
 		return;
 	}
 
-	val = __read_register(device, CVP_NOC_RGE_NIU_DECCTL_LOW);
+	val = __read_register(device, CVP_NOC_RGE_NIU_DECCTL_LOW
+			+ device->res->qos_noc_rge_niu_offset);
 	dprintk(CVP_ERR, "CVP_NOC_RGE_NIU_DECCTL_LOW: 0x%x", val);
-	val = __read_register(device, CVP_NOC_RGE_NIU_ENCCTL_LOW);
+	val = __read_register(device, CVP_NOC_RGE_NIU_ENCCTL_LOW
+			+ device->res->qos_noc_rge_niu_offset);
 	dprintk(CVP_ERR, "CVP_NOC_RGE_NIU_ENCCTL_LOW: 0x%x", val);
-	val = __read_register(device, CVP_NOC_GCE_VADL_TOF_NIU_DECCTL_LOW);
+	val = __read_register(device, CVP_NOC_GCE_VADL_TOF_NIU_DECCTL_LOW
+			+ device->res->qos_noc_gce_vadl_tof_niu_offset);
 	dprintk(CVP_ERR, "CVP_NOC_GCE_VADL_TOF_NIU_DECCTL_LOW: 0x%x", val);
-	val = __read_register(device, CVP_NOC_GCE_VADL_TOF_NIU_ENCCTL_LOW);
+	val = __read_register(device, CVP_NOC_GCE_VADL_TOF_NIU_ENCCTL_LOW
+			+ device->res->qos_noc_gce_vadl_tof_niu_offset);
 	dprintk(CVP_ERR, "CVP_NOC_GCE_VADL_TOF_NIU_ENCCTL_LOW: 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS: 0x%x", val);
-	val = __read_register(device, CVP_NOC_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW);
+	val = __read_register(device, CVP_NOC_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW
+			+ device->res->noc_main_sidebandmanager_offset);
 	dprintk(CVP_ERR, "CVP_NOC_MAIN_SIDEBANDMANAGER_FAULTINEN0_LOW: 0x%x", val);
 
 	dprintk(CVP_ERR, "Dumping Core NoC registers\n");
-	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC__CORE_ERL_MAIN_SWID_LOW: 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_HIGH_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_SWID_HIGH_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVVP_NOC_CORE_ERL_MAIN_SWID_HIGH 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_MAINCTL_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_MAINCTL_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRVLD_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRVLD_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRVLD_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRCLR_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG0_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_HIGH_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG0_HIGH_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG0_HIGH 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG1_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_HIGH_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG1_HIGH_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG1_HIGH 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG2_LOW 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_HIGH_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG2_HIGH_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG2_HIGH 0x%x", val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_LOW_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_LOW_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CORE ERRLOG3_LOW 0x%x, below details", val);
 	__print_reg_details(val);
-	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_HIGH_OFFS);
+	val = __read_register(device, CVP_NOC_CORE_ERR_ERRLOG3_HIGH_OFFS
+			+ device->res->noc_core_err_offset);
 	dprintk(CVP_ERR, "CVP_NOC_CORE_ERL_MAIN_ERRLOG3_HIGH 0x%x", val);
-	__write_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS, 0x1);
+	__write_register(device, CVP_NOC_CORE_ERR_ERRCLR_LOW_OFFS
+			+ device->res->noc_core_err_offset, 0x1);
 
 	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 	if (msm_cvp_fw_low_power_mode) {
