@@ -3,7 +3,7 @@
 LOCAL_PATH := $(call my-dir)
 
 # Build/Package only in case of supported target
-ifeq ($(call is-board-platform-in-list,taro kalama pineapple blair), true)
+ifeq ($(call is-board-platform-in-list,taro kalama pineapple blair pitti), true)
 
 BT_SELECT := CONFIG_MSM_BT_POWER=m
 #ifdef CONFIG_SLIMBUS
