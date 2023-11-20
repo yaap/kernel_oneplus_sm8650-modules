@@ -445,7 +445,11 @@ rx_handler_result_t rmnet_rx_handler(struct sk_buff **pskb)
 	dev = skb->dev;
 	port = rmnet_get_port(dev);
 	if (unlikely(!port)) {
+#if (KERNEL_VERSION(6, 0, 0) < LINUX_VERSION_CODE)
 		dev_core_stats_rx_nohandler_inc(skb->dev);
+#else
+		atomic_long_inc(&skb->dev->rx_nohandler);
+#endif
 		kfree_skb(skb);
 		goto done;
 	}
