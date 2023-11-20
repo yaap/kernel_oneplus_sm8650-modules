@@ -740,7 +740,7 @@ static int calculate_bandwidth_encoder_iris33(
 	} else { /* RGBA */
 		frame420_y_bw_linear_8bpp =
 			((calculate_number_ubwctiles_iris33(frame_width, frame_height,
-			6, 4) * 256 * codec_input.frame_rate + 999) / 1000 + 999) / 1000;
+			16, 4) * 256 * codec_input.frame_rate + 999) / 1000 + 999) / 1000;
 	}
 
 	frame420_y_bw_no_ubwc_tile_10bpp =
