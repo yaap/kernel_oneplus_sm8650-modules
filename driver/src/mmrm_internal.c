@@ -19,7 +19,7 @@ static struct mmrm_common_data common_pt_data[] = {
 
 /*throttle client list is as per fdd & resource availability*/
 
-static struct mmrm_throttle_clients_data common_pt_throttle_clients_data[] = {
+static struct mmrm_throttle_clients_data common_pt_throttle_clients_data_pineapple[] = {
 	{
 		.domain = MMRM_CLIENT_DOMAIN_DISPLAY,
 		.id = 0x3e,
@@ -42,25 +42,59 @@ static struct mmrm_throttle_clients_data common_pt_throttle_clients_data[] = {
 	},
 };
 
-static struct mmrm_platform_data commom_pt_platform_data = {
+static struct mmrm_throttle_clients_data common_pt_throttle_clients_data_cliffs[] = {
+	{
+		.domain = MMRM_CLIENT_DOMAIN_DISPLAY,
+		.id = 0x3e,
+	},
+	{
+		.domain = MMRM_CLIENT_DOMAIN_VIDEO,
+		.id = 0x03,
+	},
+	{
+		.domain = MMRM_CLIENT_DOMAIN_CAMERA,
+		.id = 0x62,
+	},
+	{
+		.domain = MMRM_CLIENT_DOMAIN_CVP,
+		.id = 0x0a,
+	},
+	{
+		.domain = MMRM_CLIENT_DOMAIN_CAMERA,
+		.id = 0x17,
+	},
+};
+
+static struct mmrm_platform_data commom_pt_platform_data_pineapple = {
 	.common_data = common_pt_data,
 	.common_data_length = ARRAY_SIZE(common_pt_data),
-	.throttle_clk_clients_data = common_pt_throttle_clients_data,
-	.throttle_clk_clients_data_length = ARRAY_SIZE(common_pt_throttle_clients_data),
+	.throttle_clk_clients_data = common_pt_throttle_clients_data_pineapple,
+	.throttle_clk_clients_data_length = ARRAY_SIZE(common_pt_throttle_clients_data_pineapple),
+};
+
+static struct mmrm_platform_data commom_pt_platform_data_cliffs = {
+	.common_data = common_pt_data,
+	.common_data_length = ARRAY_SIZE(common_pt_data),
+	.throttle_clk_clients_data = common_pt_throttle_clients_data_cliffs,
+	.throttle_clk_clients_data_length = ARRAY_SIZE(common_pt_throttle_clients_data_cliffs),
 };
 
 static const struct of_device_id mmrm_dt_match[] = {
 	{
 		.compatible = "qcom,waipio-mmrm",
-		.data = &commom_pt_platform_data,
+		.data = &commom_pt_platform_data_pineapple,
 	},
 	{
 		.compatible = "qcom,kalama-mmrm",
-		.data = &commom_pt_platform_data,
+		.data = &commom_pt_platform_data_pineapple,
 	},
 	{
 		.compatible = "qcom,pineapple-mmrm",
-		.data = &commom_pt_platform_data,
+		.data = &commom_pt_platform_data_pineapple,
+	},
+	{
+		.compatible = "qcom,cliffs-mmrm",
+		.data = &commom_pt_platform_data_cliffs,
 	},
 	{},
 };
