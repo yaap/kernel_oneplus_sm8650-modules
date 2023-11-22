@@ -3512,9 +3512,13 @@ static int fastrpc_wait_on_async_queue(
 	struct hlist_node *n;
 
 read_async_job:
+	if (!fl) {
+		err = -EBADF;
+		goto bail;
+	}
 	interrupted = wait_event_interruptible(fl->async_wait_queue,
 				atomic_read(&fl->async_queue_job_count));
-	if (!fl || fl->file_close >= FASTRPC_PROCESS_EXIT_START) {
+	if (fl->file_close >= FASTRPC_PROCESS_EXIT_START) {
 		err = -EBADF;
 		goto bail;
 	}
@@ -3598,12 +3602,12 @@ static int fastrpc_wait_on_notif_queue(
 	struct smq_notif_rsp  *notif = NULL, *inotif = NULL, *n = NULL;
 
 read_notif_status:
+        if (!fl) {
+                err = -EBADF;
+                goto bail;
+        }
 	interrupted = wait_event_interruptible(fl->proc_state_notif.notif_wait_queue,
 				atomic_read(&fl->proc_state_notif.notif_queue_count));
-	if (!fl) {
-		err = -EBADF;
-		goto bail;
-	}
 	if (fl->exit_notif) {
 		err = -EFAULT;
 		goto bail;
@@ -5958,13 +5962,15 @@ skip_dump_wait:
 	fl->is_ramdump_pend = false;
 	fl->is_dma_invoke_pend = false;
 	fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
-	/* Reset the tgid usage to false */
-	if (fl->tgid_frpc != -1)
-		frpc_tgid_usage_array[fl->tgid_frpc] = false;
 	is_locked = false;
 	spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
 
 	if (!fl->sctx) {
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		/* Reset the tgid usage to false */
+		if (fl->tgid_frpc != -1)
+			frpc_tgid_usage_array[fl->tgid_frpc] = false;
+		spin_unlock_irqrestore(&me->hlock, irq_flags);
 		kfree(fl);
 		return 0;
 	}
@@ -6006,6 +6012,12 @@ skip_dump_wait:
 
 	if (fl->device && is_driver_closed)
 		device_unregister(&fl->device->dev);
+
+	spin_lock_irqsave(&me->hlock, irq_flags);
+	/* Reset the tgid usage to false */
+	if (fl->tgid_frpc != -1)
+		frpc_tgid_usage_array[fl->tgid_frpc] = false;
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
 
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (!err && fl->sctx)
@@ -7613,20 +7625,20 @@ static void  fastrpc_print_debug_data(int cid)
 	VERIFY(err, NULL != (gmsg_log_tx = kzalloc(MD_GMSG_BUFFER, GFP_KERNEL)));
 	if (err) {
 		err = -ENOMEM;
-		return;
+		goto free_buf;
 	}
 	VERIFY(err, NULL != (gmsg_log_rx = kzalloc(MD_GMSG_BUFFER, GFP_KERNEL)));
 	if (err) {
 		err = -ENOMEM;
-		return;
+                goto free_buf;
 	}
 	chan = &me->channel[cid];
 	if ((!chan) || (!chan->buf))
-		return;
+                goto free_buf;
 
 	mini_dump_buff = chan->buf->virt;
 	if (!mini_dump_buff)
-		return;
+                goto free_buf;
 
 	if (chan) {
 		tx_index = chan->gmsg_log.tx_index;
@@ -7772,6 +7784,7 @@ static void  fastrpc_print_debug_data(int cid)
 			"gmsg_log_rx:\n %s\n", gmsg_log_rx);
 	if (chan && chan->buf)
 		chan->buf->size = strlen(mini_dump_buff);
+free_buf:
 	kfree(gmsg_log_tx);
 	kfree(gmsg_log_rx);
 }
