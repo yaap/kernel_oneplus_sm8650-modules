@@ -5,7 +5,7 @@
  */
 
 #include <dt-bindings/clock/qcom,gcc-cliffs.h>
-#include <dt-bindings/clock/qcom,videocc-cliffs.h>
+#include <dt-bindings/clock/qcom,videocc-pineapple.h>
 
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/of_common.h>
@@ -807,10 +807,10 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 		160000000, 1, 160000000},
 
 	{CAVLC_MAX_BITRATE, ENC, H264, 0,
-		220000000, 1, 220000000},
+		160000000, 1, 160000000},
 
 	{ALLINTRA_MAX_BITRATE, ENC, H264 | HEVC, 0,
-		245000000, 1, 245000000},
+		160000000, 1, 160000000},
 
 	{LOWLATENCY_MAX_BITRATE, ENC, H264 | HEVC, 0,
 		70000000, 1, 70000000},
@@ -3078,10 +3078,10 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v1[] = {
 		160000000, 1, 160000000},
 
 	{CAVLC_MAX_BITRATE, ENC, H264, 0,
-		220000000, 1, 220000000},
+		160000000, 1, 160000000},
 
 	{ALLINTRA_MAX_BITRATE, ENC, H264 | HEVC, 0,
-		245000000, 1, 245000000},
+		160000000, 1, 160000000},
 
 	{LOWLATENCY_MAX_BITRATE, ENC, H264 | HEVC, 0,
 		70000000, 1, 70000000},
@@ -5106,7 +5106,7 @@ static const struct msm_vidc_platform_data cliffs_data_v0 = {
 	.dev_reg_tbl_size = ARRAY_SIZE(cliffs_device_region_table),
 	.fwname = "vpu30_2v",
 	.pas_id = 9,
-	.supports_mmrm = 1,
+	.supports_mmrm = 0,
 	.vpu_ver = VPU_VERSION_IRIS33_2P,
 
 	/* caps related resorces */
@@ -5180,7 +5180,7 @@ static const struct msm_vidc_platform_data cliffs_data_v1 = {
 	.dev_reg_tbl_size = ARRAY_SIZE(cliffs_device_region_table),
 	.fwname = "vpu30_2v",
 	.pas_id = 9,
-	.supports_mmrm = 1,
+	.supports_mmrm = 0,
 
 	/* caps related resorces */
 	.core_data = core_data_cliffs_v1,
