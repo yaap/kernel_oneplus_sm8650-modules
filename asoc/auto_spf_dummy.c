@@ -184,6 +184,10 @@ struct snd_soc_card sa8255_snd_soc_card_auto_msm = {
 	.name = "sa8255-adp-star-snd-card",
 };
 
+struct snd_soc_card sa7255_snd_soc_card_auto_msm = {
+	.name = "sa7255-adp-star-snd-card",
+};
+
 /* FIXME: it may various on different platform,
  * better to move to dt configuration in future
  */
@@ -1136,6 +1140,8 @@ static const struct of_device_id asoc_machine_of_match[]  = {
 	  .data = "adp_star_codec"},
 	{ .compatible = "qcom,sa8255-asoc-snd-adp-star",
 	  .data = "adp_star_codec"},
+	{ .compatible = "qcom,sa7255-asoc-snd-adp-star",
+	  .data = "adp_star_codec"},
 	{},
 };
 
@@ -1167,6 +1173,8 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		card = &sa8295_snd_soc_card_auto_msm;
 	else if (!strcmp(match->compatible, "qcom,sa8255-asoc-snd-adp-star"))
 		card = &sa8255_snd_soc_card_auto_msm;
+	else if (!strcmp(match->compatible, "qcom,sa7255-asoc-snd-adp-star"))
+		card = &sa7255_snd_soc_card_auto_msm;
 
 	total_links = ARRAY_SIZE(msm_common_dai_links);
 	memcpy(msm_auto_dai_links,
@@ -1493,6 +1501,8 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (strnstr(match->compatible, "sa8295",
 			sizeof(match->compatible)) ||
 		strnstr(match->compatible, "sa8255",
+			sizeof(match->compatible)) ||
+		strnstr(match->compatible, "sa7255",
 			sizeof(match->compatible))) {
 		/* get mclk pinctrl info from devicetree */
 		ret = msm_get_mclk_pinctrl(pdev);
