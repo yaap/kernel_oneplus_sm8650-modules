@@ -248,7 +248,7 @@ struct smcinvoke_msg_hdr {
 struct smcinvoke_tzcb_req {
 	int32_t result;
 	struct smcinvoke_msg_hdr hdr;
-	union smcinvoke_tz_args args[0];
+	union smcinvoke_tz_args args[];
 };
 
 struct smcinvoke_file_data {
@@ -263,7 +263,7 @@ struct smcinvoke_piggyback_msg {
 	uint32_t version;
 	uint32_t op;
 	uint32_t counts;
-	int32_t objs[0];
+	int32_t objs[];
 };
 
 /* Mapped memory object data

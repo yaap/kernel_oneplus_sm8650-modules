@@ -73,13 +73,13 @@ static int iommu_unmap_and_relinquish(u32 hdl)
 	mutex_lock(&buffer_state_lock);
 	buf_state = xa_load(&buffer_state_arr, hdl);
 	if (!buf_state) {
-		pr_err("%s: handle 0x%llx unknown to proxy driver!\n", __func__, hdl);
+		pr_err("%s: handle 0x%x unknown to proxy driver!\n", __func__, hdl);
 		ret = -EINVAL;
 		goto out;
 	}
 
 	if (buf_state->locked) {
-		pr_err("%s: handle 0x%llx is locked!\n", __func__, hdl);
+		pr_err("%s: handle 0x%x is locked!\n", __func__, hdl);
 		ret = -EINVAL;
 		goto out;
 	}
@@ -178,7 +178,7 @@ struct sg_table *retrieve_and_iommu_map(struct mem_buf_retrieve_kernel_arg *retr
 			goto unlock;
 		}
 		if (buf_state->locked) {
-			pr_err("%s: handle 0x%llx is locked!\n", __func__,
+			pr_err("%s: handle 0x%x is locked!\n", __func__,
 			       retrieve_arg->memparcel_hdl);
 			ret = -EINVAL;
 			goto unlock_err;
@@ -299,7 +299,7 @@ static int process_map_request(struct smmu_proxy_map_req *req, size_t size)
 	 * to us by the message queue.
 	 */
 	if (map_req_len > size) {
-		pr_err("%s: Reported size of smmu_proxy_map_request (%d bytes) greater than message size given by message queue (%d bytes)\n",
+		pr_err("%s: Reported size of smmu_proxy_map_request (%ld bytes) greater than message size given by message queue (%ld bytes)\n",
 		       __func__, map_req_len, size);
 		return -EINVAL;
 	}
@@ -369,7 +369,7 @@ static void smmu_proxy_process_msg(void *buf, size_t size)
 	int ret = -EINVAL;
 
 	if (size < sizeof(*msg_hdr) || msg_hdr->msg_size != size) {
-		pr_err("%s: message received is not of a proper size: 0x%lx, 0x:%lx\n",
+		pr_err("%s: message received is not of a proper size: 0x%lx, 0x:%x\n",
 		       __func__, size, msg_hdr->msg_size);
 		goto handle_err;
 	}
@@ -443,7 +443,7 @@ static int smmu_proxy_ac_lock_toggle(int dma_buf_fd, bool lock)
 
 	dmabuf = dma_buf_get(dma_buf_fd);
 	if (IS_ERR(dmabuf)) {
-		pr_err("%s: unable to get dma-buf from FD %d, rc: %d", __func__,
+		pr_err("%s: unable to get dma-buf from FD %d, rc: %ld\n", __func__,
 		       dma_buf_fd, PTR_ERR(dmabuf));
 		return PTR_ERR(dmabuf);
 	}
@@ -457,13 +457,13 @@ static int smmu_proxy_ac_lock_toggle(int dma_buf_fd, bool lock)
 	mutex_lock(&buffer_state_lock);
 	buf_state = xa_load(&buffer_state_arr, handle);
 	if (!buf_state) {
-		pr_err("%s: handle 0x%llx unknown to proxy driver!\n", __func__, handle);
+		pr_err("%s: handle 0x%x unknown to proxy driver!\n", __func__, handle);
 		ret = -EINVAL;
 		goto out;
 	}
 
 	if (buf_state->locked == lock) {
-		pr_err("%s: handle 0x%llx already %s!\n", __func__, handle,
+		pr_err("%s: handle 0x%x already %s!\n", __func__, handle,
 		       lock ? "locked" : "unlocked");
 		ret = -EINVAL;
 		goto out;
@@ -644,7 +644,7 @@ static int receiver_probe_handler(struct device *dev)
 	msgq_hdl = gh_msgq_register(GH_MSGQ_LABEL_SMMU_PROXY);
 	if (IS_ERR(msgq_hdl)) {
 		ret = PTR_ERR(msgq_hdl);
-		dev_err(dev, "Queue registration failed: %d!\n", PTR_ERR(msgq_hdl));
+		dev_err(dev, "Queue registration failed: %ld!\n", PTR_ERR(msgq_hdl));
 		return ret;
 	}
 
@@ -652,7 +652,7 @@ static int receiver_probe_handler(struct device *dev)
 						   "smmu_proxy_msgq_handler");
 	if (IS_ERR(receiver_msgq_handler_thread)) {
 		ret = PTR_ERR(receiver_msgq_handler_thread);
-		dev_err(dev, "Failed to launch receiver_msgq_handler thread: %d\n",
+		dev_err(dev, "Failed to launch receiver_msgq_handler thread: %ld\n",
 			PTR_ERR(receiver_msgq_handler_thread));
 		goto free_msgq;
 	}
@@ -674,7 +674,7 @@ free_msgq:
 static int proxy_fault_handler(struct iommu_domain *domain, struct device *dev,
 			       unsigned long iova, int flags, void *token)
 {
-	dev_err(dev, "Context fault with IOVA %llx and fault flags %d\n", iova, flags);
+	dev_err(dev, "Context fault with IOVA %lx and fault flags %d\n", iova, flags);
 	return -EINVAL;
 }
 

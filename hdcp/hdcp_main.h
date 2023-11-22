@@ -56,6 +56,12 @@
 /* Wait 200ms after authentication */
 #define SLEEP_FORCE_ENCRYPTION_MS 200
 
+/* Error code when Qseecomd is not up at boot time */
+#define QSEECOMD_ERROR -4103
+
+/* Wait for 100ms on every retry to check if Qseecomd is up */
+#define SLEEP_QSEECOMD_WAIT_MS 100
+
 #define SLEEP_SET_HW_KEY_MS 300
 
 /* flags set by tz in response message */

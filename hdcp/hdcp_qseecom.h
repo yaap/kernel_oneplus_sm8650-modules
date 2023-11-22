@@ -13,6 +13,11 @@
 
 #include "hdcp_main.h"
 
+/*
+ * @max_hdcp_key_verify_retries - Max number of retries by default set to 0 which
+ *                                is equivalent to 0MS. Actual value will be the one
+ *                                from the dtsi file.
+ */
 struct hdcp1_qsee_handle {
 	struct qseecom_handle *qseecom_handle;
 	struct qseecom_handle *hdcpops_handle;
@@ -20,8 +25,22 @@ struct hdcp1_qsee_handle {
 	uint32_t device_type;
 	enum hdcp_state hdcp_state;
 	char *app_name;
+	uint32_t max_hdcp_key_verify_retries;
 };
 
+/*
+ * If Qseecomd starts late and hdcp key
+ * verification has already started, qseecomd_down
+ * flag will be set to true. It will be set to false
+ * once the Qseecomd is up. Initial assumption is
+ * that the Qseecomd will start in time.
+ */
+static bool qseecomd_down;
+/*
+ * @max_hdcp_key_verify_retries - Max number of retries by default set to 0 which
+ *                                is equivalent to 0MS. Actual value will be the one
+ *                                from the dtsi file.
+ */
 struct hdcp2_qsee_handle {
 	struct hdcp2_app_data app_data;
 	uint32_t tz_ctxhandle;
@@ -37,6 +56,7 @@ struct hdcp2_qsee_handle {
 	unsigned char *res_buf;
 	int (*app_init)(struct hdcp2_qsee_handle *handle);
 	int (*tx_init)(struct hdcp2_qsee_handle *handle);
+	uint32_t max_hdcp_key_verify_retries;
 };
 
 struct hdcp1_key_set_req {
