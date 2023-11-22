@@ -2,7 +2,7 @@
 /*
  * ST54SPI GPIO driver
  * Copyright (C) 2021 ST Microelectronics S.A.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,6 +19,7 @@
  *
  **********************************************************************************/
 
+#include <linux/version.h>
 #include <linux/gpio/driver.h>
 #include <linux/module.h>
 #include <linux/of_address.h>
@@ -174,7 +175,12 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+#if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
+	st54spi_gpio_dev->class = class_create("st54spi_gpio");
+#else
 	st54spi_gpio_dev->class = class_create(THIS_MODULE, "st54spi_gpio");
+#endif
+
 	if (IS_ERR(st54spi_gpio_dev->class)) {
 		rc = PTR_ERR(st54spi_gpio_dev->class);
 		pr_err("%s: Error creating st54spi_gpio_dev->class: %d\n", __func__, rc);

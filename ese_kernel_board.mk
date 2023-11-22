@@ -9,8 +9,8 @@ else
   ESE_DLKM_ENABLED := true
 endif
 
-# pineapple specific build rules
-ifeq ($(TARGET_BOARD_PLATFORM),pineapple)
+# Target specific build rules
+ifeq ($(call is-board-platform-in-list, pineapple sun),true)
   ifeq ($(ESE_DLKM_ENABLED), true)
     TARGET_USES_ST_ESE :=true
     BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/stm_st54se_gpio.ko
