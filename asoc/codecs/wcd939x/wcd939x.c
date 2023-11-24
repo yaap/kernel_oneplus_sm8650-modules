@@ -57,6 +57,15 @@
 #define COMP_MAX_COEFF 25
 #define HPH_MODE_MAX 4
 
+#define WCD_USBSS_WRITE true
+#define WCD_USBSS_READ false
+#define WCD_USBSS_DP_EN 0x1E
+#define WCD_USBSS_DN_EN 0x21
+#define P_THRESH_SEL_MASK 0x0E
+#define P_THRESH_SEL_SHIFT 0x01
+#define VTH_4P0 0x04
+#define VTH_4P2 0x06
+
 #define DAPM_MICBIAS1_STANDALONE "MIC BIAS1 Standalone"
 #define DAPM_MICBIAS2_STANDALONE "MIC BIAS2 Standalone"
 #define DAPM_MICBIAS3_STANDALONE "MIC BIAS3 Standalone"
@@ -884,6 +893,7 @@ static int  wcd939x_config_power_mode(struct snd_soc_component *component,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 static int wcd939x_get_usbss_hph_power_mode(int hph_mode)
 {
 	switch (hph_mode) {
@@ -895,6 +905,7 @@ static int wcd939x_get_usbss_hph_power_mode(int hph_mode)
 		return 0x2;
 	}
 }
+#endif
 
 static int wcd939x_enable_hph_pcm_index(struct snd_soc_component *component,
 				int event, int hph)
@@ -1422,10 +1433,12 @@ static int wcd939x_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_component_update_bits(component,
 					REG_FIELD_VALUE(HPH, PWR_LEVEL, 0x00));
 		}
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		/* update USBSS power mode for AATC */
 		if (wcd939x->mbhc->wcd_mbhc.mbhc_cfg->enable_usbc_analog)
 			wcd_usbss_audio_config(NULL, WCD_USBSS_CONFIG_TYPE_POWER_MODE,
 				wcd939x_get_usbss_hph_power_mode(hph_mode));
+#endif
 		snd_soc_component_update_bits(component,
 			REG_FIELD_VALUE(VNEG_CTRL_4, ILIM_SEL, 0xD));
 		snd_soc_component_update_bits(component,
@@ -1520,9 +1533,11 @@ static int wcd939x_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 					REG_FIELD_VALUE(HPH, HPHR_REF_ENABLE, 0x00));
 		snd_soc_component_update_bits(component,
 					REG_FIELD_VALUE(PDM_WD_CTL1, PDM_WD_EN, 0x00));
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		if (wcd939x->mbhc->wcd_mbhc.mbhc_cfg->enable_usbc_analog &&
 			!(snd_soc_component_read(component, WCD939X_HPH) & 0XC0))
 			wcd_usbss_audio_config(NULL, WCD_USBSS_CONFIG_TYPE_POWER_MODE, 1);
+#endif
 		wcd_cls_h_fsm(component, &wcd939x->clsh_info,
 			     WCD_CLSH_EVENT_POST_PA,
 			     WCD_CLSH_STATE_HPHR,
@@ -1575,10 +1590,12 @@ static int wcd939x_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_component_update_bits(component,
 				REG_FIELD_VALUE(HPH, PWR_LEVEL, 0x00));
 		}
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		/* update USBSS power mode for AATC */
 		if (wcd939x->mbhc->wcd_mbhc.mbhc_cfg->enable_usbc_analog)
 			wcd_usbss_audio_config(NULL, WCD_USBSS_CONFIG_TYPE_POWER_MODE,
 				wcd939x_get_usbss_hph_power_mode(hph_mode));
+#endif
 		snd_soc_component_update_bits(component,
 			REG_FIELD_VALUE(VNEG_CTRL_4, ILIM_SEL, 0xD));
 		snd_soc_component_update_bits(component,
@@ -1671,9 +1688,11 @@ static int wcd939x_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 					REG_FIELD_VALUE(HPH, HPHL_REF_ENABLE, 0x00));
 		snd_soc_component_update_bits(component,
 					REG_FIELD_VALUE(PDM_WD_CTL0, PDM_WD_EN, 0x00));
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		if (wcd939x->mbhc->wcd_mbhc.mbhc_cfg->enable_usbc_analog &&
 			!(snd_soc_component_read(component, WCD939X_HPH) & 0XC0))
 			wcd_usbss_audio_config(NULL, WCD_USBSS_CONFIG_TYPE_POWER_MODE, 1);
+#endif
 		wcd_cls_h_fsm(component, &wcd939x->clsh_info,
 			     WCD_CLSH_EVENT_POST_PA,
 			     WCD_CLSH_STATE_HPHL,
@@ -4640,6 +4659,21 @@ static struct snd_soc_component_driver soc_codec_dev_wcd939x = {
 	.resume = wcd939x_soc_codec_resume,
 };
 
+static void wcd_usbss_set_ovp_threshold(u32 threshold)
+{
+	uint32_t ovp_regs[2][2] = {{WCD_USBSS_DP_EN, 0x00}, {WCD_USBSS_DN_EN, 0x00}};
+
+	/* Get current register values */
+	wcd_usbss_register_update(ovp_regs, WCD_USBSS_READ, ARRAY_SIZE(ovp_regs));
+	/* Overwrite OVP tresholds */
+	ovp_regs[0][1] &= (~P_THRESH_SEL_MASK);
+	ovp_regs[0][1] |= (threshold << P_THRESH_SEL_SHIFT);
+	ovp_regs[1][1] &= (~P_THRESH_SEL_MASK);
+	ovp_regs[1][1] |= (threshold << P_THRESH_SEL_SHIFT);
+	/* Write updated register values */
+	wcd_usbss_register_update(ovp_regs, WCD_USBSS_WRITE, ARRAY_SIZE(ovp_regs));
+}
+
 static int wcd939x_reset(struct device *dev)
 {
 	struct wcd939x_priv *wcd939x = NULL;
@@ -4663,6 +4697,11 @@ static int wcd939x_reset(struct device *dev)
 	if (value > 0)
 		return 0;
 
+	/* Set OVP threshold to 4.0V before reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P0);
+#endif
+
 	rc = msm_cdc_pinctrl_select_sleep_state(wcd939x->rst_np);
 	if (rc) {
 		dev_err_ratelimited(dev, "%s: wcd sleep state request fail!\n",
@@ -4680,6 +4719,11 @@ static int wcd939x_reset(struct device *dev)
 	}
 	/* 20us sleep required after pulling the reset gpio to HIGH */
 	usleep_range(20, 30);
+
+	/* Set OVP threshold to 4.2V after reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P2);
+#endif
 
 	return rc;
 }
@@ -5016,8 +5060,10 @@ static void wcd939x_dt_parse_usbcss_hs_info(struct device *dev,
 	else
 		usbcss_hs->gnd.gnd_ext_fet_min_mohms = GND_EXT_FET_MARGIN_MOHMS;
 
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Set linearizer calibration codes to be sourced from SW */
 	wcd_usbss_linearizer_rdac_cal_code_select(LINEARIZER_SOURCE_SW);
+#endif
 }
 
 static int wcd939x_reset_low(struct device *dev)
@@ -5037,6 +5083,11 @@ static int wcd939x_reset_low(struct device *dev)
 				__func__);
 		return -EINVAL;
 	}
+
+	/* Set OVP threshold to 4.0V before reset */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_ovp_threshold(VTH_4P0);
+#endif
 
 	rc = msm_cdc_pinctrl_select_sleep_state(wcd939x->rst_np);
 	if (rc) {
@@ -5162,11 +5213,13 @@ static void wcd939x_update_regmap_cache(struct wcd939x_priv *wcd939x)
 
 static int wcd939x_bind(struct device *dev)
 {
-	int ret = 0, i = 0, val = 0;
+	int ret = 0, i = 0;
 	struct wcd939x_pdata *pdata = dev_get_platdata(dev);
 	struct wcd939x_priv *wcd939x = dev_get_drvdata(dev);
 	u8 id1 = 0, status1 = 0;
-
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	int val = 0;
+#endif
 	/*
 	 * Add 5msec delay to provide sufficient time for
 	 * soundwire auto enumeration of slave devices as

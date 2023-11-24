@@ -125,8 +125,7 @@ int gpr_send_pkt(struct gpr_device *adev, struct gpr_pkt *pkt)
 	    (gpr_get_q6_state() != GPR_SUBSYS_LOADED)) {
 		dev_err_ratelimited(gpr->dev, "%s: Still Dsp is not Up\n", __func__);
 		return -ENETRESET;
-	}
-	else if ((adev->domain_id == GPR_DOMAIN_MODEM) &&
+	} else if ((adev->domain_id == GPR_DOMAIN_MODEM) &&
 		   (gpr_get_modem_state() == GPR_SUBSYS_DOWN)) {
 		dev_err_ratelimited(gpr->dev, "%s: Still Modem is not Up\n", __func__);
 		return -ENETRESET;
@@ -555,6 +554,10 @@ static int gpr_probe(struct rpmsg_device *rpdev)
 	gpr_priv->wsource = wakeup_source_register(gpr_priv->dev, "audio-gpr");
 	dev_info(dev, "%s: gpr-lite probe success\n",
 		__func__);
+
+#ifndef CONFIG_MSM_QDSP6_PDR
+	gpr_set_q6_state(GPR_SUBSYS_LOADED);
+#endif
 
 	return 0;
 }
