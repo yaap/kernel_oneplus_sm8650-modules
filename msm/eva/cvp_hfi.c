@@ -1368,10 +1368,10 @@ void cvp_dump_csr(struct iris_hfi_device *dev)
 	dprintk(CVP_ERR, "CVP_WRAPPER_CPU_STATUS: %x\n", reg);
 	reg = __read_register(dev, CVP_CPU_CS_SCIACMDARG0);
 	dprintk(CVP_ERR, "CVP_CPU_CS_SCIACMDARG0: %x\n", reg);
-	reg = __read_register(dev, CVP_WRAPPER_INTR_STATUS);
-	dprintk(CVP_ERR, "CVP_WRAPPER_INTR_STATUS: %x\n", reg);
-	reg = __read_register(dev, CVP_CPU_CS_H2ASOFTINT);
-	dprintk(CVP_ERR, "CVP_CPU_CS_H2ASOFTINT: %x\n", reg);
+	//reg = __read_register(dev, CVP_WRAPPER_INTR_STATUS);
+	//dprintk(CVP_ERR, "CVP_WRAPPER_INTR_STATUS: %x\n", reg);
+	//reg = __read_register(dev, CVP_CPU_CS_H2ASOFTINT);
+	//dprintk(CVP_ERR, "CVP_CPU_CS_H2ASOFTINT: %x\n", reg);
 	reg = __read_register(dev, CVP_CPU_CS_A2HSOFTINT);
 	dprintk(CVP_ERR, "CVP_CPU_CS_A2HSOFTINT: %x\n", reg);
 	reg = __read_register(dev, CVP_CC_MVS1C_GDSCR);
@@ -1504,13 +1504,20 @@ static int __iface_cmdq_write(struct iris_hfi_device *device, void *pkt)
 {
 	bool needs_interrupt = false;
 	int rc = __iface_cmdq_write_relaxed(device, pkt, &needs_interrupt);
+	int i = 0;
 
 	if (!rc && needs_interrupt) {
 		/* Consumer of cmdq prefers that we raise an interrupt */
 		rc = 0;
 		if (!__is_ctl_power_on(device))
 			dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
+		i = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+		if (i) {
+			dprintk(CVP_WARN, "%s Fail acquire xo_reset at %d\n", __func__, __LINE__);
+			return -EINVAL;
+		}
 		__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
+		call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 	}
 
 	return rc;
@@ -1521,6 +1528,7 @@ static int __iface_msgq_read(struct iris_hfi_device *device, void *pkt)
 	u32 tx_req_is_set = 0;
 	int rc = 0;
 	struct cvp_iface_q_info *q_info;
+	int i = 0;
 
 	if (!pkt) {
 		dprintk(CVP_ERR, "Invalid Params\n");
@@ -1546,7 +1554,15 @@ static int __iface_msgq_read(struct iris_hfi_device *device, void *pkt)
 		if (tx_req_is_set) {
 			if (!__is_ctl_power_on(device))
 				dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
+			i = call_iris_op(device, reset_control_acquire_name, device,
+					"cvp_xo_reset");
+			if (i) {
+				dprintk(CVP_WARN, "%s Fail acquire xo_reset at %d\n",
+						__func__, __LINE__);
+				return -EINVAL;
+			}
 			__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
+			call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 		}
 		rc = 0;
 	} else
@@ -1561,6 +1577,7 @@ static int __iface_dbgq_read(struct iris_hfi_device *device, void *pkt)
 	u32 tx_req_is_set = 0;
 	int rc = 0;
 	struct cvp_iface_q_info *q_info;
+	int i = 0;
 
 	if (!pkt) {
 		dprintk(CVP_ERR, "Invalid Params\n");
@@ -1580,7 +1597,15 @@ static int __iface_dbgq_read(struct iris_hfi_device *device, void *pkt)
 		if (tx_req_is_set) {
 			if (!__is_ctl_power_on(device))
 				dprintk(CVP_ERR, "%s power off, don't access reg\n", __func__);
+			i = call_iris_op(device, reset_control_acquire_name, device,
+					"cvp_xo_reset");
+			if (i) {
+				dprintk(CVP_WARN, "%s Fail acquire xo_reset at %d\n",
+						__func__, __LINE__);
+				return -EINVAL;
+			}
 			__write_register(device, CVP_CPU_CS_H2ASOFTINT, 1);
+			call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
 		}
 		rc = 0;
 	} else
@@ -2513,13 +2538,21 @@ static int iris_hfi_core_release(void *dev)
 static void __core_clear_interrupt(struct iris_hfi_device *device)
 {
 	u32 intr_status = 0, mask = 0;
+	int i = 0;
 
 	if (!device) {
 		dprintk(CVP_ERR, "%s: NULL device\n", __func__);
 		return;
 	}
 
+	i = call_iris_op(device, reset_control_acquire_name, device, "cvp_xo_reset");
+	if (i) {
+		dprintk(CVP_WARN, "%s Fail acquire xo_reset at %d\n", __func__, __LINE__);
+		return;
+	}
 	intr_status = __read_register(device, CVP_WRAPPER_INTR_STATUS);
+	call_iris_op(device, reset_control_release_name, device, "cvp_xo_reset");
+
 	mask = (CVP_WRAPPER_INTR_MASK_A2HCPU_BMSK | CVP_FATAL_INTR_BMSK);
 
 	if (intr_status & mask) {
@@ -3806,7 +3839,7 @@ static int __reset_control_acquire(struct iris_hfi_device *device,
 	struct reset_info *rcinfo = NULL;
 	int rc = 0;
 	bool found = false;
-	int max_retries = 1000;
+	int max_retries = 10000;
 
 	iris_hfi_for_each_reset_clock(device, rcinfo) {
 		if (strcmp(rcinfo->name, name))
@@ -3818,7 +3851,7 @@ acquire_again:
 		rc = reset_control_acquire(rcinfo->rst);
 		if (rc) {
 			if (rc == -EBUSY) {
-				usleep_range(1000, 1500);
+				usleep_range(100, 150);
 				max_retries--;
 				if (max_retries) {
 					goto acquire_again;
