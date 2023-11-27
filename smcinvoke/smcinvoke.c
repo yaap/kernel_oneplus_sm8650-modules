@@ -1244,7 +1244,6 @@ static int32_t smcinvoke_map_mem_region_locked(struct smcinvoke_mem_obj* mem_obj
 
 		if (!find_mem_obj_locked(mem_obj->mem_region_id,
 				SMCINVOKE_MEM_RGN_OBJ)) {
-			mutex_unlock(&g_smcinvoke_lock);
 			pr_err("Memory object not found\n");
 			return OBJECT_ERROR_BADOBJ;
 		}
