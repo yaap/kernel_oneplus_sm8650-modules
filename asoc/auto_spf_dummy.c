@@ -195,12 +195,21 @@ struct snd_soc_card sa7255_snd_soc_card_auto_msm = {
 static enum msm_mclk_index msm_get_mclk_index(int intf_idx)
 {
 	switch (intf_idx) {
-	/* for sa8255 */
+/* for sa8255 */
+#ifdef CONFIG_SND_SOC_SA8255_AUTO_SPF
 	case TDM_HSIF2:
 		return MCLK1;
+#endif
+/* for sa7255 */
+#ifdef CONFIG_SND_SOC_SA7255_AUTO_SPF
+	case TDM_HSIF0:
+		return MCLK1;
+#endif
 
 	default: return MCLK_NONE;
 	}
+
+	return MCLK_NONE;
 }
 
 static int msm_tdm_get_intf_idx(u16 id)
