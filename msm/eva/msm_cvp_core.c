@@ -453,6 +453,7 @@ int msm_cvp_destroy(struct msm_cvp_inst *inst)
 		core->smem_leak_count += atomic_read(&inst->smem_count);
 	}
 	kfree(inst);
+	inst = NULL;
 	dprintk(CVP_SESS,
 		"sys-stat: nr_insts %d msgs %d, frames %d, bufs %d, smems %d\n",
 		atomic_read(&nr_insts),
