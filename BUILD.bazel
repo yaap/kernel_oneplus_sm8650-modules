@@ -25,3 +25,8 @@ define_modules("holi", "gki")
 define_modules("cliffs", "consolidate")
 
 define_modules("cliffs", "gki")
+
+define_modules("pitti", "consolidate")
+
+define_modules("pitti", "gki")
+
