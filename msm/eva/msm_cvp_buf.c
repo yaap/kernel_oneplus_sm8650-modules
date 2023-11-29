@@ -2393,9 +2393,10 @@ int cvp_release_dsp_buffers(struct msm_cvp_inst *inst,
 			"%s: %x : fd %x %s size %d",
 			__func__, hash32_ptr(inst->session), buf->fd,
 			smem->dma_buf->name, buf->size);
-		atomic_dec(&smem->refcount);
-		msm_cvp_smem_free(smem);
-		cvp_kmem_cache_free(&cvp_driver->smem_cache, smem);
+		if (atomic_dec_and_test(&smem->refcount)) {
+			msm_cvp_smem_free(smem);
+			cvp_kmem_cache_free(&cvp_driver->smem_cache, smem);
+		}
 	} else {
 		dprintk(CVP_ERR,
 			"%s: wrong owner %d %x : fd %x %s size %d",
