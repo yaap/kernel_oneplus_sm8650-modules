@@ -4935,8 +4935,12 @@ const struct context_bank_table cliffs_context_bank_table[] = {
 };
 
 /* freq */
-static struct freq_table cliffs_freq_table[] = {
+static struct freq_table cliffs_freq_table_sku0[] = {
 	{533333333}, {444000000}, {366000000}, {338000000}, {240000000}, {192000000}
+};
+
+static struct freq_table cliffs_freq_table_sku1[] = {
+	{366000000}, {338000000}, {240000000}, {192000000}
 };
 
 /* register, value, mask */
@@ -5092,8 +5096,8 @@ static const struct msm_vidc_platform_data cliffs_data_v0 = {
 	.context_bank_tbl_size = ARRAY_SIZE(cliffs_context_bank_table),
 
 	/* platform specific resources */
-	.freq_tbl = cliffs_freq_table,
-	.freq_tbl_size = ARRAY_SIZE(cliffs_freq_table),
+	.freq_tbl = cliffs_freq_table_sku0,
+	.freq_tbl_size = ARRAY_SIZE(cliffs_freq_table_sku0),
 	.reg_prst_tbl = cliffs_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(cliffs_reg_preset_table),
 	.dev_reg_tbl = cliffs_device_region_table,
@@ -5166,8 +5170,8 @@ static const struct msm_vidc_platform_data cliffs_data_v1 = {
 	.context_bank_tbl_size = ARRAY_SIZE(cliffs_context_bank_table),
 
 	/* platform specific resources */
-	.freq_tbl = cliffs_freq_table,
-	.freq_tbl_size = ARRAY_SIZE(cliffs_freq_table),
+	.freq_tbl = cliffs_freq_table_sku1,
+	.freq_tbl_size = ARRAY_SIZE(cliffs_freq_table_sku1),
 	.reg_prst_tbl = cliffs_reg_preset_table,
 	.reg_prst_tbl_size = ARRAY_SIZE(cliffs_reg_preset_table),
 	.dev_reg_tbl = cliffs_device_region_table,
