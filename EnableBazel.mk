@@ -1,4 +1,4 @@
-ifeq ($(call is-board-platform-in-list,pineapple cliffs),true)
+ifeq ($(call is-board-platform-in-list,pineapple cliffs volcano),true)
 LOCAL_MODULE_DDK_BUILD := true
 
 LOCAL_MODULE_KO_DIRS := dsp/q6_notifier_dlkm.ko
