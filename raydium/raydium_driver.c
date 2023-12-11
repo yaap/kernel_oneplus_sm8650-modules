@@ -39,6 +39,8 @@
 #include <linux/err.h>
 #include <linux/of_device.h>
 #include "raydium_driver.h"
+#include <glink_interface.h>
+#include <linux/remoteproc/qcom_rproc.h>
 #if defined(CONFIG_FB)
 #include <linux/notifier.h>
 #include <linux/fb.h>
@@ -59,7 +61,6 @@ struct raydium_slot_status gst_slot[MAX_TOUCH_NUM * 2];
 struct raydium_slot_status gst_slot_init = {0xFF, 0, 0};
 
 static int raydium_enable_regulator(struct raydium_ts_data *cd, bool en);
-
 
 #if (defined(CONFIG_RM_SYSFS_DEBUG))
 const struct attribute_group raydium_attr_group;
@@ -89,6 +90,7 @@ unsigned char g_u8_checkflag;
 #endif
 unsigned char g_u8_log_level;
 struct raydium_ts_data *g_raydium_ts;
+
 /*******************************************************************************
  *  Name: raydium_variable_init
  *  Brief:
@@ -1076,15 +1078,17 @@ static int raydium_touch_report(unsigned char *p_u8_buf,
 	return 0;
 }
 
+
 int raydium_read_touchdata(unsigned char *p_u8_tp_status,  unsigned char *p_u8_buf)
 {
+
 	int i32_ret = 0;
 	unsigned char u8_points_amount;
 	static unsigned char u8_seq_no;
 	unsigned char u8_retry;
 	unsigned char u8_read_size;
 	unsigned char u8_read_buf[MAX_REPORT_PACKET_SIZE];
-	u8_retry = 3;
+	u8_retry = 100;
 
 	mutex_lock(&g_raydium_ts->lock);
 	while (u8_retry != 0) {
@@ -2100,6 +2104,36 @@ static void raydium_input_set(struct input_dev *input_dev)
 		gst_slot[i] = gst_slot_init;
 
 }
+
+void touch_notify_glink_channel_state(bool state)
+{
+	LOGD(LOG_INFO, "%s:[touch] channel state: %d\n", __func__, state);
+}
+
+void glink_touch_rx_msg(void *data, int len)
+{
+	int rc = 0;
+
+	LOGD(LOG_INFO, "%s:[touch]TOUCH_RX_MSG Start:\n", __func__);
+
+	if (len > TOUCH_GLINK_INTENT_SIZE) {
+		LOGD(LOG_ERR, "Invalid TOUCH glink intent size\n");
+		return;
+	}
+
+	/* check SLATE response */
+	slate_ack_resp = *(uint32_t *)&data[8];
+	LOGD(LOG_INFO, "[touch]slate_ack_resp :%0x\n", slate_ack_resp);
+	if (slate_ack_resp == 0x01) {
+			LOGD(LOG_INFO,"Bad SLATE response\n");
+			rc = -EINVAL;
+			goto err_ret;
+	}
+	LOGD(LOG_INFO, "%s:[touch]TOUCH_RX_MSG End:\n", __func__);
+err_ret:
+return;
+}
+
 static int raydium_set_resolution(void)
 {
 	unsigned char u8_buf[4];
@@ -2370,6 +2404,9 @@ static int raydium_ts_probe(struct i2c_client *client,
 		ret = -EPROBE_DEFER;
 		goto exit_check_i2c;
 	}
+
+	glink_touch_channel_init(&touch_notify_glink_channel_state, &glink_touch_rx_msg);
+
 #if defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 	/* Setup active dsi panel */
 	active_panel = pdata->active_panel;

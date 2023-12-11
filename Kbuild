@@ -156,6 +156,15 @@ ifeq ($(CONFIG_TOUCHSCREEN_DUMMY), y)
 	obj-$(CONFIG_MSM_TOUCH) += dummy_ts.o
 endif
 
+ifeq ($(CONFIG_TOUCHSCREEN_MSM_GLINK), y)
+
+	LINUXINCLUDE    += -I$(TOUCH_ROOT)/glink_interface_ts
+
+	glink_comm-y := ./glink_interface_ts/glink_interface.o
+
+	obj-$(CONFIG_MSM_TOUCH) += glink_comm.o
+endif
+
 ifeq ($(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM), y)
 	synaptics_tcm_ts-y := \
 		 ./synaptics_tcm/synaptics_tcm_core.o \

@@ -12,6 +12,7 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
                                 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/pt_ts.ko \
                                         $(KERNEL_MODULES_OUT)/pt_i2c.ko \
                                         $(KERNEL_MODULES_OUT)/pt_device_access.ko \
+                                        $(KERNEL_MODULES_OUT)/glink_comm.ko \
                                         $(KERNEL_MODULES_OUT)/raydium_ts.ko
                         else ifeq ($(TARGET_BOARD_PLATFORM), kona)
                                 BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/focaltech_fts.ko
