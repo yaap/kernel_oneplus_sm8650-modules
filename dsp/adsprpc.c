@@ -2331,7 +2331,7 @@ static void fastrpc_notify_drivers(struct fastrpc_apps *me, int cid)
 	spin_lock_irqsave(&me->hlock, irq_flags);
 	hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
 		if (fl->cid == cid) {
-			fastrpc_queue_pd_status(fl, cid, FASTRPC_DSP_SSR, 0);
+			fastrpc_queue_pd_status(fl, cid, FASTRPC_DSP_SSR, fl->sessionid);
 			fastrpc_notify_users(fl);
 		}
 	}
