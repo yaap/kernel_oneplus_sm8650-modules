@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "hfi_packetization.h"
@@ -325,7 +326,7 @@ int cvp_create_pkt_cmd_session_release_buffers(
 {
 	struct cvp_session_release_buffers_packet *pkt;
 
-	if (!cmd || !session)
+	if (!cmd || !session || session == (void *)0xdeadbeef)
 		return -EINVAL;
 
 	pkt = (struct cvp_session_release_buffers_packet *)cmd;

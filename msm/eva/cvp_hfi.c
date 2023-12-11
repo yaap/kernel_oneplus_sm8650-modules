@@ -2607,7 +2607,7 @@ static int iris_hfi_session_clean(void *session)
 	struct cvp_hal_session *sess_close;
 	struct iris_hfi_device *device;
 
-	if (!session) {
+	if (!session || session == (void *)0xdeadbeef) {
 		dprintk(CVP_ERR, "Invalid Params %s\n", __func__);
 		return -EINVAL;
 	}
@@ -2912,7 +2912,7 @@ static int iris_hfi_session_release_buffers(void *sess)
 	struct cvp_hal_session *session = sess;
 	struct iris_hfi_device *device;
 
-	if (!session || !session->device) {
+	if (!session || session == (void *)0xdeadbeef || !session->device) {
 		dprintk(CVP_ERR, "Invalid Params\n");
 		return -EINVAL;
 	}
