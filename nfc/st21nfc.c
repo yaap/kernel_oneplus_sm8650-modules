@@ -43,11 +43,10 @@
 #include <linux/of_irq.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "st21nfc.h"
-#include "include/uapi/linux/nfc/st_uapi.h"
+#include "st_uapi.h"
 #include <linux/version.h>
 
 /*secure library headers*/
-#include "smcinvoke.h"
 #include "smcinvoke_object.h"
 #include "IClientEnv.h"
 
