@@ -545,14 +545,14 @@ static int cvp_populate_fences( struct eva_kmd_hfi_packet *in_pkt,
 		{
 			dprintk(CVP_ERR, "%s: invalid params", __func__);
 			rc = -EINVAL;
-			goto exit;
+			goto free_exit;
 		}
 	}
 	else
 	{
 		dprintk(CVP_ERR, "%s: invalid params", __func__);
 		rc = -EINVAL;
-		goto exit;
+		goto free_exit;
 	}
 
 soc_fence:
