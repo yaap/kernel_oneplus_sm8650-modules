@@ -521,7 +521,6 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			/* FW overhead, convert FW cycles to impact to one pipe */
-			u64 decoder_vpp_fw_overhead = 0;
 
 			decoder_vpp_fw_overhead =
 				DIV_ROUND_UP((decoder_vpp_fw_overhead * 10 *
