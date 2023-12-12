@@ -159,6 +159,7 @@ struct msm_asoc_mach_data {
 	bool mclk_used;
 	struct msm_pinctrl_info mclk_pinctrl_info[MCLK_MAX];
 	struct msm_mclk_conf mclk_conf[MCLK_MAX];
+	struct snd_pcm_hardware hw_params;
 };
 
 static struct platform_device *spdev;
@@ -182,6 +183,10 @@ struct snd_soc_card sa8295_snd_soc_card_auto_msm = {
 
 struct snd_soc_card sa8255_snd_soc_card_auto_msm = {
 	.name = "sa8255-adp-star-snd-card",
+};
+
+struct snd_soc_card sa7255_snd_soc_card_auto_msm = {
+	.name = "sa7255-adp-star-snd-card",
 };
 
 /* FIXME: it may various on different platform,
@@ -574,6 +579,9 @@ static int tdm_snd_startup(struct snd_pcm_substream *substream)
 	struct msm_pinctrl_info *pinctrl_info = NULL;
 	int ret_pinctrl = 0;
 	int index, mclk_index;
+
+	if (!dai_link->no_pcm)
+		snd_soc_set_runtime_hwparams(substream, &pdata->hw_params);
 
 	index = msm_tdm_get_intf_idx(dai_link->id);
 	if (index < 0) {
@@ -1136,6 +1144,8 @@ static const struct of_device_id asoc_machine_of_match[]  = {
 	  .data = "adp_star_codec"},
 	{ .compatible = "qcom,sa8255-asoc-snd-adp-star",
 	  .data = "adp_star_codec"},
+	{ .compatible = "qcom,sa7255-asoc-snd-adp-star",
+	  .data = "adp_star_codec"},
 	{},
 };
 
@@ -1167,6 +1177,8 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		card = &sa8295_snd_soc_card_auto_msm;
 	else if (!strcmp(match->compatible, "qcom,sa8255-asoc-snd-adp-star"))
 		card = &sa8255_snd_soc_card_auto_msm;
+	else if (!strcmp(match->compatible, "qcom,sa7255-asoc-snd-adp-star"))
+		card = &sa7255_snd_soc_card_auto_msm;
 
 	total_links = ARRAY_SIZE(msm_common_dai_links);
 	memcpy(msm_auto_dai_links,
@@ -1180,6 +1192,75 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	}
 
 	return card;
+}
+
+static int msm_get_hwparams(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = NULL;
+	struct msm_asoc_mach_data *pdata = NULL;
+	u32 pcm_info = 0;
+	u32 buffer_bytes_max = 0;
+	u32 periods_bytes[2] = {0};
+	u32 periods_count[2] = {0};
+	int ret = 0;
+
+	card = platform_get_drvdata(pdev);
+	if (!card) {
+		pr_err("%s: card is NULL\n",
+			__func__);
+		return -EINVAL;
+	}
+	pdata = snd_soc_card_get_drvdata(card);
+	if (!pdata) {
+		pr_err("%s: pdata is NULL\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,hw_pcm_info",
+			&pcm_info);
+	if (ret) {
+		pr_err("%s: read pcm info failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,hw_buffer_size_max",
+			&buffer_bytes_max);
+	if (ret) {
+		pr_err("%s: read buffer size max failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"qcom,hw_period_byte_size",
+			periods_bytes, 2);
+	if (ret) {
+		pr_err("%s: read period byte size failed\n",
+			__func__);
+		return ret;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"qcom,hw_period_count_size",
+			periods_count, 2);
+	if (ret) {
+		pr_err("%s: read period count size failed\n",
+			__func__);
+		return ret;
+	}
+
+	pdata->hw_params.info = pcm_info;
+	pdata->hw_params.buffer_bytes_max = buffer_bytes_max;
+	pdata->hw_params.period_bytes_min = periods_bytes[0];
+	pdata->hw_params.period_bytes_max = periods_bytes[1];
+	pdata->hw_params.periods_min = periods_count[0];
+	pdata->hw_params.periods_max = periods_count[1];
+
+	return ret;
 }
 
 struct msm_common_pdata *msm_common_get_pdata(struct snd_soc_card *card)
@@ -1493,6 +1574,8 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (strnstr(match->compatible, "sa8295",
 			sizeof(match->compatible)) ||
 		strnstr(match->compatible, "sa8255",
+			sizeof(match->compatible)) ||
+		strnstr(match->compatible, "sa7255",
 			sizeof(match->compatible))) {
 		/* get mclk pinctrl info from devicetree */
 		ret = msm_get_mclk_pinctrl(pdev);
@@ -1506,6 +1589,14 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 				__func__, ret);
 			ret = 0;
 		}
+	}
+
+	ret = msm_get_hwparams(pdev);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"%s: hwparams get failed with %d\n",
+			__func__, ret);
+		goto err;
 	}
 
 	dev_info(&pdev->dev, "Sound card %s registered\n",
