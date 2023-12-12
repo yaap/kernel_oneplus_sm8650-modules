@@ -1523,7 +1523,7 @@ new_packet:
 		state->agg_skb->protocol = htons(ETH_P_MAP);
 		state->agg_count = 1;
 		ktime_get_real_ts64(&state->agg_time);
-		dev_kfree_skb_any(skb);
+		dev_consume_skb_any(skb);
 		goto schedule;
 	}
 	diff = timespec64_sub(state->agg_last, state->agg_time);
@@ -1538,7 +1538,7 @@ new_packet:
 
 	rmnet_map_linearize_copy(state->agg_skb, skb);
 	state->agg_count++;
-	dev_kfree_skb_any(skb);
+	dev_consume_skb_any(skb);
 
 schedule:
 	if (state->agg_state != -EINPROGRESS) {
