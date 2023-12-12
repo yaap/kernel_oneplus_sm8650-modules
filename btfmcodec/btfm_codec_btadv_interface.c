@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 202333 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "btfm_codec.h"
@@ -123,7 +123,6 @@ int btfmcodec_wait_for_bearer_ind(struct btfmcodec_char_device *btfmcodec_dev)
 	int ret;
 	uint8_t *status = &btfmcodec_dev->status[BTM_PKT_TYPE_BEARER_SWITCH_IND];
 
-	*status = BTM_WAITING_RSP;
 	ret = wait_event_interruptible_timeout(*rsp_wait_q,
 		*status != BTM_WAITING_RSP,
 		msecs_to_jiffies(BTM_MASTER_CONFIG_RSP_TIMEOUT));
