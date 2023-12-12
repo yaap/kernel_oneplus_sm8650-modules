@@ -1,4 +1,4 @@
-ifneq (, $(filter y, $(CONFIG_ARCH_PINEAPPLE) $(CONFIG_ARCH_BLAIR)))
+ifneq (, $(filter y, $(CONFIG_ARCH_PINEAPPLE) $(CONFIG_ARCH_BLAIR) $(CONFIG_ARCH_MONACO)))
 ccflags-y	+= -DRMNET_LA_PLATFORM
 endif
 

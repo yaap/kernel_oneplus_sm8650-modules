@@ -2,6 +2,7 @@ ifeq ($(TARGET_DATARMNET_ENABLE), true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_CORE_DLKM_PLATFORMS_LIST := pineapple
 RMNET_CORE_DLKM_PLATFORMS_LIST += blair
+RMNET_CORE_DLKM_PLATFORMS_LIST += monaco
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_CORE_DLKM_PLATFORMS_LIST)),true)
 #Make file to create RMNET_CORE DLKM
