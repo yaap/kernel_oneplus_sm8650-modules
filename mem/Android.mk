@@ -17,7 +17,9 @@ LOCAL_CLANG :=true
 LOCAL_MODULE := rmnet_mem.ko
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
-DLKM_DIR := $(TOP)/device/qcom/common/dlkm
+BOARD_COMMON_DIR ?= device/qcom/common
+
+DLKM_DIR := $(TOP)/$(BOARD_COMMON_DIR)/dlkm
 
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
