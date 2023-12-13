@@ -927,7 +927,8 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	struct eva_kmd_session_control *sc = NULL;
 	struct msm_cvp_inst *s;
 	struct cvp_hfi_ops *ops_tbl;
-	int rc;
+	int rc = 0;
+	int curr_sq_state = -1;
 
 	if (!inst || !inst->core) {
 		dprintk(CVP_ERR, "%s: invalid params\n", __func__);
@@ -942,8 +943,27 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 		return -ECONNRESET;
 
 	sq = &inst->session_queue;
+	curr_sq_state = sq->state;
 
 	spin_lock(&sq->lock);
+	if (sq->state != QUEUE_START) {
+		spin_unlock(&sq->lock);
+		dprintk(CVP_ERR,
+			"%s: Stop not allowed - curr state %d,  inst %llx, sess %llx, %s type %d\n",
+			__func__, sq->state, inst, inst->session, inst->proc_name,
+			inst->session_type);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	if (sq->state == QUEUE_STOP) {
+		spin_unlock(&sq->lock);
+		dprintk(CVP_WARN,
+				"%s: Double stop session - inst %llx, sess %llx, %s of type %d\n",
+				__func__, inst, inst->session, inst->proc_name, inst->session_type);
+		return rc;
+	}
+
 	if (sq->msg_count) {
 		dprintk(CVP_ERR, "session stop incorrect: queue not empty%d\n",
 			sq->msg_count);
@@ -965,6 +985,9 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	if (rc) {
 		dprintk(CVP_WARN, "%s: session stop failed rc %d\n",
 				__func__, rc);
+		spin_lock(&sq->lock);
+		sq->state = curr_sq_state;
+		spin_unlock(&sq->lock);
 		goto stop_thread;
 	}
 
@@ -973,6 +996,9 @@ int msm_cvp_session_stop(struct msm_cvp_inst *inst,
 	if (rc) {
 		dprintk(CVP_WARN, "%s: wait for signal failed, rc %d\n",
 				__func__, rc);
+		spin_lock(&sq->lock);
+		sq->state = curr_sq_state;
+		spin_unlock(&sq->lock);
 		goto stop_thread;
 	}
 
@@ -997,8 +1023,6 @@ int msm_cvp_session_queue_stop(struct msm_cvp_inst *inst)
 		spin_unlock(&sq->lock);
 		return 0;
 	}
-
-	sq->state = QUEUE_STOP;
 
 	dprintk(CVP_SESS, "Stop session queue: %pK session_id = %#x\n",
 			inst, hash32_ptr(inst->session));

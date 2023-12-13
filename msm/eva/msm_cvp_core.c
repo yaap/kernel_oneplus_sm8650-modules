@@ -359,6 +359,16 @@ stop_session:
 			__func__, inst);
 		goto exit;
 	}
+	spin_lock(&sq->lock);
+	if (sq->state == QUEUE_STOP) {
+		spin_unlock(&sq->lock);
+		dprintk(CVP_WARN,
+			"%s: Double stop session - inst %llx, sess %llx, %s of type %d\n",
+			__func__, inst, inst->session, inst->proc_name, inst->session_type);
+		goto release_arp;
+	}
+	spin_unlock(&sq->lock);
+
 	if (!empty) {
 		/* STOP SESSION to avoid SMMU fault after releasing ARP */
 		ops_tbl = inst->core->dev_ops;
@@ -371,9 +381,14 @@ stop_session:
 
 		/*Fail stop session, release arp later may cause smmu fault*/
 		rc = wait_for_sess_signal_receipt(inst, HAL_SESSION_STOP_DONE);
-		if (rc)
+		if (rc) {
 			dprintk(CVP_WARN, "%s: wait for sess_stop fail, rc %d\n",
 					__func__, rc);
+		} else {
+			spin_lock(&sq->lock);
+			sq->state = QUEUE_STOP;
+			spin_unlock(&sq->lock);
+		}
 		/* Continue to release ARP anyway */
 	}
 release_arp:
