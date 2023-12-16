@@ -81,8 +81,8 @@ ifeq ($(KERNEL_BUILD), 0)
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
 	endif
 	ifeq ($(CONFIG_ARCH_PITTI), y)
-		include $(AUDIO_ROOT)/config/pineappleauto.conf
-		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
+		include $(AUDIO_ROOT)/config/pittiauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/config/pittiautoconf.h
 	endif
 	ifeq ($(CONFIG_ARCH_LITO), y)
 		include $(AUDIO_ROOT)/config/litoauto.conf
@@ -206,6 +206,11 @@ ifdef CONFIG_SND_SOC_PINEAPPLE
 	MACHINE_OBJS += pineapple.o
 endif
 
+# for PITTI sound card driver
+ifdef CONFIG_SND_SOC_PITTI
+	MACHINE_OBJS += pineapple.o
+endif
+
 # for HOLI sound card driver
 ifdef CONFIG_SND_SOC_HOLI
 	MACHINE_OBJS += holi.o
@@ -307,6 +312,9 @@ obj-$(CONFIG_SND_SOC_KALAMA) += machine_dlkm.o
 machine_dlkm-y := $(MACHINE_OBJS)
 
 obj-$(CONFIG_SND_SOC_PINEAPPLE) += machine_dlkm.o
+machine_dlkm-y := $(MACHINE_OBJS)
+
+obj-$(CONFIG_SND_SOC_PITTI) += machine_dlkm.o
 machine_dlkm-y := $(MACHINE_OBJS)
 
 obj-$(CONFIG_SND_SOC_HOLI) += machine_dlkm.o
