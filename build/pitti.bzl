@@ -41,7 +41,8 @@ def define_pitti():
             "wcd937x_slave_dlkm",
             "wcd938x_dlkm",
             "wcd938x_slave_dlkm",
-
+            "wcd9378_dlkm",
+            "wcd9378_slave_dlkm"
         ],
         config_options = [
             "CONFIG_SND_SOC_PITTI",
