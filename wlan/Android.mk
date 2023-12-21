@@ -18,10 +18,13 @@ LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE := rmnet_wlan.ko
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
+BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+BOARD_COMMON_DIR ?= device/qcom/common
+
 #path from build top to the core directory
 DATARMNET_CORE_PATH := datarmnet/core
-RMNET_CORE_PATH := vendor/qcom/opensource/$(DATARMNET_CORE_PATH)
-DLKM_DIR := $(TOP)/device/qcom/common/dlkm
+RMNET_CORE_PATH := $(BOARD_OPENSOURCE_DIR)/$(DATARMNET_CORE_PATH)
+DLKM_DIR := $(TOP)/$(BOARD_COMMON_DIR)/dlkm
 #absolute path to the build directory. Can't use $(TOP) here since
 #that resolves to ., and we pass this to Kbuild, where . is different
 RMNET_CORE_INC_DIR := $(abspath $(RMNET_CORE_PATH))
