@@ -2030,28 +2030,24 @@ static int cam_tfe_bus_bufdone_bottom_half(
 		if (evt_payload->bus_irq_val[0] &
 			BIT(comp_rsrc_data->comp_grp_id +
 			bus_priv->common_data.comp_done_shift)) {
-			out_rsrc = comp_rsrc_data->out_rsrc[0];
-			out_rsrc_data = out_rsrc->res_priv;
-			evt_info.res_type = out_rsrc->res_type;
-			evt_info.hw_idx = out_rsrc->hw_intf->hw_idx;
-			evt_info.res_id = out_rsrc->res_id;
-			bufdone_evt_info.res_id = out_rsrc->res_id;
-			bufdone_evt_info.comp_grp_id = comp_rsrc_data->comp_grp_id;
-			bufdone_evt_info.last_consumed_addr =
-				cam_tfe_bus_get_last_consumed_addr(
-					out_rsrc_data->bus_priv,
-					out_rsrc_data->out_id);
-			evt_info.event_data = (void *)&bufdone_evt_info;
+				out_rsrc = comp_rsrc_data->out_rsrc[0];
+				out_rsrc_data = out_rsrc->res_priv;
+				evt_info.res_type = out_rsrc->res_type;
+				evt_info.hw_idx = out_rsrc->hw_intf->hw_idx;
+				evt_info.res_id = out_rsrc->res_id;
+				bufdone_evt_info.res_id = out_rsrc->res_id;
+				bufdone_evt_info.comp_grp_id = comp_rsrc_data->comp_grp_id;
+				bufdone_evt_info.last_consumed_addr =
+					cam_tfe_bus_get_last_consumed_addr(
+						out_rsrc_data->bus_priv,
+						out_rsrc_data->out_id);
+				evt_info.event_data = (void *)&bufdone_evt_info;
 
-			if (out_rsrc_data->event_cb)
-				out_rsrc_data->event_cb(out_rsrc_data->priv,
-					CAM_ISP_HW_EVENT_DONE,
-					(void *)&evt_info);
+				if (out_rsrc_data->event_cb)
+					out_rsrc_data->event_cb(out_rsrc_data->priv,
+						CAM_ISP_HW_EVENT_DONE,
+						(void *)&evt_info);
 		}
-
-		evt_payload->bus_irq_val[0] &=
-			BIT(comp_rsrc_data->comp_grp_id +
-			bus_priv->common_data.comp_done_shift);
 	}
 
 	return 0;
