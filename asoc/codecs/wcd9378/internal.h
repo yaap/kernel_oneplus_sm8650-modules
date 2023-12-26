@@ -71,6 +71,7 @@ struct wcd9378_priv {
 	struct snd_soc_component *component;
 	struct device_node *rst_np;
 	struct regmap *regmap;
+	bool sjmic_support;
 
 	struct swr_device *rx_swr_dev;
 	struct swr_device *tx_swr_dev;
@@ -225,5 +226,5 @@ extern int wcd9378_mbhc_micb_adjust_voltage(struct snd_soc_component *component,
 					int volt, int micb_num);
 extern int wcd9378_get_micb_vout_ctl_val(u32 micb_mv);
 extern int wcd9378_micbias_control(struct snd_soc_component *component,
-			int micb_num, int req, bool is_dapm);
+				unsigned char tx_path, int req, bool is_dapm);
 #endif /* _WCD9378_INTERNAL_H */

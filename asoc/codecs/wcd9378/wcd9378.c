@@ -173,6 +173,7 @@ static const SNDRV_CTL_TLVD_DECLARE_DB_MINMAX(analog_gain, 0, 3000);
 static int wcd9378_reset(struct device *dev);
 static int wcd9378_reset_low(struct device *dev);
 static int wcd9378_swr_slave_clk_set(struct device *dev, int bank, int path, bool enable);
+static void wcd9378_class_load(struct snd_soc_component *component);
 
 static const struct regmap_irq wcd9378_regmap_irqs[WCD9378_NUM_IRQS] = {
 	REGMAP_IRQ_REG(WCD9378_IRQ_MBHC_BUTTON_PRESS_DET, 0, 0x01),
@@ -327,6 +328,7 @@ static int wcd9378_init_reg(struct snd_soc_component *component)
 	snd_soc_component_update_bits(component, WCD9378_HPH_DN_T0,
 			WCD9378_HPH_DN_T0_HPH_DN_T0_MASK, 0x06);
 
+	wcd9378_class_load(component);
 	return 0;
 }
 
@@ -929,42 +931,6 @@ static int wcd9378_set_swr_clk_rate(struct snd_soc_component *component,
 	return 0;
 }
 
-static void wcd9378_micb_usage_value_write(struct snd_soc_component *component,
-					unsigned char tx_path)
-{
-	struct wcd9378_priv *wcd9378 =
-			snd_soc_component_get_drvdata(component);
-	int micb_num;
-
-	switch (tx_path) {
-	case ADC1:
-		micb_num = (snd_soc_component_read(component,
-					WCD9378_SM0_MB_SEL) &
-					WCD9378_SM0_MB_SEL_SM0_MB_SEL_MASK);
-		break;
-	case ADC2:
-		micb_num = (snd_soc_component_read(component,
-					WCD9378_SM1_MB_SEL) &
-					WCD9378_SM1_MB_SEL_SM1_MB_SEL_MASK);
-		break;
-	case ADC3:
-		micb_num = (snd_soc_component_read(component,
-					WCD9378_SM2_MB_SEL) &
-					WCD9378_SM2_MB_SEL_SM2_MB_SEL_MASK);
-		break;
-	default:
-		pr_err("%s: unsupport tx path\n", __func__);
-		return;
-	}
-
-	if (!wcd9378->va_amic_en)
-		wcd9378_micbias_control(component, micb_num,
-			MICB_ENABLE, true);
-	else
-		wcd9378_micbias_control(component, micb_num,
-			MICB_PULLUP_ENABLE, true);
-}
-
 static int wcd9378_get_adc_mode_val(int mode)
 {
 	int ret = 0;
@@ -988,31 +954,6 @@ static int wcd9378_get_adc_mode_val(int mode)
 	return ret;
 }
 
-static void wcd9378_micb_sel_set(struct snd_soc_component *component,
-		unsigned char micb_num)
-{
-	struct wcd9378_priv *wcd9378 =
-			snd_soc_component_get_drvdata(component);
-
-	switch (micb_num) {
-	case 0:
-		snd_soc_component_update_bits(component, WCD9378_SM0_MB_SEL,
-			WCD9378_SM0_MB_SEL_SM0_MB_SEL_MASK, wcd9378->micb_sel[0]);
-		break;
-	case 1:
-		snd_soc_component_update_bits(component, WCD9378_SM1_MB_SEL,
-			WCD9378_SM1_MB_SEL_SM1_MB_SEL_MASK, wcd9378->micb_sel[1]);
-		break;
-	case 2:
-		snd_soc_component_update_bits(component, WCD9378_SM2_MB_SEL,
-			WCD9378_SM2_MB_SEL_SM2_MB_SEL_MASK, wcd9378->micb_sel[2]);
-		break;
-	default:
-		break;
-	}
-
-}
-
 static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 			       struct snd_kcontrol *kcontrol, int event)
 {
@@ -1030,7 +971,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		wcd9378_micb_sel_set(component, w->shift - ADC1);
 		mode_val = wcd9378_get_adc_mode_val(wcd9378->tx_mode[w->shift - ADC1]);
 		if (mode_val < 0) {
 			dev_dbg(component->dev,
@@ -1056,12 +996,15 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 		wcd9378_tx_connect_port(component, w->shift, rate,
 				true);
 
+		if (wcd9378->va_amic_en)
+			wcd9378_micbias_control(component, w->shift,
+					MICB_PULLUP_ENABLE, true);
+		else
+			wcd9378_micbias_control(component, w->shift,
+					MICB_ENABLE, true);
 		switch (w->shift) {
 		case ADC1:
 			dev_dbg(component->dev, "%s ADC1 enter\n", __func__);
-			/*SMP MIC0 MICB_USAGE SET*/
-			wcd9378_micb_usage_value_write(component, ADC1);
-
 			/*SMP MIC0 IT11 USAGE SET*/
 			snd_soc_component_update_bits(component, WCD9378_IT11_USAGE,
 						WCD9378_IT11_USAGE_IT11_USAGE_MASK, mode_val);
@@ -1076,20 +1019,8 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 			break;
 		case ADC2:
-			switch (wcd9378->sys_usage) {
-			case SJ_SA_AUX_2SM:
-			case SJ_SA_AUX_2SM_1HDR:
-			case SJ_SA_EAR_2SM:
-			case SJ_SA_EAR_2SM_1HDR:
-			case SJ_1HDR_SA_AUX_1SM:
-			case SJ_1HDR_SA_EAR_1SM:
-			case SJ_NOMIC_SA_EAR_3SM:
-			case SJ_NOMIC_SA_AUX_3SM:
+			if (wcd9378->sjmic_support) {
 				dev_dbg(component->dev, "%s SJ ADC2 enter\n", __func__);
-				/*SMP JACK IT31 MICB SET*/
-				wcd9378_micbias_control(component, MIC_BIAS_2,
-					MICB_ENABLE, true);
-
 				/*SMP JACK IT31 USAGE SET*/
 				snd_soc_component_update_bits(component,
 						WCD9378_IT31_USAGE,
@@ -1098,15 +1029,8 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_component_update_bits(component,
 						WCD9378_PDE34_REQ_PS,
 						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, 0x00);
-				break;
-			case NOSJ_SA_STEREO_3SM:
-			case NOSJ_SA_STEREO_3SM_1HDR:
-			case NOSJ_SA_EAR_3SM:
-			case NOSJ_SA_EAR_3SM_1HDR:
+			} else {
 				dev_dbg(component->dev, "%s SM1 ADC2 enter\n", __func__);
-				/*SMP MIC1 MICB_USAGE SET*/
-				wcd9378_micb_usage_value_write(component, ADC2);
-
 				/*SMP MIC1 IT11 USAGE SET*/
 				snd_soc_component_update_bits(component,
 						WCD9378_SMP_MIC_CTRL1_IT11_USAGE,
@@ -1122,13 +1046,10 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
 					0x00);
-				break;
 			}
 			break;
 		case ADC3:
-			/*SMP MIC2 MICB_USAGE SET*/
-			wcd9378_micb_usage_value_write(component, ADC3);
-
+			dev_dbg(component->dev, "%s SM2 ADC3 enter\n", __func__);
 			/*SMP MIC2 IT11 USAGE SET*/
 			snd_soc_component_update_bits(component,
 						WCD9378_SMP_MIC_CTRL2_IT11_USAGE,
@@ -1182,21 +1103,26 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 			act_ps = snd_soc_component_read(component, WCD9378_PDE11_ACT_PS);
 			if (act_ps)
 				pr_err("%s: tx0 sequencer didnot power on, act_ps: 0x%0x\n",
-						__func__, act_ps);
+								__func__, act_ps);
 			else
 				pr_err("%s: tx0 sequencer power on successful, act_ps: 0x%0x\n",
-						__func__, act_ps);
+								__func__, act_ps);
 		}
 
 		if (w->shift == ADC2) {
-			act_ps = snd_soc_component_read(component,
-						WCD9378_SMP_MIC_CTRL1_PDE11_ACT_PS);
+			if (wcd9378->sjmic_support)
+				act_ps = snd_soc_component_read(component,
+							WCD9378_PDE34_ACT_PS);
+			else
+				act_ps = snd_soc_component_read(component,
+							WCD9378_SMP_MIC_CTRL1_PDE11_ACT_PS);
+
 			if (act_ps)
 				pr_err("%s: tx1 sequencer didnot power on, act_ps: 0x%0x\n",
-						__func__, act_ps);
+									__func__, act_ps);
 			else
 				pr_err("%s: tx1 sequencer power on successful, act_ps: 0x%0x\n",
-						__func__, act_ps);
+									__func__, act_ps);
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -1262,6 +1188,13 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, TX_PATH, false);
 
 		wcd9378_set_swr_clk_rate(component, rate, !bank);
+
+		if (wcd9378->va_amic_en)
+			wcd9378_micbias_control(component, w->shift,
+						MICB_PULLUP_DISABLE, true);
+		else
+			wcd9378_micbias_control(component, w->shift,
+						MICB_DISABLE, true);
 		break;
 	default:
 		break;
@@ -2014,76 +1947,46 @@ static int wcd9378_sa_sequencer_enable(struct snd_soc_dapm_widget *w,
 }
 
 int wcd9378_micbias_control(struct snd_soc_component *component,
-				int micb_num, int req, bool is_dapm)
+					unsigned char tx_path, int req, bool is_dapm)
 {
-
 	struct wcd9378_priv *wcd9378 =
 			snd_soc_component_get_drvdata(component);
 	struct wcd9378_pdata *pdata =
 			dev_get_platdata(wcd9378->dev);
 	struct wcd9378_micbias_setting *mb = &pdata->micbias;
-	int micb_index = micb_num - 1;
+	int micb_num = 0, micb_usage = 0, micb_mask = 0, micb_usage_val = 0;
 	int pre_off_event = 0, post_off_event = 0;
 	int post_on_event = 0, post_dapm_off = 0;
 	int post_dapm_on = 0;
-	int ret = 0, sm_num = 0;
-	int micb_usage = 0, micb_mask = 0, micb_usage_val = 0;
 	int pull_up_mask = 0, pull_up_en = 0;
+	int micb_index = 0, ret = 0;
 
-	dev_dbg(component->dev, "%s: enter, micb_num: %d, req: %d\n",
-			__func__, micb_num, req);
-
-	if ((micb_index < 0) || (micb_index > WCD9378_MAX_MICBIAS)) {
-		dev_err(component->dev,
-			"%s: Invalid micbias index, micb_index:%d\n",
-			__func__, micb_index);
-		return -EINVAL;
-	}
-
-	if (wcd9378 == NULL) {
-		dev_err(component->dev,
-			"%s: wcd9378 private data is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	for (sm_num = 0; sm_num < SIM_MIC_NUM; sm_num++)
-		if (wcd9378->micb_sel[sm_num] == micb_num)
-			break;
-
-	if ((sm_num == SIM_MIC_NUM) && (micb_num != MIC_BIAS_2)) {
-		pr_err("%s: cannot find the simple mic function which connect to micbias_%d\n",
-		__func__, micb_num);
-		return -EINVAL;
-	}
-
-	dev_err(component->dev, "%s: function num: %d\n",
-			__func__, sm_num);
-
-	switch (sm_num) {
-	case SIM_MIC0:
+	switch (tx_path) {
+	case ADC1:
+		micb_num = wcd9378->micb_sel[0];
 		micb_usage = WCD9378_IT11_MICB;
 		micb_mask = WCD9378_IT11_MICB_IT11_MICB_MASK;
 		break;
-	case SIM_MIC1:
-		micb_usage = WCD9378_SMP_MIC_CTRL1_IT11_MICB;
-		micb_mask = WCD9378_SMP_MIC_CTRL1_IT11_MICB_IT11_MICB_MASK;
+	case ADC2:
+		if (wcd9378->sjmic_support) {
+			micb_num = MIC_BIAS_2;
+			micb_usage = WCD9378_IT31_MICB;
+			micb_mask = WCD9378_IT31_MICB_IT31_MICB_MASK;
+		} else {
+			micb_num = wcd9378->micb_sel[1];
+			micb_usage = WCD9378_SMP_MIC_CTRL1_IT11_MICB;
+			micb_mask = WCD9378_SMP_MIC_CTRL1_IT11_MICB_IT11_MICB_MASK;
+		}
 		break;
-	case SIM_MIC2:
+	case ADC3:
+		micb_num = wcd9378->micb_sel[2];
 		micb_usage = WCD9378_SMP_MIC_CTRL2_IT11_MICB;
 		micb_mask = WCD9378_SMP_MIC_CTRL2_IT11_MICB_IT11_MICB_MASK;
 		break;
 	default:
-		dev_err(component->dev, "%s: switch default enter: %d\n",
-				__func__, sm_num);
-		if (micb_num == MIC_BIAS_2) {
-			micb_usage = WCD9378_IT31_MICB;
-			micb_mask = WCD9378_IT31_MICB_IT31_MICB_MASK;
-		}
-		break;
+		pr_err("%s: unsupport tx path\n", __func__);
+		return -EINVAL;
 	}
-
-	dev_err(component->dev, "%s: sm_num: %d\n",
-			__func__, sm_num);
 
 	switch (micb_num) {
 	case MIC_BIAS_1:
@@ -2114,6 +2017,7 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 
 	mutex_lock(&wcd9378->micb_lock);
 
+	micb_index = micb_num - 1;
 	switch (req) {
 	case MICB_PULLUP_ENABLE:
 		if (!wcd9378->dev_up) {
@@ -2554,13 +2458,39 @@ static int wcd9378_sys_usage_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 	}
 
-	snd_soc_component_update_bits(component,
-			WCD9378_SYS_USAGE_CTRL,
-			WCD9378_SYS_USAGE_CTRL_SYS_USAGE_CTRL_MASK,
-			sys_usage_val);
+	if (wcd9378->sys_usage != sys_usage_val)
+		snd_soc_component_update_bits(component,
+				WCD9378_SYS_USAGE_CTRL,
+				WCD9378_SYS_USAGE_CTRL_SYS_USAGE_CTRL_MASK,
+				sys_usage_val);
 
 	wcd9378->sys_usage = sys_usage_val;
-	dev_dbg(component->dev, "%s: sys_usage_val: %d\n", __func__, wcd9378->sys_usage);
+
+	switch (wcd9378->sys_usage) {
+	case SJ_SA_AUX_2SM:
+	case SJ_SA_AUX_2SM_1HDR:
+	case SJ_SA_EAR_2SM:
+	case SJ_SA_EAR_2SM_1HDR:
+	case SJ_1HDR_SA_AUX_1SM:
+	case SJ_1HDR_SA_EAR_1SM:
+		wcd9378->sjmic_support = true;
+		break;
+	case NOSJ_SA_STEREO_3SM:
+	case NOSJ_SA_STEREO_3SM_1HDR:
+	case NOSJ_SA_EAR_3SM:
+	case NOSJ_SA_EAR_3SM_1HDR:
+	case SJ_NOMIC_SA_EAR_3SM:
+	case SJ_NOMIC_SA_AUX_3SM:
+		wcd9378->sjmic_support = false;
+		break;
+	default:
+		dev_err(component->dev, "%s: unsupport sys_usage: %d\n",
+			__func__, wcd9378->sys_usage);
+		return -EINVAL;
+	}
+
+	dev_err(component->dev, "%s: sys_usage_val: %d, sjmic_support: %d\n",
+			__func__, wcd9378->sys_usage, wcd9378->sjmic_support);
 
 	return 0;
 }
@@ -2754,7 +2684,7 @@ static int wcd9378_mb_sel_put(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *component =
 			snd_soc_kcontrol_component(kcontrol);
 	struct wcd9378_priv *wcd9378 = NULL;
-	u32 mode_val;
+	u32 micb_num = 0, sm_sel = 0, sm_sel_mask = 0;
 	unsigned int sm_num = 0;
 	int ret = 0;
 
@@ -2770,12 +2700,37 @@ static int wcd9378_mb_sel_put(struct snd_kcontrol *kcontrol,
 	if (ret)
 		return ret;
 
-	mode_val = ucontrol->value.enumerated.item[0];
+	switch (sm_num) {
+	case SIM_MIC0:
+		sm_sel  = WCD9378_SM0_MB_SEL;
+		sm_sel_mask = WCD9378_SM0_MB_SEL_SM0_MB_SEL_MASK;
+		break;
+	case SIM_MIC1:
+		sm_sel = WCD9378_SM1_MB_SEL;
+		sm_sel_mask = WCD9378_SM1_MB_SEL_SM1_MB_SEL_MASK;
+		break;
+	case SIM_MIC2:
+		sm_sel = WCD9378_SM2_MB_SEL;
+		sm_sel_mask = WCD9378_SM2_MB_SEL_SM2_MB_SEL_MASK;
+		break;
+	default:
+		pr_err("%s: unsupport sm_num: %d\n", __func__, sm_num);
+		return -EINVAL;
+	}
 
-	dev_dbg(component->dev, "%s: mode: %d\n", __func__, mode_val);
+	micb_num = ucontrol->value.enumerated.item[0];
+	if (micb_num >= MICB_NUM) {
+		pr_err("%s: unsupport micb num\n", __func__);
+		return -EINVAL;
+	}
 
-	wcd9378->micb_sel[sm_num] = mode_val;
+	snd_soc_component_update_bits(component, sm_sel,
+			sm_sel_mask, micb_num);
 
+	wcd9378->micb_sel[sm_num] = micb_num;
+
+	dev_err(component->dev, "%s: sm%d_mb_sel :%d\n",
+					__func__, sm_num, micb_num);
 	return 0;
 }
 
@@ -3805,33 +3760,6 @@ static void wcd9378_class_load(struct snd_soc_component *component)
 			WCD9378_SMP_MIC_CTRL2_FUNC_STAT_FUNC_STAT_MASK, 0xFF);
 }
 
-static int wcd9378_sys_usage_set(struct snd_soc_component *component)
-{
-	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int ret = 0;
-
-	ret = of_property_read_u32(wcd9378->dev->of_node, "qcom,wcd-sys-usage",
-			&wcd9378->sys_usage);
-	if (ret) {
-		dev_dbg(component->dev, "%s:sys_usage read failed, use default\n",
-			__func__);
-		wcd9378->sys_usage = NOSJ_SA_STEREO_3SM;
-	} else {
-		if (wcd9378->sys_usage >= WCD_SYS_USAGE_MAX) {
-			dev_err(component->dev, "%s: invalid sys-usage, pls check\n", __func__);
-			return -EINVAL;
-		}
-	}
-
-	snd_soc_component_update_bits(component,
-			WCD9378_SYS_USAGE_CTRL,
-			WCD9378_SYS_USAGE_CTRL_SYS_USAGE_CTRL_MASK,
-			wcd9378->sys_usage);
-
-	return 0;
-
-}
-
 static void wcd9378_micb_value_convert(struct snd_soc_component *component)
 {
 	struct wcd9378_priv *wcd9378 =
@@ -3929,10 +3857,6 @@ static int wcd9378_soc_codec_probe(struct snd_soc_component *component)
 	wcd_cls_h_init(&wcd9378->clsh_info);
 
 	wcd9378_init_reg(component);
-
-	wcd9378_sys_usage_set(component);
-
-	wcd9378_class_load(component);
 
 	wcd9378_micb_value_convert(component);
 

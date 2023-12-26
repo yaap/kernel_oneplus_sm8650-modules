@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/init.h>
@@ -310,9 +310,16 @@ static void wcd9378_mbhc_hph_l_pull_up_control(
 static int wcd9378_mbhc_request_micbias(struct snd_soc_component *component,
 					int micb_num, int req)
 {
-	int ret = 0;
+	int ret = 0, tx_path = 0;
 
-	ret = wcd9378_micbias_control(component, micb_num, req, false);
+	if (micb_num == MIC_BIAS_2) {
+		tx_path = ADC2;
+	} else {
+		pr_err("%s: cannot support other micbias\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = wcd9378_micbias_control(component, tx_path, req, false);
 
 	return ret;
 }
