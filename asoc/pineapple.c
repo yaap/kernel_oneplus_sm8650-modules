@@ -105,6 +105,7 @@ static void *def_wcd_mbhc_cal(void);
 
 static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa_init(struct snd_soc_pcm_runtime*);
+static int msm_int_wsa881x_init(struct snd_soc_pcm_runtime *);
 static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa883x_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa2_init(struct snd_soc_pcm_runtime *);
@@ -890,6 +891,7 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 		.ignore_suspend = 1,
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(rx_dma_rx1),
+		.init = &msm_int_wsa881x_init,
 	},
 	{
 		.name = LPASS_BE_RX_CDC_DMA_RX_2,
@@ -1851,6 +1853,19 @@ static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int msm_int_wsa881x_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct msm_asoc_mach_data *pdata =
+		snd_soc_card_get_drvdata(rtd->card);
+
+	if (pdata->wsa_max_devs == 0)
+		pr_info("%s: WSA is not enabled\n", __func__);
+
+	msm_common_dai_link_init(rtd);
+
+	return 0;
+
+}
 static int msm_int_wsa_init(struct snd_soc_pcm_runtime *rtd)
 {
 	if (strstr(rtd->card->name, "wsa883x"))

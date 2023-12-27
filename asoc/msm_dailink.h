@@ -151,14 +151,16 @@ SND_SOC_DAILINK_DEFS(rx_dma_rx0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("lpass-cdc", "rx_macro_rx1"),
 			   COMP_CODEC("wcd937x_codec", "wcd937x_cdc"),
-			   COMP_CODEC("wcd939x_codec", "wcd939x_cdc")),
+			   COMP_CODEC("wcd939x_codec", "wcd939x_cdc"),
+			   COMP_CODEC("wsa-codec0", "wsa_rx0")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
 SND_SOC_DAILINK_DEFS(rx_dma_rx1,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("lpass-cdc", "rx_macro_rx2"),
 			   COMP_CODEC("wcd937x_codec", "wcd937x_cdc"),
-			   COMP_CODEC("wcd939x_codec", "wcd939x_cdc")),
+			   COMP_CODEC("wcd939x_codec", "wcd939x_cdc"),
+			   COMP_CODEC("wsa-codec0", "wsa_rx0")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
 SND_SOC_DAILINK_DEFS(rx_dma_rx2,
