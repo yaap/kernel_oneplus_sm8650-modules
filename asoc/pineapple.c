@@ -2032,10 +2032,12 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		wcd939x_info_create_codec_entry(pdata->codec_root, component);
 		codec_variant = wcd939x_get_codec_variant(component);
 		dev_dbg(component->dev, "%s: variant %d\n", __func__, codec_variant);
+#ifdef CONFIG_BOLERO_VER_2P6
 		if (codec_variant == WCD9395)
 			ret = lpass_cdc_rx_set_fir_capability(lpass_cdc_component, true);
 		else
 			ret = lpass_cdc_rx_set_fir_capability(lpass_cdc_component, false);
+#endif
 	}
 
 	if (ret < 0) {
