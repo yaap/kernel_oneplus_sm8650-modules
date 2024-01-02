@@ -48,6 +48,7 @@ def define_pitti():
             "CONFIG_SND_SOC_PITTI",
             "CONFIG_SND_SOC_MSM_QDSP6V2_INTF",
             "CONFIG_MSM_QDSP6_SSR",
+            "CONFIG_BOLERO_VER_2P1",
             "CONFIG_DIGITAL_CDC_RSC_MGR",
             "CONFIG_SOUNDWIRE_MSTR_CTRL",
             "CONFIG_WCD9XXX_CODEC_CORE_V2",
