@@ -23,12 +23,12 @@
 #include "rmnet_qmap.h"
 #include "rmnet_aps.h"
 #include "rmnet_aps_genl.h"
-static char*verinfo[]={"\x38\x64\x65\x64\x63\x37\x31\x38",
-"\x36\x35\x35\x33\x39\x62\x38\x34","\x65\x32\x31\x38\x66\x34\x35\x31",
-"\x33\x32\x61\x36\x65\x62\x61\x39","\x36\x39\x30\x35\x35\x36\x38\x65",
-"\x37\x34\x31\x35\x39\x32\x31\x63","\x39\x66\x36\x36\x38\x31\x62\x34"};
-module_param_array(verinfo,charp,NULL,(0xcb7+5769-0x221c));MODULE_PARM_DESC(
-verinfo,
+static char*verinfo[]={"\x62\x30\x37\x39\x65\x62\x37\x61",
+"\x38\x64\x65\x64\x63\x37\x31\x38","\x36\x35\x35\x33\x39\x62\x38\x34",
+"\x65\x32\x31\x38\x66\x34\x35\x31","\x33\x32\x61\x36\x65\x62\x61\x39",
+"\x36\x39\x30\x35\x35\x36\x38\x65","\x37\x34\x31\x35\x39\x32\x31\x63",
+"\x39\x66\x36\x36\x38\x31\x62\x34"};module_param_array(verinfo,charp,NULL,
+(0xcb7+5769-0x221c));MODULE_PARM_DESC(verinfo,
 "\x56\x65\x72\x73\x69\x6f\x6e\x20\x6f\x66\x20\x74\x68\x65\x20\x64\x72\x69\x76\x65\x72"
 );
 #define DATARMNET63ff5c35c2 (0xd26+209-0xdf6)
@@ -150,12 +150,13 @@ DATARMNET06d2413ad2=DATARMNET86f1f2cdc9->protocol;DATARMNET203a7a0136->saddr[
 (0xd2d+202-0xdf7)]=DATARMNET86f1f2cdc9->daddr;DATARMNET203a7a0136->tos=
 DATARMNET86f1f2cdc9->tos;}else if((data[(0xd2d+202-0xdf7)]&(0xbf7+4405-0x1c3c))
 ==(0xeb7+726-0x112d)){struct ipv6hdr*DATARMNETbf55123e5b,DATARMNET9df40d3f99;
-__be16 frag_off;u8 nexthdr;DATARMNETbf55123e5b=rmnet_frag_header_ptr(
-DATARMNET9d1b321642,(0xd2d+202-0xdf7),sizeof(*DATARMNETbf55123e5b),&
-DATARMNET9df40d3f99);if(unlikely(!DATARMNETbf55123e5b))return-EINVAL;nexthdr=
-DATARMNETbf55123e5b->nexthdr;DATARMNETb65c469a15=rmnet_frag_ipv6_skip_exthdr(
-DATARMNET9d1b321642,sizeof(*DATARMNETbf55123e5b),&nexthdr,&frag_off);if(unlikely
-(DATARMNETb65c469a15<(0xd2d+202-0xdf7)))return-EFAULT;if(unlikely(frag_off)){
+__be16 frag_off;u8 nexthdr;bool DATARMNET4ea088426f;DATARMNETbf55123e5b=
+rmnet_frag_header_ptr(DATARMNET9d1b321642,(0xd2d+202-0xdf7),sizeof(*
+DATARMNETbf55123e5b),&DATARMNET9df40d3f99);if(unlikely(!DATARMNETbf55123e5b))
+return-EINVAL;nexthdr=DATARMNETbf55123e5b->nexthdr;DATARMNETb65c469a15=
+rmnet_frag_ipv6_skip_exthdr(DATARMNET9d1b321642,sizeof(*DATARMNETbf55123e5b),&
+nexthdr,&frag_off,&DATARMNET4ea088426f);if(unlikely(DATARMNETb65c469a15<
+(0xd2d+202-0xdf7)))return-EFAULT;if(unlikely(frag_off||DATARMNET4ea088426f)){
 DATARMNET203a7a0136->DATARMNETe419bc836d=(0xd26+209-0xdf6);DATARMNET203a7a0136->
 DATARMNETd43be7664c=!(frag_off&htons(IP6_OFFSET));}DATARMNET203a7a0136->
 DATARMNET9d758b8e5b=(0xd03+244-0xdf1);DATARMNET203a7a0136->DATARMNET06d2413ad2=

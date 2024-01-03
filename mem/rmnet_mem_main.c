@@ -70,27 +70,30 @@ mem_slot->mem_head);put_page(mem_slot->addr);static_pool_size[mem_slot->order]--
 ;kfree(mem_slot);}}spin_unlock_irqrestore(&rmnet_mem_lock,flags);}struct page*
 rmnet_mem_get_pages_entry(gfp_t gfp_mask,unsigned int order,int*code,int*
 pageorder,unsigned id){unsigned long flags;struct mem_info*mem_page;struct page*
-page=NULL;int i=(0xd2d+202-0xdf7);int j=(0xd2d+202-0xdf7);spin_lock_irqsave(&
-rmnet_mem_lock,flags);if(order<POOL_LEN){rmnet_mem_id_req[id]++;
-rmnet_mem_order_requests[order]++;for(j=order;j>(0xd2d+202-0xdf7)&&j<POOL_LEN;j
-++){do{mem_page=list_first_entry_or_null(&rmnet_mem_pool[j],struct mem_info,
-mem_head);if(!mem_page){break;}if(page_ref_count(mem_page->addr)==
-(0xd26+209-0xdf6)){rmnet_mem_id_recycled[j]++;page=mem_page->addr;page_ref_inc(
-mem_page->addr);list_rotate_left(&rmnet_mem_pool[j]);break;}list_rotate_left(&
-rmnet_mem_pool[j]);i++;}while(i<=(0xd0a+237-0xdf2));if(page&&pageorder){*
-pageorder=j;break;}i=(0xd2d+202-0xdf7);}}if(!page){DATARMNETfb2a1a4560[id]++;if(
-order<(0xd18+223-0xdf4)){page=__dev_alloc_pages(GFP_ATOMIC,order);if(page){if(
-static_pool_size[order]<max_pool_size[order]&&pool_unbound_feature[order]){
-rmnet_mem_add_page(page,order);page_ref_inc(page);}if(pageorder){*pageorder=
-order;}}}else{if(static_pool_size[order]<max_pool_size[order]&&
-pool_unbound_feature[order]){page=__dev_alloc_pages(GFP_ATOMIC,order);if(page){
-rmnet_mem_add_page(page,order);page_ref_inc(page);}if(pageorder){*pageorder=
-order;}}}}spin_unlock_irqrestore(&rmnet_mem_lock,flags);if(pageorder&&code&&page
-){if(*pageorder==order)*code=RMNET_MEM_SUCCESS;else if(*pageorder>order)*code=
-RMNET_MEM_UPGRADE;else if(*pageorder<order)*code=RMNET_MEM_DOWNGRADE;}else if(
-pageorder&&code){*code=RMNET_MEM_FAIL;*pageorder=(0xd2d+202-0xdf7);}return page;
-}EXPORT_SYMBOL(rmnet_mem_get_pages_entry);void rmnet_mem_put_page_entry(struct 
-page*page){put_page(page);}EXPORT_SYMBOL(rmnet_mem_put_page_entry);static void 
+page=NULL;int i=(0xd2d+202-0xdf7);int j=(0xd2d+202-0xdf7);int 
+DATARMNET8224a106d8=(0xd2d+202-0xdf7);spin_lock_irqsave(&rmnet_mem_lock,flags);
+if(order<POOL_LEN){rmnet_mem_id_req[id]++;rmnet_mem_order_requests[order]++;for(
+j=order;j>(0xd2d+202-0xdf7)&&j<POOL_LEN;j++){do{mem_page=
+list_first_entry_or_null(&rmnet_mem_pool[j],struct mem_info,mem_head);if(!
+mem_page){break;}if(page_ref_count(mem_page->addr)==(0xd26+209-0xdf6)){
+rmnet_mem_id_recycled[j]++;page=mem_page->addr;page_ref_inc(mem_page->addr);
+list_rotate_left(&rmnet_mem_pool[j]);break;}list_rotate_left(&rmnet_mem_pool[j])
+;i++;}while(i<=(0xd0a+237-0xdf2));if(page&&pageorder){*pageorder=j;break;}i=
+(0xd2d+202-0xdf7);}}if(static_pool_size[order]<max_pool_size[order]&&
+pool_unbound_feature[order]){DATARMNET8224a106d8=(0xd26+209-0xdf6);}else 
+spin_unlock_irqrestore(&rmnet_mem_lock,flags);if(!page){DATARMNETfb2a1a4560[id]
+++;if(order<(0xd18+223-0xdf4)){page=__dev_alloc_pages((DATARMNET8224a106d8)?
+GFP_ATOMIC:gfp_mask,order);if(page){if(DATARMNET8224a106d8){rmnet_mem_add_page(
+page,order);page_ref_inc(page);}if(pageorder){*pageorder=order;}}}else{if(
+DATARMNET8224a106d8){page=__dev_alloc_pages((DATARMNET8224a106d8)?GFP_ATOMIC:
+gfp_mask,order);if(page){rmnet_mem_add_page(page,order);page_ref_inc(page);}if(
+pageorder){*pageorder=order;}}}}if(DATARMNET8224a106d8)spin_unlock_irqrestore(&
+rmnet_mem_lock,flags);if(pageorder&&code&&page){if(*pageorder==order)*code=
+RMNET_MEM_SUCCESS;else if(*pageorder>order)*code=RMNET_MEM_UPGRADE;else if(*
+pageorder<order)*code=RMNET_MEM_DOWNGRADE;}else if(pageorder&&code){*code=
+RMNET_MEM_FAIL;*pageorder=(0xd2d+202-0xdf7);}return page;}EXPORT_SYMBOL(
+rmnet_mem_get_pages_entry);void rmnet_mem_put_page_entry(struct page*page){
+put_page(page);}EXPORT_SYMBOL(rmnet_mem_put_page_entry);static void 
 mem_update_pool_work(struct work_struct*work){int i;for(i=(0xd2d+202-0xdf7);i<
 POOL_LEN;i++){local_bh_disable();rmnet_mem_adjust(target_static_pool_size[i],i);
 if(i==POOL_NOTIF){rmnet_mem_mode_notify(target_static_pool_size[i]);}
