@@ -18,7 +18,7 @@ ifeq ($(call is-board-platform-in-list,holi blair),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_HOLI=m
 endif
 
-ifeq ($(call is-board-platform-in-list,pineapple cliffs pitti),true)
+ifeq ($(call is-board-platform-in-list,pineapple cliffs pitti volcano),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_PINEAPPLE=m
 endif
 
@@ -28,7 +28,7 @@ LOCAL_PATH := vendor/qcom/opensource/audio-kernel
 endif
 
 # Build/Package only in case of supported target
-ifeq ($(call is-board-platform-in-list,taro kalama bengal pineapple cliffs pitti holi blair gen4 msmnile niobe), true)
+ifeq ($(call is-board-platform-in-list,taro kalama bengal pineapple cliffs pitti holi blair gen4 msmnile niobe volcano), true)
 
 # This makefile is only for DLKM
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
