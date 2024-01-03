@@ -206,6 +206,9 @@ static int brl_reset_after(struct goodix_ts_core *cd)
 
 #define REG_SUSPEND_CURRENT 20
 #define REG_RESUME_CURRENT 30000
+#define REG_RESUME_MIN_VOLTAGE 3200000
+#define REG_RESUME_MAX_VOLTAGE 3200000
+
 static int brl_power_on(struct goodix_ts_core *cd, bool on)
 {
 	int ret = 0;
@@ -234,6 +237,19 @@ static int brl_power_on(struct goodix_ts_core *cd, bool on)
 		if (avdd_gpio > 0) {
 			gpio_direction_output(avdd_gpio, 1);
 		} else if (cd->avdd) {
+			if (regulator_count_voltages(cd->avdd) > 0) {
+				ret = regulator_set_load(cd->avdd, REG_RESUME_CURRENT);
+				if (ret) {
+					ts_err("vdd regulator set_load failed ret=%d", ret);
+					return ret;
+				}
+				ret = regulator_set_voltage(cd->avdd, REG_RESUME_MIN_VOLTAGE,
+							REG_RESUME_MAX_VOLTAGE);
+				if (ret) {
+					ts_err("vdd regulator set_vtg failed ret=%d", ret);
+					return ret;
+				}
+			}
 			ret = regulator_enable(cd->avdd);
 			if (ret < 0) {
 				ts_err("Failed to enable avdd:%d", ret);
