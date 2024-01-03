@@ -118,7 +118,11 @@ int lpass_cdc_rsc_clk_reset(struct device *dev, int clk_id)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_BOLERO_VER_2P1
 	if (clk_id < 0 || clk_id >= MAX_CLK - NPL_CLK_OFFSET) {
+#else
+	if (clk_id < 0 || clk_id >= MAX_CLK) {
+#endif
 		pr_err("%s: Invalid clk_id: %d\n",
 			__func__, clk_id);
 		return -EINVAL;
@@ -137,7 +141,9 @@ int lpass_cdc_rsc_clk_reset(struct device *dev, int clk_id)
 	}
 	mutex_lock(&priv->rsc_clk_lock);
 	while (__clk_is_enabled(priv->clk[clk_id])) {
+#ifdef CONFIG_BOLERO_VER_2P1
 		clk_disable_unprepare(priv->clk[clk_id + NPL_CLK_OFFSET]);
+#endif
 		clk_disable_unprepare(priv->clk[clk_id]);
 		count++;
 	}
@@ -146,7 +152,9 @@ int lpass_cdc_rsc_clk_reset(struct device *dev, int clk_id)
 
 	while (count--) {
 		clk_prepare_enable(priv->clk[clk_id]);
+#ifdef CONFIG_BOLERO_VER_2P1
 		clk_prepare_enable(priv->clk[clk_id + NPL_CLK_OFFSET]);
+#endif
 	}
 	mutex_unlock(&priv->rsc_clk_lock);
 	return 0;
@@ -176,17 +184,25 @@ void lpass_cdc_clk_rsc_enable_all_clocks(struct device *dev, bool enable)
 		return;
 	}
 	mutex_lock(&priv->rsc_clk_lock);
+#ifdef CONFIG_BOLERO_VER_2P1
 	for (i = 0; i < MAX_CLK - NPL_CLK_OFFSET; i++) {
+#else
+	for (i = 0; i < MAX_CLK; i++) {
+#endif
 		if (enable) {
 			if (priv->clk[i])
 				clk_prepare_enable(priv->clk[i]);
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[i + NPL_CLK_OFFSET])
 				clk_prepare_enable(
 						priv->clk[i + NPL_CLK_OFFSET]);
+#endif
 		} else {
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[i + NPL_CLK_OFFSET])
 				clk_disable_unprepare(
 					priv->clk[i + NPL_CLK_OFFSET]);
+#endif
 			if (priv->clk[i])
 				clk_disable_unprepare(priv->clk[i]);
 		}
@@ -211,6 +227,7 @@ static int lpass_cdc_clk_rsc_mux0_clk_request(struct lpass_cdc_clk_rsc *priv,
 							__func__, clk_id);
 				goto done;
 			}
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[clk_id + NPL_CLK_OFFSET]) {
 				ret = clk_prepare_enable(
 						priv->clk[clk_id + NPL_CLK_OFFSET]);
@@ -220,6 +237,7 @@ static int lpass_cdc_clk_rsc_mux0_clk_request(struct lpass_cdc_clk_rsc *priv,
 					goto err;
 				}
 			}
+#endif
 		}
 		priv->clk_cnt[clk_id]++;
 	} else {
@@ -231,15 +249,19 @@ static int lpass_cdc_clk_rsc_mux0_clk_request(struct lpass_cdc_clk_rsc *priv,
 		}
 		priv->clk_cnt[clk_id]--;
 		if (priv->clk_cnt[clk_id] == 0) {
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[clk_id + NPL_CLK_OFFSET])
 				clk_disable_unprepare(
 						priv->clk[clk_id + NPL_CLK_OFFSET]);
+#endif
 			clk_disable_unprepare(priv->clk[clk_id]);
-	}
+		}
 	}
 return ret;
+#ifdef CONFIG_BOLERO_VER_2P1
 err:
 	clk_disable_unprepare(priv->clk[clk_id]);
+#endif
 done:
 	return ret;
 }
@@ -275,6 +297,7 @@ static int lpass_cdc_clk_rsc_mux1_clk_request(struct lpass_cdc_clk_rsc *priv,
 					__func__, clk_id);
 				goto err_clk;
 			}
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[clk_id + NPL_CLK_OFFSET]) {
 				ret = clk_prepare_enable(
 						priv->clk[clk_id + NPL_CLK_OFFSET]);
@@ -284,6 +307,7 @@ static int lpass_cdc_clk_rsc_mux1_clk_request(struct lpass_cdc_clk_rsc *priv,
 					goto err_npl_clk;
 				}
 			}
+#endif
 			/*
 			 * Temp SW workaround to address a glitch issue of
 			 * VA GFMux instance responsible for switching from
@@ -324,8 +348,10 @@ static int lpass_cdc_clk_rsc_mux1_clk_request(struct lpass_cdc_clk_rsc *priv,
 					muxsel = ioread32(clk_muxsel);
 				}
 			}
+#ifdef CONFIG_BOLERO_VER_2P1
 			if (priv->clk[clk_id + NPL_CLK_OFFSET])
 				clk_disable_unprepare(priv->clk[clk_id + NPL_CLK_OFFSET]);
+#endif
 			clk_disable_unprepare(priv->clk[clk_id]);
 			if (clk_id != VA_CORE_CLK && !ret)
 				lpass_cdc_clk_rsc_mux0_clk_request(priv,
@@ -333,9 +359,10 @@ static int lpass_cdc_clk_rsc_mux1_clk_request(struct lpass_cdc_clk_rsc *priv,
 		}
 	}
 	return ret;
+#ifdef CONFIG_BOLERO_VER_2P1
 err_npl_clk:
 	clk_disable_unprepare(priv->clk[clk_id]);
-
+#endif
 err_clk:
 	if (clk_id != VA_CORE_CLK)
 		lpass_cdc_clk_rsc_mux0_clk_request(priv, default_clk_id, false);
