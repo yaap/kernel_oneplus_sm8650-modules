@@ -1,4 +1,5 @@
 /* Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -90,7 +91,7 @@ static void rmnet_ll_mhi_tx_complete(struct mhi_device *mhi_dev,
 	else
 		stats->tx_complete++;
 
-	dev_kfree_skb_any(skb);
+	dev_consume_skb_any(skb);
 }
 
 static int rmnet_ll_mhi_probe(struct mhi_device *mhi_dev,
