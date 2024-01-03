@@ -74,12 +74,12 @@ int print_smem(u32 tag, const char *str, struct msm_cvp_inst *inst,
 
 		if (!atomic_read(&smem->refcount))
 			dprintk(tag,
-				" UNUSED mapping %s: 0x%llx size %d iova %#x idx %d pkt_type %s buf_idx %#x fd %d",
+				" UNUSED mapping %s: 0x%llx size %d iova %#x idx %d pkt_type %s buf_idx %#x fd %d\n",
 				str, smem->dma_buf,
 				smem->size, smem->device_addr, smem->bitmap_index, name, smem->buf_idx, smem->fd);
 		else
 			dprintk(tag,
-				"%s: %x : 0x%llx size %d flags %#x iova %#x idx %d ref %d pkt_type %s buf_idx %#x fd %d",
+				"%s: %x : 0x%llx size %d flags %#x iova %#x idx %d ref %d pkt_type %s buf_idx %#x fd %d\n",
 				str, hash32_ptr(inst->session), smem->dma_buf,
 				smem->size, smem->flags, smem->device_addr,
 				smem->bitmap_index, atomic_read(&smem->refcount),
@@ -96,13 +96,13 @@ static void print_internal_buffer(u32 tag, const char *str,
 
 	if (cbuf->smem->dma_buf) {
 		dprintk(tag,
-		"%s: %x : fd %d off %d 0x%llx %s size %d iova %#x",
+		"%s: %x : fd %d off %d 0x%llx %s size %d iova %#x\n",
 		str, hash32_ptr(inst->session), cbuf->fd,
 		cbuf->offset, cbuf->smem->dma_buf, cbuf->smem->dma_buf->name,
 		cbuf->size, cbuf->smem->device_addr);
 	} else {
 		dprintk(tag,
-		"%s: %x : idx %2d fd %d off %d size %d iova %#x",
+		"%s: %x : idx %2d fd %d off %d size %d iova %#x\n",
 		str, hash32_ptr(inst->session), cbuf->index, cbuf->fd,
 		cbuf->offset, cbuf->size, cbuf->smem->device_addr);
 	}
@@ -177,8 +177,7 @@ void print_client_buffer(u32 tag, const char *str,
 		return;
 
 	dprintk(tag,
-		"%s: %x : idx %2d fd %d off %d size %d type %d flags 0x%x"
-		" reserved[0] %u\n",
+		"%s: %x : idx %2d fd %d off %d size %d type %d flags 0x%x reserved[0] %u\n",
 		str, hash32_ptr(inst->session), cbuf->index, cbuf->fd,
 		cbuf->offset, cbuf->size, cbuf->type, cbuf->flags,
 		cbuf->reserved[0]);

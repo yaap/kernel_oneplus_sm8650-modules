@@ -4,7 +4,9 @@ ifneq ($(TARGET_USES_QMAA_OVERRIDE_CVP), true)
 ENABLE_EVA_KERNEL := false
 endif
 endif
-
+ifeq ($(call is-board-platform-in-list,volcano),true)
+ENABLE_EVA_KERNEL := false
+endif
 ifeq ($(ENABLE_EVA_KERNEL), true)
 ifneq ($(TARGET_BOARD_PLATFORM), qssi)
 ifeq ($(call is-board-platform-in-list, $(TARGET_BOARD_PLATFORM)),true)
