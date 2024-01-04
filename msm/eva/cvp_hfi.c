@@ -4862,8 +4862,6 @@ static void __enter_cpu_noc_lpi(struct iris_hfi_device *device)
 			__func__, lpi_status, wfi_status, pc_ready);
 
 		__print_sidebandmanager_regs(device);
-		dprintk(CVP_ERR, "%s, crashing the target\n", __func__);
-		BUG_ON(1);
 	}
 }
 
