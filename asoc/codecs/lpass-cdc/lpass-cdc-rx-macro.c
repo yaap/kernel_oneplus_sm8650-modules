@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -55,13 +55,14 @@
 
 #define LPASS_CDC_RX_MACRO_INTERP_MUX_NUM_INPUTS 3
 #define LPASS_CDC_RX_MACRO_SIDETONE_IIR_COEFF_MAX 5
+#ifdef CONFIG_BOLERO_VER_2P6
 #define LPASS_CDC_RX_MACRO_FIR_COEFF_MAX 100
 #define LPASS_CDC_RX_MACRO_FIR_COEFF_ARRAY_MAX \
 	(LPASS_CDC_RX_MACRO_FIR_COEFF_MAX + 1)
 /* first value represent number of coefficients in each 100 integer group */
 #define LPASS_CDC_RX_MACRO_FIR_FILTER_BYTES \
 	(sizeof(u32) * LPASS_CDC_RX_MACRO_FIR_COEFF_ARRAY_MAX)
-
+#endif
 
 #define STRING(name) #name
 #define LPASS_CDC_RX_MACRO_DAPM_ENUM(name, reg, offset, text) \
@@ -184,12 +185,14 @@ enum {
 	RX_MODE_MAX
 };
 
+#ifdef CONFIG_BOLERO_VER_2P6
 static struct lpass_cdc_comp_setting comp_setting_table[RX_MODE_MAX] =
 {
 	{12, -60, 12},
 	{0, -60, 12},
 	{12, -36, 12},
 };
+#endif
 
 struct lpass_cdc_rx_macro_reg_mask_val {
 	u16 reg;
@@ -368,6 +371,7 @@ struct lpass_cdc_rx_macro_iir_filter_ctl {
 	} \
 }
 
+#ifdef CONFIG_BOLERO_VER_2P6
 /* Codec supports 2 FIR filters Path */
 enum {
 	RX0_PATH = 0,
@@ -399,6 +403,7 @@ struct lpass_cdc_rx_macro_fir_filter_ctl {
 		.bytes_ext = {.max = LPASS_CDC_RX_MACRO_FIR_FILTER_BYTES, }, \
 	} \
 }
+#endif
 
 struct lpass_cdc_rx_macro_idle_detect_config {
 	u8 hph_idle_thr;
@@ -414,6 +419,12 @@ static struct interp_sample_rate sr_val_tbl[] = {
 	{8000, 0x0}, {16000, 0x1}, {32000, 0x3}, {48000, 0x4}, {96000, 0x5},
 	{192000, 0x6}, {384000, 0x7}, {44100, 0x9}, {88200, 0xA},
 	{176400, 0xB}, {352800, 0xC},
+};
+
+struct lpass_cdc_rx_macro_bcl_pmic_params {
+	u8 id;
+	u8 sid;
+	u8 ppid;
 };
 
 static int lpass_cdc_rx_macro_core_vote(void *handle, bool enable);
@@ -496,11 +507,16 @@ struct lpass_cdc_rx_macro_priv {
 	bool reset_swr;
 	int clsh_users;
 	int rx_mclk_cnt;
+#ifdef CONFIG_BOLERO_VER_2P6
 	u8 fir_total_coeff_num[FIR_PATH_MAX];
+	bool is_fir_coeff_written[FIR_PATH_MAX][GRP_MAX];
+	u32 fir_coeff_array[FIR_PATH_MAX][GRP_MAX]
+		[LPASS_CDC_RX_MACRO_FIR_COEFF_MAX];
+	u32 num_fir_coeff[FIR_PATH_MAX][GRP_MAX];
+#endif
 	bool is_native_on;
 	bool is_ear_mode_on;
 	bool is_fir_filter_on;
-	bool is_fir_coeff_written[FIR_PATH_MAX][GRP_MAX];
 	bool is_fir_capable;
 	bool dev_up;
 	bool pre_dev_up;
@@ -522,15 +538,13 @@ struct lpass_cdc_rx_macro_priv {
 	u8 sidetone_coeff_array[IIR_MAX][BAND_MAX]
 		[LPASS_CDC_RX_MACRO_SIDETONE_IIR_COEFF_MAX * 4];
 	/* NOT designed to always reflect the actual hardware value */
-	u32 fir_coeff_array[FIR_PATH_MAX][GRP_MAX]
-		[LPASS_CDC_RX_MACRO_FIR_COEFF_MAX];
-	u32 num_fir_coeff[FIR_PATH_MAX][GRP_MAX];
 	struct platform_device *pdev_child_devices
 			[LPASS_CDC_RX_MACRO_CHILD_DEVICES_MAX];
 	int child_count;
 	int is_softclip_on;
 	int is_aux_hpf_on;
 	int softclip_clk_users;
+	struct lpass_cdc_rx_macro_bcl_pmic_params bcl_pmic_params;
 	u16 clk_id;
 	u16 default_clk_id;
 	struct clk *hifi_fir_clk;
@@ -608,9 +622,11 @@ static const char * const lpass_cdc_rx_macro_vbat_bcl_gsm_mode_text[] = {"OFF", 
 static const struct soc_enum lpass_cdc_rx_macro_vbat_bcl_gsm_mode_enum =
 	SOC_ENUM_SINGLE_EXT(2, lpass_cdc_rx_macro_vbat_bcl_gsm_mode_text);
 
+#ifdef CONFIG_BOLERO_VER_2P6
 static const char *const lpass_cdc_rx_macro_fir_filter_text[] = {"OFF", "ON"};
 static const struct soc_enum lpass_cdc_rx_macro_fir_filter_enum =
 	SOC_ENUM_SINGLE_EXT(2, lpass_cdc_rx_macro_fir_filter_text);
+#endif
 
 static const struct snd_kcontrol_new rx_int2_1_vbat_mix_switch[] = {
 	SOC_DAPM_SINGLE("RX AUX VBAT Enable", SND_SOC_NOPM, 0, 1, 0)
@@ -1862,9 +1878,12 @@ static int lpass_cdc_rx_macro_config_compander(struct snd_soc_component *compone
 				int interp_n, int event)
 {
 	int comp = 0;
-	u16 comp_ctl0_reg = 0, comp_ctl8_reg = 0, rx_path_cfg0_reg = 0;
+	u16 comp_ctl0_reg = 0, rx_path_cfg0_reg = 0;
 	u16 comp_coeff_lsb_reg = 0, comp_coeff_msb_reg = 0;
 	u16 mode = rx_priv->hph_pwr_mode;
+#ifdef CONFIG_BOLERO_VER_2P6
+	u16 comp_ctl8_reg = 0;
+#endif
 
 	/* AUX does not have compander */
 	if (interp_n == INTERP_AUX)
@@ -1889,8 +1908,10 @@ static int lpass_cdc_rx_macro_config_compander(struct snd_soc_component *compone
 	}
 	comp_ctl0_reg = LPASS_CDC_RX_COMPANDER0_CTL0 +
 					(comp * LPASS_CDC_RX_MACRO_COMP_OFFSET);
+#ifdef CONFIG_BOLERO_VER_2P6
 	comp_ctl8_reg = LPASS_CDC_RX_COMPANDER0_CTL8 +
 					(comp * LPASS_CDC_RX_MACRO_COMP_OFFSET);
+#endif
 	rx_path_cfg0_reg = LPASS_CDC_RX_RX0_RX_PATH_CFG0 +
 					(comp * LPASS_CDC_RX_MACRO_RX_PATH_OFFSET);
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
@@ -1898,11 +1919,11 @@ static int lpass_cdc_rx_macro_config_compander(struct snd_soc_component *compone
 				comp_coeff_lsb_reg, comp_coeff_msb_reg,
 				comp_coeff_table[rx_priv->hph_pwr_mode],
 				COMP_MAX_COEFF);
-
+#ifdef CONFIG_BOLERO_VER_2P6
 		lpass_cdc_update_compander_setting(component,
 					comp_ctl8_reg,
 					&comp_setting_table[mode]);
-
+#endif
 		/* Enable Compander Clock */
 		snd_soc_component_update_bits(component, comp_ctl0_reg,
 					0x01, 0x01);
@@ -2157,6 +2178,7 @@ static int lpass_cdc_rx_macro_hph_idle_detect_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef CONFIG_BOLERO_VER_2P6
 static int lpass_cdc_rx_macro_get_pcm_path(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
@@ -2186,6 +2208,7 @@ static int lpass_cdc_rx_macro_put_pcm_path(struct snd_kcontrol *kcontrol,
 	rx_priv->is_pcm_enabled = ucontrol->value.integer.value[0];
 	return 0;
 }
+#endif
 
 static int lpass_cdc_rx_macro_get_compander(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
@@ -2578,6 +2601,7 @@ static int lpass_cdc_rx_macro_enable_vbat(struct snd_soc_dapm_widget *w,
 		snd_soc_component_update_bits(component,
 			LPASS_CDC_RX_BCL_VBAT_BCL_GAIN_UPD9,
 			0xFF, 0x00);
+#ifdef CONFIG_BOLERO_VER_2P6
                 /* Enable CB decode block clock */
                 snd_soc_component_update_bits(component,
                         LPASS_CDC_RX_CB_DECODE_CB_DECODE_CTL1, 0x01, 0x01);
@@ -2587,15 +2611,18 @@ static int lpass_cdc_rx_macro_enable_vbat(struct snd_soc_dapm_widget *w,
                 /* Request for BCL data */
                 snd_soc_component_update_bits(component,
                         LPASS_CDC_RX_CB_DECODE_CB_DECODE_CTL3, 0x01, 0x01);
+#endif
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
+#ifdef CONFIG_BOLERO_VER_2P6
                 snd_soc_component_update_bits(component,
                         LPASS_CDC_RX_CB_DECODE_CB_DECODE_CTL3, 0x01, 0x00);
                 snd_soc_component_update_bits(component,
                         LPASS_CDC_RX_CB_DECODE_CB_DECODE_CTL2, 0x01, 0x00);
                 snd_soc_component_update_bits(component,
                         LPASS_CDC_RX_CB_DECODE_CB_DECODE_CTL1, 0x01, 0x00);
+#endif
 		snd_soc_component_update_bits(component,
 				LPASS_CDC_RX_RX2_RX_PATH_CFG1,
 				0x80, 0x00);
@@ -3039,6 +3066,7 @@ static int lpass_cdc_rx_macro_iir_filter_info(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
 static int lpass_cdc_rx_macro_iir_band_audio_mixer_get(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
@@ -3210,6 +3238,7 @@ static int lpass_cdc_rx_macro_set_iir_gain(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+#ifdef CONFIG_BOLERO_VER_2P6
 static int lpass_cdc_rx_macro_fir_filter_enable_get(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
@@ -3709,6 +3738,7 @@ static int lpass_cdc_rx_macro_fir_coeff_num_put(struct snd_kcontrol *kcontrol,
 
 	return ret;
 }
+#endif
 
 static const struct snd_kcontrol_new lpass_cdc_rx_macro_snd_controls[] = {
 	SOC_SINGLE_S8_TLV("RX_RX0 Digital Volume",
@@ -3735,6 +3765,7 @@ static const struct snd_kcontrol_new lpass_cdc_rx_macro_snd_controls[] = {
 	SOC_SINGLE_EXT("RX_COMP2 Switch", SND_SOC_NOPM, LPASS_CDC_RX_MACRO_COMP2, 1, 0,
 		lpass_cdc_rx_macro_get_compander, lpass_cdc_rx_macro_set_compander),
 
+#ifdef CONFIG_BOLERO_VER_2P6
 	SOC_SINGLE_EXT("RX_HPH PCM", SND_SOC_NOPM, 0, 1, 0,
 			lpass_cdc_rx_macro_get_pcm_path, lpass_cdc_rx_macro_put_pcm_path),
 
@@ -3745,6 +3776,9 @@ static const struct snd_kcontrol_new lpass_cdc_rx_macro_snd_controls[] = {
 	SOC_SINGLE_EXT("RX1 FIR Coeff Num", SND_SOC_NOPM, RX1_PATH,
 			(LPASS_CDC_RX_MACRO_FIR_COEFF_MAX * GRP_MAX), 0,
 			lpass_cdc_rx_macro_fir_coeff_num_get, lpass_cdc_rx_macro_fir_coeff_num_put),
+	SOC_ENUM_EXT("RX_FIR Filter", lpass_cdc_rx_macro_fir_filter_enum,
+		lpass_cdc_rx_macro_fir_filter_enable_get, lpass_cdc_rx_macro_fir_filter_enable_put),
+#endif
 
 	SOC_ENUM_EXT("HPH Idle Detect", hph_idle_detect_enum,
 		lpass_cdc_rx_macro_hph_idle_detect_get, lpass_cdc_rx_macro_hph_idle_detect_put),
@@ -3752,8 +3786,6 @@ static const struct snd_kcontrol_new lpass_cdc_rx_macro_snd_controls[] = {
 	SOC_ENUM_EXT("RX_EAR Mode", lpass_cdc_rx_macro_ear_mode_enum,
 		lpass_cdc_rx_macro_get_ear_mode, lpass_cdc_rx_macro_put_ear_mode),
 
-	SOC_ENUM_EXT("RX_FIR Filter", lpass_cdc_rx_macro_fir_filter_enum,
-		lpass_cdc_rx_macro_fir_filter_enable_get, lpass_cdc_rx_macro_fir_filter_enable_put),
 
 	SOC_ENUM_EXT("RX_HPH HD2 Mode", lpass_cdc_rx_macro_hph_hd2_mode_enum,
 		lpass_cdc_rx_macro_get_hph_hd2_mode, lpass_cdc_rx_macro_put_hph_hd2_mode),
@@ -3838,10 +3870,12 @@ static const struct snd_kcontrol_new lpass_cdc_rx_macro_snd_controls[] = {
 	LPASS_CDC_RX_MACRO_IIR_FILTER_CTL("IIR1 Band4", IIR1, BAND4),
 	LPASS_CDC_RX_MACRO_IIR_FILTER_CTL("IIR1 Band5", IIR1, BAND5),
 
+#ifdef CONFIG_BOLERO_VER_2P6
 	LPASS_CDC_RX_MACRO_FIR_FILTER_CTL("RX0 FIR Coeff Group0", RX0_PATH, GRP0),
 	LPASS_CDC_RX_MACRO_FIR_FILTER_CTL("RX0 FIR Coeff Group1", RX0_PATH, GRP1),
 	LPASS_CDC_RX_MACRO_FIR_FILTER_CTL("RX1 FIR Coeff Group0", RX1_PATH, GRP0),
 	LPASS_CDC_RX_MACRO_FIR_FILTER_CTL("RX1 FIR Coeff Group1", RX1_PATH, GRP1),
+#endif
 };
 
 static int lpass_cdc_rx_macro_enable_echo(struct snd_soc_dapm_widget *w,
@@ -4475,6 +4509,7 @@ exit:
 	return ret;
 }
 
+#ifdef CONFIG_BOLERO_VER_2P6
 /**
  * lpass_cdc_rx_set_fir_capability - Set RX HIFI FIR Filter capability
  *
@@ -4501,6 +4536,7 @@ int lpass_cdc_rx_set_fir_capability(struct snd_soc_component *component, bool ca
 	return 0;
 }
 EXPORT_SYMBOL(lpass_cdc_rx_set_fir_capability);
+#endif
 
 static const struct lpass_cdc_rx_macro_reg_mask_val
 				lpass_cdc_rx_macro_reg_init[] = {
@@ -4511,6 +4547,55 @@ static const struct lpass_cdc_rx_macro_reg_mask_val
 	{LPASS_CDC_RX_RX1_RX_PATH_CFG3, 0x03, 0x02},
 	{LPASS_CDC_RX_RX2_RX_PATH_CFG3, 0x03, 0x02},
 };
+
+#ifdef CONFIG_BOLERO_VER_2P1
+static void lpass_cdc_rx_macro_init_bcl_pmic_reg(struct snd_soc_component *component)
+{
+	struct device *rx_dev = NULL;
+	struct lpass_cdc_rx_macro_priv *rx_priv = NULL;
+
+	if (!component) {
+		pr_err("%s: NULL component pointer!\n", __func__);
+		return;
+	}
+
+	if (!lpass_cdc_rx_macro_get_data(component, &rx_dev, &rx_priv, __func__))
+		return;
+
+	switch (rx_priv->bcl_pmic_params.id) {
+	case 0:
+		/* Enable ID0 to listen to respective PMIC group interrupts */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CTL1, 0x02, 0x02);
+		/* Update MC_SID0 */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CFG1, 0x0F,
+			rx_priv->bcl_pmic_params.sid);
+		/* Update MC_PPID0 */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CFG2, 0xFF,
+			rx_priv->bcl_pmic_params.ppid);
+		break;
+	case 1:
+		/* Enable ID1 to listen to respective PMIC group interrupts */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CTL1, 0x01, 0x01);
+		/* Update MC_SID1 */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CFG3, 0x0F,
+			rx_priv->bcl_pmic_params.sid);
+		/* Update MC_PPID1 */
+		snd_soc_component_update_bits(component,
+			LPASS_CDC_RX_BCL_VBAT_DECODE_CFG1, 0xFF,
+			rx_priv->bcl_pmic_params.ppid);
+		break;
+	default:
+		dev_err(rx_dev, "%s: PMIC ID is invalid %d\n",
+		       __func__, rx_priv->bcl_pmic_params.id);
+		break;
+	}
+}
+#endif
 
 static int lpass_cdc_rx_macro_init(struct snd_soc_component *component)
 {
@@ -4583,6 +4668,9 @@ static int lpass_cdc_rx_macro_init(struct snd_soc_component *component)
 				lpass_cdc_rx_macro_reg_init[i].val);
 
 	rx_priv->component = component;
+#ifdef CONFIG_BOLERO_VER_2P1
+	lpass_cdc_rx_macro_init_bcl_pmic_reg(component);
+#endif
 
 	return 0;
 }
@@ -4725,8 +4813,13 @@ static int lpass_cdc_rx_macro_probe(struct platform_device *pdev)
 	u32 rx_base_addr = 0, muxsel = 0;
 	char __iomem *rx_io_base = NULL, *muxsel_io = NULL;
 	int ret = 0;
+#ifdef CONFIG_BOLERO_VER_2P1
+	u8 bcl_pmic_params[3];
+#endif
 	u32 default_clk_id = 0;
+#ifdef CONFIG_BOLERO_VER_2P6
 	struct clk *hifi_fir_clk = NULL;
+#endif
 	u32 is_used_rx_swr_gpio = 1;
 	const char *is_used_rx_swr_gpio_dt = "qcom,is-used-swr-gpio";
 
@@ -4816,11 +4909,26 @@ static int lpass_cdc_rx_macro_probe(struct platform_device *pdev)
 	rx_priv->swr_plat_data.core_vote = lpass_cdc_rx_macro_core_vote;
 	rx_priv->swr_plat_data.handle_irq = NULL;
 
+#ifdef CONFIG_BOLERO_VER_2P1
+	ret = of_property_read_u8_array(pdev->dev.of_node,
+				"qcom,rx-bcl-pmic-params", bcl_pmic_params,
+				sizeof(bcl_pmic_params));
+	if (ret) {
+		dev_dbg(&pdev->dev, "%s: could not find %s entry in dt\n",
+			__func__, "qcom,rx-bcl-pmic-params");
+	} else {
+		rx_priv->bcl_pmic_params.id = bcl_pmic_params[0];
+		rx_priv->bcl_pmic_params.sid = bcl_pmic_params[1];
+		rx_priv->bcl_pmic_params.ppid = bcl_pmic_params[2];
+	}
+#endif
+
 	rx_priv->clk_id = default_clk_id;
 	rx_priv->default_clk_id  = default_clk_id;
 	ops.clk_id_req = rx_priv->clk_id;
 	ops.default_clk_id = default_clk_id;
 
+#ifdef CONFIG_BOLERO_VER_2P6
 	hifi_fir_clk = devm_clk_get(&pdev->dev, "rx_mclk2_2x_clk");
 	if (IS_ERR(hifi_fir_clk)) {
 		ret = PTR_ERR(hifi_fir_clk);
@@ -4829,6 +4937,7 @@ static int lpass_cdc_rx_macro_probe(struct platform_device *pdev)
 		hifi_fir_clk = NULL;
 	}
 	rx_priv->hifi_fir_clk = hifi_fir_clk;
+#endif
 
 	rx_priv->is_aux_hpf_on = 1;
 
