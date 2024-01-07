@@ -18,8 +18,12 @@ ifeq ($(call is-board-platform-in-list,holi blair),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_HOLI=m
 endif
 
-ifeq ($(call is-board-platform-in-list,pineapple cliffs pitti volcano),true)
+ifeq ($(call is-board-platform-in-list,pineapple cliffs volcano),true)
 AUDIO_SELECT  := CONFIG_SND_SOC_PINEAPPLE=m
+endif
+
+ifeq ($(call is-board-platform-in-list,pitti),true)
+AUDIO_SELECT  := CONFIG_SND_SOC_PITTI=m
 endif
 
 ifeq ($(ENABLE_AUDIO_LEGACY_TECHPACK),true)
@@ -392,7 +396,7 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ########################### WCD939x CODEC  ################################
 
-ifneq ($(call is-board-platform-in-list, niobe),true)
+ifneq ($(call is-board-platform-in-list, niobe pitti),true)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
 LOCAL_MODULE              := wcd939x_dlkm.ko
@@ -406,6 +410,35 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
 LOCAL_MODULE              := wcd939x_slave_dlkm.ko
 LOCAL_MODULE_KBUILD_NAME  := asoc/codecs/wcd939x/wcd939x_slave_dlkm.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif
+ifeq ($(call is-board-platform-in-list, pitti),true)
+###########################################################
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
+LOCAL_MODULE              := wsa881x_analog_dlkm.ko
+LOCAL_MODULE_KBUILD_NAME  := asoc/codecs/wsa881x_analog_dlkm.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+###########################################################
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
+LOCAL_MODULE              := wcd9378_dlkm.ko
+LOCAL_MODULE_KBUILD_NAME  := asoc/codecs/wcd9378/wcd9378_dlkm.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+###########################################################
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(AUDIO_SRC_FILES)
+LOCAL_MODULE              := wcd9378_slave_dlkm.ko
+LOCAL_MODULE_KBUILD_NAME  := asoc/codecs/wcd9378/wcd9378_slave_dlkm.ko
 LOCAL_MODULE_TAGS         := optional
 LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)

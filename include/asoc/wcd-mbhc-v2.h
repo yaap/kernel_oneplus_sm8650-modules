@@ -455,7 +455,7 @@ struct wcd_mbhc_intr {
 
 struct wcd_mbhc_register {
 	const char *id;
-	u16 reg;
+	u32 reg;
 	u8 mask;
 	u8 offset;
 	u8 invert;

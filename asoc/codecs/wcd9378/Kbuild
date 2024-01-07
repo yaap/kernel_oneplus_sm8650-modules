@@ -6,8 +6,6 @@ else
 	KERNEL_BUILD := 0
 endif
 
-
-
 ifeq ($(KERNEL_BUILD), 1)
 	# These are configurable via Kconfig for kernel-based builds
 	# Need to explicitly configure for Android-based builds
@@ -16,19 +14,14 @@ ifeq ($(KERNEL_BUILD), 1)
 endif
 
 ifeq ($(KERNEL_BUILD), 0)
-	ifeq ($(CONFIG_ARCH_SM6150), y)
-		include $(AUDIO_ROOT)/config/sm6150auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_TRINKET), y)
-		include $(AUDIO_ROOT)/config/sm6150auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
-	endif
 	ifeq ($(CONFIG_ARCH_KONA), y)
 		include $(AUDIO_ROOT)/config/konaauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/konaautoconf.h
+	endif
+	ifeq ($(CONFIG_ARCH_LITO), y)
+		include $(AUDIO_ROOT)/config/litoauto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
 	endif
 	ifeq ($(CONFIG_ARCH_WAIPIO), y)
 		include $(AUDIO_ROOT)/config/waipioauto.conf
@@ -46,21 +39,7 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/pittiauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pittiautoconf.h
 	endif
-	ifeq ($(CONFIG_ARCH_LITO), y)
-		include $(AUDIO_ROOT)/config/litoauto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_BENGAL), y)
-		include $(AUDIO_ROOT)/config/bengalauto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/bengalautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_QCS405), y)
-		include $(AUDIO_ROOT)/config/qcs405auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/qcs405autoconf.h
-	endif
+
 endif
 
 # As per target team, build is done as follows:
@@ -87,36 +66,18 @@ UAPI_INC :=	-I$(AUDIO_ROOT)/include/$(UAPI_DIR)
 COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
-############ LPASS_CDC ############
+############ WCD9378 ############
 
-# for LPASS_CDC Codec
-ifdef CONFIG_SND_SOC_LPASS_CDC
-	LPASS_CDC_OBJS += lpass-cdc.o
-	LPASS_CDC_OBJS += lpass-cdc-comp.o
-	LPASS_CDC_OBJS += lpass-cdc-utils.o
-	LPASS_CDC_OBJS += lpass-cdc-regmap.o
-	LPASS_CDC_OBJS += lpass-cdc-tables.o
-	LPASS_CDC_OBJS += lpass-cdc-clk-rsc.o
+# for WCD9378 Codec
+ifdef CONFIG_SND_SOC_WCD9378
+	WCD9378_OBJS += wcd9378.o
+	WCD9378_OBJS += wcd9378-regmap.o
+	WCD9378_OBJS += wcd9378-tables.o
+	WCD9378_OBJS += wcd9378-mbhc.o
 endif
 
-ifdef CONFIG_LPASS_CDC_WSA2_MACRO
-	WSA2_OBJS += lpass-cdc-wsa2-macro.o
-endif
-
-ifdef CONFIG_LPASS_CDC_WSA_MACRO
-	WSA_OBJS += lpass-cdc-wsa-macro.o
-endif
-
-ifdef CONFIG_LPASS_CDC_VA_MACRO
-	VA_OBJS += lpass-cdc-va-macro.o
-endif
-
-ifdef CONFIG_LPASS_CDC_TX_MACRO
-	TX_OBJS += lpass-cdc-tx-macro.o
-endif
-
-ifdef CONFIG_LPASS_CDC_RX_MACRO
-	RX_OBJS += lpass-cdc-rx-macro.o
+ifdef CONFIG_SND_SOC_WCD9378_SLAVE
+	WCD9378_SLAVE_OBJS += wcd9378-slave.o
 endif
 
 LINUX_INC +=	-Iinclude/linux
@@ -124,7 +85,7 @@ LINUX_INC +=	-Iinclude/linux
 INCS +=		$(COMMON_INC) \
 		$(UAPI_INC)
 
-EXTRA_CFLAGS += $(INCS)
+ccflags-y += $(INCS)
 
 
 CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
@@ -144,40 +105,21 @@ KBUILD_CPPFLAGS += $(CDEFINES)
 # AUDIO driver.  Note that we must use EXTRA_CFLAGS here so that it
 # will override the kernel settings.
 ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)
-EXTRA_CFLAGS += -Wmaybe-uninitialized
+ccflags-y += -Wmaybe-uninitialized
 endif
 #EXTRA_CFLAGS += -Wmissing-prototypes
 
 ifeq ($(call cc-option-yn, -Wheader-guard),y)
-EXTRA_CFLAGS += -Wheader-guard
+ccflags-y += -Wheader-guard
 endif
 
-ifeq ($(KERNEL_BUILD), 0)
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/ipc/Module.symvers
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module.symvers
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/Module.symvers
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/Module.symvers
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
-endif
 
 # Module information used by KBuild framework
-obj-$(CONFIG_SND_SOC_LPASS_CDC) += lpass_cdc_dlkm.o
-lpass_cdc_dlkm-y := $(LPASS_CDC_OBJS)
+obj-$(CONFIG_SND_SOC_WCD9378) += wcd9378_dlkm.o
+wcd9378_dlkm-y := $(WCD9378_OBJS)
 
-obj-$(CONFIG_LPASS_CDC_WSA2_MACRO) += lpass_cdc_wsa2_macro_dlkm.o
-lpass_cdc_wsa2_macro_dlkm-y := $(WSA2_OBJS)
-
-obj-$(CONFIG_LPASS_CDC_WSA_MACRO) += lpass_cdc_wsa_macro_dlkm.o
-lpass_cdc_wsa_macro_dlkm-y := $(WSA_OBJS)
-
-obj-$(CONFIG_LPASS_CDC_VA_MACRO) += lpass_cdc_va_macro_dlkm.o
-lpass_cdc_va_macro_dlkm-y := $(VA_OBJS)
-
-obj-$(CONFIG_LPASS_CDC_TX_MACRO) += lpass_cdc_tx_macro_dlkm.o
-lpass_cdc_tx_macro_dlkm-y := $(TX_OBJS)
-
-obj-$(CONFIG_LPASS_CDC_RX_MACRO) += lpass_cdc_rx_macro_dlkm.o
-lpass_cdc_rx_macro_dlkm-y := $(RX_OBJS)
+obj-$(CONFIG_SND_SOC_WCD9378_SLAVE) += wcd9378_slave_dlkm.o
+wcd9378_slave_dlkm-y := $(WCD9378_SLAVE_OBJS)
 
 # inject some build related information
 DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
