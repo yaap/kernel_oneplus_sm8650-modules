@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <asm/memory.h>
@@ -4862,8 +4862,6 @@ static void __enter_cpu_noc_lpi(struct iris_hfi_device *device)
 			__func__, lpi_status, wfi_status, pc_ready);
 
 		__print_sidebandmanager_regs(device);
-		dprintk(CVP_ERR, "%s, crashing the target\n", __func__);
-		BUG_ON(1);
 	}
 }
 
