@@ -302,4 +302,13 @@ void kgsl_pwrctrl_disable_cx_gdsc(struct kgsl_device *device);
  */
 int kgsl_pwrctrl_probe_regulators(struct kgsl_device *device,
 		struct platform_device *pdev);
+
+/**
+ * kgsl_pwrctrl_get_acv_perfmode_lvl - Retrieve DDR level for GPU performance mode
+ * @device: Pointer to the kgsl device
+ * @ddr_freq: Target specific DDR frequency from where GPU needs to vote for perf mode
+ *
+ * Return: DDR vote level from where GPU should vote for performance mode
+ */
+u32 kgsl_pwrctrl_get_acv_perfmode_lvl(struct kgsl_device *device, u32 ddr_freq);
 #endif /* __KGSL_PWRCTRL_H */
