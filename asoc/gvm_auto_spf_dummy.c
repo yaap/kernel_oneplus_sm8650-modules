@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -486,6 +486,16 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.ignore_suspend = 1,
 	.ignore_pmdown_time = 1,
 	SND_SOC_DAILINK_REG(hs_if4_tdm_tx_0_dummy),
+	},
+	{
+	.name = "PCM_DUMMY-TX-0",
+	.stream_name = "PCM_DUMMY-TX-0",
+	.dpcm_capture = 1,
+	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+				SND_SOC_DPCM_TRIGGER_POST},
+	.ignore_suspend = 1,
+	.ignore_pmdown_time = 1,
+	SND_SOC_DAILINK_REG(pcm_dummy_tx0),
 	},
 };
 
