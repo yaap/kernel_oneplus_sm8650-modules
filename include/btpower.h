@@ -143,37 +143,38 @@ enum {
 	PWR_CLIENT_KILLED,
 };
 
-typedef enum {
-	BT_HOST_REASON_DEFAULT_NONE  = 0x00,                         //INVALID REASON
-	BT_HOST_REASON_SOC_CRASHED = 0x01,                           //SOC WAS CRASHED
-	BT_HOST_REASON_SOC_CRASHED_DIAG_SSR = 0x02,                  //SOC CRASHED DIAG INITIATED SSR
-	BT_HOST_REASON_INIT_FAILED = 0x03,                           //HOST INITIALIZATION FAILED
-	BT_HOST_REASON_CLOSE_RCVD_DURING_INIT = 0x04,                //CLOSE RECEIVED FROM STACK DURING SOC INIT
-	BT_HOST_REASON_ERROR_READING_DATA_FROM_UART = 0x05,          //ERROR READING DATA FROM UART
-	BT_HOST_REASON_WRITE_FAIL_SPCL_BUFF_CRASH_SOC = 0x06,        //FAILED TO WRITE SPECIAL BYTES TO CRASH SOC
-	BT_HOST_REASON_RX_THREAD_STUCK = 0x07,                       //RX THREAD STUCK
-	BT_HOST_REASON_SSR_CMD_TIMEDOUT = 0x08,                      //SSR DUE TO CMD TIMED OUT
-	BT_HOST_REASON_SSR_SPURIOUS_WAKEUP = 0x09,                   //SSR DUE TO SPURIOUS WAKE UP
-	BT_HOST_REASON_SSR_INVALID_BYTES_RCVD = 0x0A,                //INVALID HCI CMD TYPE RECEIVED
-	BT_HOST_REASON_SSR_RCVD_LARGE_PKT_FROM_SOC = 0x0B,           //SSR DUE TO LARGE PKT RECVIVED FROM SOC
-	BT_HOST_REASON_SSR_UNABLE_TO_WAKEUP_SOC = 0x0C,              //UNABLE TO WAKE UP SOC
-	BT_HOST_REASON_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT = 0x0D,         //COMMAND TIMEOUT AND SOC CRASH WAIT TIMEOUT
-	BT_HOST_REASON_SPURIOUS_WAKEUP_SOC_WAIT_TIMEOUT = 0x0E,      //SPURIOUS WAKE AND SOC CRASH WAIT TIMEOUT
-	BT_HOST_REASON_INV_BYTES_SOC_WAIT_TIMEOUT = 0x0F,            //INVALID BYTES AND SOC CRASH WAIT TIMEOUT
-	BT_HOST_REASON_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT = 0x10,    //SOC WAKEUP FAILURE AND SOC CRASH WAIT TIMEOUT
-	BT_HOST_REASON_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT = 0x11, //SOC CRASHED DIAG INITIATED SSR CRASH WAIT TIMEOUT
-	BT_HOST_REASON_NONE_SOC_WAIT_TIMEOUT = 0x12,                 //INVALID FAILURE AND SOC CRASH WAIT TIMEOUT
-	BT_HOST_REASON_SOC_DEINIT_STUCK = 0x13,                      //SOC DEINIT STUCK
-	BT_HOST_REASON_SSR_INTERNAL_CMD_TIMEDOUT = 0x14,             //SSR DUE TO CMD INTERNAL TIMED OUT
-	BT_HOST_REASON_FAILED_TO_SEND_INTERNAL_CMD = 0x15,           //FAILED TO SEND INTERNAL CMD
-	BT_HOST_REASON_SSR_SLEEP_IND_NOT_RCVD = 0x16,                //SOC DID NOT RCVD SLEEP IND DURING CLOSE
-	BT_HOST_REASON_DIAG_LOG_API_STUCK = 0x39,                    //DIAG log API stuck.
-	BT_HOST_REASON_PERI_SOC_CRASHED_DIAG_SSR = 0x17,             //PERI SOC CRASHED DIAG INITIATED SSR
-	BT_HOST_REASON_PERI_SOC_CRASHED = 0X18,                      //PERI SOC WAS CRASHED
-	BT_HOST_REASON_PERI_SOC_CRASHED_ON_OTHER_SUB_SYSTEM = 0x3A,  //Peripheral core crash detected in UWB SS
-} PrimaryReasonCode;
+enum BtPrimaryReasonCode {
+	BT_DEFAULT_NONE  = 0x00,                         //INVALID REASON
+	BT_SOC_CRASHED = 0x01,                           //SOC WAS CRASHED
+	BT_SOC_CRASHED_DIAG_SSR = 0x02,                  //SOC CRASHED DIAG INITIATED SSR
+	BT_INIT_FAILED = 0x03,                           //HOST INITIALIZATION FAILED
+	BT_CLOSE_RCVD_DURING_INIT = 0x04,                //CLOSE RECEIVED FROM STACK DURING SOC INIT
+	BT_ERROR_READING_DATA_FROM_UART = 0x05,          //ERROR READING DATA FROM UART
+	BT_WRITE_FAIL_SPCL_BUFF_CRASH_SOC = 0x06,        //FAILED TO WRITE SPECIAL BYTES TO CRASH SOC
+	BT_RX_THREAD_STUCK = 0x07,                       //RX THREAD STUCK
+	BT_SSR_CMD_TIMEDOUT = 0x08,                      //SSR DUE TO CMD TIMED OUT
+	BT_SSR_SPURIOUS_WAKEUP = 0x09,                   //SSR DUE TO SPURIOUS WAKE UP
+	BT_SSR_INVALID_BYTES_RCVD = 0x0A,                //INVALID HCI CMD TYPE RECEIVED
+	BT_SSR_RCVD_LARGE_PKT_FROM_SOC = 0x0B,           //SSR DUE TO LARGE PKT RECVIVED FROM SOC
+	BT_SSR_UNABLE_TO_WAKEUP_SOC = 0x0C,              //UNABLE TO WAKE UP SOC
+	BT_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT = 0x0D,         //COMMAND TIMEOUT AND SOC CRASH WAIT TIMEOUT
+	BT_SPURIOUS_WAKEUP_SOC_WAIT_TIMEOUT = 0x0E,      //SPURIOUS WAKE AND SOC CRASH WAIT TIMEOUT
+	BT_INV_BYTES_SOC_WAIT_TIMEOUT = 0x0F,            //INVALID BYTES AND SOC CRASH WAIT TIMEOUT
+	BT_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT = 0x10,    //SOC WAKEUP FAILURE AND SOC CRASH WAIT TIMEOUT
+	BT_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT = 0x11, //SOC CRASHED DIAG INITIATED SSR CRASH WAIT TIMEOUT
+	BT_NONE_SOC_WAIT_TIMEOUT = 0x12,                 //INVALID FAILURE AND SOC CRASH WAIT TIMEOUT
+	BT_SOC_DEINIT_STUCK = 0x13,                      //SOC DEINIT STUCK
+	BT_SSR_INTERNAL_CMD_TIMEDOUT = 0x14,             //SSR DUE TO CMD INTERNAL TIMED OUT
+	BT_FAILED_TO_SEND_INTERNAL_CMD = 0x15,           //FAILED TO SEND INTERNAL CMD
+	BT_SSR_SLEEP_IND_NOT_RCVD = 0x16,                //SOC DID NOT RCVD SLEEP IND DURING CLOSE
+	BT_DIAG_LOG_API_STUCK = 0x39,                    //DIAG log API stuck.
+	BT_PERI_SOC_CRASHED_DIAG_SSR = 0x17,             //PERI SOC CRASHED DIAG INITIATED SSR
+	BT_PERI_SOC_CRASHED = 0X18,                      //PERI SOC WAS CRASHED
+	BT_PERI_SOC_CRASHED_ON_OTHER_SUB_SYSTEM = 0x3A,  //Peripheral core crash detected in UWB SS
+	BT_PERI_SUB_SYSTEM_FAILED_UPDATE_SSR_COMPLETE = 0x3B // UWB FAILED TO UPDATE THE SSR COMPLETE STATUS
+};
 
-typedef enum {
+enum BtSecondaryReasonCode {
 	BT_SOC_REASON_DEFAULT        =  0x00,
 	BT_SOC_REASON_UNKNOWN        =  0x81,
 	BT_SOC_REASON_SW_REQUESTED   =  0x82,
@@ -328,176 +329,467 @@ typedef enum {
 	BT_HOST_REASON_PERI_POWER_IOCTL_STUCK     = 0xBD,
 	BT_HOST_REASON_PERI_SETBAUD_CC_NOT_RCVD   =  0xBE,
 	PERI_SOC_REASON_DEFAULT                   =  0xBF
-} SecondaryReasonCode;
-
-typedef struct {
-  SecondaryReasonCode reason;
-  char reasonstr[50];
-} SecondaryReasonMap;
-
-typedef struct {
-  PrimaryReasonCode reason;
-  char reasonstr[100];
-} PrimaryReasonMap;
-
-static PrimaryReasonMap priReasonMap[] = {
-	{ BT_HOST_REASON_DEFAULT_NONE,                         "Invalid reason"},
-	{ BT_HOST_REASON_SOC_CRASHED,                          "SOC crashed"},
-	{ BT_HOST_REASON_SOC_CRASHED_DIAG_SSR,                 "SOC crashed with diag initiated SSR"},
-	{ BT_HOST_REASON_INIT_FAILED,                          "Init failed"},
-	{ BT_HOST_REASON_CLOSE_RCVD_DURING_INIT,               "Close received from stack during SOC init"},
-	{ BT_HOST_REASON_ERROR_READING_DATA_FROM_UART,         "Error reading data from UART"},
-	{ BT_HOST_REASON_WRITE_FAIL_SPCL_BUFF_CRASH_SOC,       "Failed to write special bytes to crash SOC"},
-	{ BT_HOST_REASON_RX_THREAD_STUCK,                      "Thread Stuck"},
-	{ BT_HOST_REASON_SSR_CMD_TIMEDOUT,                     "SSR due to command timed out"},
-	{ BT_HOST_REASON_SSR_SPURIOUS_WAKEUP,                  "SSR due to spurious wakeup"},
-	{ BT_HOST_REASON_SSR_INVALID_BYTES_RCVD,               "Invalid HCI cmd type received"},
-	{ BT_HOST_REASON_SSR_RCVD_LARGE_PKT_FROM_SOC,          "Large packet received from SOC"},
-	{ BT_HOST_REASON_SSR_UNABLE_TO_WAKEUP_SOC,             "Unable to wake SOC"},
-	{ BT_HOST_REASON_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT,        "Command timedout and SOC crash wait timeout"},
-	{ BT_HOST_REASON_SPURIOUS_WAKEUP_SOC_WAIT_TIMEOUT,     "Spurious wake and SOC crash wait timeout"},
-	{ BT_HOST_REASON_INV_BYTES_SOC_WAIT_TIMEOUT,           "Invalid bytes received and SOC crash wait timeout"},
-	{ BT_HOST_REASON_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT,   "SOC Wakeup failed and SOC crash wait timeout"},
-	{ BT_HOST_REASON_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT,"SOC crashed with diag initiated SSR and SOC wait timeout"},
-	{ BT_HOST_REASON_NONE_SOC_WAIT_TIMEOUT,                "Invalid Reason and SOC crash wait timeout"},
-	{ BT_HOST_REASON_SOC_DEINIT_STUCK,                     "SOC Deinit Stuck"},
-	{ BT_HOST_REASON_SSR_INTERNAL_CMD_TIMEDOUT,            "SSR due to internal Command timeout"},
-	{ BT_HOST_REASON_FAILED_TO_SEND_INTERNAL_CMD,          "Failed to send internal command"},
-	{ BT_HOST_REASON_SSR_SLEEP_IND_NOT_RCVD,               "Failed to receive SLEEP IND during close"},
-	{ BT_HOST_REASON_DIAG_LOG_API_STUCK,                   "DIAG log API stuck"},
-	{ BT_HOST_REASON_PERI_SOC_CRASHED,                     "Peri SOC crashed"},
-	{ BT_HOST_REASON_PERI_SOC_CRASHED_DIAG_SSR,            "Peri SOC crashed with diag initiated SSR"},
-	{ BT_HOST_REASON_PERI_SOC_CRASHED_ON_OTHER_SUB_SYSTEM, "Peripheral core crash deteced in UWB SS"},
 };
 
-static SecondaryReasonMap secReasonMap[] = {
-	{ BT_SOC_REASON_DEFAULT                 ,    "Default"},
-	{ BT_SOC_REASON_UNKNOWN                 ,    "Unknown"},
-	{ BT_SOC_REASON_TX_RX_INVALID_PKT_FATAL ,    "Tx/Rx invalid packet fatal error"},
-	{ BT_SOC_REASON_TX_RX_INVALID_LEN_FATAL ,    "Tx/Rx invalid length fatal error"},
-	{ BT_SOC_REASON_SW_REQUESTED            ,    "SW Requested"},
-	{ BT_SOC_REASON_STACK_OVERFLOW          ,    "Stack Overflow"},
-	{ BT_SOC_REASON_EXCEPTION               ,    "Exception"},
-	{ BT_SOC_REASON_ASSERT                  ,    "Assert"},
-	{ BT_SOC_REASON_TRAP                    ,    "Trap"},
-	{ BT_SOC_REASON_OS_FATAL                ,    "OS Fatal"},
-	{ BT_SOC_REASON_HCI_RESET               ,    "HCI Reset"},
-	{ BT_SOC_REASON_PATCH_RESET             ,    "Patch Reset"},
-	{ BT_SOC_REASON_ABT                     ,    "SoC Abort"},
-	{ BT_SOC_REASON_RAMMASK                 ,    "RAM MASK"},
-	{ BT_SOC_REASON_PREBARK                 ,    "PREBARK"},
-	{ BT_SOC_REASON_BUSERROR                ,    "Bus error"},
-	{ BT_SOC_REASON_IO_FATAL                ,    "IO fatal eror"},
-	{ BT_SOC_REASON_SSR_CMD                 ,    "SSR CMD"},
-	{ BT_SOC_REASON_POWERON                 ,    "Power ON"},
-	{ BT_SOC_REASON_WATCHDOG                ,    "Watchdog"},
-	{ BT_SOC_REASON_RAMMASK_RGN1            ,    "RAMMASK RGN1"},
-	{ BT_SOC_REASON_RAMMASK_RGN0            ,    "RAMMASK RGN0"},
-	{ BT_SOC_REASON_Q6_WATCHDOG             ,    "Q6 Watchdog"},
-	{ BT_SOC_REASON_ZEALIS_RAM_MASK_RGN0    ,    "ZEALIS RAM MASK RGN0"},
-	{ BT_SOC_REASON_ZEALIS_RAM_MASK_RGN1    ,    "ZEALIS RAM MASK RGN1"},
-	{ BT_SOC_REASON_APSS_RESET              ,    "APSS reset"},
-	{ BT_SOC_REASON_TIME_RESET              ,    "Time reset"},
-	{ BT_SOC_REASON_AUDIOSS_RESET           ,    "Audioss reset"},
-	{ BT_SOC_REASON_HOST_WARMRESET          ,    "Host warm reset"},
-	{ BT_SOC_REASON_HOST_NMI_INIT           ,    "Host NMI init"},
-	{ BT_SOC_REASON_INVALID_STACK           ,    "Invalid Stack"},
-	{ BT_HOST_REASON_UARTINIT_STUCK              ,    "UartInitStuck"},
-	{ BT_HOST_REASON_GETVER_SEND_STUCK           ,    "GetVerSendStuck"},
-	{ BT_HOST_REASON_GETVER_NO_RSP_RCVD          ,    "GetVerNoRspRcvd"},
-	{ BT_HOST_REASON_SETBAUDRATE_CMD_STUCK       ,    "SetBaudRateStuck"},
-	{ BT_HOST_REASON_PATCH_DNLD_STUCK            ,    "PatchDnldStuck"},
-	{ BT_HOST_REASON_GETBOARDID_CMD_STUCK        ,    "GetBoardIdStuck"},
-	{ BT_HOST_REASON_NVM_DNLD_STUCK              ,    "NvmDnldStuck"},
-	{ BT_HOST_REASON_HCI_RESET_STUCK             ,    "HciResetStuck"},
-	{ BT_HOST_REASON_GETBLDINFO_CMD_STUCK        ,    "GetBldInfoCmdStuck"},
-	{ BT_HOST_REASON_ADDONFEAT_CMD_STUCK         ,    "AddOnFeatCmdStuck"},
-	{ BT_HOST_REASON_ENHLOG_CMD_STUCK            ,    "EnhLogCmdStuck"},
-	{ BT_HOST_REASON_DIAGINIT_STUCK              ,    "DiagInitStuck"},
-	{ BT_HOST_REASON_DIAGDEINIT_STUCK            ,    "DiagDeinitStuck"},
-	{ BT_HOST_REASON_XMEM_NVM_DNLD_STUCK         ,    "XMEM NVM Download stuck"},
-	{ BT_HOST_REASON_XMEM_PATCH_DNLD_STUCK       ,    "XMEM patch download stuck"},
-	{ BT_HOST_REASON_SECURE_BRIDGE_CMD_STUCK     ,    "Secure bridge cmd stuck"},
-	{ BT_HOST_REASON_FAILED_TO_SEND_CMD          ,    "Failed to send internal cmd"},
-	{ BT_HOST_REASON_HCI_RESET_CC_NOT_RCVD       ,    "HCI Reset Cmd CC Not Rcvd"},
-	{ BT_HOST_REASON_HCI_PRE_SHUTDOWN_CC_NOT_RCVD    ,  "HCI Pre shutdown Cmd CC not Rcvd"},
-	{ BT_HOST_REASON_HCI_SET_BD_ADDRESS_CC_NOT_RCVD  ,  "HCI BD address CC not Rcvd"},
-	{ BT_HOST_REASON_FAILED_TO_RECEIVE_SLEEP_IND     ,  "Failed to receive SLEEP IND from SoC"},
-	{ BT_HOST_REASON_POWER_ON_REGS_STUCK             ,  "SoC Power ON Sequence stuck"},
-	{ BT_HOST_REASON_POWER_IOCTL_STUCK               ,  "Power driver IOCTL stuck"},
-	{ BT_HOST_REASON_RX_THREAD_START_STUCK           ,  "RX thread start stuck"},
-	{ BT_HOST_REASON_GET_LOCALADDR_STUCK             ,  "Get local BD address stuck"},
-	{ BT_HOST_REASON_OTP_INFO_GET_CMD_STUCK          ,  "Get OTP info. cmd stuck"},
-	{ BT_HOST_REASON_FILE_SYSTEM_CALL_STUCK          ,  "FILE system call stuck"},
-	{ BT_HOST_REASON_PROPERTY_GET_STUCK              ,  "Property get call stuck"},
-	{ BT_HOST_REASON_PROPERTY_SET_STUCK              ,  "Property set call stuck"},
-	{ BT_HOST_REASON_RAM_PATCH_READ_STUCK            ,  "RAM patch open/read stuck"},
-	{ BT_HOST_REASON_NVM_PATCH_READ_STUCK            ,  "NVM file open/read stuck"},
-	{ BT_HOST_REASON_UART_IOCTL_STUCK                ,  "UART IOCTL stuck"},
-	{ BT_HOST_REASON_PATCH_CONFIG_CMD_STUCK          ,  "Patch config cmd stuck"},
-	{ BT_HOST_REASON_GET_APP_VER_CMD_STUCK           ,  "Get APP version cmd stuck"},
-	{ BT_HOST_REASON_SOC_NAME_UNKOWN                 ,  "SoC name unkown"},
+enum UwbPrimaryReasonCode{
+	UWB_HOST_REASON_DEFAULT_NONE  = 0x00,                         //INVALID REASON
+	UWB_HOST_REASON_PERI_SOC_CRASHED = 0x01,                      //PERI SOC WAS CRASHED
+	UWB_HOST_REASON_PERI_SOC_CRASHED_DIAG_SSR = 0x02,             //PERI SOC CRASHED DIAG INITIATED SSR
+	UWB_HOST_REASON_INIT_FAILED = 0x03,                           //HOST INITIALIZATION FAILED
+	UWB_HOST_REASON_CLOSE_RCVD_DURING_INIT = 0x04,                //CLOSE RECEIVED FROM STACK DURING SOC INIT
+	UWB_HOST_REASON_ERROR_READING_DATA_FROM_Q2SPI = 0x05,         //ERROR READING DATA FROM Q2SPI
+	UWB_HOST_REASON_WRITE_FAIL_SPCL_BUFF_CRASH_SOC = 0x06,        //FAILED TO WRITE SPECIAL BYTES TO CRASH SOC
+	UWB_HOST_REASON_RX_THREAD_STUCK = 0x07,                       //RX THREAD STUCK
+	UWB_HOST_REASON_SSR_CMD_TIMEDOUT = 0x08,                      //SSR DUE TO CMD TIMED OUT
+	UWB_HOST_REASON_SSR_INVALID_BYTES_RCVD = 0x0A,                //INVALID HCI CMD TYPE RECEIVED
+	UWB_HOST_REASON_SSR_RCVD_LARGE_PKT_FROM_SOC = 0x0B,           //SSR DUE TO LARGE PKT RECVIVED FROM SOC
+	UWB_HOST_REASON_SSR_UNABLE_TO_WAKEUP_SOC = 0x0C,              //UNABLE TO WAKE UP SOC
+	UWB_HOST_REASON_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT = 0x0D,         //COMMAND TIMEOUT AND SOC CRASH WAIT TIMEOUT
+	UWB_HOST_REASON_INV_BYTES_SOC_WAIT_TIMEOUT = 0x0F,            //INVALID BYTES AND SOC CRASH WAIT TIMEOUT
+	UWB_HOST_REASON_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT = 0x10,    //SOC WAKEUP FAILURE AND SOC CRASH WAIT TIMEOUT
+	UWB_HOST_REASON_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT = 0x11, //SOC CRASHED DIAG INITIATED SSR CRASH WAIT TIMEOUT
+	UWB_HOST_REASON_NONE_SOC_WAIT_TIMEOUT = 0x12,                 //INVALID FAILURE AND SOC CRASH WAIT TIMEOUT
+	UWB_HOST_REASON_SOC_DEINIT_STUCK = 0x13,                      //SOC DEINIT STUCK
+	UWB_HOST_REASON_SSR_INTERNAL_CMD_TIMEDOUT = 0x14,             //SSR DUE TO CMD INTERNAL TIMED OUT
+	UWB_HOST_REASON_FAILED_TO_SEND_INTERNAL_CMD = 0x15,           //FAILED TO SEND INTERNAL CMD
+	UWB_HOST_REASON_SSR_SLEEP_IND_NOT_RCVD = 0x16,                //SOC DID NOT RCVD SLEEP IND DURING CLOSE
+	UWB_HOST_REASON_UWB_SOC_CRASHED = 0xC1,                       //UWB SOC WAS CRASHED
+	UWB_HOST_REASON_UWB_SOC_CRASHED_DIAG_SSR = 0xC2,              //UWB SOC CRASHED DIAG INITIATED SSR
+	UWB_HOST_REASON_DIAG_LOG_API_STUCK = 0x39,                    //DIAG log API stuck.
+	UWB_HOST_REASON_PERI_CRASH_ON_OTHER_SS = 0x3A,                //Peripheral core crash detected in BT SS
+	UWB_HOST_REASON_CRASH_EVT_INDUCED = 0x60,                     //Packet Type from SoC for inducing crash
+};
+
+enum UwbSecondaryReasonCode{
+	UWB_SOC_REASON_DEFAULT                 =  0x00,
+	UWB_SOC_REASON_TX_RX_INVALID_PKT       =  0x40,
+	UWB_SOC_REASON_TX_RX_INVALID_PKT_LENE  =  0x41,
+	UWB_SOC_REASON_TX_RX_OVERFLOW_BUFF     =  0x42,
+	UWB_SOC_REASON_UNKNOWN                 =  0x81,
+	UWB_SOC_REASON_SW_REQUESTED            =  0x82,
+	UWB_SOC_REASON_STACK_OVERFLOW          =  0x83,
+	UWB_SOC_REASON_EXCEPTION               =  0x84,
+	UWB_SOC_REASON_ASSERT                  =  0x85,
+	UWB_SOC_REASON_TRAP                    =  0x86,
+	UWB_SOC_REASON_OS_FATAL                =  0x87,
+	UWB_SOC_REASON_HCI_RESET               =  0x88,
+	UWB_SOC_REASON_PATCH_RESET             =  0x89,
+	UWB_SOC_REASON_ABT                     =  0x8A,
+	UWB_SOC_REASON_RAMMASK                 =  0x8B,
+	UWB_SOC_REASON_PREBARK                 =  0x8C,
+	UWB_SOC_REASON_BUSERROR                =  0x8D,
+	UWB_SOC_REASON_IO_FATAL                =  0x8E,
+	UWB_SOC_REASON_SSR_CMD                 =  0x8F,
+	UWB_SOC_REASON_POWERON                 =  0x90,
+	UWB_SOC_REASON_WATCHDOG                =  0x91,
+	UWB_SOC_REASON_RAMMASK_RGN1            =  0x92,
+	UWB_SOC_REASON_RAMMASK_RGN0            =  0x93,
+	UWB_SOC_REASON_Q6_WATCHDOG             =  0x94,
+	UWB_SOC_REASON_ZEALIS_RAM_MASK_RGN0    =  0x95,
+	UWB_SOC_REASON_ZEALIS_RAM_MASK_RGN1    =  0x96,
+	UWB_SOC_REASON_APSS_RESET              =  0x97,
+	UWB_SOC_REASON_TIME_RESET              =  0x98,
+	UWB_SOC_REASON_AUDIOSS_RESET           =  0x99,
+	UWB_SOC_REASON_HOST_WARMRESET          =  0x9A,
+	UWB_SOC_REASON_HOST_NMI_INIT           =  0x9B,
+	UWB_SOC_REASON_TX_RX_INVALID_PKT_FATAL =  0xC0,
+	UWB_SOC_REASON_TX_RX_INVALID_LEN_FATAL =  0xC1,
+	UWB_SOC_REASON_TX_RX_OVERFLOW_FATAL    =  0xC2,
+	UWB_SOC_REASON_INVALID_STACK           =  0xF0,
+	UWB_HOST_REASON_PERI_GETVER_SEND_STUCK          =  0x18,
+	UWB_HOST_REASON_PERI_GETVER_NO_RSP_RCVD         =  0x19,
+	UWB_HOST_REASON_PERI_PATCH_DNLD_STUCK           =  0x1B,
+	UWB_HOST_REASON_PERI_GETBOARDID_CMD_STUCK       =  0x1C,
+	UWB_HOST_REASON_PERI_NVM_DNLD_STUCK             =  0x1D,
+	UWB_HOST_REASON_PERI_RESET_STUCK                =  0x1E,
+	UWB_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK       =  0x1F,
+	UWB_HOST_REASON_PERI_ENHLOG_CMD_STUCK           =  0x21,
+	UWB_HOST_REASON_DIAGINIT_STUCK                  =  0x22,
+	UWB_HOST_REASON_DIAGDEINIT_STUCK                =  0x23,
+	UWB_HOST_REASON_SECURE_BRIDGE_CMD_STUCK         =  0x26,
+	UWB_HOST_REASON_FAILED_TO_SEND_CMD              =  0x27,
+	UWB_HOST_REASON_PERI_RESET_CC_NOT_RCVD          =  0x28,
+	UWB_HOST_REASON_HCI_PRE_SHUTDOWN_CC_NOT_RCVD    =  0x29,
+	UWB_HOST_REASON_FAILED_TO_RECEIVE_SLEEP_IND     =  0x2B,
+	UWB_HOST_REASON_POWER_ON_REGS_STUCK             =  0x2C,
+	UWB_HOST_REASON_RX_THREAD_START_STUCK           =  0x2D,
+	UWB_HOST_REASON_GET_LOCALADDR_STUCK             =  0x2E,
+	UWB_HOST_REASON_OTP_INFO_GET_CMD_STUCK          =  0x2F,
+	UWB_HOST_REASON_FILE_SYSTEM_CALL_STUCK          =  0x30,
+	UWB_HOST_REASON_PROPERTY_GET_STUCK              =  0x31,
+	UWB_HOST_REASON_PROPERTY_SET_STUCK              =  0x32,
+	UWB_HOST_REASON_PERI_RAM_PATCH_READ_STUCK       =  0x33,
+	UWB_HOST_REASON_PERI_NVM_PATCH_READ_STUCK       =  0x34,
+	UWB_HOST_REASON_POWER_IOCTL_STUCK               =  0x36,
+	UWB_HOST_REASON_PERI_PATCH_CONFIG_CMD_STUCK     =  0x37,
+	UWB_HOST_REASON_PERI_PATCH_CONFIG_FAILED        =  0x38,
+	UWB_HOST_REASON_UWB_GETVER_SEND_STUCK           =  0x39,
+	UWB_HOST_REASON_UWB_GETVER_NO_RSP_RCVD          =  0x3A,
+	UWB_HOST_REASON_SOC_NAME_UNKOWN                 =  0x3B,
+	UWB_HOST_REASON_PERI_GETVER_CMD_FAILED          =  0x3C,
+	UWB_HOST_REASON_BAUDRATE_CHANGE_FAILED          =  0x3D,
+	UWB_HOST_REASON_PERI_TLV_DOWNLOAD_FAILED        =  0x3E,
+	UWB_HOST_REASON_PERI_GETBLDINFO_CMD_FAILED      =  0x3F,
+	UWB_HOST_REASON_PERI_RESET_CMD_FAILED           =  0x40,
+	UWB_HOST_REASON_MEMORY_ALLOCATION_FAILED        =  0x42,
+	UWB_HOST_REASON_READ_THREAD_START_FAILED        =  0x43,
+	UWB_HOST_REASON_HW_FLOW_ON_FAILED               =  0x44,
+	UWB_HOST_REASON_PERI_NVM_FILE_NOT_FOUND         =  0x45,
+	UWB_HOST_REASON_UWB_RAM_PATCH_READ_STUCK        =  0x48,
+	UWB_HOST_REASON_UWB_NVM_PATCH_READ_STUCK        =  0x49,
+	UWB_HOST_REASON_UWB_NVM_FILE_NOT_FOUND          =  0x4A,
+	UWB_HOST_REASON_UWB_GETBLDINFO_CMD_FAILED       =  0x4B,
+	UWB_HOST_REASON_UWB_PATCH_DNLD_STUCK            =  0x4C,
+	UWB_HOST_REASON_UWB_NVM_DNLD_STUCK              =  0x4D,
+	UWB_HOST_REASON_UWB_GETBLDINFO_CMD_STUCK        =  0x4E,
+	UWB_HOST_REASON_PERI_ACTIVATE_CMD_STUCK         =  0x4F,
+	UWB_HOST_REASON_PERI_ARBITRATION_CMD_STUCK      =  0x50,
+	UWB_HOST_REASON_PERI_ARBITRATION_NTF_STUCK      =  0x51,
+	UWB_HOST_REASON_INITIALIZATION_FAILED           =  0x52,
+	UWB_HOST_REASON_UWB_RESET_CC_NOT_RCVD           =  0x53,
+	UWB_HOST_REASON_UWB_ACTIVATE_CC_NOT_RCVD        =  0x54,
+	UWB_HOST_REASON_TME_ACTIVATE_CC_NOT_RCVD        =  0x55,
+	UWB_HOST_REASON_Q2SPI_INIT_STUCK                =  0x56,
+	UWB_HOST_REASON_Q2SPI_INIT_FAILED               =  0x57,
+	UWB_HOST_REASON_UWB_TLV_DOWNLOAD_FAILED         =  0x58,
+	UWB_HOST_REASON_UWB_ENHLOG_CMD_STUCK            =  0x59,
+	UWB_HOST_REASON_UWB_GETVER_CMD_FAILED           =  0x5A,
+	UWB_HOST_REASON_UWB_PATCH_CONFIG_CMD_STUCK      =  0x5B,
+	UWB_HOST_REASON_UWB_PATCH_CONFIG_CMD_FAILED     =  0x5C,
+	UWB_HOST_REASON_UWB_RESET_STUCK                 =  0x5D,
+	UWB_HOST_REASON_PERI_ACTIVATE_NTF_STUCK         =  0x5E,
+	UWB_HOST_REASON_UWB_CORE_RESET_CMD_FAILED       =  0x5F,
+	UWB_HOST_REASON_TME_ARBITRATION_CMD_STUCK       =  0x60,
+	UWB_HOST_REASON_TME_ARBITRATION_NTF_STUCK       =  0x61,
+	UWB_HOST_REASON_TME_GETVER_SEND_STUCK           =  0x62,
+	UWB_HOST_REASON_TME_GETVER_NO_RSP_RCVD          =  0x63,
+	UWB_HOST_REASON_TME_GETVER_CMD_FAILED           =  0x64,
+	UWB_HOST_REASON_TME_PATCH_DNLD_STUCK            =  0x65,
+	UWB_HOST_REASON_TME_RESET_STUCK                 =  0x66,
+	UWB_HOST_REASON_TME_GETBLDINFO_CMD_STUCK        =  0x67,
+	UWB_HOST_REASON_TME_GETBLDINFO_CMD_FAILED       =  0x68,
+	UWB_HOST_REASON_TME_RAM_PATCH_READ_STUCK        =  0x69,
+	Q2SPI_REASON_DEFAULT                            =  0xFF
+};
+
+typedef struct {
+  enum BtSecondaryReasonCode reason;
+  char reasonstr[50];
+} BtSecondaryReasonMap;
+
+typedef struct {
+  enum BtPrimaryReasonCode reason;
+  char reasonstr[100];
+} BtPrimaryReasonMap;
+
+typedef struct {
+  enum UwbSecondaryReasonCode reason;
+  char reasonstr[50];
+} UwbSecondaryReasonMap;
+
+typedef struct {
+  enum UwbPrimaryReasonCode reason;
+  char reasonstr[100];
+} UwbPrimaryReasonMap;
+
+static BtPrimaryReasonMap btPriReasonMap[] = {
+	{ BT_DEFAULT_NONE, "Invalid reason"},
+	{ BT_SOC_CRASHED, "SOC crashed"},
+	{ BT_SOC_CRASHED_DIAG_SSR, "SOC crashed with diag initiated SSR"},
+	{ BT_INIT_FAILED, "Init failed"},
+	{ BT_CLOSE_RCVD_DURING_INIT, "Close received from stack during SOC init"},
+	{ BT_ERROR_READING_DATA_FROM_UART, "Error reading data from UART"},
+	{ BT_WRITE_FAIL_SPCL_BUFF_CRASH_SOC,
+		"Failed to write special bytes to crash SOC"},
+	{ BT_RX_THREAD_STUCK, "Thread Stuck"},
+	{ BT_SSR_CMD_TIMEDOUT, "SSR due to command timed out"},
+	{ BT_SSR_SPURIOUS_WAKEUP, "SSR due to spurious wakeup"},
+	{ BT_SSR_INVALID_BYTES_RCVD, "Invalid HCI cmd type received"},
+	{ BT_SSR_RCVD_LARGE_PKT_FROM_SOC, "Large packet received from SOC"},
+	{ BT_SSR_UNABLE_TO_WAKEUP_SOC, "Unable to wake SOC"},
+	{ BT_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT,
+		"Command timedout and SOC crash wait timeout"},
+	{ BT_SPURIOUS_WAKEUP_SOC_WAIT_TIMEOUT,
+		"Spurious wake and SOC crash wait timeout"},
+	{ BT_INV_BYTES_SOC_WAIT_TIMEOUT,
+		"Invalid bytes received and SOC crash wait timeout"},
+	{ BT_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT,
+		"SOC Wakeup failed and SOC crash wait timeout"},
+	{ BT_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT,
+		"SOC crashed with diag initiated SSR and SOC wait timeout"},
+	{ BT_NONE_SOC_WAIT_TIMEOUT,
+		"Invalid Reason and SOC crash wait timeout"},
+	{ BT_SOC_DEINIT_STUCK, "SOC Deinit Stuck"},
+	{ BT_SSR_INTERNAL_CMD_TIMEDOUT, "SSR due to internal Command timeout"},
+	{ BT_FAILED_TO_SEND_INTERNAL_CMD, "Failed to send internal command"},
+	{ BT_SSR_SLEEP_IND_NOT_RCVD, "Failed to receive SLEEP IND during close"},
+	{ BT_DIAG_LOG_API_STUCK, "DIAG log API stuck"},
+	{ BT_PERI_SOC_CRASHED, "Peri SOC crashed"},
+	{ BT_PERI_SOC_CRASHED_DIAG_SSR, "Peri SOC crashed with diag initiated SSR"},
+	{ BT_PERI_SOC_CRASHED_ON_OTHER_SUB_SYSTEM,
+		"Peripheral core crash deteced in UWB SS"},
+	{ BT_PERI_SUB_SYSTEM_FAILED_UPDATE_SSR_COMPLETE,
+		"UWB Sub-System failed to update SSR complete status"},
+};
+
+static UwbPrimaryReasonMap uwbPriReasonMap[] = {
+	{UWB_HOST_REASON_DEFAULT_NONE, "Invalid reason"},
+	{UWB_HOST_REASON_PERI_SOC_CRASHED, "Peri SOC crashed"},
+	{UWB_HOST_REASON_UWB_SOC_CRASHED, "UWB SOC crashed"},
+	{UWB_HOST_REASON_PERI_SOC_CRASHED_DIAG_SSR, "Peri SOC crashed with diag initiated SSR"},
+	{UWB_HOST_REASON_UWB_SOC_CRASHED_DIAG_SSR, "UWB SOC crashed with diag initiated SSR"},
+	{UWB_HOST_REASON_INIT_FAILED, "Init failed"},
+	{UWB_HOST_REASON_CLOSE_RCVD_DURING_INIT, "Close received from stack during SOC init"},
+	{UWB_HOST_REASON_ERROR_READING_DATA_FROM_Q2SPI, "Error reading data from Q2SPI"},
+	{UWB_HOST_REASON_WRITE_FAIL_SPCL_BUFF_CRASH_SOC, "Failed to write special bytes to crash SOC"},
+	{UWB_HOST_REASON_RX_THREAD_STUCK, "Rx Thread Stuck"},
+	{UWB_HOST_REASON_SSR_CMD_TIMEDOUT, "SSR due to command timed out"},
+	{UWB_HOST_REASON_SSR_RCVD_LARGE_PKT_FROM_SOC, "Large packet received from SOC"},
+	{UWB_HOST_REASON_SSR_UNABLE_TO_WAKEUP_SOC, "Unable to wake SOC"},
+	{UWB_HOST_REASON_CMD_TIMEDOUT_SOC_WAIT_TIMEOUT, "Command timedout and SOC crash wait timeout"},
+	{UWB_HOST_REASON_INV_BYTES_SOC_WAIT_TIMEOUT,
+		"Invalid bytes received and SOC crash wait timeout"},
+	{UWB_HOST_REASON_SOC_WAKEUP_FAILED_SOC_WAIT_TIMEOUT,
+		"SOC Wakeup failed and SOC crash wait timeout"},
+	{UWB_HOST_REASON_SOC_CRASHED_DIAG_SSR_SOC_WAIT_TIMEOUT,
+		"SOC crashed with diag initiated SSR and SOC wait timeout"},
+	{UWB_HOST_REASON_NONE_SOC_WAIT_TIMEOUT, "Invalid Reason and SOC crash wait timeout"},
+	{UWB_HOST_REASON_SOC_DEINIT_STUCK, "SOC Deinit Stuck"},
+	{UWB_HOST_REASON_SSR_INTERNAL_CMD_TIMEDOUT, "SSR due to internal Command timeout"},
+	{UWB_HOST_REASON_FAILED_TO_SEND_INTERNAL_CMD, "Failed to send internal command"},
+	{UWB_HOST_REASON_SSR_SLEEP_IND_NOT_RCVD, "Failed to receive SLEEP IND during close"},
+	{UWB_HOST_REASON_PERI_CRASH_ON_OTHER_SS, "Peri SOC crashed detected on BT SS"},
+	{UWB_HOST_REASON_DIAG_LOG_API_STUCK, "DIAG log API stuck"}
+};
+
+static BtSecondaryReasonMap btSecReasonMap[] = {
+	{ BT_SOC_REASON_DEFAULT, "Default"},
+	{ BT_SOC_REASON_UNKNOWN, "Unknown"},
+	{ BT_SOC_REASON_TX_RX_INVALID_PKT_FATAL,
+		"Tx/Rx invalid packet fatal error"},
+	{ BT_SOC_REASON_TX_RX_INVALID_LEN_FATAL,
+		"Tx/Rx invalid length fatal error"},
+	{ BT_SOC_REASON_SW_REQUESTED, "SW Requested"},
+	{ BT_SOC_REASON_STACK_OVERFLOW, "Stack Overflow"},
+	{ BT_SOC_REASON_EXCEPTION, "Exception"},
+	{ BT_SOC_REASON_ASSERT, "Assert"},
+	{ BT_SOC_REASON_TRAP, "Trap"},
+	{ BT_SOC_REASON_OS_FATAL, "OS Fatal"},
+	{ BT_SOC_REASON_HCI_RESET, "HCI Reset"},
+	{ BT_SOC_REASON_PATCH_RESET, "Patch Reset"},
+	{ BT_SOC_REASON_ABT, "SoC Abort"},
+	{ BT_SOC_REASON_RAMMASK, "RAM MASK"},
+	{ BT_SOC_REASON_PREBARK, "PREBARK"},
+	{ BT_SOC_REASON_BUSERROR, "Bus error"},
+	{ BT_SOC_REASON_IO_FATAL, "IO fatal eror"},
+	{ BT_SOC_REASON_SSR_CMD, "SSR CMD"},
+	{ BT_SOC_REASON_POWERON, "Power ON"},
+	{ BT_SOC_REASON_WATCHDOG, "Watchdog"},
+	{ BT_SOC_REASON_RAMMASK_RGN1, "RAMMASK RGN1"},
+	{ BT_SOC_REASON_RAMMASK_RGN0, "RAMMASK RGN0"},
+	{ BT_SOC_REASON_Q6_WATCHDOG, "Q6 Watchdog"},
+	{ BT_SOC_REASON_ZEALIS_RAM_MASK_RGN0, "ZEALIS RAM MASK RGN0"},
+	{ BT_SOC_REASON_ZEALIS_RAM_MASK_RGN1, "ZEALIS RAM MASK RGN1"},
+	{ BT_SOC_REASON_APSS_RESET, "APSS reset"},
+	{ BT_SOC_REASON_TIME_RESET, "Time reset"},
+	{ BT_SOC_REASON_AUDIOSS_RESET, "Audioss reset"},
+	{ BT_SOC_REASON_HOST_WARMRESET, "Host warm reset"},
+	{ BT_SOC_REASON_HOST_NMI_INIT, "Host NMI init"},
+	{ BT_SOC_REASON_INVALID_STACK, "Invalid Stack"},
+	{ BT_HOST_REASON_UARTINIT_STUCK, "UartInitStuck"},
+	{ BT_HOST_REASON_GETVER_SEND_STUCK, "GetVerSendStuck"},
+	{ BT_HOST_REASON_GETVER_NO_RSP_RCVD, "GetVerNoRspRcvd"},
+	{ BT_HOST_REASON_SETBAUDRATE_CMD_STUCK, "SetBaudRateStuck"},
+	{ BT_HOST_REASON_PATCH_DNLD_STUCK, "PatchDnldStuck"},
+	{ BT_HOST_REASON_GETBOARDID_CMD_STUCK, "GetBoardIdStuck"},
+	{ BT_HOST_REASON_NVM_DNLD_STUCK, "NvmDnldStuck"},
+	{ BT_HOST_REASON_HCI_RESET_STUCK, "HciResetStuck"},
+	{ BT_HOST_REASON_GETBLDINFO_CMD_STUCK, "GetBldInfoCmdStuck"},
+	{ BT_HOST_REASON_ADDONFEAT_CMD_STUCK, "AddOnFeatCmdStuck"},
+	{ BT_HOST_REASON_ENHLOG_CMD_STUCK, "EnhLogCmdStuck"},
+	{ BT_HOST_REASON_DIAGINIT_STUCK, "DiagInitStuck"},
+	{ BT_HOST_REASON_DIAGDEINIT_STUCK, "DiagDeinitStuck"},
+	{ BT_HOST_REASON_XMEM_NVM_DNLD_STUCK, "XMEM NVM Download stuck"},
+	{ BT_HOST_REASON_XMEM_PATCH_DNLD_STUCK, "XMEM patch download stuck"},
+	{ BT_HOST_REASON_SECURE_BRIDGE_CMD_STUCK, "Secure bridge cmd stuck"},
+	{ BT_HOST_REASON_FAILED_TO_SEND_CMD, "Failed to send internal cmd"},
+	{ BT_HOST_REASON_HCI_RESET_CC_NOT_RCVD, "HCI Reset Cmd CC Not Rcvd"},
+	{ BT_HOST_REASON_HCI_PRE_SHUTDOWN_CC_NOT_RCVD, "HCI Pre shutdown Cmd CC not Rcvd"},
+	{ BT_HOST_REASON_HCI_SET_BD_ADDRESS_CC_NOT_RCVD, "HCI BD address CC not Rcvd"},
+	{ BT_HOST_REASON_FAILED_TO_RECEIVE_SLEEP_IND, "Failed to receive SLEEP IND from SoC"},
+	{ BT_HOST_REASON_POWER_ON_REGS_STUCK, "SoC Power ON Sequence stuck"},
+	{ BT_HOST_REASON_POWER_IOCTL_STUCK, "Power driver IOCTL stuck"},
+	{ BT_HOST_REASON_RX_THREAD_START_STUCK, "RX thread start stuck"},
+	{ BT_HOST_REASON_GET_LOCALADDR_STUCK, "Get local BD address stuck"},
+	{ BT_HOST_REASON_OTP_INFO_GET_CMD_STUCK, "Get OTP info. cmd stuck"},
+	{ BT_HOST_REASON_FILE_SYSTEM_CALL_STUCK, "FILE system call stuck"},
+	{ BT_HOST_REASON_PROPERTY_GET_STUCK, "Property get call stuck"},
+	{ BT_HOST_REASON_PROPERTY_SET_STUCK, "Property set call stuck"},
+	{ BT_HOST_REASON_RAM_PATCH_READ_STUCK, "RAM patch open/read stuck"},
+	{ BT_HOST_REASON_NVM_PATCH_READ_STUCK, "NVM file open/read stuck"},
+	{ BT_HOST_REASON_UART_IOCTL_STUCK, "UART IOCTL stuck"},
+	{ BT_HOST_REASON_PATCH_CONFIG_CMD_STUCK, "Patch config cmd stuck"},
+	{ BT_HOST_REASON_GET_APP_VER_CMD_STUCK, "Get APP version cmd stuck"},
+	{ BT_HOST_REASON_SOC_NAME_UNKOWN, "SoC name unkown"},
 	{ SOC_REASON_START_TX_IOS_SOC_RFR_HIGH_DURING_INIT, "SoC RFR high during INIT"},
-	{ BT_HOST_REASON_GETVER_CMD_FAILED               ,  "Get Version cmd failed"},
-	{ BT_HOST_REASON_BAUDRATE_CHANGE_FAILED          ,  "Baudrate change failed"},
-	{ BT_HOST_REASON_TLV_DOWNLOAD_FAILED             ,  "TLV/NVM download failed"},
-	{ BT_HOST_REASON_FW_BUILD_INFO_CMD_FAILED        ,  "FW build info. cmd failed"},
-	{ BT_HOST_REASON_HCI_RESET_CMD_FAILED            ,  "HCI RESET cmd failed"},
-	{ BT_HOST_REASON_UART_INIT_FAILED                ,  "UART INIT failed"},
-	{ BT_HOST_REASON_MEMORY_ALLOCATION_FAILED        ,  "Memory allocation failed"},
-	{ BT_HOST_REASON_READ_THREAD_START_FAILED        ,  "Read thread start failed"},
-	{ BT_HOST_REASON_HW_FLOW_ON_FAILED               ,  "HW Flow ON failed"},
-	{ BT_HOST_REASON_NVM_FILE_NOT_FOUND              ,  "NVM file not found"},
-	{ BT_HOST_REASON_UART_BAUDRATE_CHANGE_FAILED     ,  "UART baudrate change failed"},
-	{ BT_HOST_REASON_PATCH_CONFIG_FAILED             ,  "Patch config cmd failed"},
-	{ BT_HOST_REASON_HCI_SET_OFFLOAD_HOST_CONFIG_CC_NOT_RCVD ,  "offload host config CC not Rcvd"},
-	{ BT_HOST_REASON_BT_EN_PIN_LOW                   ,  "BT EN pin pulled low"},
-	{ UART_REASON_DEFAULT                            ,  "UART reason Default"},
-	{ UART_REASON_INVALID_FW_LOADED                  ,  "UART invalid FW loaded"},
-	{ UART_REASON_CLK_GET_FAIL                       ,  "UART CLK get failed"},
-	{ UART_REASON_SE_CLK_RATE_FIND_FAIL              ,  "UART CLK rate find failed"},
-	{ UART_REASON_SE_RESOURCES_INIT_FAIL             ,  "UART resources init failed"},
-	{ UART_REASON_SE_RESOURCES_ON_FAIL               ,  "UART resources ON failed"},
-	{ UART_REASON_SE_RESOURCES_OFF_FAIL              ,  "UART resources OFF failed"},
-	{ UART_REASON_TX_DMA_MAP_FAIL                    ,  "UART DMA map failed"},
-	{ UART_REASON_TX_CANCEL_FAIL                     ,  "UART tx cancel failed"},
-	{ UART_REASON_TX_ABORT_FAIL                      ,  "UART tx abort failed"},
-	{ UART_REASON_TX_FSM_RESET_FAIL                  ,  "UART tx FSM reset failed"},
-	{ UART_REASON_RX_CANCEL_FAIL                     ,  "UART rx cancel failed"},
-	{ UART_REASON_RX_ABORT_FAIL                      ,  "UART rx abort failed"},
-	{ UART_REASON_RX_FSM_RESET_FAIL                  ,  "UART rx FSM reset failed"},
-	{ UART_REASON_RX_TTY_INSET_FAIL                  ,  "UART rx tty inset failed"},
-	{ UART_REASON_ILLEGAL_INTERRUPT                  ,  "UART illegal interrupt"},
-	{ UART_REASON_BUFFER_OVERRUN                     ,  "UART buffer overrun"},
-	{ UART_REASON_RX_PARITY_REASON                   ,  "UART rx parity error"},
-	{ UART_REASON_RX_BREAK_REASON                    ,  "UART rx break error"},
-	{ UART_REASON_RX_SBE_REASON                      ,  "UART rx SBE error"},
-	{ SOC_REASON_START_TX_IOS_SOC_RFR_HIGH           ,  "SoC RFR high"},
-	{ UART_REASON_FLOW_OFF                           ,  "UART flow is OFF"},
-	{ BT_HOST_REASON_PERI_ARBITRATION_CMD_STUCK      ,  "Peri arbitration cmd stuck"},
-	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK       ,  "Peri Get Bld Info CmdStuck"},
-	{ BT_HOST_REASON_BT_ACTIVATE_CMD_STUCK           ,  "Subsystem Activate cmd stuck"},
-	{ BT_HOST_REASON_BT_ACTIVATE_NTF_STUCK           ,  "Subsystem Activate ntf stuck"},
-	{ BT_HOST_REASON_PERI_GETVER_SEND_STUCK          ,  "Peri Get Ver Send Stuck"},
-	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK       ,  "Peri Get Bld Info Cmd Stuck"},
-	{ BT_HOST_REASON_PERI_RAM_PATCH_READ_STUCK       ,  "Peri RAM patch open/read stuck"},
-	{ BT_HOST_REASON_PERI_RESET_STUCK                ,  "Peri Reset Stuck"},
-	{ BT_HOST_REASON_PERI_PATCH_CONFIG_CMD_STUCK     ,  "Peri Patch config cmd stuck"},
-	{ BT_HOST_REASON_PERI_PATCH_DNLD_STUCK           ,  "Peri Patch Dnld Stuck"},
-	{ BT_HOST_REASON_PERI_RESET_CMD_FAILED           ,  "HCI Peri RESET cmd failed"},
-	{ BT_HOST_REASON_BT_ACTIVATE_CMD_STUCK           ,  "BT activate cmd stuck"},
-	{ BT_HOST_REASON_BT_ACTIVATE_CMD_FAILED          ,  "BT activate cmd failed"},
-	{ BT_HOST_REASON_PERI_GETVER_CMD_FAILED          ,  "Peri Get Ver cmd failed"},
-	{ BT_HOST_REASON_PERI_PATCH_CONFIG_FAILED        ,  "Peri Patch config cmd failed"},
-	{ BT_HOST_REASON_PERI_TLV_DOWNLOAD_FAILED        ,  "Peri TLV/NVM download failed"},
-	{ BT_HOST_REASON_PERI_GETBOARDID_CMD_STUCK       ,  "Peri Get BoardId Stuck"},
-	{ BT_HOST_REASON_PERI_NVM_PATCH_READ_STUCK       ,  "Peri NVM file open/read stuck"},
-	{ BT_HOST_REASON_PERI_NVM_DNLD_STUCK             ,  "Peri Nvm Dnld Stuck"},
-	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_FAILED      ,  "Peri FW build info. cmd failed"},
-	{ BT_HOST_REASON_PERI_GETVER_NO_RSP_RCVD         ,  "Peri Get Ver No Rsp Rcvd"},
-	{ BT_HOST_REASON_PERI_SETBAUDRATE_CMD_STUCK      ,  "Peri Set baud rate stuck"},
-	{ BT_HOST_REASON_PERI_SETBAUD_CC_NOT_RCVD        ,  "Peri set baudrate cc nor rcvd"},
-	{ PERI_SOC_REASON_DEFAULT                        ,  "Default"},
+	{ BT_HOST_REASON_GETVER_CMD_FAILED, "Get Version cmd failed"},
+	{ BT_HOST_REASON_BAUDRATE_CHANGE_FAILED, "Baudrate change failed"},
+	{ BT_HOST_REASON_TLV_DOWNLOAD_FAILED, "TLV/NVM download failed"},
+	{ BT_HOST_REASON_FW_BUILD_INFO_CMD_FAILED, "FW build info. cmd failed"},
+	{ BT_HOST_REASON_HCI_RESET_CMD_FAILED, "HCI RESET cmd failed"},
+	{ BT_HOST_REASON_UART_INIT_FAILED, "UART INIT failed"},
+	{ BT_HOST_REASON_MEMORY_ALLOCATION_FAILED, "Memory allocation failed"},
+	{ BT_HOST_REASON_READ_THREAD_START_FAILED, "Read thread start failed"},
+	{ BT_HOST_REASON_HW_FLOW_ON_FAILED, "HW Flow ON failed"},
+	{ BT_HOST_REASON_NVM_FILE_NOT_FOUND, "NVM file not found"},
+	{ BT_HOST_REASON_UART_BAUDRATE_CHANGE_FAILED, "UART baudrate change failed"},
+	{ BT_HOST_REASON_PATCH_CONFIG_FAILED, "Patch config cmd failed"},
+	{ BT_HOST_REASON_HCI_SET_OFFLOAD_HOST_CONFIG_CC_NOT_RCVD, "offload host config CC not Rcvd"},
+	{ BT_HOST_REASON_BT_EN_PIN_LOW, "BT EN pin pulled low"},
+	{ UART_REASON_DEFAULT, "UART reason Default"},
+	{ UART_REASON_INVALID_FW_LOADED, "UART invalid FW loaded"},
+	{ UART_REASON_CLK_GET_FAIL, "UART CLK get failed"},
+	{ UART_REASON_SE_CLK_RATE_FIND_FAIL, "UART CLK rate find failed"},
+	{ UART_REASON_SE_RESOURCES_INIT_FAIL, "UART resources init failed"},
+	{ UART_REASON_SE_RESOURCES_ON_FAIL, "UART resources ON failed"},
+	{ UART_REASON_SE_RESOURCES_OFF_FAIL, "UART resources OFF failed"},
+	{ UART_REASON_TX_DMA_MAP_FAIL, "UART DMA map failed"},
+	{ UART_REASON_TX_CANCEL_FAIL, "UART tx cancel failed"},
+	{ UART_REASON_TX_ABORT_FAIL, "UART tx abort failed"},
+	{ UART_REASON_TX_FSM_RESET_FAIL, "UART tx FSM reset failed"},
+	{ UART_REASON_RX_CANCEL_FAIL, "UART rx cancel failed"},
+	{ UART_REASON_RX_ABORT_FAIL, "UART rx abort failed"},
+	{ UART_REASON_RX_FSM_RESET_FAIL, "UART rx FSM reset failed"},
+	{ UART_REASON_RX_TTY_INSET_FAIL, "UART rx tty inset failed"},
+	{ UART_REASON_ILLEGAL_INTERRUPT, "UART illegal interrupt"},
+	{ UART_REASON_BUFFER_OVERRUN, "UART buffer overrun"},
+	{ UART_REASON_RX_PARITY_REASON, "UART rx parity error"},
+	{ UART_REASON_RX_BREAK_REASON, "UART rx break error"},
+	{ UART_REASON_RX_SBE_REASON, "UART rx SBE error"},
+	{ SOC_REASON_START_TX_IOS_SOC_RFR_HIGH, "SoC RFR high"},
+	{ UART_REASON_FLOW_OFF, "UART flow is OFF"},
+	{ BT_HOST_REASON_PERI_ARBITRATION_CMD_STUCK, "Peri arbitration cmd stuck"},
+	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK, "Peri Get Bld Info CmdStuck"},
+	{ BT_HOST_REASON_BT_ACTIVATE_CMD_STUCK, "Subsystem Activate cmd stuck"},
+	{ BT_HOST_REASON_BT_ACTIVATE_NTF_STUCK, "Subsystem Activate ntf stuck"},
+	{ BT_HOST_REASON_PERI_GETVER_SEND_STUCK, "Peri Get Ver Send Stuck"},
+	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK, "Peri Get Bld Info Cmd Stuck"},
+	{ BT_HOST_REASON_PERI_RAM_PATCH_READ_STUCK, "Peri RAM patch open/read stuck"},
+	{ BT_HOST_REASON_PERI_RESET_STUCK, "Peri Reset Stuck"},
+	{ BT_HOST_REASON_PERI_PATCH_CONFIG_CMD_STUCK, "Peri Patch config cmd stuck"},
+	{ BT_HOST_REASON_PERI_PATCH_DNLD_STUCK, "Peri Patch Dnld Stuck"},
+	{ BT_HOST_REASON_PERI_RESET_CMD_FAILED, "HCI Peri RESET cmd failed"},
+	{ BT_HOST_REASON_BT_ACTIVATE_CMD_STUCK, "BT activate cmd stuck"},
+	{ BT_HOST_REASON_BT_ACTIVATE_CMD_FAILED, "BT activate cmd failed"},
+	{ BT_HOST_REASON_PERI_GETVER_CMD_FAILED, "Peri Get Ver cmd failed"},
+	{ BT_HOST_REASON_PERI_PATCH_CONFIG_FAILED, "Peri Patch config cmd failed"},
+	{ BT_HOST_REASON_PERI_TLV_DOWNLOAD_FAILED, "Peri TLV/NVM download failed"},
+	{ BT_HOST_REASON_PERI_GETBOARDID_CMD_STUCK, "Peri Get BoardId Stuck"},
+	{ BT_HOST_REASON_PERI_NVM_PATCH_READ_STUCK, "Peri NVM file open/read stuck"},
+	{ BT_HOST_REASON_PERI_NVM_DNLD_STUCK, "Peri Nvm Dnld Stuck"},
+	{ BT_HOST_REASON_PERI_GETBLDINFO_CMD_FAILED, "Peri FW build info. cmd failed"},
+	{ BT_HOST_REASON_PERI_GETVER_NO_RSP_RCVD, "Peri Get Ver No Rsp Rcvd"},
+	{ BT_HOST_REASON_PERI_SETBAUDRATE_CMD_STUCK, "Peri Set baud rate stuck"},
+	{ BT_HOST_REASON_PERI_SETBAUD_CC_NOT_RCVD, "Peri set baudrate cc nor rcvd"},
+	{ PERI_SOC_REASON_DEFAULT, "Default"},
+};
+
+static UwbSecondaryReasonMap uwbSecReasonMap[] = {
+	{ UWB_SOC_REASON_DEFAULT, "Default"},
+	{ UWB_SOC_REASON_TX_RX_INVALID_PKT, "Tx/Rx Inavlid Packet"},
+	{ UWB_SOC_REASON_TX_RX_INVALID_PKT_LENE, "Tx/Rx Invalid Pkt Len"},
+	{ UWB_SOC_REASON_TX_RX_OVERFLOW_BUFF, "Tx/Rx Overflow Buffer"},
+	{ UWB_SOC_REASON_UNKNOWN, "Unknown"},
+	{ UWB_SOC_REASON_TX_RX_INVALID_PKT_FATAL, "Tx/Rx invalid packet fatal error"},
+	{ UWB_SOC_REASON_TX_RX_INVALID_LEN_FATAL, "Tx/Rx invalid length fatal error"},
+	{ UWB_SOC_REASON_TX_RX_OVERFLOW_BUFF, "Tx/Rx Overflow Buffer"},
+	{ UWB_SOC_REASON_SW_REQUESTED, "SW Requested"},
+	{ UWB_SOC_REASON_STACK_OVERFLOW, "Stack Overflow"},
+	{ UWB_SOC_REASON_EXCEPTION, "Exception"},
+	{ UWB_SOC_REASON_ASSERT, "Assert"},
+	{ UWB_SOC_REASON_TRAP, "Trap"},
+	{ UWB_SOC_REASON_OS_FATAL, "OS Fatal"},
+	{ UWB_SOC_REASON_HCI_RESET, "HCI Reset"},
+	{ UWB_SOC_REASON_PATCH_RESET, "Patch Reset"},
+	{ UWB_SOC_REASON_ABT, "SoC Abort"},
+	{ UWB_SOC_REASON_RAMMASK, "RAM MASK"},
+	{ UWB_SOC_REASON_PREBARK, "PREBARK"},
+	{ UWB_SOC_REASON_BUSERROR, "Bus error"},
+	{ UWB_SOC_REASON_IO_FATAL, "IO fatal eror"},
+	{ UWB_SOC_REASON_SSR_CMD, "SSR CMD"},
+	{ UWB_SOC_REASON_POWERON, "Power ON"},
+	{ UWB_SOC_REASON_WATCHDOG, "Watchdog"},
+	{ UWB_SOC_REASON_RAMMASK_RGN1, "RAMMASK RGN1"},
+	{ UWB_SOC_REASON_RAMMASK_RGN0, "RAMMASK RGN0"},
+	{ UWB_SOC_REASON_Q6_WATCHDOG, "Q6 Watchdog"},
+	{ UWB_SOC_REASON_ZEALIS_RAM_MASK_RGN0, "ZEALIS RAM MASK RGN0"},
+	{ UWB_SOC_REASON_ZEALIS_RAM_MASK_RGN1, "ZEALIS RAM MASK RGN1"},
+	{ UWB_SOC_REASON_APSS_RESET, "APSS reset"},
+	{ UWB_SOC_REASON_TIME_RESET, "Time reset"},
+	{ UWB_SOC_REASON_AUDIOSS_RESET, "Audioss reset"},
+	{ UWB_SOC_REASON_HOST_WARMRESET, "Host warm reset"},
+	{ UWB_SOC_REASON_HOST_NMI_INIT, "Host NMI init"},
+	{ UWB_SOC_REASON_INVALID_STACK, "Invalid Stack"},
+	{ UWB_HOST_REASON_PERI_GETVER_SEND_STUCK, "PeriGetVerSendStuck"},
+	{ UWB_HOST_REASON_UWB_GETVER_SEND_STUCK, "UwbGetVerSendStuck"},
+	{ UWB_HOST_REASON_TME_GETVER_SEND_STUCK, "TmeGetVerSendStuck"},
+	{ UWB_HOST_REASON_PERI_GETVER_NO_RSP_RCVD, "PeriGetVerNoRspRcvd"},
+	{ UWB_HOST_REASON_UWB_GETVER_NO_RSP_RCVD, "UwbGetVerNoRspRcvd"},
+	{ UWB_HOST_REASON_TME_GETVER_NO_RSP_RCVD, "TmeGetVerNoRspRcvd"},
+	{ UWB_HOST_REASON_PERI_PATCH_DNLD_STUCK, "PeriPatchDnldStuck"},
+	{ UWB_HOST_REASON_UWB_PATCH_DNLD_STUCK, "UwbPatchDnldStuck"},
+	{ UWB_HOST_REASON_TME_PATCH_DNLD_STUCK, "TmePatchDnldStuck"},
+	{ UWB_HOST_REASON_PERI_GETBOARDID_CMD_STUCK, "PeriGetBoardIdStuck"},
+	{ UWB_HOST_REASON_PERI_NVM_DNLD_STUCK, "PeriNvmDnldStuck"},
+	{ UWB_HOST_REASON_UWB_NVM_DNLD_STUCK, "UwbNvmDnldStuck"},
+	{ UWB_HOST_REASON_PERI_RESET_STUCK, "PeriResetStuck"},
+	{ UWB_HOST_REASON_UWB_RESET_STUCK, "UwbResetStuck"},
+	{ UWB_HOST_REASON_TME_RESET_STUCK, "TmeResetStuck"},
+	{ UWB_HOST_REASON_PERI_GETBLDINFO_CMD_STUCK, "PeriGetBldInfoCmdStuck"},
+	{ UWB_HOST_REASON_UWB_GETBLDINFO_CMD_STUCK, "UwbGetBldInfoCmdStuck"},
+	{ UWB_HOST_REASON_TME_GETBLDINFO_CMD_STUCK, "TmeGetBldInfoCmdStuck"},
+	{ UWB_HOST_REASON_PERI_ENHLOG_CMD_STUCK, "Peri EnhLogCmdStuck"},
+	{ UWB_HOST_REASON_UWB_ENHLOG_CMD_STUCK, "Uwb EnhLogCmdStuck"},
+	{ UWB_HOST_REASON_DIAGINIT_STUCK, "DiagInitStuck"},
+	{ UWB_HOST_REASON_DIAGDEINIT_STUCK, "DiagDeinitStuck"},
+	{ UWB_HOST_REASON_FAILED_TO_SEND_CMD, "Failed to send internal cmd"},
+	{ UWB_HOST_REASON_PERI_RESET_CC_NOT_RCVD, "Peri Reset Cmd CC Not Rcvd"},
+	{ UWB_HOST_REASON_UWB_RESET_CC_NOT_RCVD, "UWB Reset Cmd CC Not Rcvd"},
+	{ UWB_HOST_REASON_UWB_ACTIVATE_CC_NOT_RCVD, "UWB Activate Cmd CC Not Rcvd"},
+	{ UWB_HOST_REASON_TME_ACTIVATE_CC_NOT_RCVD, "TME DeActivate Cmd CC Not Rcvd"},
+	{ UWB_HOST_REASON_POWER_ON_REGS_STUCK, "SoC Power ON Sequence stuck"},
+	{ UWB_HOST_REASON_POWER_IOCTL_STUCK, "Power driver IOCTL stuck"},
+	{ UWB_HOST_REASON_RX_THREAD_START_STUCK, "RX thread start stuck"},
+	{ UWB_HOST_REASON_OTP_INFO_GET_CMD_STUCK, "Get OTP info. cmd stuck"},
+	{ UWB_HOST_REASON_FILE_SYSTEM_CALL_STUCK, "FILE system call stuck"},
+	{ UWB_HOST_REASON_PROPERTY_GET_STUCK, "Property get call stuck"},
+	{ UWB_HOST_REASON_PROPERTY_SET_STUCK, "Property set call stuck"},
+	{ UWB_HOST_REASON_PERI_RAM_PATCH_READ_STUCK, "Peri RAM patch open/read stuck"},
+	{ UWB_HOST_REASON_UWB_RAM_PATCH_READ_STUCK, "UWB RAM patch open/read stuck"},
+	{ UWB_HOST_REASON_PERI_NVM_PATCH_READ_STUCK, "Peri NVM file open/read stuck"},
+	{ UWB_HOST_REASON_UWB_NVM_PATCH_READ_STUCK, "UWB NVM file open/read stuck"},
+	{ UWB_HOST_REASON_PERI_PATCH_CONFIG_CMD_STUCK, "Peri Patch config cmd stuck"},
+	{ UWB_HOST_REASON_PERI_PATCH_CONFIG_FAILED, "Peri Patch config cmd failed"},
+	{ UWB_HOST_REASON_UWB_PATCH_CONFIG_CMD_STUCK, "Uwb Patch config cmd stuck"},
+	{ UWB_HOST_REASON_UWB_PATCH_CONFIG_CMD_FAILED, "Uwb Patch config cmd stuck"},
+	{ UWB_HOST_REASON_SOC_NAME_UNKOWN, "SoC name unkown"},
+	{ UWB_HOST_REASON_PERI_TLV_DOWNLOAD_FAILED, "Peri TLV/NVM download failed"},
+	{ UWB_HOST_REASON_PERI_GETBLDINFO_CMD_FAILED, "Peri FW build info. cmd failed"},
+	{ UWB_HOST_REASON_UWB_GETBLDINFO_CMD_FAILED, "UWB build info. cmd failed"},
+	{ UWB_HOST_REASON_PERI_RESET_CMD_FAILED, "HCI Peri RESET cmd failed"},
+	{ UWB_HOST_REASON_UWB_CORE_RESET_CMD_FAILED, "UWB Core RESET cmd failed"},
+	{ UWB_HOST_REASON_MEMORY_ALLOCATION_FAILED, "Memory allocation failed"},
+	{ UWB_HOST_REASON_READ_THREAD_START_FAILED, "Read thread start failed"},
+	{ UWB_HOST_REASON_HW_FLOW_ON_FAILED, "HW Flow ON failed"},
+	{ UWB_HOST_REASON_PERI_ACTIVATE_CMD_STUCK, "Peri actvate cmd stuck"},
+	{ UWB_HOST_REASON_PERI_ACTIVATE_NTF_STUCK, "Peri activate ntf stuck"},
+	{ UWB_HOST_REASON_PERI_ARBITRATION_CMD_STUCK, "Peri arbitration cmd stuck"},
+	{ UWB_HOST_REASON_PERI_ARBITRATION_NTF_STUCK, "Peri arbitration ntf stuck"},
+	{ UWB_HOST_REASON_INITIALIZATION_FAILED, "Initialization Failed"},
+	{ UWB_HOST_REASON_Q2SPI_INIT_STUCK, "Q2SPI Init stuck"},
+	{ UWB_HOST_REASON_Q2SPI_INIT_FAILED, "Q2SPI Init Failed"},
+	{ UWB_HOST_REASON_UWB_TLV_DOWNLOAD_FAILED, "Uwb TLV/NVM download failed"},
+	{ Q2SPI_REASON_DEFAULT, "Q2SPI reason Default"},
 };
 
 struct log_index {
