@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -164,8 +164,8 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 		else if (wcd_mbhc_cfg.enable_usbc_analog)
 			ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_AATC,
 							WCD_USBSS_CABLE_CONNECT);
-	}
 #endif
+	}
 	if (ret == 0)
 		return true;
 	else
