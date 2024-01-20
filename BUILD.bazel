@@ -52,7 +52,8 @@ ddk_headers(
     hdrs = glob([
             "glink_interface_ts/*.h"
         ]
-    )
+    ),
+    includes = ["glink_interface_ts"]
 )
 
 ddk_headers(
