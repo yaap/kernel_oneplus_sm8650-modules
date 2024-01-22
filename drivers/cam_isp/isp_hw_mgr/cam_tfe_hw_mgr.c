@@ -6511,7 +6511,7 @@ static int cam_tfe_hw_mgr_handle_hw_dump_info(
 		}
 	}
 
-	if (event_info->res_type == CAM_ISP_RESOURCE_VFE_OUT) {
+	if (event_info->res_type == CAM_ISP_RESOURCE_TFE_OUT) {
 		out_port_id = event_info->res_id & 0xFF;
 		if (out_port_id >= CAM_TFE_HW_OUT_RES_MAX) {
 			CAM_ERR(CAM_ISP,
@@ -6574,6 +6574,77 @@ static int cam_tfe_hw_mgr_check_and_notify_overflow(
 	}
 
 	return 0;
+}
+
+static int cam_tfe_hw_mgr_handle_tfe_err(
+	uint32_t                      err_type,
+	struct cam_isp_hw_event_info *event_info,
+	struct cam_tfe_hw_mgr_ctx    *ctx)
+{
+	struct cam_isp_hw_error_event_data       error_event_data = {0};
+	struct cam_tfe_hw_event_recovery_data    recovery_data = {0};
+	uint32_t core_idx;
+	int rc = -EINVAL;
+
+	switch (err_type) {
+	case CAM_TFE_IRQ_STATUS_VIOLATION:
+		error_event_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
+		break;
+	case CAM_TFE_IRQ_STATUS_OUT_OF_SYNC:
+		error_event_data.error_type = CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP;
+		if (ctx->try_recovery_cnt < MAX_TFE_INTERNAL_RECOVERY_ATTEMPTS) {
+			error_event_data.try_internal_recovery = true;
+			if (!atomic_read(&ctx->overflow_pending))
+				ctx->try_recovery_cnt++;
+
+			if (!ctx->recovery_req_id)
+				ctx->recovery_req_id = ctx->applied_req_id;
+		}
+		CAM_INFO(CAM_ISP,
+			"TFE: %u error: %u current_recovery_cnt: %u  recovery_req: %llu on ctx: %u",
+			event_info->hw_idx, error_event_data.error_type,
+			ctx->try_recovery_cnt, ctx->recovery_req_id,
+			ctx->ctx_index);
+		break;
+	default:
+		error_event_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
+		break;
+	}
+
+	cam_tfe_hw_mgr_handle_hw_dump_info(ctx, event_info);
+
+	core_idx = event_info->hw_idx;
+
+	if (g_tfe_hw_mgr.debug_cfg.enable_recovery)
+		error_event_data.recovery_enabled = true;
+	else
+		error_event_data.recovery_enabled = false;
+
+	rc = cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
+		core_idx, &recovery_data);
+
+	if (rc || !(recovery_data.no_of_context))
+		return rc;
+
+	if (event_info->res_type == CAM_ISP_RESOURCE_TFE_OUT)
+		return rc;
+
+	if (!error_event_data.try_internal_recovery && g_tfe_hw_mgr.debug_cfg.enable_recovery) {
+		/* Trigger for recovery */
+		if (err_type == CAM_TFE_IRQ_STATUS_VIOLATION)
+			recovery_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
+		else
+			recovery_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
+		cam_tfe_hw_mgr_do_error_recovery(&recovery_data);
+	} else {
+		CAM_DBG(CAM_ISP, "recovery enabled: %d, internal_recovery: %d, ctx: %d",
+			error_event_data.try_internal_recovery,
+			g_tfe_hw_mgr.debug_cfg.enable_recovery,
+			ctx->ctx_index);
+		rc = 0;
+	}
+
+	return rc;
 }
 
 static int cam_tfe_hw_mgr_handle_csid_event(
@@ -6654,10 +6725,7 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 	struct cam_isp_hw_error_event_info      *err_evt_info;
 	struct cam_tfe_hw_mgr_ctx               *tfe_hw_mgr_ctx;
 	struct cam_isp_hw_event_info            *event_info = evt_info;
-	struct cam_isp_hw_error_event_data       error_event_data = {0};
-	struct cam_tfe_hw_event_recovery_data    recovery_data = {0};
 	int    rc = -EINVAL;
-	uint32_t core_idx;
 
 	if (!event_info->event_data) {
 		CAM_ERR(CAM_ISP, "No error event data failed to process");
@@ -6678,81 +6746,22 @@ static int cam_tfe_hw_mgr_handle_hw_err(
 	}
 
 	err_evt_info = (struct cam_isp_hw_error_event_info *)event_info->event_data;
-	if (err_evt_info->err_type == CAM_TFE_IRQ_STATUS_VIOLATION)
-		error_event_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
-	else if (event_info->res_type == CAM_ISP_RESOURCE_TFE_IN ||
-		event_info->res_type == CAM_ISP_RESOURCE_PIX_PATH)
-		error_event_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
-	else if (event_info->res_type == CAM_ISP_RESOURCE_TFE_OUT)
-		error_event_data.error_type = CAM_ISP_HW_ERROR_BUSIF_OVERFLOW;
-	else if (err_evt_info->err_type == CAM_TFE_IRQ_STATUS_OUT_OF_SYNC) {
-		error_event_data.error_type = CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP;
-		if (tfe_hw_mgr_ctx->try_recovery_cnt < MAX_TFE_INTERNAL_RECOVERY_ATTEMPTS) {
-			error_event_data.try_internal_recovery = true;
-			if (!atomic_read(&tfe_hw_mgr_ctx->overflow_pending))
-				tfe_hw_mgr_ctx->try_recovery_cnt++;
-
-			if (!tfe_hw_mgr_ctx->recovery_req_id)
-				tfe_hw_mgr_ctx->recovery_req_id = tfe_hw_mgr_ctx->applied_req_id;
-		}
-
-		CAM_INFO(CAM_ISP,
-			"TFE: %u error: %u current_recovery_cnt: %u  recovery_req: %llu on ctx: %u",
-			event_info->hw_idx, error_event_data.error_type,
-			tfe_hw_mgr_ctx->try_recovery_cnt, tfe_hw_mgr_ctx->recovery_req_id,
-			tfe_hw_mgr_ctx->ctx_index);
-	}
 
 	spin_lock(&g_tfe_hw_mgr.ctx_lock);
-	/* CAM_ISP_RESOURCE_PIX_PATH denotes error event coming from CSID */
-	if (event_info->res_type == CAM_ISP_RESOURCE_PIX_PATH) {
+	switch (event_info->hw_type) {
+	case CAM_ISP_HW_TYPE_TFE_CSID:
 		rc = cam_tfe_hw_mgr_handle_csid_event(err_evt_info->err_type, event_info,
 			tfe_hw_mgr_ctx);
-		spin_unlock(&g_tfe_hw_mgr.ctx_lock);
-		return rc;
+		break;
+
+	case CAM_ISP_HW_TYPE_TFE:
+		rc = cam_tfe_hw_mgr_handle_tfe_err(err_evt_info->err_type, event_info,
+			tfe_hw_mgr_ctx);
+		break;
+
+	default:
+		CAM_ERR(CAM_ISP, "Error unhandled for hw_type: %d", event_info->hw_type);
 	}
-
-	if (event_info->res_type ==
-		CAM_ISP_RESOURCE_TFE_IN &&
-		!tfe_hw_mgr_ctx->is_rdi_only_context &&
-		event_info->res_id !=
-		CAM_ISP_HW_TFE_IN_CAMIF)
-		cam_tfe_hw_mgr_handle_hw_dump_info(
-			tfe_hw_mgr_ctx, event_info);
-
-	core_idx = event_info->hw_idx;
-
-	if (g_tfe_hw_mgr.debug_cfg.enable_recovery)
-		error_event_data.recovery_enabled = true;
-	else
-		error_event_data.recovery_enabled = false;
-
-	rc = cam_tfe_hw_mgr_find_affected_ctx(&error_event_data,
-		core_idx, &recovery_data);
-	if (rc || !(recovery_data.no_of_context))
-		goto end;
-
-	if (event_info->res_type == CAM_ISP_RESOURCE_TFE_OUT) {
-		spin_unlock(&g_tfe_hw_mgr.ctx_lock);
-		return rc;
-	}
-
-	if (!error_event_data.try_internal_recovery && g_tfe_hw_mgr.debug_cfg.enable_recovery) {
-		/* Trigger for recovery */
-		if (err_evt_info->err_type == CAM_TFE_IRQ_STATUS_VIOLATION)
-			recovery_data.error_type = CAM_ISP_HW_ERROR_VIOLATION;
-		else
-			recovery_data.error_type = CAM_ISP_HW_ERROR_OVERFLOW;
-		cam_tfe_hw_mgr_do_error_recovery(&recovery_data);
-	} else {
-		CAM_DBG(CAM_ISP, "recovery enabled: %d, internal_recovery: %d, ctx: %d",
-			error_event_data.try_internal_recovery,
-			g_tfe_hw_mgr.debug_cfg.enable_recovery,
-			tfe_hw_mgr_ctx->ctx_index);
-		rc = 0;
-	}
-
-end:
 	spin_unlock(&g_tfe_hw_mgr.ctx_lock);
 	return rc;
 }
