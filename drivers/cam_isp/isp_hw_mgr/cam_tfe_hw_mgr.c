@@ -2504,13 +2504,15 @@ free_res:
 	cam_tfe_hw_mgr_release_hw_for_ctx(tfe_ctx);
 	tfe_ctx->ctx_in_use = 0;
 	tfe_ctx->is_rdi_only_context = 0;
-	tfe_ctx->cdm_handle = 0;
-	tfe_ctx->cdm_ops = NULL;
 	tfe_ctx->init_done = false;
 	tfe_ctx->is_dual = false;
 free_cdm:
 	cam_cdm_release(tfe_ctx->cdm_handle);
+	tfe_ctx->cdm_handle = 0;
+	tfe_ctx->cdm_ops = NULL;
 free_ctx:
+	kfree(tfe_ctx->tfe_bus_comp_grp);
+	tfe_ctx->tfe_bus_comp_grp = NULL;
 	cam_tfe_hw_mgr_put_ctx(&tfe_hw_mgr->free_ctx_list, &tfe_ctx);
 	if (in_port) {
 		for (i = 0; i < acquire_hw_info->num_inputs; i++) {
@@ -2521,8 +2523,6 @@ free_ctx:
 		kfree(in_port);
 		in_port = NULL;
 	}
-	kfree(tfe_ctx->tfe_bus_comp_grp);
-	tfe_ctx->tfe_bus_comp_grp = NULL;
 err:
 	/* Dump all the current acquired HW */
 	cam_tfe_hw_mgr_dump_all_ctx();
