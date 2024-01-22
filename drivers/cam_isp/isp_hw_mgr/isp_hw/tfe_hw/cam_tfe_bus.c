@@ -1929,7 +1929,7 @@ static int cam_tfe_bus_rup_bottom_half(
 			break;
 
 		if (evt_payload->bus_irq_val[0] & BIT(i)) {
-			for (j = 0; j < CAM_TFE_BUS_TFE_OUT_MAX; j++) {
+			for (j = 0; j < bus_priv->num_out; j++) {
 				out_rsrc_data =
 					(struct cam_tfe_bus_tfe_out_data *)
 					bus_priv->tfe_out[j].res_priv;
@@ -1942,7 +1942,7 @@ static int cam_tfe_bus_rup_bottom_half(
 					break;
 			}
 
-			if (j == CAM_TFE_BUS_TFE_OUT_MAX) {
+			if (j == bus_priv->num_out) {
 				CAM_ERR(CAM_ISP,
 					"TFE:%d out rsc active status[0]:0x%x",
 					bus_priv->common_data.core_index,
@@ -3180,7 +3180,7 @@ int cam_tfe_bus_deinit(
 				"Deinit Comp Grp failed rc=%d", rc);
 	}
 
-	for (i = 0; i < CAM_TFE_BUS_TFE_OUT_MAX; i++) {
+	for (i = 0; i < bus_priv->num_out; i++) {
 		rc = cam_tfe_bus_deinit_tfe_out_resource(
 			&bus_priv->tfe_out[i]);
 		if (rc < 0)
