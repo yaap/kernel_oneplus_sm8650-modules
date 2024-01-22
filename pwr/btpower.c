@@ -56,7 +56,7 @@
 #define BTPOWER_MBOX_TIMEOUT_MS 1000
 #define XO_CLK_RETRY_COUNT_MAX 5
 #define MAX_PROP_SIZE 32
-#define BTPOWER_CONFIG_MAX_TIMEOUT 500
+#define BTPOWER_CONFIG_MAX_TIMEOUT 600
 
 #define SIGIO_OOBS_SINGAL        0x00010000
 #define SIGIO_INTERACTION_SIGNAL 0x00020000
@@ -2206,7 +2206,7 @@ int schedule_client_voting(enum plt_pwr_state request)
 	*status = PWR_WAITING_RSP;
 	skb_put_data(skb, &req, sizeof(uint32_t));
 	skb_queue_tail(&pwr_data->rxq, skb);
-	schedule_work(&pwr_data->wq_pwr_voting);
+	queue_work(system_highpri_wq, &pwr_data->wq_pwr_voting);
 	mutex_unlock(&pwr_data->pwr_mtx);
 	ret = wait_event_interruptible_timeout(*rsp_wait_q, (*status) != PWR_WAITING_RSP,
 					       msecs_to_jiffies(BTPOWER_CONFIG_MAX_TIMEOUT));
