@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1226,6 +1226,112 @@ static int wcd9378_tx_swr_ctrl(struct snd_soc_dapm_widget *w,
 
 	return ret;
 }
+
+static int wcd9378_tx_num_get(struct snd_soc_component *component,
+				int micb_num)
+{
+	int sm_num = 0;
+	struct wcd9378_priv *wcd9378 =
+			snd_soc_component_get_drvdata(component);
+
+	for (sm_num = SIM_MIC0; sm_num <= SIM_MIC2; sm_num++) {
+		if (wcd9378->micb_sel[sm_num] == micb_num) {
+			if (sm_num == SIM_MIC0)
+				return ADC1;
+			else if (sm_num == SIM_MIC1)
+				return ADC2;
+			else if (sm_num == SIM_MIC2)
+				return ADC3;
+			else
+				return -EINVAL;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int wcd9378_codec_enable_micbias(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *kcontrol,
+					int event)
+{
+	struct snd_soc_component *component =
+			snd_soc_dapm_to_component(w->dapm);
+	int micb_num = 0, tx_num = 0;
+
+	dev_dbg(component->dev, "%s: wname: %s, event: %d\n",
+		__func__, w->name, event);
+
+	if (strnstr(w->name, "MIC BIAS1", sizeof("MIC BIAS1")))
+		micb_num = MIC_BIAS_1;
+	else if (strnstr(w->name, "MIC BIAS2", sizeof("MIC BIAS2")))
+		micb_num = MIC_BIAS_2;
+	else if (strnstr(w->name, "MIC BIAS3", sizeof("MIC BIAS3")))
+		micb_num = MIC_BIAS_3;
+	else
+		return -EINVAL;
+
+	tx_num = wcd9378_tx_num_get(component, micb_num);
+	if (tx_num < 0)
+		pr_err("%s: SM MB SEL should be set properly\n", __func__);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		wcd9378_micbias_control(component, tx_num,
+				MICB_ENABLE, true);
+		break;
+	case SND_SOC_DAPM_POST_PMU:
+		usleep_range(1000, 1100);
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		wcd9378_micbias_control(component, tx_num,
+				MICB_DISABLE, true);
+		break;
+	};
+
+	return 0;
+}
+
+static int wcd9378_codec_enable_micbias_pullup(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *kcontrol,
+					int event)
+{
+	struct snd_soc_component *component =
+			snd_soc_dapm_to_component(w->dapm);
+	int micb_num = 0, tx_num = 0;
+
+	dev_dbg(component->dev, "%s: wname: %s, event: %d\n",
+		__func__, w->name, event);
+
+	if (strnstr(w->name, "VA MIC BIAS1", sizeof("VA MIC BIAS1")))
+		micb_num = MIC_BIAS_1;
+	else if (strnstr(w->name, "VA MIC BIAS2", sizeof("VA MIC BIAS2")))
+		micb_num = MIC_BIAS_2;
+	else if (strnstr(w->name, "VA MIC BIAS3", sizeof("VA MIC BIAS3")))
+		micb_num = MIC_BIAS_3;
+	else
+		return -EINVAL;
+
+	tx_num = wcd9378_tx_num_get(component, micb_num);
+	if (tx_num < 0)
+		pr_err("%s: SM MB SEL should be set properly\n", __func__);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		wcd9378_micbias_control(component, tx_num,
+				MICB_PULLUP_ENABLE, true);
+		break;
+	case SND_SOC_DAPM_POST_PMU:
+		usleep_range(1000, 1100);
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		wcd9378_micbias_control(component, tx_num,
+				MICB_PULLUP_ENABLE, true);
+		break;
+	};
+
+	return 0;
+}
+
 
 /*
  * wcd9378_soc_get_mbhc: get wcd9378_mbhc handle of corresponding component
@@ -3498,6 +3604,34 @@ static const struct snd_soc_dapm_widget wcd9378_dapm_widgets[] = {
 	SND_SOC_DAPM_MIXER_E("DMIC6_MIXER", SND_SOC_NOPM, DMIC6,
 				0, dmic6_switch, ARRAY_SIZE(dmic6_switch),
 				wcd9378_tx_swr_ctrl, SND_SOC_DAPM_PRE_PMU |
+				SND_SOC_DAPM_POST_PMD),
+
+	/* micbias widgets*/
+	SND_SOC_DAPM_SUPPLY("MIC BIAS1", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_SUPPLY("MIC BIAS2", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_SUPPLY("MIC BIAS3", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+
+	/* micbias pull up widgets*/
+	SND_SOC_DAPM_SUPPLY("VA MIC BIAS1", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias_pullup,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_SUPPLY("VA MIC BIAS2", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias_pullup,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_SUPPLY("VA MIC BIAS3", SND_SOC_NOPM, 0, 0,
+				wcd9378_codec_enable_micbias_pullup,
+				SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
 				SND_SOC_DAPM_POST_PMD),
 
 	/* rx mixer widgets*/
