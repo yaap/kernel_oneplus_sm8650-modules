@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/of_device.h>
+#include <linux/soc/qcom/fsa4480-i2c.h>
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 #include <linux/soc/qcom/wcd939x-i2c.h>
 #endif
@@ -34,10 +35,12 @@
 #include "asoc/msm-cdc-pinctrl.h"
 #include "asoc/wcd-mbhc-v2.h"
 #include "codecs/wcd937x/wcd937x-mbhc.h"
+#include "codecs/wcd9378/wcd9378-mbhc.h"
 #include "codecs/wcd939x/wcd939x-mbhc.h"
 #include "codecs/wsa884x/wsa884x.h"
 #include "codecs/wsa883x/wsa883x.h"
 #include "codecs/wcd937x/wcd937x.h"
+#include "codecs/wcd9378/wcd9378.h"
 #include "codecs/wcd939x/wcd939x.h"
 #include "codecs/lpass-cdc/lpass-cdc.h"
 #include <bindings/audio-codec-port-types.h>
@@ -69,6 +72,7 @@
 enum {
 	WCD937X_DEV_INDEX,
 	WCD939X_DEV_INDEX,
+	WCD9378_DEV_INDEX,
 };
 
 struct msm_asoc_mach_data {
@@ -81,6 +85,7 @@ struct msm_asoc_mach_data {
 	struct device_node *dmic67_gpio_p; /* used by pinctrl API */
 	struct pinctrl *usbc_en2_gpio_p; /* used by pinctrl API */
 	bool is_afe_config_done;
+	struct device_node *fsa_handle;
 	struct device_node *wcd_usbss_handle;
 	struct clk *lpass_audio_hw_vote;
 	int core_audio_vote_count;
@@ -105,6 +110,7 @@ static void *def_wcd_mbhc_cal(void);
 
 static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa_init(struct snd_soc_pcm_runtime*);
+static int msm_int_wsa881x_init(struct snd_soc_pcm_runtime *);
 static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa883x_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa2_init(struct snd_soc_pcm_runtime *);
@@ -140,23 +146,30 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 
 static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool active)
 {
-	bool ret = false;
+	int ret = 0;
 	struct snd_soc_card *card = component->card;
 	struct msm_asoc_mach_data *pdata =
 				snd_soc_card_get_drvdata(card);
 
-	if (!pdata->wcd_usbss_handle)
+	if (!pdata->fsa_handle && !pdata->wcd_usbss_handle)
 		return false;
 
+	if (pdata->fsa_handle) {
+		ret = fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	} else {
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
-	if (wcd_mbhc_cfg.usbss_hsj_connect_enable)
-		ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_HSJ,
+		if (wcd_mbhc_cfg.usbss_hsj_connect_enable)
+			ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_HSJ,
 							WCD_USBSS_CABLE_CONNECT);
-	else if (wcd_mbhc_cfg.enable_usbc_analog)
-		ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_AATC,
+		else if (wcd_mbhc_cfg.enable_usbc_analog)
+			ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_AATC,
 							WCD_USBSS_CABLE_CONNECT);
+	}
 #endif
-	return ret;
+	if (ret == 0)
+		return true;
+	else
+		return false;
 }
 
 static void msm_parse_upd_configuration(struct platform_device *pdev,
@@ -238,6 +251,8 @@ static void msm_set_upd_config(struct snd_soc_pcm_runtime *rtd)
 	} else {
 		if (pdata->wcd_used == WCD937X_DEV_INDEX)
 			strscpy(wcd_name, WCD937X_DRV_NAME, sizeof(WCD937X_DRV_NAME));
+		else if (pdata->wcd_used == WCD9378_DEV_INDEX)
+			strscpy(wcd_name, WCD9378_DRV_NAME, sizeof(WCD9378_DRV_NAME));
 		else
 			strscpy(wcd_name, WCD939X_DRV_NAME, sizeof(WCD939X_DRV_NAME));
 
@@ -256,7 +271,9 @@ static void msm_set_upd_config(struct snd_soc_pcm_runtime *rtd)
 	} else {
 		if (pdata->wcd_used == WCD937X_DEV_INDEX) {
 			pdata->get_dev_num = wcd937x_codec_get_dev_num;
-		} else if (pdata->wcd_used == WCD939X_DEV_INDEX) {
+		} else if (pdata->wcd_used == WCD9378_DEV_INDEX) {
+			pdata->get_dev_num = wcd9378_codec_get_dev_num;
+		} else {
 			pdata->get_dev_num = wcd939x_codec_get_dev_num;
 		}
 	}
@@ -613,6 +630,42 @@ static struct snd_soc_dai_link msm_wcn_be_dai_links[] = {
 		SND_SOC_DAILINK_REG(slimbus_7_tx),
 	},
 };
+
+static struct snd_soc_dai_link msm_wcn_btfm_be_dai_links[] = {
+	{
+		.name = LPASS_BE_SLIMBUS_7_RX,
+		.stream_name = LPASS_BE_SLIMBUS_7_RX,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.init = &msm_wcn_init,
+		.ops = &msm_common_be_ops,
+		/* dai link has playback support */
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(slimbus_7_rx),
+	},
+	{
+		.name = LPASS_BE_SLIMBUS_7_TX,
+		.stream_name = LPASS_BE_SLIMBUS_7_TX,
+		.capture_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ops = &msm_common_be_ops,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(slimbus_7_tx),
+	},
+	{
+		.name = LPASS_BE_SLIMBUS_8_TX,
+		.stream_name = LPASS_BE_SLIMBUS_8_TX,
+		.capture_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ops = &msm_common_be_ops,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(slimbus_8_tx),
+	},
+};
 #else
 static struct snd_soc_dai_link msm_wcn_be_dai_links[] = {
         {
@@ -854,6 +907,7 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 		.ignore_suspend = 1,
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(rx_dma_rx1),
+		.init = &msm_int_wsa881x_init,
 	},
 	{
 		.name = LPASS_BE_RX_CDC_DMA_RX_2,
@@ -1274,7 +1328,7 @@ static struct snd_soc_dai_link msm_pineapple_dai_links[
 			ARRAY_SIZE(msm_va_cdc_dma_be_dai_links) +
 			ARRAY_SIZE(ext_disp_be_dai_link) +
 			ARRAY_SIZE(msm_common_be_dai_links) +
-			ARRAY_SIZE(msm_wcn_be_dai_links) +
+			ARRAY_SIZE(msm_wcn_btfm_be_dai_links) +
 			ARRAY_SIZE(msm_mi2s_dai_links) +
 			ARRAY_SIZE(msm_tdm_dai_links)];
 
@@ -1457,6 +1511,8 @@ static int msm_snd_card_late_probe(struct snd_soc_card *card)
 
 	if (pdata->wcd_used == WCD937X_DEV_INDEX)
 		strscpy(wcd_name, WCD937X_DRV_NAME, sizeof(WCD937X_DRV_NAME));
+	else if (pdata->wcd_used == WCD9378_DEV_INDEX)
+		strscpy(wcd_name, WCD9378_DRV_NAME, sizeof(WCD9378_DRV_NAME));
 	else
 		strscpy(wcd_name, WCD939X_DRV_NAME, sizeof(WCD939X_DRV_NAME));
 
@@ -1480,6 +1536,9 @@ static int msm_snd_card_late_probe(struct snd_soc_card *card)
 	switch (pdata->wcd_used) {
 	case WCD937X_DEV_INDEX:
 		ret = wcd937x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
+		break;
+	case WCD9378_DEV_INDEX:
+		ret = wcd9378_mbhc_hs_detect(component, &wcd_mbhc_cfg);
 		break;
 	case WCD939X_DEV_INDEX:
 		ret = wcd939x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
@@ -1613,6 +1672,16 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 			       msm_wcn_be_dai_links,
 			       sizeof(msm_wcn_be_dai_links));
 			total_links += ARRAY_SIZE(msm_wcn_be_dai_links);
+		} else {
+			rc = of_property_read_u32(dev->of_node, "qcom,wcn-btfm", &val);
+			if (!rc && val) {
+				dev_dbg(dev, "%s(): WCN BT FM support present\n",
+					__func__);
+				memcpy(msm_pineapple_dai_links + total_links,
+				       msm_wcn_btfm_be_dai_links,
+				       sizeof(msm_wcn_btfm_be_dai_links));
+				total_links += ARRAY_SIZE(msm_wcn_btfm_be_dai_links);
+			}
 		}
 
 		dailink = msm_pineapple_dai_links;
@@ -1805,6 +1874,19 @@ static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int msm_int_wsa881x_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct msm_asoc_mach_data *pdata =
+		snd_soc_card_get_drvdata(rtd->card);
+
+	if (pdata->wsa_max_devs == 0)
+		pr_info("%s: WSA is not enabled\n", __func__);
+
+	msm_common_dai_link_init(rtd);
+
+	return 0;
+
+}
 static int msm_int_wsa_init(struct snd_soc_pcm_runtime *rtd)
 {
 	if (strstr(rtd->card->name, "wsa883x"))
@@ -1990,11 +2072,17 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	if (!component) {
 		component = snd_soc_rtdcom_lookup(rtd, WCD937X_DRV_NAME);
 		if (!component) {
-			pr_err("%s component is NULL\n", __func__);
-			ret = -EINVAL;
-			goto exit;
+			component = snd_soc_rtdcom_lookup(rtd, WCD9378_DRV_NAME);
+			if (!component) {
+				pr_err("%s component is NULL\n", __func__);
+				ret = -EINVAL;
+				goto exit;
+			} else {
+				pdata->wcd_used = WCD9378_DEV_INDEX;
+			}
+		} else {
+			pdata->wcd_used = WCD937X_DEV_INDEX;
 		}
-		pdata->wcd_used = WCD937X_DEV_INDEX;
 	} else {
 		pdata->wcd_used = WCD939X_DEV_INDEX;
 	}
@@ -2028,14 +2116,18 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		wcd937x_info_create_codec_entry(pdata->codec_root, component);
 		codec_variant = wcd937x_get_codec_variant(component);
 		dev_dbg(component->dev, "%s: variant %d\n", __func__, codec_variant);
+	} else if (pdata->wcd_used == WCD9378_DEV_INDEX) {
+		wcd9378_info_create_codec_entry(pdata->codec_root, component);
 	} else {
 		wcd939x_info_create_codec_entry(pdata->codec_root, component);
 		codec_variant = wcd939x_get_codec_variant(component);
 		dev_dbg(component->dev, "%s: variant %d\n", __func__, codec_variant);
+#ifdef CONFIG_BOLERO_VER_2P6
 		if (codec_variant == WCD9395)
 			ret = lpass_cdc_rx_set_fir_capability(lpass_cdc_component, true);
 		else
 			ret = lpass_cdc_rx_set_fir_capability(lpass_cdc_component, false);
+#endif
 	}
 
 	if (ret < 0) {
@@ -2293,6 +2385,12 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	if (wcd_mbhc_cfg.enable_usbc_analog)
 		wcd_mbhc_cfg.swap_gnd_mic = msm_usbc_swap_gnd_mic;
+
+	pdata->fsa_handle = of_parse_phandle(pdev->dev.of_node,
+					"fsa4480-i2c-handle", 0);
+	if (!pdata->fsa_handle)
+		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
+			"fsa4480-i2c-handle", pdev->dev.of_node->full_name);
 
 	pdata->wcd_usbss_handle = of_parse_phandle(pdev->dev.of_node,
 					"wcd939x-i2c-handle", 0);

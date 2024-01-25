@@ -29,11 +29,18 @@ PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/swr_dmic_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/lpass_cdc_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wsa884x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wsa883x_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd937x_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd937x_slave_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko
-ifneq ($(call is-board-platform-in-list,niobe), true)
+ifneq ($(call is-board-platform-in-list,niobe pitti), true)
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/wcd939x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd939x_slave_dlkm.ko
+endif
+ifeq ($(call is-board-platform-in-list, pitti), true)
+PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/wsa881x_analog_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd9378_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/wcd9378_slave_dlkm.ko
 endif
 endif
 ifeq ($(call is-board-platform-in-list,bengal holi blair), true)

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _LINUX_SOUNDWIRE_H
@@ -269,6 +270,7 @@ struct swr_device {
 	struct device    dev;
 	u64 addr;
 	u8 group_id;
+	bool paging_support;
 	struct irq_domain *slave_irq;
 	bool slave_irq_pending;
 };
