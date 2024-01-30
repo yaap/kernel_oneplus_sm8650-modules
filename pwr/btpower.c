@@ -1545,7 +1545,7 @@ static int bt_power_probe(struct platform_device *pdev)
 
 	pwr_data->is_ganges_dt = of_property_read_bool(pdev->dev.of_node,
 							"qcom,peach-bt");
-	pwr_data->is_ganges_dt = true;
+
 	pr_info("%s: is_ganges_dt = %d\n", __func__, pwr_data->is_ganges_dt);
 
 	pwr_data->workq = alloc_workqueue("workq", WQ_HIGHPRI, WQ_DFL_ACTIVE);
