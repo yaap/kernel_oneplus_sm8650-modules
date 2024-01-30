@@ -88,7 +88,7 @@ module_entry(
 
 #define ddk_module() for glink_interface_ts
 module_entry(
-    name = "glink_interface_ts",
+    name = "glink_comm",
     config_option = "CONFIG_TOUCHSCREEN_MSM_GLINK",
     srcs = [
             "glink_interface_ts/glink_interface.c"

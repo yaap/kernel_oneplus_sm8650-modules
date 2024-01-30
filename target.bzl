@@ -70,7 +70,7 @@ def define_monaco(t,v):
         variant = v,
         registry = touch_driver_modules,
         modules = [
-	    "glink_interface_ts",
+	    "glink_comm",
             "pt_ts",
             "pt_i2c",
             "pt_device_access",
