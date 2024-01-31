@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -162,8 +162,6 @@ enum {
 	ADC_MODE_HIFI,
 	ADC_MODE_NORMAL,
 	ADC_MODE_LP,
-	ADC_MODE_ULP1,
-	ADC_MODE_ULP2,
 };
 
 static const SNDRV_CTL_TLVD_DECLARE_DB_MINMAX(ear_pa_gain, 600, -1800);
@@ -904,33 +902,6 @@ static int wcd9378_get_clk_rate(int mode)
 	return rate;
 }
 
-static int wcd9378_set_swr_clk_rate(struct snd_soc_component *component,
-					int rate, int bank)
-{
-	u8 mask = (bank ? 0xF0 : 0x0F);
-	u8 val = 0;
-
-	switch (rate) {
-	case SWR_CLK_RATE_2P4MHZ:
-		val = (bank ? 0x30 : 0x03);
-		break;
-	case SWR_CLK_RATE_4P8MHZ:
-		val = (bank ? 0x10 : 0x01);
-		break;
-	case SWR_CLK_RATE_9P6MHZ:
-	default:
-		val = 0x00;
-		break;
-	}
-	dev_dbg(component->dev,
-		"%s: rate: 0x%0x\n", __func__, val);
-
-	snd_soc_component_update_bits(component, WCD9378_SWR_TX_CLK_RATE,
-				      mask, val);
-
-	return 0;
-}
-
 static int wcd9378_get_adc_mode_val(int mode)
 {
 	int ret = 0;
@@ -980,12 +951,10 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 		}
 
 		rate = wcd9378_get_clk_rate(wcd9378->tx_mode[w->shift - ADC1]);
-
 		if (w->shift == ADC2 && !((snd_soc_component_read(component,
 				WCD9378_TX_NEW_TX_CH12_MUX) &
 				WCD9378_TX_NEW_TX_CH12_MUX_CH2_SEL_MASK) == 0x10)) {
 			if (!wcd9378->bcs_dis) {
-				dev_err(component->dev, "%s: mbhc connect port enter\n", __func__);
 				wcd9378_tx_connect_port(component, MBHC,
 					SWR_CLK_RATE_4P8MHZ, true);
 				set_bit(AMIC2_BCS_ENABLE, &wcd9378->status_mask);
@@ -1004,7 +973,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 					MICB_ENABLE, true);
 		switch (w->shift) {
 		case ADC1:
-			dev_dbg(component->dev, "%s ADC1 enter\n", __func__);
 			/*SMP MIC0 IT11 USAGE SET*/
 			snd_soc_component_update_bits(component, WCD9378_IT11_USAGE,
 						WCD9378_IT11_USAGE_IT11_USAGE_MASK, mode_val);
@@ -1020,7 +988,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 			break;
 		case ADC2:
 			if (wcd9378->sjmic_support) {
-				dev_dbg(component->dev, "%s SJ ADC2 enter\n", __func__);
 				/*SMP JACK IT31 USAGE SET*/
 				snd_soc_component_update_bits(component,
 						WCD9378_IT31_USAGE,
@@ -1030,7 +997,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 						WCD9378_PDE34_REQ_PS,
 						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, 0x00);
 			} else {
-				dev_dbg(component->dev, "%s SM1 ADC2 enter\n", __func__);
 				/*SMP MIC1 IT11 USAGE SET*/
 				snd_soc_component_update_bits(component,
 						WCD9378_SMP_MIC_CTRL1_IT11_USAGE,
@@ -1049,7 +1015,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 			}
 			break;
 		case ADC3:
-			dev_dbg(component->dev, "%s SM2 ADC3 enter\n", __func__);
 			/*SMP MIC2 IT11 USAGE SET*/
 			snd_soc_component_update_bits(component,
 						WCD9378_SMP_MIC_CTRL2_IT11_USAGE,
@@ -1069,47 +1034,30 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 		}
 		/*default delay 800us*/
 		usleep_range(800, 810);
-		/****ADC START*****/
-		wcd9378_set_swr_clk_rate(component, rate, bank);
 
 		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, TX_PATH, true);
-
 		ret = swr_slvdev_datapath_control(wcd9378->tx_swr_dev,
 				wcd9378->tx_swr_dev->dev_num,
 				true);
-
-		/* Copy clk settings to active bank */
-		wcd9378_set_swr_clk_rate(component, rate, !bank);
-
 		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, TX_PATH, true);
-		/****ADC END*****/
 
 		switch (w->shift) {
 		case ADC1:
 			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH2,
 						WCD9378_ANA_TX_CH2_HPF1_INIT_MASK, 0x00);
+
+			act_ps = snd_soc_component_read(component, WCD9378_PDE11_ACT_PS);
+			if (act_ps)
+				dev_dbg(component->dev, "%s: tx0 sequencer didnot power on, act_ps: 0x%0x\n",
+								__func__, act_ps);
+			else
+				dev_dbg(component->dev, "%s: tx0 sequencer power on successful, act_ps: 0x%0x\n",
+								__func__, act_ps);
 			break;
 		case ADC2:
 			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH2,
 						WCD9378_ANA_TX_CH2_HPF2_INIT_MASK, 0x00);
-			break;
-		case ADC3:
-			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH3_HPF,
-						WCD9378_ANA_TX_CH3_HPF_HPF3_INIT_MASK, 0x00);
-			break;
-		};
 
-		if (w->shift == ADC1) {
-			act_ps = snd_soc_component_read(component, WCD9378_PDE11_ACT_PS);
-			if (act_ps)
-				pr_err("%s: tx0 sequencer didnot power on, act_ps: 0x%0x\n",
-								__func__, act_ps);
-			else
-				pr_err("%s: tx0 sequencer power on successful, act_ps: 0x%0x\n",
-								__func__, act_ps);
-		}
-
-		if (w->shift == ADC2) {
 			if (wcd9378->sjmic_support)
 				act_ps = snd_soc_component_read(component,
 							WCD9378_PDE34_ACT_PS);
@@ -1118,15 +1066,28 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 							WCD9378_SMP_MIC_CTRL1_PDE11_ACT_PS);
 
 			if (act_ps)
-				pr_err("%s: tx1 sequencer didnot power on, act_ps: 0x%0x\n",
+				dev_dbg(component->dev, "%s: tx1 sequencer didnot power on, act_ps: 0x%0x\n",
 									__func__, act_ps);
 			else
-				pr_err("%s: tx1 sequencer power on successful, act_ps: 0x%0x\n",
+				dev_dbg(component->dev, "%s: tx1 sequencer power on successful, act_ps: 0x%0x\n",
 									__func__, act_ps);
-		}
+			break;
+		case ADC3:
+			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH3_HPF,
+						WCD9378_ANA_TX_CH3_HPF_HPF3_INIT_MASK, 0x00);
+
+			act_ps = snd_soc_component_read(component,
+						WCD9378_SMP_MIC_CTRL2_PDE11_ACT_PS);
+			if (act_ps)
+				dev_dbg(component->dev, "%s: tx2 sequencer didnot power on, act_ps: 0x%0x\n",
+								__func__, act_ps);
+			else
+				dev_dbg(component->dev, "%s: tx2 sequencer power on successful, act_ps: 0x%0x\n",
+								__func__, act_ps);
+			break;
+		};
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		/****ADC START****/
 		wcd9378_tx_connect_port(component, w->shift, 0, false);
 		if (w->shift == ADC2 &&
 			test_bit(AMIC2_BCS_ENABLE, &wcd9378->status_mask)) {
@@ -1134,8 +1095,6 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 					false);
 			clear_bit(AMIC2_BCS_ENABLE, &wcd9378->status_mask);
 		}
-
-		/****ADC END****/
 
 		switch (w->shift) {
 		case ADC1:
@@ -1176,18 +1135,11 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 		/*default delay 800us*/
 		usleep_range(800, 810);
 
-		rate = wcd9378_get_clk_rate(wcd9378->tx_mode[w->shift - ADC1]);
-
-		wcd9378_set_swr_clk_rate(component, rate, bank);
-
 		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, TX_PATH, false);
-
 		ret = swr_slvdev_datapath_control(wcd9378->tx_swr_dev,
 				wcd9378->tx_swr_dev->dev_num,
 				false);
 		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, TX_PATH, false);
-
-		wcd9378_set_swr_clk_rate(component, rate, !bank);
 
 		if (wcd9378->va_amic_en)
 			wcd9378_micbias_control(component, w->shift,
@@ -1391,12 +1343,11 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
 		if (act_ps)
-			pr_err("%s: hph sequencer didnot power on, act_ps: 0x%0x\n",
+			dev_dbg(component->dev, "%s: hph sequencer didnot power on, act_ps: 0x%0x\n",
 							__func__, act_ps);
 		else
-			pr_err("%s: hph sequencer power on successful, act_ps: 0x%0x\n",
+			dev_dbg(component->dev, "%s: hph sequencer power on successful, act_ps: 0x%0x\n",
 							__func__, act_ps);
-
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (wcd9378->update_wcd_event)
@@ -1436,6 +1387,7 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
 	int ret;
+	int act_ps = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1453,6 +1405,14 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX2 << 0x10));
+
+		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
+		if (act_ps)
+			dev_dbg(component->dev, "%s: hph sequencer didnot power on, act_ps: 0x%0x\n",
+							__func__, act_ps);
+		else
+			dev_dbg(component->dev, "%s: hph sequencer power on successful, act_ps: 0x%0x\n",
+							__func__, act_ps);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (wcd9378->update_wcd_event)
@@ -1494,6 +1454,7 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 	int bank = 0;
+	int act_ps = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1528,6 +1489,14 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 							SLV_BOLERO_EVT_RX_MUTE,
 							(WCD_RX3 << 0x10));
 		}
+
+		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
+		if (act_ps)
+			dev_dbg(component->dev, "%s: sa sequencer didnot power on, act_ps: 0x%0x\n",
+							__func__, act_ps);
+		else
+			dev_dbg(component->dev, "%s: sa sequencer power on successful, act_ps: 0x%0x\n",
+							__func__, act_ps);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (wcd9378->aux_rx_path & AUX_RX_PATH_RX1) {
@@ -1591,10 +1560,10 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 
 		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
 		if (act_ps)
-			pr_err("%s: sa sequencer didnot power on, act_ps: 0x%0x\n",
+			dev_dbg(component->dev, "%s: sa sequencer didnot power on, act_ps: 0x%0x\n",
 							__func__, act_ps);
 		else
-			pr_err("%s: sa sequencer power on successful, act_ps: 0x%0x\n",
+			dev_dbg(component->dev, "%s: sa sequencer power on successful, act_ps: 0x%0x\n",
 							__func__, act_ps);
 
 		break;
@@ -1669,6 +1638,7 @@ static int wcd9378_swr_slave_clk_set(struct device *dev, int bank, int path, boo
 {
 	u16 clk_scale_reg = 0;
 	u8 clk_rst = 0x00, scale_rst = 0x00;
+	u8 swr_base_clk = 0, swr_clk_scale = 0;
 	struct wcd9378_priv *wcd9378 = NULL;
 	struct swr_device *swr_dev = NULL;
 
@@ -1676,23 +1646,24 @@ static int wcd9378_swr_slave_clk_set(struct device *dev, int bank, int path, boo
 	if (!wcd9378)
 		return -EINVAL;
 
-	if (path == RX_PATH)
+	if (path == RX_PATH) {
 		swr_dev = wcd9378->rx_swr_dev;
-	else
+		swr_base_clk = wcd9378->swr_base_clk;
+		swr_clk_scale = wcd9378->swr_clk_scale;
+	} else {
 		swr_dev = wcd9378->tx_swr_dev;
+		swr_base_clk = SWR_BASECLK_19P2MHZ;
+		swr_clk_scale = SWR_CLKSCALE_DIV2;
+	}
 
 	clk_scale_reg = (bank ? SWRS_SCP_BUSCLOCK_SCALE_BANK1 :
 				SWRS_SCP_BUSCLOCK_SCALE_BANK0);
 
 	if (enable) {
-		pr_debug("%s: bank: %d	base_clk: 0x%0x, clk_scale_reg: 0x%0x, swr_clk_scale: 0x%0x\n",
-				__func__, bank, wcd9378->swr_base_clk,
-				clk_scale_reg, wcd9378->swr_clk_scale);
-
 		swr_write(swr_dev, swr_dev->dev_num,
-				SWRS_SCP_BASE_CLK_BASE, &wcd9378->swr_base_clk);
+				SWRS_SCP_BASE_CLK_BASE, &swr_base_clk);
 		swr_write(swr_dev, swr_dev->dev_num,
-				clk_scale_reg, &wcd9378->swr_clk_scale);
+				clk_scale_reg, &swr_clk_scale);
 	} else {
 		swr_write(swr_dev, swr_dev->dev_num,
 				SWRS_SCP_BASE_CLK_BASE, &clk_rst);
@@ -1887,8 +1858,6 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 
 			wcd9378_rx_connect_port(component, LO, true);
 		}
-
-		set_bit(WCD_AUX_EN, &wcd9378->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (aux_rx1) {
@@ -1898,8 +1867,6 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 					WCD9378_CDC_AUX_GAIN_CTL_AUX_EN_MASK, 0x00);
 			wcd9378_rx_connect_port(component, LO, true);
 		}
-
-		clear_bit(WCD_AUX_EN, &wcd9378->status_mask);
 		break;
 	};
 	return 0;
@@ -2184,7 +2151,6 @@ int wcd9378_swr_dmic_register_notifier(struct snd_soc_component *component,
 }
 EXPORT_SYMBOL_GPL(wcd9378_swr_dmic_register_notifier);
 
-/*TBD: NEED TO CHECK AND UPDATE*/
 static int wcd9378_event_notify(struct notifier_block *block,
 				unsigned long val,
 				void *data)
