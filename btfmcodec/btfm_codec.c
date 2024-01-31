@@ -119,9 +119,12 @@ static int btfmcodec_dev_release(struct inode *inode, struct file *file)
 		wake_up_interruptible(&btfmcodec_dev->rsp_wait_q[idx]);
 	}
 
-	cancel_work_sync(&btfmcodec_dev->wq_hwep_shutdown);
-	cancel_work_sync(&btfmcodec_dev->wq_hwep_configure);
-	cancel_work_sync(&btfmcodec_dev->wq_prepare_bearer);
+	if (btfmcodec_dev->wq_hwep_shutdown.func)
+		cancel_work_sync(&btfmcodec_dev->wq_hwep_shutdown);
+	if (btfmcodec_dev->wq_hwep_configure.func)
+		cancel_work_sync(&btfmcodec_dev->wq_hwep_configure);
+	if (btfmcodec_dev->wq_prepare_bearer.func)
+		cancel_work_sync(&btfmcodec_dev->wq_prepare_bearer);
 
 	btfmcodec->states.current_state = IDLE;
 	btfmcodec->states.next_state = IDLE;

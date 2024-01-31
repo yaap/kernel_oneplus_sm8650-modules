@@ -122,8 +122,10 @@ static void btfm_swr_dai_shutdown(void *dai, int id)
 
 	BTFMSWR_INFO("");
 
-	if (btfmswr == NULL)
-		BTFMSWR_INFO("btfmswr is NULL\n");
+	if (btfmswr == NULL || btfmswr->p_dai_port == NULL) {
+		BTFMSWR_INFO("port shutdown might have called with out open\n");
+		return;
+	}
 
 	switch (id) {
 	case FMAUDIO_TX:
