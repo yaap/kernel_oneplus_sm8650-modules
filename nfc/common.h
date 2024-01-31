@@ -18,7 +18,7 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *****************************************************************************/
 #ifndef _COMMON_H_
 #define _COMMON_H_
@@ -102,6 +102,7 @@
 #define DTS_VEN_GPIO_STR	"qcom,sn-ven"
 #define DTS_FWDN_GPIO_STR	"qcom,sn-firm"
 #define DTS_CLKREQ_GPIO_STR     "qcom,sn-clkreq"
+#define DTS_CLKSRC_GPIO_STR	"qcom,clk-src"
 #define DTS_SZONE_STR	        "qcom,sn-szone"
 #define NFC_LDO_SUPPLY_DT_NAME		"qcom,sn-vdd-1p8"
 #define NFC_LDO_SUPPLY_NAME		"qcom,sn-vdd-1p8-supply"
@@ -237,6 +238,9 @@ struct platform_ldo {
 struct platform_configs {
 	struct platform_gpio gpio;
 	struct platform_ldo ldo;
+	const char *clk_src_name;
+	/* NFC_CLK pin voting state */
+	bool clk_pin_voting;
 	const char *szone;
 #ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	bool CNSS_NFC_HW_SECURE_ENABLE;
@@ -283,6 +287,10 @@ struct nfc_dev {
 	/*secure zone state*/
 	bool secure_zone;
 
+	/* CLK control */
+	bool clk_run;
+	struct clk *s_clk;
+
 	void *ipcl;
 
 	/* function pointers for the common i2c functionality */
@@ -318,6 +326,8 @@ int nfc_ese_pwr(struct nfc_dev *nfc_dev, unsigned long arg);
 int nfc_ldo_unvote(struct nfc_dev *nfc_dev);
 int is_nfc_data_available_for_read(struct nfc_dev *nfc_dev);
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev);
+int nfc_clock_select(struct nfc_dev *nfc_dev);
+int nfc_clock_deselect(struct nfc_dev *nfc_dev);
 int nfc_post_init(struct nfc_dev *nfc_dev);
 int nfc_dynamic_protection_ioctl(struct nfc_dev *nfc_dev, unsigned long sec_zone_trans);
 bool nfc_hw_secure_check(void);

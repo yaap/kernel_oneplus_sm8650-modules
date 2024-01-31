@@ -18,7 +18,7 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *****************************************************************************/
 #include <linux/gpio.h>
@@ -69,12 +69,16 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		pr_warn("NxpDrv: %s: dwl_req gpio invalid %d\n", __func__,
 			nfc_gpio->dwl_req);
         }
-        /* Read clkreq GPIO pin number from DTSI */
-	nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
-	if (!gpio_is_valid(nfc_gpio->clkreq)) {
-		   dev_err(dev, "NxpDrv: clkreq gpio invalid %d\n", nfc_gpio->clkreq);
-		   return -EINVAL;
-        }
+	/* Read clock request gpio configuration if MGPIO configurations are not preasent */
+	if (of_property_read_string(np, DTS_CLKSRC_GPIO_STR, &nfc_configs->clk_src_name)) {
+		nfc_configs->clk_pin_voting = false;
+		nfc_gpio->clkreq = of_get_named_gpio(np, DTS_CLKREQ_GPIO_STR, 0);
+		if (!gpio_is_valid(nfc_gpio->clkreq)) {
+			dev_err(dev, "NxpDrv: clkreq gpio invalid %d\n", nfc_gpio->clkreq);
+			return -EINVAL;
+		}
+	} else
+		nfc_configs->clk_pin_voting = true;
 
 #ifdef NFC_SECURE_PERIPHERAL_ENABLED
 	/* Read DTS_SZONE_STR to check secure zone support */
@@ -403,9 +407,21 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
 		nfc_dev->nfc_state = NFC_STATE_NCI;
 
 	} else if (arg == NFC_ENABLE) {
+		if (nfc_dev->configs.clk_pin_voting) {
+			/* Enabling nfc clock */
+			ret = nfc_clock_select(nfc_dev);
+			if (ret)
+				pr_err("%s unable to select clock\n", __func__);
+		}
 		/* Setting flag true when NFC is enabled */
 		nfc_dev->cold_reset.is_nfc_enabled = true;
 	} else if (arg == NFC_DISABLE) {
+		if (nfc_dev->configs.clk_pin_voting) {
+			/* Disabling nfc clock */
+			ret = nfc_clock_deselect(nfc_dev);
+			if (ret)
+				pr_err("%s unable to disable clock\n", __func__);
+		}
 		/* Setting flag true when NFC is disabled */
 		nfc_dev->cold_reset.is_nfc_enabled = false;
 	} else {
@@ -478,20 +494,23 @@ int nfc_post_init(struct nfc_dev *nfc_dev)
 			__func__, nfc_gpio->dwl_req);
 	}
 
-        /* Read clkreq GPIO number from device tree*/
-        ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node, DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
-        if (ret < 0) {
-            pr_err("NxpDrv: %s Failed to read clkreq gipo number, ret: %d\n", __func__, ret);
-            return ret;
-        }
-        /* configure clkreq GPIO as wakeup capable */
-        ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
-        if (ret < 0) {
-            pr_err("NxpDrv: %s Failed to setup clkreq gpio %d as wakeup capable, ret: %d\n", __func__, clkreq_gpio , ret);
-            return ret;
-        } else {
-                pr_info("NxpDrv: %s clkreq gpio %d successfully setup for wakeup capable\n", __func__, clkreq_gpio);
-        }
+	if (!(nfc_configs.clk_pin_voting)) {
+		/* Read clkreq GPIO number from device tree*/
+		ret = of_property_read_u32_index(nfc_dev->i2c_dev.client->dev.of_node,
+						DTS_CLKREQ_GPIO_STR, 1, &clkreq_gpio);
+		if (ret < 0) {
+			pr_err("NxpDrv: %s Failed to read clkreq gipo number, ret: %d\n",
+				 __func__, ret);
+			return ret;
+		}
+		/* configure clkreq GPIO as wakeup capable */
+		ret = msm_gpio_mpm_wake_set(clkreq_gpio, true);
+		if (ret < 0) {
+			pr_err("NxpDrv: %s clkreq gpio %d as wakeup capable failed, ret: %d\n",
+				 __func__, clkreq_gpio, ret);
+			return ret;
+		}
+	}
 
 	ret = nfcc_hw_check(nfc_dev);
 	if (ret || nfc_dev->nfc_state == NFC_STATE_UNKNOWN) {

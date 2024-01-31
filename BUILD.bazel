@@ -7,3 +7,5 @@ define_modules("pineapple", "gki")
 define_modules("blair", "consolidate")
 define_modules("blair", "gki")
 
+define_modules("pitti", "consolidate")
+define_modules("pitti", "gki")
