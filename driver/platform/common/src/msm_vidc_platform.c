@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/io.h>
@@ -22,6 +22,10 @@
 #include "hfi_property.h"
 #include "venus_hfi.h"
 
+#if defined(CONFIG_MSM_VIDC_VOLCANO)
+#include "msm_vidc_volcano.h"
+#include "msm_vidc_iris2.h"
+#endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
 #include "msm_vidc_pineapple.h"
 #include "msm_vidc_cliffs.h"
@@ -240,6 +244,13 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 	{
 		.compat                     = "qcom,sm8450-vidc",
 		.init_platform              = msm_vidc_init_platform_waipio,
+		.init_iris                  = msm_vidc_init_iris2,
+	},
+#endif
+#if defined(CONFIG_MSM_VIDC_VOLCANO)
+	{
+		.compat                     = "qcom,volcano-vidc",
+		.init_platform              = msm_vidc_init_platform_volcano,
 		.init_iris                  = msm_vidc_init_iris2,
 	},
 #endif

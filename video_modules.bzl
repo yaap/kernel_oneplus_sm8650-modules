@@ -44,6 +44,12 @@ module_entry(
             "driver/platform/pineapple/src/msm_vidc_pineapple.c",
             "driver/platform/cliffs/src/msm_vidc_cliffs.c",
         ],
+        "CONFIG_MSM_VIDC_VOLCANO" : [
+            "driver/variant/iris2/src/msm_vidc_buffer_iris2.c",
+            "driver/variant/iris2/src/msm_vidc_iris2.c",
+            "driver/variant/iris2/src/msm_vidc_power_iris2.c",
+            "driver/platform/volcano/src/msm_vidc_volcano.c",
+        ],
     },
     deps = [
             "//vendor/qcom/opensource/mm-drivers:mm_drivers_headers",
