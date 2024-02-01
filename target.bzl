@@ -34,7 +34,7 @@ def define_blair():
         ]
     )
 
-def define_pitti();
+def define_pitti():
     define_bt_modules(
 	target = "pitti",
 	modules = [
