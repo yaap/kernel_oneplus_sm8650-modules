@@ -208,8 +208,6 @@ static int wcd9378_handle_post_irq(void *data)
 	wcd9378->tx_swr_dev->slave_irq_pending =
 			((sts1 || sts2 || !sts3) ? true : false);
 
-	pr_debug("%s: sts1: 0x%0x, sts2: 0x%0x, sts3: 0x%0x\n", __func__, sts1, sts2, sts3);
-
 	return IRQ_HANDLED;
 }
 
@@ -1234,15 +1232,6 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						(WCD_RX1 << 0x10));
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		if (wcd9378->update_wcd_event)
-			wcd9378->update_wcd_event(wcd9378->handle,
-						SLV_BOLERO_EVT_RX_MUTE,
-						(WCD_RX1 << 0x10 | 0x1));
-
-		if (wcd9378->update_wcd_event && wcd9378->comp1_enable)
-			wcd9378->update_wcd_event(wcd9378->handle,
-					SLV_BOLERO_EVT_RX_COMPANDER_SOFT_RST,
-					(WCD_RX1 << 0x10));
 		/*HPHL DISABLE*/
 		snd_soc_component_update_bits(component, WCD9378_CDC_HPH_GAIN_CTL,
 			WCD9378_CDC_HPH_GAIN_CTL_HPHL_RX_EN_MASK, 0x00);
@@ -1360,17 +1349,9 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 					SLV_BOLERO_EVT_RX_COMPANDER_SOFT_RST,
 					(WCD_RX1 << 0x10));
 
-		if (!wcd9378->comp1_enable)
-			/*PA delay is 24250us*/
-			usleep_range(24300, 24310);
-		else
-			/*COMP delay is 11250us*/
-			usleep_range(11300, 11310);
-
 		blocking_notifier_call_chain(&wcd9378->mbhc->notifier,
 					WCD_EVENT_POST_HPHL_PA_OFF,
 					&wcd9378->mbhc->wcd_mbhc);
-
 		break;
 	default:
 		break;
@@ -1425,17 +1406,9 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 					SLV_BOLERO_EVT_RX_COMPANDER_SOFT_RST,
 					(WCD_RX2 << 0x10));
 
-		if (!wcd9378->comp2_enable)
-			/*PA delay is 24250us*/
-			usleep_range(24300, 24310);
-		else
-			/*COMP delay is 11250us*/
-			usleep_range(11300, 11310);
-
 		blocking_notifier_call_chain(&wcd9378->mbhc->notifier,
 					WCD_EVENT_POST_HPHR_PA_OFF,
 					&wcd9378->mbhc->wcd_mbhc);
-
 		break;
 	default:
 		break;
@@ -1748,6 +1721,12 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 		snd_soc_component_update_bits(component, WCD9378_PDE47_REQ_PS,
 				WCD9378_PDE47_REQ_PS_PDE47_REQ_PS_MASK, 0x03);
 
+		if (!wcd9378->comp1_enable || !wcd9378->comp2_enable)
+			/*PA delay is 24250us*/
+			usleep_range(24300, 24310);
+		else
+			/*COMP delay is 11250us*/
+			usleep_range(11300, 11310);
 		break;
 	default:
 		break;
