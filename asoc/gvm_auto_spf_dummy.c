@@ -532,6 +532,16 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.ignore_pmdown_time = 1,
 	SND_SOC_DAILINK_REG(hs_if4_tdm_tx_0_dummy),
 	},
+	{
+	.name = "PCM_DUMMY-TX-0",
+	.stream_name = "PCM_DUMMY-TX-0",
+	.dpcm_capture = 1,
+	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+				SND_SOC_DPCM_TRIGGER_POST},
+	.ignore_suspend = 1,
+	.ignore_pmdown_time = 1,
+	SND_SOC_DAILINK_REG(pcm_dummy_tx0),
+	},
 };
 
 int snd_card_notify_user(snd_card_status_t card_status)
