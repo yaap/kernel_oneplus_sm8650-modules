@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -22,7 +22,7 @@
 #include "cam_cpas_api.h"
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
-static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
+static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_CAPACITY];
 
 static void __cam_req_mgr_reset_apply_data(struct cam_req_mgr_core_link *link)
 {
@@ -2865,7 +2865,7 @@ static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(
 			session->num_links, MAXIMUM_LINKS_PER_SESSION);
 		return NULL;
 	}
-	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION; i++) {
+	for (i = 0; i < MAXIMUM_LINKS_CAPACITY; i++) {
 		if (!atomic_cmpxchg(&g_links[i].is_used, 0, 1)) {
 			link = &g_links[i];
 			CAM_DBG(CAM_CRM, "alloc link index %d", i);
@@ -2873,7 +2873,7 @@ static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(
 			break;
 		}
 	}
-	if (i == MAXIMUM_LINKS_PER_SESSION)
+	if (i == MAXIMUM_LINKS_CAPACITY)
 		return NULL;
 
 	in_q = kzalloc(sizeof(struct cam_req_mgr_req_queue),
@@ -3700,7 +3700,9 @@ int cam_req_mgr_process_error(void *priv, void *data)
 			/* Bring processing pointer to bubbled req id */
 			__cam_req_mgr_tbl_set_all_skip_cnt(&link->req.l_tbl);
 			in_q->rd_idx = idx;
-			in_q->slot[idx].bubble_times++;
+			/* Increment bubble counter only for bubble errors */
+			if (err_info->error == CRM_KMD_ERR_BUBBLE)
+				in_q->slot[idx].bubble_times++;
 			in_q->slot[idx].status = CRM_SLOT_STATUS_REQ_ADDED;
 
 			/* Reset request apply map for all pd tables */
@@ -5868,7 +5870,7 @@ static unsigned long cam_req_mgr_core_mini_dump_cb(void *dst, unsigned long len,
 	dumped_len += sizeof(*md);
 	remain_len -= dumped_len;
 
-	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION; i++) {
+	for (i = 0; i < MAXIMUM_LINKS_CAPACITY; i++) {
 		if (remain_len < sizeof(*md_link)) {
 			CAM_ERR(CAM_CRM,
 			"Insufficent received length: %lu, dumped_len %lu",
@@ -5961,7 +5963,7 @@ int cam_req_mgr_core_device_init(void)
 	mutex_init(&g_crm_core_dev->crm_lock);
 	cam_req_mgr_debug_register(g_crm_core_dev);
 
-	for (i = 0; i < MAXIMUM_LINKS_PER_SESSION; i++) {
+	for (i = 0; i < MAXIMUM_LINKS_CAPACITY; i++) {
 		mutex_init(&g_links[i].lock);
 		spin_lock_init(&g_links[i].link_state_spin_lock);
 		spin_lock_init(&g_links[i].req.monitor_slock);

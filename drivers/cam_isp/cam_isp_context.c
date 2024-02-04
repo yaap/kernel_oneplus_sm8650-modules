@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -901,7 +901,7 @@ static int __cam_isp_ctx_notify_error_util(
 	notify.frame_id = ctx_isp->frame_id;
 	notify.sof_timestamp_val = ctx_isp->sof_timestamp_val;
 
-	if (error == CRM_KMD_ERR_BUBBLE)
+	if ((error == CRM_KMD_ERR_BUBBLE) || (error == CRM_KMD_WARN_INTERNAL_RECOVERY))
 		CAM_WARN(CAM_ISP,
 			"Notify CRM about bubble req: %llu frame: %llu in ctx: %u on link: 0x%x",
 			req_id, ctx_isp->frame_id, ctx->ctx_id, ctx->link_hdl);
@@ -1729,7 +1729,7 @@ static int __cam_isp_context_try_internal_recovery(
 
 		if (req->request_id == ctx_isp->recovery_req_id) {
 			rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
-				CRM_KMD_ERR_BUBBLE, ctx_isp->recovery_req_id, ctx_isp);
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 			if (rc) {
 				/* Unable to do bubble recovery reset back to normal */
 				CAM_WARN(CAM_ISP,
@@ -1762,7 +1762,7 @@ static int __cam_isp_context_try_internal_recovery(
 
 		if (req->request_id == ctx_isp->recovery_req_id) {
 			rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
-				CRM_KMD_ERR_BUBBLE, ctx_isp->recovery_req_id, ctx_isp);
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 			if (rc) {
 				/* Unable to do bubble recovery reset back to normal */
 				CAM_WARN(CAM_ISP,
@@ -2243,7 +2243,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		comp_grp = &ctx_isp->vfe_bus_comp_grp[done->comp_group_id];
 
 	if (!comp_grp) {
-		CAM_ERR(CAM_ISP, "comp_grp is NULL");
+		CAM_ERR(CAM_ISP, "comp_grp is NULL for hw_type: %d", done->hw_type);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -4551,8 +4551,8 @@ static int __cam_isp_ctx_trigger_internal_recovery(
 			ctx_isp->active_req_cnt, ctx_isp->recovery_req_id,
 			ctx->ctx_id, ctx->link_hdl);
 	} else {
-		rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF, CRM_KMD_ERR_BUBBLE,
-				ctx_isp->recovery_req_id, ctx_isp);
+		rc = __cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF,
+				CRM_KMD_WARN_INTERNAL_RECOVERY, ctx_isp->recovery_req_id, ctx_isp);
 		if (rc) {
 			/* Unable to do bubble recovery reset back to normal */
 			CAM_WARN(CAM_ISP,
@@ -5848,11 +5848,6 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 
-	CAM_DBG(CAM_ISP, "Flush pending list, ctx_idx: %u, link: 0x%x", ctx->ctx_id, ctx->link_hdl);
-	spin_lock_bh(&ctx->lock);
-	__cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
-	spin_unlock_bh(&ctx->lock);
-
 	/* Reset skipped_list for FCG config */
 	__cam_isp_ctx_reset_fcg_tracker(ctx);
 
@@ -5917,6 +5912,17 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 
 		ctx_isp->init_received = false;
 	}
+
+	CAM_DBG(CAM_ISP, "Flush pending list, ctx_idx: %u, link: 0x%x", ctx->ctx_id, ctx->link_hdl);
+	/*
+	 * On occasions when we are doing a flush all, HW would get reset
+	 * shutting down any th/bh in the pipeline. If internal recovery
+	 * is triggered prior to flush, by clearing the pending list post
+	 * HW reset will ensure no stale request entities are left behind
+	 */
+	spin_lock_bh(&ctx->lock);
+	__cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
+	spin_unlock_bh(&ctx->lock);
 
 end:
 	ctx_isp->bubble_frame_cnt = 0;
@@ -7393,6 +7399,7 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	struct cam_hw_cmd_args            hw_cmd_args;
 	struct cam_isp_hw_cmd_args        isp_hw_cmd_args;
 	struct cam_isp_acquire_hw_info   *acquire_hw_info = NULL;
+	struct cam_isp_comp_record_query  query_cmd;
 
 	if (!ctx->hw_mgr_intf) {
 		CAM_ERR(CAM_ISP, "HW interface is not ready, ctx %u link: 0x%x",
@@ -7467,6 +7474,30 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 		(param.op_flags & CAM_IFE_CTX_CONSUME_ADDR_EN);
 	ctx_isp->is_tfe_shdr = (param.op_flags & CAM_IFE_CTX_SHDR_EN);
 	ctx_isp->is_shdr_master = (param.op_flags & CAM_IFE_CTX_SHDR_IS_MASTER);
+
+	/* Query the context bus comp group information */
+	ctx_isp->vfe_bus_comp_grp = kcalloc(CAM_IFE_BUS_COMP_NUM_MAX,
+			sizeof(struct cam_isp_context_comp_record), GFP_KERNEL);
+	if (!ctx_isp->vfe_bus_comp_grp) {
+		CAM_ERR(CAM_CTXT, "%s[%d] no memory for vfe_bus_comp_grp",
+			ctx->dev_name, ctx->ctx_id);
+		rc = -ENOMEM;
+		goto free_hw;
+	}
+
+	query_cmd.vfe_bus_comp_grp = ctx_isp->vfe_bus_comp_grp;
+	hw_cmd_args.ctxt_to_hw_map = param.ctxt_to_hw_map;
+	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_GET_BUS_COMP_GROUP;
+	isp_hw_cmd_args.cmd_data = &query_cmd;
+	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
+			&hw_cmd_args);
+	if (rc) {
+		CAM_ERR(CAM_ISP, "Bus Comp HW command failed, ctx_idx: %u, link: 0x%x",
+			ctx->ctx_id, ctx->link_hdl);
+		goto free_hw;
+	}
 
 	/* Query the context has rdi only resource */
 	hw_cmd_args.ctxt_to_hw_map = param.ctxt_to_hw_map;

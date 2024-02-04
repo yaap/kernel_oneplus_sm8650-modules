@@ -3680,6 +3680,7 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	struct cam_isp_hw_event_info event_info;
 	int i;
 	int rc = 0;
+	uint32_t data_idx;
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP,
@@ -3691,6 +3692,7 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	csid_hw = (struct cam_tfe_csid_hw *)handler_priv;
 	evt_payload = (struct cam_csid_evt_payload *)evt_payload_priv;
 	csid_reg = csid_hw->csid_info->csid_reg;
+	data_idx = csid_hw->csi2_rx_cfg.phy_sel - 1;
 
 	if (!csid_hw->event_cb || !csid_hw->event_cb_priv) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP,
@@ -3754,13 +3756,19 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	err_evt_info.err_type = evt_payload->evt_type;
 	event_info.hw_idx = evt_payload->hw_idx;
 	event_info.res_type = CAM_ISP_RESOURCE_PIX_PATH;
+	event_info.hw_type = CAM_ISP_HW_TYPE_TFE_CSID;
 
 	switch (evt_payload->evt_type) {
 	case CAM_ISP_HW_ERROR_CSID_FRAME_SIZE:
-	case CAM_ISP_HW_ERROR_CSID_FATAL:
-		if (csid_hw->fatal_err_detected)
 			break;
+	case CAM_ISP_HW_ERROR_CSID_FATAL:
+		/* phy_sel starts from 1 and should never be zero*/
+		if (csid_hw->csi2_rx_cfg.phy_sel > 0) {
+			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
+				CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
+		}
 		csid_hw->fatal_err_detected = true;
+		break;
 	case CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW:
 		event_info.event_data = (void *)&err_evt_info;
 		rc = csid_hw->event_cb(csid_hw->event_cb_priv,
@@ -3966,6 +3974,7 @@ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data)
 		if (irq_status[TFE_CSID_IRQ_REG_RX] &
 			TFE_CSID_CSI2_RX_ERROR_MMAPPED_VC_DT)
 			is_error_irq = true;
+
 	}
 handle_fatal_error:
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
@@ -3987,11 +3996,7 @@ handle_fatal_error:
 			csid_reg->csi2_reg->csid_csi2_rx_cfg1_addr);
 		cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 			csid_reg->csi2_reg->csid_csi2_rx_irq_mask_addr);
-		/* phy_sel starts from 1 and should never be zero*/
-		if (csid_hw->csi2_rx_cfg.phy_sel > 0) {
-			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-				CAM_SUBDEV_MESSAGE_REG_DUMP, (void *)&data_idx);
-		}
+
 		report_err_type = CAM_ISP_HW_ERROR_CSID_FATAL;
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
 			report_err_type, irq_status);
