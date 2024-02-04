@@ -23,7 +23,6 @@ def define_pitti():
             "machine_dlkm",
             "wcd_core_dlkm",
             "mbhc_dlkm",
-            "swr_dmic_dlkm",
             "wcd9xxx_dlkm",
             "swr_haptics_dlkm",
             "stub_dlkm",
