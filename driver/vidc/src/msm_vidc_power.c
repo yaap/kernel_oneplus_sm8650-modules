@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_power.h"
@@ -20,6 +20,7 @@
 #define MSM_VIDC_MAX_UBWC_COMPLEXITY_FACTOR (4 << 16)
 #define MSM_VIDC_MIN_UBWC_COMPRESSION_RATIO (1 << 16)
 #define MSM_VIDC_MAX_UBWC_COMPRESSION_RATIO (5 << 16)
+#define PASSIVE_VOTE 1000
 
 /**
  * Utility function to enforce some of our assumptions.  Spam calls to this
@@ -186,6 +187,10 @@ static int msm_vidc_set_buses(struct msm_vidc_inst *inst)
 		total_bw_llcc += temp->power.sys_cache_bw;
 	}
 	mutex_unlock(&core->lock);
+
+	/* Incase of no video frames to process ensure min passive voting for Tensilica */
+	if (!total_bw_ddr)
+		total_bw_ddr = PASSIVE_VOTE;
 
 	if (msm_vidc_ddr_bw) {
 		d_vpr_l("msm_vidc_ddr_bw %d\n", msm_vidc_ddr_bw);
