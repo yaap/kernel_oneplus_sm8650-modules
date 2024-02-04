@@ -5,6 +5,7 @@ ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_WLAN_DLKM_PLATFORMS_LIST := pineapple
 RMNET_WLAN_DLKM_PLATFORMS_LIST += blair
 RMNET_WLAN_DLKM_PLATFORMS_LIST += monaco
+RMNET_WLAN_DLKM_PLATFORMS_LIST += pitti
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_WLAN_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)

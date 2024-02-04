@@ -7,3 +7,7 @@ define_shs("pineapple", "gki")
 define_shs("blair", "consolidate")
 
 define_shs("blair", "gki")
+
+define_shs("pitti", "consolidate")
+
+define_shs("pitti", "gki")

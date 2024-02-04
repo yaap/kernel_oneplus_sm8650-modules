@@ -8,3 +8,7 @@ define_perf("pineapple", "gki")
 define_perf("blair", "consolidate")
 
 define_perf("blair", "gki")
+
+define_perf("pitti", "consolidate")
+
+define_perf("pitti", "gki")

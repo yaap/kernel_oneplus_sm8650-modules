@@ -15,6 +15,7 @@
 #include <linux/rculist.h>
 #include <linux/hashtable.h>
 #include <linux/workqueue.h>
+#include <linux/version.h>
 #include "rmnet_wlan.h"
 #include "rmnet_wlan_stats.h"
 #include "rmnet_wlan_fragment.h"
@@ -82,7 +83,12 @@ DATARMNETc7c83f614f(struct DATARMNET6f3b954709*DATARMNET63b1a086d5,bool
 DATARMNET7a9bcaf1a3){struct DATARMNET8d3c2559ca*DATARMNET54338da2ff;int(*
 DATARMNET456ac0e8eb)(struct sk_buff*DATARMNET543491eb0f);struct sk_buff*
 DATARMNET543491eb0f,*DATARMNET0386f6f82a;unsigned long DATARMNETfb0677cc3c;
+#if (KERNEL_VERSION((0xd03+244-0xdf1), (0xd2d+202-0xdf7), (0xd2d+202-0xdf7)) < \
+LINUX_VERSION_CODE)
 DATARMNET456ac0e8eb=(DATARMNET7a9bcaf1a3)?netif_receive_skb:__netif_rx;
+#else
+DATARMNET456ac0e8eb=(DATARMNET7a9bcaf1a3)?netif_receive_skb:netif_rx;
+#endif
 DATARMNET54338da2ff=DATARMNET63b1a086d5->DATARMNET7ed5754a5c;spin_lock_irqsave(&
 DATARMNET63b1a086d5->DATARMNET94b1f9ee09,DATARMNETfb0677cc3c);
 list_for_each_entry_safe(DATARMNET543491eb0f,DATARMNET0386f6f82a,&

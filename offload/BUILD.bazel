@@ -8,3 +8,7 @@ define_offload("pineapple", "gki")
 define_offload("blair", "consolidate")
 
 define_offload("blair", "gki")
+
+define_offload("pitti", "consolidate")
+
+define_offload("pitti", "gki")
