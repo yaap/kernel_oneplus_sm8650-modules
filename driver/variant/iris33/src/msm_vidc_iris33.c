@@ -515,7 +515,7 @@ static int __power_off_iris33_controller(struct msm_vidc_core *core)
 		d_vpr_e("%s: MVP_NOC_CORE_SW_RESET failed\n", __func__);
 
 	/* De-assert video_cc XO reset */
-	usleep_range(200, 300);
+	usleep_range(80, 100);
 	rc = call_res_op(core, reset_control_deassert, core, "video_xo_reset");
 	if (rc)
 		d_vpr_e("%s: deassert video_xo_reset failed\n", __func__);
