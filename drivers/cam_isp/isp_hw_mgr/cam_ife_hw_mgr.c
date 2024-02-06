@@ -484,6 +484,12 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 {
 	int rc = 0, i;
 
+	if (!ctx->flags.init_done) {
+		CAM_WARN(CAM_ISP, "Cannot dump register as HW not initialized, ctx_idx: %u",
+			ctx->ctx_index);
+		return 0;
+	}
+
 	if (cam_presil_mode_enabled()) {
 		if (g_ife_hw_mgr.debug_cfg.enable_presil_reg_dump) {
 			CAM_WARN(CAM_ISP, "regdump enabled for presil mode, ctx_idx: %u",
