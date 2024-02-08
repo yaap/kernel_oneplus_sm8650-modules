@@ -317,6 +317,12 @@ static struct {
 	int uwb_state[BT_POWER_SRC_SIZE];
 } power_src;
 
+struct Crash_struct {
+//	char SubSystem[10];
+	char PrimaryReason[50];
+	char SecondaryReason[100];
+} CrashInfo;
+
 #ifdef CONFIG_BT_HW_SECURE_DISABLE
 int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
 {
@@ -2226,24 +2232,6 @@ int schedule_client_voting(enum plt_pwr_state request)
 	return ret;
 }
 
-char* GetBtSecondaryCrashReason(enum BtSecondaryReasonCode reason)
-{
-	for(int i =0; i < (int)(sizeof(btSecReasonMap)/sizeof(BtSecondaryReasonMap)); i++)
-		if (btSecReasonMap[i].reason == reason)
-			return btSecReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
-char* GetBtPrimaryCrashReason(enum BtPrimaryReasonCode reason)
-{
-	for(int i =0; i < (int)(sizeof(btPriReasonMap)/sizeof(BtPrimaryReasonMap)); i++)
-		if (btPriReasonMap[i].reason == reason)
-			return btPriReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
 char* GetUwbSecondaryCrashReason(enum UwbSecondaryReasonCode reason)
 {
 	for(int i =0; i < (int)(sizeof(uwbSecReasonMap)/sizeof(UwbSecondaryReasonMap)); i++)
@@ -2491,16 +2479,20 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		btpower_enable_ipa_vreg(pwr_data);
 		break;
 	case BT_CMD_KERNEL_PANIC:
+
 		pr_err("%s: BT_CMD_KERNEL_PANIC\n", __func__);
-		panic_reason = arg;
-		primary_reason = panic_reason & 0xFFFF;
-		sec_reason = (panic_reason & 0xFFFF0000) >> 16;
+
+		if (copy_from_user(&CrashInfo, (char *)arg, sizeof(CrashInfo))) {
+			pr_err("%s: copy to user failed\n", __func__);
+			ret = -EFAULT;
+		}
+
 		pr_err("%s: BT kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetBtPrimaryCrashReason(primary_reason),
-			GetBtSecondaryCrashReason(sec_reason));
+			__func__, CrashInfo.PrimaryReason, CrashInfo.SecondaryReason);
+
 		panic("%s: BT kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetBtPrimaryCrashReason(primary_reason),
-			GetBtSecondaryCrashReason(sec_reason));
+			__func__, CrashInfo.PrimaryReason, CrashInfo.SecondaryReason);
+
 		break;
 	case UWB_CMD_KERNEL_PANIC:
 		pr_err("%s: UWB_CMD_KERNEL_PANIC\n", __func__);
