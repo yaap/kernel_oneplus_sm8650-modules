@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __LINUX_BLUETOOTH_POWER_H
@@ -70,42 +70,6 @@ enum grant_states {
 	UWB_WAITING_FOR_GRANT,
 };
 
-static inline char *ConvertGrantRetToString(enum grant_return_values state)
-{
-	switch (state) {
-	case ACCESS_GRANTED:
-		return "ACCESS_GRANTED";
-	case ACCESS_DENIED:
-		return "ACCESS_DENIED";
-	case ACCESS_RELEASED:
-		return "ACCESS_RELEASED";
-	case ACCESS_DISALLOWED:
-		return "ACCESS_DISALLOWED";
-	default:
-		return "INVALID State";
-	}
-}
-
-static inline char *ConvertGrantToString(enum grant_states state)
-{
-	switch (state) {
-	case NO_GRANT_FOR_ANY_SS:
-		return "NO_GRANT_FOR_ANY_SS";
-	case NO_OTHER_CLIENT_WAITING_FOR_GRANT:
-		return "NO_OTHER_CLIENT_WAITING_FOR_GRANT";
-	case BT_HAS_GRANT :
-		return "BT_HAS_GRANT";
-	case UWB_HAS_GRANT:
-		return "UWB_HAS_GRANT";
-	case BT_WAITING_FOR_GRANT :
-		return "BT_WAITING_FOR_GRANT";
-	case UWB_WAITING_FOR_GRANT:
-		return "UWB_WAITING_FOR_GRANT";
-	default:
-		return "INVALID STATE";
-	}
-}
-
 enum cores {
 	BT_CORE = 0,
 	UWB_CORE,
@@ -142,6 +106,156 @@ enum {
 	PWR_FAIL_RSP_RECV = -1,
 	PWR_CLIENT_KILLED,
 };
+
+static inline char *ConvertGrantRetToString(enum grant_return_values state) {
+
+	switch (state) {
+	case ACCESS_GRANTED:
+		return "ACCESS_GRANTED";
+	case ACCESS_DENIED:
+		return "ACCESS_DENIED";
+	case ACCESS_RELEASED:
+		return "ACCESS_RELEASED";
+	case ACCESS_DISALLOWED:
+		return "ACCESS_DISALLOWED";
+	default:
+		return "INVALID STATE";
+	}
+}
+
+static inline char *ConvertGrantToString(enum grant_states state) {
+
+	switch (state) {
+	case NO_GRANT_FOR_ANY_SS:
+		return "NO_GRANT_FOR_ANY_SS";
+	case NO_OTHER_CLIENT_WAITING_FOR_GRANT:
+		return "NO_OTHER_CLIENT_WAITING_FOR_GRANT";
+	case BT_HAS_GRANT:
+		return "BT_HAS_GRANT";
+	case UWB_HAS_GRANT:
+		return "UWB_HAS_GRANT";
+	case BT_WAITING_FOR_GRANT:
+		return "BT_WAITING_FOR_GRANT";
+	case UWB_WAITING_FOR_GRANT:
+		return "UWB_WAITING_FOR_GRANT";
+	default:
+		return "INVALID STATE";
+	}
+}
+
+static inline char *ConvertRetentionModeToString(int state) {
+
+	switch (state) {
+	case IDLE:
+		return "Both client not in Retention";
+	case BT_IN_RETENTION:
+		return "BT in Retention";
+	case BT_OUT_OF_RETENTION:
+		return "BT is out off Retention";
+	case UWB_IN_RETENTION:
+		return "UWB in Retention";
+	case UWB_OUT_OF_RETENTION:
+		return "UWB is out off Retention";
+	case BOTH_CLIENTS_IN_RETENTION:
+		return "Both client in Retention";
+	default:
+		return "Retention state = INVALID STATE";
+	}
+}
+
+static inline char *ConvertClientReqToString(int arg) {
+
+	switch (arg) {
+	case POWER_DISABLE:
+		return "Power OFF";
+	case POWER_ENABLE:
+		return "Power ON";
+	case POWER_RETENTION:
+		return "Power Retention";
+	default:
+		return "INVALID STATE";
+	}
+}
+
+static inline char *ConvertPowerStatusToString(int state) {
+
+	switch (state) {
+	case IDLE:
+		return "Current state is ALL Client OFF";
+	case BT_ON:
+		return "Current state is BT powered ON";
+	case UWB_ON:
+		return "Current state is UWB powered ON";
+	case ALL_CLIENTS_ON:
+		return "Current state is ALL Client ON";
+	default:
+		return "Current state is = INVALID STATE";
+	}
+}
+
+static inline char *ConvertSsrStatusToString(int state) {
+
+	switch (state) {
+	case SUB_STATE_IDLE:
+		return "and No SSR";
+	case SSR_ON_BT:
+		return "and SSR on BT";
+	case BT_SSR_COMPLETED:
+		return "and BT SSR completed";
+	case SSR_ON_UWB:
+		return "and SSR on UWB";
+	case UWB_SSR_COMPLETED:
+		return "and UWB SSR completed";
+	default:
+		return "SSR STATE = INVALID STATE";
+	}
+}
+
+static inline char *ConvertPowerReqToString(int arg) {
+
+	switch (arg) {
+	case POWER_ON_BT:
+		return "POWER_ON_BT";
+	case POWER_OFF_BT:
+		return "POWER_OFF_BT";
+	case POWER_ON_UWB:
+		return "POWER_ON_UWB";
+	case POWER_OFF_UWB:
+		return "POWER_OFF_UWB";
+	case POWER_ON_BT_RETENION:
+		return "POWER_ON_BT_RETENION";
+	case POWER_ON_UWB_RETENION:
+		return "POWER_ON_UWB_RETENION";
+	case BT_ACCESS_REQ:
+		return "BT_ACCESS_REQ";
+	case UWB_ACCESS_REQ:
+		return "UWB_ACCESS_REQ";
+	case BT_RELEASE_ACCESS:
+		return "BT_RELEASE_ACCESS";
+	case UWB_RELEASE_ACCESS:
+		return "UWB_RELEASE_ACCESS";
+	case BT_MAX_PWR_STATE:
+		return "BT_MAX_PWR_STATE";
+	default:
+		return "INVALID STATE";
+	}
+};
+
+static inline char *ConvertRegisterModeToString(int reg_mode) {
+
+	switch (reg_mode) {
+	case POWER_DISABLE:
+		return "vote off";
+	case POWER_ENABLE:
+		return "vote on";
+	case POWER_RETENTION:
+		return "vote for retention";
+	case POWER_DISABLE_RETENTION:
+		return "vote offretention";
+	default:
+		return "INVALID STATE";
+	}
+}
 
 enum UwbPrimaryReasonCode{
 	UWB_HOST_REASON_DEFAULT_NONE  = 0x00,                         //INVALID REASON
@@ -569,13 +683,6 @@ int btpower_get_chipset_version(void);
 int btpower_aop_mbox_init(struct platform_pwr_data *pdata);
 int bt_aop_pdc_reconfig(struct platform_pwr_data *pdata);
 
-static const char *pwr_req[] = {"POWER_ON_BT", "POWER_OFF_BT",
-								"POWER_ON_UWB", "POWER_OFF_UWB",
-								"POWER_ON_BT_RETENION",
-								"POWER_ON_UWB_RETENION",
-								"BT_ACCESS_REQ", "UWB_ACCESS_REQ",
-								"BT_RELEASE_ACCESS", "UWB_RELEASE_ACCESS"};
-
 #define WLAN_SW_CTRL_GPIO       "qcom,wlan-sw-ctrl-gpio"
 #define BT_CMD_SLIM_TEST            0xbfac
 #define BT_CMD_PWR_CTRL             0xbfad
@@ -611,18 +718,4 @@ enum btpower_obs_param {
 };
 #endif
 
-static const char * const bt_arg[]= {"power off BT", "power on BT",
-									"BT power retention"};
-static const char * const uwb_arg[]= {"power off UWB", "power on UWB",
-									"UWB power retention"};
-static const char * const pwr_states[]= {"Both Sub-System powered OFF", "BT powered ON",
-									"UWB powered ON",
-					  "Both Sub-System powered ON"};
-static const char * const ssr_state[]= {"No SSR on Sub-Sytem", "SSR on BT",
-									"SSR Completed on BT", "SSR on UWB",
-									"SSR Completed on UWB"};
-static const char * const reg_mode[]= {"vote off", "vote on", "vote for retention", "vote off retention"};
-static const char * const retention_mode[]= {"IDLE", "BT_IN_RETENTION", "BT_OUT_OF_RETENTION",
-									"UWB_IN_RETENTION", "UWB_OUT_OF_RETENTION",
-									"BOTH_CLIENT_IN_RETENTION"};
 #endif /* __LINUX_BLUETOOTH_POWER_H */
