@@ -34,12 +34,6 @@ def define_pitti():
             "lpass_cdc_wsa2_macro_dlkm",
             "lpass_cdc_wsa_macro_dlkm",
             "wsa881x_analog_dlkm",
-            "wsa883x_dlkm",
-            "wsa884x_dlkm",
-            "wcd937x_dlkm",
-            "wcd937x_slave_dlkm",
-            "wcd938x_dlkm",
-            "wcd938x_slave_dlkm",
             "wcd9378_dlkm",
             "wcd9378_slave_dlkm"
         ],
