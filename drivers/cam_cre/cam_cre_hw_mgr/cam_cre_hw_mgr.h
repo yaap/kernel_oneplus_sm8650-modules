@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef CAM_CRE_HW_MGR_H
@@ -146,14 +146,16 @@ struct cam_cre_clk_info {
 /**
  * struct cre_cmd_work_data
  *
- * @type:       Type of work data
- * @data:       Private data
- * @req_id:     Request Idx
+ * @type:        Type of work data
+ * @data:        Private data
+ * @req_idx:     Request Idx
+ * @request_id:  Request id
  */
 struct cre_cmd_work_data {
 	uint32_t type;
 	void *data;
 	int64_t req_idx;
+	uint64_t request_id;
 };
 
 /**
