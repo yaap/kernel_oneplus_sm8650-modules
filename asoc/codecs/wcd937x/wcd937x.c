@@ -1832,6 +1832,11 @@ static int wcd937x_event_notify(struct notifier_block *block,
 		}
 		wcd937x->mbhc->wcd_mbhc.deinit_in_progress = false;
 		break;
+	case BOLERO_SLV_EVT_CLK_NOTIFY:
+		snd_soc_component_update_bits(component,
+			WCD937X_DIGITAL_TOP_CLK_CFG, 0x06,
+				((val >> 0x10) << 0x01));
+		break;
 	default:
 		dev_err(component->dev, "%s: invalid event %d\n", __func__,
 			event);
