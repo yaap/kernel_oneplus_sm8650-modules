@@ -14,6 +14,7 @@ ifeq ($(TARGET_DATARMNET_ENABLE), true)
 	DATA_DLKM_BOARD_PLATFORMS_LIST += blair
 	DATA_DLKM_BOARD_PLATFORMS_LIST += monaco
 	DATA_DLKM_BOARD_PLATFORMS_LIST += pitti
+	DATA_DLKM_BOARD_PLATFORMS_LIST += volcano
 
 	ifneq ($(TARGET_BOARD_AUTO),true)
 		ifeq ($(call is-board-platform-in-list,$(DATA_DLKM_BOARD_PLATFORMS_LIST)),true)
