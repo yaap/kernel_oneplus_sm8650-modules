@@ -2369,6 +2369,8 @@ static void fastrpc_context_list_dtor(struct fastrpc_file *fl)
 	struct fastrpc_ctx_lst *clst = &fl->clst;
 	struct smq_invoke_ctx *ictx = NULL, *ctxfree;
 	struct hlist_node *n;
+	unsigned long irq_flags = 0;
+	struct smq_notif_rsp *inotif = NULL, *n1 = NULL;
 
 	do {
 		ctxfree = NULL;
@@ -2396,6 +2398,14 @@ static void fastrpc_context_list_dtor(struct fastrpc_file *fl)
 		if (ctxfree)
 			context_free(ctxfree);
 	} while (ctxfree);
+
+	spin_lock_irqsave(&fl->proc_state_notif.nqlock, irq_flags);
+	list_for_each_entry_safe(inotif, n1, &clst->notif_queue, notifn) {
+		list_del_init(&inotif->notifn);
+		atomic_sub(1, &fl->proc_state_notif.notif_queue_count);
+		kfree(inotif);
+	}
+	spin_unlock_irqrestore(&fl->proc_state_notif.nqlock, irq_flags);
 }
 
 static int fastrpc_file_free(struct fastrpc_file *fl);
