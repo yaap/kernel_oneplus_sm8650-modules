@@ -3,6 +3,7 @@ ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_SHS_DLKM_PLATFORMS_LIST := pineapple
 RMNET_SHS_DLKM_PLATFORMS_LIST += blair
 RMNET_SHS_DLKM_PLATFORMS_LIST += pitti
+RMNET_SHS_DLKM_PLATFORMS_LIST += volcano
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_SHS_DLKM_PLATFORMS_LIST)),true)
 #Make file to create RMNET_SHS DLKM

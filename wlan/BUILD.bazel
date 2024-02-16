@@ -16,3 +16,7 @@ define_wlan("monaco", "gki")
 define_wlan("pitti", "consolidate")
 
 define_wlan("pitti", "gki")
+
+define_wlan("volcano", "consolidate")
+
+define_wlan("volcano", "gki")

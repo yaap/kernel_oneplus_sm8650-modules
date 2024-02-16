@@ -12,3 +12,7 @@ define_offload("blair", "gki")
 define_offload("pitti", "consolidate")
 
 define_offload("pitti", "gki")
+
+define_offload("volcano", "consolidate")
+
+define_offload("volcano", "gki")

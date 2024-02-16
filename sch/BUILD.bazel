@@ -8,3 +8,7 @@ define_sch("pineapple", "gki")
 define_sch("pitti", "consolidate")
 
 define_sch("pitti", "gki")
+
+define_sch("volcano", "consolidate")
+
+define_sch("volcano", "gki")

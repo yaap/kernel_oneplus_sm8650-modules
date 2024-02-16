@@ -4,6 +4,7 @@ ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
 RMNET_APS_DLKM_PLATFORMS_LIST := pineapple
 RMNET_APS_DLKM_PLATFORMS_LIST += pitti
+RMNET_APS_DLKM_PLATFORMS_LIST += volcano
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_APS_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)
