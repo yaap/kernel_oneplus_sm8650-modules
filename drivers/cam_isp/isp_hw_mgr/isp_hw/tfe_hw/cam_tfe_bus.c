@@ -1988,19 +1988,24 @@ static uint32_t cam_tfe_bus_get_last_consumed_addr(
 	struct cam_isp_resource_node        *rsrc_node = NULL;
 	struct cam_tfe_bus_tfe_out_data     *rsrc_data = NULL;
 	struct cam_tfe_bus_wm_resource_data *wm_rsrc_data = NULL;
+	enum cam_tfe_bus_tfe_out_id             tfe_out_res_id;
 
-	if (out_id >= CAM_TFE_BUS_TFE_OUT_MAX) {
+	tfe_out_res_id = cam_tfe_bus_get_out_res_id(out_id);
+	if (tfe_out_res_id >= CAM_TFE_BUS_TFE_OUT_MAX) {
 		CAM_ERR(CAM_ISP, "invalid out_id:%u", out_id);
 		return 0;
 	}
 
-	rsrc_node = &bus_priv->tfe_out[out_id];
+	rsrc_node = &bus_priv->tfe_out[tfe_out_res_id];
 	rsrc_data = rsrc_node->res_priv;
 	wm_rsrc_data = rsrc_data->wm_res[PLANE_Y]->res_priv;
 
 	val = cam_io_r_mb(
 		wm_rsrc_data->common_data->mem_base +
 		wm_rsrc_data->hw_regs->addr_status_0);
+
+	CAM_DBG(CAM_ISP, "TFE:%u res_type:0x%x res_id:0x%x last_consumed_addr:0x%x",
+		bus_priv->common_data.core_index, out_id, tfe_out_res_id, val);
 
 	return val;
 }
@@ -2016,6 +2021,7 @@ static int cam_tfe_bus_bufdone_bottom_half(
 	struct cam_tfe_bus_comp_grp_data     *comp_rsrc_data;
 	struct cam_isp_hw_bufdone_event_info  bufdone_evt_info = {0};
 	uint32_t i;
+	struct cam_tfe_bus_wm_resource_data *wm_rsrc_data = NULL;
 
 	common_data = &bus_priv->common_data;
 
@@ -2027,6 +2033,10 @@ static int cam_tfe_bus_bufdone_bottom_half(
 		comp_rsrc_data = (struct cam_tfe_bus_comp_grp_data  *)
 			bus_priv->comp_grp[i].res_priv;
 
+		CAM_DBG(CAM_ISP, "i: %d irq: 0x%x comm_done: 0x%x com_grp: %d",
+			i, evt_payload->bus_irq_val[0], bus_priv->common_data.comp_done_shift,
+			comp_rsrc_data->comp_grp_id);
+
 		if (evt_payload->bus_irq_val[0] &
 			BIT(comp_rsrc_data->comp_grp_id +
 			bus_priv->common_data.comp_done_shift)) {
@@ -2037,10 +2047,10 @@ static int cam_tfe_bus_bufdone_bottom_half(
 				evt_info.res_id = out_rsrc->res_id;
 				bufdone_evt_info.res_id = out_rsrc->res_id;
 				bufdone_evt_info.comp_grp_id = comp_rsrc_data->comp_grp_id;
-				bufdone_evt_info.last_consumed_addr =
-					cam_tfe_bus_get_last_consumed_addr(
-						out_rsrc_data->bus_priv,
-						out_rsrc_data->out_id);
+				wm_rsrc_data = out_rsrc_data->wm_res[PLANE_Y]->res_priv;
+				bufdone_evt_info.last_consumed_addr = cam_io_r_mb(
+					wm_rsrc_data->common_data->mem_base +
+					wm_rsrc_data->hw_regs->addr_status_0);
 				evt_info.event_data = (void *)&bufdone_evt_info;
 
 				if (out_rsrc_data->event_cb)

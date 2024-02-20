@@ -901,17 +901,19 @@ static void cam_tfe_hw_mgr_dump_all_ctx(void)
 static void cam_tfe_mgr_add_base_info(
 	struct cam_tfe_hw_mgr_ctx       *ctx,
 	enum cam_isp_hw_split_id         split_id,
-	uint32_t                         base_idx)
+	uint32_t                         base_idx,
+	enum cam_isp_hw_type             hw_type)
 {
 	uint32_t    i;
 
 	if (!ctx->num_base) {
 		ctx->base[0].split_id = split_id;
 		ctx->base[0].idx      = base_idx;
+		ctx->base[0].hw_type  = hw_type;
 		ctx->num_base++;
 		CAM_DBG(CAM_ISP,
-			"Add split id = %d for base idx = %d num_base=%d",
-			split_id, base_idx, ctx->num_base);
+			"Add split id = %d for base idx = %d num_base=%d hw_type=%d",
+			split_id, base_idx, ctx->num_base, hw_type);
 	} else {
 		/*Check if base index already exists in the list */
 		for (i = 0; i < ctx->num_base; i++) {
@@ -928,10 +930,11 @@ static void cam_tfe_mgr_add_base_info(
 		if (i == ctx->num_base) {
 			ctx->base[ctx->num_base].split_id = split_id;
 			ctx->base[ctx->num_base].idx      = base_idx;
+			ctx->base[ctx->num_base].hw_type  = hw_type;
 			ctx->num_base++;
 			CAM_DBG(CAM_ISP,
-				"Add split_id=%d for base idx=%d num_base=%d",
-				 split_id, base_idx, ctx->num_base);
+				"Add split_id=%d for base idx=%d num_base=%d hw_type=%d",
+				 split_id, base_idx, ctx->num_base, hw_type);
 		}
 	}
 }
@@ -959,12 +962,13 @@ static int cam_tfe_mgr_process_base_info(
 
 			res = hw_mgr_res->hw_res[i];
 			cam_tfe_mgr_add_base_info(ctx, i,
-					res->hw_intf->hw_idx);
-			CAM_DBG(CAM_ISP, "add base info for hw %d",
-				res->hw_intf->hw_idx);
+					res->hw_intf->hw_idx,
+					CAM_ISP_HW_TYPE_TFE);
+			CAM_DBG(CAM_ISP, "add base info for hw %d ctx_idx: %u",
+				res->hw_intf->hw_idx, ctx->ctx_index);
 		}
 	}
-	CAM_DBG(CAM_ISP, "ctx base num = %d", ctx->num_base);
+	CAM_DBG(CAM_ISP, "ctx base num = %d, ctx_idx: %u", ctx->num_base, ctx->ctx_index);
 
 	return 0;
 }
@@ -5682,7 +5686,7 @@ static int cam_tfe_mgr_cmd_get_last_consumed_addr(
 	}
 
 	hw_mgr_res =
-		&ctx->res_list_tfe_out[res_id_out];
+		&ctx->res_list_tfe_out[ctx->tfe_out_map[res_id_out]];
 
 	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
 		if (!hw_mgr_res->hw_res[i])
