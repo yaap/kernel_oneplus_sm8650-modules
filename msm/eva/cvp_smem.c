@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/dma-buf.h>
@@ -88,6 +88,8 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 			dprintk(CVP_ERR, "Failed to attach dmabuf\n");
 			goto mem_buf_attach_failed;
 		}
+		dprintk(CVP_MEM, "%s: CB dev: %s, attach dev: %s, attach: 0x%lx, dbuf: 0x%lx",
+			__func__, dev_name(cb->dev), dev_name(attach->dev), attach, dbuf);
 
 		/*
 		 * Get the scatterlist for the given attachment
@@ -130,6 +132,9 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, u32 align,
 		mapping_info->attach = attach;
 		mapping_info->buf = dbuf;
 		mapping_info->cb_info = (void *)cb;
+
+		dprintk(CVP_MEM, "%s: sg-table: 0x%lx, dbuf: 0x%lx, table->sgl->dma_address: 0x%lx",
+			__func__, table, dbuf, table->sgl->dma_address);
 	} else {
 		dprintk(CVP_MEM, "iommu not present, use phys mem addr\n");
 	}
@@ -148,6 +153,10 @@ static int msm_dma_put_device_address(u32 flags,
 	struct cvp_dma_mapping_info *mapping_info)
 {
 	int rc = 0;
+	struct dma_buf_attachment *attach = NULL;
+	struct sg_table *table = NULL;
+	struct context_bank_info *cb = NULL;
+	struct dma_buf *dbuf = NULL;
 
 	if (!mapping_info) {
 		dprintk(CVP_WARN, "Invalid mapping_info\n");
@@ -160,6 +169,15 @@ static int msm_dma_put_device_address(u32 flags,
 		dprintk(CVP_WARN, "Invalid params\n");
 		return -EINVAL;
 	}
+
+	attach = mapping_info->attach;
+	table = mapping_info->table;
+	cb = (struct context_bank_info *) mapping_info->cb_info;
+	dbuf = mapping_info->buf;
+	dprintk(CVP_MEM, "%s: CB dev_name: %s, attach dev_name: %s, attach: 0x%lx, dbuf: 0x%lx",
+		__func__, dev_name(cb->dev), dev_name(attach->dev), attach, dbuf);
+	dprintk(CVP_MEM, "%s: sg-table: 0x%lx, table->sgl->dma_address: 0x%lx",
+		__func__, table, dbuf, table->sgl->dma_address);
 
 	dma_buf_unmap_attachment(mapping_info->attach,
 		mapping_info->table, DMA_BIDIRECTIONAL);
