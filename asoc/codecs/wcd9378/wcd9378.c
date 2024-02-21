@@ -1275,7 +1275,7 @@ static int wcd9378_codec_enable_micbias_pullup(struct snd_soc_dapm_widget *w,
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		wcd9378_micbias_control(component, tx_num,
-				MICB_PULLUP_ENABLE, true);
+				MICB_PULLUP_DISABLE, true);
 		break;
 	};
 
@@ -1950,7 +1950,7 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 		} else {
 			snd_soc_component_update_bits(component, WCD9378_CDC_AUX_GAIN_CTL,
 					WCD9378_CDC_AUX_GAIN_CTL_AUX_EN_MASK, 0x00);
-			wcd9378_rx_connect_port(component, LO, true);
+			wcd9378_rx_connect_port(component, LO, false);
 		}
 		break;
 	};
