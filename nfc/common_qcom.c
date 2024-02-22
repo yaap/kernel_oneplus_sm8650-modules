@@ -4,7 +4,7 @@
  *
  ***************************************************************************/
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  ***************************************************************************/
 
@@ -162,3 +162,43 @@ int nfc_ldo_unvote(struct nfc_dev *nfc_dev)
 	return ret;
 }
 
+/*
+ * Routine to enable clock.
+ * this routine can be extended to select from multiple
+ * sources based on clk name.
+ */
+int nfc_clock_select(struct nfc_dev *nfc_dev)
+{
+	int r = 0;
+
+	nfc_dev->s_clk = clk_get(&nfc_dev->i2c_dev.client->dev, "nfc_ref_clk");
+
+	if (IS_ERR(nfc_dev->s_clk))
+		return PTR_ERR(nfc_dev->s_clk);
+
+	if (!nfc_dev->clk_run)
+		r = clk_prepare_enable(nfc_dev->s_clk);
+
+	if (r)
+		return r;
+
+	nfc_dev->clk_run = true;
+	return r;
+}
+
+/*
+ * Routine to disable clocks
+ */
+int nfc_clock_deselect(struct nfc_dev *nfc_dev)
+{
+	int r = -EINVAL;
+
+	if (nfc_dev->s_clk != NULL) {
+		if (nfc_dev->clk_run) {
+			clk_disable_unprepare(nfc_dev->s_clk);
+			nfc_dev->clk_run = false;
+		}
+		return 0;
+	}
+	return r;
+}
