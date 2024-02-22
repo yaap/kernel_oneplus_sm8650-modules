@@ -1,5 +1,5 @@
 /* Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,17 +40,18 @@
 #include <linux/cpumask.h>
 #include <linux/icmp.h>
 #include <linux/inet.h>
-static char*verinfo[]={"\x37\x66\x63\x32\x33\x39\x31\x66",
-"\x39\x35\x38\x61\x65\x34\x32\x34","\x30\x66\x66\x65\x65\x39\x66\x65",
-"\x32\x31\x30\x33\x65\x39\x38\x62","\x37\x61\x32\x34\x64\x35\x34\x61",
-"\x34\x34\x62\x37\x32\x33\x31\x32","\x62\x66\x61\x30\x39\x34\x62\x35",
-"\x62\x38\x38\x39\x38\x62\x66\x32","\x33\x35\x32\x37\x62\x38\x30\x65",
-"\x63\x30\x39\x37\x35\x35\x62\x33","\x32\x36\x66\x64\x33\x30\x36\x35",
-"\x65\x36\x66\x64\x34\x31\x33\x37","\x36\x64\x38\x31\x37\x39\x62\x63",
-"\x64\x66\x39\x32\x65\x35\x33\x34","\x30\x38\x61\x39\x34\x38\x64\x61",
-"\x36\x35\x35\x37\x37\x63\x32\x32","\x65\x35\x37\x30\x63\x30\x35\x63"};
-module_param_array(verinfo,charp,NULL,(0xcb7+5769-0x221c));MODULE_PARM_DESC(
-verinfo,
+static char*verinfo[]={"\x63\x66\x66\x31\x64\x38\x38\x36",
+"\x30\x37\x63\x37\x63\x37\x36\x39","\x63\x34\x65\x33\x65\x61\x34\x65",
+"\x37\x66\x63\x32\x33\x39\x31\x66","\x39\x35\x38\x61\x65\x34\x32\x34",
+"\x30\x66\x66\x65\x65\x39\x66\x65","\x32\x31\x30\x33\x65\x39\x38\x62",
+"\x37\x61\x32\x34\x64\x35\x34\x61","\x34\x34\x62\x37\x32\x33\x31\x32",
+"\x62\x66\x61\x30\x39\x34\x62\x35","\x62\x38\x38\x39\x38\x62\x66\x32",
+"\x33\x35\x32\x37\x62\x38\x30\x65","\x63\x30\x39\x37\x35\x35\x62\x33",
+"\x32\x36\x66\x64\x33\x30\x36\x35","\x65\x36\x66\x64\x34\x31\x33\x37",
+"\x36\x64\x38\x31\x37\x39\x62\x63","\x64\x66\x39\x32\x65\x35\x33\x34",
+"\x30\x38\x61\x39\x34\x38\x64\x61","\x36\x35\x35\x37\x37\x63\x32\x32",
+"\x65\x35\x37\x30\x63\x30\x35\x63"};module_param_array(verinfo,charp,NULL,
+(0xcb7+5769-0x221c));MODULE_PARM_DESC(verinfo,
 "\x56\x65\x72\x73\x69\x6f\x6e\x20\x6f\x66\x20\x74\x68\x65\x20\x64\x72\x69\x76\x65\x72"
 );
 #define DATARMNET2f67183a86 2000000
@@ -767,8 +768,35 @@ DATARMNETecc0627c70.DATARMNET6fe0db3a49=DATARMNET4ab5a31d0c;if(
 DATARMNETecc0627c70.DATARMNETa2e32cdd3a>(0xd2d+202-0xdf7)&&!spin_is_locked(&
 DATARMNET3764d083f0)){DATARMNET14ed771dfb[DATARMNET84a9e136b8]++;
 DATARMNETa4bf9fbf64((0xd2d+202-0xdf7),DATARMNET0b15fd8b54);}}void 
-DATARMNET45d8cdb224(struct net_device*dev,struct net_device*vnd){struct rps_map*
-map;int rc;u8 DATARMNET0e4304d903;u8 map_mask;u8 map_len;if(DATARMNETecc0627c70.
+DATARMNETaeb508acb0(void){struct DATARMNETe2f668ccb4 DATARMNET5e1b15e908[
+DATARMNETc6782fed88];int i=(0xd2d+202-0xdf7);int DATARMNET8b7fada323=
+(0xd2d+202-0xdf7),DATARMNET71967642e2=(0xd2d+202-0xdf7),cpu=(0xd2d+202-0xdf7),
+DATARMNET7e100af73e=(0xd2d+202-0xdf7);memset(DATARMNET5e1b15e908,
+(0xd2d+202-0xdf7),DATARMNETc6782fed88*sizeof(struct DATARMNETe2f668ccb4));
+for_each_cpu(cpu,cpu_possible_mask){DATARMNET7e100af73e=(0xd2d+202-0xdf7);
+DATARMNET5e1b15e908[cpu].DATARMNET42c3ecbd5e=cpu;DATARMNET5e1b15e908[cpu].
+DATARMNET24fec1b9ad=topology_cluster_id(cpu);for_each_cpu(DATARMNET7e100af73e,
+topology_cluster_cpumask(cpu)){DATARMNET5e1b15e908[cpu].DATARMNETf58377e952|=
+(0xd26+209-0xdf6)<<DATARMNET7e100af73e;}DATARMNET5e1b15e908[cpu].
+DATARMNET5c98629e14=arch_scale_cpu_capacity(cpu);rm_err(
+"\x53\x48\x53\x5f\x43\x50\x55\x5f\x4c\x4f\x47\x3a\x20\x63\x70\x75\x3a\x20\x25\x64\x20\x63\x69\x64\x3a\x20\x25\x64\x20\x63\x6d\x61\x73\x6b\x3a\x20\x25\x64\x20\x63\x61\x70\x61\x63\x69\x74\x79\x3a\x20\x25\x64" "\n"
+,DATARMNET5e1b15e908[cpu].DATARMNET42c3ecbd5e,DATARMNET5e1b15e908[cpu].
+DATARMNET24fec1b9ad,DATARMNET5e1b15e908[cpu].DATARMNETf58377e952,
+DATARMNET5e1b15e908[cpu].DATARMNET5c98629e14);}DATARMNET8b7fada323=
+DATARMNET5e1b15e908[(0xd2d+202-0xdf7)].DATARMNET5c98629e14;DATARMNET71967642e2=
+(0xd2d+202-0xdf7);for(i=(0xd2d+202-0xdf7);i<DATARMNETc6782fed88;i++){if(
+DATARMNET5e1b15e908[i].DATARMNET5c98629e14<DATARMNET8b7fada323){
+DATARMNET8b7fada323=DATARMNET5e1b15e908[i].DATARMNET5c98629e14;
+DATARMNET71967642e2=i;}}DATARMNETecc0627c70.DATARMNET637025ccc1=
+DATARMNET5e1b15e908[DATARMNET71967642e2].DATARMNETf58377e952;DATARMNETecc0627c70
+.DATARMNET2f954f58f8=hweight_long(DATARMNETecc0627c70.DATARMNET637025ccc1);
+DATARMNETecc0627c70.DATARMNETf510b48c29=((0xbf7+4364-0x1c04)^DATARMNETecc0627c70
+.DATARMNET637025ccc1);rm_err(
+"\x53\x48\x53\x5f\x43\x50\x55\x5f\x4c\x4f\x47\x3a\x20\x6d\x61\x78\x5f\x73\x5f\x63\x6f\x72\x65\x73\x3a\x20\x25\x64\x20\x6e\x6f\x6e\x5f\x70\x65\x72\x66\x5f\x6d\x61\x73\x6b\x3a\x20\x25\x64\x20\x70\x65\x72\x66\x5f\x6d\x61\x73\x6b\x3a\x20\x25\x64" "\n"
+,DATARMNETecc0627c70.DATARMNET2f954f58f8,DATARMNETecc0627c70.DATARMNET637025ccc1
+,DATARMNETecc0627c70.DATARMNETf510b48c29);}void DATARMNET45d8cdb224(struct 
+net_device*dev,struct net_device*vnd){struct rps_map*map;int rc;u8 
+DATARMNET0e4304d903;u8 map_mask;u8 map_len;if(DATARMNETecc0627c70.
 DATARMNETfc89d842ae)return;map=rcu_dereference(vnd->_rx->rps_map);if(!map){
 map_mask=(0xd2d+202-0xdf7);map_len=(0xd2d+202-0xdf7);}else{map_mask=
 DATARMNET928c931df9(map);map_len=DATARMNET310c3eb16e(map_mask);}
@@ -776,13 +804,12 @@ DATARMNETecc0627c70.port=rmnet_get_port(dev);DATARMNETecc0627c70.map_mask=
 map_mask;DATARMNETecc0627c70.map_len=map_len;DATARMNETecc0627c70.
 DATARMNETba3f7a11ef=(0xd1f+216-0xdf5);DATARMNETecc0627c70.DATARMNET5c24e1df05=
 (0xd26+209-0xdf6);DATARMNETecc0627c70.DATARMNET6625085b71=(0xd26+209-0xdf6);
-DATARMNETecc0627c70.DATARMNET7d667e828e=(0xd26+209-0xdf6);DATARMNETecc0627c70.
-DATARMNETf510b48c29=(0xbc7+4849-0x1e1c);DATARMNETecc0627c70.DATARMNET637025ccc1=
-(0xeb7+705-0x1115);DATARMNETecc0627c70.DATARMNET2f954f58f8=(0xd11+230-0xdf3);for
-(DATARMNET0e4304d903=(0xd2d+202-0xdf7);DATARMNET0e4304d903<DATARMNETc6782fed88;
-DATARMNET0e4304d903++)INIT_LIST_HEAD(&DATARMNET0997c5650d[DATARMNET0e4304d903].
-DATARMNET3dc4262f53);DATARMNETe6e8431304();DATARMNET44499733f2();rc=
-register_oom_notifier(&DATARMNET105c85d84c);if(rc<(0xd2d+202-0xdf7)){pr_info(
+DATARMNETecc0627c70.DATARMNET7d667e828e=(0xd26+209-0xdf6);DATARMNETaeb508acb0();
+for(DATARMNET0e4304d903=(0xd2d+202-0xdf7);DATARMNET0e4304d903<
+DATARMNETc6782fed88;DATARMNET0e4304d903++)INIT_LIST_HEAD(&DATARMNET0997c5650d[
+DATARMNET0e4304d903].DATARMNET3dc4262f53);DATARMNETe6e8431304();
+DATARMNET44499733f2();rc=register_oom_notifier(&DATARMNET105c85d84c);if(rc<
+(0xd2d+202-0xdf7)){pr_info(
 "\x52\x6d\x6e\x65\x74\x5f\x73\x68\x73\x5f\x6f\x6f\x6d\x20\x72\x65\x67\x69\x73\x74\x65\x72\x20\x66\x61\x69\x6c\x75\x72\x65"
 );}pr_info(
 "\x72\x6d\x6e\x65\x74\x5f\x73\x68\x73\x20\x69\x6e\x69\x74\x20\x77\x69\x74\x68\x20\x25\x78"

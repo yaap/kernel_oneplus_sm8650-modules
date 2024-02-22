@@ -1,5 +1,5 @@
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,6 +17,7 @@
 #include "rmnet_shs_config.h"
 #include "rmnet_shs.h"
 #include <linux/ktime.h>
+#include <linux/arch_topology.h>
 #define DATARMNETdfb4d931bc  (0xd2d+202-0xdf7)
 #define DATARMNETf0dc5ccb6f (0xd2d+202-0xdf7)
 #define rm_err(DATARMNET6c3cf5865b, ...)  \
