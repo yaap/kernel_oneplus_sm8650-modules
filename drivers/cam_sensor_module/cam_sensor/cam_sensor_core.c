@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1065,8 +1065,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 {
 	int rc = 0, pkt_opcode = 0;
 	struct cam_control *cmd = (struct cam_control *)arg;
-	struct cam_sensor_power_ctrl_t *power_info =
-		&s_ctrl->sensordata->power_info;
+	struct cam_sensor_power_ctrl_t *power_info = NULL;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
 
@@ -1074,6 +1073,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
 		return -EINVAL;
 	}
+
+	power_info = &s_ctrl->sensordata->power_info;
 
 	if (cmd->op_code != CAM_SENSOR_PROBE_CMD) {
 		if (cmd->handle_type != CAM_HANDLE_USER_POINTER) {
@@ -1965,18 +1966,12 @@ int32_t cam_sensor_apply_request(struct cam_req_mgr_apply_request *apply)
 	}
 
 	if ((apply->recovery) && (apply->request_id > 0)) {
-		curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
-		last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
-
-		/*
-		 * If the sensor resolution index in current req isn't same with
-		 * last applied index, we should apply bubble update.
-		 */
-
-		if ((s_ctrl->sensor_res[curr_idx].res_index !=
-			s_ctrl->sensor_res[last_applied_idx].res_index) ||
-			(s_ctrl->sensor_res[curr_idx].feature_mask !=
-			s_ctrl->sensor_res[last_applied_idx].feature_mask)) {
+		if (apply->request_id <= s_ctrl->last_applied_req) {
+			/*
+			 * Use bubble update for request reapply
+			 */
+			curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
+			last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
 			opcode = CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE;
 			CAM_INFO(CAM_REQ,
 				"Sensor[%d] update req id: %lld [last_applied: %lld] with opcode:%d recovery: %d last_applied_res_idx: %u current_res_idx: %u",

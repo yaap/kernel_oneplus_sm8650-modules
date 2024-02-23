@@ -5458,7 +5458,7 @@ int cam_ife_csid_ver2_start(void *hw_priv, void *args,
 		if (rc) {
 			CAM_ERR(CAM_ISP, "Failed in setting cesta clk rates, client_idx:%d rc:%d",
 				csid_hw->hw_intf->hw_idx, rc);
-			return rc;
+			goto end;
 		}
 
 		if (csid_hw->sync_mode != CAM_ISP_HW_SYNC_SLAVE) {

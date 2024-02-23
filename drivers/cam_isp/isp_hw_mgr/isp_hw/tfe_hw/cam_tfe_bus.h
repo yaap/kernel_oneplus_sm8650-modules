@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -211,6 +211,7 @@ struct cam_tfe_bus_tfe_out_hw_info {
  * @counter_limit_mask:    Default Mask of BW limit counter
  * @en_cfg_shift:          bus client frame based enable bit
  * @pack_align_shift:      pack alignment shift
+ * @max_out_res:           Max tfe out resource value supported for hw
  */
 struct cam_tfe_bus_hw_info {
 	struct cam_tfe_bus_reg_offset_common common_reg;
@@ -236,6 +237,7 @@ struct cam_tfe_bus_hw_info {
 	uint32_t counter_limit_shift;
 	uint32_t counter_limit_mask;
 	uint32_t pack_align_shift;
+	uint32_t max_out_res;
 };
 
 /*

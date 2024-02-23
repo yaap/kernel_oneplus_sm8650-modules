@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/uaccess.h>
@@ -6181,8 +6181,10 @@ static int cam_icp_mgr_prepare_hw_update(void *hw_mgr_priv,
 
 	packet = prepare_args->packet;
 
-	if (cam_packet_util_validate_packet(packet, prepare_args->remain_len))
+	if (cam_packet_util_validate_packet(packet, prepare_args->remain_len)) {
+		mutex_unlock(&ctx_data->ctx_mutex);
 		return -EINVAL;
+	}
 
 	rc = cam_icp_mgr_pkt_validation(ctx_data, packet);
 	if (rc) {
@@ -7604,7 +7606,7 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 	struct cam_hw_intf **alloc_devices = NULL;
 	int rc, i;
 	enum cam_icp_hw_type icp_hw_type;
-	uint32_t num = 0, num_cpas_mask = 0, cpas_hw_mask[MAX_HW_CAPS_MASK] = {0};
+	uint32_t num = 0, mask = 0, num_cpas_mask = 0, cpas_hw_mask[MAX_HW_CAPS_MASK] = {0};
 
 	rc = cam_icp_alloc_processor_devs(np, &icp_hw_type, &alloc_devices, hw_dev_cnt);
 	if (rc) {
@@ -7633,6 +7635,11 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 	devices[icp_hw_type] = alloc_devices;
 	hw_mgr->hw_cap_mask |= BIT(icp_hw_type);
 	num_cpas_mask = max(num_cpas_mask, (uint32_t)(ICP_CAPS_MASK_IDX + 1));
+
+	rc = of_property_read_u32(np, "icp-mask", &mask);
+	if (!rc)
+		icp_cpas_mask[hw_mgr->hw_mgr_id] = mask;
+
 	cpas_hw_mask[ICP_CAPS_MASK_IDX] |= icp_cpas_mask[hw_mgr->hw_mgr_id];
 
 	rc = of_property_read_u32(np, "num-ipe", &num);
@@ -7648,7 +7655,12 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 		devices[CAM_ICP_DEV_IPE] = alloc_devices;
 		hw_mgr->hw_cap_mask |= BIT(CAM_ICP_DEV_IPE);
 		num_cpas_mask = max(num_cpas_mask, (uint32_t)(IPE_CAPS_MASK_IDX + 1));
-		cpas_hw_mask[IPE_CAPS_MASK_IDX] |= CPAS_TITAN_IPE0_CAP_BIT;
+
+		rc = of_property_read_u32(np, "ipe0-mask", &mask);
+		if (!rc)
+			cpas_hw_mask[IPE_CAPS_MASK_IDX] |= mask;
+		else
+			cpas_hw_mask[IPE_CAPS_MASK_IDX] |= CPAS_TITAN_IPE0_CAP_BIT;
 	}
 
 	rc = of_property_read_u32(np, "num-bps", &num);
@@ -7664,7 +7676,12 @@ static int cam_icp_mgr_alloc_devs(struct device_node *np, struct cam_icp_hw_mgr 
 		devices[CAM_ICP_DEV_BPS] = alloc_devices;
 		hw_mgr->hw_cap_mask |= BIT(CAM_ICP_DEV_BPS);
 		num_cpas_mask = max(num_cpas_mask, (uint32_t)(BPS_CAPS_MASK_IDX + 1));
-		cpas_hw_mask[BPS_CAPS_MASK_IDX] |= CPAS_BPS_BIT;
+
+		rc = of_property_read_u32(np, "bps-mask", &mask);
+		if (!rc)
+			cpas_hw_mask[BPS_CAPS_MASK_IDX] |= mask;
+		else
+			cpas_hw_mask[BPS_CAPS_MASK_IDX] |= CPAS_BPS_BIT;
 	}
 
 	rc = of_property_read_u32(np, "num-ofe", &num);

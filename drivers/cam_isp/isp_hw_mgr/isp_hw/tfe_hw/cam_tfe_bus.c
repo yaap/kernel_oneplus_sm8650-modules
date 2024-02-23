@@ -182,6 +182,7 @@ struct cam_tfe_bus_priv {
 	uint32_t                            comp_buf_done_mask;
 	uint32_t                            comp_rup_done_mask;
 	uint32_t           bus_irq_error_mask[CAM_TFE_BUS_IRQ_REGISTERS_MAX];
+	uint32_t                            max_out_res;
 };
 
 static bool cam_tfe_bus_can_be_secure(uint32_t out_id)
@@ -2029,28 +2030,24 @@ static int cam_tfe_bus_bufdone_bottom_half(
 		if (evt_payload->bus_irq_val[0] &
 			BIT(comp_rsrc_data->comp_grp_id +
 			bus_priv->common_data.comp_done_shift)) {
-			out_rsrc = comp_rsrc_data->out_rsrc[0];
-			out_rsrc_data = out_rsrc->res_priv;
-			evt_info.res_type = out_rsrc->res_type;
-			evt_info.hw_idx = out_rsrc->hw_intf->hw_idx;
-			evt_info.res_id = out_rsrc->res_id;
-			bufdone_evt_info.res_id = out_rsrc->res_id;
-			bufdone_evt_info.comp_grp_id = comp_rsrc_data->comp_grp_id;
-			bufdone_evt_info.last_consumed_addr =
-				cam_tfe_bus_get_last_consumed_addr(
-					out_rsrc_data->bus_priv,
-					out_rsrc_data->out_id);
-			evt_info.event_data = (void *)&bufdone_evt_info;
+				out_rsrc = comp_rsrc_data->out_rsrc[0];
+				out_rsrc_data = out_rsrc->res_priv;
+				evt_info.res_type = out_rsrc->res_type;
+				evt_info.hw_idx = out_rsrc->hw_intf->hw_idx;
+				evt_info.res_id = out_rsrc->res_id;
+				bufdone_evt_info.res_id = out_rsrc->res_id;
+				bufdone_evt_info.comp_grp_id = comp_rsrc_data->comp_grp_id;
+				bufdone_evt_info.last_consumed_addr =
+					cam_tfe_bus_get_last_consumed_addr(
+						out_rsrc_data->bus_priv,
+						out_rsrc_data->out_id);
+				evt_info.event_data = (void *)&bufdone_evt_info;
 
-			if (out_rsrc_data->event_cb)
-				out_rsrc_data->event_cb(out_rsrc_data->priv,
-					CAM_ISP_HW_EVENT_DONE,
-					(void *)&evt_info);
+				if (out_rsrc_data->event_cb)
+					out_rsrc_data->event_cb(out_rsrc_data->priv,
+						CAM_ISP_HW_EVENT_DONE,
+						(void *)&evt_info);
 		}
-
-		evt_payload->bus_irq_val[0] &=
-			BIT(comp_rsrc_data->comp_grp_id +
-			bus_priv->common_data.comp_done_shift);
 	}
 
 	return 0;
@@ -2907,9 +2904,9 @@ static int cam_tfe_bus_process_cmd(void *priv,
 	struct cam_tfe_bus_priv      *bus_priv;
 	int rc = 0;
 	uint32_t i, val;
-	bool *support_consumed_addr;
 	bool *pdaf_rdi2_mux_en;
 	struct cam_isp_hw_done_event_data *done;
+	struct cam_isp_hw_cap *tfe_bus_cap;
 
 	if (!priv || !cmd_args) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP, "Invalid input arguments");
@@ -2941,10 +2938,11 @@ static int cam_tfe_bus_process_cmd(void *priv,
 				bus_priv->common_data.common_reg->irq_mask[i]);
 		}
 		break;
-	case CAM_ISP_HW_CMD_IS_CONSUMED_ADDR_SUPPORT:
+	case CAM_ISP_HW_CMD_QUERY_CAP:
 		bus_priv = (struct cam_tfe_bus_priv  *) priv;
-		support_consumed_addr = (bool *)cmd_args;
-		*support_consumed_addr =
+		tfe_bus_cap = (struct cam_isp_hw_cap *) cmd_args;
+		tfe_bus_cap->max_out_res_type = bus_priv->max_out_res;
+		tfe_bus_cap->support_consumed_addr =
 			bus_priv->common_data.support_consumed_addr;
 		break;
 	case CAM_ISP_HW_CMD_GET_RES_FOR_MID:
@@ -3038,6 +3036,7 @@ int cam_tfe_bus_init(
 	bus_priv->num_comp_grp                 = hw_info->num_comp_grp;
 	bus_priv->max_wm_per_comp_grp          = hw_info->max_wm_per_comp_grp;
 	bus_priv->top_bus_wr_irq_shift         = hw_info->top_bus_wr_irq_shift;
+	bus_priv->max_out_res                  = hw_info->max_out_res;
 	bus_priv->common_data.comp_done_shift  = hw_info->comp_done_shift;
 
 	bus_priv->common_data.num_sec_out      = 0;
