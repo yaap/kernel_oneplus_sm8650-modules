@@ -2130,12 +2130,6 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	case MICB_DISABLE:
 		if (wcd9378->micb_ref[micb_index] > 0)
 			wcd9378->micb_ref[micb_index]--;
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
 		if ((wcd9378->micb_ref[micb_index] == 0) &&
 			(wcd9378->pullup_ref[micb_index] > 0)) {
 			/*PULL UP?*/
@@ -2296,6 +2290,11 @@ static int wcd9378_event_notify(struct notifier_block *block,
 
 		wcd9378_get_logical_addr(wcd9378->tx_swr_dev);
 		wcd9378_get_logical_addr(wcd9378->rx_swr_dev);
+
+		wcd9378->tx_swr_dev->scp1_val = 0;
+		wcd9378->tx_swr_dev->scp2_val = 0;
+		wcd9378->rx_swr_dev->scp1_val = 0;
+		wcd9378->rx_swr_dev->scp2_val = 0;
 
 		wcd9378_init_reg(component);
 		regcache_mark_dirty(wcd9378->regmap);

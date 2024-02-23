@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -24,8 +24,7 @@
 #define SCP1_ADDRESS              (0X48)
 #define SCP2_ADDRESS              (0X49)
 #define SDCA_READ_WRITE_BIT       (0x8000)
-u8 g_scp1_val;
-u8 g_scp2_val;
+
 static DEFINE_MUTEX(swr_rw_lock);
 
 static int regmap_swr_reg_address_get(struct swr_device *swr,
@@ -43,24 +42,24 @@ static int regmap_swr_reg_address_get(struct swr_device *swr,
 		scp2_val = temp >> SCP2_ADDRESS_VAL_SHIFT;
 
 		if (scp1_val || scp2_val) {
-			if (scp1_val != g_scp1_val) {
+			if (scp1_val != swr->scp1_val) {
 				ret = swr_write(swr, swr->dev_num, SCP1_ADDRESS, &scp1_val);
 				if (ret < 0) {
 					dev_err(&swr->dev, "%s: write reg scp1_address failed, err %d\n",
 						__func__, ret);
 					return ret;
 				}
-				g_scp1_val = scp1_val;
+				swr->scp1_val = scp1_val;
 			}
 
-			if (scp2_val != g_scp2_val) {
+			if (scp2_val != swr->scp2_val) {
 				ret = swr_write(swr, swr->dev_num, SCP2_ADDRESS, &scp2_val);
 				if (ret < 0) {
 					dev_err(&swr->dev, "%s: write reg scp2_address failed, err %d\n",
 					__func__, ret);
 					return ret;
 				}
-				g_scp2_val = scp2_val;
+				swr->scp2_val = scp2_val;
 			}
 			*reg_addr = (*(u16 *)reg | SDCA_READ_WRITE_BIT);
 			dev_dbg(&swr->dev, "%s: reg: 0x%x, scp1_val: 0x%x, scp2_val: 0x%x, reg_addr: 0x%x\n",
