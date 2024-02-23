@@ -15,7 +15,6 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/rfkill.h>
-#include <linux/skbuff.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/of.h>
@@ -26,11 +25,6 @@
 #include <linux/uaccess.h>
 #include <linux/of_device.h>
 #include <soc/qcom/cmd-db.h>
-#include <linux/kdev_t.h>
-#include <linux/refcount.h>
-#include <linux/idr.h>
-#include <linux/cdev.h>
-#include <linux/device.h>
 #include <linux/pinctrl/qcom-pinctrl.h>
 #include "btpower.h"
 #if (defined CONFIG_BT_SLIM)
@@ -55,20 +49,6 @@
 #define BTPOWER_MBOX_MSG_MAX_LEN 64
 #define BTPOWER_MBOX_TIMEOUT_MS 1000
 #define XO_CLK_RETRY_COUNT_MAX 5
-#define MAX_PROP_SIZE 32
-#define BTPOWER_CONFIG_MAX_TIMEOUT 500
-
-#define SIGIO_OOBS_SINGAL        0x00010000
-#define SIGIO_INTERACTION_SIGNAL 0x00020000
-#define SIGIO_SOC_ACCESS_SIGNAL  0x00040000
-
-#define SIGIO_GPIO_HIGH          0x00000001
-#define SIGIO_GPIO_LOW           0x00000000
-#define SIGIO_SSR_ON_UWB         0x00000001
-#define SIGIO_UWB_SSR_COMPLETED  0x00000002
-
-#define CRASH_REASON_NOT_FOUND  ((char *)"Crash reason not found")
-
 /**
  * enum btpower_vreg_param: Voltage regulator TCS param
  * @BTPOWER_VREG_VOLTAGE: Provides voltage level to be configured in TCS
@@ -139,7 +119,7 @@ enum power_src_pos {
 };
 
 // Regulator structure for QCA6174/QCA9377/QCA9379 BT SoC series
-static struct vreg_data bt_vregs_info_qca61x4_937x[] = {
+static struct bt_power_vreg_data bt_vregs_info_qca61x4_937x[] = {
 	{NULL, "qcom,bt-vdd-aon", 928000, 928000, 0, false, false,
 		{BT_VDD_AON_LDO, BT_VDD_AON_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-io", 1710000, 3460000, 0, false, false,
@@ -149,7 +129,7 @@ static struct vreg_data bt_vregs_info_qca61x4_937x[] = {
 };
 
 // Regulator structure for QCA6390,QCA6490 and WCN6750 BT SoC series
-static struct vreg_data bt_vregs_info_qca6xx0[] = {
+static struct bt_power_vreg_data bt_vregs_info_qca6xx0[] = {
 	{NULL, "qcom,bt-vdd-io",      1800000, 1800000, 0, false, true,
 		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-aon",     966000,  966000,  0, false, true,
@@ -171,52 +151,34 @@ static struct vreg_data bt_vregs_info_qca6xx0[] = {
 		{BT_VDD_IPA_2p2, BT_VDD_IPA_2p2_CURRENT}},
 };
 
-// Regulator structure for kiwi BT SoC series
-static struct vreg_data bt_vregs_info_kiwi[] = {
-	{NULL, "qcom,bt-vdd18-aon",      1800000, 1800000, 0, false, true,
-		{BT_VDD_LDO, BT_VDD_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd12-io",      1200000, 1200000, 0, false, true,
-		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
-	{NULL, "qcom,bt-ant-ldo",  1776000, 1776000, 0, false, true,
-		{BT_VDD_ANT_LDO, BT_VDD_ANT_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd-dig",      950000,  950000,  0, false, true,
-		{BT_VDD_DIG_LDO, BT_VDD_DIG_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd-aon",     950000,  950000,  0, false, true,
-		{BT_VDD_AON_LDO, BT_VDD_AON_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd-rfaOp8",  950000,  952000,  0, false, true,
-		{BT_VDD_RFA_0p8, BT_VDD_RFA_0p8_CURRENT}},
-	/* BT_CX_MX */
-	{NULL, "qcom,bt-vdd-rfa2",     1900000, 1900000, 0, false, true,
-		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd-rfa1",     1350000, 1350000, 0, false, true,
-		{BT_VDD_RFA1_LDO, BT_VDD_RFA1_LDO_CURRENT}},
-};
 
 // Regulator structure for kiwi BT SoC series
-static struct vreg_data bt_vregs_info_peach[] = {
+static struct bt_power_vreg_data bt_vregs_info_kiwi[] = {
 	{NULL, "qcom,bt-vdd18-aon",      1800000, 1800000, 0, false, true,
 		{BT_VDD_LDO, BT_VDD_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd12-io",      1200000, 1200000, 0, false, true,
 		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
-	{NULL, "qcom,bt-ant-ldo",  1776000, 1776000, 0, false, true,
-		{BT_VDD_ANT_LDO, BT_VDD_ANT_LDO_CURRENT}},
-	{NULL, "qcom,bt-vdd-dig",      950000,  950000,  0, false, true,
-		{BT_VDD_DIG_LDO, BT_VDD_DIG_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-aon",     950000,  950000,  0, false, true,
 		{BT_VDD_AON_LDO, BT_VDD_AON_LDO_CURRENT}},
+	{NULL, "qcom,bt-vdd-rfaOp8",  950000,  950000,  0, false, true,
+		{BT_VDD_RFACMN, BT_VDD_RFACMN_CURRENT}},
+	/* BT_CX_MX */
+	{NULL, "qcom,bt-vdd-dig",      950000,  950000,  0, false, true,
+		{BT_VDD_DIG_LDO, BT_VDD_DIG_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-rfaOp8",  950000,  952000,  0, false, true,
 		{BT_VDD_RFA_0p8, BT_VDD_RFA_0p8_CURRENT}},
-	/* BT_CX_MX */
-	{NULL, "qcom,bt-vdd-rfa2",     1900000, 1900000, 0, false, true,
-		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-rfa1",     1350000, 1350000, 0, false, true,
 		{BT_VDD_RFA1_LDO, BT_VDD_RFA1_LDO_CURRENT}},
+	{NULL, "qcom,bt-vdd-rfa2",     1900000, 1900000, 0, false, true,
+		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
+	{NULL, "qcom,bt-ant-ldo",  1776000, 1776000, 0, false, true,
+		{BT_VDD_ANT_LDO, BT_VDD_ANT_LDO_CURRENT}},
 };
 
 // Regulator structure for WCN399x BT SoC series
-static struct pwr_data bt_vreg_info_wcn399x = {
+static struct bt_power bt_vreg_info_wcn399x = {
 	.compatible = "qcom,wcn3990",
-	.bt_vregs = (struct vreg_data []) {
+	.vregs = (struct bt_power_vreg_data []) {
 		{NULL, "qcom,bt-vdd-smps", 984000,  984000, 0, false, false,
 			{BT_VDD_SMPS, BT_VDD_SMPS_CURRENT}},
 		{NULL, "qcom,bt-vdd-io",   1700000, 1900000, 0, false, false,
@@ -228,59 +190,49 @@ static struct pwr_data bt_vreg_info_wcn399x = {
 		{NULL, "qcom,bt-vdd-xtal", 1700000, 1900000, 0, false, false,
 			{BT_VDD_XTAL_LDO, BT_VDD_XTAL_LDO_CURRENT}},
 	},
-	.bt_num_vregs = 5,
+	.num_vregs = 5,
 };
 
-static struct pwr_data bt_vreg_info_qca6174 = {
+static struct bt_power bt_vreg_info_qca6174 = {
 	.compatible = "qcom,qca6174",
-	.bt_vregs = bt_vregs_info_qca61x4_937x,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_qca61x4_937x),
+	.vregs = bt_vregs_info_qca61x4_937x,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca61x4_937x),
 };
 
-static struct pwr_data bt_vreg_info_qca6390 = {
+static struct bt_power bt_vreg_info_qca6390 = {
 	.compatible = "qcom,qca6390",
-	.bt_vregs = bt_vregs_info_qca6xx0,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
-static struct pwr_data bt_vreg_info_qca6490 = {
+static struct bt_power bt_vreg_info_qca6490 = {
 	.compatible = "qcom,qca6490",
-	.bt_vregs = bt_vregs_info_qca6xx0,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
-static struct pwr_data bt_vreg_info_kiwi = {
+static struct bt_power bt_vreg_info_kiwi = {
 	.compatible = "qcom,kiwi",
-	.bt_vregs = bt_vregs_info_kiwi,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
+	.vregs = bt_vregs_info_kiwi,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
 };
 
-static struct pwr_data bt_vreg_info_kiwi_no_share_ant_power = {
+static struct bt_power bt_vreg_info_kiwi_no_share_ant_power = {
 	.compatible = "qcom,kiwi-no-share-ant-power",
-	.bt_vregs = bt_vregs_info_kiwi,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
+	.vregs = bt_vregs_info_kiwi,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
 };
 
-static struct pwr_data bt_vreg_info_converged = {
+static struct bt_power bt_vreg_info_converged = {
 	.compatible = "qcom,bt-qca-converged",
-	.bt_vregs = bt_vregs_info_kiwi,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
+	.vregs = bt_vregs_info_kiwi,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
 };
 
-static struct pwr_data bt_vreg_info_wcn6750 = {
+static struct bt_power bt_vreg_info_wcn6750 = {
 	.compatible = "qcom,wcn6750-bt",
-	.bt_vregs = bt_vregs_info_qca6xx0,
-	.bt_num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
-};
-
-static struct pwr_data bt_vreg_info_peach = {
-	.compatible = "qcom,peach-bt",
-	.platform_vregs = bt_vregs_info_peach,
-	.platform_num_vregs = ARRAY_SIZE(bt_vregs_info_peach),
-	//.uwb_vregs = uwb_vregs_info,
-	//.bt_vregs = platform_vregs_info,
-	//.uwb_num_vregs = ARRAY_SIZE(uwb_vregs_info),
-	//.bt_num_vregs = ARRAY_SIZE(platform_vregs_info),
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
 static const struct of_device_id bt_power_match_table[] = {
@@ -293,27 +245,24 @@ static const struct of_device_id bt_power_match_table[] = {
 			.data = &bt_vreg_info_kiwi_no_share_ant_power},
 	{	.compatible = "qcom,wcn6750-bt", .data = &bt_vreg_info_wcn6750},
 	{	.compatible = "qcom,bt-qca-converged", .data = &bt_vreg_info_converged},
-	{	.compatible = "qcom,peach-bt", .data = &bt_vreg_info_peach},
 	{},
 };
 
-static int btpower_enable_ipa_vreg(struct platform_pwr_data *pdata);
-static struct platform_pwr_data *pwr_data;
+static int bt_power_vreg_set(enum bt_power_modes mode);
+static int btpower_enable_ipa_vreg(struct btpower_platform_data *pdata);
+
+static int bt_power_src_status[BT_POWER_SRC_SIZE];
+static struct btpower_platform_data *bt_power_pdata;
 static bool previous;
+static int pwr_state;
 static struct class *bt_class;
 static int bt_major;
 static int soc_id;
 static bool probe_finished;
-static void bt_power_vote(struct work_struct *work);
 
-static struct {
-	int platform_state[BT_POWER_SRC_SIZE];
-	int bt_state[BT_POWER_SRC_SIZE];
-	int uwb_state[BT_POWER_SRC_SIZE];
-} power_src;
 
 #ifdef CONFIG_BT_HW_SECURE_DISABLE
-int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
+int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
 {
 	struct Object client_env;
 	struct Object app_object;
@@ -340,7 +289,7 @@ int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
 		if (ret == PERISEC_FEATURE_NOT_SUPPORTED) {
 			ret = 0; /* Do not Assert */
 			plat_priv->sec_peri_feature_disable = true;
-			pr_err("Secure HW feature not supported\n");
+			pr_debug("Secure HW feature not supported\n");
 		}
 		goto exit_release_clientenv;
 	}
@@ -350,12 +299,12 @@ int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
 	ret = Object_invoke(app_object, PERISEC_HW_OP_GET_STATE, obj_arg,
 			    ObjectCounts_pack(1, 1, 0, 0));
 
-	pr_err("SMC invoke ret: %d state: %d\n", ret, state);
+	pr_info("SMC invoke ret: %d state: %d\n", ret, state);
 	if (ret) {
 		if (ret == PERISEC_PERIPHERAL_NOT_FOUND) {
 			ret = 0; /* Do not Assert */
 			plat_priv->sec_peri_feature_disable = true;
-			pr_err("Secure HW mode is not updated. Peripheral not found\n");
+			pr_info("Secure HW mode is not updated. Peripheral not found\n");
 		}
 	} else {
 		if (state == 1)
@@ -374,7 +323,7 @@ end:
 	return ret;
 }
 #else
-int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
+int perisec_cnss_bt_hw_disable_check(struct btpower_platform_data *plat_priv)
 {
 	return 0;
 }
@@ -382,29 +331,24 @@ int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
 
 
 #ifdef CONFIG_MSM_BT_OOBS
-static void btpower_uart_transport_locked(struct platform_pwr_data *drvdata,
-					bool locked)
+static void btpower_uart_transport_locked(struct btpower_platform_data *drvdata,
+					  bool locked)
 {
-	pr_err("%s: %s\n", __func__, (locked ? "busy" : "idle"));
+	pr_debug("%s: %s\n", __func__, (locked ? "busy" : "idle"));
 }
 
 static irqreturn_t btpower_host_wake_isr(int irq, void *data)
 {
-	struct platform_pwr_data *drvdata = data;
+	struct btpower_platform_data *drvdata = data;
+	int host_waking = gpio_get_value(drvdata->bt_gpio_host_wake);
 	struct kernel_siginfo siginfo;
 	int rc = 0;
-	int host_waking = SIGIO_OOBS_SINGAL;
 
-	if (gpio_get_value(drvdata->bt_gpio_host_wake))
-		host_waking |= SIGIO_GPIO_HIGH;
-	else
-		host_waking |= SIGIO_GPIO_LOW;
-
-	pr_err("%s: bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n", __func__,
+	pr_debug("%s: bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n", __func__,
 		drvdata->bt_gpio_host_wake, drvdata->irq, host_waking);
 
-	if (drvdata->reftask_bt == NULL) {
-		pr_err("%s: ignore BT-HOSTWAKE IRQ\n", __func__);
+	if (drvdata->reftask_obs == NULL) {
+		pr_info("%s: ignore BT-HOSTWAKE IRQ\n", __func__);
 		return IRQ_HANDLED;
 	}
 
@@ -413,103 +357,94 @@ static irqreturn_t btpower_host_wake_isr(int irq, void *data)
 	siginfo.si_signo = SIGIO;
 	siginfo.si_code = SI_QUEUE;
 	siginfo.si_int = host_waking;
-	rc = send_sig_info(siginfo.si_signo, &siginfo, drvdata->reftask_bt);
+	rc = send_sig_info(siginfo.si_signo, &siginfo, drvdata->reftask_obs);
 	if (rc < 0) {
 		pr_err("%s: failed (%d) to send SIG to HAL(%d)\n", __func__,
-			rc, drvdata->reftask_bt->pid);
+			rc, drvdata->reftask_obs->pid);
 	}
 	return IRQ_HANDLED;
 }
 #endif
 
-static int vreg_configure(struct vreg_data *vreg, bool retention)
+static int bt_vreg_enable(struct bt_power_vreg_data *vreg)
 {
 	int rc = 0;
 
-	if ((vreg->min_vol != 0) && (vreg->max_vol != 0)) {
-		rc = regulator_set_voltage(vreg->reg,
-						(retention ? 0: vreg->min_vol),
-						vreg->max_vol);
-		if (rc < 0) {
-			pr_err("%s: regulator_set_voltage(%s) failed rc=%d\n",
-				__func__, vreg->name, rc);
-			return rc;
-		}
-	}
-
-	if (vreg->load_curr >= 0) {
-		rc = regulator_set_load(vreg->reg,
-				(retention ? 0 : vreg->load_curr));
-		if (rc < 0) {
-			pr_err("%s: regulator_set_load(%s) failed rc=%d\n",
-			__func__, vreg->name, rc);
-			return rc;
-		}
-	}
-
-	return rc;
-}
-
-static int vreg_enable(struct vreg_data *vreg)
-{
-	int rc = 0;
-
-	pr_err("%s: vreg_en for : %s\n", __func__, vreg->name);
+	pr_debug("%s: vreg_en for : %s\n", __func__, vreg->name);
 
 	if (!vreg->is_enabled) {
-		if (vreg_configure(vreg, false) < 0)
-			return rc;
+		if ((vreg->min_vol != 0) && (vreg->max_vol != 0)) {
+			rc = regulator_set_voltage(vreg->reg,
+						vreg->min_vol,
+						vreg->max_vol);
+			if (rc < 0) {
+				pr_err("%s: regulator_set_voltage(%s) failed rc=%d\n",
+						__func__, vreg->name, rc);
+				goto out;
+			}
+		}
+
+		if (vreg->load_curr >= 0) {
+			rc = regulator_set_load(vreg->reg,
+					vreg->load_curr);
+			if (rc < 0) {
+				pr_err("%s: regulator_set_load(%s) failed rc=%d\n",
+				__func__, vreg->name, rc);
+				goto out;
+			}
+		}
+
 		rc = regulator_enable(vreg->reg);
 		if (rc < 0) {
 			pr_err("%s: regulator_enable(%s) failed. rc=%d\n",
 					__func__, vreg->name, rc);
-			return rc;
+			goto out;
 		}
 		vreg->is_enabled = true;
 	}
-
+out:
 	return rc;
 }
 
-static int vreg_disable_retention(struct vreg_data *vreg)
+static int bt_vreg_enable_retention(struct bt_power_vreg_data *vreg)
 {
 	int rc = 0;
 
 	if (!vreg)
 		return rc;
 
-	pr_err("%s: disable_retention for : %s\n", __func__, vreg->name);
+	pr_debug("%s: enable_retention for : %s\n", __func__, vreg->name);
 
-	if ((vreg->is_enabled) && (vreg->is_retention_supp))
-		rc = vreg_configure(vreg, false);
-
+	if ((vreg->is_enabled) && (vreg->is_retention_supp)) {
+		if ((vreg->min_vol != 0) && (vreg->max_vol != 0)) {
+			/* Set the min voltage to 0 */
+			rc = regulator_set_voltage(vreg->reg, 0, vreg->max_vol);
+			if (rc < 0) {
+				pr_err("%s: regulator_set_voltage(%s) failed rc=%d\n",
+				__func__, vreg->name, rc);
+				goto out;
+			}
+		}
+		if (vreg->load_curr >= 0) {
+			rc = regulator_set_load(vreg->reg, 0);
+			if (rc < 0) {
+				pr_err("%s: regulator_set_load(%s) failed rc=%d\n",
+				__func__, vreg->name, rc);
+			}
+		}
+	}
+out:
 	return rc;
 }
 
-static int vreg_enable_retention(struct vreg_data *vreg)
+static int bt_vreg_disable(struct bt_power_vreg_data *vreg)
 {
 	int rc = 0;
 
 	if (!vreg)
 		return rc;
 
-	pr_err("%s: enable_retention for : %s\n", __func__, vreg->name);
-
-	if ((vreg->is_enabled) && (vreg->is_retention_supp))
-		if ((vreg->min_vol != 0) && (vreg->max_vol != 0))
-			rc = vreg_configure(vreg, true);
-
-	return rc;
-}
-
-static int vreg_disable(struct vreg_data *vreg)
-{
-	int rc = 0;
-
-	if (!vreg)
-		return rc;
-
-	pr_err("%s for : %s\n", __func__, vreg->name);
+	pr_debug("%s for : %s\n", __func__, vreg->name);
 
 	if (vreg->is_enabled) {
 		rc = regulator_disable(vreg->reg);
@@ -546,7 +481,7 @@ static int bt_clk_enable(struct bt_power_clk_data *clk)
 {
 	int rc = 0;
 
-	pr_err("%s: %s\n", __func__, clk->name);
+	pr_info("%s: %s\n", __func__, clk->name);
 
 	/* Get the clock handle for vreg */
 	if (!clk->clk || clk->is_enabled) {
@@ -570,7 +505,7 @@ static int bt_clk_disable(struct bt_power_clk_data *clk)
 {
 	int rc = 0;
 
-	pr_err("%s: %s\n", __func__, clk->name);
+	pr_debug("%s: %s\n", __func__, clk->name);
 
 	/* Get the clock handle for vreg */
 	if (!clk->clk || !clk->is_enabled) {
@@ -586,7 +521,7 @@ static int bt_clk_disable(struct bt_power_clk_data *clk)
 
 static void btpower_set_xo_clk_gpio_state(bool enable)
 {
-	int xo_clk_gpio =  pwr_data->xo_gpio_clk;
+	int xo_clk_gpio =  bt_power_pdata->xo_gpio_clk;
 	int retry = 0;
 	int rc = 0;
 
@@ -619,7 +554,7 @@ retry_gpio_req:
 		gpio_direction_output(xo_clk_gpio, 0);
 	}
 
-	pr_err("%s:gpio(%d) success\n", __func__, xo_clk_gpio);
+	pr_info("%s:gpio(%d) success\n", __func__, xo_clk_gpio);
 
 	gpio_free(xo_clk_gpio);
 }
@@ -627,36 +562,36 @@ retry_gpio_req:
 #ifdef CONFIG_MSM_BT_OOBS
 void bt_configure_wakeup_gpios(int on)
 {
-	int bt_gpio_dev_wake = pwr_data->bt_gpio_dev_wake;
-	int bt_host_wake_gpio = pwr_data->bt_gpio_host_wake;
+	int bt_gpio_dev_wake = bt_power_pdata->bt_gpio_dev_wake;
+	int bt_host_wake_gpio = bt_power_pdata->bt_gpio_host_wake;
 	int rc;
 
 	if (on) {
 		if (gpio_is_valid(bt_gpio_dev_wake)) {
 			gpio_set_value(bt_gpio_dev_wake, 1);
-			pr_err("%s: BT-ON asserting BT_WAKE(%d)\n", __func__,
+			pr_debug("%s: BT-ON asserting BT_WAKE(%d)\n", __func__,
 				 bt_gpio_dev_wake);
 		}
 
 		if (gpio_is_valid(bt_host_wake_gpio)) {
-			pwr_data->irq = gpio_to_irq(bt_host_wake_gpio);
-			pr_err("%s: BT-ON bt-host_wake-gpio(%d) IRQ(%d)\n",
-				__func__, bt_host_wake_gpio, pwr_data->irq);
-			rc = request_irq(pwr_data->irq,
+			bt_power_pdata->irq = gpio_to_irq(bt_host_wake_gpio);
+			pr_debug("%s: BT-ON bt-host_wake-gpio(%d) IRQ(%d)\n",
+				__func__, bt_host_wake_gpio, bt_power_pdata->irq);
+			rc = request_irq(bt_power_pdata->irq,
 					 btpower_host_wake_isr,
 					 IRQF_TRIGGER_FALLING |
 					 IRQF_TRIGGER_RISING,
-					 "btpower_hostwake_isr", pwr_data);
+					 "btpower_hostwake_isr", bt_power_pdata);
 			if (rc)
 				pr_err("%s: unable to request IRQ %d (%d)\n",
 				__func__, bt_host_wake_gpio, rc);
 		}
 	} else {
 		if (gpio_is_valid(bt_host_wake_gpio)) {
-			pr_err("%s: BT-OFF bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n",
-				 __func__, bt_host_wake_gpio, pwr_data->irq,
+			pr_debug("%s: BT-OFF bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n",
+				 __func__, bt_host_wake_gpio, bt_power_pdata->irq,
 				 gpio_get_value(bt_host_wake_gpio));
-			free_irq(pwr_data->irq, pwr_data);
+			free_irq(bt_power_pdata->irq, bt_power_pdata);
 		}
 
 		if (gpio_is_valid(bt_gpio_dev_wake))
@@ -668,10 +603,10 @@ void bt_configure_wakeup_gpios(int on)
 static int bt_configure_gpios(int on)
 {
 	int rc = 0;
-	int bt_reset_gpio = pwr_data->bt_gpio_sys_rst;
-	int wl_reset_gpio = pwr_data->wl_gpio_sys_rst;
-	int bt_sw_ctrl_gpio  =  pwr_data->bt_gpio_sw_ctrl;
-	int bt_debug_gpio  =  pwr_data->bt_gpio_debug;
+	int bt_reset_gpio = bt_power_pdata->bt_gpio_sys_rst;
+	int wl_reset_gpio = bt_power_pdata->wl_gpio_sys_rst;
+	int bt_sw_ctrl_gpio  =  bt_power_pdata->bt_gpio_sw_ctrl;
+	int bt_debug_gpio  =  bt_power_pdata->bt_gpio_debug;
 	int assert_dbg_gpio = 0;
 
 	if (on) {
@@ -681,78 +616,79 @@ static int bt_configure_gpios(int on)
 					__func__, bt_reset_gpio, rc);
 			return rc;
 		}
-		pr_err("BTON:Turn Bt OFF asserting BT_EN to low\n");
-		pr_err("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
+
+		pr_info("BTON:Turn Bt OFF asserting BT_EN to low\n");
+		pr_info("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
 			gpio_get_value(bt_reset_gpio));
 		rc = gpio_direction_output(bt_reset_gpio, 0);
 		if (rc) {
 			pr_err("%s: Unable to set direction\n", __func__);
 			return rc;
 		}
-		power_src.platform_state[BT_RESET_GPIO] =
+		bt_power_src_status[BT_RESET_GPIO] =
 			gpio_get_value(bt_reset_gpio);
 		msleep(50);
-		pr_err("BTON:Turn Bt OFF post asserting BT_EN to low\n");
-		pr_err("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
+		pr_info("BTON:Turn Bt OFF post asserting BT_EN to low\n");
+		pr_info("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
 			gpio_get_value(bt_reset_gpio));
 
 		if (bt_sw_ctrl_gpio >= 0) {
-			power_src.platform_state[BT_SW_CTRL_GPIO] =
+			bt_power_src_status[BT_SW_CTRL_GPIO] =
 			gpio_get_value(bt_sw_ctrl_gpio);
-			rc = msm_gpio_mpm_wake_set(pwr_data->sw_cntrl_gpio, 1);
+			rc = msm_gpio_mpm_wake_set(bt_power_pdata->sw_cntrl_gpio, 1);
 			if (rc < 0) {
 				pr_err("Failed to set msm_gpio_mpm_wake_set for sw_cntrl gpio, ret: %d\n",
 						rc);
 				return rc;
 			} else {
-				pr_err("Set msm_gpio_mpm_wake_set for sw_cntrl gpio successful\n");
+				pr_info("Set msm_gpio_mpm_wake_set for sw_cntrl gpio successful\n");
 			}
-			pr_err("BTON:Turn Bt OFF bt-sw-ctrl-gpio(%d) value(%d)\n",
+			pr_info("BTON:Turn Bt OFF bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
-				power_src.platform_state[BT_SW_CTRL_GPIO]);
+				bt_power_src_status[BT_SW_CTRL_GPIO]);
 		}
 		if (wl_reset_gpio >= 0)
-			pr_err("BTON:Turn Bt ON wl-reset-gpio(%d) value(%d)\n",
+			pr_info("BTON:Turn Bt ON wl-reset-gpio(%d) value(%d)\n",
 				wl_reset_gpio, gpio_get_value(wl_reset_gpio));
 
 		if ((wl_reset_gpio < 0) ||
 			((wl_reset_gpio >= 0) && gpio_get_value(wl_reset_gpio))) {
 
 			btpower_set_xo_clk_gpio_state(true);
-			pr_err("BTON: WLAN ON Asserting BT_EN to high\n");
+			pr_info("BTON: WLAN ON Asserting BT_EN to high\n");
 			rc = gpio_direction_output(bt_reset_gpio, 1);
 			if (rc) {
 				pr_err("%s: Unable to set direction\n", __func__);
 				return rc;
 			}
-			power_src.platform_state[BT_RESET_GPIO] =
+			bt_power_src_status[BT_RESET_GPIO] =
 				gpio_get_value(bt_reset_gpio);
 			btpower_set_xo_clk_gpio_state(false);
 		}
 		if ((wl_reset_gpio >= 0) && (gpio_get_value(wl_reset_gpio) == 0)) {
 			if (gpio_get_value(bt_reset_gpio)) {
-				pr_err("BTON: WLAN OFF and BT ON are too close\n");
-				pr_err("reset BT_EN, enable it after delay\n");
+				pr_info("BTON: WLAN OFF and BT ON are too close\n");
+				pr_info("reset BT_EN, enable it after delay\n");
 				rc = gpio_direction_output(bt_reset_gpio, 0);
 				if (rc) {
 					pr_err("%s: Unable to set direction\n",
 						 __func__);
 					return rc;
 				}
-				power_src.platform_state[BT_RESET_GPIO] =
+				bt_power_src_status[BT_RESET_GPIO] =
 					gpio_get_value(bt_reset_gpio);
 			}
-			pr_err("BTON: WLAN OFF waiting for 100ms delay\n");
-			pr_err("for AON output to fully discharge\n");
+			pr_info("BTON: WLAN OFF waiting for 100ms delay\n");
+			pr_info("for AON output to fully discharge\n");
 			msleep(100);
-			pr_err("BTON: WLAN OFF Asserting BT_EN to high\n");
+			pr_info("BTON: WLAN OFF Asserting BT_EN to high\n");
 			btpower_set_xo_clk_gpio_state(true);
 			rc = gpio_direction_output(bt_reset_gpio, 1);
 			if (rc) {
 				pr_err("%s: Unable to set direction\n", __func__);
 				return rc;
 			}
-			power_src.platform_state[BT_RESET_GPIO] =
+			bt_power_src_status[BT_RESET_GPIO] =
 				gpio_get_value(bt_reset_gpio);
 			btpower_set_xo_clk_gpio_state(false);
 		}
@@ -762,14 +698,14 @@ static int bt_configure_gpios(int on)
 		 */
 		if (!gpio_get_value(bt_reset_gpio)) {
 			btpower_set_xo_clk_gpio_state(true);
-			pr_err("BTON: WLAN ON and BT ON are too close\n");
-			pr_err("Asserting BT_EN to high\n");
+			pr_info("BTON: WLAN ON and BT ON are too close\n");
+			pr_info("Asserting BT_EN to high\n");
 			rc = gpio_direction_output(bt_reset_gpio, 1);
 			if (rc) {
 				pr_err("%s: Unable to set direction\n", __func__);
 				return rc;
 			}
-			power_src.platform_state[BT_RESET_GPIO] =
+			bt_power_src_status[BT_RESET_GPIO] =
 				gpio_get_value(bt_reset_gpio);
 			btpower_set_xo_clk_gpio_state(false);
 		}
@@ -800,14 +736,14 @@ static int bt_configure_gpios(int on)
 						__func__);
 			}
 		}
-		pr_err("BTON:Turn Bt On bt-reset-gpio(%d) value(%d)\n",
+		pr_info("BTON:Turn Bt On bt-reset-gpio(%d) value(%d)\n",
 			bt_reset_gpio, gpio_get_value(bt_reset_gpio));
 		if (bt_sw_ctrl_gpio >= 0) {
-			power_src.platform_state[BT_SW_CTRL_GPIO] =
+			bt_power_src_status[BT_SW_CTRL_GPIO] =
 			gpio_get_value(bt_sw_ctrl_gpio);
-			pr_err("BTON: Turn BT ON bt-sw-ctrl-gpio(%d) value(%d)\n",
+			pr_info("BTON: Turn BT ON bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
-				power_src.platform_state[BT_SW_CTRL_GPIO]);
+				bt_power_src_status[BT_SW_CTRL_GPIO]);
 		}
 	} else {
 #ifdef CONFIG_MSM_BT_OOBS
@@ -815,316 +751,102 @@ static int bt_configure_gpios(int on)
 #endif
 		gpio_set_value(bt_reset_gpio, 0);
 		msleep(100);
-		pr_err("BT-OFF:bt-reset-gpio(%d) value(%d)\n",
+		pr_info("BT-OFF:bt-reset-gpio(%d) value(%d)\n",
 			bt_reset_gpio, gpio_get_value(bt_reset_gpio));
 		if (bt_sw_ctrl_gpio >= 0) {
-			pr_err("BT-OFF:bt-sw-ctrl-gpio(%d) value(%d)\n",
+			pr_info("BT-OFF:bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
 				gpio_get_value(bt_sw_ctrl_gpio));
 		}
 	}
 
-	pr_err("%s: bt_gpio= %d on: %d\n", __func__, bt_reset_gpio, on);
+	pr_info("%s: bt_gpio= %d on: %d\n", __func__, bt_reset_gpio, on);
 
 	return rc;
 }
 
-static int bt_regulators_pwr(int pwr_state)
+static int bluetooth_power(int on)
 {
-	int i, log_indx, bt_num_vregs, rc = 0;
-	struct vreg_data *bt_vregs = NULL;
+	int rc = 0;
 
-	rc = perisec_cnss_bt_hw_disable_check(pwr_data);
+	pr_info("%s: on: %d\n", __func__, on);
 
-	bt_num_vregs =  pwr_data->bt_num_vregs;
-
-	if (!bt_num_vregs) {
-		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
-		return 0;
-	}
-
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
-
-	if (pwr_state == POWER_ENABLE) {
-		/* Power On */
-		if (pwr_data->bt_sec_hw_disable) {
+	rc = perisec_cnss_bt_hw_disable_check(bt_power_pdata);
+	if (on == 1) {
+		if (bt_power_pdata->bt_sec_hw_disable) {
 			pr_err("%s:secure hw mode on,BT ON not allowed",
 				 __func__);
 			return -EINVAL;
 		}
-
-		for (i = 0; i < bt_num_vregs; i++) {
-			bt_vregs = &pwr_data->bt_vregs[i];
-			log_indx = bt_vregs->indx.init;
-			if (bt_vregs->reg) {
-				power_src.bt_state[log_indx] = DEFAULT_INVALID_VALUE;
-				rc = vreg_enable(bt_vregs);
-				if (rc < 0) {
-					pr_err("%s: bt_power regulators config failed\n",
-						__func__);
-					goto regulator_fail;
-				}
-				if (bt_vregs->is_enabled)
-					power_src.bt_state[log_indx] =
-						regulator_get_voltage(bt_vregs->reg);
-			}
+		rc = bt_power_vreg_set(BT_POWER_ENABLE);
+		if (rc < 0) {
+			pr_err("%s: bt_power regulators config failed\n",
+				__func__);
+			goto regulator_fail;
 		}
-
 		/* Parse dt_info and check if a target requires clock voting.
 		 * Enable BT clock when BT is on and disable it when BT is off
 		 */
-		if (pwr_data->bt_chip_clk) {
-			rc = bt_clk_enable(pwr_data->bt_chip_clk);
+		if (bt_power_pdata->bt_chip_clk) {
+			rc = bt_clk_enable(bt_power_pdata->bt_chip_clk);
 			if (rc < 0) {
 				pr_err("%s: bt_power gpio config failed\n",
 					__func__);
 				goto clk_fail;
 			}
 		}
-		if (pwr_data->bt_gpio_sys_rst > 0) {
-			power_src.bt_state[BT_RESET_GPIO] = DEFAULT_INVALID_VALUE;
-			power_src.bt_state[BT_SW_CTRL_GPIO] = DEFAULT_INVALID_VALUE;
-			rc = bt_configure_gpios(POWER_ENABLE);
+		if (bt_power_pdata->bt_gpio_sys_rst > 0) {
+			bt_power_src_status[BT_RESET_GPIO] =
+				DEFAULT_INVALID_VALUE;
+			bt_power_src_status[BT_SW_CTRL_GPIO] =
+				DEFAULT_INVALID_VALUE;
+			rc = bt_configure_gpios(on);
 			if (rc < 0) {
 				pr_err("%s: bt_power gpio config failed\n",
 					__func__);
 				goto gpio_fail;
 			}
 		}
-	} else if (pwr_state == POWER_DISABLE) {
-		/* Power Off */
-		if (pwr_data->bt_gpio_sys_rst > 0) {
-			if (pwr_data->bt_sec_hw_disable) {
+	} else if (on == 0) {
+		// Power Off
+		if (bt_power_pdata->bt_gpio_sys_rst > 0) {
+			if (bt_power_pdata->bt_sec_hw_disable) {
 				pr_err("%s: secure hw mode on, not allowed to access gpio",
 					__func__);
 			}else {
-				bt_configure_gpios(POWER_DISABLE);
+				bt_configure_gpios(on);
 			}
 		}
 gpio_fail:
-		if (pwr_data->bt_gpio_sys_rst > 0)
-			gpio_free(pwr_data->bt_gpio_sys_rst);
-		if (pwr_data->bt_gpio_debug  >  0)
-			gpio_free(pwr_data->bt_gpio_debug);
-		if (pwr_data->bt_chip_clk)
-			bt_clk_disable(pwr_data->bt_chip_clk);
+		if (bt_power_pdata->bt_gpio_sys_rst > 0)
+			gpio_free(bt_power_pdata->bt_gpio_sys_rst);
+		if (bt_power_pdata->bt_gpio_debug  >  0)
+			gpio_free(bt_power_pdata->bt_gpio_debug);
+		if (bt_power_pdata->bt_chip_clk)
+			bt_clk_disable(bt_power_pdata->bt_chip_clk);
 clk_fail:
 regulator_fail:
-		for (i = 0; i < bt_num_vregs; i++) {
-			bt_vregs = &pwr_data->bt_vregs[i];
-			rc = vreg_disable(bt_vregs);
-		}
-	} else if (pwr_state == POWER_RETENTION) {
+		bt_power_vreg_set(BT_POWER_DISABLE);
+	} else if (on == 2) {
 		/* Retention mode */
-		for (i = 0; i < bt_num_vregs; i++) {
-			bt_vregs = &pwr_data->bt_vregs[i];
-			rc = vreg_enable_retention(bt_vregs);
-		}
+		bt_power_vreg_set(BT_POWER_RETENTION);
 	} else {
-		pr_err("%s: Invalid power mode: %d\n", __func__, pwr_state);
+		pr_err("%s: Invalid power mode: %d\n", __func__, on);
 		rc = -1;
 	}
 	return rc;
 }
 
-static int uwb_regulators_pwr(int pwr_state)
-{
-	int i, log_indx, uwb_num_vregs, rc = 0;
-	struct vreg_data *uwb_vregs = NULL;
-
-	rc = perisec_cnss_bt_hw_disable_check(pwr_data);
-
-	uwb_num_vregs =  pwr_data->uwb_num_vregs;
-
-	if (!uwb_num_vregs) {
-		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
-		return 0;
-	}
-
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
-
-	switch (pwr_state) {
-	case POWER_ENABLE:
-		for (i = 0; i < uwb_num_vregs; i++) {
-			uwb_vregs = &pwr_data->uwb_vregs[i];
-			log_indx = uwb_vregs->indx.init;
-			if (uwb_vregs->reg) {
-				power_src.uwb_state[log_indx] = DEFAULT_INVALID_VALUE;
-				rc = vreg_enable(uwb_vregs);
-				if (rc < 0) {
-					pr_err("%s: UWB regulators config failed\n",
-						__func__);
-					goto UWB_regulator_fail;
-				}
-				if (uwb_vregs->is_enabled)
-					power_src.uwb_state[log_indx] =
-						regulator_get_voltage(uwb_vregs->reg);
-			}
-		}
-
-		rc = bt_configure_gpios(POWER_ENABLE);
-		if (rc < 0) {
-			pr_err("%s: bt_power gpio config failed\n",
-				__func__);
-			goto UWB_gpio_fail;
-		}
-
-		break;
-	case POWER_DISABLE:
-		rc = bt_configure_gpios(POWER_DISABLE);
-		if (rc < 0) {
-			pr_err("%s: bt_power gpio config failed\n",
-				__func__);
-			goto UWB_gpio_fail;
-		}
-UWB_gpio_fail:
-
-
-UWB_regulator_fail:
-		for (i = 0; i < uwb_num_vregs; i++) {
-			uwb_vregs = &pwr_data->uwb_vregs[i];
-			rc = vreg_disable(uwb_vregs);
-		}
-		break;
-	case POWER_RETENTION:
-		for (i = 0; i < uwb_num_vregs; i++) {
-			uwb_vregs = &pwr_data->uwb_vregs[i];
-			rc = vreg_enable_retention(uwb_vregs);
-		}
-		break;
-	}
-	return rc;
-}
-
-static int platform_regulators_pwr(int pwr_state)
-{
-	int i, log_indx, platform_num_vregs, rc = 0;
-	struct vreg_data *platform_vregs = NULL;
-
-	rc = perisec_cnss_bt_hw_disable_check(pwr_data);
-
-	platform_num_vregs =  pwr_data->platform_num_vregs;
-
-	if (!platform_num_vregs) {
-		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
-		return 0;
-	}
-
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
-
-	switch (pwr_state) {
-	case POWER_ENABLE:
-		for (i = 0; i < platform_num_vregs; i++) {
-			platform_vregs = &pwr_data->platform_vregs[i];
-			log_indx = platform_vregs->indx.init;
-			if (platform_vregs->reg) {
-				power_src.platform_state[log_indx] = DEFAULT_INVALID_VALUE;
-				rc = vreg_enable(platform_vregs);
-				if (rc < 0) {
-					pr_err("%s: Platform regulators config failed\n",
-						__func__);
-					goto Platform_regulator_fail;
-				}
-				if (platform_vregs->is_enabled) {
-					power_src.platform_state[log_indx] = regulator_get_voltage(platform_vregs->reg);
-				}
-			}
-		}
-
-		rc = bt_configure_gpios(POWER_ENABLE);
-		if (rc < 0) {
-			pr_err("%s: bt_power gpio config failed\n",
-				__func__);
-			goto Platform_gpio_fail;
-		}
-
-		break;
-	case POWER_DISABLE:
-		rc = bt_configure_gpios(POWER_DISABLE);
-		if (rc < 0) {
-			pr_err("%s: bt_power gpio config failed\n",
-				__func__);
-		}
-
-Platform_gpio_fail:
-		if (pwr_data->bt_gpio_sys_rst > 0)
-			gpio_free(pwr_data->bt_gpio_sys_rst);
-		if (pwr_data->bt_gpio_debug  >  0)
-			gpio_free(pwr_data->bt_gpio_debug);
-
-Platform_regulator_fail:
-		for (i = 0; i < platform_num_vregs; i++) {
-			platform_vregs = &pwr_data->platform_vregs[i];
-			rc = vreg_disable(platform_vregs);
-		}
-		break;
-	case POWER_RETENTION:
-		for (i=0; i < platform_num_vregs; i++) {
-			platform_vregs = &pwr_data->platform_vregs[i];
-			rc = vreg_enable_retention(platform_vregs);
-		}
-		break;
-	case POWER_DISABLE_RETENTION:
-		for (i = 0; i < platform_num_vregs; i++) {
-			platform_vregs = &pwr_data->platform_vregs[i];
-			rc = vreg_disable_retention(platform_vregs);
-		}
-		break;
-	}
-	return rc;
-}
-
-static int power_regulators(int core_type, int mode) {
-
-	int ret = 0;
-
-	if ((mode != POWER_DISABLE) && (mode != POWER_ENABLE) &&
-		(mode != POWER_RETENTION)) {
-		pr_err("%s: Received wrong Mode to do regulator operation\n",
-			__func__);
-		return -1;
-	}
-
-	switch (core_type) {
-	case BT_CORE:
-		ret = bt_regulators_pwr(mode);
-		if (ret)
-			pr_err("%s: Failed to configure BT regulators to mode(%d)\n",
-			__func__, mode);
-		break;
-	case UWB_CORE:
-		ret = uwb_regulators_pwr(mode);
-		if (ret)
-			pr_err("%s: Failed to configure UWB regulators to mode(%d)\n",
-			__func__, mode);
-		break;
-	case PLATFORM_CORE:
-		ret = platform_regulators_pwr(mode);
-		if (ret)
-			pr_err("%s: Failed to configure platform regulators to mode(%d)\n",
-			__func__, mode);
-		break;
-	default:
-		pr_err("%s: Received wrong Core Type to do regulator operation\n",
-			__func__);
-		return -1;
-	}
-	return ret;
-}
-
 static int btpower_toggle_radio(void *data, bool blocked)
 {
 	int ret = 0;
-	int (*power_control)(int Core, int enable);
+	int (*power_control)(int enable);
 
 	power_control =
-		((struct platform_pwr_data *)data)->power_setup;
+		((struct btpower_platform_data *)data)->bt_power_setup;
 
 	if (previous != blocked)
-		ret = (*power_control)(BT_CORE, !blocked);
+		ret = (*power_control)(!blocked);
 	if (!ret)
 		previous = blocked;
 	return ret;
@@ -1181,7 +903,7 @@ static void btpower_rfkill_remove(struct platform_device *pdev)
 {
 	struct rfkill *rfkill;
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	rfkill = platform_get_drvdata(pdev);
 	if (rfkill)
@@ -1190,18 +912,18 @@ static void btpower_rfkill_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 }
 
-static int dt_parse_vreg_info(struct device *dev, struct device_node *child,
-		struct vreg_data *vreg_data)
+#define MAX_PROP_SIZE 32
+static int bt_dt_parse_vreg_info(struct device *dev,
+		struct bt_power_vreg_data *vreg_data)
 {
 	int len, ret = 0;
 	const __be32 *prop;
 	char prop_name[MAX_PROP_SIZE];
-	struct vreg_data *vreg = vreg_data;
-	struct device_node *np = child;
+	struct bt_power_vreg_data *vreg = vreg_data;
+	struct device_node *np = dev->of_node;
 	const char *vreg_name = vreg_data->name;
 
-	if (!child)
-		np = dev->of_node;
+	pr_debug("%s: vreg dev tree parse for %s\n", __func__, vreg_name);
 
 	snprintf(prop_name, sizeof(prop_name), "%s-supply", vreg_name);
 	if (of_parse_phandle(np, prop_name, 0)) {
@@ -1215,9 +937,9 @@ static int dt_parse_vreg_info(struct device *dev, struct device_node *child,
 		}
 
 		snprintf(prop_name, sizeof(prop_name), "%s-config", vreg->name);
-		prop = of_get_property(np, prop_name, &len);
+		prop = of_get_property(dev->of_node, prop_name, &len);
 		if (!prop || len != (4 * sizeof(__be32))) {
-			pr_err("%s: Property %s %s, use default\n",
+			pr_debug("%s: Property %s %s, use default\n",
 				__func__, prop_name,
 				prop ? "invalid format" : "doesn't exist");
 		} else {
@@ -1227,13 +949,14 @@ static int dt_parse_vreg_info(struct device *dev, struct device_node *child,
 			vreg->is_retention_supp = be32_to_cpup(&prop[3]);
 		}
 
-		pr_err("%s: Got regulator: %s, min_vol: %u, max_vol: %u, load_curr: %u, is_retention_supp: %u\n",
+		pr_debug("%s: Got regulator: %s, min_vol: %u, max_vol: %u, load_curr: %u,is_retention_supp: %u\n",
 			__func__, vreg->name, vreg->min_vol, vreg->max_vol,
 			vreg->load_curr, vreg->is_retention_supp);
 	} else {
-		pr_err("%s: %s is not provided in device tree\n", __func__,
+		pr_info("%s: %s is not provided in device tree\n", __func__,
 			vreg_name);
 	}
+
 	return ret;
 }
 
@@ -1244,7 +967,7 @@ static int bt_dt_parse_clk_info(struct device *dev,
 	struct bt_power_clk_data *clk = NULL;
 	struct device_node *np = dev->of_node;
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	*clk_data = NULL;
 	if (of_parse_phandle(np, "clocks", 0)) {
@@ -1284,84 +1007,10 @@ err:
 	return ret;
 }
 
-static void bt_power_vreg_put(void)
+static int bt_power_vreg_get(struct platform_device *pdev)
 {
-	int i = 0;
-	struct vreg_data *bt_vregs = NULL;
-	int bt_num_vregs = pwr_data->bt_num_vregs;
-
-	for (; i < bt_num_vregs; i++) {
-		bt_vregs = &pwr_data->bt_vregs[i];
-		if (bt_vregs->reg)
-			regulator_put(bt_vregs->reg);
-	}
-}
-
-static int get_gpio_dt_pinfo(struct platform_device *pdev) {
-
-	int ret;
-	struct device_node *child;
-
-	child = pdev->dev.of_node;
-
-	pwr_data->bt_gpio_sys_rst =
-		of_get_named_gpio(child,
-					"qcom,bt-reset-gpio", 0);
-	if (pwr_data->bt_gpio_sys_rst < 0)
-		pr_err("bt-reset-gpio not provided in devicetree\n");
-
-	pwr_data->wl_gpio_sys_rst =
-		of_get_named_gpio(child,
-					"qcom,wl-reset-gpio", 0);
-	if (pwr_data->wl_gpio_sys_rst < 0)
-		pr_err("%s: wl-reset-gpio not provided in device tree\n",
-			__func__);
-
-	ret = of_property_read_u32(child, "mpm_wake_set_gpios",
-				  &pwr_data->sw_cntrl_gpio);
-	if (ret)
-		pr_warn("sw_cntrl-gpio not provided in devicetree\n");
-
-	pwr_data->bt_gpio_sw_ctrl  =
-		of_get_named_gpio(child,
-					"qcom,bt-sw-ctrl-gpio",  0);
-	if (pwr_data->bt_gpio_sw_ctrl < 0)
-		pr_err("bt-sw-ctrl-gpio not provided in devicetree\n");
-
-	pwr_data->bt_gpio_debug  =
-		of_get_named_gpio(child,
-					"qcom,bt-debug-gpio",  0);
-	if (pwr_data->bt_gpio_debug < 0)
-		pr_warn("bt-debug-gpio not provided in devicetree\n");
-
-	pwr_data->xo_gpio_clk =
-		of_get_named_gpio(child,
-					"qcom,xo-clk-gpio", 0);
-	if (pwr_data->xo_gpio_clk < 0)
-		pr_warn("xo-clk-gpio not provided in devicetree\n");
-
-#ifdef CONFIG_MSM_BT_OOBS
-	pwr_data->bt_gpio_dev_wake =
-		of_get_named_gpio(child,
-				  "qcom,btwake_gpio", 0);
-	if (pwr_data->bt_gpio_dev_wake < 0)
-		pr_warn("%s: btwake-gpio not provided in device tree\n",
-			__func__);
-
-	pwr_data->bt_gpio_host_wake =
-		of_get_named_gpio(child,
-				  "qcom,bthostwake_gpio", 0);
-	if (pwr_data->bt_gpio_host_wake < 0)
-		pr_warn("%s: bthostwake_gpio not provided in device tree\n",
-			__func__);
-#endif
-	return true;
-}
-
-static int get_power_dt_pinfo(struct platform_device *pdev)
-{
-	int rc, i;
-	const struct pwr_data *data;
+	int num_vregs, i = 0, ret = 0;
+	const struct bt_power *data;
 
 	data = of_device_get_match_data(&pdev->dev);
 	if (!data) {
@@ -1369,105 +1018,158 @@ static int get_power_dt_pinfo(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	memcpy(&pwr_data->compatible, &data->compatible, MAX_PROP_SIZE);
-
-	pwr_data->bt_vregs = data->bt_vregs;
-	pwr_data->bt_num_vregs = data->bt_num_vregs;
-
-	if (pwr_data->is_ganges_dt) {
-		pwr_data->uwb_vregs = data->uwb_vregs;
-		pwr_data->platform_vregs = data->platform_vregs;
-		pwr_data->uwb_num_vregs = data->uwb_num_vregs;
-		pwr_data->platform_num_vregs = data->platform_num_vregs;
-
-		pr_err("%s: bt_num_vregs =%d uwb_num_vregs =%d platform_num_vregs=%d\n",
-			__func__, pwr_data->bt_num_vregs, pwr_data->uwb_num_vregs,
-			pwr_data->platform_num_vregs);
-	} else {
-		pr_err("%s: bt_num_vregs =%d\n", __func__, pwr_data->bt_num_vregs);
-	}
-
-
-	for (i = 0; i < pwr_data->bt_num_vregs; i++) {
-		rc = dt_parse_vreg_info(&(pdev->dev), pwr_data->bt_of_node,
-			&pwr_data->bt_vregs[i]);
+	memcpy(&bt_power_pdata->compatible, &data->compatible, MAX_PROP_SIZE);
+	bt_power_pdata->vreg_info = data->vregs;
+	num_vregs = bt_power_pdata->num_vregs = data->num_vregs;
+	for (; i < num_vregs; i++) {
+		ret = bt_dt_parse_vreg_info(&(pdev->dev),
+					    &bt_power_pdata->vreg_info[i]);
 		/* No point to go further if failed to get regulator handler */
-		if (rc)
-			return rc;
+		if (ret)
+			break;
 	}
 
-	if(pwr_data->is_ganges_dt) {
-		for (i = 0; i < pwr_data->platform_num_vregs; i++) {
-			rc = dt_parse_vreg_info(&(pdev->dev), NULL,
-				&pwr_data->platform_vregs[i]);
-			/* No point to go further if failed to get regulator handler */
-			if (rc)
-				return rc;
-		}
+	return ret;
+}
 
-		for (i = 0; i < pwr_data->uwb_num_vregs; i++) {
-			rc = dt_parse_vreg_info(&(pdev->dev), pwr_data->uwb_of_node,
-				&pwr_data->uwb_vregs[i]);
-			/* No point to go further if failed to get regulator handler */
-			if (rc)
-				return rc;
+static int bt_power_vreg_set(enum bt_power_modes mode)
+{
+	int num_vregs, i = 0, ret = 0;
+	int log_indx;
+	struct bt_power_vreg_data *vreg_info = NULL;
+
+	num_vregs =  bt_power_pdata->num_vregs;
+	if (mode == BT_POWER_ENABLE) {
+		for (; i < num_vregs; i++) {
+			vreg_info = &bt_power_pdata->vreg_info[i];
+			log_indx = vreg_info->indx.init;
+			if (vreg_info->reg) {
+				bt_power_src_status[log_indx] =
+					DEFAULT_INVALID_VALUE;
+				ret = bt_vreg_enable(vreg_info);
+				if (ret < 0)
+					goto out;
+				if (vreg_info->is_enabled) {
+					bt_power_src_status[log_indx] =
+						regulator_get_voltage(
+							vreg_info->reg);
+				}
+			}
 		}
+	} else if (mode == BT_POWER_DISABLE) {
+		for (; i < num_vregs; i++) {
+			vreg_info = &bt_power_pdata->vreg_info[i];
+			ret = bt_vreg_disable(vreg_info);
+		}
+	} else if (mode == BT_POWER_RETENTION) {
+		for (; i < num_vregs; i++) {
+			vreg_info = &bt_power_pdata->vreg_info[i];
+			ret = bt_vreg_enable_retention(vreg_info);
+		}
+	} else {
+		pr_err("%s: Invalid power mode: %d\n", __func__, mode);
+		ret = -1;
 	}
-	return rc;
+
+out:
+	return ret;
+}
+
+static void bt_power_vreg_put(void)
+{
+	int i = 0;
+	struct bt_power_vreg_data *vreg_info = NULL;
+	int num_vregs = bt_power_pdata->num_vregs;
+
+	for (; i < num_vregs; i++) {
+		vreg_info = &bt_power_pdata->vreg_info[i];
+		if (vreg_info->reg)
+			regulator_put(vreg_info->reg);
+	}
 }
 
 static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 {
-	struct device_node *of_node;
 	int rc;
+	pr_debug("%s\n", __func__);
 
-	pr_info("%s\n", __func__);
-
-	if (!pwr_data)
+	if (!bt_power_pdata)
 		return -ENOMEM;
 
-	if (pwr_data->is_ganges_dt) {
-		for_each_available_child_of_node(pdev->dev.of_node, of_node) {
-			if (!strcmp(of_node->name, "bt_ganges")) {
-				pwr_data->bt_of_node = of_node;
-				pr_err("%s: %s device node found\n", __func__,
-					pwr_data->bt_of_node->name);
-			} else if (!strcmp(of_node->name, "uwb_ganges")) {
-				pwr_data->uwb_of_node = of_node;
-				pr_err("%s: %s device node found\n", __func__,
-					pwr_data->uwb_of_node->name);
-			}
-		}
+	if (pdev->dev.of_node) {
+		rc = bt_power_vreg_get(pdev);
+		if (rc)
+			return rc;
+
+		bt_power_pdata->bt_gpio_sys_rst =
+			of_get_named_gpio(pdev->dev.of_node,
+						"qcom,bt-reset-gpio", 0);
+		if (bt_power_pdata->bt_gpio_sys_rst < 0)
+			pr_warn("bt-reset-gpio not provided in devicetree\n");
+
+		bt_power_pdata->wl_gpio_sys_rst =
+			of_get_named_gpio(pdev->dev.of_node,
+						"qcom,wl-reset-gpio", 0);
+		if (bt_power_pdata->wl_gpio_sys_rst < 0)
+			pr_err("%s: wl-reset-gpio not provided in device tree\n",
+				__func__);
+
+
+		bt_power_pdata->bt_gpio_sw_ctrl  =
+			of_get_named_gpio(pdev->dev.of_node,
+						"qcom,bt-sw-ctrl-gpio",  0);
+		if (bt_power_pdata->bt_gpio_sw_ctrl < 0)
+			pr_warn("bt-sw-ctrl-gpio not provided in devicetree\n");
+
+		rc = of_property_read_u32(pdev->dev.of_node,
+			 "mpm_wake_set_gpios",&bt_power_pdata->sw_cntrl_gpio);
+		if (rc)
+			pr_warn("sw_cntrl-gpio not provided in devicetree\n");
+
+		bt_power_pdata->bt_gpio_debug  =
+			of_get_named_gpio(pdev->dev.of_node,
+						"qcom,bt-debug-gpio",  0);
+		if (bt_power_pdata->bt_gpio_debug < 0)
+			pr_warn("bt-debug-gpio not provided in devicetree\n");
+
+		bt_power_pdata->xo_gpio_clk =
+			of_get_named_gpio(pdev->dev.of_node,
+						"qcom,xo-clk-gpio", 0);
+		if (bt_power_pdata->xo_gpio_clk < 0)
+			pr_warn("xo-clk-gpio not provided in devicetree\n");
+
+		rc = bt_dt_parse_clk_info(&pdev->dev,
+					&bt_power_pdata->bt_chip_clk);
+		if (rc < 0)
+			pr_warn("%s: clock not provided in device tree\n",
+				__func__);
+#ifdef CONFIG_MSM_BT_OOBS
+		bt_power_pdata->bt_gpio_dev_wake =
+			of_get_named_gpio(pdev->dev.of_node,
+					  "qcom,btwake_gpio", 0);
+		if (bt_power_pdata->bt_gpio_dev_wake < 0)
+			pr_warn("%s: btwake-gpio not provided in device tree\n",
+				__func__);
+
+
+		bt_power_pdata->bt_gpio_host_wake =
+			of_get_named_gpio(pdev->dev.of_node,
+					  "qcom,bthostwake_gpio", 0);
+		if (bt_power_pdata->bt_gpio_host_wake < 0)
+			pr_warn("%s: bthostwake_gpio not provided in device tree\n",
+				__func__);
+#endif
 	}
 
-	rc = get_power_dt_pinfo(pdev);
+	bt_power_pdata->bt_power_setup = bluetooth_power;
 
-	if (rc < 0)
-		pr_err("%s: failed to get the pin info from the DTSI\n",
-			__func__);
-
-	rc = get_gpio_dt_pinfo(pdev);
-
-	if (rc < 0)
-		pr_err("%s: failed to get the gpio info from the DTSI\n",
-			__func__);
-
-	bt_dt_parse_clk_info(&pdev->dev,
-				&pwr_data->bt_chip_clk);
-
-	pwr_data->power_setup = power_regulators;
 	return 0;
 }
 
-static inline bool bt_is_ganges_dt(struct platform_device *plat_dev)
+static void bt_power_pdc_init_params (struct btpower_platform_data *pdata)
 {
-	return of_property_read_bool(plat_dev->dev.of_node, "qcom,peach-bt");
-}
-
-static void bt_power_pdc_init_params(struct platform_pwr_data *pdata) {
 	int ret;
 	struct device *dev = &pdata->pdev->dev;
-
 	pdata->pdc_init_table_len = of_property_count_strings(dev->of_node,
 				"qcom,pdc_init_table");
 	if (pdata->pdc_init_table_len > 0) {
@@ -1478,48 +1180,10 @@ static void bt_power_pdc_init_params(struct platform_pwr_data *pdata) {
 		if (ret < 0)
 			pr_err("Failed to get PDC Init Table\n");
 		else
-			pr_err("PDC Init table configured\n");
+			pr_info("PDC Init table configured\n");
 	} else {
-		pr_err("PDC Init Table not configured\n");
+		pr_debug("PDC Init Table not configured\n");
 	}
-}
-
-static void bt_signal_handler(struct work_struct *w_arg)
-{
-	struct kernel_siginfo siginfo;
-	int rc = 0;
-
-	// Sending signal to HAL layer
-	memset(&siginfo, 0, sizeof(siginfo));
-	siginfo.si_signo = SIGIO;
-	siginfo.si_code = SI_QUEUE;
-	siginfo.si_int = pwr_data->wrkq_signal_state;
-	rc = send_sig_info(siginfo.si_signo, &siginfo, pwr_data->reftask_bt);
-	if (rc < 0) {
-		pr_err("%s: failed (%d) to send SIG to HAL(%d)\n", __func__,
-				rc, pwr_data->reftask_bt->pid);
-		return;
-	}
-	pr_err("%s Succesfull\n", __func__);
-}
-
-static void uwb_signal_handler(struct work_struct *w_arg)
-{
-	struct kernel_siginfo siginfo;
-	int rc = 0;
-
-	// Sending signal to HAL layer
-	memset(&siginfo, 0, sizeof(siginfo));
-	siginfo.si_signo =  SIGIO;
-	siginfo.si_code = SI_QUEUE;
-	siginfo.si_int = pwr_data->wrkq_signal_state;
-	rc = send_sig_info(siginfo.si_signo, &siginfo, pwr_data->reftask_uwb);
-	if (rc < 0) {
-		pr_err("%s: failed (%d) to send SIG to HAL(%d)\n", __func__,
-				rc, pwr_data->reftask_uwb->pid);
-		return;
-	}
-	pr_err("%s Succesfull\n", __func__);
 }
 
 static int bt_power_probe(struct platform_device *pdev)
@@ -1527,51 +1191,23 @@ static int bt_power_probe(struct platform_device *pdev)
 	int ret = 0;
 	int itr;
 
+	pr_debug("%s\n", __func__);
+
 	/* Fill whole array with -2 i.e NOT_AVAILABLE state by default
 	 * for any GPIO or Reg handle.
 	 */
-	for (itr = PWR_SRC_INIT_STATE_IDX; itr < BT_POWER_SRC_SIZE; ++itr) {
-		power_src.bt_state[itr] = PWR_SRC_NOT_AVAILABLE;
-		power_src.platform_state[itr] = PWR_SRC_NOT_AVAILABLE;
-		power_src.uwb_state[itr] = PWR_SRC_NOT_AVAILABLE;
-	}
+	for (itr = PWR_SRC_INIT_STATE_IDX;
+		itr < BT_POWER_SRC_SIZE; ++itr)
+		bt_power_src_status[itr] = PWR_SRC_NOT_AVAILABLE;
 
-	pwr_data = kzalloc(sizeof(*pwr_data), GFP_KERNEL);
+	bt_power_pdata = kzalloc(sizeof(*bt_power_pdata), GFP_KERNEL);
 
-	if (!pwr_data)
+	if (!bt_power_pdata)
 		return -ENOMEM;
 
-	pwr_data->pdev = pdev;
+	bt_power_pdata->pdev = pdev;
 
-	pwr_data->is_ganges_dt = of_property_read_bool(pdev->dev.of_node,
-							"qcom,peach-bt");
-	pwr_data->is_ganges_dt = true;
-	pr_info("%s: is_ganges_dt = %d\n", __func__, pwr_data->is_ganges_dt);
-
-	pwr_data->workq = alloc_workqueue("workq", WQ_HIGHPRI, WQ_DFL_ACTIVE);
-	if (!pwr_data->workq) {
-		pr_err("%s: Failed to creat the Work Queue (workq)\n",
-			__func__);
-		return -ENOMEM;
-	}
-
-	INIT_WORK(&pwr_data->uwb_wq, uwb_signal_handler);
-	INIT_WORK(&pwr_data->bt_wq, bt_signal_handler);
-	INIT_WORK(&pwr_data->wq_pwr_voting, bt_power_vote);
-
-	for (itr = 0; itr < BTPWR_MAX_REQ; itr++)
-		init_waitqueue_head(&pwr_data->rsp_wait_q[itr]);
-
-	skb_queue_head_init(&pwr_data->rxq);
-	mutex_init(&pwr_data->pwr_mtx);
-	mutex_init(&pwr_data->btpower_state.state_machine_lock);
-	pwr_data->btpower_state.power_state = IDLE;
-	pwr_data->btpower_state.retention_mode = RETENTION_IDLE;
-	pwr_data->btpower_state.grant_state = NO_GRANT_FOR_ANY_SS;
-	pwr_data->btpower_state.grant_pending = NO_OTHER_CLIENT_WAITING_FOR_GRANT;
-
-	perisec_cnss_bt_hw_disable_check(pwr_data);
-
+	ret = perisec_cnss_bt_hw_disable_check(bt_power_pdata);
 	if (pdev->dev.of_node) {
 		ret = bt_power_populate_dt_pinfo(pdev);
 		if (ret < 0) {
@@ -1579,38 +1215,37 @@ static int bt_power_probe(struct platform_device *pdev)
 				__func__);
 			goto free_pdata;
 		}
-		if (pwr_data->bt_sec_hw_disable) {
+		if (bt_power_pdata->bt_sec_hw_disable) {
 			pr_info("%s: bt is in secure mode\n", __func__);
 		} else {
 			pr_info(" %s:send platform data of btpower\n", __func__);
-			pdev->dev.platform_data = pwr_data;
+			pdev->dev.platform_data = bt_power_pdata;
 		}
 	} else if (pdev->dev.platform_data) {
 		/* Optional data set to default if not provided */
-		if (!((struct platform_pwr_data *)
-			(pdev->dev.platform_data))->power_setup)
-			((struct platform_pwr_data *)
-				(pdev->dev.platform_data))->power_setup =
-						power_regulators;
+		if (!((struct btpower_platform_data *)
+			(pdev->dev.platform_data))->bt_power_setup)
+			((struct btpower_platform_data *)
+				(pdev->dev.platform_data))->bt_power_setup =
+						bluetooth_power;
 
-		memcpy(pwr_data, pdev->dev.platform_data,
-			sizeof(struct platform_pwr_data));
+		memcpy(bt_power_pdata, pdev->dev.platform_data,
+			sizeof(struct btpower_platform_data));
+		pwr_state = 0;
 	} else {
 		pr_err("%s: Failed to get platform data\n", __func__);
 		goto free_pdata;
 	}
-
 	if (btpower_rfkill_probe(pdev) < 0)
 		goto free_pdata;
-
-	bt_power_pdc_init_params(pwr_data);
-	btpower_aop_mbox_init(pwr_data);
+        bt_power_pdc_init_params(bt_power_pdata);
+	btpower_aop_mbox_init(bt_power_pdata);
 
 	probe_finished = true;
 	return 0;
 
 free_pdata:
-	kfree(pwr_data);
+	kfree(bt_power_pdata);
 	return ret;
 }
 
@@ -1622,765 +1257,150 @@ static int bt_power_remove(struct platform_device *pdev)
 	btpower_rfkill_remove(pdev);
 	bt_power_vreg_put();
 
-	kfree(pwr_data);
+	kfree(bt_power_pdata);
 
 	return 0;
 }
 
 int btpower_register_slimdev(struct device *dev)
 {
-	pr_info("%s\n", __func__);
-	if (!pwr_data || (dev == NULL)) {
+	pr_debug("%s\n", __func__);
+	if (!bt_power_pdata || (dev == NULL)) {
 		pr_err("%s: Failed to allocate memory\n", __func__);
 		return -EINVAL;
 	}
-	pwr_data->slim_dev = dev;
+	bt_power_pdata->slim_dev = dev;
 	return 0;
 }
-
 EXPORT_SYMBOL(btpower_register_slimdev);
 
 int btpower_get_chipset_version(void)
 {
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	return soc_id;
 }
 EXPORT_SYMBOL(btpower_get_chipset_version);
 
-static void set_pwr_srcs_status (struct vreg_data *handle, int core_type) {
-	int power_src_state;
+static void  set_pwr_srcs_status(struct bt_power_vreg_data *handle)
+{
+	int ldo_index;
 
-	if (!handle)
-		pr_err("%s: invalid handler received \n", __func__);
-
-	if (handle->is_enabled)
-		power_src_state = (int)regulator_get_voltage(handle->reg);
-	else
-		power_src_state = DEFAULT_INVALID_VALUE;
-
-	switch (core_type) {
-	case BT_CORE:
-		power_src.bt_state[handle->indx.crash] = power_src_state;
-		if (power_src_state != DEFAULT_INVALID_VALUE) {
-			pr_err("%s(%p) value(%d)\n", handle->name, handle,
-				power_src.bt_state[handle->indx.crash]);
+	if (handle) {
+		ldo_index = handle->indx.crash;
+		bt_power_src_status[ldo_index] =
+			DEFAULT_INVALID_VALUE;
+		if (handle->is_enabled &&
+			(regulator_is_enabled(handle->reg))) {
+			bt_power_src_status[ldo_index] =
+				(int)regulator_get_voltage(handle->reg);
+			pr_err("%s(%p) value(%d)\n", handle->name,
+				handle, bt_power_src_status[ldo_index]);
 		} else {
-			pr_err("%s:%s is_enabled: %d\n", __func__, handle->name,
+			pr_err("%s:%s is_enabled: %d\n",
+				__func__, handle->name,
 				handle->is_enabled);
 		}
-		break;
-	case UWB_CORE:
-		power_src.uwb_state[handle->indx.crash] = power_src_state;
-		if (power_src_state != DEFAULT_INVALID_VALUE) {
-			pr_err("%s(%p) value(%d)\n", handle->name, handle,
-				power_src.uwb_state[handle->indx.crash]);
-		} else {
-			pr_err("%s:%s is_enabled: %d\n", __func__, handle->name,
-				handle->is_enabled);
-		}
-		break;
-	case PLATFORM_CORE:
-		power_src.platform_state[handle->indx.crash] = power_src_state;
-		if (power_src_state != DEFAULT_INVALID_VALUE) {
-			pr_err("%s(%p) value(%d)\n", handle->name, handle,
-				power_src.platform_state[handle->indx.crash]);
-		} else {
-			pr_err("%s:%s is_enabled: %d\n", __func__, handle->name,
-				handle->is_enabled);
-		}
-		break;
-	default:
-		pr_err("%s: invalid core type received = %d\n", __func__, core_type);
-		break;
 	}
-
 }
 
-static inline void update_pwr_state(int state)
+static void  set_gpios_srcs_status(char *gpio_name,
+		int gpio_index, int handle)
 {
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	pwr_data->btpower_state.power_state = state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-}
-
-static inline int get_pwr_state(void)
-{
-	int state;
-
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	state = (int)pwr_data->btpower_state.power_state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-	return state;
-}
-
-static inline void btpower_set_retenion_mode_state(int state)
-{
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	pwr_data->btpower_state.retention_mode = state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-}
-
-static inline int btpower_get_retenion_mode_state(void)
-{
-	int state;
-
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	state = (int)pwr_data->btpower_state.retention_mode;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-	return state;
-}
-
-static inline void btpower_set_grant_pending_state(enum grant_states state)
-{
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	pwr_data->btpower_state.grant_pending = state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-}
-
-static inline enum grant_states btpower_get_grant_pending_state(void)
-{
-	enum grant_states state;
-
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	state = pwr_data->btpower_state.grant_pending;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-	return state;
-}
-
-static inline void btpower_set_grant_state(enum grant_states state)
-{
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	pwr_data->btpower_state.grant_state = state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-}
-
-static inline enum grant_states btpower_get_grant_state(void)
-{
-	enum grant_states state;
-
-	mutex_lock(&pwr_data->btpower_state.state_machine_lock);
-	state = pwr_data->btpower_state.grant_state;
-	mutex_unlock(&pwr_data->btpower_state.state_machine_lock);
-	return state;
-}
-
-static void update_sub_state(int state)
-{
-	pwr_data->sub_state = state;
-}
-
-static int get_sub_state(void)
-{
-	return (int)pwr_data->sub_state;
-}
-
-int power_enable (enum SubSystem SubSystemType)
-{
-	int ret;
-
-	switch (get_pwr_state()) {
-	case IDLE:
-		ret = power_regulators(PLATFORM_CORE, POWER_ENABLE);
-		if (SubSystemType == BLUETOOTH) {
-			ret = power_regulators(BT_CORE, POWER_ENABLE);
-			update_pwr_state(BT_ON);
-		} else {
-			ret = power_regulators(UWB_CORE, POWER_ENABLE);
-			update_pwr_state(UWB_ON);
-		}
-		break;
-	case BT_ON:
-		if (SubSystemType == BLUETOOTH) {
-			pr_err("%s: BT Regulators already Voted-On\n",
-				__func__);
-			return 0;
-		}
-		ret = power_regulators(UWB_CORE, POWER_ENABLE);
-		update_pwr_state(ALL_CLIENTS_ON);
-		break;
-	case UWB_ON:
-		if (SubSystemType == UWB) {
-			pr_err("%s: UWB Regulators already Voted-On\n",
-				__func__);
-			return 0;
-		}
-		ret = power_regulators(BT_CORE, POWER_ENABLE);
-		update_pwr_state(ALL_CLIENTS_ON);
-		break;
-	case ALL_CLIENTS_ON:
-		pr_err("%s: Both BT and UWB Regulators already Voted-On\n",
-			__func__);
-		return 0;
-	}
-	return ret;
-}
-
-void send_signal_to_subsystem (int SubSystemType, int state) {
-	pwr_data->wrkq_signal_state = state;
-	if (SubSystemType == BLUETOOTH)
-		queue_work(pwr_data->workq, &pwr_data->bt_wq);
-	else
-		queue_work(pwr_data->workq, &pwr_data->uwb_wq);
-}
-
-int power_disable(enum SubSystem SubSystemType)
-{
-	int ret = 0;
-	int ret_mode_state = btpower_get_retenion_mode_state();
-	enum grant_states grant_state = btpower_get_grant_state();
-	enum grant_states grant_pending = btpower_get_grant_pending_state();
-
-	switch (get_pwr_state()) {
-	case IDLE:
-		pr_err("%s: both BT and UWB regulators already voted-Off\n", __func__);
-		return 0;
-	case ALL_CLIENTS_ON:
-		if (SubSystemType == BLUETOOTH) {
-			ret = power_regulators(BT_CORE, POWER_DISABLE);
-			update_pwr_state(UWB_ON);
-			if (ret_mode_state == BOTH_CLIENTS_IN_RETENTION)
-				btpower_set_retenion_mode_state(UWB_IN_RETENTION);
-			else if (ret_mode_state == BT_IN_RETENTION)
-				btpower_set_retenion_mode_state(RETENTION_IDLE);
-			if (get_sub_state() == SSR_ON_BT) {
-				update_sub_state(SUB_STATE_IDLE);
-				send_signal_to_subsystem(UWB, BT_SSR_COMPLETED);
-			}
-			if (grant_state == BT_HAS_GRANT) {
-				if (grant_pending == UWB_WAITING_FOR_GRANT) {
-					send_signal_to_subsystem(UWB,
-						SIGIO_SOC_ACCESS_SIGNAL|(ACCESS_GRANTED + 1));
-					btpower_set_grant_state(UWB_HAS_GRANT);
-				} else {
-					btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-				}
-			}
-			if (grant_pending == BT_WAITING_FOR_GRANT)
-				btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-		} else {
-			ret  = power_regulators(UWB_CORE, POWER_DISABLE);
-			update_pwr_state(BT_ON);
-			if (ret_mode_state == BOTH_CLIENTS_IN_RETENTION)
-				btpower_set_retenion_mode_state(BT_IN_RETENTION);
-			else if (ret_mode_state == UWB_IN_RETENTION)
-				btpower_set_retenion_mode_state(RETENTION_IDLE);
-			if (get_sub_state() == SSR_ON_UWB) {
-				send_signal_to_subsystem(BLUETOOTH,
-					(SIGIO_INTERACTION_SIGNAL|SIGIO_UWB_SSR_COMPLETED));
-			}
-			if (grant_state == UWB_HAS_GRANT) {
-				if (grant_pending == BT_WAITING_FOR_GRANT) {
-					send_signal_to_subsystem(BLUETOOTH,
-						SIGIO_SOC_ACCESS_SIGNAL|(ACCESS_GRANTED + 1));
-					btpower_set_grant_state(BT_HAS_GRANT);
-				} else {
-					btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-				}
-			}
-			if (grant_pending == UWB_WAITING_FOR_GRANT)
-				btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-		}
-		break;
-	case UWB_ON:
-		if (SubSystemType == BLUETOOTH) {
-			pr_err("%s: BT Regulator already Voted-Off\n", __func__);
-			return 0;
-		}
-		ret = power_regulators(UWB_CORE, POWER_DISABLE);
-		ret = power_regulators(PLATFORM_CORE, POWER_DISABLE);
-		update_pwr_state(IDLE);
-		update_sub_state(SUB_STATE_IDLE);
-		btpower_set_retenion_mode_state(RETENTION_IDLE);
-		btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-		btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-		break;
-	case BT_ON:
-		if (SubSystemType == UWB) {
-			pr_err("%s: UWB Regulator already Voted-Off\n", __func__);
-			return 0;
-		}
-		ret = power_regulators(BT_CORE, POWER_DISABLE);
-		ret = power_regulators(PLATFORM_CORE, POWER_DISABLE);
-		update_pwr_state(IDLE);
-		update_sub_state(SUB_STATE_IDLE);
-		btpower_set_retenion_mode_state(RETENTION_IDLE);
-		btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-		btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-		break;
-	}
-	return ret;
-}
-
-static int client_state_notified(int SubSystemType) {
-	if (get_sub_state() != SUB_STATE_IDLE) {
-		pr_err("%s: SSR is already running on other Sub-system\n", __func__);
-		return -1;
-	}
-
-	if (SubSystemType == BLUETOOTH) {
-		update_sub_state(SSR_ON_BT);
-		if (get_pwr_state() == ALL_CLIENTS_ON) {
-			if (!pwr_data->reftask_uwb) {
-				pr_err("%s: UWB PID is not register to send signal\n",
-					__func__);
-				return -1;
-			}
-			send_signal_to_subsystem(UWB, SSR_ON_BT);
-		}
+	if (handle >= 0) {
+		bt_power_src_status[gpio_index] =
+			DEFAULT_INVALID_VALUE;
+		bt_power_src_status[gpio_index] =
+			gpio_get_value(handle);
+		pr_err("%s(%d) value(%d)\n", gpio_name,
+			handle, bt_power_src_status[gpio_index]);
 	} else {
-		update_sub_state(SSR_ON_UWB);
-		if (get_pwr_state() == ALL_CLIENTS_ON) {
-			if (!pwr_data->reftask_bt) {
-				pr_err("%s: BT PID is not register to send signal\n",
-					__func__);
-				return -1;
-			}
-			send_signal_to_subsystem(BLUETOOTH,
-				(SIGIO_INTERACTION_SIGNAL|SIGIO_SSR_ON_UWB));
-		}
+		pr_err("%s: %s not configured\n",
+			__func__, gpio_name);
 	}
-	return 0;
-}
-
-void btpower_register_client(int client, int cmd)
-{
-	if (cmd == REG_BT_PID) {
-		pwr_data->reftask_bt = get_current();
-		pr_info("%s: Registering BT Service(PID-%d) with Power driver\n",
-			__func__, pwr_data->reftask_bt->tgid);
-		return;
-	} else if (cmd == REG_UWB_PID) {
-		pwr_data->reftask_uwb = get_current();
-		pr_info("%s: Registering UWB Service(PID-%d) with Power driver\n",
-			__func__, pwr_data->reftask_uwb->tgid);
-		return;
-	}
-
-	if (client == BLUETOOTH)
-		client_state_notified(BLUETOOTH);
-	else
-		client_state_notified(UWB);
-}
-
-void log_power_src_val(void)
-{
-	int itr = 0;
-
-	power_src.platform_state[BT_SW_CTRL_GPIO_CURRENT] =
-		gpio_get_value(pwr_data->bt_gpio_sw_ctrl);
-	power_src.platform_state[BT_RESET_GPIO_CURRENT] =
-		gpio_get_value(pwr_data->bt_gpio_sys_rst);
-
-	for (itr = 0; itr < pwr_data->bt_num_vregs; itr++)
-		set_pwr_srcs_status(&pwr_data->bt_vregs[itr], BT_CORE);
-
-	for (itr = 0; itr < pwr_data->platform_num_vregs; itr++)
-		set_pwr_srcs_status(&pwr_data->platform_vregs[itr], PLATFORM_CORE);
-
-	for (itr = 0; itr < pwr_data->uwb_num_vregs; itr++)
-		set_pwr_srcs_status(&pwr_data->uwb_vregs[itr], UWB_CORE);
-}
-
-int btpower_retenion(enum plt_pwr_state client)
-{
-	int ret;
-	int current_pwr_state = get_pwr_state();
-	int retention_mode_state = btpower_get_retenion_mode_state();
-
-	if (current_pwr_state == IDLE) {
-		pr_err("%s: invalid retention_mode request\n", __func__);
-		return -1;
-	}
-
-	ret = power_regulators((client == POWER_ON_BT_RETENION ? BT_CORE : UWB_CORE),
-				POWER_RETENTION);
-	if (ret < 0)
-		return ret;
-
-	if ((current_pwr_state == BT_ON || current_pwr_state == UWB_ON) &&
-		retention_mode_state == IDLE) {
-		ret = power_regulators(PLATFORM_CORE, POWER_RETENTION);
-		if (ret < 0)
-			return ret;
-		btpower_set_retenion_mode_state(client == POWER_ON_BT_RETENION ?
-				BT_IN_RETENTION: UWB_IN_RETENTION);
-	} else if (current_pwr_state == ALL_CLIENTS_ON &&
-				retention_mode_state == IDLE) {
-		btpower_set_retenion_mode_state(client == POWER_ON_BT_RETENION ?
-				BT_IN_RETENTION: UWB_IN_RETENTION);
-	} else if (current_pwr_state == ALL_CLIENTS_ON &&
-			(retention_mode_state == BT_IN_RETENTION ||
-			retention_mode_state == UWB_IN_RETENTION)) {
-		ret = power_regulators(PLATFORM_CORE, POWER_RETENTION);
-		if (ret < 0)
-			return ret;
-		btpower_set_retenion_mode_state(BOTH_CLIENTS_IN_RETENTION);
-	} else if (retention_mode_state == UWB_OUT_OF_RETENTION ||
-			retention_mode_state == BT_OUT_OF_RETENTION) {
-		ret = power_regulators(PLATFORM_CORE, POWER_RETENTION);
-		if (ret < 0)
-			return ret;
-		btpower_set_retenion_mode_state(BOTH_CLIENTS_IN_RETENTION);
-	}
-
-	return ret;	
-}
-
-int btpower_off(enum plt_pwr_state client)
-{
-	return power_disable((client == POWER_OFF_BT) ? BLUETOOTH : UWB);
-}
-
-int btpower_on(enum plt_pwr_state client)
-{
-	int ret = 0;
-	int current_ssr_state = get_sub_state();
-	int retention_mode_state = btpower_get_retenion_mode_state();
-
-	if (retention_mode_state == UWB_IN_RETENTION ||
-		retention_mode_state == BT_IN_RETENTION) {
-		ret = platform_regulators_pwr(POWER_DISABLE_RETENTION);
-		if (ret < 0)
-			return ret;
-		if (retention_mode_state == BT_IN_RETENTION) 
-			btpower_set_retenion_mode_state(BT_OUT_OF_RETENTION);
-		else
-			btpower_set_retenion_mode_state(UWB_OUT_OF_RETENTION);
-	}
-
-	/* No Point in going further if SSR is on any subsystem */
-	if (current_ssr_state != SUB_STATE_IDLE) {
-		pr_err("%s: %s not allowing to power on\n", __func__,
-			ssr_state[current_ssr_state]);
-		return -1;
-	}
-
-	ret = power_enable(client == POWER_ON_BT ? BLUETOOTH : UWB);
-
-	/* Return current state machine to clients */
-	if (!ret)
-		ret = (int)get_pwr_state();
-
-	return ret;
-}
-
-int STREAM_TO_UINT32(struct sk_buff *skb)
-{
-	return (skb->data[0] | (skb->data[1] << 8) |
-		(skb->data[2] << 16) | (skb->data[3] << 24));
-}
-
-int btpower_access_ctrl(enum plt_pwr_state request)
-{
-	enum grant_states grant_state = btpower_get_grant_state();
-	enum grant_states grant_pending = btpower_get_grant_pending_state();
-	int current_ssr_state = get_sub_state();
-
-	pr_info("%s: request for %s grant_state %s grant_pending %s\n", __func__,
-		pwr_req[(int)request], ConvertGrantToString(grant_state),
-		ConvertGrantToString(grant_pending));
-
-	if (current_ssr_state != SUB_STATE_IDLE &&
-		(request == BT_ACCESS_REQ || request == UWB_ACCESS_REQ)) {
-		pr_err("%s: not allowing this request as %s\n", __func__,
-			ssr_state[current_ssr_state]);
-		return (int)ACCESS_DISALLOWED;
-	}
-
-	if ((grant_state == NO_GRANT_FOR_ANY_SS &&
-		grant_pending != NO_OTHER_CLIENT_WAITING_FOR_GRANT)) {
-		pr_err("%s: access ctrl gone for toss, resetting it back\n", __func__);
-		grant_pending = NO_OTHER_CLIENT_WAITING_FOR_GRANT;
-		btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-	}
-
-	if (request == BT_ACCESS_REQ && grant_state == NO_GRANT_FOR_ANY_SS) {
-		btpower_set_grant_state(BT_HAS_GRANT);
-		return ACCESS_GRANTED;
-	} else if (request == UWB_ACCESS_REQ && grant_state == NO_GRANT_FOR_ANY_SS) {
-		btpower_set_grant_state(UWB_HAS_GRANT);
-		return ACCESS_GRANTED;
-	} else if (request == BT_ACCESS_REQ && grant_state == UWB_HAS_GRANT) {
-		btpower_set_grant_pending_state(BT_WAITING_FOR_GRANT);
-		return ACCESS_DENIED;
-	} else if (request == UWB_ACCESS_REQ && grant_state == BT_HAS_GRANT) {
-		btpower_set_grant_pending_state(UWB_WAITING_FOR_GRANT);
-		return ACCESS_DENIED;
-	} else if (request == BT_RELEASE_ACCESS && grant_state == BT_HAS_GRANT) {
-		if (grant_pending == UWB_WAITING_FOR_GRANT) {
-			if (!pwr_data->reftask_uwb) {
-				pr_err("%s: UWB service got killed\n", __func__);
-			} else {
-				send_signal_to_subsystem(UWB,
-					SIGIO_SOC_ACCESS_SIGNAL|(ACCESS_GRANTED + 1));
-				btpower_set_grant_state(UWB_HAS_GRANT);
-			}
-			btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-			return ACCESS_RELEASED;
-			
-		} else {
-			btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-			btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-			return ACCESS_RELEASED; 
-		}
-	} else if (request == UWB_RELEASE_ACCESS && grant_state == UWB_HAS_GRANT) {
-		if (grant_pending == BT_WAITING_FOR_GRANT) {
-			if (!pwr_data->reftask_uwb) {
-				pr_err("%s: BT service got killed\n", __func__);
-			} else {
-				send_signal_to_subsystem(BLUETOOTH,
-					SIGIO_SOC_ACCESS_SIGNAL|(ACCESS_GRANTED+1));
-				btpower_set_grant_state(BT_HAS_GRANT);
-			}
-		} else {
-			btpower_set_grant_state(NO_GRANT_FOR_ANY_SS);
-		}
-		btpower_set_grant_pending_state(NO_OTHER_CLIENT_WAITING_FOR_GRANT);
-		return ACCESS_RELEASED;
-	} else {
-		pr_err("%s: unhandled event\n", __func__);
-	}
-	return ACCESS_DISALLOWED;
-}
-
-static void bt_power_vote(struct work_struct *work)
-{
-	struct sk_buff *skb;
-	int request;
-	int ret;
-
-	while (1) {
-		mutex_lock(&pwr_data->pwr_mtx);
-		skb = skb_dequeue(&pwr_data->rxq);
-		if (!skb) {
-			mutex_unlock(&pwr_data->pwr_mtx);
-			break;
-		}
-		request = STREAM_TO_UINT32(skb);
-		skb_pull(skb, sizeof(uint32_t));
-		mutex_unlock(&pwr_data->pwr_mtx);
-		pr_err("%s: request from is %s cur state = %s %s retention %s access %s pending %s\n",
-			__func__, pwr_req[request], pwr_states[get_pwr_state()],
-			ssr_state[get_sub_state()],
-			retention_mode[btpower_get_retenion_mode_state()],
-			ConvertGrantToString(btpower_get_grant_state()),
-			ConvertGrantToString(btpower_get_grant_pending_state()));
-		if (request == POWER_ON_BT || request == POWER_ON_UWB)
-			ret = btpower_on((enum plt_pwr_state)request);
-		else if (request == POWER_OFF_UWB || request == POWER_OFF_BT)
-			ret = btpower_off((enum plt_pwr_state)request);
-		else if (request == POWER_ON_BT_RETENION || request == POWER_ON_UWB_RETENION)
-			ret = btpower_retenion(request);
-		else if (request >= BT_ACCESS_REQ && request <= UWB_RELEASE_ACCESS) {
-			ret = btpower_access_ctrl(request);
-			pr_info("%s: grant status %s\n", __func__, ConvertGrantRetToString((int)ret));
-		}
-		pr_err("%s: request from is %s cur state = %s %s retention %s access %s pending %s\n",
-			__func__, pwr_req[request], pwr_states[get_pwr_state()],
-			ssr_state[get_sub_state()],
-			retention_mode[btpower_get_retenion_mode_state()],
-			ConvertGrantToString(btpower_get_grant_state()),
-			ConvertGrantToString(btpower_get_grant_pending_state()));
-		pwr_data->wait_status[request] = ret;
-		wake_up_interruptible(&pwr_data->rsp_wait_q[request]);
-	}
-}
-
-int schedule_client_voting(enum plt_pwr_state request)
-{
-	struct sk_buff *skb;
-	wait_queue_head_t *rsp_wait_q;
-	int *status;
-	int ret = 0;
-	uint32_t req = (uint32_t)request;
-
-	mutex_lock(&pwr_data->pwr_mtx);
-	skb = alloc_skb(sizeof(uint32_t), GFP_KERNEL);
-	if (!skb) {
-		mutex_unlock(&pwr_data->pwr_mtx);
-		return -1;
-	}
-
-	rsp_wait_q = &pwr_data->rsp_wait_q[(u8)request];
-	status = &pwr_data->wait_status[(u8)request];
-	*status = PWR_WAITING_RSP;
-	skb_put_data(skb, &req, sizeof(uint32_t));
-	skb_queue_tail(&pwr_data->rxq, skb);
-	schedule_work(&pwr_data->wq_pwr_voting);
-	mutex_unlock(&pwr_data->pwr_mtx);
-	ret = wait_event_interruptible_timeout(*rsp_wait_q, (*status) != PWR_WAITING_RSP,
-					       msecs_to_jiffies(BTPOWER_CONFIG_MAX_TIMEOUT));
-	pr_err("%s: %d\n", __func__, *status);
-	if (ret == 0) {
-		pr_err("%s: failed to vote %d due to timeout\n", __func__, request);
-		ret = -ETIMEDOUT;
-	} else {
-		ret = *status;
-	}
-
-	return ret;
-}
-
-char* GetSecondaryCrashReason(SecondaryReasonCode reason)
-{
-	for(int i = 0; i < (int)(sizeof(secReasonMap)/sizeof(SecondaryReasonMap)); i++)
-		if (secReasonMap[i].reason == reason)
-			return secReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
-char* GetPrimaryCrashReason(PrimaryReasonCode reason)
-{
-	for(int i = 0; i < (int)(sizeof(priReasonMap)/sizeof(PrimaryReasonMap)); i++)
-		if (priReasonMap[i].reason == reason)
-			return priReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
-int btpower_handle_client_request(unsigned int cmd, int arg)
-{
-	int ret = -1;
-
-	pr_info("%s: %s cmd voted to %s, current state = %s, %s\n", __func__,
-		(cmd == BT_CMD_PWR_CTRL ? "BT_CMD_PWR_CTRL" : "UWB_CMD_PWR_CTRL"),
-		bt_arg[(int)arg], pwr_states[get_pwr_state()],
-		ssr_state[(int)get_sub_state()]);
-
-	if (cmd == BT_CMD_PWR_CTRL) {
-		switch ((int)arg) {
-		case POWER_DISABLE:
-			ret = schedule_client_voting(POWER_OFF_BT);
-			break;
-		case POWER_ENABLE:
-			ret = schedule_client_voting(POWER_ON_BT);
-			break;
-		case POWER_RETENTION:
-			ret = schedule_client_voting(POWER_ON_BT_RETENION);
-			break;
-		}
-	} else if (cmd == UWB_CMD_PWR_CTRL) {
-		switch ((int)arg) {
-		case POWER_DISABLE:
-			ret = schedule_client_voting(POWER_OFF_UWB);
-			break;
-		case POWER_ENABLE:
-			ret = schedule_client_voting(POWER_ON_UWB);
-			break;
-		case POWER_RETENTION:
-			ret = schedule_client_voting(POWER_ON_UWB_RETENION);
-			break;
-		}
-	}
-	pr_err("%s: %s, SSR state = %s\n", __func__,
-		pwr_states[get_pwr_state()], ssr_state[(int)get_sub_state()]);
-
-	return ret;
-}
-
-int btpower_process_access_req(unsigned int cmd, int req)
-{
-	int ret = -1;
-
-	pr_info("%s: by %s: request type %s\n", __func__,
-		cmd == BT_CMD_ACCESS_CTRL ? "BT" : "UWB",
-		req == 1 ? "Request" : "Release");
-	if (cmd == BT_CMD_ACCESS_CTRL && req == 1)
-		ret = schedule_client_voting(BT_ACCESS_REQ);
-	else if (cmd == BT_CMD_ACCESS_CTRL && req == 2)
-		ret = schedule_client_voting(BT_RELEASE_ACCESS);
-	else if (cmd == UWB_CMD_ACCESS_CTRL && req == 1)
-		ret = schedule_client_voting(UWB_ACCESS_REQ);
-	else if (cmd == UWB_CMD_ACCESS_CTRL && req == 2)
-		ret = schedule_client_voting(UWB_RELEASE_ACCESS);
-	else
-		pr_err("%s: unhandled command %04x req %02x", __func__, cmd, req);
-
-	return ret;
 }
 
 static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
+	int ret = 0, pwr_cntrl = 0;
 	int chipset_version = 0;
-	int itr;
-	unsigned int panic_reason = 0;
-	unsigned short primary_reason = 0, sec_reason = 0;
-
+	int itr, num_vregs;
+	struct bt_power_vreg_data *vreg_info = NULL;
 #ifdef CONFIG_MSM_BT_OOBS
 	enum btpower_obs_param clk_cntrl;
 #endif
-
-	if (!pwr_data || !probe_finished) {
+	if (!bt_power_pdata || !probe_finished) {
 		pr_err("%s: BTPower Probing Pending.Try Again\n", __func__);
 		return -EAGAIN;
 	}
 
 	switch (cmd) {
 #ifdef CONFIG_MSM_BT_OOBS
+	case BT_CMD_OBS_SIGNAL_TASK:
+		bt_power_pdata->reffilp_obs = file;
+		bt_power_pdata->reftask_obs = get_current();
+		pr_info("%s: BT_CMD_OBS_SIGNAL_TASK tid %d file %pK\n",
+			__func__, bt_power_pdata->reftask_obs->pid, file);
+		break;
 	case BT_CMD_OBS_VOTE_CLOCK:
-		if (!gpio_is_valid(pwr_data->bt_gpio_dev_wake)) {
-			pr_err("%s: BT_CMD_OBS_VOTE_CLOCK bt_dev_wake_n(%d) not configured\n",
-				__func__, pwr_data->bt_gpio_dev_wake);
+		if (!gpio_is_valid(bt_power_pdata->bt_gpio_dev_wake)) {
+			pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK bt_dev_wake_n(%d) not configured\n",
+				__func__, bt_power_pdata->bt_gpio_dev_wake);
 			return -EIO;
 		}
 		clk_cntrl = (enum btpower_obs_param)arg;
 		switch (clk_cntrl) {
 		case BTPOWER_OBS_CLK_OFF:
-			btpower_uart_transport_locked(pwr_data, false);
+			btpower_uart_transport_locked(bt_power_pdata, false);
 			ret = 0;
 			break;
 		case BTPOWER_OBS_CLK_ON:
-			btpower_uart_transport_locked(pwr_data, true);
+			btpower_uart_transport_locked(bt_power_pdata, true);
 			ret = 0;
 			break;
 		case BTPOWER_OBS_DEV_OFF:
-			gpio_set_value(pwr_data->bt_gpio_dev_wake, 0);
+			gpio_set_value(bt_power_pdata->bt_gpio_dev_wake, 0);
 			ret = 0;
 			break;
 		case BTPOWER_OBS_DEV_ON:
-			gpio_set_value(pwr_data->bt_gpio_dev_wake, 1);
+			gpio_set_value(bt_power_pdata->bt_gpio_dev_wake, 1);
 			ret = 0;
 			break;
 		default:
-			pr_err("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d)\n",
+			pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d)\n",
 				__func__, clk_cntrl);
 			return -EINVAL;
 		}
-		pr_err("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d) %s\n",
+		pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d) %s\n",
 			__func__, clk_cntrl,
-			gpio_get_value(pwr_data->bt_gpio_dev_wake) ?
+			gpio_get_value(bt_power_pdata->bt_gpio_dev_wake) ?
 				"Assert" : "Deassert");
 		break;
 #endif
 	case BT_CMD_SLIM_TEST:
 #if (defined CONFIG_BT_SLIM)
-		if (!pwr_data->slim_dev) {
+		if (!bt_power_pdata->slim_dev) {
 			pr_err("%s: slim_dev is null\n", __func__);
 			return -EINVAL;
 		}
 		ret = btfm_slim_hw_init(
-			pwr_data->slim_dev->platform_data
+			bt_power_pdata->slim_dev->platform_data
 		);
 #endif
 		break;
 	case BT_CMD_PWR_CTRL:
-	case UWB_CMD_PWR_CTRL: {
-		ret = btpower_handle_client_request(cmd, (int)arg);
+		pwr_cntrl = (int)arg;
+		pr_warn("%s: BT_CMD_PWR_CTRL pwr_cntrl: %d\n",
+			__func__, pwr_cntrl);
+		if (pwr_state != pwr_cntrl) {
+			ret = bluetooth_power(pwr_cntrl);
+			if (!ret)
+				pwr_state = pwr_cntrl;
+		} else {
+			pr_err("%s: BT chip state is already: %d no change\n",
+				__func__, pwr_state);
+			ret = 0;
+		}
 		break;
-	}
-	case BT_CMD_REGISTRATION:
-		btpower_register_client(BLUETOOTH, (int)arg);
-		break;
-	case UWB_CMD_REGISTRATION:
-		btpower_register_client(UWB, (int)arg);
-		break;
-	case BT_CMD_ACCESS_CTRL:
-	case UWB_CMD_ACCESS_CTRL: {
-		ret = btpower_process_access_req(cmd, (int)arg);
-		break;
-	}
 	case BT_CMD_CHIPSET_VERS:
 		chipset_version = (int)arg;
 		pr_warn("%s: unified Current SOC Version : %x\n", __func__,
@@ -2393,9 +1413,7 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case BT_CMD_GET_CHIPSET_ID:
-		pr_err("%s: BT_CMD_GET_CHIPSET_ID = %s\n", __func__,
-			pwr_data->compatible);
-		if (copy_to_user((void __user *)arg, pwr_data->compatible,
+		if (copy_to_user((void __user *)arg, bt_power_pdata->compatible,
 		    MAX_PROP_SIZE)) {
 			pr_err("%s: copy to user failed\n", __func__);
 			ret = -EFAULT;
@@ -2403,24 +1421,24 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case BT_CMD_CHECK_SW_CTRL:
 		/*  Check  if  SW_CTRL  is  asserted  */
-		pr_err("BT_CMD_CHECK_SW_CTRL\n");
-		if (pwr_data->bt_gpio_sw_ctrl > 0) {
-			power_src.bt_state[BT_SW_CTRL_GPIO] =
+		pr_info("BT_CMD_CHECK_SW_CTRL\n");
+		if (bt_power_pdata->bt_gpio_sw_ctrl > 0) {
+			bt_power_src_status[BT_SW_CTRL_GPIO] =
 				DEFAULT_INVALID_VALUE;
 			ret  =  gpio_direction_input(
-				pwr_data->bt_gpio_sw_ctrl);
+				bt_power_pdata->bt_gpio_sw_ctrl);
 			if (ret) {
 				pr_err("%s:gpio_direction_input api\n",
 					 __func__);
 				pr_err("%s:failed for SW_CTRL:%d\n",
 					__func__, ret);
 			} else {
-				power_src.bt_state[BT_SW_CTRL_GPIO] =
+				bt_power_src_status[BT_SW_CTRL_GPIO] =
 					gpio_get_value(
-					pwr_data->bt_gpio_sw_ctrl);
-				pr_err("bt-sw-ctrl-gpio(%d) value(%d)\n",
-					pwr_data->bt_gpio_sw_ctrl,
-					power_src.bt_state[BT_SW_CTRL_GPIO]);
+					bt_power_pdata->bt_gpio_sw_ctrl);
+				pr_info("bt-sw-ctrl-gpio(%d) value(%d)\n",
+					bt_power_pdata->bt_gpio_sw_ctrl,
+					bt_power_src_status[BT_SW_CTRL_GPIO]);
 			}
 		} else {
 			pr_err("bt_gpio_sw_ctrl not configured\n");
@@ -2428,108 +1446,35 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case BT_CMD_GETVAL_POWER_SRCS:
-		pr_err("BT_CMD_GETVAL_POWER_SRCS\n");
+		pr_info("BT_CMD_GETVAL_POWER_SRCS\n");
+		set_gpios_srcs_status("BT_RESET_GPIO", BT_RESET_GPIO_CURRENT,
+			bt_power_pdata->bt_gpio_sys_rst);
+		set_gpios_srcs_status("SW_CTRL_GPIO", BT_SW_CTRL_GPIO_CURRENT,
+			bt_power_pdata->bt_gpio_sw_ctrl);
 
-		power_src.platform_state[BT_SW_CTRL_GPIO_CURRENT] =
-			gpio_get_value(pwr_data->bt_gpio_sw_ctrl);
-		power_src.platform_state[BT_RESET_GPIO_CURRENT] =
-			gpio_get_value(pwr_data->bt_gpio_sys_rst);
-
-		for (itr = 0; itr < pwr_data->bt_num_vregs; itr++)
-			set_pwr_srcs_status(&pwr_data->bt_vregs[itr], BT_CORE);
-
-		for (itr = 0; itr < pwr_data->platform_num_vregs; itr++)
-			set_pwr_srcs_status(&pwr_data->platform_vregs[itr], PLATFORM_CORE);
-
-		for (itr = 0; itr < pwr_data->uwb_num_vregs; itr++)
-			set_pwr_srcs_status(&pwr_data->uwb_vregs[itr], UWB_CORE);
-
-		if (copy_to_user((void __user *)arg, &power_src, sizeof(power_src))) {
+		num_vregs =  bt_power_pdata->num_vregs;
+		for (itr = 0; itr < num_vregs; itr++) {
+			vreg_info = &bt_power_pdata->vreg_info[itr];
+			set_pwr_srcs_status(vreg_info);
+		}
+		if (copy_to_user((void __user *)arg,
+			bt_power_src_status, sizeof(bt_power_src_status))) {
 			pr_err("%s: copy to user failed\n", __func__);
 			ret = -EFAULT;
 		}
 		break;
 	case BT_CMD_SET_IPA_TCS_INFO:
-		pr_err("%s: BT_CMD_SET_IPA_TCS_INFO\n", __func__);
-		btpower_enable_ipa_vreg(pwr_data);
+		pr_info("%s: BT_CMD_SET_IPA_TCS_INFO\n", __func__);
+		btpower_enable_ipa_vreg(bt_power_pdata);
 		break;
 	case BT_CMD_KERNEL_PANIC:
-		pr_err("%s: BT_CMD_KERNEL_PANIC\n", __func__);
-		panic_reason = (unsigned int)arg;
-		primary_reason = panic_reason & 0xFFFF;
-		sec_reason = (panic_reason & 0xFFFF0000) >> 16;
-		pr_err("%s: BT kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetPrimaryCrashReason(primary_reason),
-			GetSecondaryCrashReason(sec_reason));
-		panic("subsys-restart: Resetting the SoC - BT crashed primary reason [0x%04x] secondary reason [0x%04x]\n",
-			primary_reason, sec_reason);
-		break;
-	case UWB_CMD_KERNEL_PANIC:
-		pr_err("%s: UWB_CMD_KERNEL_PANIC\n", __func__);
-		panic_reason = (unsigned int)arg;
-		primary_reason = panic_reason & 0xFFFF;
-		sec_reason = (panic_reason & 0xFFFF0000) >> 16;
-		pr_err("%s: UWB kernel panic primary reason [0x%04x] secondary reason [0x%04x]\n",
-			__func__, primary_reason, sec_reason);
-		panic("subsys-restart: Resetting the SoC - UWB crashed primary reason [0x%04x] secondary reason [0x%04x]\n",
-			primary_reason, sec_reason);
+		pr_info("%s: BT_CMD_KERNEL_PANIC\n", __func__);
+		panic("subsys-restart: Resetting the SoC - Bluetooth crashed\n");
 		break;
 	default:
 		return -ENOIOCTLCMD;
 	}
 	return ret;
-}
-
-static int bt_power_release(struct inode *inode, struct file *file)
-{
-	if (!pwr_data || !probe_finished) {
-		pr_err("%s: BTPower Probing Pending.Try Again\n", __func__);
-		return -EAGAIN;
-	}
-
-	pwr_data->reftask = get_current();
-
-	if (pwr_data->reftask_bt != NULL) {
-		if (pwr_data->reftask->tgid == pwr_data->reftask_bt->tgid)
-		{
-			pr_err("%s called by BT service(PID-%d)\n",
-					__func__, pwr_data->reftask->tgid);
-/*
-			if(get_pwr_state() == BT_ON)
-			{
-				bt_regulators_pwr(POWER_DISABLE);
-				platform_regulators_pwr(POWER_DISABLE);
-				update_pwr_state(IDLE);
-
-			}
-			else if (get_pwr_state() == ALL_CLIENTS_ON)
-			{
-				bt_regulators_pwr(POWER_DISABLE);
-				update_pwr_state(UWB_ON);
-			}
-*/
-		}
-	} else if (pwr_data->reftask_uwb != NULL) {
-		if (pwr_data->reftask->tgid == pwr_data->reftask_uwb->tgid)
-		{
-			pr_err("%s called by uwb service(PID-%d)\n",
-					__func__, pwr_data->reftask->tgid);
-/*
-			if(get_pwr_state() == UWB_ON)
-			{
-				uwb_regulators_pwr(POWER_DISABLE);
-				platform_regulators_pwr(POWER_DISABLE);
-				update_pwr_state(IDLE);
-			}
-			else if (get_pwr_state() == ALL_CLIENTS_ON)
-			{
-				uwb_regulators_pwr(POWER_DISABLE);
-				update_pwr_state(BT_ON);
-			}
-*/
-		}
-	}
-	return 0;
 }
 
 static struct platform_driver bt_power_driver = {
@@ -2544,7 +1489,6 @@ static struct platform_driver bt_power_driver = {
 static const struct file_operations bt_dev_fops = {
 	.unlocked_ioctl = bt_ioctl,
 	.compat_ioctl = bt_ioctl,
-	.release = bt_power_release,
 };
 
 static int __init btpower_init(void)
@@ -2605,13 +1549,12 @@ driver_err:
  *
  * Return: 0 for success
  */
-int bt_aop_send_msg(struct platform_pwr_data *plat_priv, char *mbox_msg)
-{
+ int bt_aop_send_msg(struct btpower_platform_data *plat_priv, char *mbox_msg)
+ {
 	struct qmp_pkt pkt;
 	int ret = 0;
 	pkt.size = BTPOWER_MBOX_MSG_MAX_LEN;
 	pkt.data = mbox_msg;
-	pr_err("%s: %s\n", __func__, mbox_msg);
 	ret = mbox_send_message(plat_priv->mbox_chan, &pkt);
 	if (ret < 0)
 		pr_err("Failed to send AOP mbox msg: %s\n", mbox_msg);
@@ -2619,15 +1562,15 @@ int bt_aop_send_msg(struct platform_pwr_data *plat_priv, char *mbox_msg)
 		ret =0;
 	return ret;
 
-}
-
-int bt_aop_pdc_reconfig(struct platform_pwr_data *pdata)
+ }
+int bt_aop_pdc_reconfig(struct btpower_platform_data *pdata)
 {
+
 	unsigned int i;
 	int ret;
 	if (pdata->pdc_init_table_len <= 0 || !pdata->pdc_init_table)
 		return 0;
-	pr_err("Setting PDC defaults\n");
+        pr_debug("Setting PDC defaults");
 	for (i = 0; i < pdata->pdc_init_table_len; i++) {
 		ret =bt_aop_send_msg(pdata,(char *)pdata->pdc_init_table[i]);
 		if (ret < 0)
@@ -2636,7 +1579,8 @@ int bt_aop_pdc_reconfig(struct platform_pwr_data *pdata)
 	return ret;
 }
 
-int btpower_aop_mbox_init(struct platform_pwr_data *pdata)
+
+int btpower_aop_mbox_init(struct btpower_platform_data *pdata)
 {
 	struct mbox_client *mbox = &pdata->mbox_client_data;
 	struct mbox_chan *chan;
@@ -2659,9 +1603,9 @@ int btpower_aop_mbox_init(struct platform_pwr_data *pdata)
 				      "qcom,vreg_ipa",
 				      &pdata->vreg_ipa);
 	if (ret)
-		pr_err("%s: vreg for iPA not configured\n", __func__);
+		pr_info("%s: vreg for iPA not configured\n", __func__);
 	else
-		pr_err("%s: Mbox channel initialized\n", __func__);
+		pr_info("%s: Mbox channel initialized\n", __func__);
 
 	ret = bt_aop_pdc_reconfig(pdata);
 	if (ret)
@@ -2670,7 +1614,7 @@ int btpower_aop_mbox_init(struct platform_pwr_data *pdata)
 	return 0;
 }
 
-static int btpower_aop_set_vreg_param(struct platform_pwr_data *pdata,
+static int btpower_aop_set_vreg_param(struct btpower_platform_data *pdata,
 				   const char *vreg_name,
 				   enum btpower_vreg_param param,
 				   enum btpower_tcs_seq seq, int val)
@@ -2688,7 +1632,7 @@ static int btpower_aop_set_vreg_param(struct platform_pwr_data *pdata,
 		 "{class: wlan_pdc, res: %s.%s, %s: %d}", vreg_name,
 		 vreg_param_str[param], tcs_seq_str[seq], val);
 
-	pr_err("%s: sending AOP Mbox msg: %s\n", __func__, mbox_msg);
+	pr_info("%s: sending AOP Mbox msg: %s\n", __func__, mbox_msg);
 	pkt.size = BTPOWER_MBOX_MSG_MAX_LEN;
 	pkt.data = mbox_msg;
 
@@ -2700,25 +1644,25 @@ static int btpower_aop_set_vreg_param(struct platform_pwr_data *pdata,
 	return ret;
 }
 
-static int btpower_enable_ipa_vreg(struct platform_pwr_data *pdata)
+static int btpower_enable_ipa_vreg(struct btpower_platform_data *pdata)
 {
 	int ret = 0;
 	static bool config_done;
 
 	if (config_done) {
-		pr_err("%s: IPA Vreg already configured\n", __func__);
+		pr_info("%s: IPA Vreg already configured\n", __func__);
 		return 0;
 	}
 
 	if (!pdata->vreg_ipa || !pdata->mbox_chan) {
-		pr_err("%s: mbox/iPA vreg not configured\n", __func__);
+		pr_info("%s: mbox/iPA vreg not configured\n", __func__);
 	} else {
 		ret = btpower_aop_set_vreg_param(pdata,
 					       pdata->vreg_ipa,
 					       BTPOWER_VREG_ENABLE,
 					       BTPOWER_TCS_UP_SEQ, 1);
 		if (ret >=  0) {
-			pr_err("%s:Enabled iPA\n", __func__);
+			pr_info("%s:Enabled iPA\n", __func__);
 			config_done = true;
 		}
 	}
