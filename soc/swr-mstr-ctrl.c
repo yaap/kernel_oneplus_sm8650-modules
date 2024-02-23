@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/irq.h>
@@ -2280,6 +2280,14 @@ handle_irq:
 					__func__, value);
 			/* Wait 3.5ms to clear */
 			usleep_range(3500, 3505);
+			break;
+		case SWRM_INTERRUPT_STATUS_DOUT_RATE_MISMATCH:
+			dev_err(swrm->dev,
+				"%s: SWR Port Channel rate mismatch\n", __func__);
+			swrm->intr_mask &=
+				~SWRM_INTERRUPT_STATUS_DOUT_RATE_MISMATCH;
+			swr_master_write(swrm,
+				SWRM_INTERRUPT_EN(swrm->ee_val), swrm->intr_mask);
 			break;
 		default:
 			dev_err_ratelimited(swrm->dev,

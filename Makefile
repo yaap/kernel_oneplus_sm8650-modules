@@ -4,12 +4,18 @@ KBUILD_OPTIONS += CONFIG_SND_SOC_SA7255=m
 KBUILD_OPTIONS += MODNAME=audio_dlkm
 endif
 
+ifeq ($(AUTO_GVM), yes)
+KBUILD_OPTIONS += CONFIG_SND_SOC_AUTO=y
+KBUILD_OPTIONS += CONFIG_SND_SOC_GVM=y
+KBUILD_OPTIONS += MODNAME=audio_dlkm
+endif
+
 M=$(PWD)
 AUDIO_ROOT=$(KERNEL_SRC)/$(M)
 
 KBUILD_OPTIONS+=  AUDIO_ROOT=$(AUDIO_ROOT)
 
-all: modules
+all: clean modules
 
 clean:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean

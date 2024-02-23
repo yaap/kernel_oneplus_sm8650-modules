@@ -25,6 +25,11 @@ ifeq ($(CONFIG_SND_SOC_AUTO), y)
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
 	endif
+	ifdef CONFIG_SND_SOC_GVM
+		include $(AUDIO_ROOT)/config/gvmauto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/gvmautoconf.h
+	endif
 	ifdef CONFIG_SND_SOC_SA7255
 		include $(AUDIO_ROOT)/config/sa7255auto.conf
 		export

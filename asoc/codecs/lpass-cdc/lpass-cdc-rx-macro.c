@@ -1890,7 +1890,9 @@ static int lpass_cdc_rx_macro_config_compander(struct snd_soc_component *compone
 		return 0;
 
 	comp = interp_n;
-	if (!rx_priv->comp_enabled[comp] && rx_priv->is_pcm_enabled)
+	if (!rx_priv->comp_enabled[comp])
+		return 0;
+	if (rx_priv->is_pcm_enabled)
 		return 0;
 
 	if (rx_priv->is_ear_mode_on && interp_n == INTERP_HPHL)
