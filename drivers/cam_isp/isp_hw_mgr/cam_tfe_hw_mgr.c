@@ -4200,7 +4200,7 @@ static int cam_isp_tfe_blob_buffer_alignment_update(
 			return -EINVAL;
 		}
 
-		hw_mgr_res = &ctx->res_list_tfe_out[res_id_out];
+		hw_mgr_res = &ctx->res_list_tfe_out[ctx->tfe_out_map[res_id_out]];
 		res = hw_mgr_res->hw_res[0];
 		hw_intf = res->hw_intf;
 		if (hw_intf && hw_intf->hw_ops.process_cmd) {
