@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -1874,16 +1874,17 @@ end:
 static int cam_context_apply_buf_done_err_injection(struct cam_context *ctx,
 	struct cam_common_evt_inject_data *inject_evt)
 {
-	struct cam_hw_done_event_data *buf_done_data = inject_evt->buf_done_data;
+	struct cam_hw_done_event_data buf_done_data = {0};
 	int rc;
 
-	buf_done_data->evt_param = inject_evt->evt_params->u.buf_err_evt.sync_error;
-	rc = cam_context_buf_done_from_hw(ctx, buf_done_data,
+	buf_done_data.request_id = inject_evt->evt_params->req_id;
+	buf_done_data.evt_param = inject_evt->evt_params->u.buf_err_evt.sync_error;
+	rc = cam_context_buf_done_from_hw(ctx, &buf_done_data,
 		CAM_CTX_EVT_ID_ERROR);
 	if (rc)
 		CAM_ERR(CAM_CTXT,
 			"Fail to apply buf done error injection with req id: %llu ctx id: %u rc: %d",
-			buf_done_data->request_id, ctx->ctx_id, rc);
+			buf_done_data.request_id, ctx->ctx_id, rc);
 
 	return rc;
 }
