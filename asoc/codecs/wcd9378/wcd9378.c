@@ -2072,12 +2072,6 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	micb_index = micb_num - 1;
 	switch (req) {
 	case MICB_PULLUP_ENABLE:
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
 		wcd9378->pullup_ref[micb_index]++;
 		if ((wcd9378->pullup_ref[micb_index] == 1) &&
 			(wcd9378->micb_ref[micb_index] == 0)) {
@@ -2090,12 +2084,7 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	case MICB_PULLUP_DISABLE:
 		if (wcd9378->pullup_ref[micb_index] > 0)
 			wcd9378->pullup_ref[micb_index]--;
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
+
 		if ((wcd9378->pullup_ref[micb_index] == 0) &&
 			    (wcd9378->micb_ref[micb_index] == 0))
 			snd_soc_component_update_bits(component, micb_usage, micb_mask, 0x01);
