@@ -10,10 +10,6 @@ ifeq ($(CONFIG_ARCH_CLIFFS), y)
 include $(CAMERA_KERNEL_ROOT)/config/cliffs.mk
 endif
 
-ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
-include $(CAMERA_KERNEL_ROOT)/config/pineapple.mk
-endif
-
 ifeq ($(CONFIG_ARCH_WAIPIO), y)
 include $(CAMERA_KERNEL_ROOT)/config/waipio.mk
 endif
@@ -62,6 +58,14 @@ endif
 
 ifeq ($(BOARD_PLATFORM), crow)
 include $(CAMERA_KERNEL_ROOT)/config/crow.mk
+endif
+
+ifeq ($(BOARD_PLATFORM), pineapple)
+include $(CAMERA_KERNEL_ROOT)/config/pineapple.mk
+endif
+
+ifeq ($(BOARD_PLATFORM), volcano)
+include $(CAMERA_KERNEL_ROOT)/config/volcano.mk
 endif
 
 ifneq ($(KBUILD_EXTRA_CONFIGS),)
