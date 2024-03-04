@@ -2342,7 +2342,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_volc
 
 /* Default UBWC config for LPDDR5 */
 static struct msm_vidc_ubwc_config_data ubwc_config_volcano[] = {
-	UBWC_CONFIG(8, 32, 16, 0, 1, 1, 1),
+	UBWC_CONFIG(8, 32, 15, 0, 1, 1, 1),
 };
 
 static struct msm_vidc_format_capability format_data_volcano = {
@@ -2543,18 +2543,29 @@ static const struct msm_vidc_platform_data volcano_data_v0 = {
 	.sku_version = SKU_VERSION_0,
 };
 
-int msm_vidc_volcano_check_ddr_type(void)
+int msm_vidc_volcano_check_ddr_type(struct msm_vidc_platform_data *platform_data,
+				    u32 hbb_override_val)
 {
-	u32 ddr_type;
+	u32 ddr_type = DDR_TYPE_LPDDR5;
 
-	ddr_type = of_fdt_get_ddrtype();
-	if (ddr_type != DDR_TYPE_LPDDR5 &&
-		ddr_type != DDR_TYPE_LPDDR5X) {
-		d_vpr_e("%s: wrong ddr type %d\n", __func__, ddr_type);
+	if (!platform_data || !platform_data->ubwc_config) {
+		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	d_vpr_h("%s: ddr type %d\n", __func__, ddr_type);
+	ddr_type = of_fdt_get_ddrtype();
+	if (ddr_type == -ENOENT)
+		d_vpr_e("Failed to get ddr type, use LPDDR5\n");
+
+	if (platform_data->ubwc_config &&
+	    (ddr_type == DDR_TYPE_LPDDR4 ||
+	     ddr_type == DDR_TYPE_LPDDR4X))
+		platform_data->ubwc_config->highest_bank_bit = hbb_override_val;
+
+	d_vpr_h("DDR Type 0x%x hbb 0x%x\n",
+		ddr_type, platform_data->ubwc_config ?
+		platform_data->ubwc_config->highest_bank_bit : -1);
+
 	return 0;
 }
 
@@ -2596,7 +2607,7 @@ static int msm_vidc_init_data(struct msm_vidc_core *core)
 		return -EINVAL;
 	}
 
-	rc = msm_vidc_volcano_check_ddr_type();
+	rc = msm_vidc_volcano_check_ddr_type(&core->platform->data, 0xe);
 	if (rc)
 		return rc;
 
