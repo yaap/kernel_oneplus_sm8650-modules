@@ -38,7 +38,8 @@ ifeq ($(TOUCH_DLKM_ENABLE),  true)
                 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/focaltech_fts.ko \
                         $(KERNEL_MODULES_OUT)/goodix_ts.ko
         else ifeq ($(TARGET_BOARD_PLATFORM), volcano)
-                PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/goodix_ts.ko
+                PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/goodix_ts.ko \
+                        $(KERNEL_MODULES_OUT)/focaltech_fts.ko
         else
                 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/nt36xxx-i2c.ko \
                         $(KERNEL_MODULES_OUT)/goodix_ts.ko \
