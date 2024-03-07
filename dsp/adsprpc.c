@@ -4043,7 +4043,7 @@ bail:
 static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_init_attrs *uproc)
 {
-	int err = 0, memlen = 0, mflags = 0, locked = 0;
+	int err = 0, memlen = 0, mflags = 0, locked = 0, glocked = 0;
 	struct fastrpc_ioctl_invoke_async ioctl;
 	struct fastrpc_ioctl_init *init = &uproc->init;
 	 /* First page for init-mem and second page for proc-attrs */
@@ -4057,6 +4057,8 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	unsigned int dsp_userpd_memlen = 0;
 	struct fastrpc_buf *init_mem;
 	struct fastrpc_mmap *sharedbuf_map = NULL;
+	struct fastrpc_apps *me = &gfa;
+	unsigned long irq_flags = 0;
 
 	struct {
 		int pgid;
@@ -4161,20 +4163,6 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 		ADSPRPC_ERR("donated memory allocated in userspace\n");
 		goto bail;
 	}
-	/* Free any previous donated memory */
-	spin_lock(&fl->hlock);
-	locked = 1;
-	if (fl->init_mem) {
-		init_mem = fl->init_mem;
-		fl->init_mem = NULL;
-		spin_unlock(&fl->hlock);
-		locked = 0;
-		fastrpc_buf_free(init_mem, 0);
-	}
-	if (locked) {
-		spin_unlock(&fl->hlock);
-		locked = 0;
-	}
 
 	/* Allocate DMA buffer in kernel for donating to remote process
 	 * Unsigned PD requires additional memory because of the
@@ -4278,12 +4266,20 @@ bail:
 	if (err) {
 		ADSPRPC_ERR("failed with err %d\n", err);
 		fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+		spin_unlock(&fl->hlock);
+		locked = 0;
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		glocked = 1;
 		if (!IS_ERR_OR_NULL(fl->init_mem)) {
 			init_mem = fl->init_mem;
 			fl->init_mem = NULL;
-			spin_unlock(&fl->hlock);
-			locked = 0;
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
+			glocked = 0;
 			fastrpc_buf_free(init_mem, 0);
+		}
+		if (glocked) {
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
+			glocked = 0;
 		}
 	} else {
 		fl->dsp_process_state = PROCESS_CREATE_SUCCESS;
@@ -5949,6 +5945,7 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	unsigned long irq_flags = 0;
 	bool is_locked = false;
 	int i;
+	struct fastrpc_buf *init_mem = NULL;
 
 	if (!fl)
 		return 0;
@@ -6020,8 +6017,22 @@ skip_dump_wait:
 	wake_up_interruptible(&fl->proc_state_notif.notif_wait_queue);
 	spin_unlock_irqrestore(&fl->proc_state_notif.nqlock, flags);
 
-	if (!IS_ERR_OR_NULL(fl->init_mem))
-		fastrpc_buf_free(fl->init_mem, 0);
+	if (!is_locked) {
+		spin_lock_irqsave(&fl->apps->hlock, irq_flags);
+		is_locked = true;
+	}
+	if (!IS_ERR_OR_NULL(fl->init_mem)) {
+		init_mem = fl->init_mem;
+		fl->init_mem = NULL;
+		is_locked = false;
+		spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
+		fastrpc_buf_free(init_mem, 0);
+	}
+	if (is_locked) {
+		is_locked = false;
+		spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
+	}
+
 	fastrpc_context_list_dtor(fl);
 	fastrpc_cached_buf_list_free(fl);
 	if (!IS_ERR_OR_NULL(fl->hdr_bufs))
