@@ -143,14 +143,14 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8A30, /* TFE_BAYER_NIU_PRIORITYLUT_LOW */
-			.value = 0x66665433,
+			.value = 0x55554433,
 		},
 		.priority_lut_high = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8A34, /* TFE_BAYER_NIU_PRIORITYLUT_HIGH */
-			.value = 0x66666666,
+			.value = 0x66555555,
 		},
 		.urgency = {
 			.enable = true,
@@ -219,14 +219,14 @@ static struct cam_camnoc_specific
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8C30, /* TFE_RDI_NIU_PRIORITYLUT_LOW */
-			.value = 0x66665433,
+			.value = 0x55554433,
 		},
 		.priority_lut_high = {
 			.enable = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
 			.offset = 0x8C34, /* TFE_RDI_NIU_PRIORITYLUT_HIGH */
-			.value = 0x66666666,
+			.value = 0x66555555,
 		},
 		.urgency = {
 			.enable = true,
