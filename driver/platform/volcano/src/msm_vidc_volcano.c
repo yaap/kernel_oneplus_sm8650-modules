@@ -2400,7 +2400,7 @@ const struct context_bank_table volcano_context_bank_table[] = {
 
 /* freq */
 static struct freq_table volcano_freq_table_sku0[] = {
-	{533333333}, {444000000}, {366000000}, {338000000}, {240000000}, {192000000}
+	{444000000}, {366000000}, {338000000}, {240000000}
 };
 
 /* register, value, mask */
