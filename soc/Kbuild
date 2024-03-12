@@ -59,7 +59,7 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/kalamaauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/kalamaautoconf.h
 	endif
-	ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
+	ifeq ($(BOARD_PLATFORM), pineapple cliffs cliffs7)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
 	endif
