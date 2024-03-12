@@ -13,6 +13,11 @@ LINUXINCLUDE   += -I$(VIDEO_DRIVER_ABS_PATH)/platform/pineapple/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/variant/iris33/inc
 endif
 
+ifeq ($(CONFIG_MSM_VIDC_VOLCANO), y)
+LINUXINCLUDE   += -I$(VIDEO_DRIVER_ABS_PATH)/platform/volcano/inc \
+                  -I$(VIDEO_DRIVER_ABS_PATH)/variant/iris2/inc
+endif
+
 LINUXINCLUDE   += -I$(VIDEO_DRIVER_ABS_PATH)/platform/common/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/variant/common/inc \
                   -I$(VIDEO_DRIVER_ABS_PATH)/vidc/inc \
@@ -30,6 +35,12 @@ video-objs +=     $(VIDEO_DRIVER_REL_PATH)/platform/pineapple/src/pineapple.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_bus_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_clock_iris33.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/iris33/src/msm_vidc_iris33.o
+endif
+ifeq ($(CONFIG_MSM_VIDC_VOLCANO), y)
+video-objs += $(VIDEO_DRIVER_REL_PATH)/variant/iris2/src/msm_vidc_buffer_iris2.o \
+                  $(VIDEO_DRIVER_REL_PATH)/variant/iris2/src/msm_vidc_iris2.o \
+                  $(VIDEO_DRIVER_REL_PATH)/variant/iris2/src/msm_vidc_power_iris2.o \
+                  $(VIDEO_DRIVER_REL_PATH)/platform/volcano/src/volcano.o
 endif
 video-objs +=     $(VIDEO_DRIVER_REL_PATH)/platform/common/src/msm_vidc_platform.o \
                   $(VIDEO_DRIVER_REL_PATH)/variant/common/src/msm_vidc_variant.o \
