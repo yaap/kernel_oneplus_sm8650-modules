@@ -741,7 +741,7 @@ static void gen8_hwcg_set(struct adreno_device *adreno_dev, bool on)
 	int i;
 
 	/* Increase clock keep-on hysteresis from 5 cycles to 8 cycles */
-	if (on)
+	if (!adreno_is_gen8_3_0(adreno_dev) && on)
 		kgsl_regwrite(device, GEN8_RBBM_CGC_0_PC, 0x00000702);
 
 	if (!adreno_dev->hwcg_enabled)

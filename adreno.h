@@ -1286,6 +1286,7 @@ ADRENO_TARGET(gen7_4_0, ADRENO_REV_GEN7_4_0)
 ADRENO_TARGET(gen7_9_0, ADRENO_REV_GEN7_9_0)
 ADRENO_TARGET(gen7_9_1, ADRENO_REV_GEN7_9_1)
 ADRENO_TARGET(gen7_11_0, ADRENO_REV_GEN7_11_0)
+ADRENO_TARGET(gen8_3_0, ADRENO_REV_GEN8_3_0)
 
 static inline int adreno_is_gen7_9_x(struct adreno_device *adreno_dev)
 {
