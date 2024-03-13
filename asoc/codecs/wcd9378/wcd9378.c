@@ -1408,7 +1408,6 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int ret;
 	int bank = 0;
 	int act_ps = 0;
 
@@ -1424,13 +1423,7 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10 | 0x01));
-		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, RX_PATH, true);
 
-		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
-					wcd9378->rx_swr_dev->dev_num,
-					true);
-
-		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, RX_PATH, true);
 		if (wcd9378->update_wcd_event)
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
@@ -1473,7 +1466,6 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int ret;
 	int act_ps = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
@@ -1485,9 +1477,7 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX2 << 0x10 | 0x1));
-		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
-				    wcd9378->rx_swr_dev->dev_num,
-				    true);
+
 		if (wcd9378->update_wcd_event)
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
@@ -1760,7 +1750,8 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
-	int power_level;
+	int power_level, bank = 0;
+	int ret = 0;
 	struct swr_device *swr_dev = wcd9378->tx_swr_dev;
 	u8 scp_commit_val = 0x2;
 
@@ -1814,6 +1805,14 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				WCD9378_FU42_MUTE_CH2_FU42_MUTE_CH2_MASK, 0x00);
 
 		swr_write(swr_dev, swr_dev->dev_num, 0x004c, &scp_commit_val);
+
+		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, RX_PATH, true);
+
+		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
+					wcd9378->rx_swr_dev->dev_num,
+					true);
+
+		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, RX_PATH, true);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		/*RX0 mute*/
@@ -1838,7 +1837,7 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 		break;
 	};
 
-	return 0;
+	return ret;
 }
 
 static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
