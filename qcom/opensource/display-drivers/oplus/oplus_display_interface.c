@@ -383,7 +383,7 @@ int oplus_panel_init(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_PANEL_INIT);
+	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_PANEL_INIT, false);
 	if (!rc)
 		panel_need_init = false;
 
@@ -443,7 +443,7 @@ int oplus_panel_id_compatibility_init(struct dsi_display *display)
 		return rc;
 	}
 	mutex_lock(&panel->panel_lock);
-	rc = dsi_panel_tx_cmd_set(panel, compatibility_cmd);
+	rc = dsi_panel_tx_cmd_set(panel, compatibility_cmd, false);
 	mutex_unlock(&panel->panel_lock);
 	if (rc) {
 		LCD_ERR("Send panel id compatibility init code failed! \n");
@@ -1021,7 +1021,7 @@ int oplus_display_send_dcs_lock(struct dsi_display *display,
 		}
 
 		mutex_lock(&display->panel->panel_lock);
-		rc = dsi_panel_tx_cmd_set(display->panel, type);
+		rc = dsi_panel_tx_cmd_set(display->panel, type, false);
 		mutex_unlock(&display->panel->panel_lock);
 
 		/* disable the clk vote for CMD mode panels */

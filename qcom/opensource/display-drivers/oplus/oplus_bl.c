@@ -164,19 +164,19 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, bool hbm_switch)
 		if (enable_hbm_enter_dly_on_flags)
 			enable_hbm_enter_dly_on_flags++;
 		if (0 == oplus_global_hbm_flags) {
-			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
+			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON, false)) {
 				return 0;
 			}
 			enable_hbm_enter_dly_on_flags = 1;
 		} else if (4 == enable_hbm_enter_dly_on_flags) {
-			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
+			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF, false)) {
 				return 0;
 			}
 			enable_hbm_enter_dly_on_flags = 0;
 		}
 	} else {
 		if (oplus_global_hbm_flags == 1) {
-			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
+			if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON, false)) {
 				return 0;
 			}
 			enable_hbm_exit_dly_on_flags = 1;
@@ -185,7 +185,7 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, bool hbm_switch)
 				enable_hbm_exit_dly_on_flags++;
 			if (3 == enable_hbm_exit_dly_on_flags) {
 				enable_hbm_exit_dly_on_flags = 0;
-				if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
+				if (dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF, false)) {
 					return 0;
 				}
 			}
@@ -281,7 +281,7 @@ int oplus_panel_global_hbm_mapping(struct dsi_panel *panel, u32 *backlight_level
 			oplus_display_panel_dly(panel, true);
 		}
 
-		rc = dsi_panel_tx_cmd_set(panel, global_hbm_switch_cmd);
+		rc = dsi_panel_tx_cmd_set(panel, global_hbm_switch_cmd, false);
 		oplus_global_hbm_flags = (global_hbm_switch_cmd == DSI_CMD_HBM_ENTER_SWITCH);
 	}
 
@@ -458,7 +458,7 @@ void oplus_panel_backlight_demura_dbv_switch(struct dsi_panel *panel, u32 bl_lvl
 	}
 
 	if ((panel->oplus_priv.bl_demura_mode != bl_demura_last_mode || send_demura_after_hbm_off_flag) && (panel->power_mode == SDE_MODE_DPMS_ON)) {
-		rc = dsi_panel_tx_cmd_set(panel, bl_demura_mode);
+		rc = dsi_panel_tx_cmd_set(panel, bl_demura_mode, false);
 		send_demura_after_hbm_off_flag = false;
 	}
 	if (rc) {
@@ -547,7 +547,7 @@ int oplus_display_panel_set_demura2_offset(void)
 		mutex_lock(&panel->panel_lock);
 
 		rc |= dsi_display_override_dma_cmd_trig(display, DSI_TRIGGER_SW_SEOF);
-		rc |= dsi_panel_tx_cmd_set(panel, cmd_set_demura2_offset);
+		rc |= dsi_panel_tx_cmd_set(panel, cmd_set_demura2_offset, false);
 		rc |= dsi_display_override_dma_cmd_trig(display, DSI_TRIGGER_NONE);
 
 		mutex_unlock(&panel->panel_lock);

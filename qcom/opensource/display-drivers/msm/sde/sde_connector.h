@@ -279,11 +279,12 @@ struct sde_connector_ops {
 	 * @display: Pointer to private display handle
 	 * @cmd_buf: Command buffer
 	 * @cmd_buf_len: Command buffer length in bytes
+	 * @do_peripheral_flush: Flag for sending this command with peripheral flush
 	 * Returns: Zero for success, negetive for failure
 	 */
 	int (*cmd_transfer)(struct drm_connector *connector,
 			void *display, const char *cmd_buf,
-			u32 cmd_buf_len);
+			u32 cmd_buf_len, bool do_peripheral_flush);
 	/**
 	 * cmd_receive - Receive the response from the connected display panel
 	 * @display: Pointer to private display handle

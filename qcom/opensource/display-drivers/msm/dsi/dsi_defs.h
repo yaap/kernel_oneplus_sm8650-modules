@@ -1118,11 +1118,13 @@ static inline bool dsi_is_type_cphy(struct dsi_host_common_cfg *cfg)
 
 /**
  * dsi_host_transfer_sub() - transfers DSI commands from host to panel
- * @host:    pointer to the DSI mipi host device
- * @cmd:     DSI command to be transferred
+ * @host:                pointer to the DSI mipi host device
+ * @cmd:                 DSI command to be transferred
+ * @do_peripheral_flush: Flag for sending this command with peripheral flush
  *
  * Return: error code.
  */
-int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd);
+int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd,
+			  bool do_peripheral_flush);
 
 #endif /* _DSI_DEFS_H_ */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -1967,7 +1967,8 @@ bool dsi_ctrl_hw_cmn_vid_engine_busy(struct dsi_ctrl_hw *ctrl)
 }
 
 void dsi_ctrl_hw_cmn_init_cmddma_trig_ctrl(struct dsi_ctrl_hw *ctrl,
-					   struct dsi_host_common_cfg *cfg)
+					   struct dsi_host_common_cfg *cfg,
+					   bool do_peripheral_flush)
 {
 	u32 reg;
 	const u8 trigger_map[DSI_TRIGGER_MAX] = {
@@ -1976,12 +1977,16 @@ void dsi_ctrl_hw_cmn_init_cmddma_trig_ctrl(struct dsi_ctrl_hw *ctrl,
 	/* Initialize the default trigger used for Command Mode DMA path. */
 	reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
 	reg &= ~BIT(16); /* Reset DMA_TRG_MUX */
-	reg &= ~(0xF); /* Reset DMA_TRIGGER_SEL */
+	reg &= ~(0xF | (0b111 << 17)); /* Reset DMA_TRIGGER_SEL */
 	if (cfg->force_dma_cmd_trigger) {
 		reg |= (trigger_map[cfg->force_dma_cmd_trigger] & 0xF);
 		SDE_EVT32(cfg->force_dma_cmd_trigger);
 	} else {
-		reg |= (trigger_map[cfg->dma_cmd_trigger] & 0xF);
+		if (do_peripheral_flush)
+		    reg |= BIT(17); /* COMMAND_MODE_DMA_TRIGGER_SEL to periph flush from MDP */
+	    else
+		    reg |= (trigger_map[cfg->dma_cmd_trigger] & 0xF);
+
 	}
 	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
 }

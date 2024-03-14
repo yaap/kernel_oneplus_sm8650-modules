@@ -296,7 +296,7 @@ static int oplus_panel_gamma_compensation_read_reg(struct dsi_panel *panel, stru
 		DSI_ERR("oplus panel cmd reg replace failed, retry\n");
 		return rc;
 	}
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION_PAGE1);
+	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION_PAGE1, false);
 	if (rc) {
 		DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION_PAGE1 failed, retry\n");
 		return rc;
@@ -397,7 +397,7 @@ int oplus_display_panel_A0020_gamma_compensation(struct dsi_display *display)
 			continue;
 		}
 
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION_PAGE0);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION_PAGE0, false);
 		if (rc) {
 			DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION_PAGE0 failed\n");
 		}

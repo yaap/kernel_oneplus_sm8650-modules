@@ -711,14 +711,15 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 
 /**
  * dsi_display_cmd_transfer() - transfer command to the panel
- * @connector:          Pointer to drm connector structure
- * @display:            Handle to display.
- * @cmd_buf:            Command buffer
- * @cmd_buf_len:        Command buffer length in bytes
+ * @connector:           Pointer to drm connector structure
+ * @display:             Handle to display.
+ * @cmd_buf:             Command buffer
+ * @cmd_buf_len:         Command buffer length in bytes
+ * @do_peripheral_flush: Flag for sending this command with peripheral flush
  */
 int dsi_display_cmd_transfer(struct drm_connector *connector,
 		void *display, const char *cmd_buffer,
-		u32 cmd_buf_len);
+		u32 cmd_buf_len, bool do_peripheral_flush);
 
 /**
  * dsi_display_cmd_receive() - receive response from the panel

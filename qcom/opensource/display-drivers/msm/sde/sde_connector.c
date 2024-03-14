@@ -2619,7 +2619,7 @@ static ssize_t _sde_debugfs_conn_cmd_tx_write(struct file *file,
 
 	mutex_lock(&c_conn->lock);
 	rc = c_conn->ops.cmd_transfer(&c_conn->base, c_conn->display, buffer,
-			buf_size);
+			buf_size, false);
 	c_conn->last_cmd_tx_sts = !rc ? true : false;
 	mutex_unlock(&c_conn->lock);
 

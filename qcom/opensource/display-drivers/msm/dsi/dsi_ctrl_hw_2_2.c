@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/iopoll.h>
 #include "dsi_ctrl_hw.h"
@@ -109,16 +109,21 @@ void dsi_ctrl_hw_22_phy_reset_config(struct dsi_ctrl_hw *ctrl,
 
 /**
  * dsi_ctrl_hw_22_schedule_dma_cmd() - to schedule DMA command transfer
- * @ctrl:         Pointer to the controller host hardware.
- * @line_no:      Line number at which command needs to be sent.
+ * @ctrl:                Pointer to the controller host hardware.
+ * @line_no:             Line number at which command needs to be sent.
+ * @do_peripheral_flush: Flag for sending this command with peripheral flush.
+ *
  */
-void dsi_ctrl_hw_22_schedule_dma_cmd(struct dsi_ctrl_hw *ctrl, int line_no)
+void dsi_ctrl_hw_22_schedule_dma_cmd(struct dsi_ctrl_hw *ctrl, int line_no,
+				     bool do_peripheral_flush)
 {
 	u32 reg = 0;
 
-	reg = DSI_R32(ctrl, DSI_DMA_SCHEDULE_CTRL);
-	reg |= BIT(28);
-	reg |= (line_no & 0xffff);
+    reg = DSI_R32(ctrl, DSI_DMA_SCHEDULE_CTRL);
+    reg |= BIT(28);
+    reg |= (line_no & 0xffff);
+	if (do_peripheral_flush)
+		reg = 0;
 
 	DSI_W32(ctrl, DSI_DMA_SCHEDULE_CTRL, reg);
 	ctrl->reset_trig_ctrl = true;
@@ -262,7 +267,7 @@ void dsi_ctrl_hw_22_reset_trigger_controls(struct dsi_ctrl_hw *ctrl,
 
 	reg = DSI_R32(ctrl, DSI_TRIG_CTRL);
 	reg &= ~BIT(16); /* Reset DMA_TRG_MUX */
-	reg &= ~(0xF); /* Reset DMA_TRIGGER_SEL */
+	reg &= ~(0xF | (0b111 << 17)); /* Reset DMA_TRIGGER_SEL */
 	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0xF);
 	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
 

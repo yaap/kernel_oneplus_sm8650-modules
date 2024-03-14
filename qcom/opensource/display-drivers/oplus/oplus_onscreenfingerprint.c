@@ -815,7 +815,7 @@ static int oplus_ofp_panel_cmd_set_nolock(void *dsi_panel, enum dsi_cmd_set_type
 	}
 
 	OPLUS_OFP_TRACE_BEGIN("dsi_panel_tx_cmd_set");
-	rc = dsi_panel_tx_cmd_set(panel, type);
+	rc = dsi_panel_tx_cmd_set(panel, type, false);
 	OPLUS_OFP_TRACE_END("dsi_panel_tx_cmd_set");
 	if (rc) {
 		OFP_ERR("[%s] failed to send %s, rc=%d\n",

@@ -94,7 +94,7 @@ int oplus_display_panel_get_id(void *buf)
 		if (!strcmp(display->panel->oplus_priv.vendor_name, "A0005")) {
 			mutex_lock(&display->display_lock);
 			mutex_lock(&display->panel->panel_lock);
-			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_INFO_SWITCH_PAGE);
+			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_INFO_SWITCH_PAGE, false);
 			mutex_unlock(&display->panel->panel_lock);
 			mutex_unlock(&display->display_lock);
 			if (ret < 0) {
@@ -523,7 +523,7 @@ int oplus_display_panel_get_serial_number(void *buf)
 		if (display->panel->oplus_ser.is_switch_page) {
 			mutex_lock(&display->display_lock);
 			mutex_lock(&display->panel->panel_lock);
-			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_DATE_SWITCH);
+			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_DATE_SWITCH, false);
 			mutex_unlock(&display->panel->panel_lock);
 			mutex_unlock(&display->display_lock);
 			if (ret) {
@@ -604,7 +604,7 @@ int oplus_display_panel_get_serial_number(void *buf)
 			/* switch default page */
 			mutex_lock(&display->display_lock);
 			mutex_lock(&display->panel->panel_lock);
-			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+			ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE, false);
 			if (ret) {
 				printk(KERN_ERR"%s Failed to set DSI_CMD_DEFAULT_SWITCH_PAGE !!\n", __func__);
 				mutex_unlock(&display->panel->panel_lock);
@@ -1230,9 +1230,9 @@ int oplus_display_panel_set_osc_track(u32 osc_status)
 	}
 
 	if (osc_status) {
-		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_OSC_TRACK_ON);
+		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_OSC_TRACK_ON, false);
 	} else {
-		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_OSC_TRACK_OFF);
+		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_OSC_TRACK_OFF, false);
 	}
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
 		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
@@ -1387,7 +1387,7 @@ int oplus_display_panel_set_cabc_status(void *buf)
 	mutex_lock(&panel->panel_lock);
 
 	cmd_index = DSI_CMD_CABC_OFF + *cabc_status;
-	rc = dsi_panel_tx_cmd_set(panel, cmd_index);
+	rc = dsi_panel_tx_cmd_set(panel, cmd_index, false);
 	oplus_cabc_status = *cabc_status;
 
 	mutex_unlock(&panel->panel_lock);
@@ -1493,7 +1493,7 @@ int oplus_panel_set_ffc_mode_unlock(struct dsi_panel *panel)
 	}
 
 	cmd_index = DSI_CMD_FFC_MODE0 + panel->oplus_priv.ffc_mode_index;
-	rc = dsi_panel_tx_cmd_set(panel, cmd_index);
+	rc = dsi_panel_tx_cmd_set(panel, cmd_index, false);
 
 	return rc;
 }
@@ -1897,7 +1897,7 @@ int oplus_display_tx_cmd_set_lock(struct dsi_display *display, enum dsi_cmd_set_
 
 	mutex_lock(&display->display_lock);
 	mutex_lock(&display->panel->panel_lock);
-	rc = dsi_panel_tx_cmd_set(display->panel, type);
+	rc = dsi_panel_tx_cmd_set(display->panel, type, false);
 	mutex_unlock(&display->panel->panel_lock);
 	mutex_unlock(&display->display_lock);
 
@@ -2080,7 +2080,7 @@ int oplus_display_update_dbv(struct dsi_panel *panel)
 	temp_dbv_cmd[20].para_list[0+1] = (bl_lvl >> 8);
 	temp_dbv_cmd[20].para_list[1+1] = (bl_lvl & 0xff);
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SKIPFRAME_DBV);
+	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SKIPFRAME_DBV, false);
 	if (rc < 0)
 		DSI_ERR("Failed to set DSI_CMD_SKIPFRAME_DBV \n");
 
@@ -2361,7 +2361,7 @@ int oplus_display_panel_set_hbm_max(void *data)
 	if (hbm_max_state) {
 		if (panel->cur_mode->priv_info->cmd_sets[DSI_CMD_HBM_MAX].count) {
 			mutex_lock(&panel->panel_lock);
-			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_MAX);
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_MAX, false);
 			mutex_unlock(&panel->panel_lock);
 		}
 		else {
@@ -2374,7 +2374,7 @@ int oplus_display_panel_set_hbm_max(void *data)
 	else {
 		if (panel->cur_mode->priv_info->cmd_sets[DSI_CMD_EXIT_HBM_MAX].count) {
 			mutex_lock(&panel->panel_lock);
-			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_EXIT_HBM_MAX);
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_EXIT_HBM_MAX, false);
 			mutex_unlock(&panel->panel_lock);
 		} else {
 			rc = dsi_display_set_backlight(display->drm_conn,

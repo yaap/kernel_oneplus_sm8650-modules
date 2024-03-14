@@ -57,22 +57,22 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 
 	switch (mode) {
 	case 0:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE0);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE0, false);
 		break;
 	case 1:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE1);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE1, false);
 		break;
 	case 2:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE2);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE2, false);
 		break;
 	case 3:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE3);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE3, false);
 		break;
 	case 4:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE4);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE4, false);
 		break;
 	default:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_OFF);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_OFF, false);
 		LCD_ERR("[%s] Invalid seed mode %d\n",
 				panel->oplus_priv.vendor_name, mode);
 		break;
@@ -91,43 +91,43 @@ int dsi_panel_loading_effect_mode_unlock(struct dsi_panel *panel, int mode)
 
 	switch (mode) {
 	case PANEL_LOADING_EFFECT_MODE1:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1, false);
 		break;
 	case PANEL_LOADING_EFFECT_MODE2:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE2);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE2, false);
 		break;
 	case PANEL_LOADING_EFFECT_OFF:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, false);
 		break;
 	case PANEL_UIR_ON_LOADING_EFFECT_MODE1:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE1);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE1, false);
 		break;
 	case PANEL_UIR_ON_LOADING_EFFECT_MODE2:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE2);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE2, false);
 		break;
 	case PANEL_UIR_ON_LOADING_EFFECT_MODE3:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE3);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_ON_LOADING_EFFECT_MODE3, false);
 		break;
 	case PANEL_UIR_OFF_LOADING_EFFECT_MODE1:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE1);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE1, false);
 		break;
 	case PANEL_UIR_OFF_LOADING_EFFECT_MODE2:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE2);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE2, false);
 		break;
 	case PANEL_UIR_OFF_LOADING_EFFECT_MODE3:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE3);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE3, false);
 		break;
 	case PANEL_UIR_LOADING_EFFECT_MODE1:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE1);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE1, false);
 		break;
 	case PANEL_UIR_LOADING_EFFECT_MODE2:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE2);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE2, false);
 		break;
 	case PANEL_UIR_LOADING_EFFECT_MODE3:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE3);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_UIR_LOADING_EFFECT_MODE3, false);
 		break;
 	default:
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, false);
 		LCD_ERR("[%s] Invalid loading effect mode %d\n",
 				panel->oplus_priv.vendor_name, mode);
 		break;

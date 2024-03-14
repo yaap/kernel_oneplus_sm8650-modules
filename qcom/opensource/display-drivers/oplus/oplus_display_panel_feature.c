@@ -174,7 +174,7 @@ int oplus_panel_post_on_backlight(void *display, struct dsi_panel *panel, u32 bl
 		panel->need_power_on_backlight = false;
 		rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
-		rc |= dsi_panel_tx_cmd_set(panel, DSI_CMD_POST_ON_BACKLIGHT);
+		rc |= dsi_panel_tx_cmd_set(panel, DSI_CMD_POST_ON_BACKLIGHT, false);
 		rc |= dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_OFF);
 		if (rc) {
@@ -263,7 +263,7 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 	SDE_ATRACE_BEGIN("oplus_panel_switch_vid_mode");
 
 	mutex_lock(&panel->panel_lock);
-	rc = dsi_panel_tx_cmd_set(panel, dsi_cmd_vid_switch);
+	rc = dsi_panel_tx_cmd_set(panel, dsi_cmd_vid_switch, false);
 	mutex_unlock(&panel->panel_lock);
 	if (rc) {
 		LCD_INFO("[%s] failed to send DSI_CMD_VID_SWITCH cmds, rc=%d\n",
@@ -329,12 +329,12 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 		if (bl_lvl == 0) {
 			if (!strcmp(panel->name, "AA577 P 3 A0020 dsc cmd mode panel")) {
 				if (oplus_last_backlight > 0) {
-					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_DIMMING_SETTING);
+					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_DIMMING_SETTING, false);
 					oplus_sde_early_wakeup(panel);
 					oplus_wait_for_vsync(panel);
 				}
 			} else {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_DIMMING_SETTING);
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_DIMMING_SETTING, false);
 			}
 		}
 	}

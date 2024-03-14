@@ -785,7 +785,7 @@ static int oplus_adfr_panel_cmd_set_nolock(void *dsi_panel, enum dsi_cmd_set_typ
 
 	if (!oplus_adfr_dry_run_is_enabled(p_oplus_adfr_params)) {
 		OPLUS_ADFR_TRACE_BEGIN("dsi_panel_tx_cmd_set");
-		rc = dsi_panel_tx_cmd_set(panel, type);
+		rc = dsi_panel_tx_cmd_set(panel, type, false);
 		OPLUS_ADFR_TRACE_END("dsi_panel_tx_cmd_set");
 		if (rc) {
 			ADFR_ERR("[%s] failed to send %s, rc=%d\n",

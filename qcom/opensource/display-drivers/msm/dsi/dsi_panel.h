@@ -661,6 +661,6 @@ void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
 
 #ifdef OPLUS_FEATURE_DISPLAY
 int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
-		enum dsi_cmd_set_type type);
+		enum dsi_cmd_set_type type, bool do_peripheral_flush);
 #endif /* OPLUS_FEATURE_DISPLAY */
 #endif /* _DSI_PANEL_H_ */

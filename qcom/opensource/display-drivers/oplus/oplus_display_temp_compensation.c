@@ -779,7 +779,7 @@ int oplus_temp_compensation_cmd_set(void *dsi_panel, unsigned int setting_mode)
 				last_bl_lvl, bl_lvl, last_dbv_index, dbv_index, ntc_temp, last_temp_index, temp_index);
 
 			if (!oplus_temp_compensation_dry_run_is_enabled()) {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_TEMPERATURE_COMPENSATION);
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_TEMPERATURE_COMPENSATION, false);
 				if (rc) {
 					TEMP_COMPENSATION_ERR("[%s] failed to send DSI_CMD_TEMPERATURE_COMPENSATION cmds rc=%d\n", panel->name, rc);
 				}

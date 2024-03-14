@@ -93,7 +93,7 @@ int oplus_panel_update_oha_mode_unlock(struct drm_crtc_state *cstate,
 		goto error;
 	}
 
-	rc = dsi_panel_tx_cmd_set(panel, type);
+	rc = dsi_panel_tx_cmd_set(panel, type, false);
 
 error:
 	return rc;
@@ -367,7 +367,7 @@ int oplus_display_panel_update_oha_mode_unlock(struct dsi_panel *panel)
 		goto error;
 	}
 
-	rc = dsi_panel_tx_cmd_set(panel, type);
+	rc = dsi_panel_tx_cmd_set(panel, type, false);
 
 error:
 	return rc;
