@@ -2096,6 +2096,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_0_0 = {
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
 	.ctxt_record_size = (2860 * SZ_1K),
+	.fast_bus_hint = true,
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_0_1 = {
@@ -2131,6 +2132,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_0_1 = {
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
 	.ctxt_record_size = (2860 * SZ_1K),
+	.fast_bus_hint = true,
 };
 
 extern const struct gen7_snapshot_block_list gen7_2_0_snapshot_block_list;
@@ -2241,6 +2243,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_2_0 = {
 	.bcl_data = 1,
 	.preempt_level = 1,
 	.ctxt_record_size = (4192 * SZ_1K),
+	.fast_bus_hint = true,
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_2_1 = {
@@ -2277,6 +2280,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_2_1 = {
 	.bcl_data = 1,
 	.preempt_level = 1,
 	.ctxt_record_size = (4192 * SZ_1K),
+	.fast_bus_hint = true,
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_4_0 = {
@@ -2312,6 +2316,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_4_0 = {
 	.gen7_snapshot_block_list = &gen7_0_0_snapshot_block_list,
 	.preempt_level = 1,
 	.ctxt_record_size = (2860 * SZ_1K),
+	.fast_bus_hint = true,
 };
 
 extern const struct gen7_snapshot_block_list gen7_9_0_snapshot_block_list;
@@ -2403,6 +2408,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_0 = {
 	.acv_perfmode_vote = BIT(2),
 	.ctxt_record_size = (3572 * SZ_1K),
 	.preempt_level = 1,
+	.fast_bus_hint = true,
 };
 
 static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
@@ -2439,6 +2445,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_9_1 = {
 	.acv_perfmode_vote = BIT(2),
 	.ctxt_record_size = (3572 * SZ_1K),
 	.preempt_level = 1,
+	.fast_bus_hint = true,
 };
 
 extern const struct gen7_snapshot_block_list gen7_11_0_snapshot_block_list;
@@ -2475,6 +2482,7 @@ static const struct adreno_gen7_core adreno_gpu_core_gen7_11_0 = {
 	.preempt_level = 1,
 	.acv_perfmode_vote = BIT(2),
 	.bcl_data = 1,
+	.fast_bus_hint = true,
 };
 
 static const struct kgsl_regmap_list a663_hwcg_regs[] = {

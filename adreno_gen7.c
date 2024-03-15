@@ -18,6 +18,7 @@
 #include "adreno_gen7_hwsched.h"
 #include "adreno_pm4types.h"
 #include "adreno_trace.h"
+#include "kgsl_pwrscale.h"
 #include "kgsl_trace.h"
 #include "kgsl_util.h"
 
@@ -183,8 +184,6 @@ static const u32 gen7_9_x_ifpc_pwrup_reglist[] = {
 	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_3,
 	GEN7_TPL1_BICUBIC_WEIGHTS_TABLE_4,
 };
-
-#define F_PWR_ACD_CALIBRATE 78
 
 static int acd_calibrate_set(void *data, u64 val)
 {
@@ -1616,7 +1615,7 @@ int gen7_probe_common(struct platform_device *pdev,
 	adreno_dev->hwcg_enabled = true;
 	adreno_dev->uche_client_pf = 1;
 
-	device->pwrscale.avoid_ddr_stall = true;
+	kgsl_pwrscale_fast_bus_hint(gen7_core->fast_bus_hint);
 
 	device->pwrctrl.rt_bus_hint = gen7_core->rt_bus_hint;
 	device->pwrctrl.cx_gdsc_offset = adreno_is_gen7_11_0(adreno_dev) ?
