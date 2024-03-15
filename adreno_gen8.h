@@ -120,6 +120,8 @@ struct adreno_gen8_core {
 	const u32 *qos_value;
 	/** @acv_perfmode_vote: ACV vote for GPU perfmode */
 	u32 acv_perfmode_vote;
+	/** @rt_bus_hint: IB level hint for real time clients i.e. RB-0 */
+	const u32 rt_bus_hint;
 	/** @fast_bus_hint: Whether or not to increase IB vote on high ddr stall */
 	bool fast_bus_hint;
 };
@@ -233,19 +235,6 @@ to_gen8_core(struct adreno_device *adreno_dev)
 	return container_of(core, struct adreno_gen8_core, base);
 }
 
-/**
- * gen8_is_smmu_stalled() - Check whether smmu is stalled or not
- * @device: Pointer to KGSL device
- *
- * Return - True if smmu is stalled or false otherwise
- */
-static inline bool gen8_is_smmu_stalled(struct kgsl_device *device)
-{
-
-	/* FIXME: Implment SW smmu stall check */
-	return false;
-}
-
 /* Preemption functions */
 void gen8_preemption_trigger(struct adreno_device *adreno_dev, bool atomic);
 void gen8_preemption_schedule(struct adreno_device *adreno_dev);
@@ -304,6 +293,14 @@ int gen8_start(struct adreno_device *adreno_dev);
  * Return: Zero on success and negative error on failure
  */
 int gen8_init(struct adreno_device *adreno_dev);
+
+/**
+ * gen8_cx_timer_init - Initialize the CX timer on Gen8 devices
+ * @adreno_dev: Pointer to the adreno device
+ *
+ * Synchronize the GPU CX timer (if we have one) with the CPU timer
+ */
+void gen8_cx_timer_init(struct adreno_device *adreno_dev);
 
 /**
  * gen8_get_gpu_feature_info - Get hardware supported feature info

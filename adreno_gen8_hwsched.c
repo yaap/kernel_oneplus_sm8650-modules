@@ -100,6 +100,9 @@ static int gen8_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto gdsc_off;
 
+	/* Initialize the CX timer */
+	gen8_cx_timer_init(adreno_dev);
+
 	ret = gen8_gmu_load_fw(adreno_dev);
 	if (ret)
 		goto clks_gdsc_off;
@@ -107,15 +110,6 @@ static int gen8_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	ret = gen8_gmu_itcm_shadow(adreno_dev);
 	if (ret)
 		goto clks_gdsc_off;
-
-	if (!test_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags)) {
-		ret = gen8_load_pdc_ucode(adreno_dev);
-		if (ret)
-			goto clks_gdsc_off;
-
-		gen8_load_rsc_ucode(adreno_dev);
-		set_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags);
-	}
 
 	ret = gen8_scm_gpu_init_cx_regs(adreno_dev);
 	if (ret)
@@ -288,8 +282,7 @@ static int gen8_hwsched_notify_slumber(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	req.freq = gmu->hfi.dcvs_table.gpu_level_num -
-			pwr->default_pwrlevel - 1;
+	req.freq = gmu->dcvs_table.gpu_level_num - pwr->default_pwrlevel - 1;
 	req.bw = pwr->pwrlevels[pwr->default_pwrlevel].bus_freq;
 
 	req.bw |= gen8_bus_ab_quantize(adreno_dev, 0);
@@ -904,7 +897,7 @@ static int gen8_hwsched_dcvs_set(struct adreno_device *adreno_dev,
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	struct gen8_gmu_device *gmu = to_gen8_gmu(adreno_dev);
-	struct hfi_dcvstable_cmd *table = &gmu->hfi.dcvs_table;
+	struct gen8_dcvs_table *table = &gmu->dcvs_table;
 	struct hfi_gx_bw_perf_vote_cmd req = {
 		.ack_type = DCVS_ACK_BLOCK,
 		.freq = INVALID_DCVS_IDX,
@@ -955,8 +948,7 @@ static int gen8_hwsched_dcvs_set(struct adreno_device *adreno_dev,
 	}
 
 	if (req.freq != INVALID_DCVS_IDX)
-		gen8_rdpm_mx_freq_update(gmu,
-			gmu->hfi.dcvs_table.gx_votes[req.freq].freq);
+		gen8_rdpm_mx_freq_update(gmu, gmu->dcvs_table.gx_votes[req.freq].freq);
 
 	return ret;
 }

@@ -25,8 +25,6 @@ struct gen8_hfi {
 	struct hfi_bwtable_cmd bw_table;
 	/** @acd_table: HFI table for ACD data */
 	struct hfi_acd_table_cmd acd_table;
-	/** @dcvs_table: HFI table for gpu dcvs levels */
-	struct hfi_dcvstable_cmd dcvs_table;
 	/** @cmdq_lock: Spinlock for accessing the cmdq */
 	spinlock_t cmdq_lock;
 	/**
@@ -187,12 +185,28 @@ int gen8_hfi_send_generic_req_v5(struct adreno_device *adreno_dev, void *cmd,
 int gen8_hfi_send_bcl_feature_ctrl(struct adreno_device *adreno_dev);
 
 /**
+ * gen8_hfi_send_clx_feature_ctrl - Send the clx feature hfi packet
+ * @adreno_dev: Pointer to the adreno device
+ *
+ * Return: 0 on success or negative error on failure
+ */
+int gen8_hfi_send_clx_feature_ctrl(struct adreno_device *adreno_dev);
+
+/**
  * gen8_hfi_send_ifpc_feature_ctrl - Send the ipfc feature hfi packet
  * @adreno_dev: Pointer to the adreno device
  *
  * Return: 0 on success or negative error on failure
  */
 int gen8_hfi_send_ifpc_feature_ctrl(struct adreno_device *adreno_dev);
+
+/**
+ * gen8_hfi_send_gpu_perf_table - Send the gpu perf table hfi packet
+ * @adreno_dev: Pointer to the adreno device
+ *
+ * Return: 0 on success or negative error on failure
+ */
+int gen8_hfi_send_gpu_perf_table(struct adreno_device *adreno_dev);
 
 /*
  * gen8_hfi_process_queue - Check hfi queue for messages from gmu
