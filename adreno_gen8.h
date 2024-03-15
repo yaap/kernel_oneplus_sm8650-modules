@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ADRENO_GEN8_H_
@@ -29,6 +29,24 @@ struct gen8_gpudev {
 extern const struct gen8_gpudev adreno_gen8_gmu_gpudev;
 extern const struct gen8_gpudev adreno_gen8_hwsched_gpudev;
 
+struct gen8_nonctxt_overrides {
+	/** offset: Dword offset of the register to write */
+	u32 offset;
+	/** pipelines: Pipelines to write */
+	u32 pipelines;
+	/** val: Value to be written to the register */
+	u32 val;
+	/** set: True for user override request */
+	bool set;
+	/**
+	 * list_type: 0 If the register already present in any of exisiting static pwrup list
+			1 if the register fits into IFPC static pwrup only list
+			2 if the register fits into IFPC + preemption static list
+			3 if the register fits into external powerup list
+	 */
+	u32 list_type;
+};
+
 /**
  * struct gen8_device - Container for the gen8_device
  */
@@ -39,6 +57,27 @@ struct gen8_device {
 	struct adreno_device adreno_dev;
 	/** @aperture: The last value that the host aperture register was programmed to */
 	u32 aperture;
+	/** @ext_pwrup_list_len: External pwrup reglist length */
+	u16 ext_pwrup_list_len;
+	/**
+	 * @nc_overrides: Noncontext registers overrides whitelist if defined,
+	 * must be null terminated
+	 */
+	struct gen8_nonctxt_overrides *nc_overrides;
+	/** @nc_mutex: Mutex to protect nc_overrides updates */
+	struct mutex nc_mutex;
+	/** @nc_overrides_enabled: Set through debugfs path when any override is enabled */
+	bool nc_overrides_enabled;
+};
+
+/**
+ * struct gen8_pwrup_extlist - container for a powerup external reglist
+ */
+struct gen8_pwrup_extlist {
+	/** offset: Dword offset of the register to write */
+	u32 offset;
+	/** pipelines: pipelines to write */
+	u32 pipelines;
 };
 
 /**
@@ -118,8 +157,11 @@ struct adreno_gen8_core {
 	u32 preempt_level;
 	/** @qos_value: GPU qos value to set for each RB. */
 	const u32 *qos_value;
-	/** @acv_perfmode_vote: ACV vote for GPU perfmode */
-	u32 acv_perfmode_vote;
+	/**
+	 * @acv_perfmode_ddr_freq: Vote perfmode when DDR frequency >= acv_perfmode_ddr_freq.
+	 * If not specified, vote perfmode for highest DDR level only.
+	 */
+	u32 acv_perfmode_ddr_freq;
 	/** @rt_bus_hint: IB level hint for real time clients i.e. RB-0 */
 	const u32 rt_bus_hint;
 	/** @fast_bus_hint: Whether or not to increase IB vote on high ddr stall */
@@ -184,7 +226,9 @@ struct gen8_cp_smmu_info {
 
 #define GEN8_CP_CTXRECORD_MAGIC_REF		0xae399d6eUL
 /* Size of each CP preemption record */
-#define GEN8_CP_CTXRECORD_SIZE_IN_BYTES		(4192 * 1024)
+#define GEN8_CP_CTXRECORD_SIZE_IN_BYTES		(13536 * SZ_1K)
+/* Size of preemption record to be dumped in snapshot */
+#define GEN8_SNAPSHOT_CTXRECORD_SIZE_IN_BYTES	(128 * 1024)
 /* Size of the user context record block (in bytes) */
 #define GEN8_CP_CTXRECORD_USER_RESTORE_SIZE	(192 * 1024)
 /* Size of the performance counter save/restore block (in bytes) */
@@ -219,6 +263,11 @@ struct gen8_cp_smmu_info {
 	 (1 << GEN8_INT_ATBBUSOVERFLOW) |		\
 	 (1 << GEN8_INT_OUTOFBOUNDACCESS) |		\
 	 (1 << GEN8_INT_UCHETRAPINTERRUPT))
+
+/* GEN8 CX MISC interrupt bits */
+#define GEN8_CX_MISC_GPU_CC_IRQ	31
+
+#define GEN8_CX_MISC_INT_MASK	BIT(GEN8_CX_MISC_GPU_CC_IRQ)
 
 /**
  * to_gen8_core - return the gen8 specific GPU core struct
@@ -497,4 +546,58 @@ void gen8_rdpm_cx_freq_update(struct gen8_gmu_device *gmu, u32 freq);
  */
 int gen8_scm_gpu_init_cx_regs(struct adreno_device *adreno_dev);
 
+/**
+ * gen8_legacy_snapshot_registers - Dump registers for GPU/GMU
+ * @device: Handle to the KGSL device
+ * @buf: Target buffer to copy the data
+ * @remain: Buffer size remaining for dump
+ * @priv: Private data to dump the registers
+ *
+ * Return: Size of the section
+ */
+size_t gen8_legacy_snapshot_registers(struct kgsl_device *device,
+		 u8 *buf, size_t remain, void *priv);
+
+/**
+ * gen8_regread64_aperture - Read 64 bit register values
+ * @device: Handle to the KGSL device
+ * @offsetwords_lo: Lower 32 bit address to read
+ * @offsetwords_hi: Higher 32 bit address to read
+ * @value: The value of register at offsetwords
+ * @pipe: Pipe for which the register is to be read
+ * @slice_id: Slice for which the register is to be read
+ * @use_slice_id: Set if the value to be read is from a sliced register
+ *
+ * This function reads the 64 bit value for registers
+ */
+void gen8_regread64_aperture(struct kgsl_device *device,
+	u32 offsetwords_lo, u32 offsetwords_hi, u64 *value, u32 pipe,
+	u32 slice_id, u32 use_slice_id);
+
+/**
+ * gen8_regread_aperture - Read 32 bit register values
+ * @device: Handle to the KGSL device
+ * @offsetwords: 32 bit address to read
+ * @value: The value of register at offsetwords
+ * @pipe: Pipe for which the register is to be read
+ * @slice_id: Slice for which the register is to be read
+ * @use_slice_id: Set if the value to be read is from a sliced register
+ *
+ * This function reads the 32 bit value for registers
+ */
+void gen8_regread_aperture(struct kgsl_device *device,
+	u32 offsetwords, u32 *value, u32 pipe, u32 slice_id, u32 use_slice_id);
+
+
+/**
+ * gen8_host_aperture_set - Program CP aperture register
+ * @adreno_dev: Handle to the adreno device
+ * @pipe_id: Pipe for which the register is to be set
+ * @slice_id: Slice for which the register is to be set
+ * @use_slice_id: Set if the value to be read is from a sliced register
+ *
+ * This function programs CP aperture register
+ */
+void gen8_host_aperture_set(struct adreno_device *adreno_dev, u32 pipe_id,
+		u32 slice_id, u32 use_slice_id);
 #endif

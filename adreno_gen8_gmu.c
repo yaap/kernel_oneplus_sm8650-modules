@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
@@ -278,6 +278,8 @@ int gen8_gmu_device_start(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen8_gmu_device *gmu = to_gen8_gmu(adreno_dev);
+
+	gmu_core_reset_trace_header(&gmu->trace);
 
 	gmu_ao_sync_event(adreno_dev);
 
@@ -597,6 +599,14 @@ void gen8_gmu_irq_enable(struct adreno_device *adreno_dev)
 	/* Enable all IRQs on host */
 	enable_irq(hfi->irq);
 	enable_irq(gmu->irq);
+
+	if (device->cx_host_irq_num <= 0)
+		return;
+
+	/* Clear pending IRQs, unmask needed interrupts and enable CX host IRQ */
+	adreno_cx_misc_regwrite(adreno_dev, GEN8_GPU_CX_MISC_INT_CLEAR_CMD, UINT_MAX);
+	adreno_cx_misc_regwrite(adreno_dev, GEN8_GPU_CX_MISC_INT_0_MASK, GEN8_CX_MISC_INT_MASK);
+	enable_irq(device->cx_host_irq_num);
 }
 
 void gen8_gmu_irq_disable(struct adreno_device *adreno_dev)
@@ -615,6 +625,14 @@ void gen8_gmu_irq_disable(struct adreno_device *adreno_dev)
 
 	gmu_core_regwrite(device, GEN8_GMUCX_GMU2HOST_INTR_CLR, UINT_MAX);
 	gmu_core_regwrite(device, GEN8_GMUAO_AO_HOST_INTERRUPT_CLR, UINT_MAX);
+
+	if (device->cx_host_irq_num <= 0)
+		return;
+
+	/* Disable CX host IRQ, mask all interrupts and clear pending IRQs */
+	disable_irq(device->cx_host_irq_num);
+	adreno_cx_misc_regwrite(adreno_dev, GEN8_GPU_CX_MISC_INT_0_MASK, UINT_MAX);
+	adreno_cx_misc_regwrite(adreno_dev, GEN8_GPU_CX_MISC_INT_CLEAR_CMD, UINT_MAX);
 }
 
 static int gen8_gmu_hfi_start_msg(struct adreno_device *adreno_dev)
@@ -686,7 +704,7 @@ int gen8_gmu_wait_for_lowest_idle(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen8_gmu_device *gmu = to_gen8_gmu(adreno_dev);
 	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
-	u32 reg, reg1, reg2, reg3, reg4, reg5,/* reg6,*/ reg7, reg8;
+	u32 reg, reg1, reg2, reg3, reg4, reg5;
 	unsigned long t;
 	u64 ts1, ts2;
 
@@ -748,14 +766,15 @@ int gen8_gmu_wait_for_lowest_idle(struct adreno_device *adreno_dev)
 
 	/* Access GX registers only when GX is ON */
 	if (is_on(reg1)) {
-		//kgsl_regread(device, GEN8_CP_STATUS_1, &reg6);// fEIXME
-		kgsl_regread(device, GEN8_CP_CP2GMU_STATUS, &reg7);
-		kgsl_regread(device, GEN8_CP_CONTEXT_SWITCH_CNTL, &reg8);
+		gen8_regread_aperture(device, GEN8_CP_PIPE_STATUS_PIPE, &reg, PIPE_BV, 0, 0);
+		gen8_regread_aperture(device, GEN8_CP_PIPE_STATUS_PIPE, &reg1, PIPE_BR, 0, 0);
+		/* Clear aperture register */
+		gen8_host_aperture_set(adreno_dev, 0, 0, 0);
+		kgsl_regread(device, GEN8_CP_CP2GMU_STATUS, &reg2);
+		kgsl_regread(device, GEN8_CP_CONTEXT_SWITCH_CNTL, &reg3);
 
-		//dev_err(&gmu->pdev->dev, "GEN8_CP_STATUS_1=%x\n", reg6);
-		dev_err(&gmu->pdev->dev,
-			"CP2GMU_STATUS=%x CONTEXT_SWITCH_CNTL=%x\n",
-			reg7, reg8);
+		dev_err(&gmu->pdev->dev, "GEN8_CP_PIPE_STATUS_PIPE BV:%x BR:%x\n", reg, reg1);
+		dev_err(&gmu->pdev->dev, "CP2GMU_STATUS=%x CONTEXT_SWITCH_CNTL=%x\n", reg2, reg3);
 	}
 
 	WARN_ON(1);
@@ -881,6 +900,10 @@ void gen8_gmu_register_config(struct adreno_device *adreno_dev)
 	 * attempting GMU boot.
 	 */
 	kgsl_regwrite(device, GEN8_GBIF_HALT, BIT(3));
+
+	/* Set vrb address before starting GMU */
+	if (!IS_ERR_OR_NULL(gmu->vrb))
+		gmu_core_regwrite(device, GEN8_GMUCX_GENERAL_11, gmu->vrb->gmuaddr);
 
 	/* Set the log wptr index */
 	gmu_core_regwrite(device, GEN8_GMUCX_GENERAL_9,
@@ -2077,34 +2100,41 @@ static int gen8_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 u32 gen8_bus_ab_quantize(struct adreno_device *adreno_dev, u32 ab)
 {
 	u16 vote = 0;
+	u32 max_bw, max_ab;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 
 	if (!adreno_dev->gmu_ab || (ab == INVALID_AB_VALUE))
 		return (FIELD_PREP(GENMASK(31, 16), INVALID_AB_VALUE));
 
-	if (pwr->ddr_table[pwr->ddr_table_count - 1]) {
-		/*
-		 * if ab is calculated as higher than theoretical max bandwidth, set ab as
-		 * theoretical max to prevent truncation during quantization.
-		 *
-		 * max ddr bandwidth (kbps) = (Max bw in kbps per channel * number of channel)
-		 * max ab (Mbps) = max ddr bandwidth (kbps) / 1000
-		 */
-		u32 max_bw = pwr->ddr_table[pwr->ddr_table_count - 1] * NUM_CHANNELS;
-		u32 max_ab = max_bw / 1000;
+	/*
+	 * max ddr bandwidth (kbps) = (Max bw in kbps per channel * number of channel)
+	 * max ab (Mbps) = max ddr bandwidth (kbps) / 1000
+	 */
+	max_bw = pwr->ddr_table[pwr->ddr_table_count - 1] * NUM_CHANNELS;
+	max_ab = max_bw / 1000;
 
-		ab = min_t(u32, ab, max_ab);
-
-		/*
-		 * Power FW supports a 16 bit AB BW level. We can quantize the entire vote-able BW
-		 * range to a 16 bit space and the quantized value can be used to vote for AB though
-		 * GMU. Quantization can be performed as below.
-		 *
-		 * quantized_vote = (ab vote (kbps) * 2^16) / max ddr bandwidth (kbps)
-		 */
+	/*
+	 * If requested AB is higher than theoretical max bandwidth, set AB vote as max
+	 * allowable quantized AB value.
+	 *
+	 * Power FW supports a 16 bit AB BW level. We can quantize the entire vote-able BW
+	 * range to a 16 bit space and the quantized value can be used to vote for AB though
+	 * GMU. Quantization can be performed as below.
+	 *
+	 * quantized_vote = (ab vote (kbps) * 2^16) / max ddr bandwidth (kbps)
+	 */
+	if (ab >= max_ab)
+		vote = MAX_AB_VALUE;
+	else
 		vote = (u16)(((u64)ab * 1000 * (1 << 16)) / max_bw);
-	}
+
+	/*
+	 * Vote will be calculated as 0 for smaller AB values.
+	 * Set a minimum non-zero vote in such cases.
+	 */
+	if (ab && !vote)
+		vote = 0x1;
 
 	/*
 	 * Set ab enable mask and valid AB vote. req.bw is 32 bit value 0xABABENIB
@@ -2457,6 +2487,9 @@ int gen8_gmu_probe(struct kgsl_device *device,
 	/* Set default GMU attributes */
 	gmu->log_stream_enable = false;
 	gmu->log_group_mask = 0x3;
+
+	/* Initialize to zero to detect trace packet loss */
+	gmu->trace.seq_num = 0;
 
 	/* Disabled by default */
 	gmu->stats_enable = false;
