@@ -64,6 +64,7 @@
 #define GEN8_RBBM_CGC_0_PC                       0x10b
 #define GEN8_RBBM_PERFCTR_GPU_BUSY_MASKED        0x19e
 #define GEN8_RBBM_PERFCTR_SRAM_INIT_STATUS       0x19f
+#define GEN8_RBBM_PERFCTR_FLUSH_HOST_STATUS      0x1a1
 #define GEN8_RBBM_PERFCTR_CP_0_LO                0x1b0
 #define GEN8_RBBM_PERFCTR_CP_0_HI                0x1b1
 #define GEN8_RBBM_PERFCTR_CP_1_LO                0x1b2
@@ -493,14 +494,21 @@
 #define GEN8_RBBM_PERFCTR_RBBM_SEL_3             0x444
 
 #define GEN8_RBBM_PERFCTR_SRAM_INIT_CMD          0x449
+#define GEN8_RBBM_PERFCTR_FLUSH_HOST_CMD         0x44c
 #define GEN8_RBBM_PERFCTR_CNTL                   0x460
 
 /* GPU Slice registers */
 #define GEN8_RBBM_SLICE_PERFCTR_CNTL              0x500
 #define GEN8_RBBM_SLICE_INTERFACE_HANG_INT_CNTL   0x58f
+#define GEN8_RBBM_SLICE_PERFCTR_RBBM_SEL_0        0x5e0
+#define GEN8_RBBM_SLICE_PERFCTR_RBBM_SEL_1        0x5e1
+#define GEN8_RBBM_SLICE_PERFCTR_RBBM_SEL_2        0x5e2
+#define GEN8_RBBM_SLICE_PERFCTR_RBBM_SEL_3        0x5e3
 #define GEN8_RBBM_SLICE_PERFCTR_SRAM_INIT_CMD     0x5e8
+#define GEN8_RBBM_SLICE_PERFCTR_FLUSH_HOST_CMD    0x5eb
 #define GEN8_RBBM_SLICE_NC_MODE_CNTL              0x5ec
 #define GEN8_VSC_BIN_SIZE                         0xc02
+#define GEN8_VSC_KMD_DBG_ECO_CNTL                 0xdf0
 
 /* DBGC_CFG registers */
 #define GEN8_DBGC_CFG_DBGBUS_SEL_A               0x600
@@ -756,7 +764,6 @@
 #define GEN8_CP_APERTURE_CNTL_GMU                              0x81d
 #define GEN8_CP_APERTURE_CNTL_CD                               0x81e
 #define GEN8_CP_CP2GMU_STATUS                                  0x822
-#define GEN8_CP_AHB_CNTL                                       0x838
 #define GEN8_CP_RL_ERROR_DETAILS_0                             0x840
 #define GEN8_CP_RL_ERROR_DETAILS_1                             0x841
 #define GEN8_CP_CRASH_DUMP_SCRIPT_BASE_LO                      0x842
@@ -927,6 +934,10 @@
 
 /* GRAS registers */
 #define GEN8_GRAS_TSEFE_DBG_ECO_CNTL        0x8600
+#define GEN8_GRAS_PERFCTR_TSEFE_SEL_0       0x8610
+#define GEN8_GRAS_PERFCTR_TSEFE_SEL_1       0x8611
+#define GEN8_GRAS_PERFCTR_TSEFE_SEL_2       0x8612
+#define GEN8_GRAS_PERFCTR_TSEFE_SEL_3       0x8613
 #define GEN8_GRAS_NC_MODE_CNTL              0x8700
 #define GEN8_GRAS_DBG_ECO_CNTL              0x8702
 #define GEN8_GRAS_PERFCTR_TSE_SEL_0         0x8710
@@ -960,16 +971,6 @@
 #define GEN8_RB_PERFCTR_CCU_SEL_2           0x8e1a
 #define GEN8_RB_PERFCTR_CCU_SEL_3           0x8e1b
 #define GEN8_RB_PERFCTR_CCU_SEL_4           0x8e1c
-#define GEN8_RB_PERFCTR_CMP_SEL_0           0x8f04
-#define GEN8_RB_PERFCTR_CMP_SEL_1           0x8f05
-#define GEN8_RB_PERFCTR_CMP_SEL_2           0x8f06
-#define GEN8_RB_PERFCTR_CMP_SEL_3           0x8f07
-#define GEN8_RB_PERFCTR_UFC_SEL_0           0x8f10
-#define GEN8_RB_PERFCTR_UFC_SEL_1           0x8f11
-#define GEN8_RB_PERFCTR_UFC_SEL_2           0x8f12
-#define GEN8_RB_PERFCTR_UFC_SEL_3           0x8f13
-#define GEN8_RB_PERFCTR_UFC_SEL_4           0x8f14
-#define GEN8_RB_PERFCTR_UFC_SEL_5           0x8f15
 #define GEN8_RB_SUB_BLOCK_SEL_CNTL_HOST     0x8e3b
 #define GEN8_RB_SUB_BLOCK_SEL_CNTL_CD       0x8e3d
 #define GEN8_RB_CONTEXT_SWITCH_GMEM_SAVE_RESTORE 0x8e50
@@ -1053,6 +1054,22 @@
 #define GEN8_PC_PERFCTR_PC_SEL_15           0x9e3f
 #define GEN8_PC_CHICKEN_BITS_1              0x9e50
 #define GEN8_PC_CONTEXT_SWITCH_STABILIZE_CNTL_1 0x9e64
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_0      0x9f00
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_1      0x9f01
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_2      0x9f02
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_3      0x9f03
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_4      0x9f04
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_5      0x9f05
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_6      0x9f06
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_7      0x9f07
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_8      0x9f08
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_9      0x9f09
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_10     0x9f0a
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_11     0x9f0b
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_12     0x9f0c
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_13     0x9f0d
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_14     0x9f0e
+#define GEN8_PC_SLICE_PERFCTR_PC_SEL_15     0x9f0f
 
 
 /* VFD registers */
@@ -1315,7 +1332,6 @@
 #define GEN8_CX_DBGC_EVT_INTF_SEL_0                     0x18436
 #define GEN8_CX_DBGC_EVT_INTF_SEL_1                     0x18437
 #define GEN8_CX_DBGC_PERF_ATB_CFG                       0x18438
-#define GEN8_CX_DBGC_PERF_ATB_DRAIN_CMD                 0x1844a
 #define GEN8_CX_DBGC_ECO_CNTL                           0x1843b
 #define GEN8_CX_DBGC_AHB_DBG_CNTL                       0x1843c
 #define GEN8_CX_DBGC_TCM_DBG_ADDR                       0x18580
@@ -1324,17 +1340,9 @@
 /* GMU control registers */
 #define GEN8_GMU_CM3_ITCM_START			0x1b400
 #define GEN8_GMU_CM3_DTCM_START			0x1c400
-#define GEN8_GMU_NMI_CONTROL_STATUS		0x1cbf0
-#define GEN8_GMU_BOOT_SLUMBER_OPTION		0x1cbf8
-#define GEN8_GMU_GX_VOTE_IDX			0x1cbf9
-#define GEN8_GMU_MX_VOTE_IDX			0x1cbfa
-#define GEN8_GMU_DCVS_ACK_OPTION		0x1cbfc
-#define GEN8_GMU_DCVS_PERF_SETTING		0x1cbfd
-#define GEN8_GMU_DCVS_BW_SETTING		0x1cbfe
-#define GEN8_GMU_DCVS_RETURN			0x1cbff
-#define GEN8_GMU_ICACHE_CONFIG			0x1f400
-#define GEN8_GMU_DCACHE_CONFIG			0x1f401
-#define GEN8_GMU_SYS_BUS_CONFIG			0x1f40f
+#define GEN8_GMUCX_ICACHE_CONFIG		0x1f400
+#define GEN8_GMUCX_DCACHE_CONFIG		0x1f401
+#define GEN8_GMUCX_SYS_BUS_CONFIG		0x1f40f
 #define GEN8_GMUCX_MRC_GBIF_QOS_CTRL		0x1f50b
 #define GEN8_GMUCX_PWR_COL_KEEPALIVE		0x1f7e4
 #define GEN8_GMUCX_PWR_COL_PREEMPTION_KEEPALIVE	0x1f7e5
@@ -1595,7 +1603,6 @@
 #define GEN8_SMMU_BASE				0x28000
 
 /* GPU CX_MISC registers */
-#define GEN8_GPU_CX_MISC_TCM_RET_CNTL		0x39
 #define GEN8_GPU_CX_MISC_SW_FUSE_VALUE		0x400
 
 /* GPU SW Fuse Feature bit fields */
