@@ -2369,6 +2369,8 @@ static void fastrpc_context_list_dtor(struct fastrpc_file *fl)
 	struct fastrpc_ctx_lst *clst = &fl->clst;
 	struct smq_invoke_ctx *ictx = NULL, *ctxfree;
 	struct hlist_node *n;
+	unsigned long irq_flags = 0;
+	struct smq_notif_rsp *inotif = NULL, *n1 = NULL;
 
 	do {
 		ctxfree = NULL;
@@ -2396,6 +2398,14 @@ static void fastrpc_context_list_dtor(struct fastrpc_file *fl)
 		if (ctxfree)
 			context_free(ctxfree);
 	} while (ctxfree);
+
+	spin_lock_irqsave(&fl->proc_state_notif.nqlock, irq_flags);
+	list_for_each_entry_safe(inotif, n1, &clst->notif_queue, notifn) {
+		list_del_init(&inotif->notifn);
+		atomic_sub(1, &fl->proc_state_notif.notif_queue_count);
+		kfree(inotif);
+	}
+	spin_unlock_irqrestore(&fl->proc_state_notif.nqlock, irq_flags);
 }
 
 static int fastrpc_file_free(struct fastrpc_file *fl);
@@ -4033,7 +4043,7 @@ bail:
 static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_init_attrs *uproc)
 {
-	int err = 0, memlen = 0, mflags = 0, locked = 0;
+	int err = 0, memlen = 0, mflags = 0, locked = 0, glocked = 0;
 	struct fastrpc_ioctl_invoke_async ioctl;
 	struct fastrpc_ioctl_init *init = &uproc->init;
 	 /* First page for init-mem and second page for proc-attrs */
@@ -4047,6 +4057,8 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	unsigned int dsp_userpd_memlen = 0;
 	struct fastrpc_buf *init_mem;
 	struct fastrpc_mmap *sharedbuf_map = NULL;
+	struct fastrpc_apps *me = &gfa;
+	unsigned long irq_flags = 0;
 
 	struct {
 		int pgid;
@@ -4151,20 +4163,6 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 		ADSPRPC_ERR("donated memory allocated in userspace\n");
 		goto bail;
 	}
-	/* Free any previous donated memory */
-	spin_lock(&fl->hlock);
-	locked = 1;
-	if (fl->init_mem) {
-		init_mem = fl->init_mem;
-		fl->init_mem = NULL;
-		spin_unlock(&fl->hlock);
-		locked = 0;
-		fastrpc_buf_free(init_mem, 0);
-	}
-	if (locked) {
-		spin_unlock(&fl->hlock);
-		locked = 0;
-	}
 
 	/* Allocate DMA buffer in kernel for donating to remote process
 	 * Unsigned PD requires additional memory because of the
@@ -4268,12 +4266,20 @@ bail:
 	if (err) {
 		ADSPRPC_ERR("failed with err %d\n", err);
 		fl->dsp_process_state = PROCESS_CREATE_DEFAULT;
+		spin_unlock(&fl->hlock);
+		locked = 0;
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		glocked = 1;
 		if (!IS_ERR_OR_NULL(fl->init_mem)) {
 			init_mem = fl->init_mem;
 			fl->init_mem = NULL;
-			spin_unlock(&fl->hlock);
-			locked = 0;
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
+			glocked = 0;
 			fastrpc_buf_free(init_mem, 0);
+		}
+		if (glocked) {
+			spin_unlock_irqrestore(&me->hlock, irq_flags);
+			glocked = 0;
 		}
 	} else {
 		fl->dsp_process_state = PROCESS_CREATE_SUCCESS;
@@ -5183,13 +5189,95 @@ bail:
 	return err;
 }
 
+static int fastrpc_mmap_dump(struct fastrpc_mmap *map, struct fastrpc_file *fl, int locked)
+{
+	struct fastrpc_mmap *match = map;
+	int err = 0, ret = 0;
+	struct fastrpc_apps *me = &gfa;
+	struct qcom_dump_segment ramdump_segments_rh;
+	struct list_head head;
+	unsigned long irq_flags = 0;
+
+	if (map->is_persistent && map->in_use) {
+			struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
+			uint64_t phys = map->phys;
+			size_t size = map->size;
+
+			//scm assign it back to HLOS
+			if (rhvm->vmid) {
+				u64 src_perms = 0;
+				struct qcom_scm_vmperm dst_perms = {0};
+				uint32_t i = 0;
+
+				for (i = 0; i < rhvm->vmcount; i++) {
+					src_perms |= BIT(rhvm->vmid[i]);
+				}
+
+				dst_perms.vmid = QCOM_SCM_VMID_HLOS;
+				dst_perms.perm = QCOM_SCM_PERM_RWX;
+				err = qcom_scm_assign_mem(phys, (uint64_t)size,
+							&src_perms, &dst_perms, 1);
+			}
+		if (err) {
+			ADSPRPC_ERR(
+			"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
+			err, phys, size);
+			err = -EADDRNOTAVAIL;
+			return err;
+		}
+		spin_lock_irqsave(&me->hlock, irq_flags);
+		map->in_use = false;
+		/*
+		 * decrementing refcount for persistent mappings
+		 * as incrementing it in fastrpc_get_persistent_map
+		 */
+		map->refs--;
+		spin_unlock_irqrestore(&me->hlock, irq_flags);
+	}
+	if (!match->is_persistent) {
+		if (match->flags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
+			err = fastrpc_munmap_rh(match->phys,
+					match->size, match->flags);
+		} else if (match->flags == ADSP_MMAP_HEAP_ADDR) {
+			if (fl)
+				err = fastrpc_munmap_on_dsp_rh(fl, match->phys,
+						match->size, match->flags, 0);
+			else {
+				pr_err("Cannot communicate with DSP, ADSP is down\n");
+				fastrpc_mmap_add(match);
+			}
+		}
+		if (err)
+			return err;
+	}
+	memset(&ramdump_segments_rh, 0, sizeof(ramdump_segments_rh));
+	ramdump_segments_rh.da = match->phys;
+	ramdump_segments_rh.va = (void *)page_address((struct page *)match->va);
+	ramdump_segments_rh.size = match->size;
+	INIT_LIST_HEAD(&head);
+	list_add(&ramdump_segments_rh.node, &head);
+	if (me->dev && dump_enabled()) {
+		ret = qcom_elf_dump(&head, me->dev, ELF_CLASS);
+		if (ret < 0)
+			pr_err("adsprpc: %s: unable to dump heap (err %d)\n",
+						__func__, ret);
+	}
+	if (!match->is_persistent) {
+		if (!locked && fl)
+			mutex_lock(&fl->map_mutex);
+		fastrpc_mmap_free(match, 0);
+		if (!locked && fl)
+			mutex_unlock(&fl->map_mutex);
+	}
+	return 0;
+}
+
 static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 {
 	struct fastrpc_mmap *match = NULL, *map = NULL;
 	struct hlist_node *n = NULL;
-	int err = 0, ret = 0, lock = 0;
+	int err = 0;
 	struct fastrpc_apps *me = &gfa;
-	struct qcom_dump_segment ramdump_segments_rh;
 	struct list_head head;
 	unsigned long irq_flags = 0;
 
@@ -5201,115 +5289,43 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 			goto bail;
 		}
 	}
-	spin_lock_irqsave(&me->hlock, irq_flags);
-	lock = 1;
-	hlist_for_each_entry_safe(map, n, &me->maps, hn) {
-		if (!lock) {
-			spin_lock_irqsave(&me->hlock, irq_flags);
-			lock = 1;
-		}
-		/* In hibernation suspend case fl is NULL, check !fl to cleanup */
-		if (!fl || (fl && map->servloc_name && fl->servloc_name
-			&& !strcmp(map->servloc_name, fl->servloc_name))) {
-			match = map;
-			if (map->is_persistent && map->in_use) {
-				struct secure_vm *rhvm = &me->channel[RH_CID].rhvm;
-				uint64_t phys = map->phys;
-				size_t size = map->size;
 
-				if (lock) {
-					spin_unlock_irqrestore(&me->hlock, irq_flags);
-					lock = 0;
-				}
-				//scm assign it back to HLOS
-				if (rhvm->vmid) {
-					u64 src_perms = 0;
-					struct qcom_scm_vmperm dst_perms = {0};
-					uint32_t i = 0;
+	do {
+		match = NULL;
+		spin_lock_irqsave(&me->hlock, irq_flags);
 
-					for (i = 0; i < rhvm->vmcount; i++) {
-						src_perms |= BIT(rhvm->vmid[i]);
-					}
-
-					dst_perms.vmid = QCOM_SCM_VMID_HLOS;
-					dst_perms.perm = QCOM_SCM_PERM_RWX;
-					err = qcom_scm_assign_mem(phys, (uint64_t)size,
-								&src_perms, &dst_perms, 1);
-				}
-				if (err) {
-					ADSPRPC_ERR(
-					"rh hyp unassign failed with %d for phys 0x%llx, size %zu\n",
-					err, phys, size);
-					err = -EADDRNOTAVAIL;
-					goto bail;
-				}
-				if (!lock) {
-					spin_lock_irqsave(&me->hlock, irq_flags);
-					lock = 1;
-				}
-				map->in_use = false;
-				/*
-				 * decrementing refcount for persistent mappings
-				 * as incrementing it in fastrpc_get_persistent_map
-				 */
-				map->refs--;
-			}
-			if (!match->is_persistent)
-				hlist_del_init(&map->hn);
-		}
-		if (lock) {
-			spin_unlock_irqrestore(&me->hlock, irq_flags);
-			lock = 0;
-		}
-
-		if (match) {
-			if (!match->is_persistent) {
-				if (match->flags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
-					err = fastrpc_munmap_rh(match->phys,
-							match->size, match->flags);
-				} else if (match->flags == ADSP_MMAP_HEAP_ADDR) {
-					if (fl)
-						err = fastrpc_munmap_on_dsp_rh(fl, match->phys,
-								match->size, match->flags, 0);
-					else {
-						pr_err("Cannot communicate with DSP, ADSP is down\n");
-						fastrpc_mmap_add(match);
-					}
-				}
-			}
-			memset(&ramdump_segments_rh, 0, sizeof(ramdump_segments_rh));
-			ramdump_segments_rh.da = match->phys;
-			ramdump_segments_rh.va = (void *)page_address((struct page *)match->va);
-			ramdump_segments_rh.size = match->size;
-			INIT_LIST_HEAD(&head);
-			list_add(&ramdump_segments_rh.node, &head);
-			if (me->dev && dump_enabled()) {
-				ret = qcom_elf_dump(&head, me->dev, ELF_CLASS);
-				if (ret < 0)
-					pr_err("adsprpc: %s: unable to dump heap (err %d)\n",
-								__func__, ret);
-			}
-			if (!match->is_persistent) {
-				if (!locked)
-					mutex_lock(&fl->map_mutex);
-				fastrpc_mmap_free(match, 0);
-				if (!locked)
-					mutex_unlock(&fl->map_mutex);
+		hlist_for_each_entry_safe(map, n, &me->maps, hn) {
+			if (!map->is_dumped && (!fl ||
+					(fl && map->servloc_name  && fl->servloc_name &&
+					 !strcmp(map->servloc_name, fl->servloc_name)))) {
+				map->is_dumped = true;
+				match = map;
+				if (!match->is_persistent)
+					hlist_del_init(&map->hn);
+				break;
 			}
 		}
-	}
-bail:
-	if (lock) {
 		spin_unlock_irqrestore(&me->hlock, irq_flags);
-		lock = 0;
-	}
+		if (match)
+			err = fastrpc_mmap_dump(match, fl, locked);
+	} while (match && !err);
+
+bail:
 	if (err && match) {
-		if (!locked)
+		if (!locked && fl)
 			mutex_lock(&fl->map_mutex);
 		fastrpc_mmap_add(match);
-		if (!locked)
+		if (!locked && fl)
 			mutex_unlock(&fl->map_mutex);
 	}
+	spin_lock_irqsave(&me->hlock, irq_flags);
+		hlist_for_each_entry_safe(map, n, &me->maps, hn) {
+			if (map->is_dumped && ((!fl && map->servloc_name) ||
+					(fl && map->servloc_name  && fl->servloc_name &&
+					 !strcmp(map->servloc_name, fl->servloc_name))))
+				map->is_dumped = false;
+		}
+	spin_unlock_irqrestore(&me->hlock, irq_flags);
 	return err;
 }
 
@@ -5929,6 +5945,7 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	unsigned long irq_flags = 0;
 	bool is_locked = false;
 	int i;
+	struct fastrpc_buf *init_mem = NULL;
 
 	if (!fl)
 		return 0;
@@ -6000,8 +6017,22 @@ skip_dump_wait:
 	wake_up_interruptible(&fl->proc_state_notif.notif_wait_queue);
 	spin_unlock_irqrestore(&fl->proc_state_notif.nqlock, flags);
 
-	if (!IS_ERR_OR_NULL(fl->init_mem))
-		fastrpc_buf_free(fl->init_mem, 0);
+	if (!is_locked) {
+		spin_lock_irqsave(&fl->apps->hlock, irq_flags);
+		is_locked = true;
+	}
+	if (!IS_ERR_OR_NULL(fl->init_mem)) {
+		init_mem = fl->init_mem;
+		fl->init_mem = NULL;
+		is_locked = false;
+		spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
+		fastrpc_buf_free(init_mem, 0);
+	}
+	if (is_locked) {
+		is_locked = false;
+		spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
+	}
+
 	fastrpc_context_list_dtor(fl);
 	fastrpc_cached_buf_list_free(fl);
 	if (!IS_ERR_OR_NULL(fl->hdr_bufs))
@@ -7030,6 +7061,11 @@ int fastrpc_dspsignal_wait(struct fastrpc_file *fl,
 	if (s->state != DSPSIGNAL_STATE_PENDING) {
 		if ((s->state == DSPSIGNAL_STATE_CANCELED) || (s->state == DSPSIGNAL_STATE_UNUSED))
 			err = -EINTR;
+		if (s->state == DSPSIGNAL_STATE_SIGNALED) {
+			/* Signal already received from DSP. Reset signal state and return */
+			s->state = DSPSIGNAL_STATE_PENDING;
+			reinit_completion(&s->comp);
+		}
 		spin_unlock_irqrestore(&fl->dspsignals_lock, irq_flags);
 		DSPSIGNAL_VERBOSE("Signal %u in state %u, complete wait immediately",
 				  signal_id, s->state);
