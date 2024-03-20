@@ -1275,7 +1275,7 @@ static int wcd9378_codec_enable_micbias_pullup(struct snd_soc_dapm_widget *w,
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		wcd9378_micbias_control(component, tx_num,
-				MICB_PULLUP_ENABLE, true);
+				MICB_PULLUP_DISABLE, true);
 		break;
 	};
 
@@ -1408,7 +1408,6 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int ret;
 	int bank = 0;
 	int act_ps = 0;
 
@@ -1424,13 +1423,7 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX1 << 0x10 | 0x01));
-		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, RX_PATH, true);
 
-		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
-					wcd9378->rx_swr_dev->dev_num,
-					true);
-
-		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, RX_PATH, true);
 		if (wcd9378->update_wcd_event)
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
@@ -1473,7 +1466,6 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int ret;
 	int act_ps = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
@@ -1485,9 +1477,7 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
 						(WCD_RX2 << 0x10 | 0x1));
-		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
-				    wcd9378->rx_swr_dev->dev_num,
-				    true);
+
 		if (wcd9378->update_wcd_event)
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_RX_MUTE,
@@ -1760,7 +1750,8 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
-	int power_level;
+	int power_level, bank = 0;
+	int ret = 0;
 	struct swr_device *swr_dev = wcd9378->tx_swr_dev;
 	u8 scp_commit_val = 0x2;
 
@@ -1814,6 +1805,14 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 				WCD9378_FU42_MUTE_CH2_FU42_MUTE_CH2_MASK, 0x00);
 
 		swr_write(swr_dev, swr_dev->dev_num, 0x004c, &scp_commit_val);
+
+		wcd9378_swr_slave_clk_set(wcd9378->dev, bank, RX_PATH, true);
+
+		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
+					wcd9378->rx_swr_dev->dev_num,
+					true);
+
+		wcd9378_swr_slave_clk_set(wcd9378->dev, !bank, RX_PATH, true);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		/*RX0 mute*/
@@ -1838,7 +1837,7 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 		break;
 	};
 
-	return 0;
+	return ret;
 }
 
 static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
@@ -1950,7 +1949,7 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 		} else {
 			snd_soc_component_update_bits(component, WCD9378_CDC_AUX_GAIN_CTL,
 					WCD9378_CDC_AUX_GAIN_CTL_AUX_EN_MASK, 0x00);
-			wcd9378_rx_connect_port(component, LO, true);
+			wcd9378_rx_connect_port(component, LO, false);
 		}
 		break;
 	};
@@ -2072,12 +2071,6 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	micb_index = micb_num - 1;
 	switch (req) {
 	case MICB_PULLUP_ENABLE:
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
 		wcd9378->pullup_ref[micb_index]++;
 		if ((wcd9378->pullup_ref[micb_index] == 1) &&
 			(wcd9378->micb_ref[micb_index] == 0)) {
@@ -2090,12 +2083,7 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	case MICB_PULLUP_DISABLE:
 		if (wcd9378->pullup_ref[micb_index] > 0)
 			wcd9378->pullup_ref[micb_index]--;
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
+
 		if ((wcd9378->pullup_ref[micb_index] == 0) &&
 			    (wcd9378->micb_ref[micb_index] == 0))
 			snd_soc_component_update_bits(component, micb_usage, micb_mask, 0x01);
@@ -2130,12 +2118,6 @@ int wcd9378_micbias_control(struct snd_soc_component *component,
 	case MICB_DISABLE:
 		if (wcd9378->micb_ref[micb_index] > 0)
 			wcd9378->micb_ref[micb_index]--;
-		if (!wcd9378->dev_up) {
-			dev_dbg(component->dev, "%s: enable req %d wcd device down\n",
-				__func__, req);
-			ret = -ENODEV;
-			goto done;
-		}
 		if ((wcd9378->micb_ref[micb_index] == 0) &&
 			(wcd9378->pullup_ref[micb_index] > 0)) {
 			/*PULL UP?*/
@@ -2296,6 +2278,11 @@ static int wcd9378_event_notify(struct notifier_block *block,
 
 		wcd9378_get_logical_addr(wcd9378->tx_swr_dev);
 		wcd9378_get_logical_addr(wcd9378->rx_swr_dev);
+
+		wcd9378->tx_swr_dev->scp1_val = 0;
+		wcd9378->tx_swr_dev->scp2_val = 0;
+		wcd9378->rx_swr_dev->scp1_val = 0;
+		wcd9378->rx_swr_dev->scp2_val = 0;
 
 		wcd9378_init_reg(component);
 		regcache_mark_dirty(wcd9378->regmap);
@@ -4033,7 +4020,7 @@ static int wcd9378_reset(struct device *dev)
 	if (rc) {
 		dev_err(dev, "%s: wcd sleep state request fail!\n",
 				__func__);
-		return rc;
+		return -EPROBE_DEFER;
 	}
 	/* 20us sleep required after pulling the reset gpio to LOW */
 	usleep_range(20, 30);
@@ -4042,7 +4029,7 @@ static int wcd9378_reset(struct device *dev)
 	if (rc) {
 		dev_err(dev, "%s: wcd active state request fail!\n",
 				__func__);
-		return rc;
+		return -EPROBE_DEFER;
 	}
 	/* 20us sleep required after pulling the reset gpio to HIGH */
 	usleep_range(20, 30);
@@ -4442,7 +4429,11 @@ static int wcd9378_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_lock_init;
 
-	wcd9378_reset(dev);
+	ret = wcd9378_reset(dev);
+	if (ret == -EPROBE_DEFER) {
+		dev_err(dev, "%s: wcd reset failed!\n", __func__);
+		goto err_lock_init;
+	}
 
 	wcd9378->wakeup = wcd9378_wakeup;
 
