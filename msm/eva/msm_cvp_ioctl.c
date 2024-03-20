@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/compat.h>
@@ -71,7 +71,7 @@ static int _copy_pkt_from_user(struct eva_kmd_arg *kp,
 
 	k = &kp->data.hfi_pkt;
 	u = &up->data.hfi_pkt;
-	for (i = start; i < size; i++)
+	for (i = start; i < start + size; i++)
 		if (get_user(k->pkt_data[i], &u->pkt_data[i]))
 			return -EFAULT;
 

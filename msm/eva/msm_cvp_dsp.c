@@ -1846,11 +1846,12 @@ void __dsp_cvp_mem_free(struct cvp_dsp_cmd_msg *cmd)
 	cmd->ret = 0;
 
 	dprintk(CVP_DSP,
-		"%s sess id 0x%x, low 0x%x, high 0x%x, hnl 0x%x\n",
+		"%s sess 0x%x, low 0x%x, high 0x%x, hnl 0x%x, iova 0x%x, fd 0x%x\n",
 		__func__, dsp2cpu_cmd->session_id,
 		dsp2cpu_cmd->session_cpu_low,
 		dsp2cpu_cmd->session_cpu_high,
-		dsp2cpu_cmd->pid);
+		dsp2cpu_cmd->pid, dsp2cpu_cmd->sbuf.iova,
+		dsp2cpu_cmd->sbuf.fd);
 
 	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
@@ -1968,18 +1969,10 @@ void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
 {
 	struct cvp_dsp_apps *me = &gfa_cv;
 	struct msm_cvp_inst *inst;
-	struct cvp_session_queue *sq;
 	int rc;
 	struct cvp_dsp2cpu_cmd *dsp2cpu_cmd = &me->pending_dsp2cpu_cmd;
 
 	cmd->ret = 0;
-
-	dprintk(CVP_DSP,
-		"%s sess id 0x%x, low 0x%x, high 0x%x, pid 0x%x\n",
-		__func__, dsp2cpu_cmd->session_id,
-		dsp2cpu_cmd->session_cpu_low,
-		dsp2cpu_cmd->session_cpu_high,
-		dsp2cpu_cmd->pid);
 
 	inst = (struct msm_cvp_inst *)get_inst_from_dsp(
 			dsp2cpu_cmd->session_cpu_high,
@@ -1991,14 +1984,12 @@ void __dsp_cvp_sess_stop(struct cvp_dsp_cmd_msg *cmd)
 		return;
 	}
 
-	sq = &inst->session_queue;
-	spin_lock(&sq->lock);
-	if (sq->state == QUEUE_STOP) {
-		spin_unlock(&sq->lock);
-		dprintk(CVP_WARN, "DSP double stopped session %llx\n", inst);
-		return;
-	}
-	spin_unlock(&sq->lock);
+	dprintk(CVP_DSP,
+		"%s sess id 0x%x low 0x%x high 0x%x, pid 0x%x, inst_kref_refcount 0x%x\n",
+		__func__, dsp2cpu_cmd->session_id,
+		dsp2cpu_cmd->session_cpu_low,
+		dsp2cpu_cmd->session_cpu_high,
+		dsp2cpu_cmd->pid, kref_read(&inst->kref));
 
 	rc = msm_cvp_session_stop(inst, (struct eva_kmd_arg *)NULL);
 	if (rc) {
