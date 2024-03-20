@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -68,6 +68,11 @@
 #define SIGIO_UWB_SSR_COMPLETED  0x00000002
 
 #define CRASH_REASON_NOT_FOUND  ((char *)"Crash reason not found")
+
+#define PERI_SS	(0x00)
+#define BT_SS	(0x01)
+#define UWB_SS	(0x02)
+#define TME_SS	(0x03)
 
 /**
  * enum btpower_vreg_param: Voltage regulator TCS param
@@ -312,6 +317,12 @@ static struct {
 	int uwb_state[BT_POWER_SRC_SIZE];
 } power_src;
 
+struct Crash_struct {
+//	char SubSystem[10];
+	char PrimaryReason[50];
+	char SecondaryReason[100];
+} CrashInfo;
+
 #ifdef CONFIG_BT_HW_SECURE_DISABLE
 int perisec_cnss_bt_hw_disable_check(struct platform_pwr_data *plat_priv)
 {
@@ -454,7 +465,7 @@ static int vreg_enable(struct vreg_data *vreg)
 {
 	int rc = 0;
 
-	pr_err("%s: vreg_en for : %s\n", __func__, vreg->name);
+	pr_debug("%s: vreg_en for : %s\n", __func__, vreg->name);
 
 	if (!vreg->is_enabled) {
 		if (vreg_configure(vreg, false) < 0)
@@ -478,7 +489,7 @@ static int vreg_disable_retention(struct vreg_data *vreg)
 	if (!vreg)
 		return rc;
 
-	pr_err("%s: disable_retention for : %s\n", __func__, vreg->name);
+	pr_debug("%s: disable_retention for : %s\n", __func__, vreg->name);
 
 	if ((vreg->is_enabled) && (vreg->is_retention_supp))
 		rc = vreg_configure(vreg, false);
@@ -493,7 +504,7 @@ static int vreg_enable_retention(struct vreg_data *vreg)
 	if (!vreg)
 		return rc;
 
-	pr_err("%s: enable_retention for : %s\n", __func__, vreg->name);
+	pr_debug("%s: enable_retention for : %s\n", __func__, vreg->name);
 
 	if ((vreg->is_enabled) && (vreg->is_retention_supp))
 		if ((vreg->min_vol != 0) && (vreg->max_vol != 0))
@@ -509,7 +520,7 @@ static int vreg_disable(struct vreg_data *vreg)
 	if (!vreg)
 		return rc;
 
-	pr_err("%s for : %s\n", __func__, vreg->name);
+	pr_debug("%s for : %s\n", __func__, vreg->name);
 
 	if (vreg->is_enabled) {
 		rc = regulator_disable(vreg->reg);
@@ -840,11 +851,11 @@ static int bt_regulators_pwr(int pwr_state)
 
 	if (!bt_num_vregs) {
 		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
+			__func__, ConvertRegisterModeToString(pwr_state));
 		return 0;
 	}
 
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
+	pr_info("%s: %s\n", __func__, ConvertRegisterModeToString(pwr_state));
 
 	if (pwr_state == POWER_ENABLE) {
 		/* Power On */
@@ -939,11 +950,11 @@ static int uwb_regulators_pwr(int pwr_state)
 
 	if (!uwb_num_vregs) {
 		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
+			__func__, ConvertRegisterModeToString(pwr_state));
 		return 0;
 	}
 
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
+	pr_info("%s: %s\n", __func__, ConvertRegisterModeToString(pwr_state));
 
 	switch (pwr_state) {
 	case POWER_ENABLE:
@@ -1009,11 +1020,11 @@ static int platform_regulators_pwr(int pwr_state)
 
 	if (!platform_num_vregs) {
 		pr_warn("%s: not avilable to %s\n",
-			__func__, reg_mode[pwr_state]);
+			__func__, ConvertRegisterModeToString(pwr_state));
 		return 0;
 	}
 
-	pr_err("%s: %s\n", __func__, reg_mode[pwr_state]);
+	pr_info("%s: %s\n", __func__, ConvertRegisterModeToString(pwr_state));
 
 	switch (pwr_state) {
 	case POWER_ENABLE:
@@ -1764,14 +1775,14 @@ static inline enum grant_states btpower_get_grant_state(void)
 	return state;
 }
 
-static void update_sub_state(int state)
-{
-	pwr_data->sub_state = state;
-}
-
 static int get_sub_state(void)
 {
 	return (int)pwr_data->sub_state;
+}
+
+static void update_sub_state(int state)
+{
+	pwr_data->sub_state = state;
 }
 
 int power_enable (enum SubSystem SubSystemType)
@@ -2051,7 +2062,7 @@ int btpower_on(enum plt_pwr_state client)
 	/* No Point in going further if SSR is on any subsystem */
 	if (current_ssr_state != SUB_STATE_IDLE) {
 		pr_err("%s: %s not allowing to power on\n", __func__,
-			ssr_state[current_ssr_state]);
+			ConvertSsrStatusToString(current_ssr_state));
 		return -1;
 	}
 
@@ -2076,14 +2087,10 @@ int btpower_access_ctrl(enum plt_pwr_state request)
 	enum grant_states grant_pending = btpower_get_grant_pending_state();
 	int current_ssr_state = get_sub_state();
 
-	pr_info("%s: request for %s grant_state %s grant_pending %s\n", __func__,
-		pwr_req[(int)request], ConvertGrantToString(grant_state),
-		ConvertGrantToString(grant_pending));
-
 	if (current_ssr_state != SUB_STATE_IDLE &&
 		(request == BT_ACCESS_REQ || request == UWB_ACCESS_REQ)) {
 		pr_err("%s: not allowing this request as %s\n", __func__,
-			ssr_state[current_ssr_state]);
+			ConvertSsrStatusToString(current_ssr_state));
 		return (int)ACCESS_DISALLOWED;
 	}
 
@@ -2159,10 +2166,11 @@ static void bt_power_vote(struct work_struct *work)
 		request = STREAM_TO_UINT32(skb);
 		skb_pull(skb, sizeof(uint32_t));
 		mutex_unlock(&pwr_data->pwr_mtx);
-		pr_err("%s: request from is %s cur state = %s %s retention %s access %s pending %s\n",
-			__func__, pwr_req[request], pwr_states[get_pwr_state()],
-			ssr_state[get_sub_state()],
-			retention_mode[btpower_get_retenion_mode_state()],
+		pr_info("%s: Start %s %s, %s state access %s pending %s\n",
+			__func__,
+			ConvertPowerStatusToString(get_pwr_state()),
+			ConvertSsrStatusToString(get_sub_state()),
+			ConvertRetentionModeToString(btpower_get_retenion_mode_state()),
 			ConvertGrantToString(btpower_get_grant_state()),
 			ConvertGrantToString(btpower_get_grant_pending_state()));
 		if (request == POWER_ON_BT || request == POWER_ON_UWB)
@@ -2175,10 +2183,11 @@ static void bt_power_vote(struct work_struct *work)
 			ret = btpower_access_ctrl(request);
 			pr_info("%s: grant status %s\n", __func__, ConvertGrantRetToString((int)ret));
 		}
-		pr_err("%s: request from is %s cur state = %s %s retention %s access %s pending %s\n",
-			__func__, pwr_req[request], pwr_states[get_pwr_state()],
-			ssr_state[get_sub_state()],
-			retention_mode[btpower_get_retenion_mode_state()],
+		pr_info("%s: Completed %s %s, %s state access %s pending %s\n",
+			__func__,
+			ConvertPowerStatusToString(get_pwr_state()),
+			ConvertSsrStatusToString(get_sub_state()),
+			ConvertRetentionModeToString(btpower_get_retenion_mode_state()),
 			ConvertGrantToString(btpower_get_grant_state()),
 			ConvertGrantToString(btpower_get_grant_pending_state()));
 		pwr_data->wait_status[request] = ret;
@@ -2221,24 +2230,6 @@ int schedule_client_voting(enum plt_pwr_state request)
 	return ret;
 }
 
-char* GetBtSecondaryCrashReason(enum BtSecondaryReasonCode reason)
-{
-	for(int i =0; i < (int)(sizeof(btSecReasonMap)/sizeof(BtSecondaryReasonMap)); i++)
-		if (btSecReasonMap[i].reason == reason)
-			return btSecReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
-char* GetBtPrimaryCrashReason(enum BtPrimaryReasonCode reason)
-{
-	for(int i =0; i < (int)(sizeof(btPriReasonMap)/sizeof(BtPrimaryReasonMap)); i++)
-		if (btPriReasonMap[i].reason == reason)
-			return btPriReasonMap[i].reasonstr;
-
-	return CRASH_REASON_NOT_FOUND;
-}
-
 char* GetUwbSecondaryCrashReason(enum UwbSecondaryReasonCode reason)
 {
 	for(int i =0; i < (int)(sizeof(uwbSecReasonMap)/sizeof(UwbSecondaryReasonMap)); i++)
@@ -2257,14 +2248,28 @@ char* GetUwbPrimaryCrashReason(enum UwbPrimaryReasonCode reason)
 	return CRASH_REASON_NOT_FOUND;
 }
 
+const char *GetSourceSubsystemString(uint32_t source_subsystem)
+{
+	switch (source_subsystem) {
+	case PERI_SS:
+		return "Peri SS";
+	case BT_SS:
+		return "BT SS";
+	case UWB_SS:
+		return "UWB SS";
+	default:
+		return "Unknown Subsystem";
+	}
+}
+
 int btpower_handle_client_request(unsigned int cmd, int arg)
 {
 	int ret = -1;
 
-	pr_info("%s: %s cmd voted to %s, current state = %s, %s\n", __func__,
+	pr_info("%s: Start of %s cmd request to %s.\n",
+		__func__,
 		(cmd == BT_CMD_PWR_CTRL ? "BT_CMD_PWR_CTRL" : "UWB_CMD_PWR_CTRL"),
-		bt_arg[(int)arg], pwr_states[get_pwr_state()],
-		ssr_state[(int)get_sub_state()]);
+		ConvertClientReqToString(arg));
 
 	if (cmd == BT_CMD_PWR_CTRL) {
 		switch ((int)arg) {
@@ -2291,9 +2296,6 @@ int btpower_handle_client_request(unsigned int cmd, int arg)
 			break;
 		}
 	}
-	pr_err("%s: %s, SSR state = %s\n", __func__,
-		pwr_states[get_pwr_state()], ssr_state[(int)get_sub_state()]);
-
 	return ret;
 }
 
@@ -2302,7 +2304,7 @@ int btpower_process_access_req(unsigned int cmd, int req)
 	int ret = -1;
 
 	pr_info("%s: by %s: request type %s\n", __func__,
-		cmd == BT_CMD_ACCESS_CTRL ? "BT" : "UWB",
+		cmd == BT_CMD_ACCESS_CTRL ? "BT_CMD_ACCESS_CTRL" : "UWB_CMD_ACCESS_CTRL",
 		req == 1 ? "Request" : "Release");
 	if (cmd == BT_CMD_ACCESS_CTRL && req == 1)
 		ret = schedule_client_voting(BT_ACCESS_REQ);
@@ -2323,8 +2325,8 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	int chipset_version = 0;
 	int itr;
-	unsigned int panic_reason = 0;
-	unsigned short primary_reason = 0, sec_reason = 0;
+	unsigned long panic_reason = 0;
+	unsigned short primary_reason = 0, sec_reason = 0, source_subsystem = 0;
 
 #ifdef CONFIG_MSM_BT_OOBS
 	enum btpower_obs_param clk_cntrl;
@@ -2472,28 +2474,35 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		btpower_enable_ipa_vreg(pwr_data);
 		break;
 	case BT_CMD_KERNEL_PANIC:
+
 		pr_err("%s: BT_CMD_KERNEL_PANIC\n", __func__);
-		panic_reason = (unsigned int)arg;
-		primary_reason = panic_reason & 0xFFFF;
-		sec_reason = (panic_reason & 0xFFFF0000) >> 16;
+
+		if (copy_from_user(&CrashInfo, (char *)arg, sizeof(CrashInfo))) {
+			pr_err("%s: copy to user failed\n", __func__);
+			ret = -EFAULT;
+		}
+
 		pr_err("%s: BT kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetBtPrimaryCrashReason(primary_reason),
-			GetBtSecondaryCrashReason(sec_reason));
+			__func__, CrashInfo.PrimaryReason, CrashInfo.SecondaryReason);
+
 		panic("%s: BT kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetBtPrimaryCrashReason(primary_reason),
-			GetBtSecondaryCrashReason(sec_reason));
+			__func__, CrashInfo.PrimaryReason, CrashInfo.SecondaryReason);
+
 		break;
 	case UWB_CMD_KERNEL_PANIC:
 		pr_err("%s: UWB_CMD_KERNEL_PANIC\n", __func__);
-		panic_reason = (unsigned int)arg;
+		panic_reason = arg;
 		primary_reason = panic_reason & 0xFFFF;
 		sec_reason = (panic_reason & 0xFFFF0000) >> 16;
-		pr_err("%s: UWB kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetUwbPrimaryCrashReason(primary_reason),
-			GetUwbSecondaryCrashReason(sec_reason));
-		panic("%s: UWB kernel panic Primary reason = %s, Secondary reason = %s\n",
-			__func__, GetUwbPrimaryCrashReason(primary_reason),
-			GetUwbSecondaryCrashReason(sec_reason));
+		source_subsystem = (panic_reason & 0xFFFF00000000) >> 32;
+		pr_err("%s: UWB kernel panic PrimaryReason = (0x%02x)[%s] | SecondaryReason = (0x%02x)[%s] | SourceSubsystem = (0x%02x)[%s]\n",
+			__func__, primary_reason, GetUwbPrimaryCrashReason(primary_reason),
+			sec_reason, GetUwbSecondaryCrashReason(sec_reason),
+			source_subsystem, GetSourceSubsystemString(source_subsystem));
+		panic("%s: UWB kernel panic PrimaryReason = (0x%02x)[%s] | SecondaryReason = (0x%02x)[%s] | SourceSubsystem = (0x%02x)[%s]\n",
+			__func__, primary_reason, GetUwbPrimaryCrashReason(primary_reason),
+			sec_reason, GetUwbSecondaryCrashReason(sec_reason),
+			source_subsystem, GetSourceSubsystemString(source_subsystem));
 		break;
 	default:
 		return -ENOIOCTLCMD;
