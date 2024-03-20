@@ -12,3 +12,7 @@ define_perf("blair", "gki")
 define_perf("pitti", "consolidate")
 
 define_perf("pitti", "gki")
+
+define_perf("volcano", "consolidate")
+
+define_perf("volcano", "gki")

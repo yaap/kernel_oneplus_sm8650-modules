@@ -8,3 +8,7 @@ define_aps("pineapple", "gki")
 define_aps("pitti", "consolidate")
 
 define_aps("pitti", "gki")
+
+define_aps("volcano", "consolidate")
+
+define_aps("volcano", "gki")

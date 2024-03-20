@@ -12,3 +12,7 @@ define_perf_tether("blair", "gki")
 define_perf_tether("pitti", "consolidate")
 
 define_perf_tether("pitti", "gki")
+
+define_perf_tether("volcano", "consolidate")
+
+define_perf_tether("volcano", "gki")
