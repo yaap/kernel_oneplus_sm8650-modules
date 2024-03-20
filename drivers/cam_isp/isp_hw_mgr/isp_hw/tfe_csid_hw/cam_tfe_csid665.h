@@ -1,16 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#ifndef _CAM_TFE_CSID_770_H_
-#define _CAM_TFE_CSID_770_H_
+#ifndef _CAM_TFE_CSID_665_H_
+#define _CAM_TFE_CSID_665_H_
 
 #include "cam_tfe_csid_core.h"
 
-#define CAM_TFE_CSID_VERSION_V770                 0x70070000
+#define CAM_TFE_CSID_VERSION_V665                 0x70065000
 
-static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_770_ipp_reg_offset = {
+static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_665_ipp_reg_offset = {
 	.csid_pxl_irq_status_addr            = 0x30,
 	.csid_pxl_irq_mask_addr              = 0x34,
 	.csid_pxl_irq_clear_addr             = 0x38,
@@ -61,7 +61,7 @@ static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_770_ipp_reg_offset = {
 	.measure_en_hbi_vbi_cnt_val          = 0xc,
 };
 
-static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_770_ppp_reg_offset = {
+static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_665_ppp_reg_offset = {
 	.csid_pxl_irq_status_addr            = 0xA0,
 	.csid_pxl_irq_mask_addr              = 0xA4,
 	.csid_pxl_irq_clear_addr             = 0xA8,
@@ -113,7 +113,7 @@ static struct cam_tfe_csid_pxl_reg_offset  cam_tfe_csid_770_ppp_reg_offset = {
 	.measure_en_hbi_vbi_cnt_val          = 0xc,
 };
 
-static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_0_reg_offset = {
+static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_665_rdi_0_reg_offset = {
 	.csid_rdi_irq_status_addr                 = 0x40,
 	.csid_rdi_irq_mask_addr                   = 0x44,
 	.csid_rdi_irq_clear_addr                  = 0x48,
@@ -158,7 +158,7 @@ static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_0_reg_offset = {
 	.measure_en_hbi_vbi_cnt_val               = 0xc,
 };
 
-static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_1_reg_offset = {
+static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_665_rdi_1_reg_offset = {
 	.csid_rdi_irq_status_addr                 = 0x50,
 	.csid_rdi_irq_mask_addr                   = 0x54,
 	.csid_rdi_irq_clear_addr                  = 0x58,
@@ -203,7 +203,7 @@ static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_1_reg_offset = {
 	.measure_en_hbi_vbi_cnt_val               = 0xc,
 };
 
-static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_2_reg_offset = {
+static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_665_rdi_2_reg_offset = {
 	.csid_rdi_irq_status_addr                 = 0x60,
 	.csid_rdi_irq_mask_addr                   = 0x64,
 	.csid_rdi_irq_clear_addr                  = 0x68,
@@ -249,7 +249,7 @@ static struct cam_tfe_csid_rdi_reg_offset cam_tfe_csid_770_rdi_2_reg_offset = {
 };
 
 static struct cam_tfe_csid_csi2_rx_reg_offset
-	cam_tfe_csid_770_csi2_reg_offset = {
+	cam_tfe_csid_665_csi2_reg_offset = {
 	.csid_csi2_rx_irq_status_addr                 = 0x20,
 	.csid_csi2_rx_irq_mask_addr                   = 0x24,
 	.csid_csi2_rx_irq_clear_addr                  = 0x28,
@@ -279,7 +279,6 @@ static struct cam_tfe_csid_csi2_rx_reg_offset
 	.csi2_irq_mask_all                            = 0xFFFFFFF,
 	.csi2_misr_enable_shift_val                   = 6,
 	.csi2_vc_mode_shift_val                       = 2,
-	.csi2_rx_epd_mode_shift_en                    = 8,
 	.csi2_capture_long_pkt_en_shift               = 0,
 	.csi2_capture_short_pkt_en_shift              = 1,
 	.csi2_capture_cphy_pkt_en_shift               = 2,
@@ -296,7 +295,7 @@ static struct cam_tfe_csid_csi2_rx_reg_offset
 };
 
 static struct cam_tfe_csid_common_reg_offset
-	cam_tfe_csid_770_cmn_reg_offset = {
+	cam_tfe_csid_665_cmn_reg_offset = {
 	.csid_hw_version_addr                         = 0x0,
 	.csid_cfg0_addr                               = 0x4,
 	.csid_ctrl_addr                               = 0x8,
@@ -347,21 +346,21 @@ static struct cam_tfe_csid_common_reg_offset
 	.sync_clk                                     = true,
 };
 
-static struct cam_tfe_csid_reg_offset cam_tfe_csid_770_reg_offset = {
-	.cmn_reg          = &cam_tfe_csid_770_cmn_reg_offset,
-	.csi2_reg         = &cam_tfe_csid_770_csi2_reg_offset,
-	.ipp_reg          = &cam_tfe_csid_770_ipp_reg_offset,
-	.ppp_reg          = &cam_tfe_csid_770_ppp_reg_offset,
+static struct cam_tfe_csid_reg_offset cam_tfe_csid_665_reg_offset = {
+	.cmn_reg          = &cam_tfe_csid_665_cmn_reg_offset,
+	.csi2_reg         = &cam_tfe_csid_665_csi2_reg_offset,
+	.ipp_reg          = &cam_tfe_csid_665_ipp_reg_offset,
+	.ppp_reg          = &cam_tfe_csid_665_ppp_reg_offset,
 	.rdi_reg = {
-		&cam_tfe_csid_770_rdi_0_reg_offset,
-		&cam_tfe_csid_770_rdi_1_reg_offset,
-		&cam_tfe_csid_770_rdi_2_reg_offset,
+		&cam_tfe_csid_665_rdi_0_reg_offset,
+		&cam_tfe_csid_665_rdi_1_reg_offset,
+		&cam_tfe_csid_665_rdi_2_reg_offset,
 		},
 };
 
-static struct cam_tfe_csid_hw_info cam_tfe_csid770_hw_info = {
-	.csid_reg = &cam_tfe_csid_770_reg_offset,
-	.hw_dts_version = CAM_TFE_CSID_VERSION_V770,
+static struct cam_tfe_csid_hw_info cam_tfe_csid665_hw_info = {
+	.csid_reg = &cam_tfe_csid_665_reg_offset,
+	.hw_dts_version = CAM_TFE_CSID_VERSION_V665,
 };
 
-#endif /*_CAM_TFE_CSID_770_H_ */
+#endif /*_CAM_TFE_CSID_665_H_ */

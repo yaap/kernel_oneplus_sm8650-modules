@@ -2437,7 +2437,8 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 			tbl_slot = &dev->pd_tbl->slot[idx];
 
 			if ((apply_data[pd].req_id != -1) &&
-				(tbl_slot->req_apply_map != dev->pd_tbl->dev_mask)) {
+				!(tbl_slot->req_apply_map & BIT(dev->dev_bit)) &&
+				(dev->is_active)) {
 				is_applied = false;
 				break;
 			}

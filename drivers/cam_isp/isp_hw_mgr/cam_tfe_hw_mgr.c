@@ -901,17 +901,19 @@ static void cam_tfe_hw_mgr_dump_all_ctx(void)
 static void cam_tfe_mgr_add_base_info(
 	struct cam_tfe_hw_mgr_ctx       *ctx,
 	enum cam_isp_hw_split_id         split_id,
-	uint32_t                         base_idx)
+	uint32_t                         base_idx,
+	enum cam_isp_hw_type             hw_type)
 {
 	uint32_t    i;
 
 	if (!ctx->num_base) {
 		ctx->base[0].split_id = split_id;
 		ctx->base[0].idx      = base_idx;
+		ctx->base[0].hw_type  = hw_type;
 		ctx->num_base++;
 		CAM_DBG(CAM_ISP,
-			"Add split id = %d for base idx = %d num_base=%d",
-			split_id, base_idx, ctx->num_base);
+			"Add split id = %d for base idx = %d num_base=%d hw_type=%d",
+			split_id, base_idx, ctx->num_base, hw_type);
 	} else {
 		/*Check if base index already exists in the list */
 		for (i = 0; i < ctx->num_base; i++) {
@@ -928,10 +930,11 @@ static void cam_tfe_mgr_add_base_info(
 		if (i == ctx->num_base) {
 			ctx->base[ctx->num_base].split_id = split_id;
 			ctx->base[ctx->num_base].idx      = base_idx;
+			ctx->base[ctx->num_base].hw_type  = hw_type;
 			ctx->num_base++;
 			CAM_DBG(CAM_ISP,
-				"Add split_id=%d for base idx=%d num_base=%d",
-				 split_id, base_idx, ctx->num_base);
+				"Add split_id=%d for base idx=%d num_base=%d hw_type=%d",
+				 split_id, base_idx, ctx->num_base, hw_type);
 		}
 	}
 }
@@ -959,12 +962,13 @@ static int cam_tfe_mgr_process_base_info(
 
 			res = hw_mgr_res->hw_res[i];
 			cam_tfe_mgr_add_base_info(ctx, i,
-					res->hw_intf->hw_idx);
-			CAM_DBG(CAM_ISP, "add base info for hw %d",
-				res->hw_intf->hw_idx);
+					res->hw_intf->hw_idx,
+					CAM_ISP_HW_TYPE_TFE);
+			CAM_DBG(CAM_ISP, "add base info for hw %d ctx_idx: %u",
+				res->hw_intf->hw_idx, ctx->ctx_index);
 		}
 	}
-	CAM_DBG(CAM_ISP, "ctx base num = %d", ctx->num_base);
+	CAM_DBG(CAM_ISP, "ctx base num = %d, ctx_idx: %u", ctx->num_base, ctx->ctx_index);
 
 	return 0;
 }
@@ -2190,6 +2194,8 @@ static int cam_tfe_mgr_acquire_get_unified_structure_v2(
 					CAM_ISP_TFE_FLAG_SHDR_SLAVE_EN;
 	in_port->is_shdr_master  =  in->feature_flag &
 					CAM_ISP_TFE_FLAG_SHDR_MASTER_EN;
+	in_port->epd_supported  =  in->feature_flag &
+					CAM_ISP_TFE_FLAG_EPD_SUPPORT;
 
 
 	if (in_port->bayer_bin && in_port->qcfa_bin) {
@@ -3048,6 +3054,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 	size_t len = 0;
 	uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
 	uint32_t cmd_type = 0;
+	unsigned long rem_jiffies = 0;
 
 	if (!hw_mgr_priv || !config_hw_args) {
 		CAM_ERR(CAM_ISP, "Invalid arguments");
@@ -3262,12 +3269,13 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 		goto end;
 
 	for (i = 0; i < CAM_TFE_HW_CONFIG_WAIT_MAX_TRY; i++) {
-		rc = cam_common_wait_for_completion_timeout(
+		rem_jiffies = cam_common_wait_for_completion_timeout(
 			&ctx->config_done_complete,
 			msecs_to_jiffies(
 			CAM_TFE_HW_CONFIG_TIMEOUT));
-		if (rc <= 0) {
-			if (!cam_cdm_detect_hang_error(ctx->cdm_handle)) {
+		if (rem_jiffies <= 0) {
+			rc = cam_cdm_detect_hang_error(ctx->cdm_handle);
+			if (rc == 0) {
 				CAM_ERR(CAM_ISP,
 					"CDM workqueue delay detected, wait for some more time req_id=%llu rc=%d ctx_index %d",
 					cfg->request_id, rc,
@@ -3279,24 +3287,21 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 					CAM_DEFAULT_VALUE,
 					CAM_DEFAULT_VALUE, rc);
 				continue;
-			}
+			} else {
+				CAM_ERR(CAM_ISP,
+					"cfg_done completn timeout cdm_hang=%d req=%llu ctx_idx=%d",
+					cfg->request_id, rc,
+					ctx->ctx_index);
+				cam_req_mgr_debug_delay_detect();
+				trace_cam_delay_detect("ISP",
+					"config done completion timeout",
+					cfg->request_id, ctx->ctx_index,
+					CAM_DEFAULT_VALUE, CAM_DEFAULT_VALUE,
+					rc);
 
-			CAM_ERR(CAM_ISP,
-				"config done completion timeout for req_id=%llu rc=%d ctx_index %d",
-				cfg->request_id, rc,
-				ctx->ctx_index);
-
-			cam_req_mgr_debug_delay_detect();
-			trace_cam_delay_detect("ISP",
-				"config done completion timeout",
-				cfg->request_id, ctx->ctx_index,
-				CAM_DEFAULT_VALUE, CAM_DEFAULT_VALUE,
-				rc);
-
-			if (rc == 0)
 				rc = -ETIMEDOUT;
-
-			goto end;
+				break;
+			}
 		} else {
 			rc = 0;
 			if (hw_update_data->mup_en)
@@ -3309,8 +3314,7 @@ static int cam_tfe_mgr_config_hw(void *hw_mgr_priv,
 	}
 
 	if ((i == CAM_TFE_HW_CONFIG_WAIT_MAX_TRY) && (rc == 0))
-		rc = -ETIMEDOUT;
-
+		CAM_DBG(CAM_ISP, "Wq delayed but IRQ CDM done");
 end:
 	CAM_DBG(CAM_ISP, "Exit: Config Done: %llu",  cfg->request_id);
 
@@ -4196,7 +4200,7 @@ static int cam_isp_tfe_blob_buffer_alignment_update(
 			return -EINVAL;
 		}
 
-		hw_mgr_res = &ctx->res_list_tfe_out[res_id_out];
+		hw_mgr_res = &ctx->res_list_tfe_out[ctx->tfe_out_map[res_id_out]];
 		res = hw_mgr_res->hw_res[0];
 		hw_intf = res->hw_intf;
 		if (hw_intf && hw_intf->hw_ops.process_cmd) {
@@ -5682,7 +5686,7 @@ static int cam_tfe_mgr_cmd_get_last_consumed_addr(
 	}
 
 	hw_mgr_res =
-		&ctx->res_list_tfe_out[res_id_out];
+		&ctx->res_list_tfe_out[ctx->tfe_out_map[res_id_out]];
 
 	for (i = 0; i < CAM_ISP_HW_SPLIT_MAX; i++) {
 		if (!hw_mgr_res->hw_res[i])

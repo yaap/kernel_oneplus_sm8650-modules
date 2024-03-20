@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -11,6 +11,7 @@
 #include "cam_tfe_csid640.h"
 #include "cam_tfe_csid640_210.h"
 #include "cam_tfe_csid770.h"
+#include "cam_tfe_csid665.h"
 #include "cam_tfe_csid_dev.h"
 #include "camera_main.h"
 
@@ -36,6 +37,10 @@ static const struct of_device_id cam_tfe_csid_dt_match[] = {
 	{
 		.compatible = "qcom,csid-lite770",
 		.data = &cam_tfe_csid770_hw_info,
+	},
+	{
+		.compatible = "qcom,csid665",
+		.data = &cam_tfe_csid665_hw_info,
 	},
 	{}
 };
