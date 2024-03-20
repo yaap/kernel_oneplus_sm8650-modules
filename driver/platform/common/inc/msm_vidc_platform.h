@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_PLATFORM_H_
@@ -201,6 +201,7 @@ struct msm_vidc_format_capability {
 enum vpu_version {
 	VPU_VERSION_IRIS33 = 1,
 	VPU_VERSION_IRIS33_2P, // IRIS3 2 PIPE
+	VPU_VERSION_IRIS2_2P, // IRIS2 2 PIPE
 };
 
 struct msm_vidc_platform_data {

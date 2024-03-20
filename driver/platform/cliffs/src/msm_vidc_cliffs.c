@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-cliffs.h>
@@ -316,11 +316,11 @@ static struct msm_platform_core_capability core_data_cliffs_v0[] = {
 	{MAX_NUM_4K_SESSIONS, 4},
 	{MAX_NUM_8K_SESSIONS, 1},
 	{MAX_SECURE_SESSION_COUNT, 3},
-	{MAX_RT_MBPF, 139264}, /* (4 * ((4096*2176)/256)) */
+	{MAX_RT_MBPF, 129600}, /* ((7680*4320)/256)) */
 	{MAX_MBPF, 139264}, /* (4 * ((4096*2176)/256)) */
-	/* max_load 4096x2176@120fps which is greater than 7680x4320@30fps */
+	/* max_load 1920x1080@480fps which is greater than 7680x4320@30fps */
 	/* Concurrency: UHD@30 decode + uhd@30 encode */
-	{MAX_MBPS, 4177920},
+	{MAX_MBPS, 3916800},
 	{MAX_IMAGE_MBPF, 1048576}, /* (16384x16384)/256 */
 	{MAX_MBPF_HQ, 8160}, /* ((1920x1088)/256) */
 	{MAX_MBPS_HQ, 244800}, /* ((1920x1088)/256)@30fps */
@@ -403,7 +403,7 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 
 	{FRAME_WIDTH, DEC, CODECS_ALL_V0, 96, 7680, 1, 1920},
 
-	{FRAME_WIDTH, DEC, VP9, 96, 4096, 1, 1920},
+	{FRAME_WIDTH, DEC, VP9 | AV1, 96, 4096, 1, 1920},
 
 	{FRAME_WIDTH, ENC, CODECS_ALL_V0, 128, 4096, 1, 1920},
 
@@ -423,7 +423,7 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 
 	{FRAME_HEIGHT, DEC, CODECS_ALL_V0, 96, 7680, 1, 1080},
 
-	{FRAME_HEIGHT, DEC, VP9, 96, 4096, 1, 1080},
+	{FRAME_HEIGHT, DEC, VP9 | AV1, 96, 4096, 1, 1080},
 
 	{FRAME_HEIGHT, ENC, CODECS_ALL_V0, 128, 4096, 1, 1080},
 
@@ -494,8 +494,8 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 	/* (4 * ((4096 * 2176)/256) */
 	{MBPF, DEC, CODECS_ALL_V0, 36, 139264, 1, 139264},
 
-	/* (4096 * 2176) / 256 */
-	{MBPF, DEC, VP9, 36, 34816, 1, 34816},
+	/* (4096 * 2160) / 256 */
+	{MBPF, DEC, VP9 | AV1, 36, 34560, 1, 34560},
 
 	/* ((8192x8192)/256) */
 	{MBPF, DEC, HEIC, 64, 262144,  1, 262144 },
@@ -1426,7 +1426,7 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 
 	{LEVEL, DEC, VP9,
 		V4L2_MPEG_VIDEO_VP9_LEVEL_1_0,
-		V4L2_MPEG_VIDEO_VP9_LEVEL_5_2,
+		V4L2_MPEG_VIDEO_VP9_LEVEL_5_1,
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_1_0) |
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_1_1) |
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_2_0) |
@@ -1436,16 +1436,15 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_4_0) |
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_4_1) |
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_5_0) |
-		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_5_1) |
-		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_5_2),
-		V4L2_MPEG_VIDEO_VP9_LEVEL_5_2,
+		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_5_1),
+		V4L2_MPEG_VIDEO_VP9_LEVEL_5_1,
 		V4L2_CID_MPEG_VIDEO_VP9_LEVEL,
 		HFI_PROP_LEVEL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
 	{LEVEL, DEC, AV1,
 		V4L2_MPEG_VIDC_AV1_LEVEL_2_0,
-		V4L2_MPEG_VIDC_AV1_LEVEL_6_0,
+		V4L2_MPEG_VIDC_AV1_LEVEL_5_1,
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_2_0) |
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_2_1) |
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_2_2) |
@@ -1459,11 +1458,8 @@ static struct msm_platform_inst_capability instance_cap_data_cliffs_v0[] = {
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_4_2) |
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_4_3) |
 		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_5_0) |
-		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_5_1) |
-		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_5_2) |
-		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_5_3) |
-		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_6_0),
-		V4L2_MPEG_VIDC_AV1_LEVEL_6_0,
+		BIT(V4L2_MPEG_VIDC_AV1_LEVEL_5_1),
+		V4L2_MPEG_VIDC_AV1_LEVEL_5_1,
 		V4L2_CID_MPEG_VIDC_AV1_LEVEL,
 		HFI_PROP_LEVEL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
