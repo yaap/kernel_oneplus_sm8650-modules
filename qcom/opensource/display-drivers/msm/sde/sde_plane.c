@@ -39,6 +39,13 @@
 #include "sde_vbif.h"
 #include "sde_plane.h"
 #include "sde_color_processing.h"
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "../oplus/oplus_display_private_api.h"
+#endif /* OPLUS_FEATURE_DISPLAY */
+#if defined(CONFIG_PXLW_IRIS)
+#include "dsi_iris_api.h"
+extern u32 iris_pq_disable;
+#endif
 
 #define SDE_DEBUG_PLANE(pl, fmt, ...) SDE_DEBUG("plane%d " fmt,\
 		(pl) ? (pl)->base.base.id : -1, ##__VA_ARGS__)
@@ -1190,6 +1197,10 @@ static inline void _sde_plane_setup_csc(struct sde_plane *psde, struct sde_plane
 	else
 		pstate->csc_ptr = (struct sde_csc_cfg *)&sde_csc_YUV2RGB_601L;
 
+#if defined(CONFIG_PXLW_IRIS)
+	iris_sde_plane_setup_csc(pstate->csc_ptr);
+#endif
+
 	SDE_DEBUG_PLANE(psde, "using 0x%X 0x%X 0x%X...\n",
 			pstate->csc_ptr->csc_mv[0],
 			pstate->csc_ptr->csc_mv[1],
@@ -1427,6 +1438,211 @@ static void sde_color_process_plane_setup(struct drm_plane *plane)
 				pstate->multirect_index, &hw_cfg);
 	}
 }
+
+#if defined(CONFIG_PXLW_IRIS)
+static void sde_color_process_plane_disable(struct drm_plane *plane)
+{
+	struct sde_plane *psde;
+	struct sde_plane_state *pstate;
+	struct drm_msm_3d_gamut *vig_gamut = NULL;
+	struct drm_msm_igc_lut *igc = NULL;
+	struct drm_msm_pgc_lut *gc = NULL;
+	size_t size = 0;
+	struct sde_hw_cp_cfg hw_cfg = {};
+	struct sde_hw_ctl *ctl = _sde_plane_get_hw_ctl(plane);
+	bool fp16_igc, fp16_unmult, ucsc_unmult, ucsc_alpha_dither;
+	int ucsc_gc, ucsc_igc;
+	struct drm_msm_fp16_gc *fp16_gc = NULL;
+	struct drm_msm_fp16_csc *fp16_csc = NULL;
+	struct drm_msm_ucsc_csc *ucsc_csc = NULL;
+	uint32_t dirty = 0;
+
+	psde = to_sde_plane(plane);
+	pstate = to_sde_plane_state(plane->state);
+
+	dirty = SDE_PLANE_DIRTY_VIG_GAMUT | SDE_PLANE_DIRTY_VIG_IGC
+			| SDE_PLANE_DIRTY_DMA_IGC | SDE_PLANE_DIRTY_DMA_GC
+			| SDE_PLANE_DIRTY_FP16_IGC | SDE_PLANE_DIRTY_FP16_GC
+			| SDE_PLANE_DIRTY_FP16_CSC | SDE_PLANE_DIRTY_FP16_UNMULT
+			| SDE_PLANE_DIRTY_UCSC_IGC | SDE_PLANE_DIRTY_UCSC_GC
+			| SDE_PLANE_DIRTY_UCSC_CSC | SDE_PLANE_DIRTY_UCSC_UNMULT
+			| SDE_PLANE_DIRTY_UCSC_ALPHA_DITHER;
+
+	if (dirty & SDE_PLANE_DIRTY_VIG_GAMUT &&
+			psde->pipe_hw->ops.setup_vig_gamut) {
+		vig_gamut = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_VIG_GAMUT);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_vig_gamut(psde->pipe_hw, &hw_cfg);
+	}
+
+	if (dirty & SDE_PLANE_DIRTY_VIG_IGC &&
+			psde->pipe_hw->ops.setup_vig_igc) {
+		igc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_VIG_IGC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_vig_igc(psde->pipe_hw, &hw_cfg);
+	}
+
+	if (dirty & SDE_PLANE_DIRTY_DMA_IGC &&
+			psde->pipe_hw->ops.setup_dma_igc) {
+		igc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_DMA_IGC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_dma_igc(psde->pipe_hw, &hw_cfg,
+				pstate->multirect_index);
+	}
+
+	if (dirty & SDE_PLANE_DIRTY_DMA_GC &&
+			psde->pipe_hw->ops.setup_dma_gc) {
+		gc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_DMA_GC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_dma_gc(psde->pipe_hw, &hw_cfg,
+				pstate->multirect_index);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_FP16_IGC &&
+			psde->pipe_hw->ops.setup_fp16_igc) {
+		fp16_igc = !!sde_plane_get_property(pstate,
+				PLANE_PROP_FP16_IGC);
+		fp16_igc = false;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(bool);
+		hw_cfg.payload = &fp16_igc;
+		psde->pipe_hw->ops.setup_fp16_igc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_FP16_GC &&
+			psde->pipe_hw->ops.setup_fp16_gc) {
+		fp16_gc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_FP16_GC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_fp16_gc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_FP16_CSC &&
+			psde->pipe_hw->ops.setup_fp16_csc) {
+		fp16_csc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_FP16_CSC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_fp16_csc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_FP16_UNMULT &&
+			psde->pipe_hw->ops.setup_fp16_unmult) {
+		fp16_unmult = !!sde_plane_get_property(pstate,
+				PLANE_PROP_FP16_UNMULT);
+		fp16_unmult = false;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(bool);
+		hw_cfg.payload = &fp16_unmult;
+		psde->pipe_hw->ops.setup_fp16_unmult(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_UCSC_IGC &&
+			psde->pipe_hw->ops.setup_ucsc_igc) {
+		ucsc_igc = sde_plane_get_property(pstate,
+				PLANE_PROP_UCSC_IGC);
+		ucsc_igc = 0;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(int);
+		hw_cfg.payload = &ucsc_igc;
+		psde->pipe_hw->ops.setup_ucsc_igc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_UCSC_GC &&
+			psde->pipe_hw->ops.setup_ucsc_gc) {
+		ucsc_gc = sde_plane_get_property(pstate,
+				PLANE_PROP_UCSC_GC);
+		ucsc_gc = 0;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(int);
+		hw_cfg.payload = &ucsc_gc;
+		psde->pipe_hw->ops.setup_ucsc_gc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_UCSC_CSC &&
+			psde->pipe_hw->ops.setup_ucsc_csc) {
+		ucsc_csc = msm_property_get_blob(&psde->property_info,
+				&pstate->property_state,
+				&size,
+				PLANE_PROP_UCSC_CSC);
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = size;
+		hw_cfg.payload = NULL;
+		psde->pipe_hw->ops.setup_ucsc_csc(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_UCSC_UNMULT &&
+			psde->pipe_hw->ops.setup_ucsc_unmult) {
+		ucsc_unmult = !!sde_plane_get_property(pstate,
+				PLANE_PROP_UCSC_UNMULT);
+		ucsc_unmult = false;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(bool);
+		hw_cfg.payload = &ucsc_unmult;
+		psde->pipe_hw->ops.setup_ucsc_unmult(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_UCSC_ALPHA_DITHER &&
+			psde->pipe_hw->ops.setup_ucsc_alpha_dither) {
+		ucsc_alpha_dither = !!sde_plane_get_property(pstate,
+				PLANE_PROP_UCSC_ALPHA_DITHER);
+		ucsc_alpha_dither = false;
+		hw_cfg.last_feature = 0;
+		hw_cfg.ctl = ctl;
+		hw_cfg.len = sizeof(bool);
+		hw_cfg.payload = &ucsc_alpha_dither;
+		psde->pipe_hw->ops.setup_ucsc_alpha_dither(psde->pipe_hw,
+				pstate->multirect_index, &hw_cfg);
+	}
+}
+#endif
 
 static void _sde_plane_setup_scaler(struct sde_plane *psde,
 		struct sde_plane_state *pstate,
@@ -3373,6 +3589,12 @@ static void _sde_plane_update_format_and_rects(struct sde_plane *psde,
 			psde->pipe_hw->ops.set_ubwc_stats_roi(psde->pipe_hw,
 					pstate->multirect_index, NULL);
 	}
+
+#if defined(PXLW_IRIS_DUAL)
+	if (psde->pipe_hw->ops.setup_csc_v2)
+		psde->pipe_hw->ops.setup_csc_v2(psde->pipe_hw,
+			fmt, pstate->csc_usr_ptr);
+#endif
 }
 
 static void _sde_plane_update_sharpening(struct sde_plane *psde)
@@ -3428,6 +3650,11 @@ static void _sde_plane_update_properties(struct drm_plane *plane,
 			psde->pipe_hw->ops.setup_format)
 		_sde_plane_update_format_and_rects(psde, pstate, fmt);
 
+#if defined(CONFIG_PXLW_IRIS)
+	if (iris_is_chip_supported() && (iris_pq_disable & 0x04))
+		sde_color_process_plane_disable(plane);
+	else
+#endif
 	sde_color_process_plane_setup(plane);
 
 	/* update sharpening */

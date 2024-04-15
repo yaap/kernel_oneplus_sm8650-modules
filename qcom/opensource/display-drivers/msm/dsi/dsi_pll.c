@@ -247,6 +247,9 @@ int dsi_pll_init(struct platform_device *pdev, struct dsi_pll_resource **pll)
 	int rc = 0;
 	const char *label;
 	struct dsi_pll_resource *pll_res = NULL;
+#ifdef OPLUS_FEATURE_DISPLAY
+	bool ssc_disable = false;
+#endif
 
 	if (!pdev->dev.of_node) {
 		pr_err("Invalid DSI PHY node\n");
@@ -285,6 +288,15 @@ int dsi_pll_init(struct platform_device *pdev, struct dsi_pll_resource **pll)
 
 	pll_res->ssc_en = of_property_read_bool(pdev->dev.of_node,
 						"qcom,dsi-pll-ssc-en");
+#ifdef OPLUS_FEATURE_DISPLAY
+	ssc_disable = of_property_read_bool(pdev->dev.of_node,
+						"oplus,dsi-pll-ssc-disalbed");
+
+	if (ssc_disable) {
+		pll_res->ssc_en = false;
+		DSI_PLL_INFO(pll_res, "PLL SSC disalbed\n");
+	}
+#endif
 
 	if (pll_res->ssc_en) {
 		DSI_PLL_INFO(pll_res, "PLL SSC enabled\n");

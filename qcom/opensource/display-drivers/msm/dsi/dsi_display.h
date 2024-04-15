@@ -21,6 +21,9 @@
 #include "dsi_ctrl.h"
 #include "dsi_phy.h"
 #include "dsi_panel.h"
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "../oplus/oplus_dsi_support.h"
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 #define MAX_DSI_CTRLS_PER_DISPLAY             2
 #define DSI_CLIENT_NAME_SIZE		20
@@ -304,6 +307,18 @@ struct dsi_display {
 	struct dsi_panel_cmd_set cmd_set;
 
 	bool enabled;
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	u8 oplus_panel_flag;
+	u8 oplus_panel_id1;
+	u8 oplus_panel_id2;
+	u8 oplus_panel_id3;
+#endif /* OPLUS_FEATURE_DISPLAY */
+#if defined(CONFIG_PXLW_IRIS)
+	u32 off;
+	u32 cnt;
+	u8 cmd_data_type;
+#endif
 };
 
 int dsi_display_dev_probe(struct platform_device *pdev);
@@ -780,6 +795,16 @@ enum dsi_pixel_format dsi_display_get_dst_format(
  */
 int dsi_display_cont_splash_config(void *display);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+struct dsi_display *get_main_display(void);
+
+struct dsi_display *get_sec_display(void);
+
+/* Add for implement panel register read */
+int dsi_host_alloc_cmd_tx_buffer(struct dsi_display *display);
+int dsi_display_cmd_engine_enable(struct dsi_display *display);
+int dsi_display_cmd_engine_disable(struct dsi_display *display);
+#endif /* OPLUS_FEATURE_DISPLAY */
 /**
  * dsi_display_cont_splash_res_disable() - Disable resource votes added in probe
  * @display:    Pointer to dsi display

@@ -58,6 +58,9 @@
 #include "msm_mmu.h"
 #include "sde_wb.h"
 #include "sde_dbg.h"
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+#include "dsi_iris_api.h"
+#endif
 
 /*
  * MSM driver version:
@@ -916,6 +919,10 @@ static int msm_drm_component_init(struct device *dev)
 
 	mutex_init(&priv->vm_client_lock);
 	mutex_init(&priv->fence_error_client_lock);
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	mutex_init(&priv->dspp_lock);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	/* Bind all our sub-components: */
 	ret = msm_component_bind_all(dev, ddev);
@@ -1799,6 +1806,12 @@ static const struct drm_ioctl_desc msm_ioctls[] = {
 			DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MSM_DISPLAY_HINT, msm_ioctl_display_hint_ops,
 			DRM_UNLOCKED),
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+	DRM_IOCTL_DEF_DRV(MSM_IRIS_OPERATE_CONF, msm_ioctl_iris_operate_conf,
+			DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MSM_IRIS_OPERATE_TOOL, msm_ioctl_iris_operate_tool,
+			DRM_UNLOCKED|DRM_RENDER_ALLOW),
+#endif
 };
 
 static const struct file_operations fops = {

@@ -59,6 +59,10 @@
 
 #include "sde_power_handle.h"
 
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+#include <drm/msm_drm_iris.h>
+#endif
+
 #define GET_MAJOR_REV(rev)		((rev) >> 28)
 #define GET_MINOR_REV(rev)		(((rev) >> 16) & 0xFFF)
 #define GET_STEP_REV(rev)		((rev) & 0xFFFF)
@@ -191,6 +195,9 @@ enum msm_mdp_crtc_property {
 	CRTC_PROP_ROI_V1,
 	CRTC_PROP_SECURITY_LEVEL,
 	CRTC_PROP_DEST_SCALER,
+#ifdef OPLUS_FEATURE_DISPLAY
+	CRTC_PROP_CUSTOM,
+#endif /* OPLUS_FEATURE_DISPLAY */
 	CRTC_PROP_CAPTURE_OUTPUT,
 
 	CRTC_PROP_IDLE_PC_STATE,
@@ -254,8 +261,25 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_CACHE_STATE,
 	CONNECTOR_PROP_DSC_MODE,
 	CONNECTOR_PROP_WB_USAGE_TYPE,
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	// Prop to store sync panel backlight level
+	CONNECTOR_PROP_SYNC_BACKLIGHT_LEVEL,
+#endif /* OPLUS_FEATURE_DISPLAY */
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	CONNECTOR_PROP_ADFR_MIN_FPS,
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	CONNECTOR_PROP_HBM_ENABLE,
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	CONNECTOR_PROP_WB_ROT_TYPE,
 	CONNECTOR_PROP_WB_ROT_BYTES_PER_CLK,
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+	CONNECTOR_PROP_PANEL_LEVEL,
+	CONNECTOR_PROP_IRIS_SET_METADATA,
+#endif
 	CONNECTOR_PROP_BPP_MODE,
 
 	/* total # of properties */
@@ -1158,6 +1182,9 @@ struct msm_drm_private {
 	struct mutex vm_client_lock;
 	struct list_head vm_client_list;
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	struct mutex dspp_lock;
+#endif /* OPLUS_FEATURE_DISPLAY */
 	struct mutex fence_error_client_lock;
 	struct list_head fence_error_client_list;
 };

@@ -124,7 +124,11 @@ enum sde_dbg_dump_context {
  * sysfs node or panic. This prevents kernel log from evtlog message
  * flood.
  */
+#ifndef OPLUS_FEATURE_DISPLAY
 #define SDE_EVTLOG_PRINT_ENTRY	256
+#else
+#define SDE_EVTLOG_PRINT_ENTRY	2048
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 /*
  * evtlog keeps this number of entries in memory for debug purpose. This
@@ -551,5 +555,9 @@ void sde_rsc_debug_dump(u32 mux_sel);
  *	otherwise reset the dump mode to default mode.
  */
 void sde_dbg_update_dump_mode(bool enable_coredump);
+
+#ifdef OPLUS_FEATURE_DISPLAY
+void oplus_sde_evtlog_dump_all(void);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 #endif /* SDE_DBG_H_ */
