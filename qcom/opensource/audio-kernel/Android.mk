@@ -549,3 +549,7 @@ endif
 endif # DLKM check
 endif # supported target check
 endif
+#ifdef OPLUS_ARCH_EXTENDS
+#Add for oplus audio extends driver
+-include $(LOCAL_PATH)/oplus/build.mk
+#endif /* OPLUS_ARCH_EXTENDS */

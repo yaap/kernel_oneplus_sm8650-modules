@@ -51,6 +51,17 @@
 #include "msm_common.h"
 #include "msm_dailink.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb_fatal_delay
+#endif
+#ifdef dev_err_ratelimited
+#undef dev_err_ratelimited
+#define dev_err_ratelimited dev_err_ratelimited_fb_delay
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 #define DRV_NAME "pineapple-asoc-snd"
 #define __CHIPSET__ "PINEAPPLE "
 #define MSM_DAILINK_NAME(name) (__CHIPSET__#name)
@@ -59,7 +70,12 @@
 #define WCD9XXX_MBHC_DEF_BUTTONS    8
 #define CODEC_EXT_CLK_RATE          9600000
 #define DEV_NAME_STR_LEN            32
+#ifndef OPLUS_ARCH_EXTENDS
+/* Modify for headset detect */
 #define WCD_MBHC_HS_V_MAX           1600
+#else /* OPLUS_ARCH_EXTENDS */
+#define WCD_MBHC_HS_V_MAX           1700
+#endif /* OPLUS_ARCH_EXTENDS */
 
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
@@ -106,6 +122,11 @@ static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 static int dmic_4_5_gpio_cnt;
 static int dmic_6_7_gpio_cnt;
+
+#if IS_ENABLED(CONFIG_AUDIO_EXTEND_DRV)
+/*Add for oplus extend aduio*/
+extern void extend_codec_i2s_be_dailinks(struct device *dev, struct snd_soc_dai_link *dailink, size_t size);
+#endif /* CONFIG_AUDIO_EXTEND_DRV */
 
 static void *def_wcd_mbhc_cal(void);
 
@@ -491,6 +512,8 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high = ((void *)&btn_cfg->_v_btn_low) +
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
+	#ifndef OPLUS_ARCH_EXTENDS
+	/* Modify for headset button threshold */
 	btn_high[0] = 75;
 	btn_high[1] = 150;
 	btn_high[2] = 237;
@@ -499,6 +522,16 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high[5] = 500;
 	btn_high[6] = 500;
 	btn_high[7] = 500;
+	#else /* OPLUS_ARCH_EXTENDS */
+	btn_high[0] = 130;		/* Hook ,0 ~ 160 Ohm*/
+	btn_high[1] = 131;
+	btn_high[2] = 253;		/* Volume + ,160 ~ 360 Ohm*/
+	btn_high[3] = 425;		/* Volume - ,360 ~ 680 Ohm*/
+	btn_high[4] = 426;
+	btn_high[5] = 426;
+	btn_high[6] = 426;
+	btn_high[7] = 426;
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	return wcd_mbhc_cal;
 }
@@ -1618,6 +1651,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 		rc = of_property_read_u32(dev->of_node,
 				"qcom,mi2s-audio-intf", &val);
 		if (!rc && val) {
+			#if IS_ENABLED(CONFIG_AUDIO_EXTEND_DRV)
+			/*Add for oplus extend audio*/
+			extend_codec_i2s_be_dailinks(dev, msm_mi2s_dai_links, ARRAY_SIZE(msm_mi2s_dai_links));
+			pr_info("exchanged mi2s\n");
+			#endif /* CONFIG_AUDIO_EXTEND_DRV */
 			memcpy(msm_pineapple_dai_links + total_links,
 					msm_mi2s_dai_links,
 					sizeof(msm_mi2s_dai_links));
@@ -1627,6 +1665,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 		rc = of_property_read_u32(dev->of_node,
 				"qcom,tdm-audio-intf", &val);
 		if (!rc && val) {
+			#if IS_ENABLED(CONFIG_AUDIO_EXTEND_DRV)
+			/*Add for oplus extend audio*/
+			extend_codec_i2s_be_dailinks(dev, msm_tdm_dai_links, ARRAY_SIZE(msm_tdm_dai_links));
+			pr_info("exchanged tdm\n");
+			#endif /* CONFIG_AUDIO_EXTEND_DRV */
 			memcpy(msm_pineapple_dai_links + total_links,
 					msm_tdm_dai_links,
 					sizeof(msm_tdm_dai_links));
@@ -1858,6 +1901,78 @@ static int msm_int_wsa884x_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+#ifdef OPLUS_ARCH_EXTENDS
+//add for sp tuning tools get pcmid and miid
+static uint32_t oplus_sp_miid;
+static int oplus_sp_miid_info(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 0xffffffff; /* 16 bit value */
+	return 0;
+}
+
+static int oplus_sp_miid_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = oplus_sp_miid;
+	return 0;
+}
+
+static int oplus_sp_miid_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	oplus_sp_miid = (uint32_t)ucontrol->value.integer.value[0];
+	return 1;
+}
+
+static uint32_t oplus_sp_pcm_id;
+static int oplus_sp_pcm_id_info(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 0xffffffff; /* 16 bit value */
+	return 0;
+}
+
+static int oplus_sp_pcm_id_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = oplus_sp_pcm_id;
+	return 0;
+}
+
+static int oplus_sp_pcm_id_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	oplus_sp_pcm_id = (uint32_t)ucontrol->value.integer.value[0];
+	return 1;
+}
+
+static const struct snd_kcontrol_new oplus_sp_controls[] = {
+	//SP PCMID
+	{
+		.name = "SP PCMID",
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.info = oplus_sp_pcm_id_info,
+		.get = oplus_sp_pcm_id_get,
+		.put = oplus_sp_pcm_id_put,
+	},
+	//SP MIID
+	{
+		.name = "SP MIID",
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.info = oplus_sp_miid_info,
+		.get = oplus_sp_miid_get,
+		.put = oplus_sp_miid_put,
+	},
+};
+#endif /* OPLUS_ARCH_EXTENDS */
+
 static int msm_int_wsa881x_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct msm_asoc_mach_data *pdata =
@@ -2084,6 +2199,11 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "AMIC3");
 	snd_soc_dapm_ignore_suspend(dapm, "AMIC4");
 	snd_soc_dapm_sync(dapm);
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	//add for sp tuning tools get pcmid and miid
+	snd_soc_add_component_controls(component, oplus_sp_controls, ARRAY_SIZE(oplus_sp_controls));
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	pdata = snd_soc_card_get_drvdata(component->card);
 	if (!pdata->codec_root) {
@@ -2471,6 +2591,11 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* change card status to ONLINE */
 	dev_dbg(&pdev->dev, "%s: setting snd_card to ONLINE\n", __func__);
 	snd_card_set_card_status(SND_CARD_STATUS_ONLINE);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	pr_info("%s: event_id=%u, version:%s\n", __func__, \
+			OPLUS_AUDIO_EVENTID_AUDIO_KERNEL_ERR, AUDIO_KERNEL_FB_VERSION);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 err:

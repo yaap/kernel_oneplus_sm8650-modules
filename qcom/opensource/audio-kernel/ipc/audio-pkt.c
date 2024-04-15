@@ -31,6 +31,14 @@
 #include <dsp/spf-core.h>
 #include <dsp/msm_audio_ion.h>
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb_fatal_delay
+#endif
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
 /* Define IPC Logging Macros */
 #define AUDIO_PKT_IPC_LOG_PAGE_CNT 2
 static void *audio_pkt_ilctxt;

@@ -17,6 +17,11 @@
 #include <sound/soc-dapm.h>
 #include <linux/soc/qcom/battery_charger.h>
 
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+static int  haptics_probe_retry = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
+
 #define HAPTICS_RATES (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |\
 		SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_48000 |\
 		SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_192000 |\
@@ -43,6 +48,11 @@
 #define SWR_PLAY_SRC_VAL_SWR		4
 
 #define SWR_HAP_REG_MAX			(SWR_HAP_ACCESS_BASE + 0xff)
+
+#ifdef OPLUS_FEATURE_RINGTONE_HAPTIC
+/* Add for control VMAX */
+#define OPLUS_SWR_HAP_VMAX		200
+#endif /* OPLUS_FEATURE_RINGTONE_HAPTIC */
 
 enum pmic_type {
 	PM8350B = 1,
@@ -200,12 +210,20 @@ static int swr_haptics_slave_enable(struct swr_haptics_dev *swr_hap)
 	if (swr_hap->slave_enabled)
 		return 0;
 
-	rc = regulator_enable(swr_hap->slave_vdd);
-	if (rc < 0) {
-		dev_err_ratelimited(swr_hap->dev, "%s: enable swr-slave-vdd failed, rc=%d\n",
-				__func__, rc);
-		return rc;
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+	if (!IS_ERR(swr_hap->slave_vdd)) {
+#endif /* OPLUS_ARCH_EXTENDS */
+		rc = regulator_enable(swr_hap->slave_vdd);
+		if (rc < 0) {
+			dev_err_ratelimited(swr_hap->dev, "%s: enable swr-slave-vdd failed, rc=%d\n",
+					__func__, rc);
+			return rc;
+		}
+#ifdef OPLUS_ARCH_EXTENDS
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
+
 
 	dev_dbg(swr_hap->dev, "%s: enable swr-slave-vdd success\n", __func__);
 	swr_hap->slave_enabled = true;
@@ -219,12 +237,20 @@ static int swr_haptics_slave_disable(struct swr_haptics_dev *swr_hap)
 	if (!swr_hap->slave_enabled)
 		return 0;
 
-	rc = regulator_disable(swr_hap->slave_vdd);
-	if (rc < 0) {
-		dev_err_ratelimited(swr_hap->dev, "%s: disable swr-slave-vdd failed, rc=%d\n",
-				__func__, rc);
-		return rc;
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+	if (!IS_ERR(swr_hap->slave_vdd)) {
+#endif /* OPLUS_ARCH_EXTENDS */
+		rc = regulator_disable(swr_hap->slave_vdd);
+		if (rc < 0) {
+			dev_err_ratelimited(swr_hap->dev, "%s: disable swr-slave-vdd failed, rc=%d\n",
+					__func__, rc);
+			return rc;
+		}
+#ifdef OPLUS_ARCH_EXTENDS
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
+
 
 	dev_dbg(swr_hap->dev, "%s: disable swr-slave-vdd success\n", __func__);
 	swr_hap->slave_enabled = false;
@@ -313,7 +339,10 @@ static int hap_enable_swr_dac_port(struct snd_soc_dapm_widget *w,
 		if (rc < 0) {
 			dev_err_ratelimited(swr_hap->dev, "%s: Enable hpwr_vreg failed, rc=%d\n",
 					__func__, rc);
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 			swr_device_wakeup_unvote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 			return rc;
 		}
 
@@ -328,20 +357,32 @@ static int hap_enable_swr_dac_port(struct snd_soc_dapm_widget *w,
 			swr_slvdev_datapath_control(swr_hap->swr_slave,
 					swr_hap->swr_slave->dev_num, false);
 			swr_hap_disable_hpwr_vreg(swr_hap);
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 			swr_device_wakeup_unvote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 			return rc;
 		}
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 		swr_device_wakeup_unvote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 		swr_device_wakeup_vote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 		/* stop SWR play */
 		val = SWR_PLAY_SRC_VAL_SWR;
 		rc = regmap_write(swr_hap->regmap, SWR_PLAY_REG, val);
 		if (rc) {
 			dev_err_ratelimited(swr_hap->dev, "%s: Enable SWR_PLAY failed, rc=%d\n",
 					__func__, rc);
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 			swr_device_wakeup_unvote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 			return rc;
 		}
 
@@ -349,7 +390,10 @@ static int hap_enable_swr_dac_port(struct snd_soc_dapm_widget *w,
 		if (rc < 0) {
 			dev_err_ratelimited(swr_hap->dev, "%s: Disable hpwr_vreg failed, rc=%d\n",
 					__func__, rc);
+#ifdef OPLUS_ARCH_EXTENDS
+// request/release swr device wakeup votes properly. CR3681638
 			swr_device_wakeup_unvote(swr_hap->swr_slave);
+#endif /* OPLUS_ARCH_EXTENDS */
 			return rc;
 		}
 		break;
@@ -390,14 +434,26 @@ static int haptics_vmax_put(struct snd_kcontrol *kcontrol,
 			snd_soc_component_get_drvdata(component);
 
 	swr_hap->vmax = ucontrol->value.integer.value[0];
+#ifdef OPLUS_FEATURE_RINGTONE_HAPTIC
+/* Add for control VMAX */
+	if (swr_hap->vmax > OPLUS_SWR_HAP_VMAX) {
+		swr_hap->vmax = OPLUS_SWR_HAP_VMAX;
+	}
+#endif /* OPLUS_FEATURE_RINGTONE_HAPTIC */
 	pr_debug("%s: vmax %u\n", __func__, swr_hap->vmax);
 
 	return 0;
 }
 
 static const struct snd_kcontrol_new haptics_snd_controls[] = {
+#ifndef OPLUS_FEATURE_RINGTONE_HAPTIC
+/* Modify for change VMAX */
 	SOC_SINGLE_EXT("Haptics Amplitude Step", SND_SOC_NOPM, 0, 100, 0,
 		haptics_vmax_get, haptics_vmax_put),
+#else /* OPLUS_FEATURE_RINGTONE_HAPTIC */
+	SOC_SINGLE_EXT("Haptics Amplitude Step", SND_SOC_NOPM, 0, OPLUS_SWR_HAP_VMAX, 0,
+		haptics_vmax_get, haptics_vmax_put),
+#endif /* OPLUS_FEATURE_RINGTONE_HAPTIC */
 };
 
 static const struct snd_soc_dapm_widget haptics_comp_dapm_widgets[] = {
@@ -441,6 +497,52 @@ static int haptics_comp_probe(struct snd_soc_component *component)
 static void haptics_comp_remove(struct snd_soc_component *component)
 {
 }
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+static int dummy_haptics_comp_probe(struct snd_soc_component *component)
+{
+	return 0;
+}
+
+static int dummy_haptics_vmax_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int dummy_haptics_vmax_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static const struct snd_kcontrol_new dummy_haptics_snd_controls[] = {
+	SOC_SINGLE_EXT("Haptics Amplitude Step", SND_SOC_NOPM, 0, 0, 0,
+		dummy_haptics_vmax_get, dummy_haptics_vmax_put),
+};
+
+static const struct snd_soc_dapm_widget dummy_haptics_comp_dapm_widgets[] = {
+	SND_SOC_DAPM_INPUT("HAP_IN"),
+	SND_SOC_DAPM_SPK("HAP_OUT", NULL),
+};
+
+static const struct snd_soc_component_driver dummy_swr_haptics_component = {
+	.name = "swr-haptics",
+	.probe = dummy_haptics_comp_probe,
+	.remove = haptics_comp_remove,
+	.controls = dummy_haptics_snd_controls,
+	.num_controls = ARRAY_SIZE(dummy_haptics_snd_controls),
+	.dapm_widgets = dummy_haptics_comp_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(dummy_haptics_comp_dapm_widgets),
+};
+
+static struct snd_soc_dai_driver dummy_haptics_dai[] = {
+	{
+		.name = "swr_haptics",
+	},
+};
+#endif /* OPLUS_ARCH_EXTENDS */
 
 static const struct snd_soc_component_driver swr_haptics_component = {
 	.name = "swr-haptics",
@@ -563,10 +665,20 @@ static int swr_haptics_probe(struct swr_device *sdev)
 	swr_hap->slave_vdd = devm_regulator_get(swr_hap->dev, "swr-slave");
 	if (IS_ERR(swr_hap->slave_vdd)) {
 		rc = PTR_ERR(swr_hap->slave_vdd);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+		dev_err(swr_hap->dev, "%s: get swr-slave-supply failed, rc=%d\n",
+				__func__, rc);
+		if (rc != -EPROBE_DEFER)
+			goto clean;
+		else
+			rc = 0;
+#else /* OPLUS_ARCH_EXTENDS */
 		if (rc != -EPROBE_DEFER)
 			dev_err(swr_hap->dev, "%s: get swr-slave-supply failed, rc=%d\n",
 					__func__, rc);
 		goto clean;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
 	if (of_find_property(node, "qcom,hpwr-supply", NULL)) {
@@ -602,10 +714,27 @@ static int swr_haptics_probe(struct swr_device *sdev)
 	} while (rc && --retry);
 
 	if (rc) {
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for decouple haptics driver from snd card */
+		dev_err(swr_hap->dev, "%s: failed to get devnum for swr-haptics, rc=%d, devnum=%d\n",
+				__func__, rc, devnum);
+		if (haptics_probe_retry < 5) {
+			haptics_probe_retry++;
+			rc = -EPROBE_DEFER;
+			goto dev_err;
+		}
+
+		rc = snd_soc_register_component(&sdev->dev,
+				&dummy_swr_haptics_component, dummy_haptics_dai, ARRAY_SIZE(dummy_haptics_dai));
+		haptics_probe_retry = 0;
+		goto dev_err;
+
+#else /* OPLUS_ARCH_EXTENDS */
 		dev_err(swr_hap->dev, "%s: failed to get devnum for swr-haptics, rc=%d\n",
 				__func__, rc);
 		rc = -EPROBE_DEFER;
 		goto dev_err;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
 	sdev->dev_num = devnum;

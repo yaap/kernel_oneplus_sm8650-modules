@@ -3175,7 +3175,12 @@ static int wcd937x_reset(struct device *dev)
 	if (rc) {
 		dev_err(dev, "%s: wcd sleep state request fail!\n",
 				__func__);
+#ifndef OPLUS_ARCH_EXTENDS
+		/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+		return rc;
+#else /* OPLUS_ARCH_EXTENDS */
 		return -EPROBE_DEFER;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	/* 20ms sleep required after pulling the reset gpio to LOW */
 	usleep_range(20, 30);
@@ -3184,7 +3189,12 @@ static int wcd937x_reset(struct device *dev)
 	if (rc) {
 		dev_err(dev, "%s: wcd active state request fail!\n",
 				__func__);
+#ifndef OPLUS_ARCH_EXTENDS
+		/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+		return rc;
+#else /* OPLUS_ARCH_EXTENDS */
 		return -EPROBE_DEFER;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	/* 20ms sleep required after pulling the reset gpio to HIGH */
 	usleep_range(20, 30);
@@ -3408,11 +3418,16 @@ static int wcd937x_bind(struct device *dev)
 		goto err_bind_all;
 	}
 
+#ifndef OPLUS_ARCH_EXTENDS
+	/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+	wcd937x_reset(dev);
+#else /* OPLUS_ARCH_EXTENDS */
 	ret = wcd937x_reset(dev);
 	if (ret == -EPROBE_DEFER) {
 		dev_err(dev, "%s: wcd reset failed!\n", __func__);
 		goto err_bind_all;
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
 	/*
 	 * Add 5msec delay to provide sufficient time for
 	 * soundwire auto enumeration of slave devices as

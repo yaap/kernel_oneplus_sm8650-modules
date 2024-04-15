@@ -35,6 +35,21 @@
 #include <linux/soc/qcom/wcd939x-i2c.h>
 #endif
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb_delay
+#endif
+#ifdef dev_err_ratelimited
+#undef dev_err_ratelimited
+#define dev_err_ratelimited dev_err_ratelimited_fb_delay
+#endif
+#ifdef pr_err
+#undef pr_err
+#define pr_err pr_err_fb_delay
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 #define NUM_SWRS_DT_PARAMS 5
 #define WCD939X_VARIANT_ENTRY_SIZE 32
@@ -4706,7 +4721,12 @@ static int wcd939x_reset(struct device *dev)
 	if (rc) {
 		dev_err_ratelimited(dev, "%s: wcd sleep state request fail!\n",
 				__func__);
+#ifndef OPLUS_ARCH_EXTENDS
+		/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+		return rc;
+#else /* OPLUS_ARCH_EXTENDS */
 		return -EPROBE_DEFER;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	/* 20us sleep required after pulling the reset gpio to LOW */
 	usleep_range(80, 85);
@@ -4715,7 +4735,12 @@ static int wcd939x_reset(struct device *dev)
 	if (rc) {
 		dev_err_ratelimited(dev, "%s: wcd active state request fail!\n",
 				__func__);
+#ifndef OPLUS_ARCH_EXTENDS
+		/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+		return rc;
+#else /* OPLUS_ARCH_EXTENDS */
 		return -EPROBE_DEFER;
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	/* 20us sleep required after pulling the reset gpio to HIGH */
 	usleep_range(80, 85);
@@ -5497,11 +5522,16 @@ static int wcd939x_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_lock_init;
 
+#ifndef OPLUS_ARCH_EXTENDS
+	/* fix wcd prob err when msm-cdc-pinctrl prob delay,CR3717597 */
+	wcd939x_reset(dev);
+#else /* OPLUS_ARCH_EXTENDS */
 	ret = wcd939x_reset(dev);
 	if (ret == -EPROBE_DEFER) {
 		dev_err(dev, "%s: wcd reset failed!\n", __func__);
 		goto err_lock_init;
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	wcd939x->wakeup = wcd939x_wakeup;
 

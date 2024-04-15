@@ -65,3 +65,8 @@ PRODUCT_PACKAGES  += $(KERNEL_MODULES_OUT)/machine_dlkm.ko \
         $(KERNEL_MODULES_OUT)/stub_dlkm.ko
 endif   #msmnile
 endif
+
+#ifdef OPLUS_ARCH_EXTENDS
+#add for oplus audio extends driver
+-include $(TOP)/vendor/qcom/opensource/audio-kernel/oplus/oplus_audio_kernel_product_board.mk
+#endif /* OPLUS_ARCH_EXTENDS */

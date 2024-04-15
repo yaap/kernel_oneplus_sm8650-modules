@@ -79,6 +79,11 @@ ifeq ($(KERNEL_BUILD), 0)
 	ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
+#ifdef OPLUS_ARCH_EXTENDS
+#Add for audio extend driver
+		-include $(AUDIO_ROOT)/oplus/config/opluspineappleauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/oplus/config/opluspineappleautoconf.h
+#endif /* OPLUS_ARCH_EXTENDS */
 	endif
 	ifeq ($(CONFIG_ARCH_PITTI), y)
 		include $(AUDIO_ROOT)/config/pittiauto.conf
