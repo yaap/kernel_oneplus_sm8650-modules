@@ -371,7 +371,9 @@ int cnss_set_pci_link(struct cnss_pci_data *pci_priv, bool link_up)
 	plat_priv = pci_priv->plat_priv;
 	sw_ctrl_gpio = plat_priv->pinctrl_info.sw_ctrl_gpio;
 
+	#ifndef OPLUS_BUG_STABILITY
 	cnss_pr_vdbg("%s PCI link\n", link_up ? "Resuming" : "Suspending");
+	#endif /* OPLUS_BUG_STABILITY */
 
 	if (link_up) {
 retry:

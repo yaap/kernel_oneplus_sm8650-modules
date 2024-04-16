@@ -4026,6 +4026,10 @@ int cnss_pci_resume_bus(struct cnss_pci_data *pci_priv)
 {
 	struct pci_dev *pci_dev = pci_priv->pci_dev;
 	int ret = 0;
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH*/
 
 	if (pci_priv->pci_link_state == PCI_LINK_UP)
 		goto out;
@@ -4033,9 +4037,21 @@ int cnss_pci_resume_bus(struct cnss_pci_data *pci_priv)
 	if (cnss_set_pci_link(pci_priv, PCI_LINK_UP)) {
 		cnss_fatal_err("Failed to resume PCI link from suspend\n");
 		cnss_pci_link_down(&pci_dev->dev);
+		#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+		//Add for wifi switch monitor
+		if (plat_priv) {
+			set_bit(CNSS_PCIE_LINK_DOWN,&plat_priv->pcieLinkDown);
+		}
+		#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 		ret = -EAGAIN;
 		goto out;
 	}
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+		if (plat_priv) {
+			set_bit(CNSS_PCIE_LINK_UP,&plat_priv->pcieLinkDown);
+		}
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 	pci_priv->pci_link_state = PCI_LINK_UP;
 
@@ -4291,9 +4307,9 @@ static int cnss_pci_runtime_resume(struct device *dev)
 		cnss_pr_dbg("PCI link down recovery is in progress!\n");
 		return -EAGAIN;
 	}
-
+	#ifndef OPLUS_BUG_STABILITY
 	cnss_pr_vdbg("Runtime resume start\n");
-
+	#endif /* OPLUS_BUG_STABILITY */
 	driver_ops = pci_priv->driver_ops;
 	if (driver_ops && driver_ops->runtime_ops &&
 	    driver_ops->runtime_ops->runtime_resume)
@@ -6103,10 +6119,19 @@ int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv)
 	ret = cnss_pci_check_link_status(pci_priv);
 	if (ret) {
 		cnss_pci_link_down(&pci_priv->pci_dev->dev);
+		#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+		//Add for wifi switch monitor
+		set_bit(CNSS_PCIE_LINK_DOWN,&plat_priv->pcieLinkDown);
+		#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 		cnss_pci_pm_runtime_mark_last_busy(pci_priv);
 		cnss_pci_pm_runtime_put_autosuspend(pci_priv, RTPM_ID_CNSS);
 		return 0;
 	}
+
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+	set_bit(CNSS_PCIE_LINK_UP,&plat_priv->pcieLinkDown);
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 	/*
 	 * Fist try MHI SYS_ERR, if fails try HOST SOL and return.
@@ -7747,6 +7772,10 @@ retry:
 			cnss_pr_dbg("Retry PCI link training #%d\n", retry);
 			goto retry;
 		} else {
+			#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+			//Add for wifi switch monitor
+			set_bit(CNSS_PCIE_ENUM_FAIL, &plat_priv->pcieEnumState);
+			#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 			goto out;
 		}
 	}
@@ -7798,7 +7827,10 @@ int cnss_pci_init(struct cnss_plat_data *plat_priv)
 		}
 		cnss_driver_registered = true;
 	}
-
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+	set_bit(CNSS_PCIE_ENUM_SUCCESS, &plat_priv->pcieEnumState);
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 	return 0;
 
 unreg_pci:

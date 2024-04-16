@@ -50,9 +50,18 @@ extern enum log_level cnss_ipc_log_level;
 #define proc_name (in_irq() ? "irq" : \
 		   (in_softirq() ? "soft_irq" : current->comm))
 
+#ifndef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
 #define cnss_pr_err(_fmt, ...) \
 	cnss_debug_log_print(proc_name, __func__, \
 			     ERR_LOG, ERR_LOG, _fmt, ##__VA_ARGS__)
+#else
+#define cnss_pr_err(_fmt, ...) do {					\
+	cnss_debug_log_print(proc_name, __func__,		\
+			      ERR_LOG, ERR_LOG, _fmt, ##__VA_ARGS__);		\
+	oplus_cnss_error_log_add(_fmt, ##__VA_ARGS__);			\
+} while (0)
+#endif  /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 #define cnss_pr_warn(_fmt, ...) \
 	cnss_debug_log_print(proc_name, __func__, \
@@ -105,4 +114,9 @@ void cnss_debugfs_destroy(struct cnss_plat_data *plat_priv);
 void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 			      enum log_level kern_log_level,
 			      enum log_level ipc_log_level, char *fmt, ...);
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
+void oplus_cnss_error_log_add(char *fmt, ...);
+#endif  /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 #endif /* _CNSS_DEBUG_H */
