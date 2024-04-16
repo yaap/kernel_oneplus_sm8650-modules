@@ -1067,7 +1067,11 @@ static int __noc_error_info_iris33(struct msm_vidc_core *core)
 
 fail_deassert_xo_reset:
 fail_assert_xo_reset:
-	MSM_VIDC_FATAL(true);
+//#ifndef OPLUS_BUG_STABILITY
+//	MSM_VIDC_FATAL(true);
+//#else
+	MSM_VIDC_FATAL(false);
+//#endif /* OPLUS_BUG_STABILITY */
 	return rc;
 }
 
