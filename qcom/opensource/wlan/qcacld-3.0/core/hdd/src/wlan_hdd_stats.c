@@ -7451,6 +7451,31 @@ static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 	link_info->rssi = link_info->hdd_stats.summary_stat.rssi;
 	link_info->snr = link_info->hdd_stats.summary_stat.snr;
 	snr = link_info->snr;
+#ifdef OPLUS_FEATURE_WIFI_SIGNAL
+//Add for:Avoid upload invalid RSSI to upper layer when a new connection established.
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
+	{
+#define HW_VALID_RSSI_THRESHOLD (-90)
+		bool isValidRssi = true;
+		int i = 0;
+		if (link_info->rssi < HW_VALID_RSSI_THRESHOLD) {
+			for (i = 0; i < NUM_CHAINS_MAX; i++) {
+				if (link_info->hdd_stats.per_chain_rssi_stats.rssi[i] != WLAN_HDD_TGT_NOISE_FLOOR_DBM)
+					break;
+			}
+			if (i == NUM_CHAINS_MAX)
+				isValidRssi = false;
+		}
+
+		if (!isValidRssi) {
+			hdd_debug("get invalid RSSI from FW, use RSSI from scan result! HW combined RSSI=%d, Chain RSSI=%d.",
+				link_info->rssi, link_info->hdd_stats.per_chain_rssi_stats.rssi[0]);
+			link_info->rssi = 0;
+		}
+#undef HW_VALID_RSSI_THRESHOLD
+	}
+#endif
+#endif /* OPLUS_FEATURE_WIFI_SIGNAL */
 
 	/* for new connection there might be no valid previous RSSI */
 	if (!link_info->rssi) {
@@ -7459,12 +7484,21 @@ static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 					  &link_info->rssi, &snr);
 	}
 
+#ifndef OPLUS_FEATURE_WIFI_SIGNAL
+//Add for:Avoid upload RSSI 0dbm to upper layer shows as -128dbm of MLO link.
 	/* If RSSi is reported as positive then it is invalid */
 	if (link_info->rssi >= 0) {
 		hdd_debug_rl("Invalid RSSI %d, reset to -1", link_info->rssi);
 		link_info->rssi = -1;
 		link_info->hdd_stats.summary_stat.rssi = -1;
 	}
+#else
+	if (link_info->rssi >= 0) {
+		hdd_debug_rl("oplus RSSI invalid %d", link_info->rssi);
+		link_info->rssi = -1;
+		link_info->hdd_stats.summary_stat.rssi = -1;
+	}
+#endif /* OPLUS_FEATURE_WIFI_SIGNAL */
 
 	sinfo->signal = link_info->rssi;
 	hdd_debug("snr: %d, rssi: %d",

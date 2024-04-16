@@ -36,6 +36,17 @@
 
 /* Preprocessor definitions and constants */
 
+#ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
+//Add for softap connect fail monitor
+void hostapdConnUeventInit(void);
+void hostapdConnUeventDeinit(void);
+void hostapdConnSendUevent(char *envp[]);
+void hostapd_driver_send_uevent(struct hdd_adapter *sta_adapter,
+                                uint32_t reasoncode,
+                                uint8_t *macaddr,
+                                eSapDisassocReason reason);
+#endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
+
 struct hdd_adapter *hdd_wlan_create_ap_dev(struct hdd_context *hdd_ctx,
 				      tSirMacAddr macAddr,
 				      unsigned char name_assign_type,
@@ -504,4 +515,11 @@ bool hdd_sap_is_acs_in_progress(struct wlan_objmgr_vdev *vdev)
 	return false;
 }
 #endif
+
+#ifdef OPLUS_BUG_STABILITY
+// Add for: hotspot manager
+int oplus_wlan_hdd_modify_acl(struct net_device *dev, char *extra);
+int oplus_wlan_hdd_set_max_assoc(struct net_device *dev, char *extra);
+#endif /* OPLUS_BUG_STABILITY */
+
 #endif /* end #if !defined(WLAN_HDD_HOSTAPD_H) */
