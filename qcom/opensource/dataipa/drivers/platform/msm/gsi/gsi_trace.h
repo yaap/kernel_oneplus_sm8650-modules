@@ -49,7 +49,7 @@ TRACE_EVENT(
 /* This part must be outside protection */
 #ifndef GSI_TRACE_INCLUDE_PATH
 #ifdef CONFIG_IPA_VENDOR_DLKM
-#define GSI_TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/dataipa/drivers/platform/msm/gsi
+#define GSI_TRACE_INCLUDE_PATH ../../../../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/gsi
 #else
 #define GSI_TRACE_INCLUDE_PATH ../../techpack/dataipa/drivers/platform/msm/gsi
 #endif

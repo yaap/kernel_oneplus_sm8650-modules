@@ -28,7 +28,7 @@ KBUILD_OPTIONS += CONFIG_CNSS_UTILS=m
 KBUILD_OPTIONS += CONFIG_CNSS_HW_SECURE_DISABLE=y
 KBUILD_OPTIONS += CONFIG_BUS_AUTO_SUSPEND=y
 
-KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(ANDROID_BUILD_TOP)/out/vendor/qcom/opensource/securemsm-kernel/Module.symvers
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(OUT_DIR)/../sm8650-modules/qcom/opensource/securemsm-kernel/Module.symvers
 endif
 
 all: modules

@@ -11,7 +11,7 @@
 
 /* Path must be relative to location of 'define_trace.h' header in kernel */
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH ../../../../vendor/qcom/opensource/mm-sys-kernel/ubwcp
+#define TRACE_INCLUDE_PATH ../../../../../sm8650-modules/qcom/opensource/mm-sys-kernel/ubwcp
 
 /* Name of trace header file */
 #undef TRACE_INCLUDE_FILE
