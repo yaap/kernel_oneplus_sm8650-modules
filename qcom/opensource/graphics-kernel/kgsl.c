@@ -38,6 +38,12 @@
 #include "kgsl_sync.h"
 #include "kgsl_sysfs.h"
 #include "kgsl_trace.h"
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
+#include "sys-memstat.h"
+#include "common.h"
+#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
+
 /* Instantiate tracepoints */
 #define CREATE_TRACE_POINTS
 #include "kgsl_power_trace.h"
@@ -606,6 +612,100 @@ static void kgsl_context_debug_info(struct kgsl_device *device)
 {
 }
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
+
+void dump_kgsl_process_mem_detail(struct kgsl_process_private *priv);
+
+static int kgsl_procinfo_show(struct seq_file *s, void *unused)
+{
+	struct kgsl_process_private *p;
+	int type = KGSL_MEM_ENTRY_KERNEL;
+
+	seq_printf(s, "%-5s %-8s %-8s %-8s\n",
+		   "pid", "size", "mapped", "comm");
+
+	read_lock(&kgsl_driver.proclist_lock);
+	list_for_each_entry(p, &kgsl_driver.process_list, list) {
+		seq_printf(s, "%-5d %-8lu %-8lu %-16s\n", pid_nr(p->pid),
+			   atomic64_read(&p->stats[type].cur) / SZ_1K,
+			   atomic64_read(&p->gpumem_mapped) / SZ_1K, p->comm);
+	}
+	read_unlock(&kgsl_driver.proclist_lock);
+
+	seq_printf(s, "\nTotal %zu kB\n",
+		   atomic_long_read(&kgsl_driver.stats.page_alloc) / SZ_1K);
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(kgsl_procinfo);
+
+long read_kgsl_mem_usage(enum mtrack_subtype type)
+{
+	if (type == MTRACK_GPU_TOTAL)
+		return atomic_long_read(&kgsl_driver.stats.page_alloc) >> PAGE_SHIFT;
+
+	return 0;
+}
+
+void dump_kgsl_usage_stat(bool verbose)
+{
+    uint64_t sz = 0;
+    uint64_t max_sz = 0;
+    struct kgsl_process_private *p = NULL;
+    struct kgsl_process_private *max_sz_of_proc = NULL;
+    int type = KGSL_MEM_ENTRY_KERNEL;
+    osvelte_info("======= %s\n", __func__);
+    osvelte_info("%-16s %-5s size\n", "comm", "pid");
+    read_lock(&kgsl_driver.proclist_lock);
+    list_for_each_entry(p, &kgsl_driver.process_list, list) {
+        sz = atomic64_read(&p->stats[type].cur);
+        if (sz >= max_sz) {
+            max_sz = sz;
+            max_sz_of_proc = p;
+        }
+        osvelte_info("%-16s %-5d %zu\n", p->comm, pid_nr(p->pid), sz / SZ_1K);
+    }
+    if( kgsl_process_private_get(max_sz_of_proc) == 0){
+        read_unlock(&kgsl_driver.proclist_lock);
+        return;
+    }
+
+    read_unlock(&kgsl_driver.proclist_lock);
+    if (max_sz >= SZ_2G) {
+            osvelte_info(
+                    "%-5d is max usage and over 2G, its memtype detail is blow\n",
+                    pid_nr(max_sz_of_proc->pid));
+            dump_kgsl_process_mem_detail(max_sz_of_proc);
+    }
+    kgsl_process_private_put(max_sz_of_proc);
+}
+
+long read_pid_kgsl_mem_usage(enum mtrack_subtype mtype, pid_t pid)
+{
+	struct kgsl_process_private *p;
+	int type = KGSL_MEM_ENTRY_KERNEL;
+	unsigned long sz = 0;
+
+	if (unlikely(mtype != MTRACK_GPU_PROC_KERNEL))
+		return 0;
+
+	read_lock(&kgsl_driver.proclist_lock);
+	list_for_each_entry(p, &kgsl_driver.process_list, list) {
+		if (pid_nr(p->pid) == pid) {
+			sz = atomic64_read(&p->stats[type].cur) >> PAGE_SHIFT;
+			break;
+		}
+	}
+	read_unlock(&kgsl_driver.proclist_lock);
+	return sz;
+}
+
+static struct mtrack_debugger kgsl_mtrack_debugger = {
+	.mem_usage = read_kgsl_mem_usage,
+	.pid_mem_usage = read_pid_kgsl_mem_usage,
+	.dump_usage_stat = dump_kgsl_usage_stat,
+};
+#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
 
 /**
  * kgsl_context_dump() - dump information about a draw context
@@ -5250,6 +5350,12 @@ void kgsl_core_exit(void)
 		ARRAY_SIZE(kgsl_driver.devp));
 
 	sysstats_unregister_kgsl_stats_cb();
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
+	unregister_mtrack_debugger(MTRACK_GPU, &kgsl_mtrack_debugger);
+	unregister_mtrack_procfs(MTRACK_GPU, "procinfo");
+#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
+
 }
 
 int __init kgsl_core_init(void)
@@ -5360,6 +5466,11 @@ int __init kgsl_core_init(void)
 		GFP_KERNEL);
 
 	sysstats_register_kgsl_stats_cb(kgsl_get_stats);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_OSVELTE)
+	register_mtrack_debugger(MTRACK_GPU, &kgsl_mtrack_debugger);
+	register_mtrack_procfs(MTRACK_GPU, "procinfo", 0444, &kgsl_procinfo_proc_ops, NULL);
+#endif /* CONFIG_OPLUS_FEATURE_MM_OSVELTE */
 
 	KGSL_BOOT_MARKER("KGSL Ready");
 

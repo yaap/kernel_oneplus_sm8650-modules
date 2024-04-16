@@ -314,6 +314,10 @@ struct kgsl_device {
 	spinlock_t timelines_lock;
 	/** @fence_trace_array: A local trace array for fence debugging */
 	struct trace_array *fence_trace_array;
+#ifdef CONFIG_OPLUS_GPU_MINIDUMP
+	bool snapshot_control;
+	int snapshotfault;
+#endif /* CONFIG_OPLUS_GPU_MINIDUMP */
 	/** @l3_vote: Enable/Disable l3 voting */
 	bool l3_vote;
 	/** @pdev_loaded: Flag to test if platform driver is probed */
@@ -601,6 +605,9 @@ struct kgsl_snapshot {
 	bool first_read;
 	bool recovered;
 	struct kgsl_device *device;
+#ifdef CONFIG_OPLUS_GPU_MINIDUMP
+	char snapshot_hashid[96];
+#endif /* CONFIG_OPLUS_GPU_MINIDUMP */
 };
 
 /**
@@ -960,6 +967,28 @@ void kgsl_process_private_put(struct kgsl_process_private *private);
 
 
 struct kgsl_process_private *kgsl_process_private_find(pid_t pid);
+
+#ifdef CONFIG_OPLUS_GPU_MINIDUMP
+/**
+ * kgsl_sysfs_store() - parse a string from a sysfs store function
+ * @buf: Incoming string to parse
+ * @ptr: Pointer to an unsigned int to store the value
+ */
+static inline int kgsl_sysfs_store(const char *buf, unsigned int *ptr)
+{
+	unsigned int val;
+	int rc;
+
+	rc = kstrtou32(buf, 0, &val);
+	if (rc)
+		return rc;
+
+	if (ptr)
+		*ptr = val;
+
+	return 0;
+}
+#endif /* CONFIG_OPLUS_GPU_MINIDUMP */
 
 /*
  * A helper macro to print out "not enough memory functions" - this

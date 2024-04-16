@@ -1875,6 +1875,10 @@ static bool adreno_hwsched_do_fault(struct adreno_device *adreno_dev)
 
 	mutex_lock(&device->mutex);
 
+#ifdef CONFIG_OPLUS_GPU_MINIDUMP
+	device->snapshotfault = fault;
+#endif /*CONFIG_OPLUS_GPU_MINIDUMP*/
+
 	if (test_bit(ADRENO_HWSCHED_CTX_BAD_LEGACY, &hwsched->flags))
 		adreno_hwsched_reset_and_snapshot_legacy(adreno_dev, fault);
 	else
