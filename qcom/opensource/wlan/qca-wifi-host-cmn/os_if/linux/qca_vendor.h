@@ -1116,12 +1116,34 @@ enum qca_nl80211_vendor_subcmds {
 	QCA_NL80211_VENDOR_SUBCMD_TID_TO_LINK_MAP = 229,
 	QCA_NL80211_VENDOR_SUBCMD_LINK_RECONFIG = 230,
 	QCA_NL80211_VENDOR_SUBCMD_TDLS_DISC_RSP_EXT = 231,
+	#ifdef OPLUS_BUG_STABILITY
+	// We need a common value to let this function work on different QCOM platform,
+	// which may have different SUBCMD defination, so assign a more large number for
+	// OPLUS command
+	OPLUS_NL80211_VENDOR_SUBCMD_MODIFY_ACL = 1001,
+	OPLUS_NL80211_VENDOR_SUBCMD_SET_MAX_ASSOC = 1002,
+	#endif /* OPLUS_BUG_STABILITY */
 	QCA_NL80211_VENDOR_SUBCMD_AUDIO_TRANSPORT_SWITCH = 232,
 	QCA_NL80211_VENDOR_SUBCMD_TX_LATENCY = 233,
 	QCA_NL80211_VENDOR_SUBCMD_RECONFIG_REMOVE_COMPLETE_EVENT = 234,
 	QCA_NL80211_VENDOR_SUBCMD_REGULATORY_TPC_INFO = 237,
 	QCA_NL80211_VENDOR_SUBCMD_FW_PAGE_FAULT_REPORT = 238,
 };
+
+#ifdef OPLUS_BUG_STABILITY
+// add for: OPLUS specific attr
+enum oplus_vendor_attr {
+    OPLUS_WLAN_VENDOR_ATTR_UNSPECIFIC = 0, /* cannot be use due to nla_parse() */
+    OPLUS_WLAN_VENDOR_ATTR_MAC_ADDR,
+    OPLUS_WLAN_VENDOR_ATTR_WETHER_BLOCK_CLIENT,
+    OPLUS_WLAN_VENDOR_ATTR_SAP_MAX_CLIENT_NUM,
+
+    /* add attr above */
+    OPLUS_WLAN_VENDOR_ATTR_LAST,
+    OPLUS_WLAN_VENDOR_ATTR_MAX =
+          OPLUS_WLAN_VENDOR_ATTR_LAST - 1,
+};
+#endif /* OPLUS_BUG_STABILITY */
 
 enum qca_wlan_vendor_tos {
 	QCA_WLAN_VENDOR_TOS_BK = 0,
@@ -5731,6 +5753,11 @@ enum qca_wlan_vendor_attr_config {
 	 * Uses enum qca_wlan_emlsr_mode values.
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_EMLSR_MODE_SWITCH = 93,
+
+	//OPLUS_WIFI_VENDOR_EDIT_START
+	//Add for ULL TX 20M
+	QCA_WLAN_VENDOR_ATTR_CONFIG_MAX_TX_BANDWIDTH = 94,
+	//OPLUS_WIFI_VENDOR_EDIT_END
 
 	/* 8-bit unsigned value. This attribute is used to dynamically
 	 * enable/suspend trigger based UL MU transmission.
