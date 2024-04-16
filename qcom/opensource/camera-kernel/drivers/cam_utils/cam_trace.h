@@ -430,6 +430,9 @@ TRACE_EVENT(cam_cci_burst,
 	)
 );
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_trace.h"
+#endif
 #endif /* _CAM_TRACE_H */
 
 /* This part must be outside protection */

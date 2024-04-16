@@ -1849,7 +1849,9 @@ static int cam_sfe_top_handle_irq_bottom_half(
 	struct cam_sfe_path_data           *path_data = res->res_priv;
 	struct cam_sfe_top_priv            *top_priv = path_data->top_priv;
 	struct cam_sfe_top_irq_evt_payload *payload = evt_payload_priv;
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	struct cam_isp_hw_event_info        evt_info;
+#endif
 	for (i = 0; i < CAM_SFE_IRQ_REGISTERS_MAX; i++)
 		irq_status[i] = payload->irq_reg_val[i];
 
@@ -1879,7 +1881,16 @@ static int cam_sfe_top_handle_irq_bottom_half(
 				cam_sfe_top_sel_frame_counter(
 					res->res_id, &frame_cnt,
 					true, path_data);
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if (top_priv->event_cb) {
+				evt_info.hw_type = CAM_ISP_HW_TYPE_SFE;
+				evt_info.hw_idx   = res->hw_intf->hw_idx;
+				evt_info.res_id   = res->res_id;
+				evt_info.res_type = res->res_type;
+				top_priv->event_cb(top_priv->priv_per_stream,
+					CAM_ISP_HW_EVENT_SOF, (void *)&evt_info);
+			}
+#endif
 			cam_sfe_top_dump_perf_counters("SOF", res->res_name, top_priv);
 		}
 
@@ -1888,7 +1899,16 @@ static int cam_sfe_top_handle_irq_bottom_half(
 			CAM_DBG(CAM_SFE, "SFE:%d Received %s EOF",
 				res->hw_intf->hw_idx,
 				res->res_name);
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if (top_priv->event_cb) {
+				evt_info.hw_type = CAM_ISP_HW_TYPE_SFE;
+				evt_info.hw_idx   = res->hw_intf->hw_idx;
+				evt_info.res_id   = res->res_id;
+				evt_info.res_type = res->res_type;
+				top_priv->event_cb(top_priv->priv_per_stream,
+					CAM_ISP_HW_EVENT_EOF, (void *)&evt_info);
+			}
+#endif
 			cam_sfe_top_dump_perf_counters("EOF", res->res_name, top_priv);
 		}
 		ret = CAM_SFE_IRQ_STATUS_SUCCESS;

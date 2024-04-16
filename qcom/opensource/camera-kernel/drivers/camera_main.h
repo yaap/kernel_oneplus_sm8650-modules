@@ -37,6 +37,12 @@ extern struct platform_driver cam_sensor_platform_driver;
 extern struct platform_driver cam_eeprom_platform_driver;
 extern struct platform_driver cam_ois_platform_driver;
 extern struct platform_driver cam_tpg_driver;
+/*ifdef OPLUS_FEATURE_CAMERA_COMMON */
+extern struct platform_driver tof_pltf_driver;
+/*end OPLUS_FEATURE_CAMERA_COMMON*/
+/*ifdef OPLUS_FEATURE_CAMERA_COMMON */
+extern struct i2c_driver tof_driver;
+/*end OPLUS_FEATURE_CAMERA_COMMON*/
 extern struct i2c_driver cam_actuator_i2c_driver;
 extern struct i2c_driver cam_flash_i2c_driver;
 extern struct i2c_driver cam_ois_i2c_driver;
@@ -113,6 +119,9 @@ static struct platform_driver *const cam_component_platform_drivers[] = {
 	&cam_sensor_platform_driver,
 	&cam_eeprom_platform_driver,
 	&cam_ois_platform_driver,
+/*ifdef OPLUS_FEATURE_CAMERA_COMMON */
+	&tof_pltf_driver,
+/*end OPLUS_FEATURE_CAMERA_COMMON*/
 	&cam_tpg_driver,
 #if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2) || \
 	IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)

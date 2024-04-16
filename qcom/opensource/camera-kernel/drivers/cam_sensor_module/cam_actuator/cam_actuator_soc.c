@@ -24,6 +24,14 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 	struct device_node              *of_node = NULL;
 	struct device_node              *of_parent = NULL;
 
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	const char                      *p = NULL;
+	uint32_t                        reactive_setting_data[6];
+	uint32_t                        reactive_setting_size;
+	mutex_init(&(a_ctrl->actuator_ioctl_mutex));
+#endif
+
 	/* Initialize mutex */
 	mutex_init(&(a_ctrl->actuator_mutex));
 
@@ -42,6 +50,72 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 	}
 
 	CAM_DBG(CAM_SENSOR, "I3C Target: %s", CAM_BOOL_TO_YESNO(a_ctrl->is_i3c_device));
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	rc = of_property_read_bool(of_node, "is_update_pid");
+	if (rc) {
+		a_ctrl->is_update_pid = true;
+		CAM_INFO(CAM_ACTUATOR, "read is_update_pid success, value:%d", a_ctrl->is_update_pid);
+	} else {
+		a_ctrl->is_update_pid = false;
+		CAM_INFO(CAM_ACTUATOR, "get is_update_pid failed rc:%d, default %d", rc, a_ctrl->is_update_pid);
+	}
+	rc = of_property_read_string_index(of_node, "actuator,name", 0, (const char **)&p);
+	if (rc) {
+		CAM_ERR(CAM_OIS, "get actuator,name failed rc:%d", rc);
+	} else {
+		memcpy(a_ctrl->actuator_name, p, sizeof(a_ctrl->actuator_name));
+		CAM_INFO(CAM_OIS, "read actuator,name success, value:%s", a_ctrl->actuator_name);
+	}
+
+	rc = of_property_read_u32(of_node, "is_af_parklens", &a_ctrl->is_af_parklens);
+	if (rc)
+	{
+		a_ctrl->is_af_parklens = 0;
+		CAM_ERR(CAM_ACTUATOR, "get failed for is_af_parklens = %d",a_ctrl->is_af_parklens);
+	}
+	else
+	{
+		CAM_INFO(CAM_ACTUATOR, "read is_af_parklens success, value:%d", a_ctrl->is_af_parklens);
+	}
+
+	if (!of_property_read_bool(of_node, "reactive-ctrl-support")) {
+		a_ctrl->reactive_ctrl_support = false;
+		CAM_DBG(CAM_ACTUATOR, "No reactive control parameter defined");
+	} else {
+		reactive_setting_size = of_property_count_u32_elems(of_node, "reactive-reg-setting");
+
+		if (reactive_setting_size != 6) {
+			a_ctrl->reactive_ctrl_support = false;
+			CAM_ERR(CAM_ACTUATOR, "reactive control parameter config err!");
+		} else {
+			rc = of_property_read_u32_array(of_node, "reactive-reg-setting",
+					reactive_setting_data, reactive_setting_size);
+
+			a_ctrl->reactive_reg_array.reg_addr  = reactive_setting_data[0];
+			a_ctrl->reactive_setting.addr_type   = reactive_setting_data[1];
+			a_ctrl->reactive_reg_array.reg_data  = reactive_setting_data[2];
+			a_ctrl->reactive_setting.data_type   = reactive_setting_data[3];
+			a_ctrl->reactive_reg_array.delay     = reactive_setting_data[4];
+			a_ctrl->reactive_reg_array.data_mask = reactive_setting_data[5];
+			a_ctrl->reactive_setting.reg_setting = &(a_ctrl->reactive_reg_array);
+			a_ctrl->reactive_setting.size        = 1;
+			a_ctrl->reactive_setting.delay       = 0;
+			a_ctrl->reactive_ctrl_support        = true;
+
+			CAM_INFO(CAM_ACTUATOR,
+				"reactive control support %d, reactive [0x%x %d 0x%x %d %d 0x%x]",
+				a_ctrl->reactive_ctrl_support,
+				a_ctrl->reactive_setting.reg_setting->reg_addr,
+				a_ctrl->reactive_setting.addr_type,
+				a_ctrl->reactive_setting.reg_setting->reg_data,
+				a_ctrl->reactive_setting.data_type,
+				a_ctrl->reactive_setting.reg_setting->delay,
+				a_ctrl->reactive_setting.reg_setting->data_mask);
+		}
+	}
+
+#endif
 
 	if (a_ctrl->io_master_info.master_type == CCI_MASTER) {
 		rc = of_property_read_u32(of_node, "cci-master",

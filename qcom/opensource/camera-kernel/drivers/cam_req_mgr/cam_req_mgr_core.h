@@ -517,6 +517,9 @@ struct cam_req_mgr_core_link {
 	uint32_t                             retry_cnt;
 	bool                                 is_shutdown;
 	uint64_t                             sof_timestamp;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	uint64_t                             shift_timestamp;
+#endif
 	uint64_t                             prev_sof_timestamp;
 	bool                                 dual_trigger;
 	uint32_t trigger_cnt[CAM_REQ_MGR_MAX_TRIGGERS]

@@ -276,6 +276,8 @@ struct cam_isp_comp_record_query {
  * @ctx_index:              acquired context id.
  * @left_hw_idx:            hw index for master core [left]
  * @right_hw_idx:           hw index for slave core [right]
+ * @sfe_left_hw_idx:        hw index for sfe master core [left]
+ * @sfe_right_hw_idx:       hw index for sfe slave core [right]
  * @hw_mgr:                 IFE hw mgr which owns this context
  * @res_list_csid:          CSID resource list
  * @res_list_ife_src:       IFE input resource list
@@ -342,6 +344,10 @@ struct cam_ife_hw_mgr_ctx {
 	uint32_t                                  ctx_index;
 	uint32_t                                  left_hw_idx;
 	uint32_t                                  right_hw_idx;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	uint32_t                                  sfe_left_hw_idx;
+	uint32_t                                  sfe_right_hw_idx;
+#endif
 	struct cam_ife_hw_mgr                    *hw_mgr;
 
 	struct cam_isp_hw_mgr_res                  res_list_ife_in;
@@ -401,6 +407,14 @@ struct cam_ife_hw_mgr_ctx {
 	struct timespec64                          cdm_done_ts;
 	bool                                       is_hw_ctx_acq;
 	uint32_t                                   acq_hw_ctxt_src_dst_map[CAM_ISP_MULTI_CTXT_MAX];
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+    uint64_t                                   rdi0_sof_timestamp;
+    uint64_t                                   rdi0_eof_timestamp;
+    uint64_t                                   rdi1_sof_timestamp;
+    uint64_t                                   active_frame_duration;
+    uint64_t                                   sof_to_sof;
+    uint32_t                                   error_cnt_after_recovery;
+#endif
 };
 
 /**

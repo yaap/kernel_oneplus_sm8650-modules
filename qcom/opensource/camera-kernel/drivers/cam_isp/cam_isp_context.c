@@ -2131,10 +2131,17 @@ static int __cam_isp_handle_deferred_buf_done(
 		}
 
 		if (!bubble_handling) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+                        CAM_WARN_RATE_LIMIT(CAM_ISP,
+                                "Unexpected Buf done for res=0x%x on ctx[%u] link[0x%x] for Req %llu, status=%d, possible bh delays",
+                                req_isp->fence_map_out[j].resource_handle, ctx->ctx_id,
+                                ctx->link_hdl, req->request_id, status);
+#else
 			CAM_WARN(CAM_ISP,
 				"Unexpected Buf done for res=0x%x on ctx[%u] link[0x%x] for Req %llu, status=%d, possible bh delays",
 				req_isp->fence_map_out[j].resource_handle, ctx->ctx_id,
 				ctx->link_hdl, req->request_id, status);
+#endif
 
 			rc = cam_sync_signal(req_isp->fence_map_out[j].sync_id,
 				status, event_cause);
@@ -2236,6 +2243,7 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 			}
 		}
 	}
+	CAM_DBG(CAM_ISP, "finish the addr validation");
 
 	if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
 		comp_grp = &ctx_isp->sfe_bus_comp_grp[done->comp_group_id];
@@ -2384,6 +2392,23 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		if (defer_buf_done) {
 			uint32_t deferred_indx = req_isp->num_deferred_acks;
 			duplicate_defer_buf_done = false;
+
+			CAM_DBG(CAM_ISP,
+				"ctx[%u] link[0x%x]:Deferred info:num_acks=%d,fence_map_index=%d,resource_handle=0x%x,sync_id=%d,num_fence_map_out=%d,req=%lld",
+				ctx->ctx_id, ctx->link_hdl, req_isp->num_deferred_acks, j,
+				req_isp->fence_map_out[j].resource_handle,
+				req_isp->fence_map_out[j].sync_id,
+				req_isp->num_fence_map_out,
+				req->request_id);
+
+			if( req_isp->num_deferred_acks >= CAM_ISP_CTX_RES_MAX)
+			{
+				CAM_DBG(CAM_ISP, "number of defferred acks exceeds the max hw resource ctx[%u] link[0x%x] req %lld :num_acks %d sync_id %d",
+					ctx->ctx_id, ctx->link_hdl, req->request_id,
+					req_isp->num_deferred_acks, req_isp->fence_map_out[j].sync_id);
+				rc = -EINVAL;
+				return rc;
+			}
 
 			for (k = 0; k < req_isp->num_deferred_acks; k++) {
 				def_idx = req_isp->deferred_fence_map_index[k];
@@ -2541,6 +2566,8 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 	}
 
 check_deferred:
+	CAM_DBG(CAM_ISP, "start check_deferred from here");
+
 	if ((unhandled_done.resource_handle > 0) && (!defer_buf_done))
 		__cam_isp_ctx_check_deferred_buf_done(
 			ctx_isp, &unhandled_done, bubble_state);
@@ -2552,11 +2579,14 @@ check_deferred:
 			req->request_id, req_isp->num_acked,
 			req_isp->num_fence_map_out, ctx->ctx_id, ctx->link_hdl);
 	}
+	CAM_DBG(CAM_ISP, "finish check_deferred");
 
 	if (req_isp->num_acked != req_isp->num_fence_map_out)
 		return rc;
 
 	rc = __cam_isp_ctx_handle_buf_done_for_req_list(ctx_isp, req);
+	CAM_DBG(CAM_ISP, "handled the buf done for req list");
+
 	return rc;
 }
 
@@ -3146,6 +3176,9 @@ static int __cam_isp_ctx_notify_sof_in_activated_state(
 	uint64_t last_cdm_done_req = 0;
 	struct cam_isp_hw_epoch_event_data *epoch_done_event_data =
 			(struct cam_isp_hw_epoch_event_data *)evt_data;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	char trace[64] = {0};
+#endif
 
 	if (!evt_data) {
 		CAM_ERR(CAM_ISP, "invalid event data");
@@ -3254,9 +3287,18 @@ notify_only:
 			}
 		}
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_BUBBLE) {
+			request_id = 0;
+			memset(trace, 0, sizeof(trace));
+			snprintf(trace, sizeof(trace), "KMD %d_4 Skip Frame", ctx->link_hdl);
+			trace_int(trace, 0);
+			trace_begin_end("Skip Frame: Req[%lld] CAM_ISP_CTX_ACTIVATED_BUBBLE", req->request_id);
+		}
+#else
 		if (ctx_isp->substate_activated == CAM_ISP_CTX_ACTIVATED_BUBBLE)
 			request_id = 0;
-
+#endif
 		if (request_id != 0)
 			ctx_isp->reported_req_id = request_id;
 

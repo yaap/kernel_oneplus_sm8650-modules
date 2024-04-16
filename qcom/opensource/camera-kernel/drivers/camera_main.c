@@ -24,6 +24,10 @@
 #include "cam_csiphy_dev.h"
 #include "cam_eeprom_dev.h"
 #include "cam_ois_dev.h"
+/*ifdef OPLUS_FEATURE_CAMERA_COMMON */
+#include "tof8801_driver.h"
+#include "tof8801_pdrv.h"
+/*end OPLUS_FEATURE_CAMERA_COMMON*/
 #include "cam_tpg_dev.h"
 #include "cam_flash_dev.h"
 
@@ -91,6 +95,9 @@ static const struct camera_submodule_component camera_base[] = {
 	{&cam_cpas_dev_init_module, &cam_cpas_dev_exit_module},
 	{&cam_cdm_intf_init_module, &cam_cdm_intf_exit_module},
 	{&cam_hw_cdm_init_module, &cam_hw_cdm_exit_module},
+/*ifdef OPLUS_FEATURE_CAMERA_COMMON */
+	{&cam_tof8801_driver_init, &cam_tof8801_driver_exit},
+/*end OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 static const struct camera_submodule_component camera_tfe[] = {

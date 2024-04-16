@@ -39,6 +39,30 @@ enum cam_sensor_state_t {
 	CAM_SENSOR_START,
 };
 
+/*add for sensor power up in advance*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+enum cam_sensor_power_state {
+        CAM_SENSOR_POWER_OFF,
+        CAM_SENSOR_POWER_ON,
+};
+
+enum cam_sensor_setting_state {
+        CAM_SENSOR_SETTING_WRITE_INVALID,
+        CAM_SENSOR_SETTING_WRITE_SUCCESS,
+};
+
+struct cam_sensor_qsc_setting {
+	uint32_t                          qsc_reg_addr;
+	uint32_t                          eeprom_slave_addr;
+	uint32_t                          qsc_data_size;
+	uint32_t                          enable_qsc_write_in_advance;
+	uint32_t                          write_qsc_addr;
+	bool                              read_qsc_success;
+	struct cam_sensor_i2c_reg_setting qsc_setting;
+	enum cam_sensor_setting_state     qscsetting_state;
+};
+#endif
+
 /**
  * struct sensor_intf_params
  * @device_hdl: Device Handle
@@ -154,6 +178,18 @@ struct cam_sensor_ctrl_t {
 	bool                           stream_off_after_eof;
 	bool                           is_res_info_updated;
 	bool                           hw_no_ops;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int                            is_support_laser;
+	int                            pid;
+	struct mutex                   sensor_power_state_mutex;
+	struct mutex                   sensor_initsetting_mutex;
+	enum cam_sensor_power_state    sensor_power_state;
+	enum cam_sensor_setting_state  sensor_initsetting_state;
+	struct task_struct             *sensor_open_thread;
+	struct cam_sensor_i2c_reg_setting sensor_init_setting;
+	struct cam_sensor_qsc_setting  sensor_qsc_setting;
+	int                            is_update_wide_to_sleep;
+#endif
 };
 
 /**

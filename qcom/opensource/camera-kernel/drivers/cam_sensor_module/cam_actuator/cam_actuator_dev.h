@@ -49,6 +49,9 @@ enum cam_actuator_state {
 	CAM_ACTUATOR_ACQUIRE,
 	CAM_ACTUATOR_CONFIG,
 	CAM_ACTUATOR_START,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	CAM_ACTUATOR_LOCK,
+#endif
 };
 
 /**
@@ -120,6 +123,25 @@ struct cam_actuator_ctrl_t {
 	struct cam_actuator_query_cap act_info;
 	struct actuator_intf_params bridge_intf;
 	uint32_t last_flush_req;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	bool is_actuator_ready;
+	struct cam_sensor_i2c_reg_array poll_register;
+	enum camera_sensor_i2c_type addr_type;
+	enum camera_sensor_i2c_type data_type;
+	bool camera_actuator_shake_detect_enable;
+	enum cam_actuator_state cam_act_last_state;
+	struct mutex actuator_ioctl_mutex;
+	struct task_struct *actuator_parklens_thread;
+	uint32_t is_af_parklens;
+	bool is_update_pid;
+	struct task_struct *actuator_update_pid_thread;
+	struct semaphore actuator_sem;
+	bool reactive_ctrl_support;
+	struct cam_sensor_i2c_reg_array reactive_reg_array;
+	struct cam_sensor_i2c_reg_setting reactive_setting;
+	char actuator_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
+#endif
+
 };
 
 /**

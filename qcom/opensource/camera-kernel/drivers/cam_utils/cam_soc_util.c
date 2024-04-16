@@ -3679,12 +3679,21 @@ static int cam_soc_util_dump_cont_reg_range(
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < reg_read->num_values; i++) {
+<<<<<<< HEAD
 		rc = cam_soc_util_reg_addr_validation(reg_map_size,
 			reg_read->offset + (i * sizeof(uint32_t)),
 			"cont_reg_range");
 		if (rc)
 			continue;
 
+=======
+		val = cam_soc_util_r(soc_info, base_idx,
+			(reg_read->offset + (i * sizeof(uint32_t))));
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read");
+#endif
+>>>>>>> d3bb8b72 (oplus)
 		dump_out_buf->dump_data[write_idx++] = reg_read->offset +
 			(i * sizeof(uint32_t));
 		dump_out_buf->dump_data[write_idx++] =
@@ -3774,6 +3783,7 @@ static int cam_soc_util_dump_dmi_reg_range(
 		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 	}
 
+<<<<<<< HEAD
 	rc = cam_soc_util_reg_addr_validation(reg_map_size,
 		dmi_read->dmi_data_read.offset,
 		"dmi_data_read");
@@ -3786,6 +3796,19 @@ static int cam_soc_util_dump_dmi_reg_range(
 				dmi_read->dmi_data_read.offset);
 			dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
 		}
+=======
+	for (i = 0; i < dmi_read->dmi_data_read.num_values; i++) {
+		val = cam_soc_util_r_mb(soc_info, base_idx,
+			dmi_read->dmi_data_read.offset);
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+		if (!val)
+			CAM_WARN(CAM_UTIL, "Possibly fails to read for dmi_data_read");
+#endif
+		dump_out_buf->dump_data[write_idx++] =
+			dmi_read->dmi_data_read.offset;
+		dump_out_buf->dump_data[write_idx++] = val;
+		dump_out_buf->bytes_written += (2 * sizeof(uint32_t));
+>>>>>>> d3bb8b72 (oplus)
 	}
 
 	for (i = 0; i < dmi_read->num_post_writes; i++) {

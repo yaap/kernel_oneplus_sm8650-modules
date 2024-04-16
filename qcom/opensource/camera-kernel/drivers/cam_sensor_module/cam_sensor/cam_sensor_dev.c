@@ -11,6 +11,9 @@
 #include "camera_main.h"
 #include "cam_compat.h"
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_sensor_core.h"
+#endif
 static struct cam_sensor_i3c_sensor_data {
 	struct cam_sensor_ctrl_t                  *s_ctrl;
 	struct completion                          probe_complete;
@@ -71,6 +74,21 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 					"Failed in Driver cmd: %d", rc);
 		}
 		break;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/* Add for AT camera test */
+	case VIDIOC_CAM_FTM_POWNER_DOWN:
+		rc = cam_ftm_power_down(s_ctrl);
+		break;
+	case VIDIOC_CAM_FTM_POWNER_UP:
+		rc = cam_ftm_power_up(s_ctrl);
+		break;
+	case VIDIOC_CAM_SENSOR_STATR:
+		rc = cam_sensor_start(s_ctrl, arg);
+		break;
+	case VIDIOC_CAM_SENSOR_STOP:
+		rc = cam_sensor_stop(s_ctrl);
+		break;
+#endif
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {
 			CAM_ERR(CAM_CORE, "SD shouldn't come from user space");
@@ -93,7 +111,6 @@ static long cam_sensor_init_subdev_do_ioctl(struct v4l2_subdev *sd,
 {
 	struct cam_control cmd_data;
 	int32_t rc = 0;
-
 	if (copy_from_user(&cmd_data, (void __user *)arg,
 		sizeof(cmd_data))) {
 		CAM_ERR(CAM_SENSOR, "Failed to copy from user_ptr=%pK size=%zu",
@@ -282,6 +299,18 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_unlock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_lock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.read_settings.list_head));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.resolution_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.lsc_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.qsc_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.awbotp_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.pdc_settings.list_head));
+	mutex_init(&(s_ctrl->sensor_power_state_mutex));
+	mutex_init(&(s_ctrl->sensor_initsetting_mutex));
+	s_ctrl->sensor_power_state = CAM_SENSOR_POWER_OFF;
+	s_ctrl->sensor_initsetting_state = CAM_SENSOR_SETTING_WRITE_INVALID;
+	s_ctrl->sensor_qsc_setting.qscsetting_state = CAM_SENSOR_SETTING_WRITE_INVALID;
+#endif
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.per_frame[i].list_head));
@@ -473,6 +502,18 @@ static int cam_sensor_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_unlock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.reg_bank_lock_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.read_settings.list_head));
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.resolution_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.lsc_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.qsc_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.awbotp_settings.list_head));
+	INIT_LIST_HEAD(&(s_ctrl->i2c_data.pdc_settings.list_head));
+	mutex_init(&(s_ctrl->sensor_power_state_mutex));
+	mutex_init(&(s_ctrl->sensor_initsetting_mutex));
+	s_ctrl->sensor_power_state = CAM_SENSOR_POWER_OFF;
+	s_ctrl->sensor_initsetting_state = CAM_SENSOR_SETTING_WRITE_INVALID;
+#endif
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.per_frame[i].list_head));

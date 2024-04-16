@@ -269,11 +269,34 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_qup_i3c.o \
 	drivers/cam_sensor_module/cam_sensor_io/cam_sensor_spi.o \
 	drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.o \
-	drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.o \
+	drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.o 
+camera-$(CONFIG_SPECTRA_OPLUS) += \
+	drivers/oplus/cam_sensor_module/cam_ois/oplus_cam_ois_soc.o \
+	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_core.o \
+	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_soc.o \
+	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_dev.o \
+	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/fw_download_interface.o \
+	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898124/DownloadCmd.o \
+	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898129/PhoneUpdate.o \
+	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898128/PhoneUpdate128.o \
+	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/BU24721/bu24721_fw.o \
+    drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/SEM1217S/sem1217_fw.o \
+    drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/DW9786/dw9786_fw.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_dev.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_core.o \
 	drivers/cam_sensor_module/cam_flash/cam_flash_soc.o \
-	drivers/cam_sensor_module/cam_sensor_module_debug.o
+	drivers/cam_sensor_module/cam_sensor_module_debug.o \
+	drivers/oplus/cam_sensor_module/cam_tof8801/tof8801_pdrv.o \
+	drivers/oplus/cam_sensor_module/cam_tof8801/tof8801_driver.o \
+	drivers/oplus/cam_sensor_module/cam_tof8801/tof8801_bootloader.o \
+	drivers/oplus/cam_sensor_module/cam_tof8801/tof_hex_interpreter.o \
+	drivers/oplus/cam_sensor_module/cam_tof8801/tof8801_app0.o \
+	drivers/oplus/cam_sensor_module/cam_utils/oplus_cam_kevent_fb.o
+
+camera-$(CONFIG_SPECTRA_OPLUS) += \
+	drivers/oplus/cam_sensor_module/cam_sensor/oplus_cam_sensor_core.o \
+	drivers/oplus/cam_sensor_module/cam_actuator/oplus_cam_actuator_core.o \
+	drivers/oplus/cam_sensor_module/cam_actuator/oplus_cam_actuator_dev.o \
 
 camera-$(CONFIG_SPECTRA_CUSTOM) += \
 	drivers/cam_cust/cam_custom_hw_mgr/cam_custom_hw1/cam_custom_sub_mod_soc.o \

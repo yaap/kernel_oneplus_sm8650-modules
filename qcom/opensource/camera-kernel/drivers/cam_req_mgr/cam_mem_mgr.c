@@ -1491,7 +1491,7 @@ int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd_v2 *cmd)
 
 	dmabuf = dma_buf_get(cmd->fd);
 	if (IS_ERR_OR_NULL((void *)(dmabuf))) {
-		CAM_ERR(CAM_MEM, "Failed to import dma_buf fd");
+		CAM_ERR(CAM_MEM, "Failed to import dma_buf fd %d %d", cmd->fd, PTR_ERR((void *)(dmabuf)));
 		return -EINVAL;
 	}
 

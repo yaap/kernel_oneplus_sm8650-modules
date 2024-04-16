@@ -282,7 +282,11 @@ static const struct cam_ife_csid_top_irq_desc cam_ife_csid_880_top_irq_desc[][32
 		},
 		{
 			.bitmask  = BIT(19),
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			.err_type = CAM_ISP_HW_ERROR_VOTE_UP_LATE,
+#else
 			.err_type = CAM_ISP_HW_ERROR_RECOVERY_OVERFLOW,
+#endif
 			.err_name = "ERROR_VOTE_UP_LATE",
 			.desc = "vote_up is asserted at the same time as an SOF",
 			.err_handler = cam_ife_csid_hw_ver2_drv_err_handler,

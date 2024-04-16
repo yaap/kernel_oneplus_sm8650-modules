@@ -1002,4 +1002,8 @@ struct cam_synx_test_params {
 	} u;
 } __attribute__((__packed__));
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+    #include "oplus/media/oplus_cam_defs.h"
+#endif
+
 #endif /* __UAPI_CAM_DEFS_H__ */

@@ -407,6 +407,9 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 		CAM_DBG(CAM_EEPROM, "get for regulator %s",
 			soc_info->rgltr_name[i]);
 	}
+ #ifdef OPLUS_FEATURE_CAMERA_COMMON
+	cam_eeprom_parse_dt_oem(e_ctrl, of_node);
+ #endif
 
 	return rc;
 }

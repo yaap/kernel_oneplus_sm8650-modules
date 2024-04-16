@@ -254,8 +254,13 @@ static int32_t cam_get_source_node_info(
 				"qcom,current-ma",
 				&soc_private->torch_op_current[i]);
 			if (rc < 0) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				CAM_DBG(CAM_FLASH,
+					"op-current prop unavailable: %d", rc);
+#else
 				CAM_WARN(CAM_FLASH,
 					"op-current prop unavailable: %d", rc);
+#endif
 				rc = 0;
 			}
 

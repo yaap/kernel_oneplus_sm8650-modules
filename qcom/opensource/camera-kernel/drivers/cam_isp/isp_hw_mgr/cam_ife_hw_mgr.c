@@ -44,6 +44,9 @@
 	(CAM_ISP_GENERIC_BLOB_TYPE_CSID_QCFA_CONFIG + 1)
 
 #define MAX_INTERNAL_RECOVERY_ATTEMPTS    1
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define MAX_ERROR_CNT_AFTER_RECOVERY      3
+#endif
 
 #define MAX_PARAMS_FOR_IRQ_INJECT     5
 #define IRQ_INJECT_DISPLAY_BUF_LEN    4096
@@ -947,7 +950,11 @@ static bool cam_ife_hw_mgr_is_sfe_rd_res(
 
 static int cam_ife_hw_mgr_reset_csid(
 	struct cam_ife_hw_mgr_ctx  *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int reset_type, bool power_on_rst)
+#else
 	int reset_type)
+#endif
 {
 	int i;
 	int rc = 0;
@@ -973,6 +980,9 @@ static int cam_ife_hw_mgr_reset_csid(
 
 			reset_args.reset_type = reset_type;
 			reset_args.node_res = hw_mgr_res->hw_res[i];
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			reset_args.power_on_reset = power_on_rst;
+#endif
 			rc  = hw_intf->hw_ops.reset(hw_intf->hw_priv,
 				&reset_args, sizeof(reset_args));
 			if (rc)
@@ -1193,9 +1203,13 @@ static void cam_ife_hw_mgr_deinit_hw(
 	}
 
 	hw_mgr = ctx->hw_mgr;
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (hw_mgr->csid_global_reset_en)
+		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL, false);
+#else
 	if (hw_mgr->csid_global_reset_en)
 		cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_GLOBAL);
+#endif
 
 	/* Deinit IFE CSID */
 	list_for_each_entry(hw_mgr_res, &ctx->res_list_ife_csid, list) {
@@ -1266,6 +1280,9 @@ static int cam_ife_hw_mgr_init_hw(
 	struct cam_ife_hw_mgr_ctx *ctx)
 {
 	struct cam_isp_hw_mgr_res *hw_mgr_res;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	struct cam_ife_hw_mgr     *hw_mgr;
+#endif
 	int rc = 0, i;
 
 	/* INIT IFE SRC */
@@ -1344,6 +1361,17 @@ static int cam_ife_hw_mgr_init_hw(
 			goto deinit;
 		}
 	}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	hw_mgr = ctx->hw_mgr;
+	if (hw_mgr->csid_global_reset_en) {
+		rc = cam_ife_hw_mgr_reset_csid(ctx,
+			CAM_IFE_CSID_RESET_GLOBAL, true);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "CSID reset failed, ctx_idx:%u", ctx->ctx_index);
+			goto deinit;
+		}
+	}
+#endif
 
 	/* Check if any cache needs to be activated */
 	for (i = CAM_LLCC_SMALL_1; i < CAM_LLCC_MAX; i++) {
@@ -2403,6 +2431,9 @@ static int cam_ife_hw_mgr_acquire_res_sfe_out_rdi(
 	sfe_acquire.rsrc_type = CAM_ISP_RESOURCE_SFE_OUT;
 	sfe_acquire.tasklet = ife_ctx->common.tasklet_info;
 	ife_ctx->sfe_out_map[sfe_out_res_id & 0xFF] = ife_ctx->num_acq_sfe_out;
+	CAM_DBG(CAM_ISP, "sfe_out_res_id:0x%x ife_ctx->sfe_out_map[%d]=%lx",
+			sfe_out_res_id, sfe_out_res_id & 0xFF, ife_ctx->num_acq_sfe_out);
+
 	sfe_out_res = &ife_ctx->res_list_sfe_out[ife_ctx->num_acq_sfe_out];
 	for (i = 0; i < in_port->num_out_res; i++) {
 		out_port = &in_port->data[i];
@@ -2489,6 +2520,9 @@ static int cam_ife_hw_mgr_acquire_res_sfe_out_pix(
 			ife_ctx->ctx_index, out_port->res_type);
 
 		ife_ctx->sfe_out_map[k] = ife_ctx->num_acq_sfe_out;
+		CAM_DBG(CAM_ISP, "sfe_out_res_id:0x%x ife_ctx->sfe_out_map[%d]=%lx",
+				out_port->res_type, k, ife_ctx->num_acq_sfe_out);
+
 		sfe_out_res = &ife_ctx->res_list_sfe_out[ife_ctx->num_acq_sfe_out];
 		sfe_out_res->is_dual_isp = in_port->usage_type;
 		sfe_acquire.rsrc_type = CAM_ISP_RESOURCE_SFE_OUT;
@@ -2858,6 +2892,9 @@ static int cam_ife_hw_mgr_acquire_res_sfe_src_util(
 	uint32_t                            *acquired_hw_path)
 {
 	int                            rc = -1, i;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	uint32_t                       hw_idx;
+#endif
 	struct cam_isp_hw_mgr_res     *sfe_src_res;
 
 	rc = cam_ife_hw_mgr_get_res(&ife_ctx->free_res_list,
@@ -2897,13 +2934,33 @@ static int cam_ife_hw_mgr_acquire_res_sfe_src_util(
 
 		sfe_src_res->hw_res[i] =
 			sfe_acquire->sfe_in.rsrc_node;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		hw_idx = sfe_src_res->hw_res[i]->hw_intf->hw_idx;
 
+		*acquired_hw_id |=
+			cam_convert_hw_idx_to_sfe_hw_num(hw_idx);
+#else
 		*acquired_hw_id |=
 			cam_convert_hw_idx_to_sfe_hw_num(
 				sfe_src_res->hw_res[i]->hw_intf->hw_idx);
+#endif
 		acquired_hw_path[i] |= cam_convert_sfe_res_to_path(
 			sfe_src_res->hw_res[i]->res_id);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (i == CAM_ISP_HW_SPLIT_LEFT)
+			ife_ctx->sfe_left_hw_idx = hw_idx;
+		else if (i == CAM_ISP_HW_SPLIT_RIGHT)
+			ife_ctx->sfe_right_hw_idx = hw_idx;
 
+		CAM_DBG(CAM_ISP,
+			"acquire success %s SFE: %u saved_idx: %u res_name: %s res_type: %u res_id: %u ctx_idx: %u",
+			((i == CAM_ISP_HW_SPLIT_LEFT) ? "LEFT" : "RIGHT"),
+			sfe_src_res->hw_res[i]->hw_intf->hw_idx,
+			((i == CAM_ISP_HW_SPLIT_LEFT) ? ife_ctx->sfe_left_hw_idx : ife_ctx->sfe_right_hw_idx),
+			sfe_src_res->hw_res[i]->res_name,
+			sfe_src_res->hw_res[i]->res_type,
+			sfe_src_res->hw_res[i]->res_id, ife_ctx->ctx_index);
+#else
 		CAM_DBG(CAM_ISP,
 			"acquire success %s SFE: %u res_name: %s res_type: %u res_id: %u ctx_idx: %u",
 			((i == CAM_ISP_HW_SPLIT_LEFT) ? "LEFT" : "RIGHT"),
@@ -2911,6 +2968,7 @@ static int cam_ife_hw_mgr_acquire_res_sfe_src_util(
 			sfe_src_res->hw_res[i]->res_name,
 			sfe_src_res->hw_res[i]->res_type,
 			sfe_src_res->hw_res[i]->res_id, ife_ctx->ctx_index);
+#endif
 	}
 	csid_res->num_children++;
 err:
@@ -3069,7 +3127,12 @@ static int cam_ife_hw_mgr_acquire_res_ife_bus_rd(
 	struct cam_ife_hw_mgr_ctx                  *ife_ctx,
 	struct cam_isp_in_port_generic_info        *in_port)
 {
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int                          rc = -EINVAL;
+#else
 	int                          i, rc = -EINVAL;
+#endif
 	struct cam_vfe_acquire_args  vfe_acquire;
 	struct cam_isp_hw_mgr_res   *ife_bus_rd_res;
 	struct cam_hw_intf          *hw_intf;
@@ -3098,7 +3161,22 @@ static int cam_ife_hw_mgr_acquire_res_ife_bus_rd(
 	vfe_acquire.vfe_bus_rd.is_offline = ife_ctx->flags.is_offline;
 	vfe_acquire.vfe_bus_rd.res_id = CAM_ISP_HW_VFE_IN_RD;
 	vfe_acquire.vfe_bus_rd.unpacker_fmt = in_port->fe_unpacker_fmt;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (ife_ctx->left_hw_idx >= CAM_IFE_HW_NUM_MAX) {
+		rc = -ENODEV;
+		CAM_ERR(CAM_ISP, "left_hw_idx:%d is greater than max hw number:%d",
+			ife_ctx->left_hw_idx, CAM_IFE_HW_NUM_MAX);
+		goto put_res;
+	}
 
+	if (!ife_hw_mgr->ife_devices[ife_ctx->left_hw_idx]) {
+		rc = -ENODEV;
+		CAM_ERR(CAM_ISP, "ife_devices[%d] is NULL", ife_ctx->left_hw_idx);
+		goto put_res;
+	}
+
+	hw_intf = ife_hw_mgr->ife_devices[ife_ctx->left_hw_idx]->hw_intf;
+#else
 	if (ife_ctx->left_hw_idx >= CAM_IFE_HW_NUM_MAX) {
 		if (in_port->ife_rd_count) {
 			for (i = CAM_IFE_HW_NUM_MAX - 1; i >= 0; i--) {
@@ -3110,6 +3188,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_bus_rd(
 					continue;
 
 				vfe_acquire.vfe_bus_rd.rsrc_node = NULL;
+#endif
 				rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 					&vfe_acquire, sizeof(struct cam_vfe_acquire_args));
 				if (!rc && vfe_acquire.vfe_bus_rd.rsrc_node)
@@ -3131,11 +3210,20 @@ static int cam_ife_hw_mgr_acquire_res_ife_bus_rd(
 		}
 	}
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (!vfe_acquire.vfe_bus_rd.rsrc_node) {
+		rc = -ENODEV;
+		CAM_ERR(CAM_ISP, "Failed to acquire VFE:%d BUS RD for LEFT, ctx_idx: %u",
+			ife_ctx->left_hw_idx, ife_ctx->ctx_index);
+		goto put_res;
+	}
+#else
 	if (!ife_hw_mgr->ife_devices[ife_ctx->left_hw_idx]) {
 		CAM_ERR(CAM_ISP, "IFE device %d is NULL.",
 			ife_ctx->left_hw_idx);
 		goto put_res;
 	}
+#endif
 
 	hw_intf = ife_hw_mgr->ife_devices[ife_ctx->left_hw_idx]->hw_intf;
 	rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
@@ -3162,6 +3250,33 @@ acquire_successful:
 	cam_ife_hw_mgr_put_res(&ife_ctx->res_list_ife_in_rd, &ife_bus_rd_res);
 
 	if (ife_ctx->flags.is_dual) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (!ife_hw_mgr->ife_devices[ife_ctx->right_hw_idx]) {
+				CAM_ERR(CAM_ISP, "ife_devices[%d] is NULL", ife_ctx->right_hw_idx);
+				goto put_res;
+		}
+
+		hw_intf = ife_hw_mgr->ife_devices[ife_ctx->right_hw_idx]->hw_intf;
+		rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
+			&vfe_acquire,
+			sizeof(struct cam_vfe_acquire_args));
+
+		if (!rc) {
+			ife_bus_rd_res->hw_res[++i] =
+				vfe_acquire.vfe_bus_rd.rsrc_node;
+
+			CAM_DBG(CAM_ISP,
+				"Acquired VFE:%d BUS RD for RIGHT, ctx: %u",
+				ife_ctx->right_hw_idx, ife_ctx->ctx_index);
+		}
+
+		if (!vfe_acquire.vfe_bus_rd.rsrc_node) {
+			rc = -ENODEV;
+			CAM_ERR(CAM_ISP, "Failed to acquire VFE:%d BUS RD for RIGHT, ctx: %u",
+				ife_ctx->right_hw_idx, ife_ctx->ctx_index);
+			goto end;
+		}
+#else
 		if (!ife_hw_mgr->ife_devices[ife_ctx->right_hw_idx]) {
 			CAM_ERR(CAM_ISP, "ife_devices[%d] is NULL", ife_ctx->right_hw_idx);
 			goto put_res;
@@ -3181,6 +3296,7 @@ acquire_successful:
 				"Acquired VFE:%d BUS RD for RIGHT, ctx: %u",
 				ife_ctx->right_hw_idx, ife_ctx->ctx_index);
 		}
+#endif
 	}
 
 	return 0;
@@ -3194,11 +3310,16 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 	struct cam_ife_hw_mgr_ctx *ife_ctx,
 	struct cam_isp_in_port_generic_info *in_port)
 {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int rc = -1;
+	struct cam_isp_hw_mgr_res            *sfe_rd_res;
+#else
 	int rc = -1, i;
+	struct cam_isp_hw_mgr_res            *sfe_rd_res,;
+#endif
 	struct cam_sfe_acquire_args           sfe_acquire;
 	struct cam_ife_hw_mgr                *ife_hw_mgr;
 	struct cam_hw_intf                   *hw_intf;
-	struct cam_isp_hw_mgr_res            *sfe_rd_res;
 
 	ife_hw_mgr = ife_ctx->hw_mgr;
 
@@ -3218,6 +3339,14 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 	if (in_port->usage_type)
 		CAM_WARN(CAM_ISP, "DUAL mode not supported for BUS RD [RDIs], ctx_idx: %u",
 			ife_ctx->ctx_index);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (ife_ctx->sfe_left_hw_idx >= CAM_SFE_HW_NUM_MAX) {
+		rc = -ENODEV;
+		CAM_ERR(CAM_ISP, "sfe_left_hw_idx:%d is greater than max hw number:%d",
+			ife_ctx->sfe_left_hw_idx, CAM_IFE_HW_NUM_MAX);
+		goto put_res;
+	}
+#endif
 
 	sfe_acquire.rsrc_type = CAM_ISP_RESOURCE_SFE_RD;
 	sfe_acquire.tasklet = ife_ctx->common.tasklet_info;
@@ -3228,7 +3357,11 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 	sfe_acquire.sfe_rd.unpacker_fmt = in_port->fe_unpacker_fmt;
 	sfe_acquire.sfe_rd.res_id = in_port->sfe_in_path_type;
 	sfe_acquire.sfe_rd.secure_mode = in_port->secure_mode;
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	hw_intf = ife_hw_mgr->sfe_devices[ife_ctx->sfe_left_hw_idx]->hw_intf;
+	rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
+		&sfe_acquire, sizeof(struct cam_sfe_acquire_args));
+#else
 	if (ife_ctx->left_hw_idx >= CAM_SFE_HW_NUM_MAX) {
 		if (in_port->ife_rd_count) {
 			for (i = 0; i < CAM_SFE_HW_NUM_MAX; i++) {
@@ -3262,6 +3395,7 @@ static int cam_ife_hw_mgr_acquire_sfe_bus_rd(
 		rc = hw_intf->hw_ops.reserve(hw_intf->hw_priv,
 			&sfe_acquire, sizeof(struct cam_sfe_acquire_args));
 	}
+#endif
 
 	if (!sfe_acquire.sfe_rd.rsrc_node || rc) {
 		rc = -ENODEV;
@@ -5022,6 +5156,7 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 		CAM_BOOL_TO_YESNO(ife_ctx->flags.is_dual),
 		ife_ctx->left_hw_idx, ife_ctx->right_hw_idx);
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	if (in_port->ife_rd_count) {
 		if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
 			rc = cam_ife_hw_mgr_acquire_sfe_bus_rd(
@@ -5036,6 +5171,7 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 			goto err;
 		}
 	}
+#endif
 
 	/* try acquire RDI for SFE cases without RDI out ports,
 	 * this is specifically for targets having RDI as input
@@ -5121,6 +5257,23 @@ static int cam_ife_mgr_acquire_hw_for_ctx(
 			goto err;
 		}
 	}
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (in_port->ife_rd_count) {
+		if (ife_ctx->ctx_type == CAM_IFE_CTX_TYPE_SFE)
+			rc = cam_ife_hw_mgr_acquire_sfe_bus_rd(
+				ife_ctx, in_port);
+		else
+			rc = cam_ife_hw_mgr_acquire_res_ife_bus_rd(
+				ife_ctx, in_port);
+		if (rc) {
+			CAM_ERR(CAM_ISP, "Acquire %s BUS RD resource Failed, ctx_idx: %u",
+				(ife_ctx->ctx_type ==
+				CAM_IFE_CTX_TYPE_SFE) ? "SFE" : "IFE", ife_ctx->ctx_index);
+			goto err;
+		}
+	}
+#endif
 
 	rc = cam_ife_hw_mgr_acquire_res_ife_out(ife_ctx, in_port);
 	if (rc) {
@@ -5606,6 +5759,10 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->flags.internal_cdm = false;
 	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ife_ctx->sfe_left_hw_idx = CAM_SFE_HW_NUM_MAX;
+	ife_ctx->sfe_right_hw_idx = CAM_SFE_HW_NUM_MAX;
+#endif
 	ife_ctx->buf_done_controller = NULL;
 	ife_ctx->common.event_cb = acquire_args->event_cb;
 	ife_ctx->hw_mgr = ife_hw_mgr;
@@ -5613,12 +5770,21 @@ static int cam_ife_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 	ife_ctx->common.sec_pf_evt_cb = acquire_args->sec_pf_evt_cb;
 	ife_ctx->try_recovery_cnt = 0;
 	ife_ctx->recovery_req_id = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ife_ctx->error_cnt_after_recovery = 0;
+#endif
 	ife_ctx->drv_path_idle_en = 0;
 	ife_ctx->res_list_ife_out = NULL;
 	ife_ctx->res_list_sfe_out = NULL;
-	ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
-	ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
-
+        ife_ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+        ife_ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ife_ctx->rdi0_sof_timestamp = 0;
+	ife_ctx->rdi0_eof_timestamp = 0;
+	ife_ctx->rdi1_sof_timestamp = 0;
+	ife_ctx->active_frame_duration = 0;
+	ife_ctx->sof_to_sof = 0;
+#endif
 	acquire_hw_info = (struct cam_isp_acquire_hw_info *) acquire_args->acquire_info;
 
 	rc = cam_ife_mgr_check_and_update_fe(ife_ctx, acquire_hw_info,
@@ -7055,9 +7221,12 @@ static int cam_ife_mgr_config_hw(
 	struct cam_ife_hw_mgr *ife_hw_mgr;
 	unsigned long rem_jiffies = 0;
 	bool is_cdm_hung = false;
-	size_t len = 0;
-	uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
-	uint32_t cmd_type = 0;
+        size_t len = 0;
+        uint32_t *buf_addr = NULL, *buf_start = NULL, *buf_end = NULL;
+        uint32_t cmd_type = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+    uint64_t curr_timestamp, delta, frame_duration, delay_ns = 0;
+#endif
 
 	if (!hw_mgr_priv || !config_hw_args) {
 		CAM_ERR(CAM_ISP,
@@ -7101,7 +7270,37 @@ static int cam_ife_mgr_config_hw(
 			"Ctx[%pK][%u] Reset overflow recovery count for req %llu",
 			ctx, ctx->ctx_index, cfg->request_id);
 	}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	CAM_GET_TIMESTAMP_NS(curr_timestamp);
+	if (ctx->curr_num_exp >= 2) {
+		if ((curr_timestamp > ctx->rdi1_sof_timestamp) &&
+			(ctx->active_frame_duration)) {
+			delta = curr_timestamp - ctx->rdi1_sof_timestamp;
+			if ((ctx->active_frame_duration < ctx->sof_to_sof) &&
+				(ctx->active_frame_duration * 2 > ctx->sof_to_sof)) {
+				frame_duration = ctx->sof_to_sof;
+			} else
+				frame_duration = ctx->active_frame_duration + 2000000;
 
+			/*
+			 * It means current isn't in betwwen RDI1 SOF-EOF, but it is in
+			 * RDI0 SOF-EOF.
+			 */
+			if ((delta > ctx->active_frame_duration) &&
+				(curr_timestamp - ctx->rdi0_sof_timestamp < ctx->active_frame_duration)) {
+				delay_ns = frame_duration + ctx->rdi0_sof_timestamp - curr_timestamp;
+				if (delay_ns < 1000000)
+					usleep_range(1000, 1010);
+				else
+					usleep_range(delay_ns / 1000, delay_ns / 1000 + 10);
+				CAM_INFO(CAM_ISP,
+					"Bad timing, active duration:%llu, curr ts:%llu sof to sof ts:%llu rdi0 sof ts:%llu, rdi1 sof ts:%llu, delay %llu ns",
+					ctx->active_frame_duration, curr_timestamp, ctx->sof_to_sof,
+					ctx->rdi0_sof_timestamp, ctx->rdi1_sof_timestamp, delay_ns);
+			}
+		}
+	}
+#endif
 	rc = cam_ife_hw_mgr_irq_injection(ife_hw_mgr, cfg->request_id);
 	if (rc)
 		CAM_ERR(CAM_ISP, "Failed to inject IRQ at req %d",
@@ -7384,6 +7583,11 @@ skip_bw_clk_update:
 				if (hw_update_data->mup_en) {
 					ctx->current_mup = hw_update_data->mup_val;
 					ctx->curr_num_exp = hw_update_data->num_exp;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+					ctx->active_frame_duration = 0;
+					ctx->rdi0_sof_timestamp = 0;
+					ctx->sof_to_sof = 0;
+#endif
 				}
 				hw_update_data->mup_en = false;
 
@@ -8334,7 +8538,11 @@ static int cam_ife_mgr_reset(void *hw_mgr_priv, void *hw_reset_args)
 
 	CAM_DBG(CAM_ISP, "Reset CSID and VFE, ctx_idx: %u", ctx->ctx_index);
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH, false);
+#else
 	rc = cam_ife_hw_mgr_reset_csid(ctx, CAM_IFE_CSID_RESET_PATH);
+#endif
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "Failed to reset CSID:%d rc: %d ctx_idx: %u",
@@ -8410,6 +8618,10 @@ static int cam_ife_mgr_release_hw(void *hw_mgr_priv,
 	ctx->last_cdm_done_req = 0;
 	ctx->left_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
 	ctx->right_hw_idx = CAM_IFE_CSID_HW_NUM_MAX;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ctx->sfe_left_hw_idx = CAM_SFE_HW_NUM_MAX;
+	ctx->sfe_right_hw_idx = CAM_SFE_HW_NUM_MAX;
+#endif
 	ctx->scratch_buf_info.num_fetches = 0;
 	ctx->num_acq_vfe_out = 0;
 	ctx->num_acq_sfe_out = 0;
@@ -10147,6 +10359,18 @@ static int cam_isp_blob_vfe_out_update(
 			isp_out_res = &ctx->res_list_ife_out[ctx->vfe_out_map[res_id_out]];
 		}
 
+		CAM_DBG(CAM_ISP, "isp_out_res %lx, wm_config:0x%lx, res_id_out:%d", isp_out_res, wm_config, res_id_out);
+
+		if ((unsigned long)isp_out_res < 0xFF00000000000000) {
+			CAM_ERR(CAM_ISP, "depengs isp_out_res is invalid:%lx port_type:0x%x, res_id_out:%d ctx->vfe_out_map[res_id_out]:%d",
+				isp_out_res, wm_config->port_type, res_id_out, ctx->vfe_out_map[res_id_out]);
+			return -EINVAL;
+		} else if (isp_out_res->res_id != wm_config->port_type) {
+			CAM_ERR(CAM_ISP, "wm_config port_type:0x%x isn't equal to isp_out_res(0x%lx)->res_id:0x%x",
+				wm_config->port_type, isp_out_res, isp_out_res->res_id);
+			return -EINVAL;
+		}
+
 		hw_intf = cam_ife_hw_mgr_get_hw_intf(blob_info->base_info);
 		if (!hw_intf || blob_info->base_info->split_id >= CAM_ISP_HW_SPLIT_MAX) {
 			CAM_ERR(CAM_ISP,
@@ -10154,7 +10378,13 @@ static int cam_isp_blob_vfe_out_update(
 				blob_info->base_info->hw_type);
 			return rc;
 		}
-
+		if(hw_type == CAM_ISP_HW_TYPE_SFE) {
+			CAM_DBG(CAM_ISP, "%s res_id_out:0x%x ctx->sfe_out_map[res_id_out]:%d isp_out_res:%p split_id:%d, hw_res:%p",
+					(hw_type == CAM_ISP_HW_TYPE_SFE ? "SFE" : "VFE"),
+					res_id_out, ctx->sfe_out_map[res_id_out], isp_out_res,
+					blob_info->base_info->split_id,
+					isp_out_res->hw_res[blob_info->base_info->split_id]);
+		}
 		if (!isp_out_res->hw_res[blob_info->base_info->split_id])
 			continue;
 
@@ -14652,8 +14882,13 @@ static int cam_ife_mgr_recover_hw(void *priv, void *data)
 		CAM_DBG(CAM_ISP, "RESET: CSID PATH");
 		for (i = 0; i < recovery_data->no_of_context; i++) {
 			ctx = recovery_data->affected_ctx[i];
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			rc = cam_ife_hw_mgr_reset_csid(ctx,
+				CAM_IFE_CSID_RESET_PATH, false);
+#else
 			rc = cam_ife_hw_mgr_reset_csid(ctx,
 				CAM_IFE_CSID_RESET_PATH);
+#endif
 
 			if (rc) {
 				CAM_ERR(CAM_ISP, "Failed RESET, ctx_idx: %u", ctx->ctx_index);
@@ -14841,16 +15076,53 @@ static int  cam_ife_hw_mgr_find_affected_ctx(
 		if (!cam_ife_hw_mgr_is_ctx_affected(ife_hwr_mgr_ctx,
 			affected_core, CAM_IFE_HW_NUM_MAX))
 			continue;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		notify_err_cb = ife_hwr_mgr_ctx->common.event_cb;
+#endif
 
 		if (atomic_read(&ife_hwr_mgr_ctx->overflow_pending)) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			CAM_DBG(CAM_ISP, "CTX:%u already error reported",
+				ife_hwr_mgr_ctx->ctx_index);
+			if (error_event_data->try_internal_recovery)
+				ife_hwr_mgr_ctx->error_cnt_after_recovery++;
+
+			if (ife_hwr_mgr_ctx->error_cnt_after_recovery <=MAX_ERROR_CNT_AFTER_RECOVERY) {
+				CAM_INFO(CAM_ISP, "CTX:%u already error reported",
+					ife_hwr_mgr_ctx->ctx_index);
+					continue;
+			} else {
+				error_event_data->try_internal_recovery = false;
+				CAM_INFO(CAM_ISP, "CTX:%u already %u error reported",
+				ife_hwr_mgr_ctx->ctx_index,
+				ife_hwr_mgr_ctx->error_cnt_after_recovery);
+				/*
+				* In the call back function corresponding ISP context
+				* will update CRM about fatal Error
+				*/
+				if (notify_err_cb){
+					notify_err_cb(ife_hwr_mgr_ctx->common.cb_priv,
+						CAM_ISP_HW_EVENT_ERROR,
+						(void *)error_event_data);
+				} else {
+						CAM_WARN(CAM_ISP, "Error call back is not set, ctx_idx: %u",
+						ife_hwr_mgr_ctx->ctx_index);
+						goto end;
+				}
+			}
+#else
 			CAM_INFO(CAM_ISP, "CTX:%u already error reported",
 				ife_hwr_mgr_ctx->ctx_index);
+#endif
 			continue;
 		}
 
 		atomic_set(&ife_hwr_mgr_ctx->overflow_pending, 1);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		//notify_err_cb = ife_hwr_mgr_ctx->common.event_cb;
+#else
 		notify_err_cb = ife_hwr_mgr_ctx->common.event_cb;
-
+#endif
 		/* Add affected_context in list of recovery data */
 		CAM_DBG(CAM_ISP, "Add affected ctx %u to list",
 			ife_hwr_mgr_ctx->ctx_index);
@@ -14933,6 +15205,11 @@ static int cam_ife_hw_mgr_handle_csid_error(
 	err_type = err_evt_info->err_type;
 	CAM_DBG(CAM_ISP, "Entry CSID[%u] error %d ctx_idx: %u",
 		event_info->hw_idx, err_type, ctx->ctx_index);
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (err_type == CAM_ISP_HW_ERROR_VOTE_UP_LATE)
+		return 0;
+#endif
 
 	spin_lock(&g_ife_hw_mgr.ctx_lock);
 
@@ -15806,6 +16083,10 @@ static int cam_ife_hw_mgr_handle_hw_buf_done(
 	buf_done_event_data.last_consumed_addr = bufdone_evt_info->last_consumed_addr;
 	buf_done_event_data.comp_group_id = bufdone_evt_info->comp_grp_id;
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (ife_hw_mgr_ctx->error_cnt_after_recovery)
+		ife_hw_mgr_ctx->error_cnt_after_recovery = 0;
+#endif
 	if (atomic_read(&ife_hw_mgr_ctx->overflow_pending))
 		return 0;
 
@@ -15928,7 +16209,27 @@ static int cam_ife_hw_mgr_handle_sfe_event(
 	case CAM_ISP_HW_EVENT_DONE:
 		rc = cam_ife_hw_mgr_handle_hw_buf_done(ctx, event_info);
 		break;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case CAM_ISP_HW_EVENT_SOF:
+		if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI0)
+			CAM_GET_TIMESTAMP_NS(ctx->rdi0_sof_timestamp);
+		else if (event_info->res_id == CAM_ISP_HW_SFE_IN_RDI1) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi1_sof_timestamp);
+			if (ctx->rdi0_sof_timestamp && ctx->rdi1_sof_timestamp > ctx->rdi0_sof_timestamp)
+				ctx->sof_to_sof = ctx->rdi1_sof_timestamp - ctx->rdi0_sof_timestamp;
+		}
+		break;
 
+	case CAM_ISP_HW_EVENT_EOF:
+		if ((event_info->res_id == CAM_ISP_HW_SFE_IN_RDI0) &&
+			(ctx->active_frame_duration == 0)) {
+			CAM_GET_TIMESTAMP_NS(ctx->rdi0_eof_timestamp);
+			if (ctx->rdi0_sof_timestamp && (ctx->rdi0_eof_timestamp > ctx->rdi0_sof_timestamp)) {
+				ctx->active_frame_duration = ctx->rdi0_eof_timestamp - ctx->rdi0_sof_timestamp;
+			}
+		}
+		break;
+#endif
 	default:
 		CAM_WARN(CAM_ISP, "Event: %u not handled for SFE, ctx_idx: %u",
 			evt_id, ctx->ctx_index);
