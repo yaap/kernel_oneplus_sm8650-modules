@@ -17,22 +17,22 @@ endif
 
 #MSM - Vendor SI
 ifeq ($(filter $(CONFIG_ARCH_WAIPIO) $(CONFIG_ARCH_KALAMA) $(CONFIG_ARCH_PINEAPPLE) $(CONFIG_ARCH_CLIFFS) $(CONFIG_ARCH_PITTI) $(CONFIG_ARCH_VOLCANO), y),y)
-DATAIPADRVTOP = $(srctree)/../../vendor/qcom/opensource/dataipa/drivers/platform/msm
-LINUXINCLUDE    += -include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_vendor.h
-include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_GKI.conf
+DATAIPADRVTOP = $(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm
+LINUXINCLUDE    += -include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_vendor.h
+include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_GKI.conf
 ifeq ($(CONFIG_LOCALVERSION), "-gki-consolidate")
-include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_GKI_consolidate.conf
-LINUXINCLUDE    += -include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_debug.h
+include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_GKI_consolidate.conf
+LINUXINCLUDE    += -include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_debug.h
 endif
 endif
 
 ifeq ($(filter $(CONFIG_ARCH_KHAJE) $(CONFIG_ARCH_BLAIR) $(CONFIG_ARCH_HOLI) $(CONFIG_ARCH_MONACO), y), y)
-DATAIPADRVTOP = $(srctree)/../../vendor/qcom/opensource/dataipa/drivers/platform/msm
-LINUXINCLUDE    += -include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_vendor_ipav4.h
-include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_GKI_ipav4.conf
+DATAIPADRVTOP = $(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm
+LINUXINCLUDE    += -include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_vendor_ipav4.h
+include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_GKI_ipav4.conf
 ifeq ($(CONFIG_LOCALVERSION), "-gki-consolidate")
-include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_GKI_consolidate.conf
-LINUXINCLUDE    += -include $(srctree)/../../vendor/qcom/opensource/dataipa/config/dataipa_debug.h
+include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_GKI_consolidate.conf
+LINUXINCLUDE    += -include $(srctree)/../sm8650-modules/qcom/opensource/dataipa/config/dataipa_debug.h
 endif
 endif
 
