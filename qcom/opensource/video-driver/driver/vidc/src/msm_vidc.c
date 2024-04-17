@@ -23,8 +23,6 @@
 #include "venus_hfi_response.h"
 #include "msm_vidc.h"
 
-extern const char video_banner[];
-
 #define MSM_VIDC_DRV_NAME "msm_vidc_driver"
 #define MSM_VIDC_BUS_NAME "platform:msm_vidc_bus"
 
@@ -694,7 +692,7 @@ void *msm_vidc_open(struct msm_vidc_core *core, u32 session_type)
 	struct msm_vidc_inst *inst = NULL;
 	int i = 0;
 
-	d_vpr_h("%s: %s\n", __func__, video_banner);
+	d_vpr_h("%s()\n", __func__);
 
 	if (session_type != MSM_VIDC_DECODER &&
 	    session_type != MSM_VIDC_ENCODER) {
