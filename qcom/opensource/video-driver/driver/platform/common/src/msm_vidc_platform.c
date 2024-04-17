@@ -27,9 +27,9 @@
 #include "msm_vidc_iris2.h"
 #endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
-#include "msm_vidc_pineapple.h"
-#include "msm_vidc_cliffs.h"
-#include "msm_vidc_iris33.h"
+#include "../../pineapple/inc/msm_vidc_pineapple.h"
+#include "../../cliffs/inc/msm_vidc_cliffs.h"
+#include "../../../variant/iris33/inc/msm_vidc_iris33.h"
 #endif
 #if defined(CONFIG_MSM_VIDC_KALAMA)
 #include "msm_vidc_kalama.h"
