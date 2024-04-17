@@ -176,7 +176,7 @@ static int msm_dma_put_device_address(u32 flags,
 	dbuf = mapping_info->buf;
 	dprintk(CVP_MEM, "%s: CB dev_name: %s, attach dev_name: %s, attach: 0x%lx, dbuf: 0x%lx",
 		__func__, dev_name(cb->dev), dev_name(attach->dev), attach, dbuf);
-	dprintk(CVP_MEM, "%s: sg-table: 0x%lx, table->sgl->dma_address: 0x%lx",
+	dprintk(CVP_MEM, "%s: sg-table: 0x%lx, dbuf: 0x%lx, table->sgl->dma_address: 0x%lx",
 		__func__, table, dbuf, table->sgl->dma_address);
 
 	dma_buf_unmap_attachment(mapping_info->attach,
