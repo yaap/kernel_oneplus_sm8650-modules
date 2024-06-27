@@ -74,6 +74,7 @@
 #define MICB_NUM_MAX     3
 
 #define NUM_ATTEMPTS 20
+extern const u32 wcd9378_reg_array[];
 
 #define WCD9378_RATES (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |\
 			SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_48000 |\
@@ -4334,6 +4335,22 @@ static int wcd9378_soc_codec_probe(struct snd_soc_component *component)
 		}
 	}
 
+	wcd9378->debugfs_info = devm_kzalloc(component->dev,
+				sizeof(struct sdca_debugfs_info),
+				GFP_KERNEL);
+
+	wcd9378->regdump_info = devm_kzalloc(component->dev,
+				sizeof(struct sdca_regdump_info),
+				GFP_KERNEL);
+
+	wcd9378->regdump_info->reg_array = wcd9378_reg_array;
+	wcd9378->regdump_info->reg_num = WCD9378_REGISTERS_ARRAY_NUM;
+	wcd9378->regdump_info->component = component;
+	wcd9378->regdump_info->sdca_readable_register = wcd9378_sdca_readable_register;
+	wcd9378->regdump_info->sdca_writeable_register = wcd9378_sdca_writeable_register;
+
+	sdca_devices_debugfs_dentry_create(wcd9378->debugfs_info,
+				wcd9378->regdump_info);
 exit:
 	return ret;
 }
@@ -4351,6 +4368,7 @@ static void wcd9378_soc_codec_remove(struct snd_soc_component *component)
 		wcd9378->register_notifier(wcd9378->handle,
 						&wcd9378->nblock,
 						false);
+	sdca_devices_debugfs_dentry_remove(wcd9378->debugfs_info);
 }
 
 static int wcd9378_soc_codec_suspend(struct snd_soc_component *component)

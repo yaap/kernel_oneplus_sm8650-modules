@@ -868,6 +868,8 @@ enum {
 #define WCD9378_NUM_REGISTERS                  (WCD9378_SMP_MIC_CTRL2_DEV_VER - WCD9378_BASE + 1)
 #define WCD9378_MAX_REGISTER                   (WCD9378_MESSAGE2 + 1)
 
+#define WCD9378_REGISTERS_ARRAY_NUM            (824)
+
 #define WCD9378_TX_NEW_TX_CH12_MUX_CH2_SEL_SHIFT                          0x03
 #define WCD9378_TX_NEW_TX_CH12_MUX_CH1_SEL_SHIFT                          0x00
 #define WCD9378_TX_NEW_TX_CH34_MUX_CH3_SEL_SHIFT                          0x00
@@ -903,5 +905,7 @@ enum {
 #define SWRS_SCP_SDCA_INTRTYPE_2               (0x000000f8)
 #define SWRS_SCP_SDCA_INTRTYPE_3               (0x000000fc)
 
+extern bool wcd9378_sdca_readable_register(unsigned int reg);
+extern bool wcd9378_sdca_writeable_register(unsigned int reg);
 
 #endif /* WCD9378_REGISTERS_H */

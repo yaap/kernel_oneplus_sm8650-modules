@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/regmap.h>
@@ -856,6 +856,31 @@ static struct reg_default wcd9378_defaults[] = {
 	{WCD9378_MESSAGE1,                       0x00},
 	{WCD9378_MESSAGE2,                       0x00},
 };
+
+bool wcd9378_sdca_readable_register(unsigned int reg)
+{
+	if (reg <= WCD9378_BASE)
+		return false;
+
+	if (wcd9378_reg_access[WCD9378_REG(reg)] & RD_REG)
+		return true;
+	else
+		return false;
+}
+EXPORT_SYMBOL_GPL(wcd9378_sdca_readable_register);
+
+bool wcd9378_sdca_writeable_register(unsigned int reg)
+{
+	if (reg <= WCD9378_BASE)
+		return false;
+
+
+	if (wcd9378_reg_access[WCD9378_REG(reg)] & WR_REG)
+		return true;
+	else
+		return false;
+}
+EXPORT_SYMBOL_GPL(wcd9378_sdca_writeable_register);
 
 static bool wcd9378_readable_register(struct device *dev, unsigned int reg)
 {

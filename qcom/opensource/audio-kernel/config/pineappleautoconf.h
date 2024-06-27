@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #define CONFIG_SND_SOC_MSM_QDSP6V2_INTF 1
@@ -45,6 +45,7 @@
 #define CONFIG_SND_SOC_WCD9378_SLAVE 1
 #define CONFIG_SND_SOC_WCD_MBHC 1
 #define CONFIG_SND_SOC_WCD_MBHC_ADC 1
+#define CONFIG_SND_SOC_SDCA_REGISTERS 1
 #define CONFIG_SND_SWR_HAPTICS 1
 #define CONFIG_SND_SOC_MSM_STUB 1
 #define CONFIG_SND_SOC_MSM_HDMI_CODEC_RX 1
