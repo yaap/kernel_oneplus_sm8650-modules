@@ -27,6 +27,7 @@ AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/q6_notifier_dlkm.ko\
 	$(KERNEL_MODULES_OUT)/snd_event_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd_core_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/mbhc_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/sdca_registers_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd9xxx_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/stub_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/machine_dlkm.ko

@@ -230,6 +230,10 @@ ifdef CONFIG_SND_SOC_WCD_IRQ
 	CORE_OBJS += wcd-irq.o
 endif
 
+ifdef CONFIG_SND_SOC_SDCA_REGISTERS
+	SDCA_REGISTERS_OBJS += sdca-registers-api.o
+endif
+
 ifdef CONFIG_SND_SWR_HAPTICS
 	SWR_HAP_OBJS += swr-haptics.o
 endif
@@ -316,6 +320,9 @@ wcd_spi_dlkm-y := $(SPI_OBJS)
 
 obj-$(CONFIG_SND_SOC_WCD_MBHC) += mbhc_dlkm.o
 mbhc_dlkm-y := $(MBHC_OBJS)
+
+obj-$(CONFIG_SND_SOC_SDCA_REGISTERS) += sdca_registers_dlkm.o
+sdca_registers_dlkm-y := $(SDCA_REGISTERS_OBJS)
 
 obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) += hdmi_dlkm.o
 hdmi_dlkm-y := $(HDMICODEC_OBJS)

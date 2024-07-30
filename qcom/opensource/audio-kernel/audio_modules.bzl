@@ -230,6 +230,12 @@ audio_modules.register(
     },
 )
 audio_modules.register(
+    name = "sdca_registers_dlkm",
+    path = ASOC_CODECS_PATH,
+    config_option = "CONFIG_SND_SOC_SDCA_REGISTERS",
+    srcs = ["sdca-registers-api.c"]
+)
+audio_modules.register(
     name = "swr_dmic_dlkm",
     path = ASOC_CODECS_PATH,
     config_option = "CONFIG_SND_SOC_SWR_DMIC",
