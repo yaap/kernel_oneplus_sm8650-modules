@@ -83,12 +83,6 @@ cc_library_headers {
 
 
 cc_library_headers {
-    name: "smmu_proxy_uapi_header",
-    vendor_available: true,
-    export_include_dirs: ["smmu-proxy/include/uapi/"],
-}
-
-cc_library_headers {
     name: "securemsm_kernel_uapi_headers",
     vendor_available: true,
     host_supported: true,
