@@ -16,7 +16,7 @@
 #include "sde_encoder_phys.h"
 #include "sde_trace.h"
 #include <linux/msm_drm_notify.h>
-#include "../../../oplus/kernel/touchpanel/touchpanel_notify/touchpanel_event_notify.h"
+#include "../../../../../sm8650/drivers/input/touchscreen/oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h"
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 #include "oplus_adfr.h"
