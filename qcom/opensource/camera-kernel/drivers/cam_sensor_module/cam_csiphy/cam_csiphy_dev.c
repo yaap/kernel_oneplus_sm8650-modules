@@ -144,11 +144,6 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 		return;
 	}
 
-	if (!csiphy_dev) {
-		CAM_ERR(CAM_CSIPHY, "csiphy_dev ptr is NULL");
-		return;
-	}
-
 	phy_idx = *(uint32_t *)data;
 	if (phy_idx != csiphy_dev->soc_info.index) {
 		CAM_DBG(CAM_CSIPHY, "Current HW IDX: %u, Expected IDX: %u",
@@ -159,6 +154,8 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 	switch (message_type) {
 	case CAM_SUBDEV_MESSAGE_REG_DUMP: {
 		cam_csiphy_trigger_reg_dump(csiphy_dev);
+		cam_soc_util_print_clk_freq(&csiphy_dev->soc_info);
+
 		break;
 	}
 	case CAM_SUBDEV_MESSAGE_APPLY_CSIPHY_AUX: {
@@ -373,11 +370,6 @@ static long cam_csiphy_subdev_ioctl(struct v4l2_subdev *sd,
 {
 	struct csiphy_device *csiphy_dev = v4l2_get_subdevdata(sd);
 	int rc = 0;
-
-	if (!csiphy_dev) {
-		CAM_ERR(CAM_CSIPHY, "csiphy_dev ptr is NULL");
-		return -EINVAL;
-	}
 
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
@@ -605,27 +597,8 @@ static void cam_csiphy_component_unbind(struct device *dev,
 {
 	struct platform_device *pdev = to_platform_device(dev);
 
-	struct v4l2_subdev *subdev = NULL;
-	struct csiphy_device *csiphy_dev = NULL;
-
-	subdev = platform_get_drvdata(pdev);
-
-	if (!subdev) {
-		CAM_ERR(CAM_CSIPHY, "Error No data in subdev");
-		return;
-	}
-
-	csiphy_dev = v4l2_get_subdevdata(subdev);
-
-	if (!csiphy_dev) {
-		CAM_ERR(CAM_CSIPHY, "Error No data in csiphy_dev");
-		return;
-	}
-
-	if (!csiphy_dev) {
-		CAM_ERR(CAM_CSIPHY, "csiphy_dev ptr is NULL");
-		return;
-	}
+	struct v4l2_subdev *subdev = platform_get_drvdata(pdev);
+	struct csiphy_device *csiphy_dev = v4l2_get_subdevdata(subdev);
 
 	cam_csiphy_debug_unregister();
 	CAM_INFO(CAM_CSIPHY, "Unbind CSIPHY component");

@@ -170,7 +170,6 @@ struct dp_display_private {
 
 	enum drm_connector_status cached_connector_status;
 	enum dp_display_states state;
-	enum dp_aux_switch_type switch_type;
 
 	struct platform_device *pdev;
 	struct device_node *aux_switch_node;
@@ -1189,11 +1188,6 @@ static void dp_display_host_deinit(struct dp_display_private *dp)
 		return;
 	}
 
-	if (dp_display_state_is(DP_STATE_READY)) {
-		DP_DEBUG("dp deinit before unready\n");
-		dp_display_host_unready(dp);
-	}
-
 	dp_display_abort_hdcp(dp, true);
 	dp->ctrl->deinit(dp->ctrl);
 	dp->hpd->host_deinit(dp->hpd, &dp->catalog->hpd);
@@ -1534,9 +1528,6 @@ static void dp_display_clear_reservation(struct dp_display *dp, struct dp_panel 
 
 	dp_display->tot_lm_blks_in_use -= panel->max_lm;
 	panel->max_lm = 0;
-
-	if (!dp_display->active_stream_cnt)
-		dp_display->tot_lm_blks_in_use = 0;
 
 	mutex_unlock(&dp_display->accounting_lock);
 }
@@ -2123,16 +2114,8 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 		dp->no_aux_switch = true;
 	}
 
-	if (!strcmp(dp->aux_switch_node->name, "fsa4480"))
-		dp->switch_type = DP_AUX_SWITCH_FSA4480;
-	else if (!strcmp(dp->aux_switch_node->name, "wcd939x_i2c"))
-		dp->switch_type = DP_AUX_SWITCH_WCD939x;
-	else
-		dp->switch_type = DP_AUX_SWITCH_BYPASS;
-
 	dp->aux = dp_aux_get(dev, &dp->catalog->aux, dp->parser,
-			dp->aux_switch_node, dp->aux_bridge, g_dp_display->dp_aux_ipc_log,
-			dp->switch_type);
+			dp->aux_switch_node, dp->aux_bridge, g_dp_display->dp_aux_ipc_log);
 	if (IS_ERR(dp->aux)) {
 		rc = PTR_ERR(dp->aux);
 		DP_ERR("failed to initialize aux, rc = %d\n", rc);

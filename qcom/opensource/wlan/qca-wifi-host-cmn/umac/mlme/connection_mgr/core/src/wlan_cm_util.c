@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -42,7 +42,6 @@ static uint32_t cm_get_prefix_for_cm_id(enum wlan_cm_source source) {
 	case CM_ROAMING_FW:
 	case CM_ROAMING_NUD_FAILURE:
 	case CM_ROAMING_LINK_REMOVAL:
-	case CM_ROAMING_USER:
 		return ROAM_REQ_PREFIX;
 	default:
 		return DISCONNECT_REQ_PREFIX;
@@ -73,11 +72,6 @@ struct cnx_mgr *cm_get_cm_ctx_fl(struct wlan_objmgr_vdev *vdev,
 {
 	struct vdev_mlme_obj *vdev_mlme;
 	struct cnx_mgr *cm_ctx = NULL;
-
-	if (!vdev) {
-		mlme_rl_nofl_err("%s:%u: vdev is NULL", func, line);
-		return NULL;
-	}
 
 	vdev_mlme = wlan_vdev_mlme_get_cmpt_obj(vdev);
 	if (vdev_mlme)
@@ -197,24 +191,6 @@ QDF_STATUS cm_set_key(struct cnx_mgr *cm_ctx, bool unicast,
 }
 #endif
 
-static void cm_dump_sm_history(struct wlan_objmgr_vdev *vdev)
-{
-	struct vdev_mlme_obj *vdev_mlme;
-	struct wlan_sm *vdev_sm;
-
-	vdev_mlme = wlan_objmgr_vdev_get_comp_private_obj(vdev,
-							  WLAN_UMAC_COMP_MLME);
-	if (!vdev_mlme)
-		return;
-
-	vdev_sm = vdev_mlme->sm_hdl;
-	if (!vdev_sm)
-		return;
-
-	wlan_sm_print_history(vdev_sm);
-	cm_sm_history_print(vdev);
-}
-
 #ifdef CONN_MGR_ADV_FEATURE
 void cm_store_wep_key(struct cnx_mgr *cm_ctx,
 		      struct wlan_cm_connect_crypto_info *crypto,
@@ -273,8 +249,7 @@ void cm_store_wep_key(struct cnx_mgr *cm_ctx,
 		   wep_keys->seq_len);
 }
 
-void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
-				     enum qdf_hang_reason reason)
+void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev)
 {
 	struct wlan_objmgr_psoc *psoc;
 
@@ -285,15 +260,32 @@ void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
 	if (qdf_is_recovering() || qdf_is_fw_down())
 		return;
 
-	cm_dump_sm_history(vdev);
-	qdf_trigger_self_recovery(psoc, reason);
+	qdf_trigger_self_recovery(psoc, QDF_ACTIVE_LIST_TIMEOUT);
 }
 
 #else
-void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
-				     enum qdf_hang_reason reason)
+void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev)
 {
-	cm_dump_sm_history(vdev);
+	struct vdev_mlme_obj *vdev_mlme = NULL;
+	struct wlan_sm *vdev_sm = NULL;
+
+	vdev_mlme = wlan_objmgr_vdev_get_comp_private_obj(
+			vdev,
+			WLAN_UMAC_COMP_MLME);
+	if (!vdev_mlme) {
+		mlme_err("VDEV MLME is null");
+		goto error;
+	}
+
+	vdev_sm = vdev_mlme->sm_hdl;
+	if (!vdev_sm) {
+		mlme_err("VDEV SM is null");
+		goto error;
+	}
+
+	wlan_sm_print_history(vdev_sm);
+	cm_sm_history_print(vdev);
+error:
 	QDF_ASSERT(0);
 }
 #endif
@@ -567,10 +559,8 @@ cm_fill_connect_resp_from_req(struct wlan_objmgr_vdev *vdev,
 
 	if (candidate)
 		resp->freq = candidate->entry->channel.chan_freq;
-	else if (req->chan_freq)
-		resp->freq = req->chan_freq;
 	else
-		resp->freq = req->chan_freq_hint;
+		resp->freq = req->chan_freq;
 
 	resp->ssid = req->ssid;
 	resp->is_wps_connection = req->is_wps_connection;
@@ -611,7 +601,7 @@ cm_handle_connect_flush(struct cnx_mgr *cm_ctx, struct cm_req *cm_req)
 	cm_notify_connect_complete(cm_ctx, resp, 0);
 
 	/* For link switch connect request, notify MLO mgr */
-	if (cm_is_link_switch_connect_resp(resp)) {
+	if (resp->cm_id & CM_ID_LSWITCH_BIT) {
 		cm_reset_active_cm_id(cm_ctx->vdev, resp->cm_id);
 		mlo_mgr_link_switch_connect_done(cm_ctx->vdev,
 						 resp->connect_status);
@@ -647,7 +637,7 @@ cm_handle_disconnect_flush(struct cnx_mgr *cm_ctx, struct cm_req *cm_req)
 	 */
 	mlme_cm_osif_disconnect_complete(cm_ctx->vdev, &resp);
 
-	if (cm_is_link_switch_disconnect_resp(&resp)) {
+	if (resp.req.cm_id & CM_ID_LSWITCH_BIT) {
 		cm_reset_active_cm_id(cm_ctx->vdev, resp.req.cm_id);
 		mlo_mgr_link_switch_disconnect_done(cm_ctx->vdev,
 						    QDF_STATUS_E_ABORTED,
@@ -1161,7 +1151,7 @@ void cm_remove_cmd(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id_to_remove)
 	if (QDF_IS_STATUS_ERROR(status))
 		return;
 
-	if (cm_is_link_switch_cmd(cm_id)) {
+	if (cm_id & CM_ID_LSWITCH_BIT) {
 		mlme_debug("Skip cmd remove for link switch connect/disconnect");
 		return;
 	}
@@ -1389,28 +1379,6 @@ bool cm_is_vdev_disconnected(struct wlan_objmgr_vdev *vdev)
 	return false;
 }
 
-#ifdef CONN_MGR_ADV_FEATURE
-bool cm_is_vdev_idle_due_to_link_switch(struct wlan_objmgr_vdev *vdev)
-{
-	struct cnx_mgr *cm_ctx;
-	enum wlan_cm_sm_state state;
-	enum wlan_cm_sm_state sub_state;
-
-	cm_ctx = cm_get_cm_ctx(vdev);
-	if (!cm_ctx)
-		return false;
-
-	state = cm_get_state(cm_ctx);
-	sub_state = cm_get_sub_state(cm_ctx);
-
-	if (state == WLAN_CM_S_INIT &&
-	    sub_state == WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH)
-		return true;
-
-	return false;
-}
-#endif
-
 bool cm_is_vdev_roaming(struct wlan_objmgr_vdev *vdev)
 {
 	struct cnx_mgr *cm_ctx;
@@ -1599,72 +1567,6 @@ bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req)
 	return false;
 }
 
-bool cm_is_first_candidate_connect_attempt(struct wlan_objmgr_vdev *vdev)
-{
-	struct cnx_mgr *cm_ctx;
-	struct cm_req *cm_req;
-	bool status = false;
-
-	cm_ctx = cm_get_cm_ctx(vdev);
-	if (!cm_ctx)
-		return status;
-
-	cm_req_lock_acquire(cm_ctx);
-	cm_req = cm_get_req_by_cm_id(cm_ctx, cm_ctx->active_cm_id);
-	if (!cm_req)
-		goto out;
-
-	if (cm_req->connect_req.cur_candidate_retries ||
-	    cm_req->connect_req.connect_attempts > 1)
-		goto out;
-
-	status = true;
-
-out:
-	cm_req_lock_release(cm_ctx);
-	return status;
-}
-
-QDF_STATUS
-cm_get_active_connect_req_param(struct wlan_objmgr_vdev *vdev,
-				struct wlan_cm_connect_req *req)
-{
-	struct cnx_mgr *cm_ctx;
-	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
-	struct cm_req *cm_req = NULL;
-	QDF_STATUS status = QDF_STATUS_E_FAILURE;
-	uint32_t cm_id_prefix;
-
-	cm_ctx = cm_get_cm_ctx(vdev);
-	if (!cm_ctx)
-		return QDF_STATUS_E_FAILURE;
-
-	cm_req_lock_acquire(cm_ctx);
-	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
-	while (cur_node) {
-		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
-
-		cm_req = qdf_container_of(cur_node, struct cm_req, node);
-		cm_id_prefix = CM_ID_GET_PREFIX((cm_req->cm_id));
-
-		if (cm_req->cm_id != cm_ctx->active_cm_id ||
-		    cm_id_prefix != CONNECT_REQ_PREFIX) {
-			cur_node = next_node;
-			next_node = NULL;
-			continue;
-		}
-
-		*req = cm_req->connect_req.req;
-		qdf_mem_zero(&req->assoc_ie, sizeof(struct element_info));
-		qdf_mem_zero(&req->scan_ie, sizeof(struct element_info));
-		status = QDF_STATUS_SUCCESS;
-		break;
-	}
-
-	cm_req_lock_release(cm_ctx);
-	return status;
-}
-
 bool cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
 			       struct wlan_cm_vdev_connect_req *req)
 {
@@ -1843,47 +1745,6 @@ QDF_STATUS cm_get_rnr(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id,
 	cm_req_lock_release(cm_ctx);
 
 	return QDF_STATUS_E_FAILURE;
-}
-
-struct scan_cache_entry *
-cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
-			    wlan_cm_id cm_id)
-{
-	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
-	struct cm_req *cm_req;
-	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
-	struct cnx_mgr *cm_ctx;
-	struct scan_cache_entry *cur_entry, *entry = NULL;
-
-	if (prefix != CONNECT_REQ_PREFIX)
-		return NULL;
-
-	cm_ctx = cm_get_cm_ctx(vdev);
-	if (!cm_ctx)
-		return NULL;
-
-	cm_req_lock_acquire(cm_ctx);
-	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
-	while (cur_node) {
-		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
-		cm_req = qdf_container_of(cur_node, struct cm_req, node);
-
-		if (cm_req->cm_id != cm_id) {
-			cur_node = next_node;
-			next_node = NULL;
-			continue;
-		}
-
-		if (!cm_req->connect_req.cur_candidate)
-			break;
-
-		cur_entry = cm_req->connect_req.cur_candidate->entry;
-		entry = util_scan_copy_cache_entry(cur_entry);
-		break;
-	}
-	cm_req_lock_release(cm_ctx);
-
-	return entry;
 }
 
 #ifdef WLAN_POLICY_MGR_ENABLE

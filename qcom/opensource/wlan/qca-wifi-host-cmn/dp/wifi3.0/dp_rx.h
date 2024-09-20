@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -131,15 +131,12 @@ struct dp_rx_desc_dbg_info {
  * @magic:
  * @nbuf_data_addr:	VA of nbuf data posted
  * @dbg_info:
- * @prev_paddr_buf_start: paddr of the prev nbuf attach to rx_desc
  * @in_use:		rx_desc is in use
  * @unmapped:		used to mark rx_desc an unmapped if the corresponding
  *			nbuf is already unmapped
  * @in_err_state:	Nbuf sanity failed for this descriptor.
  * @has_reuse_nbuf:	the nbuf associated with this desc is also saved in
  *			reuse_nbuf field
- * @msdu_done_fail:	this particular rx_desc was dequeued from REO with
- *			msdu_done bit not set in data buffer.
  */
 struct dp_rx_desc {
 	qdf_nbuf_t nbuf;
@@ -155,13 +152,11 @@ struct dp_rx_desc {
 	uint32_t magic;
 	uint8_t *nbuf_data_addr;
 	struct dp_rx_desc_dbg_info *dbg_info;
-	qdf_dma_addr_t prev_paddr_buf_start;
 #endif
 	uint8_t	in_use:1,
 		unmapped:1,
 		in_err_state:1,
-		has_reuse_nbuf:1,
-		msdu_done_fail:1;
+		has_reuse_nbuf:1;
 };
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
@@ -224,7 +219,7 @@ struct dp_rx_desc {
 				num_buffers, desc_list, tail, req_only) \
 	__dp_rx_buffers_replenish(soc, mac_id, rxdma_srng, rx_desc_pool, \
 				  num_buffers, desc_list, tail, req_only, \
-				  false, __func__)
+				  __func__)
 
 #ifdef WLAN_SUPPORT_RX_FISA
 /**
@@ -267,11 +262,7 @@ bool dp_rx_is_special_frame(qdf_nbuf_t nbuf, uint32_t frame_mask)
 	    ((frame_mask & FRAME_MASK_IPV4_EAPOL) &&
 	     qdf_nbuf_is_ipv4_eapol_pkt(nbuf)) ||
 	    ((frame_mask & FRAME_MASK_IPV6_DHCP) &&
-	     qdf_nbuf_is_ipv6_dhcp_pkt(nbuf)) ||
-	    ((frame_mask & FRAME_MASK_DNS_QUERY) &&
-	     qdf_nbuf_data_is_dns_query(nbuf)) ||
-	    ((frame_mask & FRAME_MASK_DNS_RESP) &&
-	     qdf_nbuf_data_is_dns_response(nbuf)))
+	     qdf_nbuf_is_ipv6_dhcp_pkt(nbuf)))
 		return true;
 
 	return false;
@@ -1684,9 +1675,6 @@ dp_rx_update_flow_tag(struct dp_soc *soc, struct dp_vdev *vdev,
  *	       interrupt.
  * @tail: tail of descs list
  * @req_only: If true don't replenish more than req buffers
- * @force_replenish: replenish full ring without limit check this
- *                   this field will be considered only when desc_list
- *                   is NULL and req_only is false
  * @func_name: name of the caller function
  *
  * Return: return success or failure
@@ -1698,7 +1686,6 @@ QDF_STATUS __dp_rx_buffers_replenish(struct dp_soc *dp_soc, uint32_t mac_id,
 				 union dp_rx_desc_list_elem_t **desc_list,
 				 union dp_rx_desc_list_elem_t **tail,
 				 bool req_only,
-				 bool force_replenish,
 				 const char *func_name);
 
 /**
@@ -1767,15 +1754,13 @@ __dp_rx_comp2refill_replenish(struct dp_soc *dp_soc, uint32_t mac_id,
  * @mac_id: mac_id which is one of 3 mac_ids
  * @dp_rxdma_srng: dp rxdma circular ring
  * @rx_desc_pool: Pointer to free Rx descriptor pool
- * @force_replenish: Force replenish the ring fully
  *
  * Return: return success or failure
  */
 QDF_STATUS
 __dp_rx_buffers_no_map_lt_replenish(struct dp_soc *dp_soc, uint32_t mac_id,
 				    struct dp_srng *dp_rxdma_srng,
-				    struct rx_desc_pool *rx_desc_pool,
-				    bool force_replenish);
+				    struct rx_desc_pool *rx_desc_pool);
 
 /**
  * __dp_pdev_rx_buffers_no_map_attach() - replenish rxdma ring with rx nbufs
@@ -1959,7 +1944,6 @@ void dp_rx_desc_prep(struct dp_rx_desc *rx_desc,
 	rx_desc->unmapped = 0;
 	rx_desc->nbuf_data_addr = (uint8_t *)qdf_nbuf_data(rx_desc->nbuf);
 	dp_rx_set_reuse_nbuf(rx_desc, rx_desc->nbuf);
-	rx_desc->prev_paddr_buf_start = rx_desc->paddr_buf_start;
 	rx_desc->paddr_buf_start = nbuf_frag_info_t->paddr;
 }
 
@@ -2601,11 +2585,12 @@ static inline
 void dp_rx_buffers_lt_replenish_simple(struct dp_soc *soc, uint32_t mac_id,
 				       struct dp_srng *rxdma_srng,
 				       struct rx_desc_pool *rx_desc_pool,
-				       bool force_replenish)
+				       uint32_t num_req_buffers,
+				       union dp_rx_desc_list_elem_t **desc_list,
+				       union dp_rx_desc_list_elem_t **tail)
 {
 	__dp_rx_buffers_no_map_lt_replenish(soc, mac_id, rxdma_srng,
-					    rx_desc_pool,
-					    force_replenish);
+					    rx_desc_pool);
 }
 
 #ifndef QCA_DP_NBUF_FAST_RECYCLE_CHECK
@@ -2742,11 +2727,12 @@ static inline
 void dp_rx_buffers_lt_replenish_simple(struct dp_soc *soc, uint32_t mac_id,
 				       struct dp_srng *rxdma_srng,
 				       struct rx_desc_pool *rx_desc_pool,
-				       bool force_replenish)
+				       uint32_t num_req_buffers,
+				       union dp_rx_desc_list_elem_t **desc_list,
+				       union dp_rx_desc_list_elem_t **tail)
 {
-	__dp_rx_buffers_replenish(soc, mac_id, rxdma_srng, rx_desc_pool,
-				  0, NULL, NULL, false, force_replenish,
-				  __func__);
+	dp_rx_buffers_replenish(soc, mac_id, rxdma_srng, rx_desc_pool,
+				num_req_buffers, desc_list, tail, false);
 }
 
 static inline
@@ -2909,10 +2895,10 @@ end:
 
 static inline QDF_STATUS
 dp_peer_rx_reorder_queue_setup(struct dp_soc *soc, struct dp_peer *peer,
-			       uint32_t tid_bitmap, uint32_t ba_window_size)
+			       int tid, uint32_t ba_window_size)
 {
 	return soc->arch_ops.dp_peer_rx_reorder_queue_setup(soc,
-							    peer, tid_bitmap,
+							    peer, tid,
 							    ba_window_size);
 }
 
@@ -3494,20 +3480,6 @@ dp_rx_is_list_ready(qdf_nbuf_t nbuf_head,
 
 	return false;
 }
-
-/**
- * dp_rx_deliver_to_stack_ext() - Deliver to netdev per sta
- * @soc: core txrx main context
- * @vdev: vdev
- * @txrx_peer: txrx peer
- * @nbuf_head: skb list head
- *
- * Return: true if packet is delivered to netdev per STA.
- */
-bool
-dp_rx_deliver_to_stack_ext(struct dp_soc *soc, struct dp_vdev *vdev,
-			   struct dp_txrx_peer *txrx_peer,
-			   qdf_nbuf_t nbuf_head);
 #else
 static inline bool
 dp_rx_is_list_ready(qdf_nbuf_t nbuf_head,

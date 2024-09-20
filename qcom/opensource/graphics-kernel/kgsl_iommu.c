@@ -2301,20 +2301,19 @@ static int kgsl_iommu_svm_range(struct kgsl_pagetable *pagetable,
 static bool kgsl_iommu_addr_in_range(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size)
 {
-	u64 end = gpuaddr + size;
-
-	/* Make sure we don't wrap around */
-	if (gpuaddr == 0 || end < gpuaddr)
+	if (gpuaddr == 0)
 		return false;
 
-	if (gpuaddr >= pagetable->va_start && end <= pagetable->va_end)
+	if (gpuaddr >= pagetable->va_start && (gpuaddr + size) <=
+			pagetable->va_end)
 		return true;
 
-	if (gpuaddr >= pagetable->compat_va_start &&
-		end <= pagetable->compat_va_end)
+	if (gpuaddr >= pagetable->compat_va_start && (gpuaddr + size) <
+			pagetable->compat_va_end)
 		return true;
 
-	if (gpuaddr >= pagetable->svm_start && end <= pagetable->svm_end)
+	if (gpuaddr >= pagetable->svm_start && (gpuaddr + size) <
+			pagetable->svm_end)
 		return true;
 
 	return false;
@@ -2442,12 +2441,11 @@ static int iommu_probe_user_context(struct kgsl_device *device,
 
 	kgsl_iommu_set_ttbr0(&iommu->lpac_context, mmu, &pt->info.cfg);
 
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_LPAC)) {
-		ret = set_smmu_lpac_aperture(device, &iommu->lpac_context);
-		if (ret < 0) {
-			kgsl_iommu_detach_context(&iommu->lpac_context);
-			goto err;
-		}
+	ret = set_smmu_lpac_aperture(device, &iommu->lpac_context);
+	/* LPAC is optional, ignore setup failures in absence of LPAC feature */
+	if ((ret < 0) && ADRENO_FEATURE(adreno_dev, ADRENO_LPAC)) {
+		kgsl_iommu_detach_context(&iommu->lpac_context);
+		goto err;
 	}
 
 	return 0;

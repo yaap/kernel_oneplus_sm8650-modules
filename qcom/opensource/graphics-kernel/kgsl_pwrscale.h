@@ -69,6 +69,11 @@ struct kgsl_pwrscale {
 	struct devfreq *bus_devfreq;
 	/** @devfreq_enabled: Whether or not devfreq is enabled */
 	bool devfreq_enabled;
+	/**
+	 * @avoid_ddr_stall: Whether or not to increase IB vote on high
+	 * ddr stall
+	 */
+	bool avoid_ddr_stall;
 };
 
 /**
@@ -111,6 +116,4 @@ void msm_adreno_tz_exit(void);
 int devfreq_gpubw_init(void);
 
 void devfreq_gpubw_exit(void);
-
-void kgsl_pwrscale_fast_bus_hint(bool on);
 #endif

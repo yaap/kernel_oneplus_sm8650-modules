@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk/qcom.h>
@@ -700,9 +700,6 @@ static ssize_t __force_on_store(struct device *dev,
 	unsigned int val = 0;
 	struct kgsl_device *device = dev_get_drvdata(dev);
 	int ret;
-
-	if (gmu_core_gpmu_isenabled(device))
-		return -EOPNOTSUPP;
 
 	ret = kstrtou32(buf, 0, &val);
 	if (ret)
@@ -1441,12 +1438,8 @@ int kgsl_register_gdsc_notifier(struct kgsl_device *device)
 {
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 
-	if (!IS_ERR_OR_NULL(pwr->cx_gdsc)) {
-		pwr->cx_gdsc_nb.notifier_call = kgsl_cx_gdsc_event;
-		return devm_regulator_register_notifier(pwr->cx_gdsc, &pwr->cx_gdsc_nb);
-	}
-
-	return 0;
+	pwr->cx_gdsc_nb.notifier_call = kgsl_cx_gdsc_event;
+	return devm_regulator_register_notifier(pwr->cx_gdsc, &pwr->cx_gdsc_nb);
 }
 
 static int kgsl_pwrctrl_pwrrail(struct kgsl_device *device, bool state)
@@ -1469,16 +1462,7 @@ static int kgsl_pwrctrl_pwrrail(struct kgsl_device *device, bool state)
 			&pwr->power_flags)) {
 			kgsl_mmu_send_tlb_hint(&device->mmu, true);
 			trace_kgsl_rail(device, state);
-
-			/* Set the parent in retention voltage to disable CPR interrupts */
-			kgsl_regulator_set_voltage(device->dev, pwr->gx_gdsc_parent,
-					pwr->gx_gdsc_parent_min_corner);
-
 			kgsl_pwrctrl_disable_gx_gdsc(device);
-
-			/* Remove the vote for the vdd parent supply */
-			kgsl_regulator_set_voltage(device->dev, pwr->gx_gdsc_parent, 0);
-
 			kgsl_pwrctrl_disable_cx_gdsc(device);
 		}
 	} else {
@@ -1498,15 +1482,11 @@ void kgsl_pwrctrl_irq(struct kgsl_device *device, bool state)
 			&pwr->power_flags)) {
 			trace_kgsl_irq(device, state);
 			enable_irq(pwr->interrupt_num);
-			if (device->freq_limiter_intr_num > 0)
-				enable_irq(device->freq_limiter_intr_num);
 		}
 	} else {
 		if (test_and_clear_bit(KGSL_PWRFLAGS_IRQ_ON,
 			&pwr->power_flags)) {
 			trace_kgsl_irq(device, state);
-			if (device->freq_limiter_intr_num > 0)
-				disable_irq(device->freq_limiter_intr_num);
 			if (in_interrupt())
 				disable_irq_nosync(pwr->interrupt_num);
 			else
@@ -1743,24 +1723,10 @@ void kgsl_idle_check(struct work_struct *work)
 	if (device->state == KGSL_STATE_ACTIVE) {
 
 		if (!atomic_read(&device->active_cnt)) {
-			spin_lock(&device->submit_lock);
-			if (device->submit_now) {
-				spin_unlock(&device->submit_lock);
-				goto done;
-			}
-			/* Don't allow GPU inline submission in SLUMBER */
-			if (requested_state == KGSL_STATE_SLUMBER)
-				device->skip_inline_submit = true;
-			spin_unlock(&device->submit_lock);
 
 			ret = kgsl_pwrctrl_change_state(device,
 					device->requested_state);
 			if (ret == -EBUSY) {
-				if (requested_state == KGSL_STATE_SLUMBER) {
-					spin_lock(&device->submit_lock);
-					device->skip_inline_submit = false;
-					spin_unlock(&device->submit_lock);
-				}
 				/*
 				 * If the GPU is currently busy, restore
 				 * the requested state and reschedule
@@ -1771,7 +1737,7 @@ void kgsl_idle_check(struct work_struct *work)
 				kgsl_schedule_work(&device->idle_check_ws);
 			}
 		}
-done:
+
 		if (!ret)
 			kgsl_pwrctrl_request_state(device, KGSL_STATE_NONE);
 
@@ -2132,16 +2098,6 @@ void kgsl_pwrctrl_set_state(struct kgsl_device *device,
 	trace_kgsl_pwr_set_state(device, state);
 	device->state = state;
 	device->requested_state = KGSL_STATE_NONE;
-
-	if (state == KGSL_STATE_SLUMBER)
-		device->pwrctrl.wake_on_touch = false;
-
-	spin_lock(&device->submit_lock);
-	if (state == KGSL_STATE_ACTIVE)
-		device->skip_inline_submit = false;
-	else
-		device->skip_inline_submit = true;
-	spin_unlock(&device->submit_lock);
 }
 
 void kgsl_pwrctrl_request_state(struct kgsl_device *device,
@@ -2225,23 +2181,6 @@ int kgsl_pwrctrl_set_default_gpu_pwrlevel(struct kgsl_device *device)
 
 	/* Request adjusted DCVS level */
 	return device->ftbl->gpu_clock_set(device, pwr->active_pwrlevel);
-}
-
-u32 kgsl_pwrctrl_get_acv_perfmode_lvl(struct kgsl_device *device, u32 ddr_freq)
-{
-	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-	int i;
-
-	if (!ddr_freq)
-		return (pwr->ddr_table_count - 1);
-
-	for (i = 0; i < pwr->ddr_table_count; i++) {
-		if (pwr->ddr_table[i] >= ddr_freq)
-			return i;
-	}
-
-	/* If DDR frequency is not found, vote perfmode for highest DDR level */
-	return (pwr->ddr_table_count - 1);
 }
 
 int kgsl_gpu_num_freqs(void)

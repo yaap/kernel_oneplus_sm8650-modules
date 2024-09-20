@@ -142,14 +142,6 @@ static void _sde_encoder_phys_cmd_config_autorefresh(
 		hw_pp->ops.setup_autorefresh(hw_pp, cfg_cur);
 }
 
-static bool sde_encoder_phys_cmd_is_autoref_disable_pending(struct sde_encoder_phys *phys_enc)
-{
-	if (!phys_enc)
-		return true;
-
-	return phys_enc->autorefresh_disable_trans;
-}
-
 static void _sde_encoder_phys_cmd_update_flush_mask(
 		struct sde_encoder_phys *phys_enc)
 {
@@ -673,7 +665,6 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 	if (qsync_mode &&
 			!test_bit(SDE_INTF_TE_SINGLE_UPDATE, &phys_enc->hw_intf->cap->features))
 		sde_encoder_override_tearcheck_rd_ptr(phys_enc);
-
 	/* Signal any waiting wr_ptr start interrupt */
 	wake_up_all(&phys_enc->pending_kickoff_wq);
 
@@ -910,8 +901,7 @@ static void sde_encoder_phys_cmd_mode_set(
 	_sde_encoder_phys_cmd_setup_irq_hw_idx(phys_enc);
 
 	phys_enc->kickoff_timeout_ms =
-			max(phys_enc->kickoff_timeout_ms,
-			sde_encoder_helper_get_kickoff_timeout_ms(phys_enc->parent));
+		sde_encoder_helper_get_kickoff_timeout_ms(phys_enc->parent);
 }
 
 static int _sde_encoder_phys_cmd_handle_framedone_timeout(
@@ -1925,28 +1915,6 @@ static void sde_encoder_phys_cmd_get_hw_resources(
 	hw_res->intfs[phys_enc->intf_idx - INTF_0] = INTF_MODE_CMD;
 }
 
-static void _sde_encoder_phys_wait_for_vsync_on_autorefresh_busy(struct sde_encoder_phys *phys_enc)
-{
-	u32 autorefresh_status;
-	int ret = 0;
-
-	if (!phys_enc || !phys_enc->hw_intf || !phys_enc->hw_intf->ops.get_autorefresh_status) {
-		SDE_ERROR("invalid params\n");
-		return;
-	}
-
-	autorefresh_status = phys_enc->hw_intf->ops.get_autorefresh_status(phys_enc->hw_intf);
-	if (autorefresh_status) {
-		ret = sde_encoder_wait_for_event(phys_enc->parent, MSM_ENC_VBLANK);
-		if (ret) {
-			autorefresh_status = phys_enc->hw_intf->ops.get_autorefresh_status(
-					phys_enc->hw_intf);
-			SDE_ERROR("wait for vblank timed out, autorefresh_status:%d\n",
-					autorefresh_status);
-		}
-	}
-}
-
 static int sde_encoder_phys_cmd_prepare_for_kickoff(
 		struct sde_encoder_phys *phys_enc,
 		struct sde_encoder_kickoff_params *params)
@@ -1971,9 +1939,7 @@ static int sde_encoder_phys_cmd_prepare_for_kickoff(
 	SDE_EVT32(DRMID(phys_enc->parent), phys_enc->hw_pp->idx - PINGPONG_0,
 			atomic_read(&phys_enc->pending_kickoff_cnt),
 			atomic_read(&cmd_enc->autorefresh.kickoff_cnt),
-			phys_enc->frame_trigger_mode,
-			phys_enc->cont_splash_enabled,
-			SDE_EVTLOG_FUNC_CASE1);
+			phys_enc->frame_trigger_mode, SDE_EVTLOG_FUNC_CASE1);
 
 	if (phys_enc->frame_trigger_mode == FRAME_DONE_WAIT_DEFAULT) {
 		/*
@@ -1989,9 +1955,6 @@ static int sde_encoder_phys_cmd_prepare_for_kickoff(
 			SDE_ERROR("failed wait_for_idle: %d\n", ret);
 		}
 	}
-
-	if (phys_enc->cont_splash_enabled)
-		_sde_encoder_phys_wait_for_vsync_on_autorefresh_busy(phys_enc);
 
 	if (phys_enc->recovered) {
 		recovery_events = sde_encoder_recovery_events_enabled(
@@ -2544,7 +2507,6 @@ static void _sde_encoder_autorefresh_disable_seq2(
 			tear_status.write_frame_count, tear_status.write_line_count);
 	}
 }
-
 static void _sde_encoder_phys_disable_autorefresh(struct sde_encoder_phys *phys_enc)
 {
 	struct sde_encoder_phys_cmd *cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
@@ -2730,8 +2692,8 @@ static void sde_encoder_phys_cmd_init_ops(struct sde_encoder_phys_ops *ops)
 	ops->update_split_role = sde_encoder_phys_cmd_update_split_role;
 	ops->restore = sde_encoder_phys_cmd_enable_helper;
 	ops->control_te = sde_encoder_phys_cmd_connect_te;
-	ops->is_autorefresh_enabled = sde_encoder_phys_cmd_is_autorefresh_enabled;
-	ops->is_autoref_disable_pending = sde_encoder_phys_cmd_is_autoref_disable_pending;
+	ops->is_autorefresh_enabled =
+			sde_encoder_phys_cmd_is_autorefresh_enabled;
 	ops->get_line_count = sde_encoder_phys_cmd_te_get_line_count;
 	ops->wait_for_active = NULL;
 	ops->setup_vsync_source = sde_encoder_phys_cmd_setup_vsync_source;
@@ -2741,8 +2703,6 @@ static void sde_encoder_phys_cmd_init_ops(struct sde_encoder_phys_ops *ops)
 	ops->disable_autorefresh = _sde_encoder_phys_disable_autorefresh;
 	ops->idle_pc_cache_display_status = sde_encoder_phys_cmd_store_ltj_values;
 	ops->handle_post_kickoff = sde_encoder_phys_cmd_handle_post_kickoff;
-	ops->wait_for_vsync_on_autorefresh_busy =
-			_sde_encoder_phys_wait_for_vsync_on_autorefresh_busy;
 }
 
 static inline bool sde_encoder_phys_cmd_intf_te_supported(

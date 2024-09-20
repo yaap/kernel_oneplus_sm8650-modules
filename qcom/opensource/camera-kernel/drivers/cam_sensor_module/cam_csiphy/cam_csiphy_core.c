@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -507,12 +507,6 @@ static int cam_csiphy_update_secure_info(struct csiphy_device *csiphy_dev, int32
 	}
 
 	switch (cpas_version) {
-	case CAM_CPAS_TITAN_640_V200:
-	case CAM_CPAS_TITAN_665_V100:
-	case CAM_CPAS_TITAN_770_V100:
-		bit_offset_bet_phys_in_cp_ctrl =
-			CAM_CSIPHY_MAX_DPHY_LANES + CAM_CSIPHY_MAX_CPHY_LANES + 1;
-		break;
 	case CAM_CPAS_TITAN_580_V100:
 	case CAM_CPAS_TITAN_680_V100:
 	case CAM_CPAS_TITAN_780_V100:
@@ -2075,6 +2069,7 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 	uint32_t      cphy_trio_status;
 	void __iomem *csiphybase;
 	int32_t              rc = 0;
+	uint32_t             i;
 
 	if (!csiphy_dev || !cmd) {
 		CAM_ERR(CAM_CSIPHY, "Invalid input args");
@@ -2485,11 +2480,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 	case CAM_START_DEV: {
 		struct cam_csiphy_param *param;
 		struct cam_start_stop_dev_cmd config;
-		int32_t i, offset;
+		int32_t offset;
 		int clk_vote_level_high = -1;
 		int clk_vote_level_low = -1;
 		uint8_t data_rate_variant_idx = 0;
-		unsigned long clk_rate = 0;
 
 		CAM_DBG(CAM_CSIPHY, "START_DEV Called");
 		rc = copy_from_user(&config, (void __user *)cmd->handle,
@@ -2574,29 +2568,6 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 					rc = -EINVAL;
 					goto release_mutex;
 
-				}
-
-				for (i = 0; i < csiphy_dev->soc_info.num_clk;
-									i++) {
-					if (i ==
-					csiphy_dev->soc_info.src_clk_idx) {
-						CAM_DBG(CAM_CSIPHY,
-						"Skipping call back for src"
-						" clk %s",
-						csiphy_dev->soc_info.clk_name[
-									i]);
-						continue;
-					}
-					clk_rate =
-					cam_soc_util_get_clk_rate_applied(
-						&csiphy_dev->soc_info, i,
-						false, clk_vote_level_high);
-					if (clk_rate > 0) {
-						cam_subdev_notify_message(
-						CAM_TFE_DEVICE_TYPE,
-					CAM_SUBDEV_MESSAGE_CLOCK_UPDATE,
-						(void *)(&clk_rate));
-					}
 				}
 			}
 

@@ -10,23 +10,6 @@ def define_modules(target, variant):
     include_defconfig = ":{}_defconfig".format(variant)
 
     mod_list = []
-    ipam_deps_list = []
-    ipam_local_defines = []
-    if target != "niobe":
-             ipam_deps_list.append(
-              "//vendor/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
-             )
-             ipam_local_defines.append(
-              "CONFIG_IPA_RMNET_MEM=y".format(include_base),
-             )
-    if target == "niobe":
-            ipam_deps_list.extend([
-             "//vendor/qcom/opensource/synx-kernel:synx_headers",
-             "//vendor/qcom/opensource/synx-kernel:{}_modules".format(kernel_build_variant),
-            ])
-            ipam_local_defines.append(
-              "CONFIG_IPA_RTP=y".format(include_base),
-            )
 
     ddk_module(
         name = "{}_gsim".format(kernel_build_variant),
@@ -207,19 +190,12 @@ def define_modules(target, variant):
                     "drivers/platform/msm/ipa/test/ipa_test_ntn.c",
                 ],
             },
-            "CONFIG_ARCH_NIOBE": {
-                True: [
-                    "drivers/platform/msm/ipa/ipa_v3/ipa_rtp_genl.h",
-                    "drivers/platform/msm/ipa/ipa_v3/ipa_rtp_genl.c",
-                    "drivers/platform/msm/ipa/ipa_v3/ipa_uc_rtp.c",
-                ],
-            },
         },
         local_defines = [
             "GSI_TRACE_INCLUDE_PATH={}/drivers/platform/msm/gsi".format(include_base),
             "IPA_TRACE_INCLUDE_PATH={}/drivers/platform/msm/ipa/ipa_v3".format(include_base),
             "RNDIS_TRACE_INCLUDE_PATH={}/drivers/platform/msm/ipa/ipa_clients".format(include_base),
-        ] + ipam_local_defines,
+        ],
         kernel_build = "//msm-kernel:{}".format(kernel_build_variant),
         deps = [
             ":{}_config_headers".format(variant),
@@ -229,7 +205,8 @@ def define_modules(target, variant):
             ":ipa_clients",
             "//msm-kernel:all_headers",
             ":{}_gsim".format(kernel_build_variant),
-        ] + ipam_deps_list,
+            "//vendor/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
+        ],
     )
     mod_list.append("{}_ipam".format(kernel_build_variant))
 

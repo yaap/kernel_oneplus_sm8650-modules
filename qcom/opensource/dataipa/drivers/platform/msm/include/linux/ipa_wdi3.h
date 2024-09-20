@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2018 - 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA_WDI3_H_
@@ -446,43 +446,6 @@ int ipa_wdi_opt_dpath_remove_filter_req(
 int ipa_wdi_opt_dpath_remove_all_filter_req(
 		struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
 		struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp);
-
-/**
- * ipa_xr_wdi_opt_dpath_rsrv_filter_req - Client should call this function to
- * send filter reservation request to wlan
- *
- *
- * @Return 0 on success, negative on failure
- */
-int ipa_xr_wdi_opt_dpath_rsrv_filter_req(void);
-
-/**
- * ipa_xr_wdi_opt_dpath_add_filter_req - Client should call this function to
- * send filter add request to wlan
- *
- *
- * @Return 0 on success, negative on failure
- */
-int ipa_xr_wdi_opt_dpath_add_filter_req(struct ipa_wdi_opt_dpath_flt_add_cb_params *req,
-		u32 stream_id);
-
-/**
- * ipa_xr_wdi_opt_dpath_remove_filter_req - Client should call this function to
- * send filter remove request to wlan
- *
- *
- * @Return 0 on success, negative on failure
- */
-int ipa_xr_wdi_opt_dpath_remove_filter_req(u32 stream_id);
-
-/**
- * ipa_xr_wdi_opt_dpath_remove_all_filter_req - Client should call this function to
- * send release reservation request to wlan
- *
- *
- * @Return 0 on success, negative on failure
- */
-int ipa_xr_wdi_opt_dpath_remove_all_filter_req(void);
 
 /** ipa_get_wdi_version - return wdi version
  *
@@ -952,7 +915,7 @@ static inline int ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(ipa_wdi_hdl_t hdl,
 
 static int ipa_wdi_opt_dpath_rsrv_filter_req(
 	struct ipa_wlan_opt_dp_rsrv_filter_req_msg_v01 *req,
-	struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp)
+	struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp);
 {
 	return -EPERM;
 }
@@ -974,27 +937,6 @@ static int ipa_wdi_opt_dpath_remove_filter_req(
 static int ipa_wdi_opt_dpath_remove_all_filter_req(
 		struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
 		struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp)
-{
-	return -EPERM;
-}
-
-static int ipa_xr_wdi_opt_dpath_rsrv_filter_req(void)
-{
-	return -EPERM;
-}
-
-static int ipa_xr_wdi_opt_dpath_add_filter_req(struct ipa_wdi_opt_dpath_flt_add_cb_params *req,
-		u32 stream_id)
-{
-	return -EPERM;
-}
-
-static int ipa_xr_wdi_opt_dpath_remove_filter_req(u32 stream_id)
-{
-	return -EPERM;
-}
-
-static int ipa_xr_wdi_opt_dpath_remove_all_filter_req(void)
 {
 	return -EPERM;
 }

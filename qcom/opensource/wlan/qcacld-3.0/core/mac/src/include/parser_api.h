@@ -642,7 +642,7 @@ QDF_STATUS
 sir_convert_probe_frame2_struct(struct mac_context *mac, uint8_t *frame,
 				uint32_t len, tpSirProbeRespBeacon probe);
 
-enum wlan_status_code
+QDF_STATUS
 sir_convert_assoc_req_frame2_struct(struct mac_context *mac,
 				    uint8_t *frame, uint32_t len,
 				    tpSirAssocReq assoc);
@@ -665,7 +665,7 @@ sir_convert_assoc_resp_frame2_struct(struct mac_context *mac,
 				uint8_t *frame, uint32_t len,
 				tpSirAssocRsp assoc);
 
-enum wlan_status_code
+QDF_STATUS
 sir_convert_reassoc_req_frame2_struct(struct mac_context *mac,
 				uint8_t *frame, uint32_t len,
 				tpSirAssocReq assoc);
@@ -1545,14 +1545,13 @@ QDF_STATUS populate_dot11f_eht_caps(struct mac_context *mac_ctx,
  * @mac_ctx: Global MAC context
  * @is_2g: is 2G band
  * @eht_cap: pointer to EHT capability IE
- * @session: pe session
  *
  * Populate the EHT capability IE based on band.
  */
 QDF_STATUS
 populate_dot11f_eht_caps_by_band(struct mac_context *mac_ctx,
-				 bool is_2g, tDot11fIEeht_cap *eht_cap,
-				 struct pe_session *session);
+				 bool is_2g,
+				 tDot11fIEeht_cap *eht_cap);
 
 /**
  * populate_dot11f_eht_operation() - pouldate EHT Operation IE
@@ -1660,8 +1659,7 @@ populate_dot11f_eht_caps(struct mac_context *mac_ctx,
 static inline QDF_STATUS
 populate_dot11f_eht_caps_by_band(struct mac_context *mac_ctx,
 				 bool is_2g,
-				 tDot11fIEeht_cap *eht_cap,
-				 struct pe_session *session)
+				 tDot11fIEeht_cap *eht_cap)
 {
 	return QDF_STATUS_SUCCESS;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
@@ -1492,9 +1492,6 @@ static void gen7_gmu_pwrctrl_suspend(struct adreno_device *adreno_dev)
 	if (gen7_gmu_gx_is_on(adreno_dev))
 		kgsl_regwrite(device, GEN7_RBBM_SW_RESET_CMD, 0x1);
 
-	/* Make sure above writes are posted before turning off power resources */
-	wmb();
-
 	/* Allow the software reset to complete */
 	udelay(100);
 
@@ -1620,7 +1617,7 @@ static int gen7_gmu_dcvs_set(struct adreno_device *adreno_dev,
 	ret = gen7_hfi_send_generic_req(adreno_dev, &req, sizeof(req));
 	if (ret) {
 		dev_err_ratelimited(&gmu->pdev->dev,
-			"Failed to set GPU perf idx %u, bw idx %u\n",
+			"Failed to set GPU perf idx %d, bw idx %d\n",
 			req.freq, req.bw);
 
 		/*
@@ -1685,7 +1682,7 @@ void gen7_gmu_send_nmi(struct kgsl_device *device, bool force)
 	 * Do not send NMI if the SMMU is stalled because GMU will not be able
 	 * to save cm3 state to DDR.
 	 */
-	if (gen7_gmu_gx_is_on(adreno_dev) && adreno_smmu_is_stalled(adreno_dev)) {
+	if (gen7_gmu_gx_is_on(adreno_dev) && gen7_is_smmu_stalled(device)) {
 		dev_err(&gmu->pdev->dev,
 			"Skipping NMI because SMMU is stalled\n");
 		return;
@@ -1915,13 +1912,6 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto gdsc_off;
 
-	/*
-	 * Enable AHB timeout detection to catch any register access taking longer
-	 * time before NOC timeout gets detected. Enable this logic before any
-	 * register access which happens to be just after enabling clocks.
-	 */
-	gen7_enable_ahb_timeout_detection(adreno_dev);
-
 	/* Initialize the CX timer */
 	gen7_cx_timer_init(adreno_dev);
 
@@ -1948,9 +1938,6 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	/* Vote for minimal DDR BW for GMU to init */
 	level = pwr->pwrlevels[pwr->default_pwrlevel].bus_min;
 	icc_set_bw(pwr->icc_path, 0, kBps_to_icc(pwr->ddr_table[level]));
-
-	/* Clear any GPU faults that might have been left over */
-	adreno_clear_gpu_fault(adreno_dev);
 
 	ret = gen7_gmu_device_start(adreno_dev);
 	if (ret)
@@ -2023,13 +2010,6 @@ static int gen7_gmu_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto gdsc_off;
 
-	/*
-	 * Enable AHB timeout detection to catch any register access taking longer
-	 * time before NOC timeout gets detected. Enable this logic before any
-	 * register access which happens to be just after enabling clocks.
-	 */
-	gen7_enable_ahb_timeout_detection(adreno_dev);
-
 	ret = gen7_rscc_wakeup_sequence(adreno_dev);
 	if (ret)
 		goto clks_gdsc_off;
@@ -2041,9 +2021,6 @@ static int gen7_gmu_boot(struct adreno_device *adreno_dev)
 	gen7_gmu_register_config(adreno_dev);
 
 	gen7_gmu_irq_enable(adreno_dev);
-
-	/* Clear any GPU faults that might have been left over */
-	adreno_clear_gpu_fault(adreno_dev);
 
 	ret = gen7_gmu_device_start(adreno_dev);
 	if (ret)
@@ -2177,13 +2154,12 @@ static const struct gmu_dev_ops gen7_gmudev = {
 static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 	u32 ab)
 {
-	const struct adreno_gen7_core *gen7_core = to_gen7_core(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int ret = 0;
 
-	/* Skip icc path for targets that supports ACV vote from GMU */
-	if (!gen7_core->acv_perfmode_vote)
+	/* Target gen7_9_x votes for perfmode through ACV. Skip icc path for same */
+	if (!adreno_is_gen7_9_x(adreno_dev))
 		kgsl_icc_set_tag(pwr, buslevel);
 
 	if (buslevel == pwr->cur_buslevel)
@@ -2209,7 +2185,7 @@ static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 		pwr->cur_ab = ab;
 	}
 
-	trace_kgsl_buslevel(device, pwr->active_pwrlevel, pwr->cur_buslevel, pwr->cur_ab);
+	trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel, ab);
 	return ret;
 }
 
@@ -2218,41 +2194,34 @@ static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 u32 gen7_bus_ab_quantize(struct adreno_device *adreno_dev, u32 ab)
 {
 	u16 vote = 0;
-	u32 max_bw, max_ab;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 
 	if (!adreno_dev->gmu_ab || (ab == INVALID_AB_VALUE))
 		return (FIELD_PREP(GENMASK(31, 16), INVALID_AB_VALUE));
 
-	/*
-	 * max ddr bandwidth (kbps) = (Max bw in kbps per channel * number of channel)
-	 * max ab (Mbps) = max ddr bandwidth (kbps) / 1000
-	 */
-	max_bw = pwr->ddr_table[pwr->ddr_table_count - 1] * NUM_CHANNELS;
-	max_ab = max_bw / 1000;
+	if (pwr->ddr_table[pwr->ddr_table_count - 1]) {
+		/*
+		 * if ab is calculated as higher than theoretical max bandwidth, set ab as
+		 * theoretical max to prevent truncation during quantization.
+		 *
+		 * max ddr bandwidth (kbps) = (Max bw in kbps per channel * number of channel)
+		 * max ab (Mbps) = max ddr bandwidth (kbps) / 1000
+		 */
+		u32 max_bw = pwr->ddr_table[pwr->ddr_table_count - 1] * NUM_CHANNELS;
+		u32 max_ab = max_bw / 1000;
 
-	/*
-	 * If requested AB is higher than theoretical max bandwidth, set AB vote as max
-	 * allowable quantized AB value.
-	 *
-	 * Power FW supports a 16 bit AB BW level. We can quantize the entire vote-able BW
-	 * range to a 16 bit space and the quantized value can be used to vote for AB though
-	 * GMU. Quantization can be performed as below.
-	 *
-	 * quantized_vote = (ab vote (kbps) * 2^16) / max ddr bandwidth (kbps)
-	 */
-	if (ab >= max_ab)
-		vote = MAX_AB_VALUE;
-	else
+		ab = min_t(u32, ab, max_ab);
+
+		/*
+		 * Power FW supports a 16 bit AB BW level. We can quantize the entire vote-able BW
+		 * range to a 16 bit space and the quantized value can be used to vote for AB though
+		 * GMU. Quantization can be performed as below.
+		 *
+		 * quantized_vote = (ab vote (kbps) * 2^16) / max ddr bandwidth (kbps)
+		 */
 		vote = (u16)(((u64)ab * 1000 * (1 << 16)) / max_bw);
-
-	/*
-	 * Vote will be calculated as 0 for smaller AB values.
-	 * Set a minimum non-zero vote in such cases.
-	 */
-	if (ab && !vote)
-		vote = 0x1;
+	}
 
 	/*
 	 * Set ab enable mask and valid AB vote. req.bw is 32 bit value 0xABABENIB
@@ -2766,6 +2735,9 @@ static int gen7_gpu_boot(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
 
+	/* Clear any GPU faults that might have been left over */
+	adreno_clear_gpu_fault(adreno_dev);
+
 	adreno_set_active_ctxs_null(adreno_dev);
 
 	ret = kgsl_mmu_start(device);
@@ -3059,18 +3031,6 @@ static void gmu_idle_check(struct work_struct *work)
 
 	if (!test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
 		goto done;
-
-	spin_lock(&device->submit_lock);
-
-	if (device->submit_now) {
-		spin_unlock(&device->submit_lock);
-		kgsl_pwrscale_update(device);
-		kgsl_start_idle_timer(device);
-		goto done;
-	}
-
-	device->skip_inline_submit = true;
-	spin_unlock(&device->submit_lock);
 
 	ret = gen7_power_off(adreno_dev);
 	if (ret == -EBUSY) {

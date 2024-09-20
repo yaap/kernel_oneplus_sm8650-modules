@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_power.h"
@@ -20,7 +20,6 @@
 #define MSM_VIDC_MAX_UBWC_COMPLEXITY_FACTOR (4 << 16)
 #define MSM_VIDC_MIN_UBWC_COMPRESSION_RATIO (1 << 16)
 #define MSM_VIDC_MAX_UBWC_COMPRESSION_RATIO (5 << 16)
-#define PASSIVE_VOTE 1000
 
 /**
  * Utility function to enforce some of our assumptions.  Spam calls to this
@@ -188,10 +187,6 @@ static int msm_vidc_set_buses(struct msm_vidc_inst *inst)
 	}
 	mutex_unlock(&core->lock);
 
-	/* Incase of no video frames to process ensure min passive voting for Tensilica */
-	if (!total_bw_ddr)
-		total_bw_ddr = PASSIVE_VOTE;
-
 	if (msm_vidc_ddr_bw) {
 		d_vpr_l("msm_vidc_ddr_bw %d\n", msm_vidc_ddr_bw);
 		total_bw_ddr = msm_vidc_ddr_bw;
@@ -217,8 +212,11 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	struct v4l2_format *out_f;
 	struct v4l2_format *inp_f;
 	u32 operating_rate, frame_rate;
+	struct msm_vidc_power *power;
+	int initial_window = 0;
 
 	core = inst->core;
+	power = &inst->power;
 	if (!core->resource) {
 		i_vpr_e(inst, "%s: invalid resource params\n", __func__);
 		return -EINVAL;
@@ -226,7 +224,9 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	vote_data = &inst->bus_data;
 
 	vote_data->power_mode = VIDC_POWER_NORMAL;
-	if (inst->power.buffer_counter < DCVS_WINDOW || is_image_session(inst))
+	initial_window = power->nom_threshold ? power->nom_threshold : DCVS_WINDOW;
+	if (inst->power.buffer_counter < min(initial_window, DCVS_WINDOW) ||
+		is_image_session(inst))
 		vote_data->power_mode = VIDC_POWER_TURBO;
 
 	if (vote_data->power_mode == VIDC_POWER_TURBO)
@@ -486,10 +486,14 @@ exit:
 int msm_vidc_scale_clocks(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_core *core;
+	struct msm_vidc_power *power;
+	int initial_window = 0;
 
 	core = inst->core;
+	power = &inst->power;
+	initial_window = power->nom_threshold ? power->nom_threshold : DCVS_WINDOW;
 
-	if (inst->power.buffer_counter < DCVS_WINDOW ||
+	if (inst->power.buffer_counter < min(initial_window, DCVS_WINDOW) ||
 	    is_image_session(inst) ||
 	    is_sub_state(inst, MSM_VIDC_DRC) ||
 	    is_sub_state(inst, MSM_VIDC_DRAIN)) {

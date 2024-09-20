@@ -14,7 +14,7 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/of_device.h>
-#include <linux/soc/qcom/fsa4480-i2c.h>
+//#include <linux/soc/qcom/fsa4480-i2c.h>
 #include <linux/pm_qos.h>
 #include <linux/nvmem-consumer.h>
 #include <sound/control.h>
@@ -276,7 +276,8 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component,
 	if (!pdata->fsa_handle)
 		return false;
 
-	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	//return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	return true;
 }
 
 static bool msm_swap_gnd_mic(struct snd_soc_component *component, bool active)
@@ -1301,7 +1302,6 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_component *bolero_component = NULL;
 	struct snd_soc_component *component = NULL;
 	struct snd_soc_dapm_context *dapm = NULL;
-	bool is_wcd937x = false;
 	int ret = 0;
 	void *mbhc_calibration;
 	struct snd_info_entry *entry;
@@ -1352,14 +1352,13 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	bolero_info_create_codec_entry(pdata->codec_root, bolero_component);
 	bolero_register_wake_irq(bolero_component, false);
 
-	component = snd_soc_rtdcom_lookup(rtd, WCD938X_DRV_NAME);
+	component = snd_soc_rtdcom_lookup(rtd, WCD937X_DRV_NAME);
+	if (!component)
+		component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
+
 	if (!component) {
-		component = snd_soc_rtdcom_lookup(rtd, WCD937X_DRV_NAME);
-		if (!component) {
-			pr_err("%s component is NULL\n", __func__);
-			return -EINVAL;
-		}
-		is_wcd937x = true;
+		pr_err("%s component is NULL\n", __func__);
+		return -EINVAL;
 	}
 
 	dapm = snd_soc_component_get_dapm(component);
@@ -1386,11 +1385,6 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		bolero_set_port_map(bolero_component,
 			ARRAY_SIZE(sm_port_map),
 			sm_port_map);
-	} else {
-		wcd938x_info_create_codec_entry(pdata->codec_root, component);
-		bolero_set_port_map(bolero_component,
-			ARRAY_SIZE(sm_port_map),
-			sm_port_map);
 	}
 
 	snd_soc_dapm_ignore_suspend(dapm, "EAR");
@@ -1407,16 +1401,13 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
         codec_reg_done = true;
         msm_common_dai_link_init(rtd);
 mbhc_cfg_cal:
-
+	if (!strncmp(component->driver->name, WCD937X_DRV_NAME, 13)) {
 		mbhc_calibration = def_wcd_mbhc_cal();
 		if (!mbhc_calibration)
 			return -ENOMEM;
 		wcd_mbhc_cfg.calibration = mbhc_calibration;
-
-		if (!is_wcd937x)
-			ret = wcd938x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
-		else
-			ret = wcd937x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
+		ret = wcd937x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
+	}
 
 	if (ret) {
 		dev_err(component->dev, "%s: mbhc hs detect failed, err:%d\n",

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,8 +54,6 @@
 #if defined(LINUX_QCMBR)
 #define SIOCIOCTLTX99 (SIOCDEVPRIVATE+13)
 #endif
-
-#define SIZE_OF_WIFI6E_CHAN_LIST       512
 
 /*
  * Size of Driver command strings from upper layer
@@ -163,6 +161,15 @@ struct hdd_drv_cmd {
 #define WLAN_WAIT_TIME_READY_TO_EXTWOW   2000
 #define WLAN_HDD_MAX_TCP_PORT            65535
 #endif
+
+extern bool check_private_miracast_cmd(uint8_t *sub_command, int *sta_quota);
+extern int handle_private_miracast_cmd(struct wlan_hdd_link_info *link_info,  int sta_quota);
+extern int drv_cmd_smartmcc_get_fw_update_quota(struct wlan_hdd_link_info *link_info,
+			    struct hdd_context *hdd_ctx,
+			    uint8_t *command,
+			    uint8_t command_len,
+			    struct hdd_priv_data *priv_data);
+// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
 
 /**
  * drv_cmd_validate() - Validates for space in hdd driver command
@@ -591,7 +598,7 @@ static int hdd_parse_reassoc_v1(struct hdd_adapter *adapter, const char *command
 	status = ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev,
 					  adapter->deflink->vdev_id,
 					  &target_bssid, freq,
-					  CM_ROAMING_USER);
+					  CM_ROAMING_HOST);
 	return qdf_status_to_os_return(status);
 }
 
@@ -647,7 +654,7 @@ static int hdd_parse_reassoc_v2(struct hdd_adapter *adapter,
 		status = ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev,
 						  adapter->deflink->vdev_id,
 						  &target_bssid, freq,
-						  CM_ROAMING_USER);
+						  CM_ROAMING_HOST);
 		ret = qdf_status_to_os_return(status);
 	}
 
@@ -2648,102 +2655,6 @@ static int drv_cmd_set_wmmps(struct wlan_hdd_link_info *link_info,
 	return hdd_wmmps_helper(link_info->adapter, command);
 }
 
-#ifdef CONFIG_BAND_6GHZ
-/**
- * drv_cmd_get_wifi6e_channels() - Handler for GET_WIFI6E_CHANNELS driver
- *                                 command
- * @link_info: Link info pointer in adapter
- * @hdd_ctx: pointer to hdd context
- * @command: command name
- * @command_len: command buffer length
- * @priv_data: output pointer to hold current country code
- *
- * Return: On success 0, negative value on error.
- */
-static int drv_cmd_get_wifi6e_channels(struct wlan_hdd_link_info *link_info,
-				       struct hdd_context *hdd_ctx,
-				       uint8_t *command,
-				       uint8_t command_len,
-				       struct hdd_priv_data *priv_data)
-{
-	uint8_t power_type;
-	char extra[SIZE_OF_WIFI6E_CHAN_LIST] = {0};
-	int i, ret, copied_length = 0;
-	enum channel_state state;
-	struct regulatory_channel *chan_list;
-	size_t max_buf_len = QDF_MIN(priv_data->total_len,
-				     SIZE_OF_WIFI6E_CHAN_LIST);
-	QDF_STATUS status;
-
-	if (wlan_hdd_validate_context(hdd_ctx))
-		return -EINVAL;
-
-	ret = kstrtou8(command + command_len + 1, 10, &power_type);
-	if (ret) {
-		hdd_err("error %d parsing userspace 6 GHz power type parameter",
-			ret);
-		return -EINVAL;
-	}
-
-	switch (power_type) {
-	case 0:
-		power_type = REG_CLI_DEF_LPI;
-		break;
-	case 1:
-		power_type = REG_CLI_DEF_VLP;
-		break;
-	case 2:
-		power_type = REG_CLI_DEF_SP;
-		break;
-	default:
-		hdd_err("The power type : %u, is incorrect", power_type);
-		return -EINVAL;
-	}
-
-	chan_list = qdf_mem_malloc(NUM_CHANNELS * sizeof(*chan_list));
-	if (!chan_list)
-		return -ENOMEM;
-
-	status = wlan_reg_get_pwrmode_chan_list(hdd_ctx->pdev, chan_list,
-						power_type);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		hdd_err("Failed to get wifi6e channel list for given power type %u",
-			power_type);
-		ret =  qdf_status_to_os_return(status);
-		goto free;
-	}
-
-	for (i = 0; i < NUM_6GHZ_CHANNELS && copied_length < max_buf_len - 1;
-	     i++) {
-		state = chan_list[i + MIN_6GHZ_CHANNEL].state;
-		if (state == CHANNEL_STATE_INVALID ||
-		    state == CHANNEL_STATE_DISABLE)
-			continue;
-		copied_length += scnprintf(extra + copied_length,
-				max_buf_len - copied_length, "%u ",
-				chan_list[i + MIN_6GHZ_CHANNEL].chan_num);
-	}
-
-	if (copied_length == 0) {
-		hdd_err("No Channel List found for given power type %u",
-			power_type);
-		ret = -EINVAL;
-		goto free;
-	}
-
-	if (copy_to_user(priv_data->buf, &extra, copied_length + 1)) {
-		hdd_err("failed to copy data to user buffer");
-		ret = -EFAULT;
-		goto free;
-	}
-
-	hdd_debug("Power type = %u, Data = %s", power_type, extra);
-free:
-	qdf_mem_free(chan_list);
-	return ret;
-}
-#endif
-
 static inline int __drv_cmd_country(struct wlan_hdd_link_info *link_info,
 				    struct hdd_context *hdd_ctx,
 				    uint8_t *command,
@@ -3151,14 +3062,6 @@ static int drv_cmd_set_roam_mode(struct wlan_hdd_link_info *link_info,
 
 	hdd_debug("Received Command to Set Roam Mode = %d",
 		  roam_mode);
-
-	if (sme_roaming_in_progress(hdd_ctx->mac_handle,
-				    link_info->vdev_id)) {
-		hdd_err_rl("Roaming in progress for vdev %d",
-			   link_info->vdev_id);
-		return -EAGAIN;
-	}
-
 	/*
 	 * Note that
 	 *     SETROAMMODE 0 is to enable LFR while
@@ -4476,13 +4379,6 @@ static int drv_cmd_set_fast_roam(struct wlan_hdd_link_info *link_info,
 	hdd_debug("Received Command to change lfr mode = %d",
 		  lfr_mode);
 
-	if (sme_roaming_in_progress(hdd_ctx->mac_handle,
-				    link_info->vdev_id)) {
-		hdd_err_rl("Roaming in progress for vdev %d",
-			   link_info->vdev_id);
-		return -EAGAIN;
-	}
-
 	ucfg_mlme_set_lfr_enabled(hdd_ctx->psoc, (bool)lfr_mode);
 	sme_update_is_fast_roam_ini_feature_enabled(hdd_ctx->mac_handle,
 						    link_info->vdev_id,
@@ -4527,30 +4423,6 @@ exit:
 	return ret;
 }
 
-/**
- * drv_cmd_fast_reassoc() - Handler for FASTREASSOC driver command
- * @link_info: Carries link specific info, which contains adapter
- * @hdd_ctx: pointer to hdd context
- * @command: Buffer that carries actual command data, which can be parsed by
- *           hdd_parse_reassoc_command_v1_data()
- * @command_len: Command length
- * @priv_data: to carry any priv data, FASTREASSOC doesn't have any priv
- *             data for now.
- *
- * This function parses the reasoc command data passed in the format
- * FASTREASSOC<space><bssid><space><channel/frequency>
- *
- * If MAC from user space is broadcast MAC as:
- * "wpa_cli DRIVER FASTREASSOC ff:ff:ff:ff:ff:ff 0",
- * user space invoked roaming candidate selection will base on firmware score
- * algorithm, current connection will be kept if current AP has highest
- * score. It is requirement from customer which can avoid ping-pong roaming.
- *
- * If firmware fails to roam to new AP due to any reason, host to disconnect
- * from current AP as it's unable to roam.
- *
- * Return: 0 for success non-zero for failure
- */
 static int drv_cmd_fast_reassoc(struct wlan_hdd_link_info *link_info,
 				struct hdd_context *hdd_ctx,
 				uint8_t *command,
@@ -4766,10 +4638,18 @@ static int drv_cmd_miracast(struct wlan_hdd_link_info *link_info,
 	uint8_t filter_type = 0;
 	uint8_t *value;
 
+	int sta_quota;
+	// end
+
 	if (wlan_hdd_validate_context(hdd_ctx))
 		return -EINVAL;
 
 	value = command + 9;
+
+	if (check_private_miracast_cmd(value, &sta_quota)) {
+	    return handle_private_miracast_cmd(link_info, sta_quota);
+	}
+	// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
 
 	/* Convert the value from ascii to integer */
 	ret = kstrtou8(value, 10, &filter_type);
@@ -5631,56 +5511,6 @@ static int drv_cmd_get_rssi(struct wlan_hdd_link_info *link_info,
 	len = scnprintf(extra, sizeof(extra), "%s %d", command, rssi);
 	len = QDF_MIN(priv_data->total_len, len + 1);
 
-	if (copy_to_user(priv_data->buf, &extra, len)) {
-		hdd_err("Failed to copy data to user buffer");
-		ret = -EFAULT;
-	}
-
-	return ret;
-}
-
-/**
- * drv_cmd_get_sap_go_linkspeed() - Driver command to get SAP/P2P Go peer link
- *                                  speed
- * @link_info: Link info pointer in HDD adapter
- * @hdd_ctx: HDD context pointer
- * @command: Driver command string
- * @command_len: Driver command string length
- * @priv_data: Pointer to HDD private data
- *
- * Return: 0 if linkspeed data is available, negative errno otherwise
- */
-static int drv_cmd_get_sap_go_linkspeed(struct wlan_hdd_link_info *link_info,
-					struct hdd_context *hdd_ctx,
-					uint8_t *command,
-					uint8_t command_len,
-					struct hdd_priv_data *priv_data)
-{
-	int ret;
-	uint32_t link_speed = 0;
-	char extra[64];
-	uint8_t len = 0;
-	struct hdd_adapter *adapter = link_info->adapter;
-
-	if (adapter->device_mode == QDF_P2P_GO_MODE ||
-	    adapter->device_mode == QDF_SAP_MODE) {
-		ret = wlan_hdd_get_sap_go_peer_linkspeed(link_info,
-							 &link_speed,
-							 command,
-							 command_len);
-	} else {
-		hdd_err("Link Speed is not allowed in Device mode %s(%d)",
-			qdf_opmode_str(adapter->device_mode),
-			adapter->device_mode);
-		ret = -ENOTSUPP;
-	}
-
-	if (0 != ret)
-		return ret;
-
-	len = scnprintf(extra, sizeof(extra), "%s %d\n",
-			"SOFT-AP LINKSPEED", link_speed);
-	len = QDF_MIN(priv_data->total_len, len + 1);
 	if (copy_to_user(priv_data->buf, &extra, len)) {
 		hdd_err("Failed to copy data to user buffer");
 		ret = -EFAULT;
@@ -6723,20 +6553,11 @@ static void disconnect_sta_and_restart_sap(struct hdd_context *hdd_ctx,
 	struct hdd_adapter *adapter, *next = NULL;
 	QDF_STATUS status;
 	struct hdd_ap_ctx *ap_ctx;
-	uint32_t ch_list[NUM_CHANNELS];
-	uint32_t ch_count = 0;
-	bool is_valid_chan_present = true;
 
 	if (!hdd_ctx)
 		return;
 
 	hdd_check_and_disconnect_sta_on_invalid_channel(hdd_ctx, reason);
-
-	status = policy_mgr_get_valid_chans(hdd_ctx->psoc, ch_list, &ch_count);
-	if (QDF_IS_STATUS_ERROR(status) || !ch_count) {
-		hdd_debug("No valid channels present, stop the SAPs");
-		is_valid_chan_present = false;
-	}
 
 	status = hdd_get_front_adapter(hdd_ctx, &adapter);
 	while (adapter && (status == QDF_STATUS_SUCCESS)) {
@@ -6746,10 +6567,7 @@ static void disconnect_sta_and_restart_sap(struct hdd_context *hdd_ctx,
 		}
 
 		ap_ctx = WLAN_HDD_GET_AP_CTX_PTR(adapter->deflink);
-		if (!is_valid_chan_present)
-			wlan_hdd_stop_sap(adapter);
-		else if (check_disable_channels(hdd_ctx,
-						ap_ctx->operating_chan_freq))
+		if (check_disable_channels(hdd_ctx, ap_ctx->operating_chan_freq))
 			policy_mgr_check_sap_restart(hdd_ctx->psoc,
 						     adapter->deflink->vdev_id);
 next_adapter:
@@ -7322,6 +7140,88 @@ static int drv_cmd_get_function_call_map(struct wlan_hdd_link_info *link_info,
 	return 0;
 }
 #endif
+//ifdef OPLUS_FEATURE_WIFI_ARCHITECHURE
+static int drv_cmd_set_11be_disabled(struct wlan_hdd_link_info *link_info,
+					 struct hdd_context *hdd_ctx,
+					 uint8_t *command,
+					 uint8_t command_len,
+					 struct hdd_priv_data *priv_data){
+	int errno;
+	uint8_t val = 0;
+	uint8_t *value = command;
+	value = value + 18; //command：SET-11BE-DISABLED 1
+	errno = kstrtou8(value, 10, &val);
+	if (errno < 0) {
+		/*
+		 * If the input value is greater than max value of datatype,
+		 * then also kstrtou8 fails
+		 */
+		hdd_err("kstrtou8 failed invalid input value");
+		return -EINVAL;
+	}
+	hdd_debug("command val %d,errno %d", val, errno);
+	if(val){
+		hdd_ctx->psoc->soc_nif.user_config.usr_disable_eht = true;
+	}
+	return 0;
+}
+//endif
+
+static int drv_cmd_set_burst_time(struct wlan_hdd_link_info *link_info,
+				  struct hdd_context *hdd_ctx,
+				  uint8_t *command,
+				  uint8_t command_len,
+				  struct hdd_priv_data *priv_data)
+{
+	uint8_t *value = command;
+	int  temp = 0;
+	uint32_t val = 0;
+	struct wlan_objmgr_psoc *psoc = hdd_ctx->psoc;
+	struct wlan_scan_obj *scan_obj;
+
+	if (!psoc) {
+		hdd_err("psoc is null");
+		return -EINVAL;
+	}
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	hdd_debug("command is %s", command);
+	if (!scan_obj)
+		return -EINVAL;;
+	if (strncmp(command, "SETBURSTTIME P2P", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.p2p_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME GO", 15) == 0) {
+		value = value + 16;
+		temp = kstrtou32(value, 10, &val);
+		hdd_debug("command is %s", command);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			hdd_debug("command err val is %d ", val);
+			return -EFAULT;
+		}
+		scan_obj->scan_def.go_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME STA", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.sta_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME SAP", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.ap_scan_burst_duration = val;
+	} else {
+		return -EFAULT;
+	}
+	return 0;
+}
 
 /*
  * The following table contains all supported WLAN HDD
@@ -7439,10 +7339,10 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"RXFILTER-STOP",             drv_cmd_dummy, false},
 	{"BTCOEXSCAN-START",          drv_cmd_dummy, false},
 	{"BTCOEXSCAN-STOP",           drv_cmd_dummy, false},
-	{"GET_SOFTAP_LINK_SPEED",     drv_cmd_get_sap_go_linkspeed, true},
-#ifdef CONFIG_BAND_6GHZ
-	{"GET_WIFI6E_CHANNELS",       drv_cmd_get_wifi6e_channels, true},
-#endif
+	{"SET-11BE-DISABLED",   drv_cmd_set_11be_disabled, true},
+	{"GET-FW-UPDATE-MCC-QUOTA",   drv_cmd_smartmcc_get_fw_update_quota, false},
+	{"SETBURSTTIME", drv_cmd_set_burst_time, false},
+	// End
 };
 
 /**

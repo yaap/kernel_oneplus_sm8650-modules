@@ -111,13 +111,17 @@ static void lim_extract_he_op(struct pe_session *session,
 	if (!session->he_capable)
 		return;
 	if (!beacon_struct->he_op.present) {
+		pe_debug("HE op not present in beacon");
 		return;
 	}
 	qdf_mem_copy(&session->he_op, &beacon_struct->he_op,
 			sizeof(session->he_op));
+	pe_debug("he_op.bss_color %d", session->he_op.bss_color);
+	pe_debug("he_op.default_pe %d", session->he_op.default_pe);
 	if (!session->he_6ghz_band)
 		return;
 	if (!session->he_op.oper_info_6g_present) {
+		pe_debug("6GHz op not present in 6G beacon");
 		session->ap_defined_power_type_6g = REG_CURRENT_MAX_AP_TYPE;
 		return;
 	}
@@ -211,12 +215,14 @@ static void lim_check_is_he_mcs_valid(struct pe_session *session,
 			return;
 	}
 	session->he_capable = false;
-	if (session->vhtCapability)
+	pe_err("AP does not have valid MCS map");
+	if (session->vhtCapability) {
 		session->dot11mode = MLME_DOT11_MODE_11AC;
-	else
+		pe_debug("Update dot11mode to 11ac");
+	} else {
 		session->dot11mode = MLME_DOT11_MODE_11N;
-	pe_err("vdev %d: Invalid LT80 MCS map 0x%x with NSS %d, falback to dot11mode %d",
-	       session->vdev_id, mcs_map, session->nss, session->dot11mode);
+		pe_debug("Update dot11mode to 11N");
+	}
 }
 
 void lim_update_he_bw_cap_mcs(struct pe_session *session,
@@ -347,11 +353,15 @@ static void lim_extract_eht_op(struct pe_session *session,
 	if (!session->eht_capable)
 		return;
 
-	if (!beacon_struct->eht_op.present)
+	if (!beacon_struct->eht_op.present) {
+		pe_debug("EHT OP not present in beacon");
 		return;
+	}
 
-	if (!beacon_struct->eht_op.eht_op_information_present)
+	if (!beacon_struct->eht_op.eht_op_information_present) {
+		pe_debug("EHT Operation Information Present not set");
 		return;
+	}
 
 	qdf_mem_copy(&session->eht_op, &beacon_struct->eht_op,
 		     sizeof(session->eht_op));
@@ -387,6 +397,9 @@ static void lim_extract_eht_op(struct pe_session *session,
 
 	session->ch_center_freq_seg0 = session->eht_op.ccfs0;
 	session->ch_center_freq_seg1 = session->eht_op.ccfs1;
+
+	pe_debug("session ch_width %d ccfs0 %d ccfs1 %d", session->ch_width,
+		 session->ch_center_freq_seg0, session->ch_center_freq_seg1);
 }
 
 void lim_update_eht_bw_cap_mcs(struct pe_session *session,
@@ -398,11 +411,15 @@ void lim_update_eht_bw_cap_mcs(struct pe_session *session,
 	if ((session->opmode == QDF_STA_MODE ||
 	     session->opmode == QDF_P2P_CLIENT_MODE) &&
 	    beacon && beacon->eht_cap.present) {
-		if (!beacon->eht_cap.support_320mhz_6ghz)
+		if (!beacon->eht_cap.support_320mhz_6ghz) {
+			pe_debug("Session 6G 320M unsupported");
 			session->eht_config.support_320mhz_6ghz = 0;
+		}
 		if (!beacon->eht_cap.support_320mhz_6ghz ||
-		    !beacon->eht_cap.su_beamformer)
+		    !beacon->eht_cap.su_beamformer) {
+			pe_debug("Session 320 MHz Sounding Dimensions unsupported");
 			session->eht_config.num_sounding_dim_320mhz = 0;
+		}
 	}
 }
 #else
@@ -544,7 +561,7 @@ void lim_update_ch_width_for_p2p_client(struct mac_context *mac,
 {
 	struct ch_params ch_params = {0};
 
-	if (session->dot11mode < MLME_DOT11_MODE_11AC)
+	if (session->dot11mode > MLME_DOT11_MODE_11AC_ONLY)
 		return;
 	/*
 	 * Some IOT AP's/P2P-GO's (e.g. make: Wireless-AC 9560160MHz as P2P GO),
@@ -652,8 +669,7 @@ void lim_extract_ap_capability(struct mac_context *mac_ctx, uint8_t *p_ie,
 			session->vht_config.su_beam_formee = 0;
 
 		if (session->opmode == QDF_P2P_CLIENT_MODE &&
-		    !wlan_reg_is_24ghz_ch_freq(beacon_struct->chan_freq) &&
-			mac_ctx->roam.configParam.channelBondingMode5GHz)
+		    !wlan_reg_is_24ghz_ch_freq(beacon_struct->chan_freq))
 			lim_update_ch_width_for_p2p_client(
 					mac_ctx, session,
 					beacon_struct->chan_freq);

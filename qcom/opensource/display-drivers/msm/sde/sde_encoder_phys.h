@@ -144,7 +144,6 @@ struct sde_encoder_virt_ops {
  * @restore:			Restore all the encoder configs.
  * @is_autorefresh_enabled:	provides the autorefresh current
  *                              enable/disable state.
- * @is_autoref_disable_pending:	Indicates if autorefresh disable commit in progress
  * @get_line_count:		Obtain current internal vertical line count
  * @wait_dma_trigger:		Returns true if lut dma has to trigger and wait
  *                              unitl transaction is complete.
@@ -155,7 +154,6 @@ struct sde_encoder_virt_ops {
  * @add_to_minidump:		Add this phys_enc data to minidumps
  * @disable_autorefresh:	Disable autorefresh
  * @idle_pc_cache_display_status:	caches display status at idle power collapse
- * @wait_for_vsync_on_autorefresh_busy:	Wait for vsync if autorefresh status busy
  */
 
 struct sde_encoder_phys_ops {
@@ -204,7 +202,6 @@ struct sde_encoder_phys_ops {
 	void (*control_te)(struct sde_encoder_phys *phys_enc, bool enable);
 	void (*restore)(struct sde_encoder_phys *phys);
 	bool (*is_autorefresh_enabled)(struct sde_encoder_phys *phys);
-	bool (*is_autoref_disable_pending)(struct sde_encoder_phys *phys);
 	int (*get_line_count)(struct sde_encoder_phys *phys);
 	bool (*wait_dma_trigger)(struct sde_encoder_phys *phys);
 	int (*wait_for_active)(struct sde_encoder_phys *phys);
@@ -214,7 +211,6 @@ struct sde_encoder_phys_ops {
 	void (*add_to_minidump)(struct sde_encoder_phys *phys);
 	void (*disable_autorefresh)(struct sde_encoder_phys *phys);
 	void (*idle_pc_cache_display_status)(struct sde_encoder_phys *phys);
-	void (*wait_for_vsync_on_autorefresh_busy)(struct sde_encoder_phys *phys_enc);
 };
 
 /**

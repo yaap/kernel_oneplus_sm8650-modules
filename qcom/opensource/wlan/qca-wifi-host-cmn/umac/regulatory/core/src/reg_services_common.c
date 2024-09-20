@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -429,30 +429,6 @@ reg_get_bonded_chan_entry(qdf_freq_t freq,
 
 #endif /*CONFIG_CHAN_FREQ_API*/
 
-/* For a given chan_width, provide the next higher chan_width */
-static const enum phy_ch_width next_higher_bw[] = {
-	[CH_WIDTH_20MHZ] = CH_WIDTH_40MHZ,
-	[CH_WIDTH_40MHZ] = CH_WIDTH_80MHZ,
-	[CH_WIDTH_80MHZ] = CH_WIDTH_160MHZ,
-	[CH_WIDTH_5MHZ]  = CH_WIDTH_10MHZ,
-	[CH_WIDTH_10MHZ] = CH_WIDTH_20MHZ,
-#ifdef WLAN_FEATURE_11BE
-	[CH_WIDTH_160MHZ] = CH_WIDTH_320MHZ,
-	[CH_WIDTH_320MHZ]   = CH_WIDTH_INVALID
-#else
-	[CH_WIDTH_80P80MHZ] = CH_WIDTH_160MHZ,
-	[CH_WIDTH_160MHZ] = CH_WIDTH_INVALID
-#endif
-};
-
-enum phy_ch_width reg_get_next_higher_bandwidth(enum phy_ch_width ch_width)
-{
-	if (ch_width >= CH_WIDTH_20MHZ && ch_width <= CH_WIDTH_320MHZ)
-	    return next_higher_bw[ch_width];
-	else
-	    return CH_WIDTH_INVALID;
-}
-
 enum phy_ch_width get_next_lower_bandwidth(enum phy_ch_width ch_width)
 {
 	static const enum phy_ch_width get_next_lower_bw[] = {
@@ -469,10 +445,7 @@ enum phy_ch_width get_next_lower_bandwidth(enum phy_ch_width ch_width)
 		[CH_WIDTH_5MHZ] = CH_WIDTH_INVALID
 	};
 
-	if (ch_width >= CH_WIDTH_20MHZ && ch_width <= CH_WIDTH_320MHZ)
-	    return get_next_lower_bw[ch_width];
-	else
-	    return CH_WIDTH_INVALID;
+	return get_next_lower_bw[ch_width];
 }
 
 const struct chan_map channel_map_us[NUM_CHANNELS] = {
@@ -3944,7 +3917,7 @@ reg_skip_invalid_chan_freq(struct wlan_objmgr_pdev *pdev,
 				}
 
 				if (!(enable_srd_chan & srd_mask) &&
-				    reg_is_etsi_srd_chan_for_freq(
+				    reg_is_etsi13_srd_chan_for_freq(
 					pdev, res_msg[chan_enum].freq)) {
 					res_msg[chan_enum].iface_mode_mask &=
 						~(iface_mode);
@@ -6224,9 +6197,6 @@ bool reg_is_same_band_freqs(qdf_freq_t freq1, qdf_freq_t freq2)
 
 enum reg_wifi_band reg_freq_to_band(qdf_freq_t freq)
 {
-	if (!freq)
-		return REG_BAND_UNKNOWN;
-
 	if (REG_IS_24GHZ_CH_FREQ(freq))
 		return REG_BAND_2G;
 	else if (REG_IS_5GHZ_FREQ(freq) || REG_IS_49GHZ_FREQ(freq))
@@ -8231,7 +8201,7 @@ QDF_STATUS reg_get_client_power_for_connecting_ap(struct wlan_objmgr_pdev *pdev,
 						  uint16_t *eirp_psd_power)
 {
 	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj;
-	enum reg_6g_client_type client_type = REG_DEFAULT_CLIENT;
+	enum reg_6g_client_type client_type;
 	struct regulatory_channel *master_chan_list;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
@@ -8294,7 +8264,7 @@ QDF_STATUS reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 }
 
 QDF_STATUS reg_set_ap_pwr_and_update_chan_list(struct wlan_objmgr_pdev *pdev,
-		enum reg_6g_ap_type ap_pwr_type)
+					       enum reg_6g_ap_type ap_pwr_type)
 {
 	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj;
 	QDF_STATUS status;
@@ -8305,15 +8275,18 @@ QDF_STATUS reg_set_ap_pwr_and_update_chan_list(struct wlan_objmgr_pdev *pdev,
 		return QDF_STATUS_E_INVAL;
 	}
 
-	if (!reg_get_num_rules_of_ap_pwr_type(pdev, ap_pwr_type))
-		return QDF_STATUS_E_FAILURE;
+	if (ap_pwr_type != REG_CURRENT_MAX_AP_TYPE) {
+		if (!reg_get_num_rules_of_ap_pwr_type(pdev, ap_pwr_type))
+			return QDF_STATUS_E_FAILURE;
 
-	status = reg_set_cur_6g_ap_pwr_type(pdev, ap_pwr_type);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		reg_debug("failed to set AP power type to %d",
-				ap_pwr_type);
-		return status;
+		status = reg_set_cur_6g_ap_pwr_type(pdev, ap_pwr_type);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			reg_debug("failed to set AP power type to %d",
+				  ap_pwr_type);
+			return status;
+		}
 	}
+
 	reg_compute_pdev_current_chan_list(pdev_priv_obj);
 
 	return QDF_STATUS_SUCCESS;
@@ -9530,12 +9503,19 @@ reg_get_eirp_from_mas_chan_list(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq,
 	return txpower;
 }
 
-qdf_freq_t reg_compute_6g_center_freq_from_cfi(uint8_t ieee_6g_cfi)
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * reg_compute_6g_center_freq_from_cfi() - Given the IEEE value of the
+ * 6 GHz center frequency, find the 6 GHz center frequency.
+ * @ieee_6g_cfi: IEEE value of 6 GHz cfi
+ * Return: Center frequency in MHz
+ */
+static qdf_freq_t
+reg_compute_6g_center_freq_from_cfi(uint8_t ieee_6g_cfi)
 {
 	return (SIXG_START_FREQ + ieee_6g_cfi * FREQ_TO_CHAN_SCALE);
 }
 
-#ifdef CONFIG_AFC_SUPPORT
 #ifdef WLAN_FEATURE_11BE
 /**
  * reg_is_320_opclass: Find out if the opclass computed from freq and

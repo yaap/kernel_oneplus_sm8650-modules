@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -592,11 +592,6 @@ int cam_vfe_rdi_ver2_deinit(
 	struct cam_vfe_mux_rdi_data *rdi_priv = rdi_node->res_priv;
 	int                          i = 0;
 
-	if (!rdi_priv) {
-		CAM_ERR(CAM_ISP, "Error! rdi_priv NULL");
-		return -ENODEV;
-	}
-
 	INIT_LIST_HEAD(&rdi_priv->free_payload_list);
 	for (i = 0; i < CAM_VFE_RDI_EVT_MAX; i++)
 		INIT_LIST_HEAD(&rdi_priv->evt_payload[i].list);
@@ -609,6 +604,10 @@ int cam_vfe_rdi_ver2_deinit(
 
 	rdi_node->res_priv = NULL;
 
+	if (!rdi_priv) {
+		CAM_ERR(CAM_ISP, "Error! rdi_priv NULL");
+		return -ENODEV;
+	}
 	kfree(rdi_priv);
 
 	return 0;

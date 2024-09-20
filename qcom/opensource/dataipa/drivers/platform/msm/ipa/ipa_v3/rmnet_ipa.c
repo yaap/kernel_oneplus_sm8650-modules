@@ -90,9 +90,6 @@ enum ipa_ap_ingress_ep_enum {
 #define RMNET_IPA_ULSO_FEATURE \
 	(NETIF_F_SG | NETIF_F_ALL_TSO)
 #define RMNET_IPA_ULSO_SIZE_LIMIT 64000
-#define MAX_WIGIG_CLIENTS_IPA_5_5 3
-#define MAX_WIGIG_CLIENTS_IPA_4_11 0
-#define MAX_WIGIG_CLIENTS 4
 
 static void rmnet_ipa_free_msg(void *buff, u32 len, u32 type);
 static void rmnet_ipa_get_stats_and_update(void);
@@ -3991,7 +3988,7 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		if (atomic_read(&rmnet_ipa3_ctx->is_ssr) &&
 			ipa3_ctx_get_type(IPA_HW_TYPE) >= IPA_HW_v4_0)
 			ipa3_q6_post_shutdown_cleanup();
-		ipa3_odl_pipe_cleanup_from_ssr();
+		ipa3_odl_pipe_cleanup(true);
 		IPAWANINFO("IPA BEFORE_SHUTDOWN handling is complete\n");
 		break;
 #if IS_ENABLED(CONFIG_DEEPSLEEP)
@@ -4074,7 +4071,7 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 		if (!atomic_read(&rmnet_ipa3_ctx->is_initialized) &&
 		       atomic_read(&rmnet_ipa3_ctx->is_ssr))
 			platform_driver_register(&rmnet_ipa_driver);
-		ipa3_odl_pipe_open_from_ssr();
+		ipa3_odl_pipe_open();
 		IPAWANINFO("IPA AFTER_POWERUP handling is complete\n");
 		break;
 	default:
@@ -4474,8 +4471,7 @@ static int rmnet_ipa3_set_data_quota_wifi(struct wan_ioctl_set_data_quota *data)
 		  data->interface_name, (unsigned long) data->quota_mbytes);
 
 	if (ipa3_ctx_get_type(IPA_HW_TYPE) >= IPA_HW_v4_5 &&
-		ipa3_ctx_get_type(IPA_HW_TYPE) != IPA_HW_v4_11 &&
-		ipa3_ctx_get_type(IPA_HW_TYPE) != IPA_HW_v5_2) {
+		ipa3_ctx_get_type(IPA_HW_TYPE) != IPA_HW_v4_11) {
 		IPADBG("use ipa-uc for quota\n");
 		rc = ipa3_uc_quota_monitor(data->set_quota);
 	} else {
@@ -4839,28 +4835,15 @@ static inline enum ipa_client_type rmnet_ipa3_get_wigig_cons(int idx)
 	}
 }
 
-static inline int rmnet_ipa3_get_max_wigig_clnt(void)
-{
-	switch (ipa3_ctx->ipa_hw_type) {
-	case IPA_HW_v5_5:
-		return MAX_WIGIG_CLIENTS_IPA_5_5;
-	case IPA_HW_v4_11:
-		return MAX_WIGIG_CLIENTS_IPA_4_11;
-	default:
-		return MAX_WIGIG_CLIENTS;
-	}
-}
-
 static int rmnet_ipa3_query_tethering_stats_hw(
 	struct wan_ioctl_query_tether_stats *data, bool reset)
 {
+#define MAX_WIGIG_CLIENTS 4
 
 	int rc = 0, index = 0, i = 0;
 	struct ipa_quota_stats_all *con_stats;
 	enum ipa_client_type wlan_client;
-	int ep_idx, wlan_ep_idx, usb_ep_idx, max_wigig_clnts;
-
-	max_wigig_clnts = rmnet_ipa3_get_max_wigig_clnt();
+	int ep_idx,wlan_ep_idx,usb_ep_idx;
 
 	/* qet HW-stats */
 	rc = ipa_get_teth_stats();
@@ -4924,9 +4907,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 	con_stats->client[usb_ep_idx].num_ipv6_pkts,
 	con_stats->client[usb_ep_idx].num_ipv6_bytes);
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -4956,9 +4948,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 		con_stats->client[wlan_ep_idx].num_ipv6_bytes +
 			con_stats->client[usb_ep_idx].num_ipv6_bytes;
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -5017,9 +5018,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 		con_stats->client[usb_ep_idx].num_ipv6_pkts,
 		con_stats->client[usb_ep_idx].num_ipv6_bytes);
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -5048,9 +5058,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 		con_stats->client[wlan_ep_idx].num_ipv6_bytes +
 		con_stats->client[usb_ep_idx].num_ipv6_bytes;
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -5108,9 +5127,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 		con_stats->client[usb_ep_idx].num_ipv6_pkts,
 		con_stats->client[usb_ep_idx].num_ipv6_bytes);
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -5139,9 +5167,18 @@ static int rmnet_ipa3_query_tethering_stats_hw(
 		con_stats->client[wlan_ep_idx].num_ipv6_bytes +
 		con_stats->client[IPA_CLIENT_USB_CONS].num_ipv6_bytes;
 
-	for (i = 0; i < max_wigig_clnts; i++) {
+	for (i = 0; i < MAX_WIGIG_CLIENTS; i++) {
 		enum ipa_client_type wigig_client =
 			rmnet_ipa3_get_wigig_cons(i);
+
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			if (wigig_client > IPA_CLIENT_WIGIG3_CONS)
+				break;
+		}
+		else {
+			if (wigig_client > IPA_CLIENT_WIGIG4_CONS)
+				break;
+		}
 
 		ep_idx = ipa_get_ep_mapping( wigig_client );
 
@@ -6376,10 +6413,6 @@ int rmnet_ipa3_get_wan_mtu(
 	int rmnet_index;
 
 	mux_channel = rmnet_ipa3_ctx->mux_channel;
-
-	/* prevent string buffer overflows */
-	data->if_name[IPA_RESOURCE_NAME_MAX-1] = '\0';
-
 	rmnet_index =
 		find_vchannel_name_index(data->if_name);
 

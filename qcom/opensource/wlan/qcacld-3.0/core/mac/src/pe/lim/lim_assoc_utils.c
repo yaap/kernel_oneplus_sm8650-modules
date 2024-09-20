@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,9 +60,6 @@
 #include <cdp_txrx_cfg.h>
 #include <cdp_txrx_cmn.h>
 #include <lim_mlo.h>
-#include "sir_mac_prot_def.h"
-#include "wlan_action_oui_public_struct.h"
-#include "wlan_action_oui_main.h"
 
 /**
  * lim_cmp_ssid() - utility function to compare SSIDs
@@ -2165,25 +2162,6 @@ static bool lim_is_add_sta_params_he_capable(tpAddStaParams add_sta_params)
 #endif
 
 #ifdef FEATURE_WLAN_TDLS
-#ifdef WLAN_FEATURE_11BE
-static void lim_add_tdls_sta_eht_config(tpAddStaParams add_sta_params,
-					tpDphHashNode sta_ds)
-{
-	if (add_sta_params->eht_capable) {
-		pe_debug("Adding tdls eht capabilities");
-		qdf_mem_copy(&add_sta_params->eht_config, &sta_ds->eht_config,
-			     sizeof(add_sta_params->eht_config));
-		qdf_mem_copy(&add_sta_params->eht_op, &sta_ds->eht_op,
-			     sizeof(add_sta_params->eht_op));
-	}
-}
-#else
-static void lim_add_tdls_sta_eht_config(tpAddStaParams add_sta_params,
-					tpDphHashNode sta_ds)
-{
-}
-
-#endif
 #ifdef WLAN_FEATURE_11AX
 static void lim_add_tdls_sta_he_config(tpAddStaParams add_sta_params,
 				       tpDphHashNode sta_ds)
@@ -2552,7 +2530,6 @@ lim_add_sta(struct mac_context *mac_ctx,
 		if (lim_is_he_6ghz_band(session_entry))
 			lim_add_tdls_sta_6ghz_he_cap(mac_ctx, add_sta_params,
 						     sta_ds);
-		lim_add_tdls_sta_eht_config(add_sta_params, sta_ds);
 	}
 #endif
 
@@ -3674,38 +3651,6 @@ void lim_sta_add_bss_update_ht_parameter(uint32_t bss_chan_freq,
 		add_bss->ch_width = CH_WIDTH_20MHZ;
 }
 
-/**
- * lim_limit_bw_for_iot_ap() - limit sta vdev band width for iot ap
- *@mac_ctx: mac context
- *@session: pe session
- *@bss_desc: bss descriptor
- *
- * When connect IoT AP, limit sta vdev band width
- *
- * Return: None
- */
-static void
-lim_limit_bw_for_iot_ap(struct mac_context *mac_ctx,
-			struct pe_session *session,
-			struct bss_description *bss_desc)
-{
-	struct action_oui_search_attr vendor_ap_search_attr;
-	uint16_t ie_len;
-
-	ie_len = wlan_get_ielen_from_bss_description(bss_desc);
-
-	vendor_ap_search_attr.ie_data = (uint8_t *)&bss_desc->ieFields[0];
-	vendor_ap_search_attr.ie_length = ie_len;
-
-	if (wlan_action_oui_search(mac_ctx->psoc,
-				   &vendor_ap_search_attr,
-				   ACTION_OUI_LIMIT_BW)) {
-		pe_debug("Limit vdev %d bw to 40M for IoT AP",
-			 session->vdev_id);
-		wma_set_vdev_bw(session->vdev_id, eHT_CHANNEL_WIDTH_40MHZ);
-	}
-}
-
 QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp,
 				   tpSchBeaconStruct pBeaconStruct,
 				   struct bss_description *bssDescription,
@@ -4156,8 +4101,6 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 		       retCode);
 	}
 	qdf_mem_free(pAddBssParams);
-
-	lim_limit_bw_for_iot_ap(mac, pe_session, bssDescription);
 
 returnFailure:
 	/* Clean-up will be done by the caller... */

@@ -4,7 +4,6 @@ load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 def _register_module_to_map(module_map, name, path, config_option, srcs, config_srcs, deps, config_deps):
     processed_config_srcs = {}
     nested_config = {}
-    processed_config_deps = {}
 
     for config_src_name in config_srcs:
         config_src = config_srcs[config_src_name]
@@ -17,18 +16,10 @@ def _register_module_to_map(module_map, name, path, config_option, srcs, config_
             nested_config = config_src
 
             for nested_src, nest_name in nested_config.items():
-                if nested_src == True:
-                    processed_config_srcs[config_src_name] = {True: nest_name}
-                else:
-                    processed_config_srcs[nested_src] = {True: nest_name}
-
-    for config_deps_name in config_deps:
-         config_dep = config_deps[config_deps_name]
-
-         if type(config_dep) == "list":
-             processed_config_deps[config_deps_name] = {True: config_dep}
-         else:
-             processed_config_deps[config_deps_name] = config_dep
+                if nested_src == "True":
+                    for nest_src in nest_name:
+                        final_srcs = nest_name[nest_src]
+                        processed_config_srcs[nest_src] = final_srcs
     module = struct(
         name = name,
         path = path,
@@ -36,7 +27,6 @@ def _register_module_to_map(module_map, name, path, config_option, srcs, config_
         config_srcs = processed_config_srcs,
         config_option = config_option,
         deps = deps,
-        config_deps = processed_config_deps
     )
 
     module_map[name] = module
@@ -58,8 +48,7 @@ def _get_kernel_build_module_srcs(module, options, formatter):
     return ["{}{}".format(module_path, formatter(src)) for src in srcs]
 
 def _get_kernel_build_module_deps(module, options, formatter):
-    deps = module.deps + _get_config_choices(module.config_deps, options)
-    return [formatter(dep) for dep in deps]
+    return [formatter(dep) for dep in module.deps]
 
 def display_module_entry(hdrs = []):
     module_map = {}

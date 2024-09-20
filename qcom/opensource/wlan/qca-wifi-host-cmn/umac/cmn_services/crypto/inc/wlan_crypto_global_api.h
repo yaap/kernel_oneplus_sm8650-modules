@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -888,17 +888,6 @@ enum wlan_crypto_cipher_type
 wlan_crypto_get_cipher(struct wlan_objmgr_vdev *vdev,
 		       bool pairwise, uint8_t key_index);
 
-/**
- * wlan_crypto_get_secure_akm_available() - Search the AKM bitmap to
- * find the most secure AKM.
- * @akm: Bitmap of available AKMs.
- *
- * Search in the decreasing order of AKM security and return the
- * first matching AKM available in @akm bitmap.
- *
- * Return: enum wlan_crypto_key_mgmt
- */
-wlan_crypto_key_mgmt wlan_crypto_get_secure_akm_available(uint32_t akm);
 #ifdef CRYPTO_SET_KEY_CONVERGED
 /**
  * wlan_crypto_update_set_key_peer() - Update the peer for set key
@@ -1235,42 +1224,5 @@ wlan_crypto_set_ltf_keyseed(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS wlan_crypto_create_fils_rik(uint8_t *rrk, uint8_t rrk_len,
 				       uint8_t *rik, uint32_t *rik_len);
-/**
- * wlan_crypto_aquire_lock() - Acquire the crypto lock before crypto set/get
- */
-void wlan_crypto_aquire_lock(void);
-
-/**
- * wlan_crypto_release_lock() - Release the crypto lock after crypto set/get
- */
-void wlan_crypto_release_lock(void);
 #endif /* WLAN_FEATURE_FILS_SK */
-
-/**
- * crypto_flush_entries - This API will flush crypto keys
- * @psoc: psoc handler
- *
- * Return: None
- */
-void crypto_flush_entries(struct wlan_objmgr_psoc *psoc);
-
-/**
- * ucfg_crypto_flush_entries - wrapper API for "crypto_flush_entries"
- * @psoc: psoc handler
- *
- * Return: None
- */
-void ucfg_crypto_flush_entries(struct wlan_objmgr_psoc *psoc);
-
-/**
- * ucfg_crypto_free_key_by_link_id - free key by link id
- * @psoc: psoc handler
- * @link_addr: link address
- * @link_id: link id
- *
- * Return: None
- */
-void ucfg_crypto_free_key_by_link_id(struct wlan_objmgr_psoc *psoc,
-				     struct qdf_mac_addr *link_addr,
-				     uint8_t link_id);
 #endif /* end of _WLAN_CRYPTO_GLOBAL_API_H_ */

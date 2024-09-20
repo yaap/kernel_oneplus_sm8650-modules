@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
 * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
-* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
 */
 
 #include "gsihal_i.h"
@@ -2421,9 +2420,6 @@ unsigned long gsihal_get_inst_ram_size(void)
 		break;
 	case GSI_VER_3_0:
 		maxn = GSI_V3_0_GSI_INST_RAM_n_MAXn;
-		break;
-	case GSI_VER_5_2:
-		maxn = GSI_V5_2_GSI_INST_RAM_n_MAXn;
 		break;
 	case GSI_VER_ERR:
 	case GSI_VER_MAX:

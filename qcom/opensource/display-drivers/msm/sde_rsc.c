@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -905,9 +905,6 @@ int sde_rsc_client_state_update(struct sde_rsc_client *caller_client,
 		__builtin_return_address(0), rsc->current_state,
 		caller_client->name, state);
 
-	if ((state == SDE_RSC_VID_STATE) && (rsc->version >= SDE_RSC_REV_3))
-		state = SDE_RSC_CLK_STATE;
-
 	/**
 	 * This can only happen if splash is active or qsync is enabled.
 	 * In both cases timers need to be updated for when a transition to
@@ -919,6 +916,8 @@ int sde_rsc_client_state_update(struct sde_rsc_client *caller_client,
 			(caller_client == rsc->primary_client))
 		sde_rsc_timer_calculate(rsc, config, state);
 
+	if ((state == SDE_RSC_VID_STATE) && (rsc->version >= SDE_RSC_REV_3))
+		state = SDE_RSC_CLK_STATE;
 
 	caller_client->crtc_id = crtc_id;
 	caller_client->current_state = state;

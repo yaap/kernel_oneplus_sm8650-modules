@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -1634,9 +1634,8 @@ static void _sde_crtc_program_lm_output_roi(struct drm_crtc *crtc)
 
 		lm_roi = &cstate->lm_roi[lm_idx];
 		hw_lm = sde_crtc->mixers[lm_idx].hw_lm;
-		right_mixer = lm_idx % MAX_MIXERS_PER_LAYOUT;
-		if (sde_crtc->mixers_swapped)
-			right_mixer = !right_mixer;
+		if (!sde_crtc->mixers_swapped)
+			right_mixer = lm_idx % MAX_MIXERS_PER_LAYOUT;
 
 		if (lm_roi->w != hw_lm->cfg.out_width ||
 				lm_roi->h != hw_lm->cfg.out_height ||
@@ -5218,9 +5217,6 @@ void sde_crtc_reset_sw_state(struct drm_crtc *crtc)
 	set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask);
 	if (cstate->num_ds_enabled)
 		set_bit(SDE_CRTC_DIRTY_DEST_SCALER, cstate->dirty);
-
-	/* wipe out cached CRTC ROI so PU is seen as dirty next update */
-	memset(&cstate->cached_user_roi_list, 0, sizeof(cstate->cached_user_roi_list));
 }
 
 static void sde_crtc_post_ipc(struct drm_crtc *crtc)
@@ -5421,7 +5417,6 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 			crtc->state->enable, sde_crtc->cached_encoder_mask);
 	sde_crtc->enabled = false;
 	sde_crtc->cached_encoder_mask = 0;
-	cstate->cached_cwb_enc_mask = 0;
 
 	/* Try to disable uidle */
 	sde_core_perf_crtc_update_uidle(crtc, false);
@@ -6635,8 +6630,6 @@ static void sde_crtc_install_perf_properties(struct sde_crtc *sde_crtc,
 static void sde_crtc_setup_capabilities_blob(struct sde_kms_info *info,
 		struct sde_mdss_cfg *catalog)
 {
-	enum sde_ddr_type ddr_type;
-
 	sde_kms_info_reset(info);
 
 	sde_kms_info_add_keyint(info, "hw_version", catalog->hw_rev);
@@ -6662,21 +6655,10 @@ static void sde_crtc_setup_capabilities_blob(struct sde_kms_info *info,
 				catalog->mdp[0].ubwc_swizzle);
 	}
 
-	ddr_type = of_fdt_get_ddrtype();
-	switch (ddr_type) {
-	case LP_DDR4:
+	if (of_fdt_get_ddrtype() == LP_DDR4_TYPE)
 		sde_kms_info_add_keystr(info, "DDR version", "DDR4");
-		break;
-	case LP_DDR5:
+	else
 		sde_kms_info_add_keystr(info, "DDR version", "DDR5");
-		break;
-	case LP_DDR5X:
-		sde_kms_info_add_keystr(info, "DDR version", "DDR5X");
-		break;
-	default:
-		SDE_INFO("ddr type : 0x%x not in list\n", ddr_type);
-		break;
-	}
 
 	if (sde_is_custom_client()) {
 		/* No support for SMART_DMA_V1 yet */

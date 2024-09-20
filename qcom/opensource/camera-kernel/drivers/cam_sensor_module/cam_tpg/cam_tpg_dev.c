@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_tpg_dev.h"
@@ -208,15 +208,8 @@ static int tpg_soc_info_init(struct cam_tpg_device *tpg_dev,
 	for (i = 0; i < tpg_dev->soc_info.irq_count; i++)
 		irq_data[i] = tpg_dev;
 
-	if (!of_property_read_bool(of_node, "hw-no-ops"))
-		tpg_dev->hw_no_ops = false;
-	else
-		tpg_dev->hw_no_ops = true;
-
-	if (!tpg_dev->hw_no_ops)
-		rc = cam_soc_util_request_platform_resource(
-			&tpg_dev->soc_info, cam_tpg_irq_handler,
-			&(irq_data[0]));
+	rc = cam_soc_util_request_platform_resource(
+		&tpg_dev->soc_info, cam_tpg_irq_handler, &(irq_data[0]));
 	if (rc)
 		CAM_ERR(CAM_TPG, "unable to request platfrom resources");
 	else
@@ -343,14 +336,7 @@ static void cam_tpg_component_unbind(struct device *dev,
 	struct device *master_dev, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct cam_tpg_device  *tpg_dev = NULL;
-
-	tpg_dev = platform_get_drvdata(pdev);
-
-	if (!tpg_dev) {
-		CAM_ERR(CAM_TPG, "Error No data in tpg_dev");
-		return;
-	}
+	struct cam_tpg_device  *tpg_dev = platform_get_drvdata(pdev);
 
 	CAM_INFO(CAM_TPG, "Unbind TPG component");
 	cam_cpas_unregister_client(tpg_dev->cpas_handle);

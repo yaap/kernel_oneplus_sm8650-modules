@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2022, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -1056,8 +1056,7 @@ int msm_vidc_process_resume(struct msm_vidc_inst *inst)
 					return rc;
 				clear_sub_state |= MSM_VIDC_INPUT_PAUSE;
 			}
-			if (is_sub_state(inst, MSM_VIDC_OUTPUT_PAUSE) &&
-			    !is_encode_session(inst)) {
+			if (is_sub_state(inst, MSM_VIDC_OUTPUT_PAUSE)) {
 				rc = venus_hfi_session_resume(inst, OUTPUT_PORT,
 						HFI_CMD_SETTINGS_CHANGE);
 				if (rc)
@@ -1074,8 +1073,7 @@ int msm_vidc_process_resume(struct msm_vidc_inst *inst)
 				return rc;
 			clear_sub_state |= MSM_VIDC_INPUT_PAUSE;
 		}
-		if (is_sub_state(inst, MSM_VIDC_OUTPUT_PAUSE) &&
-		    !is_encode_session(inst)) {
+		if (is_sub_state(inst, MSM_VIDC_OUTPUT_PAUSE)) {
 			rc = venus_hfi_session_resume(inst, OUTPUT_PORT, HFI_CMD_DRAIN);
 			if (rc)
 				return rc;
@@ -1116,8 +1114,7 @@ int msm_vidc_process_streamon_input(struct msm_vidc_inst *inst)
 	 * input port will be resumed.
 	 */
 	if (is_sub_state(inst, MSM_VIDC_DRC) ||
-		is_sub_state(inst, MSM_VIDC_DRAIN) ||
-		is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
+		is_sub_state(inst, MSM_VIDC_DRAIN)) {
 		if (!is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
 			rc = venus_hfi_session_pause(inst, INPUT_PORT);
 			if (rc)
@@ -1203,9 +1200,6 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 			clear_sub_state |= MSM_VIDC_INPUT_PAUSE;
 		}
 	}
-
-	if (is_sub_state(inst, MSM_VIDC_FIRST_IPSC))
-		clear_sub_state |= MSM_VIDC_FIRST_IPSC;
 
 	rc = venus_hfi_start(inst, OUTPUT_PORT);
 	if (rc)
@@ -1336,7 +1330,7 @@ int msm_vidc_state_change_input_psc(struct msm_vidc_inst *inst)
 	 */
 	if (is_state(inst, MSM_VIDC_INPUT_STREAMING) ||
 		is_state(inst, MSM_VIDC_OPEN))
-		set_sub_state = MSM_VIDC_INPUT_PAUSE | MSM_VIDC_FIRST_IPSC;
+		set_sub_state = MSM_VIDC_INPUT_PAUSE;
 	else
 		set_sub_state = MSM_VIDC_DRC | MSM_VIDC_INPUT_PAUSE;
 
@@ -2705,12 +2699,8 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	 * To ensure buffers->reuse is set to false, add check to detect
 	 * if buf_size has become zero. Do the same for buf_count as well.
 	 */
-	if (is_split_mode_enabled(inst) && is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
-		buffers->reuse = false;
-		buffers->size = buf_size;
-		buffers->min_count = buf_count;
-	} else if (buf_size && buf_size <= buffers->size &&
-		buf_count && buf_count <= buffers->min_count) {
+	if (buf_size && buf_size <= buffers->size &&
+	    buf_count && buf_count <= buffers->min_count) {
 		buffers->reuse = true;
 	} else {
 		buffers->reuse = false;

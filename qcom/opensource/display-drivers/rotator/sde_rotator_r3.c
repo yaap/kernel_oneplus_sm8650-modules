@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"%s:%d: " fmt, __func__, __LINE__
 
 #include <linux/platform_device.h>
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/file.h>
@@ -18,6 +17,7 @@
 #include <linux/dma-buf.h>
 #include <linux/clk.h>
 #include <linux/clk/qcom.h>
+#include <linux/msm_rtb.h>
 
 #include "sde_rotator_core.h"
 #include "sde_rotator_util.h"
@@ -62,12 +62,12 @@
 	do { \
 		SDEROT_DBG("SDEREG.W:[%s:0x%X] <= 0x%X\n", #off, (off),\
 				(u32)(data));\
-		writel_relaxed( \
+		writel_relaxed_no_log( \
 				(REGDMA_OP_REGWRITE | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed(data, p); \
+		writel_relaxed_no_log(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -75,14 +75,14 @@
 	do { \
 		SDEROT_DBG("SDEREG.M:[%s:0x%X] <= 0x%X\n", #off, (off),\
 				(u32)(data));\
-		writel_relaxed( \
+		writel_relaxed_no_log( \
 				(REGDMA_OP_REGMODIFY | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed(mask, p); \
+		writel_relaxed_no_log(mask, p); \
 		p += sizeof(u32); \
-		writel_relaxed(data, p); \
+		writel_relaxed_no_log(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -90,25 +90,25 @@
 	do { \
 		SDEROT_DBG("SDEREG.B:[%s:0x%X:0x%X]\n", #off, (off),\
 				(u32)(len));\
-		writel_relaxed( \
+		writel_relaxed_no_log( \
 				(REGDMA_OP_BLKWRITE_INC | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed(len, p); \
+		writel_relaxed_no_log(len, p); \
 		p += sizeof(u32); \
 	} while (0)
 
 #define SDE_REGDMA_BLKWRITE_DATA(p, data) \
 	do { \
 		SDEROT_DBG("SDEREG.I:[:] <= 0x%X\n", (u32)(data));\
-		writel_relaxed(data, p); \
+		writel_relaxed_no_log(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
 #define SDE_REGDMA_READ(p, data) \
 	do { \
-		data = readl_relaxed(p); \
+		data = readl_relaxed_no_log(p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -406,252 +406,6 @@ static const u32 sde_hw_rotator_v4_outpixfmts[] = {
 	SDE_PIX_FMT_BGRX_1010102_TILE,
 	SDE_PIX_FMT_ABGR_2101010_TILE,
 	SDE_PIX_FMT_XBGR_2101010_TILE,
-};
-
-static const u32 sde_hw_rotator_v5_inpixfmts[] = {
-	SDE_PIX_FMT_XRGB_8888,
-	SDE_PIX_FMT_ARGB_8888,
-	SDE_PIX_FMT_ABGR_8888,
-	SDE_PIX_FMT_RGBA_8888,
-	SDE_PIX_FMT_BGRA_8888,
-	SDE_PIX_FMT_RGBX_8888,
-	SDE_PIX_FMT_BGRX_8888,
-	SDE_PIX_FMT_XBGR_8888,
-	SDE_PIX_FMT_RGBA_5551,
-	SDE_PIX_FMT_ARGB_1555,
-	SDE_PIX_FMT_ABGR_1555,
-	SDE_PIX_FMT_BGRA_5551,
-	SDE_PIX_FMT_BGRX_5551,
-	SDE_PIX_FMT_RGBX_5551,
-	SDE_PIX_FMT_XBGR_1555,
-	SDE_PIX_FMT_XRGB_1555,
-	SDE_PIX_FMT_ARGB_4444,
-	SDE_PIX_FMT_RGBA_4444,
-	SDE_PIX_FMT_BGRA_4444,
-	SDE_PIX_FMT_ABGR_4444,
-	SDE_PIX_FMT_RGBX_4444,
-	SDE_PIX_FMT_XRGB_4444,
-	SDE_PIX_FMT_BGRX_4444,
-	SDE_PIX_FMT_XBGR_4444,
-	SDE_PIX_FMT_RGB_888,
-	SDE_PIX_FMT_BGR_888,
-	SDE_PIX_FMT_RGB_565,
-	SDE_PIX_FMT_BGR_565,
-	SDE_PIX_FMT_Y_CB_CR_H2V2,
-	SDE_PIX_FMT_Y_CR_CB_H2V2,
-	/* SDE_PIX_FMT_Y_CR_CB_GH2V2, */
-	SDE_PIX_FMT_Y_CBCR_H2V2,
-	SDE_PIX_FMT_Y_CRCB_H2V2,
-	/* SDE_PIX_FMT_Y_CBCR_H1V2, */
-	/* SDE_PIX_FMT_Y_CRCB_H1V2, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V1, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V1, */
-	/* SDE_PIX_FMT_YCBYCR_H2V1, */
-	SDE_PIX_FMT_Y_CBCR_H2V2_VENUS,
-	SDE_PIX_FMT_Y_CRCB_H2V2_VENUS,
-	/* SDE_PIX_FMT_RGBA_8888_UBWC, */
-	/* SDE_PIX_FMT_RGBX_8888_UBWC, */
-	/* SDE_PIX_FMT_RGB_565_UBWC, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_UBWC, */
-	SDE_PIX_FMT_RGBA_1010102,
-	SDE_PIX_FMT_RGBX_1010102,
-	SDE_PIX_FMT_ARGB_2101010,
-	SDE_PIX_FMT_XRGB_2101010,
-	SDE_PIX_FMT_BGRA_1010102,
-	SDE_PIX_FMT_BGRX_1010102,
-	SDE_PIX_FMT_ABGR_2101010,
-	SDE_PIX_FMT_XBGR_2101010,
-	/* SDE_PIX_FMT_RGBA_1010102_UBWC, */
-	/* SDE_PIX_FMT_RGBX_1010102_UBWC */
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010,
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010_VENUS,
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TP10 */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TP10_UBWC, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_P010_UBWC, */
-
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_P010_TILE, */
-	/*SDE_PIX_FMT_Y_CBCR_H2V2_TILE, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V2_TILE, */
-	/* SDE_PIX_FMT_XRGB_8888_TILE, */
-	/* SDE_PIX_FMT_ARGB_8888_TILE, */
-	/* SDE_PIX_FMT_ABGR_8888_TILE, */
-	/* SDE_PIX_FMT_XBGR_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_8888_TILE, */
-	/* SDE_PIX_FMT_BGRA_8888_TILE, */
-	/* SDE_PIX_FMT_RGBX_8888_TILE, */
-	/* SDE_PIX_FMT_BGRX_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_1010102_TILE, */
-	/* SDE_PIX_FMT_RGBX_1010102_TILE, */
-	/* SDE_PIX_FMT_ARGB_2101010_TILE, */
-	/* SDE_PIX_FMT_XRGB_2101010_TILE, */
-	/* SDE_PIX_FMT_BGRA_1010102_TILE, */
-	/* SDE_PIX_FMT_BGRX_1010102_TILE, */
-	/* SDE_PIX_FMT_ABGR_2101010_TILE, */
-	/* SDE_PIX_FMT_XBGR_2101010_TILE, */
-};
-
-static const u32 sde_hw_rotator_v5_outpixfmts[] = {
-	SDE_PIX_FMT_XRGB_8888,
-	SDE_PIX_FMT_ARGB_8888,
-	SDE_PIX_FMT_ABGR_8888,
-	SDE_PIX_FMT_RGBA_8888,
-	SDE_PIX_FMT_BGRA_8888,
-	SDE_PIX_FMT_RGBX_8888,
-	SDE_PIX_FMT_BGRX_8888,
-	SDE_PIX_FMT_XBGR_8888,
-	SDE_PIX_FMT_RGBA_5551,
-	SDE_PIX_FMT_ARGB_1555,
-	SDE_PIX_FMT_ABGR_1555,
-	SDE_PIX_FMT_BGRA_5551,
-	SDE_PIX_FMT_BGRX_5551,
-	SDE_PIX_FMT_RGBX_5551,
-	SDE_PIX_FMT_XBGR_1555,
-	SDE_PIX_FMT_XRGB_1555,
-	SDE_PIX_FMT_ARGB_4444,
-	SDE_PIX_FMT_RGBA_4444,
-	SDE_PIX_FMT_BGRA_4444,
-	SDE_PIX_FMT_ABGR_4444,
-	SDE_PIX_FMT_RGBX_4444,
-	SDE_PIX_FMT_XRGB_4444,
-	SDE_PIX_FMT_BGRX_4444,
-	SDE_PIX_FMT_XBGR_4444,
-	SDE_PIX_FMT_RGB_888,
-	SDE_PIX_FMT_BGR_888,
-	SDE_PIX_FMT_RGB_565,
-	SDE_PIX_FMT_BGR_565,
-	SDE_PIX_FMT_Y_CB_CR_H2V2,
-	SDE_PIX_FMT_Y_CR_CB_H2V2,
-	/* SDE_PIX_FMT_Y_CR_CB_GH2V2 */
-	SDE_PIX_FMT_Y_CBCR_H2V2,
-	SDE_PIX_FMT_Y_CRCB_H2V2,
-	/* SDE_PIX_FMT_Y_CBCR_H1V2, */
-	/* SDE_PIX_FMT_Y_CRCB_H1V2, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V1, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V1, */
-	/* SDE_PIX_FMT_YCBYCR_H2V1, */
-	SDE_PIX_FMT_Y_CBCR_H2V2_VENUS,
-	SDE_PIX_FMT_Y_CRCB_H2V2_VENUS,
-	/* SDE_PIX_FMT_RGBA_8888_UBWC, */
-	/* SDE_PIX_FMT_RGBX_8888_UBWC */
-	/* SDE_PIX_FMT_RGB_565_UBWC, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_UBWC, */
-	SDE_PIX_FMT_RGBA_1010102,
-	SDE_PIX_FMT_RGBX_1010102,
-	SDE_PIX_FMT_ARGB_2101010,
-	SDE_PIX_FMT_XRGB_2101010,
-	SDE_PIX_FMT_BGRA_1010102,
-	SDE_PIX_FMT_BGRX_1010102,
-	SDE_PIX_FMT_ABGR_2101010,
-	SDE_PIX_FMT_XBGR_2101010,
-	/* SDE_PIX_FMT_RGBA_1010102_UBWC, */
-	/* SDE_PIX_FMT_RGBX_1010102_UBWC */
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010,
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010_VENUS,
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TP10 */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TP10_UBWC, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_P010_UBWC, */
-
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_P010_TILE */
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TILE, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V2_TILE, */
-	/* SDE_PIX_FMT_XRGB_8888_TILE, */
-	/* SDE_PIX_FMT_ARGB_8888_TILE, */
-	/* SDE_PIX_FMT_ABGR_8888_TILE, */
-	/* SDE_PIX_FMT_XBGR_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_8888_TILE, */
-	/* SDE_PIX_FMT_BGRA_8888_TILE, */
-	/* SDE_PIX_FMT_RGBX_8888_TILE, */
-	/* SDE_PIX_FMT_BGRX_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_1010102_TILE, */
-	/* SDE_PIX_FMT_RGBX_1010102_TILE, */
-	/* SDE_PIX_FMT_ARGB_2101010_TILE, */
-	/* SDE_PIX_FMT_XRGB_2101010_TILE, */
-	/* SDE_PIX_FMT_BGRA_1010102_TILE, */
-	/* SDE_PIX_FMT_BGRX_1010102_TILE, */
-	/* SDE_PIX_FMT_ABGR_2101010_TILE, */
-	/* SDE_PIX_FMT_XBGR_2101010_TILE,*/
-};
-
-static const u32 sde_hw_rotator_v6_inpixfmts[] = {
-	SDE_PIX_FMT_XRGB_8888,
-	SDE_PIX_FMT_ARGB_8888,
-	SDE_PIX_FMT_ABGR_8888,
-	SDE_PIX_FMT_RGBA_8888,
-	SDE_PIX_FMT_BGRA_8888,
-	SDE_PIX_FMT_RGBX_8888,
-	SDE_PIX_FMT_BGRX_8888,
-	SDE_PIX_FMT_XBGR_8888,
-	SDE_PIX_FMT_RGBA_5551,
-	SDE_PIX_FMT_ARGB_1555,
-	SDE_PIX_FMT_ABGR_1555,
-	SDE_PIX_FMT_BGRA_5551,
-	SDE_PIX_FMT_BGRX_5551,
-	SDE_PIX_FMT_RGBX_5551,
-	SDE_PIX_FMT_XBGR_1555,
-	SDE_PIX_FMT_XRGB_1555,
-	SDE_PIX_FMT_ARGB_4444,
-	SDE_PIX_FMT_RGBA_4444,
-	SDE_PIX_FMT_BGRA_4444,
-	SDE_PIX_FMT_ABGR_4444,
-	SDE_PIX_FMT_RGBX_4444,
-	SDE_PIX_FMT_XRGB_4444,
-	SDE_PIX_FMT_BGRX_4444,
-	SDE_PIX_FMT_XBGR_4444,
-	SDE_PIX_FMT_RGB_888,
-	SDE_PIX_FMT_BGR_888,
-	SDE_PIX_FMT_RGB_565,
-	SDE_PIX_FMT_BGR_565,
-	SDE_PIX_FMT_Y_CB_CR_H2V2,
-	SDE_PIX_FMT_Y_CR_CB_H2V2,
-	/* SDE_PIX_FMT_Y_CR_CB_GH2V2, */
-	SDE_PIX_FMT_Y_CBCR_H2V2,
-	SDE_PIX_FMT_Y_CRCB_H2V2,
-	/* SDE_PIX_FMT_Y_CBCR_H1V2, */
-	/* SDE_PIX_FMT_Y_CRCB_H1V2, */
-	/* SDE_PIX_FMT_Y_CBCR_H2V1, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V1, */
-	/* SDE_PIX_FMT_YCBYCR_H2V1, */
-	SDE_PIX_FMT_Y_CBCR_H2V2_VENUS,
-	SDE_PIX_FMT_Y_CRCB_H2V2_VENUS,
-	SDE_PIX_FMT_RGBA_8888_UBWC,
-	/* SDE_PIX_FMT_RGBX_8888_UBWC, */
-	SDE_PIX_FMT_RGB_565_UBWC,
-	SDE_PIX_FMT_Y_CBCR_H2V2_UBWC,
-	SDE_PIX_FMT_RGBA_1010102,
-	SDE_PIX_FMT_RGBX_1010102,
-	SDE_PIX_FMT_ARGB_2101010,
-	SDE_PIX_FMT_XRGB_2101010,
-	SDE_PIX_FMT_BGRA_1010102,
-	SDE_PIX_FMT_BGRX_1010102,
-	SDE_PIX_FMT_ABGR_2101010,
-	SDE_PIX_FMT_XBGR_2101010,
-	SDE_PIX_FMT_RGBA_1010102_UBWC,
-	/* SDE_PIX_FMT_RGBX_1010102_UBWC */
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010,
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010_VENUS,
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_TP10 */
-	SDE_PIX_FMT_Y_CBCR_H2V2_TP10_UBWC,
-	SDE_PIX_FMT_Y_CBCR_H2V2_P010_UBWC,
-
-	/* SDE_PIX_FMT_Y_CBCR_H2V2_P010_TILE, */
-	/*SDE_PIX_FMT_Y_CBCR_H2V2_TILE, */
-	/* SDE_PIX_FMT_Y_CRCB_H2V2_TILE, */
-	/* SDE_PIX_FMT_XRGB_8888_TILE, */
-	/* SDE_PIX_FMT_ARGB_8888_TILE, */
-	/* SDE_PIX_FMT_ABGR_8888_TILE, */
-	/* SDE_PIX_FMT_XBGR_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_8888_TILE, */
-	/* SDE_PIX_FMT_BGRA_8888_TILE, */
-	/* SDE_PIX_FMT_RGBX_8888_TILE, */
-	/* SDE_PIX_FMT_BGRX_8888_TILE, */
-	/* SDE_PIX_FMT_RGBA_1010102_TILE, */
-	/* SDE_PIX_FMT_RGBX_1010102_TILE, */
-	/* SDE_PIX_FMT_ARGB_2101010_TILE, */
-	/* SDE_PIX_FMT_XRGB_2101010_TILE, */
-	/* SDE_PIX_FMT_BGRA_1010102_TILE, */
-	/* SDE_PIX_FMT_BGRX_1010102_TILE, */
-	/* SDE_PIX_FMT_ABGR_2101010_TILE, */
-	/* SDE_PIX_FMT_XBGR_2101010_TILE, */
 };
 
 static const u32 sde_hw_rotator_v4_inpixfmts_sbuf[] = {
@@ -1489,7 +1243,7 @@ static void sde_hw_rotator_map_vaddr(struct sde_dbg_buf *dbgbuf,
 static void sde_hw_rotator_unmap_vaddr(struct sde_dbg_buf *dbgbuf)
 {
 	if (dbgbuf->vaddr) {
-		dma_buf_vunmap(dbgbuf->dmabuf, dbgbuf->vaddr);
+		dma_buf_kunmap(dbgbuf->dmabuf, 0, dbgbuf->vaddr);
 		dma_buf_end_cpu_access(dbgbuf->dmabuf, DMA_FROM_DEVICE);
 	}
 
@@ -2301,7 +2055,7 @@ static u32 sde_hw_rotator_start_no_regdma(struct sde_hw_rotator_context *ctx,
 	/* Write all command stream to Rotator blocks */
 	/* Rotator will start right away after command stream finish writing */
 	while (mem_rdptr < wrptr) {
-		u32 op = REGDMA_OP_MASK & readl_relaxed(mem_rdptr);
+		u32 op = REGDMA_OP_MASK & readl_relaxed_no_log(mem_rdptr);
 
 		switch (op) {
 		case REGDMA_OP_NOP:
@@ -3768,37 +3522,6 @@ static int sde_rotator_hw_rev_init(struct sde_hw_rotator *rot)
 				sde_hw_rotator_v4_outpixfmts;
 		rot->num_outpixfmt[SDE_ROTATOR_MODE_OFFLINE] =
 				ARRAY_SIZE(sde_hw_rotator_v4_outpixfmts);
-		rot->downscale_caps =
-			"LINEAR/1.5/2/4/8/16/32/64 TILE/1.5/2/4 TP10/1.5/2";
-	} else if (IS_SDE_MAJOR_MINOR_SAME(mdata->mdss_version,
-				SDE_MDP_HW_REV_690)) {
-		SDEROT_DBG("Sys cache inline rotation not supported\n");
-		set_bit(SDE_CAPS_PARTIALWR,  mdata->sde_caps_map);
-		set_bit(SDE_CAPS_HW_TIMESTAMP, mdata->sde_caps_map);
-		rot->inpixfmts[SDE_ROTATOR_MODE_OFFLINE] =
-				sde_hw_rotator_v5_inpixfmts;
-		rot->num_inpixfmt[SDE_ROTATOR_MODE_OFFLINE] =
-				ARRAY_SIZE(sde_hw_rotator_v5_inpixfmts);
-		rot->outpixfmts[SDE_ROTATOR_MODE_OFFLINE] =
-				sde_hw_rotator_v5_outpixfmts;
-		rot->num_outpixfmt[SDE_ROTATOR_MODE_OFFLINE] =
-				ARRAY_SIZE(sde_hw_rotator_v5_outpixfmts);
-		rot->downscale_caps =
-			"LINEAR/1.5/2/4/8/16/32/64 TILE/1.5/2/4 TP10/1.5/2";
-	} else if (IS_SDE_MAJOR_MINOR_SAME(mdata->mdss_version,
-				SDE_MDP_HW_REV_870)) {
-		SDEROT_DBG("Sys cache inline rotation not supported\n");
-		set_bit(SDE_CAPS_UBWC_2,  mdata->sde_caps_map);
-		set_bit(SDE_CAPS_PARTIALWR,  mdata->sde_caps_map);
-		set_bit(SDE_CAPS_HW_TIMESTAMP, mdata->sde_caps_map);
-		rot->inpixfmts[SDE_ROTATOR_MODE_OFFLINE] =
-				sde_hw_rotator_v6_inpixfmts;
-		rot->num_inpixfmt[SDE_ROTATOR_MODE_OFFLINE] =
-				ARRAY_SIZE(sde_hw_rotator_v6_inpixfmts);
-		rot->outpixfmts[SDE_ROTATOR_MODE_OFFLINE] =
-				sde_hw_rotator_v5_outpixfmts;
-		rot->num_outpixfmt[SDE_ROTATOR_MODE_OFFLINE] =
-				ARRAY_SIZE(sde_hw_rotator_v5_outpixfmts);
 		rot->downscale_caps =
 			"LINEAR/1.5/2/4/8/16/32/64 TILE/1.5/2/4 TP10/1.5/2";
 	} else {

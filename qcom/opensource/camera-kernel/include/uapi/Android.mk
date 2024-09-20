@@ -8,3 +8,4 @@ KERNEL_SCRIPTS := $(LOCAL_PATH)/kernel/msm-$(TARGET_KERNEL_VERSION)/scripts
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := camera-uapi
+LOCAL_MULTILIB := first

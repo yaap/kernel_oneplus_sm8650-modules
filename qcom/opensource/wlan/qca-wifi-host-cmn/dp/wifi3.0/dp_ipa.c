@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1059,23 +1059,6 @@ static void dp_ipa_tx_comp_ring_init_hp(struct dp_soc *soc,
 			     res->tx_alt_comp_doorbell_vaddr);
 }
 
-static void
-dp_ipa_tx_comp_ring_update_hp_addr(struct dp_soc *soc,
-				   struct dp_ipa_resources *res)
-{
-	hal_ring_handle_t wbm_srng;
-
-	/* Ring doorbell to WBM2IPA ring with current HW HP value */
-	wbm_srng = soc->tx_comp_ring[IPA_TX_COMP_RING_IDX].hal_srng;
-	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
-
-	if (!res->tx_alt_comp_doorbell_paddr)
-		return;
-
-	wbm_srng = soc->tx_comp_ring[IPA_TX_ALT_COMP_RING_IDX].hal_srng;
-	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
-}
-
 static void dp_ipa_set_tx_doorbell_paddr(struct dp_soc *soc,
 					 struct dp_ipa_resources *ipa_res)
 {
@@ -1270,17 +1253,6 @@ static inline void dp_ipa_tx_comp_ring_init_hp(struct dp_soc *soc,
 
 	hal_srng_dst_init_hp(soc->hal_soc, wbm_srng,
 			     res->tx_comp_doorbell_vaddr);
-}
-
-static void
-dp_ipa_tx_comp_ring_update_hp_addr(struct dp_soc *soc,
-				   struct dp_ipa_resources *res)
-{
-	hal_ring_handle_t wbm_srng;
-
-	/* Ring doorbell to WBM2IPA ring with current HW HP value */
-	wbm_srng = soc->tx_comp_ring[IPA_TX_COMP_RING_IDX].hal_srng;
-	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
 }
 
 static void dp_ipa_set_tx_doorbell_paddr(struct dp_soc *soc,
@@ -1539,15 +1511,8 @@ static int dp_tx_ipa_uc_attach(struct dp_soc *soc, struct dp_pdev *pdev)
 			break;
 		}
 
-		retval = qdf_nbuf_map_single(soc->osdev, nbuf,
-					     QDF_DMA_BIDIRECTIONAL);
-		if (qdf_unlikely(retval != QDF_STATUS_SUCCESS)) {
-			QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_ERROR,
-				  "%s: nbuf map failed", __func__);
-			qdf_nbuf_free(nbuf);
-			retval = -EFAULT;
-			break;
-		}
+		qdf_nbuf_map_single(soc->osdev, nbuf,
+				    QDF_DMA_BIDIRECTIONAL);
 		buffer_paddr = qdf_nbuf_get_frag_paddr(nbuf, 0);
 		qdf_mem_dp_tx_skb_cnt_inc();
 		qdf_mem_dp_tx_skb_inc(qdf_nbuf_get_end_offset(nbuf));
@@ -1609,8 +1574,6 @@ int dp_ipa_uc_attach(struct dp_soc *soc, struct dp_pdev *pdev)
 		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_ERROR,
 			  "%s: DP IPA UC TX attach fail code %d",
 			  __func__, error);
-		if (error == -EFAULT)
-			dp_tx_ipa_uc_detach(soc, pdev);
 		return error;
 	}
 
@@ -3528,8 +3491,6 @@ QDF_STATUS dp_ipa_enable_pipes(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 	if (soc->ipa_first_tx_db_access) {
 		dp_ipa_tx_comp_ring_init_hp(soc, ipa_res);
 		soc->ipa_first_tx_db_access = false;
-	} else {
-		dp_ipa_tx_comp_ring_update_hp_addr(soc, ipa_res);
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -3598,37 +3559,6 @@ QDF_STATUS dp_ipa_set_perf_level(int client, uint32_t max_supported_bw_mbps,
 
 	return QDF_STATUS_SUCCESS;
 }
-
-#ifdef QCA_SUPPORT_WDS_EXTENDED
-/**
- * dp_ipa_rx_wdsext_iface() - Forward RX exception packets to wdsext interface
- * @soc_hdl: data path soc handle
- * @peer_id: Peer id to get respective peer
- * @skb: socket buffer
- *
- * Return: true on success, else false
- */
-bool dp_ipa_rx_wdsext_iface(struct cdp_soc_t *soc_hdl, uint8_t peer_id,
-			    qdf_nbuf_t skb)
-{
-	struct dp_txrx_peer *txrx_peer;
-	dp_txrx_ref_handle txrx_ref_handle = NULL;
-	struct dp_soc *dp_soc = cdp_soc_t_to_dp_soc(soc_hdl);
-	bool status = false;
-
-	txrx_peer = dp_tgt_txrx_peer_get_ref_by_id(soc_hdl, peer_id,
-						   &txrx_ref_handle,
-						   DP_MOD_ID_IPA);
-
-	if (qdf_likely(txrx_peer)) {
-		if (dp_rx_deliver_to_stack_ext(dp_soc, txrx_peer->vdev,
-					       txrx_peer, skb)
-			status =  true;
-		dp_txrx_peer_unref_delete(txrx_ref_handle, DP_MOD_ID_IPA);
-	}
-	return status;
-}
-#endif
 
 /**
  * dp_ipa_intrabss_send() - send IPA RX intra-bss frames
@@ -4191,7 +4121,7 @@ void dp_ipa_aggregate_vdev_stats(struct dp_vdev *vdev,
 
 	soc = vdev->pdev->soc;
 	dp_update_vdev_ingress_stats(vdev);
-	dp_copy_vdev_stats_to_tgt_buf(vdev_stats, &vdev->stats, DP_XMIT_LINK);
+	qdf_mem_copy(vdev_stats, &vdev->stats, sizeof(vdev->stats));
 	dp_vdev_iterate_peer(vdev, dp_ipa_update_vdev_stats, vdev_stats,
 			     DP_MOD_ID_GENERIC_STATS);
 	dp_update_vdev_rate_stats(vdev_stats, &vdev->stats);
@@ -4357,24 +4287,4 @@ void dp_ipa_get_wdi_version(struct cdp_soc_t *soc_hdl, uint8_t *wdi_ver)
 	else
 		*wdi_ver = IPA_WDI_3;
 }
-
-#ifdef IPA_WDI3_TX_TWO_PIPES
-bool dp_ipa_is_ring_ipa_tx(struct dp_soc *soc, uint8_t ring_id)
-{
-	if (!soc->wlan_cfg_ctx->ipa_enabled)
-		return false;
-
-	return (ring_id == IPA_TCL_DATA_RING_IDX) ||
-		((ring_id == IPA_TX_ALT_RING_IDX) &&
-		 wlan_cfg_is_ipa_two_tx_pipes_enabled(soc->wlan_cfg_ctx));
-}
-#else
-bool dp_ipa_is_ring_ipa_tx(struct dp_soc *soc, uint8_t ring_id)
-{
-	if (!soc->wlan_cfg_ctx->ipa_enabled)
-		return false;
-
-	return (ring_id == IPA_TCL_DATA_RING_IDX);
-}
-#endif /* IPA_WDI3_TX_TWO_PIPES */
 #endif

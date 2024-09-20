@@ -323,10 +323,7 @@ int sde_vm_request_valid(struct sde_kms *sde_kms,
 			rc = -EINVAL;
 		break;
 	case VM_REQ_ACQUIRE:
-		if ((old_state == VM_REQ_ACQUIRE) && sde_in_trusted_vm(sde_kms))
-			rc = 0;
-		else if ((old_state != VM_REQ_RELEASE) ||
-			(vm_owns_hw && !sde_in_trusted_vm(sde_kms)))
+		if ((old_state != VM_REQ_RELEASE) || (vm_owns_hw && !sde_in_trusted_vm(sde_kms)))
 			rc = -EINVAL;
 		break;
 	default:

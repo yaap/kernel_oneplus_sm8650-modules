@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -158,7 +158,7 @@ static int ipa_alloc_pkt_init_ex(void);
 static void ipa3_free_pkt_init(void);
 static void ipa3_free_pkt_init_ex(void);
 
-#if IS_ENABLED(CONFIG_DEEPSLEEP) || IS_ENABLED(CONFIG_HIBERNATION)
+#ifdef CONFIG_DEEPSLEEP
 static void ipa3_deepsleep_resume(void);
 static void ipa3_deepsleep_suspend(void);
 #endif
@@ -519,29 +519,19 @@ EXPORT_SYMBOL(ipa_smmu_free_sgt);
 
 static int ipa_pm_notify(struct notifier_block *b, unsigned long event, void *p)
 {
-	IPADBG("Entry\n");
+	IPAERR("Entry\n");
 	switch (event) {
-	case PM_POST_SUSPEND:
-#if IS_ENABLED(CONFIG_DEEPSLEEP)
-		if (pm_suspend_via_firmware() && ipa3_ctx->deepsleep) {
-			IPADBG("Enter deepsleep resume\n");
-			ipa3_deepsleep_resume();
-			IPADBG("Exit deepsleep resume\n");
-		}
+		case PM_POST_SUSPEND:
+#ifdef CONFIG_DEEPSLEEP
+			if (mem_sleep_current == PM_SUSPEND_MEM && ipa3_ctx->deepsleep) {
+				IPADBG("Enter deepsleep resume\n");
+				ipa3_deepsleep_resume();
+				IPADBG("Exit deepsleep resume\n");
+			}
 #endif
-		break;
-	case PM_POST_HIBERNATION:
-#if IS_ENABLED(CONFIG_HIBERNATION)
-		/*Using the same deepsleep flag to check if freeze happened or not.*/
-		if (ipa3_ctx->deepsleep) {
-			IPADBG("Enter hibernate restore\n");
-			ipa3_deepsleep_resume();
-			IPADBG("Exit hibernate restore\n");
-		}
-#endif
-		break;
+			break;
 	}
-	IPADBG("Exit\n");
+	IPAERR("Exit\n");
 	return NOTIFY_DONE;
 }
 
@@ -552,11 +542,7 @@ static struct notifier_block ipa_pm_notifier = {
 
 static const struct dev_pm_ops ipa_pm_ops = {
 	.suspend_late = ipa3_ap_suspend,
-#if IS_ENABLED(CONFIG_HIBERNATION)
-	.freeze_late = ipa3_ap_freeze,
-#endif
 	.resume_early = ipa3_ap_resume,
-	.restore_early = ipa3_ap_resume,
 };
 
 static struct platform_driver ipa_plat_drv = {
@@ -6785,11 +6771,10 @@ void ipa3_disable_clks(void)
 	 */
 	if (!ipa3_ctx->ipa_config_is_mhi) {
 		type = gsi_pending_irq_type();
-		if (type != -EPERM && type) {
+		if (type) {
 			IPAERR("unexpected gsi irq type: %d\n", type);
 			/* increase ipa3_active_clients for smp2p response */
 			atomic_inc(&ipa3_ctx->ipa3_active_clients.cnt);
-			atomic_set(&ipa3_ctx->ipa_clk_vote, 1);
 			ipa_assert();
 		}
 	}
@@ -7709,9 +7694,6 @@ static enum gsi_ver ipa3_get_gsi_ver(enum ipa_hw_type ipa_hw_type)
 	case IPA_HW_v5_1:
 		gsi_ver = GSI_VER_3_0;
 		break;
-	case IPA_HW_v5_2:
-		gsi_ver = GSI_VER_5_2;
-		break;
 	case IPA_HW_v5_5:
 		gsi_ver = GSI_VER_5_5;
 		break;
@@ -8257,6 +8239,10 @@ static int ipa3_post_init(const struct ipa3_plat_drv_res *resource_p,
 	ipa3_setup_uc_act_tbl();
 	ipa_trigger_ipa_ready_cbs();
 
+#ifdef CONFIG_DEEPSLEEP
+	if (!ipa_is_ready())
+		ipa_fmwk_deepsleep_exit_ipa();
+#endif
 	complete_all(&ipa3_ctx->init_completion_obj);
 
 	ipa_ut_module_init();
@@ -8269,37 +8255,6 @@ static int ipa3_post_init(const struct ipa3_plat_drv_res *resource_p,
 
 	if(!ipa_tlpd_stats_init())
 		IPADBG("Fail to init tlpd ipa lnx module");
-
-#ifdef CONFIG_IPA_RTP
-	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_XR) {
-		/* uC is getting loaded through XBL here */
-		ipa3_ctx->uc_ctx.uc_inited = true;
-		ipa3_ctx->uc_ctx.uc_loaded = true;
-		result = ipa3_alloc_temp_buffs_to_uc(TEMP_BUFF_SIZE, NO_OF_BUFFS);
-		if (result) {
-			IPAERR("Temp buffer allocations for uC failed %d\n", result);
-			result = -ENODEV;
-			goto fail_teth_bridge_driver_init;
-		}
-
-		result = ipa3_allocate_uc_pipes_er_tr_send_to_uc();
-		if (result) {
-			IPAERR("ER and TR allocations for uC pipes failed %d\n", result);
-			ipa3_free_uc_temp_buffs(NO_OF_BUFFS);
-			result = -ENODEV;
-			goto fail_teth_bridge_driver_init;
-		}
-
-		result = ipa3_create_hfi_send_uc();
-		if (result) {
-			IPAERR("HFI Creation failed %d\n", result);
-			ipa3_free_uc_temp_buffs(NO_OF_BUFFS);
-			ipa3_free_uc_pipes_er_tr();
-			result = -ENODEV;
-			goto fail_teth_bridge_driver_init;
-		}
-	}
-#endif
 
 	pr_info("IPA driver initialization was successful.\n");
 #if IS_ENABLED(CONFIG_QCOM_VA_MINIDUMP)
@@ -8514,17 +8469,16 @@ static int ipa3_pil_load_ipa_fws(const char *sub_sys)
 }
 #endif /* IS_ENABLED(CONFIG_QCOM_MDT_LOADER) */
 
-#if IS_ENABLED(CONFIG_DEEPSLEEP) || IS_ENABLED(CONFIG_HIBERNATION)
+#ifdef CONFIG_DEEPSLEEP
 static int ipa3_pil_unload_ipa_fws(void)
 {
-#if !IS_ENABLED(CONFIG_QCOM_MDT_LOADER)
+
 	IPADBG("PIL FW unloading process initiated sub_sys\n");
 
 	if (ipa3_ctx->subsystem_get_retval)
 		subsystem_put(ipa3_ctx->subsystem_get_retval);
 
 	IPADBG("PIL FW unloading process is complete sub_sys\n");
-#endif
 	return 0;
 }
 #endif
@@ -9135,17 +9089,21 @@ static struct notifier_block qcom_va_md_ipa_notif_blk = {
 
 static u32 get_ipa_gen_rx_cmn_page_pool_size(u32 rx_cmn_page_pool_size)
 {
-	if (!rx_cmn_page_pool_size)
-		return IPA_GENERIC_RX_CMN_PAGE_POOL_SZ_FACTOR;
-	return rx_cmn_page_pool_size;
+        if (!rx_cmn_page_pool_size)
+                return IPA_GENERIC_RX_CMN_PAGE_POOL_SZ_FACTOR;
+        if (rx_cmn_page_pool_size <= IPA_GENERIC_RX_CMN_PAGE_POOL_SZ_FACTOR)
+                return rx_cmn_page_pool_size;
+        return IPA_GENERIC_RX_CMN_PAGE_POOL_SZ_FACTOR;
 }
 
 
 static u32 get_ipa_gen_rx_cmn_temp_pool_size(u32 rx_cmn_temp_pool_size)
 {
-	if (!rx_cmn_temp_pool_size)
-		return IPA_GENERIC_RX_CMN_TEMP_POOL_SZ_FACTOR;
-	return rx_cmn_temp_pool_size;
+        if (!rx_cmn_temp_pool_size)
+                return IPA_GENERIC_RX_CMN_TEMP_POOL_SZ_FACTOR;
+        if (rx_cmn_temp_pool_size <= IPA_GENERIC_RX_CMN_TEMP_POOL_SZ_FACTOR)
+                return rx_cmn_temp_pool_size;
+        return IPA_GENERIC_RX_CMN_TEMP_POOL_SZ_FACTOR;
 }
 
 static u32 get_ipa_gen_rx_ll_pool_size(u32 rx_ll_pool_sz_factor)
@@ -10679,7 +10637,6 @@ static int get_ipa_dts_configuration(struct platform_device *pdev,
 
 	/* Get IPA GSI IRQ number */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0))
-	irq = 0;
 	resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
 			"gsi-irq");
 	if (!resource) {
@@ -11124,15 +11081,6 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 	int bypass = 0;
 	int fast = 0;
 	u32 iova_ap_mapping[2];
-	u32 iova = 0;
-	u32 pa = 0;
-	u32 size = 0;
-	unsigned long iova_p;
-	phys_addr_t pa_p;
-	u32 size_p;
-	u32 add_map_size;
-	const u32 *add_map;
-	int i = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0))
 	int mapping_config;
 #endif
@@ -11217,33 +11165,6 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 	ipa3_ctx->s1_bypass_arr[IPA_SMMU_CB_UC] = (bypass != 0);
 
 	ipa3_ctx->uc_pdev = dev;
-
-	add_map = of_get_property(dev->of_node,
-		"qcom,ipcc-mapping", &add_map_size);
-	if (add_map) {
-		/* mapping size is an array of 3-tuple of u32 */
-		if (add_map_size % (3 * sizeof(u32))) {
-			IPAERR("wrong ipcc mapping format\n");
-			cb->valid = false;
-			return -EFAULT;
-		}
-
-		/* iterate of each entry of the ipcc mapping array */
-		for (i = 0; i < add_map_size / sizeof(u32); i += 3) {
-			iova = be32_to_cpu(add_map[i]);
-			pa = be32_to_cpu(add_map[i + 1]);
-			size = be32_to_cpu(add_map[i + 2]);
-
-			IPA_SMMU_ROUND_TO_PAGE(iova, pa, size,
-				iova_p, pa_p, size_p);
-			IPADBG_LOW("mapping 0x%lx to 0x%pa size %d\n",
-				iova_p, &pa_p, size_p);
-			ipa3_iommu_map(cb->iommu_domain,
-				iova_p, pa_p, size_p,
-				IOMMU_READ | IOMMU_WRITE | IOMMU_MMIO);
-		}
-	}
-
 	cb->done = true;
 	return 0;
 }
@@ -11948,9 +11869,8 @@ int ipa3_ap_suspend(struct device *dev)
 		}
 	}
 
-
-#if IS_ENABLED(CONFIG_DEEPSLEEP)
-	if (pm_suspend_via_firmware()) {
+#ifdef CONFIG_DEEPSLEEP
+	if (mem_sleep_current == PM_SUSPEND_MEM) {
 		IPADBG("Enter deepsleep suspend\n");
 		ipa3_deepsleep_suspend();
 		IPADBG("Exit deepsleep suspend\n");
@@ -11962,46 +11882,6 @@ int ipa3_ap_suspend(struct device *dev)
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_HIBERNATION)
-/**
- * ipa3_ap_freeze() - hibernate freeze callback for runtime_pm
- * @dev: pointer to device
- *
- * This callback will be invoked by the runtime_pm framework when an AP
- * hibernate freeze operation is invoked, usually by pressing a hibernate button.
- *
- * Returns -EAGAIN to runtime_pm framework in case IPA is in use by AP.
- * This will postpone the suspend/freeze operation until IPA is no longer used by AP.
- */
-int ipa3_ap_freeze(struct device *dev)
-{
-	int i;
-
-	IPADBG("Enter\n");
-
-	if (!of_device_is_compatible(dev->of_node, "qcom,ipa"))
-		return 0;
-	/* In case there is a tx/rx handler in polling mode fail to suspend */
-	for (i = 0; i < ipa3_ctx->ipa_num_pipes; i++) {
-		if (ipa3_ctx->ep[i].sys &&
-			atomic_read(&ipa3_ctx->ep[i].sys->curr_polling_state)) {
-			IPAERR("EP %d is in polling state, do not suspend\n",
-				i);
-			return -EAGAIN;
-		}
-	}
-
-	IPADBG("Enter hibernate freeze\n");
-	ipa3_deepsleep_suspend();
-	IPADBG("Exit hibernate freeze\n");
-
-	ipa_pm_deactivate_all_deferred();
-
-	IPADBG("Exit\n");
-	return 0;
-}
-#endif
 
 /**
  * ipa3_ap_resume() - resume callback for runtime_pm
@@ -12030,7 +11910,7 @@ bool ipa_get_lan_rx_napi(void)
 EXPORT_SYMBOL(ipa_get_lan_rx_napi);
 
 
-#if IS_ENABLED(CONFIG_DEEPSLEEP) || IS_ENABLED(CONFIG_HIBERNATION)
+#ifdef CONFIG_DEEPSLEEP
 static void ipa3_deepsleep_suspend(void)
 {
 	IPADBG("Entry\n");
@@ -12064,6 +11944,8 @@ static void ipa3_deepsleep_suspend(void)
 	ipa3_debugfs_remove();
 	/*Unloading IPA FW to allow FW load in resume*/
 	ipa3_pil_unload_ipa_fws();
+	/*Calling framework API to reset IPA ready flag to false*/
+	ipa_fmwk_deepsleep_entry_ipa();
 	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
 	IPADBG("Exit\n");
 }
@@ -12533,9 +12415,6 @@ static int __init ipa_module_init(void)
 		/* Register as a PCI device driver */
 		return pci_register_driver(&ipa_pci_driver);
 	}
-#ifdef CONFIG_IPA_RTP
-	ipa_rtp_genl_init();
-#endif
 
 	register_pm_notifier(&ipa_pm_notifier);
 	/* Register as a platform device driver */
@@ -12552,9 +12431,6 @@ static void __exit ipa_module_exit(void)
 		kfree(ipa3_ctx->hw_stats);
 		ipa3_ctx->hw_stats = NULL;
 	}
-#ifdef CONFIG_IPA_RTP
-	ipa_rtp_genl_deinit();
-#endif
 	unregister_pm_notifier(&ipa_pm_notifier);
 	kfree(ipa3_ctx);
 	ipa3_ctx = NULL;

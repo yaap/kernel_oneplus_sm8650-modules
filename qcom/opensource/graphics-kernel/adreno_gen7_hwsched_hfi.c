@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/soc/qcom,ipcc.h>
@@ -3267,7 +3267,6 @@ static void move_detached_context_hardware_fences(struct adreno_device *adreno_d
 		struct gmu_context_queue_header *hdr =  drawctxt->gmu_context_queue.hostptr;
 
 		if ((timestamp_cmp((u32)entry->cmd.ts, hdr->out_fence_ts) > 0)) {
-			_kgsl_context_get(&drawctxt->base);
 			list_move_tail(&entry->node, &hfi->detached_hw_fence_list);
 			continue;
 		}
@@ -3277,7 +3276,6 @@ static void move_detached_context_hardware_fences(struct adreno_device *adreno_d
 
 	/* Also grab all the hardware fences which were never sent to GMU */
 	list_for_each_entry_safe(entry, tmp, &drawctxt->hw_fence_list, node) {
-		_kgsl_context_get(&drawctxt->base);
 		list_move_tail(&entry->node, &hfi->detached_hw_fence_list);
 	}
 }
@@ -3861,7 +3859,7 @@ int gen7_hwsched_send_recurring_cmdobj(struct adreno_device *adreno_dev,
 	int ret;
 	static bool active;
 
-	if (adreno_gpu_halt(adreno_dev) || adreno_hwsched_gpu_fault(adreno_dev))
+	if (adreno_gpu_halt(adreno_dev) || hwsched_in_fault(hwsched))
 		return -EBUSY;
 
 	if (test_bit(CMDOBJ_RECURRING_STOP, &cmdobj->priv)) {
@@ -4238,7 +4236,7 @@ int gen7_hwsched_counter_inline_enable(struct adreno_device *adreno_dev,
 
 	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
 		gen7_perfcounter_update(adreno_dev, reg, false,
-				FIELD_PREP(GENMASK(13, 12), PIPE_NONE), group->flags);
+				FIELD_PREP(GENMASK(13, 12), PIPE_NONE));
 
 	cmds = hfi->perfctr_scratch->hostptr;
 

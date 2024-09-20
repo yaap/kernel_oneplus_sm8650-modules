@@ -514,7 +514,7 @@ bus_register_fail:
 	return rc;
 }
 
-int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
+static int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
 	int enable)
 {
 	int rc, i = 0;
@@ -3441,10 +3441,7 @@ static void *cam_cpas_user_dump_state_monitor_array_info(
 	*addr++ = monitor->applied_camnoc_clk.hw_client[2].low,
 	*addr++ = monitor->applied_ahb_level;
 	*addr++ = cpas_core->num_valid_camnoc;
-
-	if (soc_private->enable_smart_qos)
-		*addr++ = soc_private->smart_qos_info->num_rt_wr_nius;
-
+	*addr++ = soc_private->smart_qos_info->num_rt_wr_nius;
 	*addr++ = num_vcds;
 	*addr++ = cpas_core->num_axi_ports;
 
@@ -3491,16 +3488,14 @@ static void *cam_cpas_user_dump_state_monitor_array_info(
 		}
 	}
 
-	if (soc_private->enable_smart_qos) {
-		for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
-			niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
-			dst = (uint8_t *)addr;
-			hdr = (struct cam_common_hw_dump_header *)dst;
-			scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:", niu_node->node_name);
-			addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
-			*addr++ = monitor->rt_wr_niu_pri_lut_high[i];
-			*addr++ = monitor->rt_wr_niu_pri_lut_low[i];
-		}
+	for (i = 0; i < soc_private->smart_qos_info->num_rt_wr_nius; i++) {
+		niu_node = soc_private->smart_qos_info->rt_wr_niu_node[i];
+		dst = (uint8_t *)addr;
+		hdr = (struct cam_common_hw_dump_header *)dst;
+		scnprintf(hdr->tag, CAM_COMMON_HW_DUMP_TAG_MAX_LEN, "%s:", niu_node->node_name);
+		addr = (uint64_t *)(dst + sizeof(struct cam_common_hw_dump_header));
+		*addr++ = monitor->rt_wr_niu_pri_lut_high[i];
+		*addr++ = monitor->rt_wr_niu_pri_lut_low[i];
 	}
 
 	vcd_reg_debug_info = &monitor->vcd_reg_debug_info;
@@ -3591,11 +3586,9 @@ static int cam_cpas_dump_state_monitor_array_info(
 				min_len += sizeof(struct cam_common_hw_dump_header);
 		}
 
-		if (soc_private->enable_smart_qos) {
-			for (j = 0; j < soc_private->smart_qos_info->num_rt_wr_nius; j++)
-				min_len += sizeof(struct cam_common_hw_dump_header) +
-					CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS * sizeof(uint64_t);
-		}
+		for (j = 0; j < soc_private->smart_qos_info->num_rt_wr_nius; j++)
+			min_len += sizeof(struct cam_common_hw_dump_header) +
+				CAM_CPAS_DUMP_NUM_WORDS_RT_WR_NIUS * sizeof(uint64_t);
 
 		for (j = 0; j < CAM_CPAS_MAX_CESTA_VCD_NUM; j++)
 			min_len += CAM_CPAS_DUMP_NUM_WORDS_VCD_CURR_LVL * sizeof(uint64_t);
@@ -3670,32 +3663,6 @@ static int cam_cpas_select_qos(struct cam_hw_info *cpas_hw,
 	}
 
 done:
-	mutex_unlock(&cpas_hw->hw_mutex);
-	return rc;
-}
-
-static int cam_cpas_hw_enable_tpg_mux_sel(struct cam_hw_info *cpas_hw,
-	uint32_t tpg_mux)
-{
-	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	int rc = 0;
-
-	mutex_lock(&cpas_hw->hw_mutex);
-
-	if (cpas_core->internal_ops.set_tpg_mux_sel) {
-		rc = cpas_core->internal_ops.set_tpg_mux_sel(
-			cpas_hw, tpg_mux);
-		if (rc) {
-			CAM_ERR(CAM_CPAS,
-				"failed in tpg mux selection rc=%d",
-				rc);
-		}
-	} else {
-		CAM_ERR(CAM_CPAS,
-			"CPAS tpg mux sel not enabled");
-		rc = -EINVAL;
-	}
-
 	mutex_unlock(&cpas_hw->hw_mutex);
 	return rc;
 }
@@ -4369,20 +4336,6 @@ static int cam_cpas_hw_process_cmd(void *hw_priv,
 		rc = cam_cpas_hw_csid_process_resume(hw_priv, *csid_idx);
 		break;
 	}
-	case CAM_CPAS_HW_CMD_TPG_MUX_SEL: {
-		uint32_t *tpg_mux_sel;
-
-		if (sizeof(uint32_t) != arg_size) {
-			CAM_ERR(CAM_CPAS, "cmd_type %d, size mismatch %d",
-				cmd_type, arg_size);
-			break;
-		}
-
-		tpg_mux_sel = (uint32_t *)cmd_args;
-		rc = cam_cpas_hw_enable_tpg_mux_sel(hw_priv, *tpg_mux_sel);
-		break;
-
-	}
 	case CAM_CPAS_HW_CMD_ENABLE_DISABLE_DOMAIN_ID_CLK: {
 		bool *enable;
 
@@ -4666,9 +4619,10 @@ int cam_cpas_hw_probe(struct platform_device *pdev,
 	cpas_core->ahb_bus_scaling_disable = false;
 	cpas_core->full_state_dump = false;
 	cpas_core->smart_qos_dump = false;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	cpas_core->force_hlos_drv = true;
 	cpas_core->force_cesta_sw_client = true;
-
+#endif
 	atomic64_set(&cpas_core->monitor_head, -1);
 
 	mutex_init(&cpas_hw->hw_mutex);

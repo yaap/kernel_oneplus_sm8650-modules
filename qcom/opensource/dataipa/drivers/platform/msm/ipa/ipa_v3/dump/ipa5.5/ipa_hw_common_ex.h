@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #if !defined(_IPA_HW_COMMON_EX_H_)
 #define _IPA_HW_COMMON_EX_H_
@@ -444,12 +444,12 @@ enum ipa_hw_irq_srcs_e {
 /*
  * Total number of channel contexts that need to be saved for APPS
  */
-#define IPA_HW_REG_SAVE_GSI_NUM_CH_CNTXT_A7          30
+#define IPA_HW_REG_SAVE_GSI_NUM_CH_CNTXT_A7          25
 
 /*
  * Total number of channel contexts that need to be saved for UC
  */
-#define IPA_HW_REG_SAVE_GSI_NUM_CH_CNTXT_UC          7
+#define IPA_HW_REG_SAVE_GSI_NUM_CH_CNTXT_UC          2
 
  /*
  * Total number of channel contexts that need to be saved for Q6
@@ -459,12 +459,12 @@ enum ipa_hw_irq_srcs_e {
 /*
  * Total number of event ring contexts that need to be saved for APPS
  */
-#define IPA_HW_REG_SAVE_GSI_NUM_EVT_CNTXT_A7         30
+#define IPA_HW_REG_SAVE_GSI_NUM_EVT_CNTXT_A7         25
 
 /*
  * Total number of event ring contexts that need to be saved for UC
  */
-#define IPA_HW_REG_SAVE_GSI_NUM_EVT_CNTXT_UC         7
+#define IPA_HW_REG_SAVE_GSI_NUM_EVT_CNTXT_UC         2
 
 /*
  * Total number of event ring contexts that need to be saved for Q6

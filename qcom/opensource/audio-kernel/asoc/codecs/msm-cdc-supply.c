@@ -270,11 +270,7 @@ bool msm_cdc_check_supply_vote(struct device *dev,
 		return cdc_vreg[i].vote;
 	}
 
-	dev_err_ratelimited(dev,
-		"%s: Unable to find vote for supply %s\n",
-		__func__, supply_name);
-
-	return -EINVAL;
+	return rc;
 }
 EXPORT_SYMBOL(msm_cdc_check_supply_vote);
 
@@ -354,26 +350,15 @@ int msm_cdc_disable_ondemand_supply(struct device *dev,
 	if (rc)
 		return rc;
 
-	dev_dbg(dev, "%s: Disabling on-demand supply %s\n",
-		__func__, supply_name);
-
 	for (i = 0; i < num_supplies; i++) {
 		if (cdc_vreg[i].ondemand &&
 			!strcmp(cdc_vreg[i].name, supply_name)) {
-			if (!cdc_vreg[i].vote) {
-				dev_err_ratelimited(dev,
-					"%s: Attempted to disable already disabled supply %s\n",
-					__func__, supplies[i].supply);
-				break;
-			}
-
 			rc = regulator_disable(supplies[i].consumer);
 			if (rc)
 				dev_err_ratelimited(dev,
 					"%s: failed to disable supply %s, err:%d\n",
 					__func__, supplies[i].supply, rc);
-			else
-				cdc_vreg[i].vote = false;
+			cdc_vreg[i].vote = false;
 			break;
 		}
 	}
@@ -417,25 +402,14 @@ int msm_cdc_enable_ondemand_supply(struct device *dev,
 	if (rc)
 		return rc;
 
-	dev_dbg(dev, "%s: Enabling on-demand supply %s\n",
-		__func__, supply_name);
-
 	for (i = 0; i < num_supplies; i++) {
 		if (cdc_vreg[i].ondemand &&
 			!strcmp(cdc_vreg[i].name, supply_name)) {
-			if (cdc_vreg[i].vote) {
-				dev_err_ratelimited(dev,
-					"%s: Attempted to enable already enabled supply %s\n",
-					__func__, supplies[i].supply);
-				break;
-			}
-
 			rc = regulator_enable(supplies[i].consumer);
 			if (rc)
 				dev_err_ratelimited(dev, "%s: failed to enable supply %s, rc: %d\n",
 					__func__, supplies[i].supply, rc);
-			else
-				cdc_vreg[i].vote = true;
+			cdc_vreg[i].vote = true;
 			break;
 		}
 	}
@@ -630,8 +604,8 @@ int msm_cdc_enable_static_supplies(struct device *dev,
 			dev_err(dev, "%s: failed to enable supply %s, rc: %d\n",
 				__func__, supplies[i].supply, rc);
 			break;
-		} else
-			cdc_vreg[i].vote = true;
+		}
+		cdc_vreg[i].vote = true;
 	}
 
 	if (rc) {

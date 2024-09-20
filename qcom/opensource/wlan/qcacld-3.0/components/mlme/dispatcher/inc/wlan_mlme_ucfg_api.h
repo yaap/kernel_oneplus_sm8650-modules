@@ -95,15 +95,6 @@ void ucfg_mlme_set_ml_link_control_mode(struct wlan_objmgr_psoc *psoc,
 					uint8_t vdev_id, uint8_t value);
 
 /**
- * ucfg_mlme_set_bt_profile_con() - set Bluetooth connection profile
- * @psoc: Pointer to psoc object
- * @bt_profile_con: Bluetooth connection profile indicator
- *
- * Return: None
- */
-void ucfg_mlme_set_bt_profile_con(struct wlan_objmgr_psoc *psoc,
-				  bool bt_profile_con);
-/**
  * ucfg_mlme_get_ml_link_control_mode() - get ml_link_control_mode
  * @psoc: pointer to psoc object
  * @vdev_id: vdev id
@@ -3190,24 +3181,6 @@ ucfg_mlme_get_emlsr_mode_enabled(struct wlan_objmgr_psoc *psoc, bool *value)
 }
 
 /**
- * ucfg_mlme_set_t2lm_negotiation_supported() - Enables/disables t2lm
- * negotiation support value
- * @psoc: psoc context
- * @value: data to be set
- *
- * Inline UCFG API to be used by HDD/OSIF callers to set the
- * t2lm negotiation supported value
- *
- * Return: QDF_STATUS_SUCCESS or QDF_STATUS_FAILURE
- */
-static inline QDF_STATUS
-ucfg_mlme_set_t2lm_negotiation_supported(struct wlan_objmgr_psoc *psoc,
-					 bool value)
-{
-	return wlan_mlme_set_t2lm_negotiation_supported(psoc, value);
-}
-
-/**
  * ucfg_mlme_get_opr_rate() - Get operational rate set
  * @vdev: pointer to vdev object
  * @buf: buffer to get rates set
@@ -3905,51 +3878,6 @@ void ucfg_mlme_set_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc,
 }
 #endif
 
-#ifdef WLAN_FEATURE_11BE_MLO
-/**
- * ucfg_mlme_get_eht_mld_id() - Get the MLD ID of the requested BSS
- * @psoc: pointer to psoc object
- *
- * This API gives the MLD ID of the requested BSS
- *
- * Return: MLD ID of the requested BSS
- */
-static inline uint8_t
-ucfg_mlme_get_eht_mld_id(struct wlan_objmgr_psoc *psoc)
-{
-	return wlan_mlme_get_eht_mld_id(psoc);
-}
-
-/**
- * ucfg_mlme_set_eht_mld_id() - Set MLD ID of the requested BSS information
- * @psoc: pointer to psoc object
- * @value: set MLD ID
- *
- * This API sets the MLD ID of the requested BSS information within the ML
- * probe request.
- *
- * Return: QDF_STATUS
- */
-static inline QDF_STATUS
-ucfg_mlme_set_eht_mld_id(struct wlan_objmgr_psoc *psoc,
-			 uint8_t value)
-{
-	return wlan_mlme_set_eht_mld_id(psoc, value);
-}
-#else
-static inline uint8_t
-ucfg_mlme_get_eht_mld_id(struct wlan_objmgr_psoc *psoc)
-{
-	return 0;
-}
-
-static inline QDF_STATUS
-ucfg_mlme_set_eht_mld_id(struct wlan_objmgr_psoc *psoc, uint8_t value)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-#endif /* WLAN_FEATURE_11BE_MLO */
-
 /**
  * ucfg_mlme_get_80211e_is_enabled() - Enable 802.11e feature
  * @psoc: pointer to psoc object
@@ -4605,17 +4533,6 @@ ucfg_mlme_get_current_tx_power_level(struct wlan_objmgr_psoc *psoc,
 				     uint8_t *value);
 
 /**
- * ucfg_wlan_mlme_get_reg_tpc_info() - get current regulatory tpc info
- * @vdev:   pointer to vdev object
- * @tpc_info:  pointer to tpc info buffer
- *
- * Return: QDF Status
- */
-QDF_STATUS
-ucfg_wlan_mlme_get_reg_tpc_info(struct wlan_objmgr_vdev *vdev,
-				struct reg_tpc_power_info *tpc_info);
-
-/**
  * ucfg_mlme_set_obss_detection_offload_enabled() - Enable obss offload
  * @psoc:   pointer to psoc object
  * @value:  enable or disable
@@ -4693,18 +4610,6 @@ QDF_STATUS ucfg_mlme_set_restricted_80p80_bw_supp(struct wlan_objmgr_psoc *psoc,
 bool ucfg_mlme_get_restricted_80p80_bw_supp(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_mlme_get_update_chan_width_allowed  - Get value of INI
- * is_update_chan_width_allowed
- * @psoc: pointer to psoc object
- * @value: pointer to the value which will be filled for the caller
- *
- * Return: QDF Status
- */
-QDF_STATUS
-ucfg_mlme_get_update_chan_width_allowed(struct wlan_objmgr_psoc *psoc,
-					bool *value);
-
-/**
  * ucfg_mlme_get_channel_bonding_24ghz() - get channel bonding mode of 24ghz
  * @psoc:   pointer to psoc object
  * @value:  pointer to the value which will be filled for the caller
@@ -4725,7 +4630,6 @@ ucfg_mlme_get_channel_bonding_24ghz(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 ucfg_mlme_set_channel_bonding_24ghz(struct wlan_objmgr_psoc *psoc,
 				    uint32_t value);
-
 /**
  * ucfg_mlme_get_channel_bonding_5ghz() - get channel bonding mode of 5ghz
  * @psoc:   pointer to psoc object
@@ -4928,17 +4832,17 @@ QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
  * ucfg_mlme_send_ch_width_update_with_notify() - Send chwidth with notify
  * capability of FW
  * @psoc: pointer to psoc object
- * @link_vdev: Link VDEV object
+ * @vdev_id: Vdev id
  * @ch_width: channel width to update
- * @link_vdev_id: vdev id for each link
+ * @link_id: mlo link id
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
 ucfg_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
-					   struct wlan_objmgr_vdev *link_vdev,
+					   uint8_t vdev_id,
 					   enum phy_ch_width ch_width,
-					   uint8_t link_vdev_id);
+					   uint8_t link_id);
 
 /**
  * ucfg_mlme_is_chwidth_with_notify_supported() - Get chwidth with notify

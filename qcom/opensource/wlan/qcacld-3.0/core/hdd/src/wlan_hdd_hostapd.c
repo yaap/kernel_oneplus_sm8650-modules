@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -116,12 +116,10 @@
 #include "wlan_osif_features.h"
 #include "wlan_pre_cac_ucfg_api.h"
 #include <wlan_dp_ucfg_api.h>
-#include "wlan_twt_ucfg_ext_cfg.h"
 #include "wlan_twt_ucfg_ext_api.h"
 #include "wlan_twt_ucfg_api.h"
 #include "wlan_vdev_mgr_ucfg_api.h"
 #include <wlan_psoc_mlme_ucfg_api.h>
-#include "wlan_ll_sap_api.h"
 
 #define ACS_SCAN_EXPIRY_TIMEOUT_S 4
 
@@ -149,7 +147,6 @@
 #ifndef BSS_MEMBERSHIP_SELECTOR_HT_PHY
 #define BSS_MEMBERSHIP_SELECTOR_HT_PHY  127
 #endif
-
 #ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
 //Add for softap connect fail monitor
 #include <linux/workqueue.h>
@@ -530,7 +527,6 @@ static void hdd_hostapd_channel_allow_suspend(struct hdd_adapter *adapter,
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	struct hdd_hostapd_state *hostapd_state =
 		WLAN_HDD_GET_HOSTAP_STATE_PTR(adapter->deflink);
-	struct sap_context *sap_ctx;
 
 	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d",
 		  hostapd_state->bss_state, chan_freq,
@@ -540,15 +536,8 @@ static void hdd_hostapd_channel_allow_suspend(struct hdd_adapter *adapter,
 	if (hostapd_state->bss_state == BSS_STOP)
 		return;
 
-	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter->deflink);
-	if (!sap_ctx) {
-		hdd_err("sap ctx null");
-		return;
-	}
-
-	if (!sap_chan_bond_dfs_sub_chan(sap_ctx,
-					chan_freq,
-					PHY_CHANNEL_BONDING_STATE_MAX))
+	if (!wlan_reg_chan_has_dfs_attribute_for_freq(hdd_ctx->pdev,
+						      chan_freq))
 		return;
 
 	/* Release wakelock when no more DFS channels are used */
@@ -576,7 +565,6 @@ static void hdd_hostapd_channel_prevent_suspend(struct hdd_adapter *adapter,
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	struct hdd_hostapd_state *hostapd_state =
 		WLAN_HDD_GET_HOSTAP_STATE_PTR(adapter->deflink);
-	struct sap_context *sap_ctx;
 
 	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d",
 		  hostapd_state->bss_state, chan_freq,
@@ -586,15 +574,8 @@ static void hdd_hostapd_channel_prevent_suspend(struct hdd_adapter *adapter,
 		(atomic_read(&hdd_ctx->sap_dfs_ref_cnt) >= 1))
 		return;
 
-	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter->deflink);
-	if (!sap_ctx) {
-		hdd_err("sap ctx null");
-		return;
-	}
-
-	if (!sap_chan_bond_dfs_sub_chan(sap_ctx,
-					chan_freq,
-					PHY_CHANNEL_BONDING_STATE_MAX))
+	if (!wlan_reg_chan_has_dfs_attribute_for_freq(hdd_ctx->pdev,
+						      chan_freq))
 		return;
 
 	/* Acquire wakelock if we have at least one DFS channel in use */
@@ -1954,13 +1935,11 @@ static void hdd_hostapd_set_sap_key(struct hdd_adapter *adapter)
 	struct wlan_crypto_key *crypto_key;
 	uint8_t key_index;
 
-	for (key_index = 0; key_index < WLAN_CRYPTO_TOTAL_KEYIDX; ++key_index) {
+	for (key_index = 0; key_index < WLAN_CRYPTO_MAXKEYIDX; ++key_index) {
 		crypto_key = wlan_crypto_get_key(adapter->deflink->vdev,
 						 key_index);
 		if (!crypto_key)
 			continue;
-
-		hdd_debug("key idx %d", key_index);
 		ucfg_crypto_set_key_req(adapter->deflink->vdev, crypto_key,
 					WLAN_CRYPTO_KEY_TYPE_GROUP);
 		wma_update_set_key(adapter->deflink->vdev_id, false, key_index,
@@ -1999,16 +1978,11 @@ static QDF_STATUS hdd_hostapd_chan_change(struct wlan_hdd_link_info *link_info,
 	bool legacy_phymode;
 	struct hdd_adapter *adapter = link_info->adapter;
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-	struct sap_ch_selected_s *sap_chan_selected;
+	struct sap_ch_selected_s *sap_chan_selected =
+			&sap_event->sapevt.sap_ch_selected;
 	struct sap_config *sap_config =
 				&link_info->session.ap.sap_config;
 	struct hdd_ap_ctx *ap_ctx = WLAN_HDD_GET_AP_CTX_PTR(link_info);
-
-	if (sap_event->sapHddEventCode == eSAP_CHANNEL_CHANGE_RESP)
-		sap_chan_selected =
-			&sap_event->sapevt.sap_chan_cng_rsp.sap_ch_selected;
-	else
-		sap_chan_selected = &sap_event->sapevt.sap_ch_selected;
 
 	sap_ch_param.ch_width = sap_chan_selected->ch_width;
 	sap_ch_param.mhz_freq_seg0 =
@@ -2228,27 +2202,10 @@ hdd_hostapd_check_channel_post_csa(struct hdd_context *hdd_ctx,
 	struct hdd_ap_ctx *ap_ctx;
 	uint8_t sta_cnt, sap_cnt;
 	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
-	struct sap_context *sap_ctx;
-	bool ch_valid;
 
 	ap_ctx = WLAN_HDD_GET_AP_CTX_PTR(adapter->deflink);
-	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter->deflink);
-	if (!sap_ctx) {
-		hdd_err("sap ctx is null");
-		return;
-	}
-
-	/*
-	 * During CSA, it might be possible that ch avoidance event to
-	 * avoid the sap frequency is received. So, check after CSA,
-	 * whether sap frequency is safe if not restart sap to a safe
-	 * channel.
-	 */
-	ch_valid =
-	wlansap_validate_channel_post_csa(hdd_ctx->mac_handle,
-					  sap_ctx);
 	if (ap_ctx->sap_context->csa_reason ==
-	    CSA_REASON_UNSAFE_CHANNEL || !ch_valid)
+	    CSA_REASON_UNSAFE_CHANNEL)
 		qdf_status = hdd_unsafe_channel_restart_sap(hdd_ctx);
 	else if (ap_ctx->sap_context->csa_reason == CSA_REASON_DCS)
 		qdf_status = hdd_dcs_hostapd_set_chan(
@@ -2602,8 +2559,6 @@ QDF_STATUS hdd_hostapd_sap_event_cb(struct sap_event *sap_event,
 
 		/* Invalidate the channel info. */
 		ap_ctx->operating_chan_freq = 0;
-
-		qdf_atomic_set(&ap_ctx->ch_switch_in_progress, 0);
 
 		/* reset the dfs_cac_status and dfs_cac_block_tx flag only when
 		 * the last BSS is stopped
@@ -3343,20 +3298,7 @@ QDF_STATUS hdd_hostapd_sap_event_cb(struct sap_event *sap_event,
 		if (!QDF_IS_STATUS_SUCCESS(qdf_status))
 			hdd_err("qdf_event_set failed! status: %d",
 				qdf_status);
-		if (sap_event->sapevt.sap_chan_cng_rsp.ch_change_rsp_status !=
-		    eSAP_STATUS_SUCCESS) {
-			/* This is much more serious issue, we have to vacate
-			 * the channel due to the presence of radar or coex
-			 * but our channel change failed, stop the BSS operation
-			 * completely and inform hostapd
-			 */
-			hdd_debug("SAP[vdev%d] channel switch fail, will stop",
-				  link_info->vdev_id);
-			schedule_work(&adapter->sap_stop_bss_work);
-			return QDF_STATUS_SUCCESS;
-		} else {
-			return hdd_hostapd_chan_change(link_info, sap_event);
-		}
+		return hdd_hostapd_chan_change(link_info, sap_event);
 	default:
 		hdd_debug("SAP message is not handled");
 		goto stopbss;
@@ -4140,33 +4082,8 @@ QDF_STATUS wlan_hdd_get_channel_for_sap_restart(struct wlan_objmgr_psoc *psoc,
 	else
 		ch_params.ch_width = CH_WIDTH_MAX;
 
-	if (policy_mgr_is_vdev_ll_lt_sap(psoc, vdev_id)) {
-		/*
-		 * Adding this feature flag temporarily, will remove this once
-		 * feature flag is enabled.
-		 */
-#ifdef WLAN_FEATURE_LL_LT_SAP
-		intf_ch_freq =
-			wlan_get_ll_lt_sap_restart_freq(hdd_ctx->pdev,
-							sap_context->chan_freq,
-							sap_context->vdev_id,
-							&csa_reason);
-#else
-		intf_ch_freq = wlansap_get_chan_band_restrict(sap_context,
-							      &csa_reason);
-#endif
-		if (!intf_ch_freq) {
-			schedule_work(&ap_adapter->sap_stop_bss_work);
-			wlansap_context_put(sap_context);
-			hdd_debug("vdev %d stop ll_lt_sap, no channel found for csa",
-				  vdev_id);
-			return QDF_STATUS_E_FAILURE;
-		}
-	} else {
-		intf_ch_freq = wlansap_get_chan_band_restrict(sap_context,
-							      &csa_reason);
-	}
-	if (intf_ch_freq && intf_ch_freq != sap_context->chan_freq)
+	intf_ch_freq = wlansap_get_chan_band_restrict(sap_context, &csa_reason);
+	if (intf_ch_freq)
 		goto sap_restart;
 
 	/*
@@ -4573,6 +4490,7 @@ QDF_STATUS hdd_init_ap_mode(struct hdd_adapter *adapter,
 	bool acs_with_more_param = 0;
 	uint8_t enable_sifs_burst = 0;
 	bool is_6g_sap_fd_enabled = 0;
+	enum reg_6g_ap_type ap_pwr_type;
 	struct wlan_objmgr_vdev *vdev;
 
 	hdd_enter();
@@ -4604,6 +4522,9 @@ QDF_STATUS hdd_init_ap_mode(struct hdd_adapter *adapter,
 
 	/* Allocate the Wireless Extensions state structure */
 	phostapdBuf = WLAN_HDD_GET_HOSTAP_STATE_PTR(adapter->deflink);
+
+	ap_pwr_type = wlan_reg_decide_6g_ap_pwr_type(hdd_ctx->pdev);
+	hdd_debug("selecting AP power type %d", ap_pwr_type);
 
 	/* Zero the memory.  This zeros the profile structure. */
 	memset(phostapdBuf, 0, sizeof(struct hdd_hostapd_state));
@@ -6444,8 +6365,7 @@ static QDF_STATUS wlan_hdd_mlo_update(struct wlan_hdd_link_info *link_info)
 		wlan_hdd_get_mlo_link_id(beacon, &link_id, &num_link);
 		hdd_debug("MLO SAP vdev id %d, link id %d total link %d",
 			  link_info->vdev_id, link_id, num_link);
-		if (!num_link || !link_info->vdev->mlo_dev_ctx ||
-		    !link_info->vdev->mlo_dev_ctx->ap_ctx) {
+		if (!num_link) {
 			hdd_debug("start 11be AP without mlo");
 			return QDF_STATUS_SUCCESS;
 		}
@@ -6597,6 +6517,7 @@ int wlan_hdd_cfg80211_start_bss(struct wlan_hdd_link_info *link_info,
 	bool bval = false;
 	bool enable_dfs_scan = true;
 	bool deliver_start_evt = true;
+	struct s_ext_cap p_ext_cap = {0};
 	enum reg_phymode reg_phy_mode, updated_phy_mode;
 	struct sap_context *sap_ctx;
 	struct wlan_objmgr_vdev *vdev;
@@ -6731,7 +6652,29 @@ int wlan_hdd_cfg80211_start_bss(struct wlan_hdd_link_info *link_info,
 
 	ucfg_policy_mgr_get_mcc_scc_switch(hdd_ctx->psoc, &mcc_to_scc_switch);
 
-	wlan_hdd_set_sap_beacon_protection(hdd_ctx, link_info, beacon);
+	ie = wlan_get_ie_ptr_from_eid(DOT11F_EID_EXTCAP, beacon->tail,
+				      beacon->tail_len);
+	if (ie && (ie[0] != DOT11F_EID_EXTCAP ||
+		   ie[1] > DOT11F_IE_EXTCAP_MAX_LEN)) {
+		hdd_err("Invalid IEs eid: %d elem_len: %d", ie[0], ie[1]);
+		ret = -EINVAL;
+		goto error;
+	}
+
+	if (ie) {
+		bool target_bigtk_support = false;
+
+		memcpy(&p_ext_cap, &ie[2], (ie[1] > sizeof(p_ext_cap)) ?
+		       sizeof(p_ext_cap) : ie[1]);
+
+		hdd_debug("beacon protection %d",
+			  p_ext_cap.beacon_protection_enable);
+
+		ucfg_mlme_get_bigtk_support(hdd_ctx->psoc,
+					    &target_bigtk_support);
+		if (target_bigtk_support && p_ext_cap.beacon_protection_enable)
+			mlme_set_bigtk_support(vdev, true);
+	}
 
 	/* Overwrite second AP's channel with first only when:
 	 * 1. If operating mode is single mac
@@ -6744,11 +6687,6 @@ int wlan_hdd_cfg80211_start_bss(struct wlan_hdd_link_info *link_info,
 		if (ret < 0)
 			goto error;
 	}
-
-	config->chan_freq = wlan_ll_lt_sap_override_freq(hdd_ctx->psoc,
-							 link_info->vdev_id,
-							 config->chan_freq);
-
 	if (!ret && wlan_reg_is_dfs_for_freq(hdd_ctx->pdev, config->chan_freq))
 		hdd_ctx->dev_dfs_cac_status = DFS_CAC_NEVER_DONE;
 
@@ -7396,16 +7334,6 @@ static int __wlan_hdd_cfg80211_stop_ap(struct wiphy *wiphy,
 	}
 
 	/*
-	 * Reset sap mandatory channel list.If band is changed then
-	 * frequencies of new selected band can be removed in pcl
-	 * modification based on sap mandatory channel list.
-	 */
-	status = policy_mgr_reset_sap_mandatory_channels(hdd_ctx->psoc);
-	/* Don't go to exit in case of failure. Clean up & stop BSS */
-	if (QDF_IS_STATUS_ERROR(status))
-		hdd_err("failed to reset mandatory channels");
-
-	/*
 	 * For STA+SAP/GO concurrency support from GUI, In case if
 	 * STOP AP/GO request comes just before the SAE authentication
 	 * completion on STA, SAE AUTH REQ waits for STOP AP RSP and
@@ -7853,16 +7781,11 @@ hdd_sap_nan_check_and_disable_unsupported_ndi(struct wlan_objmgr_psoc *psoc,
 void wlan_hdd_configure_twt_responder(struct hdd_context *hdd_ctx,
 				      bool twt_responder)
 {
-	bool twt_res_svc_cap, enable_twt, twt_res_cfg;
+	bool twt_res_svc_cap, enable_twt;
 	uint32_t reason;
 
 	enable_twt = ucfg_twt_cfg_is_twt_enabled(hdd_ctx->psoc);
 	ucfg_twt_get_responder(hdd_ctx->psoc, &twt_res_svc_cap);
-	ucfg_twt_cfg_get_responder(hdd_ctx->psoc, &twt_res_cfg);
-	if (!twt_res_cfg && !twt_responder) {
-		hdd_debug("TWT responder already disable, skip");
-		return;
-	}
 	ucfg_twt_cfg_set_responder(hdd_ctx->psoc,
 				   QDF_MIN(twt_res_svc_cap,
 					   (enable_twt &&
@@ -7930,6 +7853,16 @@ void wlan_hdd_configure_twt_responder(struct hdd_context *hdd_ctx,
 				      bool twt_responder)
 {}
 #endif
+
+static inline uint32_t
+wlan_util_get_centre_freq(struct wlan_hdd_link_info *link_info)
+{
+	struct wlan_channel *chan;
+
+	chan = wlan_vdev_get_active_channel(link_info->vdev);
+
+	return chan->ch_freq;
+}
 
 #ifdef CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT
 static inline struct cfg80211_chan_def
@@ -7999,8 +7932,6 @@ static void hdd_update_param_chandef(struct wlan_hdd_link_info *link_info,
 	struct wlan_channel *chan;
 
 	chan = wlan_vdev_get_active_channel(link_info->vdev);
-	if (!chan)
-		return;
 
 	hdd_create_chandef(link_info->adapter, chan, chandef);
 }
@@ -8106,7 +8037,7 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 	if (QDF_STATUS_SUCCESS !=
 	    ucfg_policy_mgr_get_sap_mandt_chnl(hdd_ctx->psoc, &mandt_chnl_list))
 		hdd_err("can't get mandatory channel list");
-	if (mandt_chnl_list && adapter->device_mode == QDF_SAP_MODE)
+	if (mandt_chnl_list)
 		policy_mgr_init_sap_mandatory_chan(hdd_ctx->psoc,
 						   chandef->chan->center_freq);
 
@@ -8150,7 +8081,7 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 					       &srd_channel_allowed);
 
 	if (!srd_channel_allowed &&
-	    wlan_reg_is_etsi_srd_chan_for_freq(hdd_ctx->pdev, freq)) {
+	    wlan_reg_is_etsi13_srd_chan_for_freq(hdd_ctx->pdev, freq)) {
 		hdd_err("vdev opmode %d not allowed on SRD channel.",
 			vdev_opmode);
 		return -EINVAL;
@@ -8353,7 +8284,7 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 
 		hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_ID);
 
-		if (wlan_get_operation_chan_freq(link_info->vdev) !=
+		if (wlan_util_get_centre_freq(link_info) !=
 				params->chandef.chan->center_freq)
 			hdd_update_param_chandef(link_info, &params->chandef);
 

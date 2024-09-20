@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,7 +59,6 @@
 #include <../../core/src/wlan_cm_vdev_api.h>
 #include <wlan_mlo_mgr_sta.h>
 #include <spatial_reuse_api.h>
-#include <wlan_mlo_mgr_cmn.h>
 
 void lim_send_sme_rsp(struct mac_context *mac_ctx, uint16_t msg_type,
 		      tSirResultCodes result_code, uint8_t vdev_id)
@@ -1785,18 +1784,6 @@ static bool lim_is_csa_channel_allowed(struct mac_context *mac_ctx,
 		return false;
 	}
 
-	/*
-	 * This is a temporary check and will be removed once ll_lt_sap CSA
-	 * support is added.
-	 */
-	if (policy_mgr_get_ll_lt_sap_freq(mac_ctx->psoc) == csa_freq) {
-		pe_err("CSA not allowed on LL_LT_SAP freq %d", csa_freq);
-		lim_tear_down_link_with_ap(mac_ctx, session_entry->peSessionId,
-					   REASON_CHANNEL_SWITCH_FAILED,
-					   eLIM_HOST_DISASSOC);
-		return false;
-	}
-
 	if (WLAN_REG_IS_24GHZ_CH_FREQ(csa_freq) &&
 	    wlan_reg_get_bw_value(new_ch_width) > 20) {
 		if (csa_params->new_ch_freq_seg1 == csa_params->channel + 2)
@@ -1830,13 +1817,12 @@ static bool lim_is_csa_channel_allowed(struct mac_context *mac_ctx,
 	} else if (cnx_count > 2) {
 		is_allowed =
 		policy_mgr_allow_concurrency_csa(
-			mac_ctx->psoc,
+			mac_ctx->psoc, csa_freq,
 			policy_mgr_qdf_opmode_to_pm_con_mode(mac_ctx->psoc,
 							     mode,
 							     session_entry->vdev_id),
-			csa_freq,
-			policy_mgr_get_bw(new_ch_width),
-			session_entry->vdev_id, false,
+			session_entry->vdev_id,
+			policy_mgr_get_bw(new_ch_width), false,
 			CSA_REASON_UNKNOWN);
 	}
 
@@ -1918,25 +1904,12 @@ static void update_csa_link_info(struct wlan_objmgr_vdev *vdev,
 				 uint8_t link_id,
 				 struct csa_offload_params *csa_params)
 {
-	struct wlan_objmgr_pdev *pdev;
 	uint8_t vdev_id = wlan_vdev_get_id(vdev);
 
-	pdev = wlan_vdev_get_pdev(vdev);
-	if (!pdev) {
-		pe_err("pdev is null");
-		return;
-	}
-
-	mlo_mgr_update_csa_link_info(pdev, vdev->mlo_dev_ctx,
+	mlo_mgr_update_csa_link_info(vdev->mlo_dev_ctx,
 				     csa_params, link_id);
 	pe_debug("vdev_id: %d link id %d mlo csa sta param updated ",
 		 vdev_id, link_id);
-}
-
-static bool
-lim_mlo_is_csa_allow(struct wlan_objmgr_vdev *vdev, uint16_t csa_freq)
-{
-	return wlan_mlo_is_csa_allow(vdev, csa_freq);
 }
 
 #else
@@ -1967,41 +1940,12 @@ static void update_csa_link_info(struct wlan_objmgr_vdev *vdev,
 {
 }
 
-static bool
-lim_mlo_is_csa_allow(struct wlan_objmgr_vdev *vdev, uint16_t csa_freq)
-{
-	return true;
-}
 #endif
-
-/**
- * lim_sta_follow_csa() - Check if STA needs to follow CSA
- * @session_entry: Session pointer
- * @csa_params: Pointer to CSA params
- * @lim_ch_switch: Pointer to lim channel switch info
- * @ch_params: Channel params
- *
- * Return: True if CSA is required, else return false.
- */
-static bool lim_sta_follow_csa(struct pe_session *session_entry,
-			       struct csa_offload_params *csa_params,
-			       tLimChannelSwitchInfo *lim_ch_switch,
-			       struct ch_params ch_params)
-{
-	if (session_entry->curr_op_freq == csa_params->csa_chan_freq &&
-	    session_entry->ch_width == ch_params.ch_width &&
-	    lim_is_puncture_same(lim_ch_switch, session_entry)) {
-		pe_debug("Ignore CSA, no change in ch, bw and puncture");
-		return false;
-	}
-	return true;
-}
 
 void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 			      struct csa_offload_params *csa_params)
 {
 	struct pe_session *session_entry;
-	struct mlme_legacy_priv *mlme_priv;
 	tpDphHashNode sta_ds = NULL;
 	uint8_t session_id;
 	uint16_t aid = 0;
@@ -2039,36 +1983,10 @@ void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 		goto err;
 	}
 
-	lim_ch_switch = &session_entry->gLimChannelSwitch;
-	ch_params.ch_width = csa_params->new_ch_width;
-
-	if (IS_DOT11_MODE_EHT(session_entry->dot11mode))
-		lim_set_csa_chan_param_11be(session_entry, csa_params,
-					    &ch_params);
-	else
-		wlan_reg_set_channel_params_for_pwrmode(
-					     mac_ctx->pdev,
-					     csa_params->csa_chan_freq,
-					     0, &ch_params,
-					     REG_CURRENT_PWR_MODE);
-	lim_set_chan_sw_puncture(lim_ch_switch, &ch_params);
-
-	if (!lim_sta_follow_csa(session_entry, csa_params,
-				lim_ch_switch, ch_params))
-		goto err;
-	else
-		qdf_mem_zero(&ch_params, sizeof(struct ch_params));
-
 	if (!lim_is_csa_channel_allowed(mac_ctx, session_entry,
 					session_entry->curr_op_freq,
 					csa_params)) {
 		pe_debug("Channel switch is not allowed");
-		goto err;
-	}
-
-	if (!lim_mlo_is_csa_allow(session_entry->vdev,
-				  csa_params->csa_chan_freq)) {
-		pe_debug("Channel switch for MLO vdev is not allowed");
 		goto err;
 	}
 	/*
@@ -2079,6 +1997,7 @@ void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 	lim_update_tdls_set_state_for_fw(session_entry, false);
 	lim_delete_tdls_peers(mac_ctx, session_entry);
 
+	lim_ch_switch = &session_entry->gLimChannelSwitch;
 	lim_ch_switch->switchMode = csa_params->switch_mode;
 	/* timer already started by firmware, switch immediately */
 	lim_ch_switch->switchCount = 0;
@@ -2098,8 +2017,13 @@ void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 	chnl_switch_info =
 		&session_entry->gLimWiderBWChannelSwitch;
 
-	channel_bonding_mode = lim_get_cb_mode_for_freq(mac_ctx, session_entry,
-						   csa_params->csa_chan_freq);
+	if (WLAN_REG_IS_24GHZ_CH_FREQ(csa_params->csa_chan_freq)) {
+		channel_bonding_mode =
+			mac_ctx->roam.configParam.channelBondingMode24GHz;
+	} else {
+		channel_bonding_mode =
+			mac_ctx->roam.configParam.channelBondingMode5GHz;
+	}
 
 	pe_debug("Session %d vdev %d: vht: %d ht: %d he %d cbmode %d",
 		 session_entry->peSessionId, session_entry->vdev_id,
@@ -2317,19 +2241,22 @@ void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 		 lim_ch_switch->sec_ch_offset, session_entry->curr_op_freq,
 		 session_entry->ch_width);
 
-	if (!lim_sta_follow_csa(session_entry, csa_params,
-				lim_ch_switch, ch_params))
+	if (session_entry->curr_op_freq == csa_params->csa_chan_freq &&
+	    session_entry->ch_width == lim_ch_switch->ch_width &&
+	    lim_is_puncture_same(lim_ch_switch, session_entry)) {
+		pe_debug("Ignore CSA, no change in ch, bw and puncture");
+		wlan_mlme_send_csa_event_status_ind(session_entry->vdev, 0);
 		goto err;
+	}
+
+	if (!wlan_cm_is_vdev_connected(session_entry->vdev)) {
+		pe_info_rl("Ignore CSA, vdev is in not in conncted state");
+		goto err;
+	}
 
 	if (wlan_vdev_mlme_is_mlo_vdev(session_entry->vdev)) {
 		link_id = wlan_vdev_get_link_id(session_entry->vdev);
 		update_csa_link_info(session_entry->vdev, link_id, csa_params);
-	} else {
-		mlme_priv = wlan_vdev_mlme_get_ext_hdl(session_entry->vdev);
-		if (!mlme_priv)
-			return;
-		mlme_priv->connect_info.assoc_chan_info.assoc_ch_width =
-						csa_params->new_ch_width;
 	}
 
 	if (WLAN_REG_IS_24GHZ_CH_FREQ(csa_params->csa_chan_freq) &&
@@ -2346,11 +2273,6 @@ void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 						   session_entry->smeSessionId,
 						   REASON_DRIVER_DISABLED,
 						   RSO_CHANNEL_SWITCH);
-
-	if (mlo_is_any_link_disconnecting(session_entry->vdev)) {
-		pe_info_rl("Ignore CSA, vdev is in not in conncted state");
-		goto err;
-	}
 
 	lim_prepare_for11h_channel_switch(mac_ctx, session_entry);
 
@@ -2814,15 +2736,16 @@ void lim_nss_or_ch_width_update_rsp(struct mac_context *mac_ctx,
 	QDF_STATUS qdf_status = QDF_STATUS_E_INVAL;
 
 	rsp = qdf_mem_malloc(sizeof(*rsp));
-	if (rsp) {
-		rsp->vdev_id = vdev_id;
-		rsp->status = status;
-		rsp->reason = reason;
-	}
+	if (!rsp)
+		return;
 
-	if (reason == REASON_NSS_UPDATE)
+	rsp->vdev_id = vdev_id;
+	rsp->status = status;
+	rsp->reason = reason;
+
+	if (rsp->reason == REASON_NSS_UPDATE)
 		msg.type = eWNI_SME_NSS_UPDATE_RSP;
-	else if (reason == REASON_CH_WIDTH_UPDATE)
+	else if (rsp->reason == REASON_CH_WIDTH_UPDATE)
 		msg.type = eWNI_SME_SAP_CH_WIDTH_UPDATE_RSP;
 	else
 		goto done;

@@ -13,7 +13,7 @@
 #include "cam_debug_util.h"
 #include "cam_cpas.h"
 
-#define CAM_SOC_BUS_MAX_NUM_USECASES 9
+#define CAM_SOC_BUS_MAX_NUM_USECASES 8
 
 enum cam_soc_bus_path_data {
 	CAM_SOC_BUS_PATH_DATA_HLOS,

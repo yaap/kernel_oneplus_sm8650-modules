@@ -124,6 +124,7 @@ enum sde_dbg_dump_context {
  * sysfs node or panic. This prevents kernel log from evtlog message
  * flood.
  */
+
 #ifndef OPLUS_FEATURE_DISPLAY
 #define SDE_EVTLOG_PRINT_ENTRY	256
 #else

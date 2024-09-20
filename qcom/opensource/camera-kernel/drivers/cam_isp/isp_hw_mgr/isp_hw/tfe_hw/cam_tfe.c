@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
 #include "cam_tfe530.h"
 #include "cam_tfe640.h"
-#include "cam_tfe640_210.h"
-#include "cam_tfe770.h"
-#include "cam_tfe_lite770.h"
-#include "cam_tfe665.h"
 #include "cam_tfe_hw_intf.h"
 #include "cam_tfe_core.h"
 #include "cam_tfe_dev.h"
@@ -24,22 +19,6 @@ static const struct of_device_id cam_tfe_dt_match[] = {
 	{
 		.compatible = "qcom,tfe640",
 		.data = &cam_tfe640,
-	},
-	{
-		.compatible = "qcom,tfe640_210",
-		.data = &cam_tfe640_210,
-	},
-	{
-		.compatible = "qcom,tfe770",
-		.data = &cam_tfe770,
-	},
-	{
-		.compatible = "qcom,tfe-lite770",
-		.data = &cam_tfe_lite770,
-	},
-	{
-		.compatible = "qcom,tfe665",
-		.data = &cam_tfe665,
 	},
 	{}
 };

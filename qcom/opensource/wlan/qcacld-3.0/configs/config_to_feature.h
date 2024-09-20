@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -278,7 +278,13 @@
 #define WMI_DBR_SUPPORT (1)
 #endif
 
-#if !defined(CONFIG_CNSS_QCA6750) && !defined(CONFIG_CNSS_WCN6450)
+#ifndef CONFIG_CNSS_QCA6750
+#ifdef CONFIG_DIRECT_BUF_RX_ENABLE
+#define DBR_MULTI_SRNG_ENABLE (1)
+#endif
+#endif
+
+#ifndef CONFIG_CNSS_WCN6450
 #ifdef CONFIG_DIRECT_BUF_RX_ENABLE
 #define DBR_MULTI_SRNG_ENABLE (1)
 #endif
@@ -1237,10 +1243,6 @@
 #define FEATURE_WLAN_STA_4ADDR_SCHEME (1)
 #endif
 
-#ifdef CONFIG_FEATURE_WLAN_GC_SKIP_JOIN
-#define FEATURE_WLAN_GC_SKIP_JOIN (1)
-#endif
-
 #ifdef CONFIG_MDM_PLATFORM
 #define MDM_PLATFORM (1)
 #endif
@@ -1336,10 +1338,6 @@
 
 #ifdef CONFIG_WLAN_TSF_AUTO_REPORT
 #define WLAN_FEATURE_TSF_AUTO_REPORT (1)
-#endif
-
-#ifdef CONFIG_WLAN_TX_LATENCY_STATS
-#define WLAN_FEATURE_TX_LATENCY_STATS (1)
 #endif
 
 #ifdef CONFIG_WLAN_TSF_UPLINK_DELAY
@@ -1456,10 +1454,6 @@
 
 #ifdef CONFIG_QCA_WIFI_EMULATION
 #define QCA_WIFI_EMULATION (1)
-#endif
-
-#ifdef CONFIG_SAP_MULTI_LINK_EMULATION
-#define SAP_MULTI_LINK_EMULATION (1)
 #endif
 
 #ifdef CONFIG_QCA6290_HEADERS_DEF
@@ -1822,6 +1816,10 @@
 
 #ifdef CONFIG_DELIVERY_TO_STACK_STATUS_CHECK
 #define DELIVERY_TO_STACK_STATUS_CHECK (1)
+#endif
+
+#ifdef CONFIG_WLAN_TRACE_HIDE_MAC_ADDRESS
+#define WLAN_TRACE_HIDE_MAC_ADDRESS (1)
 #endif
 
 #ifdef CONFIG_WLAN_TRACE_HIDE_SSID
@@ -2894,20 +2892,6 @@
 #endif
 
 #ifdef CONFIG_WLAN_FEATURE_11BE_MLO
-#ifndef CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-#define CONFIG_WLAN_DEFAULT_REC_LINK_VALUE (2)
-#endif
-#else
-#ifndef CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-#define CONFIG_WLAN_DEFAULT_REC_LINK_VALUE (2)
-#endif
-#endif
-
-#ifdef CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-#define WLAN_DEFAULT_REC_LINK_VALUE CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-#endif
-
-#ifdef CONFIG_WLAN_FEATURE_11BE_MLO
 #ifndef CONFIG_WLAN_MAX_ML_BSS_LINKS
 #define CONFIG_WLAN_MAX_ML_BSS_LINKS (3)
 #endif
@@ -2949,18 +2933,6 @@
 #ifdef CONFIG_QDF_TIMER_MULTIPLIER_FRAC
 #define QDF_TIMER_MULTIPLIER_FRAC CONFIG_QDF_TIMER_MULTIPLIER_FRAC
 #endif
-#endif
-
-#ifdef CONFIG_DP_RX_MSDU_DONE_FAIL_HISTORY
-#define DP_RX_MSDU_DONE_FAIL_HISTORY (1)
-#endif
-
-#ifdef CONFIG_DP_RX_PEEK_MSDU_DONE_WAR
-#define DP_RX_PEEK_MSDU_DONE_WAR (1)
-#endif
-
-#ifdef CONFIG_QDF_MAX_NO_OF_SAP_MODE
-#define QDF_MAX_NO_OF_SAP_MODE CONFIG_QDF_MAX_NO_OF_SAP_MODE
 #endif
 
 #endif /* CONFIG_TO_FEATURE_H */

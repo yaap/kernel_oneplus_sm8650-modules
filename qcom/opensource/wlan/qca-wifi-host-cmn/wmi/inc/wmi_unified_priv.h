@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -115,10 +115,6 @@
 
 #ifdef QCA_TARGET_IF_MLME
 #include "wmi_unified_mlme_api.h"
-#endif
-
-#ifdef WLAN_FEATURE_LL_LT_SAP
-#include "wlan_ll_sap_public_structs.h"
 #endif
 
 #define WMI_UNIFIED_MAX_EVENT 0x100
@@ -541,7 +537,7 @@ QDF_STATUS (*send_vdev_nss_chain_params_cmd)(wmi_unified_t wmi_handle,
 					 struct vdev_nss_chains *user_cfg);
 
 QDF_STATUS (*send_vdev_stop_cmd)(wmi_unified_t wmi,
-				 struct vdev_stop_params *params);
+					uint8_t vdev_id);
 
 QDF_STATUS (*send_vdev_down_cmd)(wmi_unified_t wmi,
 			uint8_t vdev_id);
@@ -1905,10 +1901,6 @@ QDF_STATUS
 (*send_coex_config_cmd)(wmi_unified_t wmi_handle,
 			struct coex_config_params *param);
 
-QDF_STATUS
-(*send_coex_multi_config_cmd)(wmi_unified_t wmi_handle,
-			      struct coex_multi_config *param);
-
 #ifdef WLAN_FEATURE_DBAM_CONFIG
 QDF_STATUS
 (*send_dbam_config_cmd)(wmi_unified_t wmi_handle,
@@ -2251,9 +2243,6 @@ QDF_STATUS (*send_action_oui_cmd)(wmi_unified_t wmi_handle,
 QDF_STATUS (*send_peer_rx_reorder_queue_setup_cmd)(wmi_unified_t wmi_handle,
 		struct rx_reorder_queue_setup_params *param);
 
-QDF_STATUS (*send_peer_multi_rx_reorder_queue_setup_cmd)(wmi_unified_t wmi_hdl,
-		struct multi_rx_reorder_queue_setup_params *param);
-
 QDF_STATUS (*send_peer_rx_reorder_queue_remove_cmd)(wmi_unified_t wmi_handle,
 		struct rx_reorder_queue_remove_params *param);
 
@@ -2390,7 +2379,6 @@ QDF_STATUS (*extract_vdev_peer_delete_all_response_event)(
 
 bool (*is_management_record)(uint32_t cmd_id);
 bool (*is_diag_event)(uint32_t event_id);
-bool (*is_force_fw_hang_cmd)(uint32_t event_id);
 uint8_t *(*wmi_id_to_name)(uint32_t cmd_id);
 QDF_STATUS (*send_dfs_phyerr_offload_en_cmd)(wmi_unified_t wmi_handle,
 		uint32_t pdev_id);
@@ -2584,7 +2572,7 @@ QDF_STATUS
 (*extract_roam_11kv_stats)(wmi_unified_t wmi_handle,
 			   void *evt_buf,
 			   struct wmi_neighbor_report_data *dst,
-			   uint8_t idx, uint8_t rpt_idx);
+			   uint8_t idx, uint8_t rpt_idx, uint8_t band);
 
 void (*wmi_pdev_id_conversion_enable)(wmi_unified_t wmi_handle,
 				      uint32_t *pdev_map,
@@ -3448,19 +3436,6 @@ QDF_STATUS (*extract_aoa_caps_service_ready_ext2)
 QDF_STATUS (*send_csa_event_status_ind)(
 		wmi_unified_t wmi_handle,
 		struct csa_event_status_ind params);
-
-#ifdef WLAN_FEATURE_LL_LT_SAP
-QDF_STATUS (*send_audio_transport_switch_resp)(
-		wmi_unified_t wmi_hdl,
-		enum bearer_switch_req_type req_type,
-		enum bearer_switch_status status);
-
-QDF_STATUS (*extract_audio_transport_switch_req_event)(
-					wmi_unified_t wmi_hdl,
-					uint8_t *event, uint32_t data_len,
-					enum bearer_switch_req_type *req_type);
-
-#endif /* WLAN_FEATURE_LL_LT_SAP */
 #endif /* QCA_TARGET_IF_MLME */
 };
 

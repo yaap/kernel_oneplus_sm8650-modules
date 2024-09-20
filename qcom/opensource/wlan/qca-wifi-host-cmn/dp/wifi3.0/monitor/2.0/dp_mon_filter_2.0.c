@@ -195,10 +195,6 @@ dp_rx_mon_word_mask_subscribe(struct dp_soc *soc,
 				*msg_word,
 				RX_MON_MPDU_START_WMASK);
 
-	HTT_RX_RING_SELECTION_CFG_RX_MPDU_END_WORD_MASK_SET(
-				*msg_word,
-				RX_MON_MPDU_END_WMASK);
-
 	/* word 15 */
 	msg_word++;
 	*msg_word = 0;
@@ -213,11 +209,7 @@ dp_rx_mon_word_mask_subscribe(struct dp_soc *soc,
 	*msg_word = 0;
 	HTT_RX_RING_SELECTION_CFG_RX_MPDU_START_WORD_MASK_V2_SET(
 				*msg_word,
-				RX_MON_MPDU_START_WMASK_V2);
-
-	HTT_RX_RING_SELECTION_CFG_RX_MPDU_END_WORD_MASK_V2_SET(
-				*msg_word,
-				RX_MON_MPDU_END_WMASK_V2);
+				RX_MON_MPDU_START_WMASK);
 
 	/* word 18 */
 	msg_word++;

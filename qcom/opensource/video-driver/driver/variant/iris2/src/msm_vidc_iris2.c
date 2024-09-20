@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "msm_vidc_iris2.h"
 #include "msm_vidc_buffer_iris2.h"
@@ -315,9 +315,9 @@ disable_power:
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
 	}
-	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0_clk");
+	rc = call_res_op(core, clk_disable, core, "vcodec_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare video_cc_mvs0_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -368,16 +368,16 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 		d_vpr_h("%s: debug bridge release failed\n", __func__);
 
 	/* Turn off MVP MVS0C core clock */
-	rc = call_res_op(core, clk_disable, core, "video_cc_mvs0c_clk");
+	rc = call_res_op(core, clk_disable, core, "core_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare video_cc_mvs0c_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
 		rc = 0;
 	}
 
-	/* Disable gcc_video_axi0_clk clock */
-	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
+	/* Disable GCC_VIDEO_AXI0_CLK clock */
+	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare gcc_video_axi0_clk failed\n", __func__);
+		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
 		rc = 0;
 	}
 
@@ -442,18 +442,18 @@ static int __power_on_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_reset_ahb2axi;
 
-	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0_clk");
+	rc = call_res_op(core, clk_enable, core, "gcc_video_axi0");
 	if (rc)
 		goto fail_clk_axi;
 
-	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0c_clk");
+	rc = call_res_op(core, clk_enable, core, "core_clk");
 	if (rc)
 		goto fail_clk_controller;
 
 	return 0;
 
 fail_clk_controller:
-	call_res_op(core, clk_disable, core, "gcc_video_axi0_clk");
+	call_res_op(core, clk_disable, core, "gcc_video_axi0");
 fail_clk_axi:
 fail_reset_ahb2axi:
 	call_res_op(core, gdsc_off, core, "iris-ctl");
@@ -469,7 +469,7 @@ static int __power_on_iris2_hardware(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_regulator;
 
-	rc = call_res_op(core, clk_enable, core, "video_cc_mvs0_clk");
+	rc = call_res_op(core, clk_enable, core, "vcodec_clk");
 	if (rc)
 		goto fail_clk_controller;
 

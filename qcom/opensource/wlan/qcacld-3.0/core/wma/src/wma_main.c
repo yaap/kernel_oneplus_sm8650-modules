@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -219,7 +219,6 @@ static uint8_t wma_get_number_of_peers_supported(tp_wma_handle wma)
 /**
  * wma_get_number_of_tids_supported - API to query for number of tids supported
  * @no_of_peers_supported: Number of peer supported
- * @no_vdevs: Number of vdevs
  *
  * Return: Max number of tids supported
  */
@@ -449,8 +448,8 @@ static void wma_set_feature_set_info(tp_wma_handle wma_handle,
 					mlme_feature_set.roaming_ctrl_get_cu;
 	feature_set->vendor_req_2_version =
 			mlme_feature_set.vendor_req_2_version;
-	feature_set->iface_combinations = mlme_feature_set.iface_combinations;
-
+	feature_set->sta_dual_p2p_support =
+					mlme_feature_set.sta_dual_p2p_support;
 	if (mlme_feature_set.enable2x2)
 		feature_set->num_antennas = WMI_HOST_MIMO_2X2;
 	else
@@ -577,7 +576,6 @@ static bool wma_is_feature_set_supported(tp_wma_handle wma_handle)
  * wma_set_default_tgt_config() - set default tgt config
  * @wma_handle: wma handle
  * @tgt_cfg: Resource config given to target
- * @cds_cfg: cds configuration
  *
  * Return: none
  */
@@ -2201,7 +2199,7 @@ struct wma_version_info g_wmi_version_info;
 #ifdef WLAN_FEATURE_MEMDUMP_ENABLE
 /**
  * wma_state_info_dump() - prints state information of wma layer
- * @buf_ptr: buffer pointer
+ * @buf: buffer pointer
  * @size: size of buffer to be filled
  *
  * This function is used to dump state information of wma layer
@@ -2605,11 +2603,11 @@ static int wma_flush_complete_evt_handler(void *handle,
 /**
  * wma_extract_single_phyerr_spectral() - extract single phy error from event
  * @handle: wma handle
- * @evt_buf: pointer to event buffer
- * @datalen: data length of event buffer
- * @buf_offset: Pointer to hold value of current event buffer offset
+ * @param evt_buf: pointer to event buffer
+ * @param datalen: data length of event buffer
+ * @param buf_offset: Pointer to hold value of current event buffer offset
  * post extraction
- * @phyerr: Pointer to hold phyerr
+ * @param phyerr: Pointer to hold phyerr
  *
  * Return: QDF_STATUS
  */
@@ -3405,105 +3403,11 @@ wma_get_service_cap_per_link_mlo_stats(struct wmi_unified *wmi_handle,
 #endif
 
 /**
- * wma_set_exclude_selftx_from_cca_busy_time() - Set exclude self tx time from
- * cca busy time bool
- * @exclude_selftx_from_cca_busy: Bool to update in in wma ini config
- * @wma_handle: WMA handle
- *
- * Return: None
- */
-static void
-wma_set_exclude_selftx_from_cca_busy_time(bool exclude_selftx_from_cca_busy,
-					  tp_wma_handle wma_handle)
-{
-	struct wma_ini_config *cfg = wma_get_ini_handle(wma_handle);
-
-	if (!cfg) {
-		wma_err("NULL WMA ini handle");
-		return;
-	}
-
-	cfg->exclude_selftx_from_cca_busy = exclude_selftx_from_cca_busy;
-}
-
-static void wma_deinit_pagefault_wakeup_history(tp_wma_handle wma)
-{
-	struct wma_pf_sym *pf_sym_entry;
-	int8_t idx, max_sym_count = WLAN_WMA_MAX_PF_SYM;
-	bool is_ssr = false;
-
-	if (wlan_pmo_enable_ssr_on_page_fault(wma->psoc)) {
-		is_ssr = true;
-		max_sym_count = 0x1;
-	}
-
-	for (idx = 0; idx < max_sym_count; idx++) {
-		pf_sym_entry = &wma->wma_pf_hist.wma_pf_sym[idx];
-		pf_sym_entry->pf_sym.symbol = 0x0;
-		pf_sym_entry->pf_sym.count = 0x0;
-		qdf_mem_free(pf_sym_entry->pf_ev_ts);
-		pf_sym_entry->pf_ev_ts = NULL;
-	}
-
-	if (!is_ssr) {
-		qdf_mem_free(wma->wma_pf_hist.pf_notify_buf_ptr);
-		wma->wma_pf_hist.pf_notify_buf_ptr = NULL;
-		wma->wma_pf_hist.pf_notify_buf_len = 0x0;
-	}
-	qdf_spinlock_destroy(&wma->wma_pf_hist.lock);
-}
-
-static QDF_STATUS wma_init_pagefault_wakeup_history(tp_wma_handle wma)
-{
-	struct wma_pf_sym *pf_sym_entry;
-	int8_t idx, idx2, max_sym_count = WLAN_WMA_MAX_PF_SYM;
-	uint8_t max_pf_count;
-	bool is_ssr = false;
-
-	if (wlan_pmo_enable_ssr_on_page_fault(wma->psoc)) {
-		is_ssr = true;
-		max_sym_count = 0x1;
-	}
-
-	max_pf_count = wlan_pmo_get_min_pagefault_wakeups_for_action(wma->psoc);
-	for (idx = 0; idx < max_sym_count; idx++) {
-		pf_sym_entry = &wma->wma_pf_hist.wma_pf_sym[idx];
-		pf_sym_entry->pf_sym.symbol = 0x0;
-		pf_sym_entry->pf_sym.count = 0x0;
-		pf_sym_entry->pf_ev_ts = qdf_mem_malloc(max_pf_count *
-							sizeof(qdf_time_t));
-		if (!pf_sym_entry->pf_ev_ts)
-			goto mem_err;
-	}
-
-	if (!is_ssr) {
-		wma->wma_pf_hist.pf_notify_buf_len = 0x0;
-		wma->wma_pf_hist.pf_notify_buf_ptr =
-				qdf_mem_malloc(WLAN_WMA_PF_APPS_NOTIFY_BUF_LEN);
-		if (!wma->wma_pf_hist.pf_notify_buf_ptr)
-			goto mem_err;
-	}
-
-	qdf_spinlock_create(&wma->wma_pf_hist.lock);
-
-	return QDF_STATUS_SUCCESS;
-
-mem_err:
-	for (idx2 = --idx; idx2 >= 0; idx2--) {
-		pf_sym_entry = &wma->wma_pf_hist.wma_pf_sym[idx2];
-		qdf_mem_free(pf_sym_entry->pf_ev_ts);
-		pf_sym_entry->pf_ev_ts = NULL;
-	}
-
-	return QDF_STATUS_E_NOMEM;
-}
-
-/**
  * wma_open() - Allocate wma context and initialize it.
- * @psoc: psoc object
- * @tgt_cfg_cb: tgt config callback fun
+ * @cds_context:  cds context
+ * @wma_tgt_cfg_cb: tgt config callback fun
+ * @radar_ind_cb: dfs radar indication callback
  * @cds_cfg:  mac parameters
- * @target_type: target type
  *
  * Return: 0 on success, errno on failure
  */
@@ -3603,9 +3507,12 @@ QDF_STATUS wma_open(struct wlan_objmgr_psoc *psoc,
 	}
 	wma_handle->psoc = psoc;
 
-	if (!wlan_pmo_no_op_on_page_fault(psoc)) {
-		qdf_status = wma_init_pagefault_wakeup_history(wma_handle);
-		if (QDF_IS_STATUS_ERROR(qdf_status))
+	if (wlan_pmo_enable_ssr_on_page_fault(psoc)) {
+		wma_handle->pagefault_wakeups_ts =
+			qdf_mem_malloc(
+			wlan_pmo_get_max_pagefault_wakeups_for_ssr(psoc) *
+			sizeof(qdf_time_t));
+		if (!wma_handle->pagefault_wakeups_ts)
 			goto err_wma_handle;
 	}
 
@@ -3642,7 +3549,7 @@ QDF_STATUS wma_open(struct wlan_objmgr_psoc *psoc,
 	target_if_register_legacy_service_ready_cb(
 					wma_legacy_service_ready_event_handler);
 
-	wma_info("WMA --> wmi_unified_attach - success");
+	wma_nofl_alert("WMA --> wmi_unified_attach - success");
 
 	/* store the wmi handle in tgt_if_handle */
 	tgt_psoc_info = wlan_psoc_get_tgt_if_handle(psoc);
@@ -4021,9 +3928,6 @@ QDF_STATUS wma_open(struct wlan_objmgr_psoc *psoc,
 	wma_register_wlm_latency_level_event(wma_handle);
 	wma_register_mws_coex_events(wma_handle);
 	wma_trace_init();
-	wma_set_exclude_selftx_from_cca_busy_time(
-			cds_cfg->exclude_selftx_from_cca_busy,
-			wma_handle);
 	return QDF_STATUS_SUCCESS;
 
 err_dbglog_init:
@@ -4354,8 +4258,8 @@ fail:
  *
  * @handle: WMA handle
  * @fixed_param: Event fixed parameters
- * @vdev_mac_entry: vdev mac entry
- * @hw_mode_trans_ind: Buffer to store parsed information
+ * @vdev_mac_entry - vdev mac entry
+ * @hw_mode_trans_ind - Buffer to store parsed information
  *
  * Parses fixed_param, vdev_mac_entry and fills in the information into
  * hw_mode_trans_ind and wma
@@ -4380,6 +4284,10 @@ void wma_process_pdev_hw_mode_trans_ind(void *handle,
 	hw_mode_trans_ind->new_hw_mode_index = fixed_param->new_hw_mode_index;
 	hw_mode_trans_ind->num_vdev_mac_entries =
 					fixed_param->num_vdev_mac_entries;
+	wma_debug("old_hw_mode_index:%d new_hw_mode_index:%d entries=%d",
+		fixed_param->old_hw_mode_index,
+		fixed_param->new_hw_mode_index,
+		fixed_param->num_vdev_mac_entries);
 
 	if (!vdev_mac_entry) {
 		wma_debug("null vdev_mac_entry");
@@ -4404,6 +4312,9 @@ void wma_process_pdev_hw_mode_trans_ind(void *handle,
 		}
 
 		mac_id = WMA_PDEV_TO_MAC_MAP(vdev_mac_entry[i].pdev_id);
+
+		wma_debug("vdev_id:%d mac_id:%d", vdev_id, mac_id);
+
 		hw_mode_trans_ind->vdev_mac_map[i].vdev_id = vdev_id;
 		hw_mode_trans_ind->vdev_mac_map[i].mac_id = mac_id;
 		wma_update_intf_hw_mode_params(vdev_id, mac_id,
@@ -4416,6 +4327,9 @@ update_hw_mode:
 		fixed_param->new_hw_mode_index);
 	policy_mgr_update_old_hw_mode_index(wma->psoc,
 		fixed_param->old_hw_mode_index);
+
+	wma_debug("Updated: old_hw_mode_index:%d new_hw_mode_index:%d",
+		 wma->old_hw_mode_index, wma->new_hw_mode_index);
 }
 
 static void
@@ -4845,12 +4759,10 @@ QDF_STATUS wma_start(void)
 		goto end;
 	}
 	wma_register_spectral_cmds(wma_handle);
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 //add for  connectivity power monitor
 	oplusLpmUeventInit();
 #endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
-
 end:
 	wma_debug("Exit");
 	return qdf_status;
@@ -4887,18 +4799,13 @@ QDF_STATUS wma_stop(void)
 
 	if (wma_handle->ack_work_ctx) {
 		cds_flush_work(&wma_handle->ack_work_ctx->ack_cmp_work);
-		if (wma_handle->ack_work_ctx->frame)
-			qdf_nbuf_free(wma_handle->ack_work_ctx->frame);
-
 		qdf_mem_free(wma_handle->ack_work_ctx);
 		wma_handle->ack_work_ctx = NULL;
 	}
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 //add for  connectivity power monitor
 	oplusConnUeventDeinit();
 #endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
-
 	/* Destroy the timer for log completion */
 	qdf_status = qdf_mc_timer_destroy(&wma_handle->log_completion_timer);
 	if (qdf_status != QDF_STATUS_SUCCESS)
@@ -5028,8 +4935,8 @@ QDF_STATUS wma_close(void)
 	if (wmi_validate_handle(wmi_handle))
 		return QDF_STATUS_E_INVAL;
 
-	if (!wlan_pmo_no_op_on_page_fault(wma_handle->psoc))
-		wma_deinit_pagefault_wakeup_history(wma_handle);
+	if (wlan_pmo_enable_ssr_on_page_fault(wma_handle->psoc))
+		qdf_mem_free(wma_handle->pagefault_wakeups_ts);
 
 	qdf_atomic_set(&wma_handle->sap_num_clients_connected, 0);
 	qdf_atomic_set(&wma_handle->go_num_clients_connected, 0);
@@ -5221,7 +5128,6 @@ wma_get_n_link_mlo_support(struct wmi_unified *wmi_handle,
 		wmi_service_enabled(wmi_handle,
 				    wmi_service_n_link_mlo_support);
 }
-
 #else
 static inline void
 wma_get_tdls_mlo_support(struct wmi_unified *wmi_handle,
@@ -5314,32 +5220,6 @@ static inline void wma_get_dynamic_vdev_macaddr_support(
 #else
 static inline void wma_get_dynamic_vdev_macaddr_support(
 		  struct wmi_unified *wmi_handle, struct wma_tgt_services *cfg)
-{
-}
-#endif
-
-#ifdef WLAN_FEATURE_11BE
-/**
- * wma_get_mlo_tid_to_link_mapping_support() - update tgt service with
- * service tid to link mapping support
- * @wmi_handle: Unified wmi handle
- * @cfg: target services
- *
- * Return: none
- */
-static inline void
-wma_get_mlo_tid_to_link_mapping_support(struct wmi_unified *wmi_handle,
-					struct wma_tgt_services *cfg)
-{
-	cfg->en_mlo_tid_to_link_support =
-		wmi_service_enabled(wmi_handle,
-				    wmi_service_mlo_tid_to_link_mapping_support);
-}
-
-#else
-static inline void
-wma_get_mlo_tid_to_link_mapping_support(struct wmi_unified *wmi_handle,
-					struct wma_tgt_services *cfg)
 {
 }
 #endif
@@ -5526,7 +5406,6 @@ static inline void wma_update_target_services(struct wmi_unified *wmi_handle,
 	wma_get_dynamic_vdev_macaddr_support(wmi_handle, cfg);
 	wma_get_service_cap_per_link_mlo_stats(wmi_handle, cfg);
 	wma_get_n_link_mlo_support(wmi_handle, cfg);
-	wma_get_mlo_tid_to_link_mapping_support(wmi_handle, cfg);
 }
 
 /**
@@ -5677,9 +5556,9 @@ static QDF_STATUS wma_update_supported_bands(
 /**
  * wma_derive_ext_ht_cap() - Derive HT caps based on given value
  * @ht_cap: given pointer to HT caps which needs to be updated
- * @value: new HT cap info provided in form of bitmask
  * @tx_chain: given tx chainmask value
  * @rx_chain: given rx chainmask value
+ * @value: new HT cap info provided in form of bitmask
  *
  * This function takes the value provided in form of bitmask and decodes
  * it. After decoding, what ever value it gets, it takes the union(max) or
@@ -5731,7 +5610,7 @@ static void wma_derive_ext_ht_cap(
 
 /**
  * wma_update_target_ext_ht_cap() - Update HT caps with given extended cap
- * @tgt_hdl: target psoc information
+ * @tgt_hdl - target psoc information
  * @ht_cap: HT cap structure to be filled
  *
  * This function loop through each hardware mode and for each hardware mode
@@ -5905,7 +5784,7 @@ static void wma_derive_ext_vht_cap(
 
 /**
  * wma_update_target_ext_vht_cap() - Update VHT caps with given extended cap
- * @tgt_hdl: target psoc information
+ * @tgt_hdl - target psoc information
  * @vht_cap: VHT cap structure to be filled
  *
  * This function loop through each hardware mode and for each hardware mode
@@ -6296,7 +6175,7 @@ static void wma_update_mlme_aux_dev_caps(struct wlan_objmgr_psoc *psoc,
 	struct wlan_psoc_host_aux_dev_caps *aux_dev_caps;
 	enum wmi_host_hw_mode_config_type hw_mode_id;
 	struct wlan_mlme_aux_dev_caps
-		wlan_mlme_aux0_dev_caps[WLAN_MLME_HW_MODE_MAX] = {0};
+		wlan_mlme_aux0_dev_caps[WLAN_MLME_HW_MODE_MAX];
 
 	if (WMI_HOST_HW_MODE_MAX != WLAN_MLME_HW_MODE_MAX)
 		wma_err("struct define mismatch, pls fix it.");
@@ -6723,7 +6602,6 @@ static QDF_STATUS wma_register_gtk_offload_event(tp_wma_handle wma_handle)
  *                                wmi rx service ready event.
  * @handle: wma handle
  * @cmd_param_info: command params info
- * @length: param length
  *
  * Return: none
  */
@@ -7270,7 +7148,7 @@ static void wma_print_mac_phy_capabilities(struct wlan_psoc_host_mac_phy_caps
 
 /**
  * wma_print_populate_soc_caps() - Prints all the caps populated per hw mode
- * @tgt_hdl: target related info
+ * @tgt_info: target related info
  *
  * This function prints all the caps populater per hw mode and per PHY
  *
@@ -7311,7 +7189,7 @@ static void wma_print_populate_soc_caps(struct target_psoc_info *tgt_hdl)
 /**
  * wma_update_hw_mode_list() - updates hw_mode_list
  * @wma_handle: pointer to wma global structure
- * @tgt_hdl: target psoc information
+ * @tgt_hdl - target psoc information
  *
  * This function updates hw_mode_list with tx_streams, rx_streams,
  * bandwidth, dbs and agile dfs for each hw_mode.
@@ -7456,7 +7334,6 @@ static inline void wma_init_dbr_params(t_wma_handle *wma_handle)
 /**
  * wma_set_coex_res_cfg() - Set target COEX resource configuration.
  * @wma_handle: pointer to wma global structure
- * @wmi_handle: pointer to wmi handle
  * @wlan_res_cfg: Pointer to target resource configuration
  *
  * Return: none
@@ -8087,7 +7964,7 @@ static void wma_set_wifi_start_packet_stats(void *wma_handle,
 		ATH_PKTLOG_TEXT | ATH_PKTLOG_SW_EVENT;
 #elif defined(QCA_WIFI_QCA6390) || defined(QCA_WIFI_QCA6490) || \
       defined(QCA_WIFI_QCA6750) || defined(QCA_WIFI_KIWI) || \
-      defined(QCA_WIFI_WCN6450)
+      defines(QCA_WIFI_WCN6450)
 	log_state = ATH_PKTLOG_RCFIND | ATH_PKTLOG_RCUPDATE |
 		    ATH_PKTLOG_TX | ATH_PKTLOG_LITE_T2H |
 		    ATH_PKTLOG_SW_EVENT | ATH_PKTLOG_RX;
@@ -8144,7 +8021,7 @@ void wma_send_flush_logs_to_fw(tp_wma_handle wma_handle)
 
 /**
  * wma_update_tx_fail_cnt_th() - Set threshold for TX pkt fail
- * @wma: WMA handle
+ * @wma_handle: WMA handle
  * @tx_fail_cnt_th: sme_tx_fail_cnt_threshold parameter
  *
  * This function is used to set Tx pkt fail count threshold,
@@ -8186,7 +8063,7 @@ static QDF_STATUS wma_update_tx_fail_cnt_th(tp_wma_handle wma,
 
 /**
  * wma_update_short_retry_limit() - Set retry limit for short frames
- * @wma: WMA handle
+ * @wma_handle: WMA handle
  * @short_retry_limit_th: retry limir count for Short frames.
  *
  * This function is used to configure the transmission retry limit at which
@@ -8227,7 +8104,7 @@ static QDF_STATUS wma_update_short_retry_limit(tp_wma_handle wma,
 
 /**
  * wma_update_long_retry_limit() - Set retry limit for long frames
- * @wma: WMA handle
+ * @wma_handle: WMA handle
  * @long_retry_limit_th: retry limir count for long frames
  *
  * This function is used to configure the transmission retry limit at which
@@ -8368,7 +8245,7 @@ WMITLV_TAG_STRUC_wmi_wow_hostwakeup_gpio_pin_pattern_config_cmd_fixed_param
  * wma_send_wow_pulse_cmd() - send wmi cmd of wow pulse cmd
  * information to fw.
  * @wma_handle: wma handler
- * @wow_pulse_cmd: wow_pulse_mode pointer
+ * @udp_response: wow_pulse_mode pointer
  *
  * Return: Return QDF_STATUS
  */
@@ -8522,7 +8399,7 @@ static QDF_STATUS wma_process_beacon_debug_stats_req(tp_wma_handle wma_handle,
 
 /**
  * wma_set_arp_req_stats() - process set arp stats request command to fw
- * @handle: WMA handle
+ * @wma_handle: WMA handle
  * @req_buf: set srp stats request buffer
  *
  * Return: None
@@ -8825,7 +8702,7 @@ static QDF_STATUS wma_roam_scan_send_hlp(tp_wma_handle wma_handle,
 #endif
 
 /**
- * wma_process_limit_off_chan() - set limit off channel parameters
+ * wma_process_set_limit_off_chan() - set limit off channel parameters
  * @wma_handle: pointer to wma handle
  * @param: pointer to sir_limit_off_chan
  *

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -316,7 +316,7 @@ static int dp_config_vco_rate_5nm(struct dp_pll *pll,
 		dp_pll_write(dp_pll, QSERDES_COM_SSC_EN_CENTER, 0x01);
 		dp_pll_write(dp_pll, QSERDES_COM_SSC_ADJ_PER1, 0x00);
 		dp_pll_write(dp_pll, QSERDES_COM_SSC_PER1, params->ssc_per1);
-		dp_pll_write(dp_pll, QSERDES_COM_SSC_PER2, params->ssc_per2);
+		dp_pll_write(dp_pll, QSERDES_COM_SSC_PER2, params->ssc_per1);
 		dp_pll_write(dp_pll, QSERDES_COM_SSC_STEP_SIZE1_MODE0,
 				params->ssc_step_size1_mode0);
 		dp_pll_write(dp_pll, QSERDES_COM_SSC_STEP_SIZE2_MODE0,

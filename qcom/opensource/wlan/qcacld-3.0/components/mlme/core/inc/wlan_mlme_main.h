@@ -252,7 +252,9 @@ struct wlan_mlme_roam_state_info {
  * @roam_trigger_bitmap: Master bitmap of roaming triggers. If the bitmap is
  *  zero, roaming module will be deinitialized at firmware for this vdev.
  * @supplicant_disabled_roaming: Enable/disable roam scan in firmware; will be
- *  used by supplicant to do roam invoke after disabling roam scan in firmware
+ *  used by supplicant to do roam invoke after disabling roam scan in firmware,
+ *  it is only effective for current connection, it will be cleared during new
+ *  connection.
  */
 struct wlan_mlme_roaming_config {
 	uint32_t roam_trigger_bitmap;
@@ -400,12 +402,10 @@ struct ft_context {
  * struct assoc_channel_info - store channel info at the time of association
  * @assoc_ch_width: channel width at the time of initial connection
  * @sec_2g_freq: secondary 2 GHz freq
- * @cen320_freq: 320 MHz center freq
  */
 struct assoc_channel_info {
 	enum phy_ch_width assoc_ch_width;
 	qdf_freq_t sec_2g_freq;
-	qdf_freq_t cen320_freq;
 };
 
 /**
@@ -428,8 +428,6 @@ struct assoc_channel_info {
  * @ext_cap_ie: Ext CAP IE
  * @assoc_btm_cap: BSS transition management cap used in (re)assoc req
  * @assoc_chan_info: store channel info at the time of association
- * @force_20mhz_in_24ghz: Only 20 MHz BW allowed in 2.4 GHz
- *
  */
 struct mlme_connect_info {
 	uint8_t timing_meas_cap;
@@ -456,7 +454,6 @@ struct mlme_connect_info {
 	uint8_t ext_cap_ie[DOT11F_IE_EXTCAP_MAX_LEN + 2];
 	bool assoc_btm_cap;
 	struct assoc_channel_info assoc_chan_info;
-	bool force_20mhz_in_24ghz;
 };
 
 /** struct wait_for_key_timer - wait for key timer object
@@ -721,6 +718,12 @@ struct roam_scan_chn {
  *  For non-MLO scenario, it indicates the original connected AP BSSID.
  *  For MLO scenario, it indicates the original BSSID of the link
  *  for which the reassociation occurred during the roam.
+ * @candidate_bssid: roam candidate AP BSSID when roam failed.
+ *  If the firmware updates more than one candidate AP BSSID
+ *  to the driver, the driver only fills the last candidate AP BSSID.
+ *  For non-MLO scenario, it indicates the last candidate AP BSSID.
+ *  For MLO scenario, it indicates the AP BSSID which may be the primary
+ *  link BSSID or a nonprimary link BSSID.
  * @roamed_bssid: roamed AP BSSID when roam succeeds.
  *  For non-MLO case, it indicates new AP BSSID which has been
  *  successfully roamed.
@@ -732,6 +735,7 @@ struct eroam_scan_info {
 	struct roam_scan_chn roam_chn[MAX_ROAM_SCAN_CHAN];
 	uint32_t total_scan_time;
 	struct qdf_mac_addr original_bssid;
+	struct qdf_mac_addr candidate_bssid;
 	struct qdf_mac_addr roamed_bssid;
 };
 
@@ -742,15 +746,15 @@ struct eroam_scan_info {
  * @timestamp: timestamp of the auth/assoc/eapol-M1/M2/M3/M4 frame,
  *  if status is successful, indicate received or send success,
  *  if status is failed, timestamp indicate roaming fail at that time
- * @bssid: Source address for auth/assoc/eapol frame.
  */
 struct eroam_frame_info {
 	enum eroam_frame_subtype frame_type;
 	enum eroam_frame_status status;
 	uint64_t timestamp;
-	struct qdf_mac_addr bssid;
-
 };
+
+/* Key frame num during roaming: PREAUTH/PREASSOC/EAPOL M1-M4 */
+#define ROAM_FRAME_NUM 6
 
 /**
  * struct enhance_roam_info - enhance roam information
@@ -761,7 +765,7 @@ struct eroam_frame_info {
 struct enhance_roam_info {
 	struct eroam_trigger_info trigger;
 	struct eroam_scan_info scan;
-	struct eroam_frame_info timestamp[WLAN_ROAM_MAX_FRAME_INFO];
+	struct eroam_frame_info timestamp[ROAM_FRAME_NUM];
 };
 
 /**
@@ -821,7 +825,6 @@ struct enhance_roam_info {
  *				operation on bss color collision detection
  * @bss_color_change_runtime_lock: runtime lock to complete bss color change
  * @disconnect_runtime_lock: runtime lock to complete disconnection
- * @best_6g_power_type: best 6g power type
  */
 struct mlme_legacy_priv {
 	bool chan_switch_in_progress;
@@ -893,7 +896,6 @@ struct mlme_legacy_priv {
 	qdf_wake_lock_t bss_color_change_wakelock;
 	qdf_runtime_lock_t bss_color_change_runtime_lock;
 	qdf_runtime_lock_t disconnect_runtime_lock;
-	enum reg_6g_ap_type best_6g_power_type;
 };
 
 /**
@@ -1115,24 +1117,6 @@ void mlme_set_follow_ap_edca_flag(struct wlan_objmgr_vdev *vdev, bool flag);
 bool mlme_get_follow_ap_edca_flag(struct wlan_objmgr_vdev *vdev);
 
 /**
- * mlme_set_best_6g_power_type() - Set best 6g power type
- * @vdev: vdev pointer
- * @best_6g_power_type: best 6g power type
- *
- * Return: None
- */
-void mlme_set_best_6g_power_type(struct wlan_objmgr_vdev *vdev,
-				 enum reg_6g_ap_type best_6g_power_type);
-
-/**
- * mlme_get_best_6g_power_type() - Get best 6g power type
- * @vdev: vdev pointer
- *
- * Return: value of best 6g power type
- */
-enum reg_6g_ap_type mlme_get_best_6g_power_type(struct wlan_objmgr_vdev *vdev);
-
-/**
  * mlme_set_reconn_after_assoc_timeout_flag() - Set reconn after assoc timeout
  * flag
  * @psoc: soc object
@@ -1234,7 +1218,6 @@ QDF_STATUS wlan_mlme_get_bssid_vdev_id(struct wlan_objmgr_pdev *pdev,
  * @req: pointer to scan request
  * @scan_ch_width: Channel width for which to trigger a wide band scan
  * @scan_freq: frequency for which to trigger a wide band RRM scan
- * @cen320_freq: 320 MHz center freq
  *
  * Return: QDF_STATUS
  */
@@ -1242,8 +1225,7 @@ QDF_STATUS
 mlme_update_freq_in_scan_start_req(struct wlan_objmgr_vdev *vdev,
 				   struct scan_start_request *req,
 				   enum phy_ch_width scan_ch_width,
-				   qdf_freq_t scan_freq,
-				   qdf_freq_t cen320_freq);
+				   qdf_freq_t scan_freq);
 
 /**
  * wlan_get_operation_chan_freq() - get operating chan freq of
@@ -1654,16 +1636,6 @@ wlan_set_sap_user_config_freq(struct wlan_objmgr_vdev *vdev,
 void wlan_clear_mlo_sta_link_removed_flag(struct wlan_objmgr_vdev *vdev);
 
 /**
- * wlan_get_mlo_link_agnostic_flag() - Update mlo link agnostic flag
- *
- * @vdev: pointer to vdev
- * @dest_addr: destination address
- *
- * Return: true/false
- */
-bool wlan_get_mlo_link_agnostic_flag(struct wlan_objmgr_vdev *vdev,
-				     uint8_t *dest_addr);
-/**
  * wlan_set_vdev_link_removed_flag_by_vdev_id() - Set link removal flag
  * on vdev
  * @psoc: psoc object
@@ -1700,13 +1672,6 @@ bool wlan_drop_mgmt_frame_on_link_removal(struct wlan_objmgr_vdev *vdev);
 static inline void
 wlan_clear_mlo_sta_link_removed_flag(struct wlan_objmgr_vdev *vdev)
 {
-}
-
-static inline
-bool wlan_get_mlo_link_agnostic_flag(struct wlan_objmgr_vdev *vdev,
-				     uint8_t *dest_addr)
-{
-	return false;
 }
 
 static inline QDF_STATUS

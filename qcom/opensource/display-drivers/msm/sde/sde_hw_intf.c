@@ -105,7 +105,6 @@
 #define INTF_TEAR_LINE_COUNT            0x2B0
 #define INTF_TEAR_AUTOREFRESH_CONFIG    0x2B4
 #define INTF_TEAR_TEAR_DETECT_CTRL      0x2B8
-#define INTF_TEAR_AUTOREFRESH_STATUS    0x2C0
 #define INTF_TEAR_PROG_FETCH_START      0x2C4
 #define INTF_TEAR_DSI_DMA_SCHD_CTRL0    0x2C8
 #define INTF_TEAR_DSI_DMA_SCHD_CTRL1    0x2CC
@@ -767,6 +766,9 @@ static int sde_hw_intf_setup_te_config(struct sde_hw_intf *intf,
 	 */
 	spin_lock(&tearcheck_spinlock);
 	val = te->start_pos + te->sync_threshold_start + 1;
+	if (intf->cap->features & BIT(SDE_INTF_TE_32BIT))
+		SDE_REG_WRITE(c, INTF_TEAR_SYNC_WRCOUNT_EXT, (val >> 16));
+	SDE_REG_WRITE(c, INTF_TEAR_SYNC_WRCOUNT, (val & 0xffff));
 	SDE_REG_WRITE(c, INTF_TEAR_SYNC_CONFIG_VSYNC, cfg);
 	wmb(); /* disable vsync counter before updating single buffer registers */
 	SDE_REG_WRITE(c, INTF_TEAR_SYNC_CONFIG_HEIGHT, te->sync_cfg_height);
@@ -784,11 +786,6 @@ static int sde_hw_intf_setup_te_config(struct sde_hw_intf *intf,
 			(te->sync_threshold_start & 0xffff)));
 	cfg |= BIT(19); /* VSYNC_COUNTER_EN */
 	SDE_REG_WRITE(c, INTF_TEAR_SYNC_CONFIG_VSYNC, cfg);
-	wmb(); /* ensure vsync_counter_en is written */
-
-	if (intf->cap->features & BIT(SDE_INTF_TE_32BIT))
-		SDE_REG_WRITE(c, INTF_TEAR_SYNC_WRCOUNT_EXT, (val >> 16));
-	SDE_REG_WRITE(c, INTF_TEAR_SYNC_WRCOUNT, (val & 0xffff));
 	spin_unlock(&tearcheck_spinlock);
 
 	return 0;
@@ -831,17 +828,6 @@ static int sde_hw_intf_get_autorefresh_config(struct sde_hw_intf *intf,
 	cfg->frame_count = val & 0xffff;
 
 	return 0;
-}
-
-static u32 sde_hw_intf_get_autorefresh_status(struct sde_hw_intf *intf)
-{
-	struct sde_hw_blk_reg_map *c;
-	u32 val;
-
-	c = &intf->hw;
-	val = SDE_REG_READ(c, INTF_TEAR_AUTOREFRESH_STATUS);
-
-	return val;
 }
 
 static int sde_hw_intf_poll_timeout_wr_ptr(struct sde_hw_intf *intf,
@@ -1117,8 +1103,6 @@ static void _setup_intf_ops(struct sde_hw_intf_ops *ops,
 		ops->get_vsync_info = sde_hw_intf_get_vsync_info;
 		ops->setup_autorefresh = sde_hw_intf_setup_autorefresh_config;
 		ops->get_autorefresh = sde_hw_intf_get_autorefresh_config;
-		ops->get_autorefresh_status =
-			sde_hw_intf_get_autorefresh_status;
 		ops->poll_timeout_wr_ptr = sde_hw_intf_poll_timeout_wr_ptr;
 		ops->vsync_sel = sde_hw_intf_vsync_sel;
 		ops->check_and_reset_tearcheck = sde_hw_intf_v1_check_and_reset_tearcheck;

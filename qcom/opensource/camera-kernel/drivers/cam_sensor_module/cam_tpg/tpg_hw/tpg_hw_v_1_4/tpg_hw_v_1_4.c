@@ -941,7 +941,6 @@ int tpg_1_4_layer_init(struct tpg_hw *hw)
 	if (!dbgfileptr_parent) {
 		CAM_ERR(CAM_TPG, "Debug fs could not create directory");
 		rc = -ENOENT;
-		return rc;
 	}
 	debugfs_create_file("tpg_xcfa_test", 0644,
 		dbgfileptr_parent, hw, &tpg_1_4_xcfa_test);

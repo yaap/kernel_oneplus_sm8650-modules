@@ -7,7 +7,7 @@
 
 #include <linux/module.h>
 #include <linux/skbuff.h>
-#include <linux/ipa.h>
+#include "ipa.h"
 #include "rmnet_ctl.h"
 #include "rmnet_ctl_client.h"
 

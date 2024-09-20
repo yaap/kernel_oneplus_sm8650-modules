@@ -37,5 +37,4 @@ static inline void hdd_register_hostapd_wext(struct net_device *dev)
 {
 }
 #endif
-
 #endif /* end #ifndef WLAN_HDD_HOSTAPD_H */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,9 +42,6 @@
 #include <cdp_txrx_stats_struct.h>
 #ifdef WLAN_RX_PKT_CAPTURE_ENH
 #include "cdp_txrx_extd_struct.h"
-#endif
-#ifdef WLAN_FEATURE_TX_LATENCY_STATS
-#include "qdf_list.h"
 #endif
 
 #ifdef WLAN_MAX_CLIENTS_ALLOWED
@@ -474,7 +471,6 @@ enum cdp_peer_type {
  * @is_primary_link: set true for MLO primary link peer
  * @primary_umac_id: primary umac_id
  * @num_links: number of links in MLO
- * @is_bridge_peer: flag to indicate if peer is bridge peer or not
  */
 struct cdp_peer_setup_info {
 	uint8_t *mld_peer_mac;
@@ -482,7 +478,6 @@ struct cdp_peer_setup_info {
 		is_primary_link:1;
 	uint8_t primary_umac_id;
 	uint8_t num_links;
-	uint8_t is_bridge_peer;
 };
 
 /**
@@ -1195,7 +1190,6 @@ typedef QDF_STATUS(*ol_txrx_get_tsf_time)(void *osif_dev, uint64_t input_time,
  * @get_key: function pointer to get key of the peer with
  * specific key index
  * @get_tsf_time: function pointer to get TSF
- * @vdev_del_notify: vdev delete notifier
  */
 struct ol_txrx_ops {
 	struct {
@@ -1228,7 +1222,6 @@ struct ol_txrx_ops {
 
 	ol_txrx_get_key_fp  get_key;
 	ol_txrx_get_tsf_time get_tsf_time;
-	ol_txrx_vdev_delete_cb vdev_del_notify;
 };
 
 /**
@@ -1573,7 +1566,6 @@ typedef union cdp_config_param_t {
 	int cdp_psoc_param_preferred_hw_mode;
 	bool cdp_psoc_param_pext_stats;
 	bool cdp_psoc_param_jitter_stats;
-	bool cdp_psoc_param_dp_debug_log;
 
 	bool cdp_skip_bar_update;
 	bool cdp_ipa_enabled;
@@ -1781,7 +1773,6 @@ enum cdp_vdev_param_type {
  * @CDP_CFG_AST_INDICATION_DISABLE: AST indication disable
  * @CDP_CFG_GET_MLO_OPER_MODE: Get MLO operation mode
  * @CDP_CFG_PEER_JITTER_STATS: Peer Jitter Stats
- * @CDP_CONFIG_DP_DEBUG_LOG: set/get dp debug logging
  */
 enum cdp_psoc_param_type {
 	CDP_ENABLE_RATE_STATS,
@@ -1811,7 +1802,6 @@ enum cdp_psoc_param_type {
 	CDP_CFG_AST_INDICATION_DISABLE,
 	CDP_CFG_GET_MLO_OPER_MODE,
 	CDP_CFG_PEER_JITTER_STATS,
-	CDP_CONFIG_DP_DEBUG_LOG,
 };
 
 #ifdef CONFIG_AP_PLATFORM
@@ -2012,13 +2002,11 @@ enum cdp_stats {
  * @UPDATE_PEER_STATS: update peer stats
  * @UPDATE_VDEV_STATS: update vdev stats
  * @UPDATE_PDEV_STATS: Update pdev stats
- * @UPDATE_VDEV_STATS_MLD: Update mld vdev stats
  */
 enum cdp_stat_update_type {
 	UPDATE_PEER_STATS = 0,
 	UPDATE_VDEV_STATS = 1,
 	UPDATE_PDEV_STATS = 2,
-	UPDATE_VDEV_STATS_MLD = 3,
 };
 
 /**

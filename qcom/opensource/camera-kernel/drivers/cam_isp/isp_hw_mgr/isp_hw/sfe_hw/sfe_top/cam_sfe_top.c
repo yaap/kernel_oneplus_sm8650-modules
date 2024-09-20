@@ -278,7 +278,7 @@ static void cam_sfe_top_print_cc_test_bus(
 	uint32_t dbg_testbus_reg = common_data->common_reg->top_debug_testbus_reg;
 	uint32_t size = 0, reg_val = 0, val = 0, i = 0;
 	size_t   len = 0;
-	uint8_t  log_buf[1024] = {0};
+	uint8_t  log_buf[1024];
 
 	reg_val =  cam_io_r(mem_base +
 		common_data->common_reg->top_debug[dbg_testbus_reg]);
@@ -289,7 +289,7 @@ static void cam_sfe_top_print_cc_test_bus(
 			size = top_priv->hw_info->test_bus_info[i].size;
 			testbus_info =
 				top_priv->hw_info->test_bus_info[i].testbus;
-			break;
+		       break;
 		}
 	}
 
@@ -780,11 +780,6 @@ static int cam_sfe_top_get_base(
 	mem_base = CAM_SOC_GET_REG_MAP_CAM_BASE(
 		top_priv->common_data.soc_info,
 		SFE_CORE_BASE_IDX);
-	if (mem_base == -1) {
-		CAM_ERR(CAM_SFE, "failed to get mem_base, index: %d num_reg_map: %u",
-				SFE_CORE_BASE_IDX, top_priv->common_data.soc_info->num_reg_map);
-		return -EINVAL;
-	}
 
 	if (cdm_args->cdm_id == CAM_CDM_RT) {
 		if (!soc_private->rt_wrapper_base) {
@@ -1163,7 +1158,7 @@ static int cam_sfe_top_apply_fcg_update(
 	uint32_t                                     num_regval_pairs = 0;
 	int                                          rc = 0, i, j = 0;
 
-	if (!top_priv || !fcg_update || (fcg_update->prediction_idx == 0)) {
+	if (!top_priv || (fcg_update->prediction_idx == 0)) {
 		CAM_ERR(CAM_SFE, "Invalid args");
 		return -EINVAL;
 	}
@@ -1181,12 +1176,6 @@ static int cam_sfe_top_apply_fcg_update(
 		return -EINVAL;
 	}
 
-	if (fcg_config->num_ch_ctx > CAM_ISP_MAX_FCG_CH_CTXS) {
-		CAM_ERR(CAM_SFE, "out of bound %d",
-				fcg_config->num_ch_ctx);
-		return -EINVAL;
-	}
-
 	reg_val_pair = kcalloc(fcg_module_info->max_reg_val_pair_size, sizeof(uint32_t),
 		GFP_KERNEL);
 	if (!reg_val_pair) {
@@ -1195,20 +1184,19 @@ static int cam_sfe_top_apply_fcg_update(
 	}
 
 	fcg_index_shift = fcg_module_info->fcg_index_shift;
-
 	for (i = 0, j = 0; i < fcg_config->num_ch_ctx; i++) {
 		if (j >= fcg_module_info->max_reg_val_pair_size) {
 			CAM_ERR(CAM_SFE, "reg_val_pair %d exceeds the array limit %u",
 				j, fcg_module_info->max_reg_val_pair_size);
 			rc = -ENOMEM;
-			goto free_mem;
+			goto kfree;
 		}
 
 		fcg_ch_ctx = &fcg_config->ch_ctx_fcg_configs[i];
 		if (!fcg_ch_ctx) {
 			CAM_ERR(CAM_SFE, "Failed in FCG channel/context dereference");
 			rc = -EINVAL;
-			goto free_mem;
+			goto kfree;
 		}
 
 		fcg_pr = &fcg_ch_ctx->predicted_fcg_configs[
@@ -1249,7 +1237,7 @@ static int cam_sfe_top_apply_fcg_update(
 				CAM_ERR(CAM_SFE, "Unsupported channel id: 0x%x",
 					fcg_ch_ctx->fcg_ch_ctx_id);
 				rc = -EINVAL;
-				goto free_mem;
+				goto kfree;
 			}
 		}
 
@@ -1289,7 +1277,7 @@ static int cam_sfe_top_apply_fcg_update(
 				CAM_ERR(CAM_SFE, "Unsupported channel id: 0x%x",
 					fcg_ch_ctx->fcg_ch_ctx_id);
 				rc = -EINVAL;
-				goto free_mem;
+				goto kfree;
 			}
 		}
 	}
@@ -1305,7 +1293,7 @@ static int cam_sfe_top_apply_fcg_update(
 				"Failed! Buf size:%d is wrong, expected size: %d",
 				fcg_update->cmd_size, size * 4);
 			rc = -ENOMEM;
-			goto free_mem;
+			goto kfree;
 		}
 
 		cdm_util_ops->cdm_write_regrandom(
@@ -1315,7 +1303,7 @@ static int cam_sfe_top_apply_fcg_update(
 		CAM_WARN(CAM_SFE, "No reg val pairs");
 	}
 
-free_mem:
+kfree:
 	kfree(reg_val_pair);
 	return rc;
 }
@@ -1375,7 +1363,7 @@ static int cam_sfe_top_fcg_config(
 	int rc;
 
 	if (arg_size != sizeof(struct cam_isp_hw_fcg_cmd)) {
-		CAM_ERR(CAM_SFE, "Invalid cmd size, arg_size: %u, expected size: %u",
+		CAM_ERR(CAM_SFE, "Invalid cmd size, arg_size: %d, expected size: %d",
 			arg_size, sizeof(struct cam_isp_hw_fcg_cmd));
 		return -EINVAL;
 	}

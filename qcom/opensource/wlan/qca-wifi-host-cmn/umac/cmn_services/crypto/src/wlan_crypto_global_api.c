@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -793,14 +793,14 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 			return QDF_STATUS_SUCCESS;
 		}
 		crypto_err("req_key len zero");
-		return QDF_STATUS_CRYPTO_INVALID_KEYLEN;
+		return QDF_STATUS_E_INVAL;
 	}
 
 	cipher = wlan_crypto_cipher_ops[req_key->type];
 
 	if (!cipher && !IS_MGMT_CIPHER(req_key->type)) {
 		crypto_err("cipher invalid");
-		return QDF_STATUS_CRYPTO_INVALID_CIPHERTYPE;
+		return QDF_STATUS_E_INVAL;
 	}
 
 	if (cipher && (!IS_FILS_CIPHER(req_key->type)) &&
@@ -808,13 +808,13 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 	    ((req_key->keylen != (cipher->keylen / CRYPTO_NBBY)) &&
 	    (req_key->type != WLAN_CRYPTO_CIPHER_WEP))) {
 		crypto_err("cipher invalid");
-		return QDF_STATUS_CRYPTO_INVALID_CIPHERTYPE;
+		return QDF_STATUS_E_INVAL;
 	} else if ((req_key->type == WLAN_CRYPTO_CIPHER_WEP) &&
 		!((req_key->keylen == WLAN_CRYPTO_KEY_WEP40_LEN)
 		|| (req_key->keylen == WLAN_CRYPTO_KEY_WEP104_LEN)
 		|| (req_key->keylen == WLAN_CRYPTO_KEY_WEP128_LEN))) {
 		crypto_err("wep key len invalid. keylen: %d", req_key->keylen);
-		return QDF_STATUS_CRYPTO_INVALID_KEYLEN;
+		return QDF_STATUS_E_INVAL;
 	}
 
 	if (req_key->keyix == WLAN_CRYPTO_KEYIX_NONE) {
@@ -826,7 +826,7 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 	} else {
 		if ((req_key->keyix >= WLAN_CRYPTO_MAX_VLANKEYIX)
 			&& (!IS_MGMT_CIPHER(req_key->type))) {
-			return QDF_STATUS_CRYPTO_INVALID_KEYID;
+			return QDF_STATUS_E_INVAL;
 		}
 
 		req_key->flags |= (WLAN_CRYPTO_KEY_XMIT
@@ -874,7 +874,7 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 			    !(is_bigtk(req_key->keyix))) {
 				crypto_err("igtk/bigtk key invalid keyid %d",
 					   req_key->keyix);
-				return QDF_STATUS_CRYPTO_INVALID_KEYID;
+				return QDF_STATUS_E_INVAL;
 			}
 			key = qdf_mem_malloc(sizeof(struct wlan_crypto_key));
 			if (!key)
@@ -902,11 +902,11 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 		} else {
 			if (IS_FILS_CIPHER(req_key->type)) {
 				crypto_err("FILS key is not for BroadCast pkt");
-				return QDF_STATUS_CRYPTO_INVALID_CIPHERTYPE;
+				return QDF_STATUS_E_INVAL;
 			}
 			if (!HAS_MCAST_CIPHER(crypto_params, req_key->type)
 				&& (req_key->type != WLAN_CRYPTO_CIPHER_WEP)) {
-				return QDF_STATUS_CRYPTO_INVALID_CIPHERTYPE;
+				return QDF_STATUS_E_INVAL;
 			}
 			if (!priv_key->key[req_key->keyix]) {
 				priv_key->key[req_key->keyix]
@@ -979,7 +979,7 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 			    !(is_bigtk(req_key->keyix))) {
 				crypto_err("igtk/bigtk key invalid keyid %d",
 					   req_key->keyix);
-				status = QDF_STATUS_CRYPTO_INVALID_KEYID;
+				status = QDF_STATUS_E_INVAL;
 				goto err;
 			}
 			key = qdf_mem_malloc(sizeof(struct wlan_crypto_key));
@@ -1010,7 +1010,7 @@ QDF_STATUS wlan_crypto_setkey(struct wlan_objmgr_vdev *vdev,
 				kid = 0;
 			if (kid >= WLAN_CRYPTO_MAX_VLANKEYIX) {
 				crypto_err("invalid keyid %d", kid);
-				status = QDF_STATUS_CRYPTO_INVALID_KEYID;
+				status = QDF_STATUS_E_INVAL;
 				goto err;
 			}
 			if (!priv_key->key[kid]) {
@@ -1698,11 +1698,6 @@ QDF_STATUS wlan_crypto_encap(struct wlan_objmgr_vdev *vdev,
 	else
 		hdrlen = ieee80211_hdrspace(wlan_vdev_get_pdev(vdev),
 					    (uint8_t *)qdf_nbuf_data(wbuf));
-
-	if (!key->valid || !key->cipher_table) {
-		status = QDF_STATUS_E_INVAL;
-		goto err;
-	}
 
 	/* if tkip, is counter measures enabled, then drop the frame */
 	cipher_table = (struct wlan_crypto_cipher *)key->cipher_table;
@@ -4245,70 +4240,6 @@ wlan_crypto_get_cipher(struct wlan_objmgr_vdev *vdev,
 		return WLAN_CRYPTO_CIPHER_INVALID;
 }
 
-wlan_crypto_key_mgmt wlan_crypto_get_secure_akm_available(uint32_t akm)
-{
-	if (!akm)
-		return WLAN_CRYPTO_KEY_MGMT_MAX;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA384))
-		return WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA384;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA256))
-		return WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA256;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FILS_SHA384))
-		return WLAN_CRYPTO_KEY_MGMT_FILS_SHA384;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FILS_SHA256))
-		return WLAN_CRYPTO_KEY_MGMT_FILS_SHA256;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384))
-		return WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B_192))
-		return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B_192;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B))
-		return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY))
-		return WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY))
-		return WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_SAE))
-		return WLAN_CRYPTO_KEY_MGMT_FT_SAE;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE))
-		return WLAN_CRYPTO_KEY_MGMT_SAE;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_OWE))
-		return WLAN_CRYPTO_KEY_MGMT_OWE;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_DPP))
-		return WLAN_CRYPTO_KEY_MGMT_DPP;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SHA256))
-		return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SHA256;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X))
-		return WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X))
-		return WLAN_CRYPTO_KEY_MGMT_IEEE8021X;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384))
-		return WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_PSK_SHA384))
-		return WLAN_CRYPTO_KEY_MGMT_PSK_SHA384;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_PSK_SHA256))
-		return WLAN_CRYPTO_KEY_MGMT_PSK_SHA256;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_PSK))
-		return WLAN_CRYPTO_KEY_MGMT_FT_PSK;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_PSK))
-		return WLAN_CRYPTO_KEY_MGMT_PSK;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_WAPI_PSK))
-		return WLAN_CRYPTO_KEY_MGMT_WAPI_PSK;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_WAPI_CERT))
-		return WLAN_CRYPTO_KEY_MGMT_WAPI_CERT;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_CCKM))
-		return WLAN_CRYPTO_KEY_MGMT_CCKM;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_OSEN))
-		return WLAN_CRYPTO_KEY_MGMT_OSEN;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_WPS))
-		return WLAN_CRYPTO_KEY_MGMT_WPS;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X_NO_WPA))
-		return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_NO_WPA;
-	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_WPA_NONE))
-		return WLAN_CRYPTO_KEY_MGMT_WPA_NONE;
-	else /* Return MAX if no AKM matches */
-		return WLAN_CRYPTO_KEY_MGMT_MAX;
-}
-
 #ifdef CRYPTO_SET_KEY_CONVERGED
 QDF_STATUS wlan_crypto_validate_key_params(enum wlan_crypto_cipher_type cipher,
 					   uint8_t key_index, uint8_t key_len,
@@ -4409,17 +4340,9 @@ QDF_STATUS wlan_crypto_save_ml_sta_key(
 }
 #endif
 
-/**
- * wlan_crypto_save_key_at_psoc() - Allocate memory for storing key in PSOC
- * @vdev: vdev object
- * @key_index: the index of the key that needs to be allocated
- * @crypto_key: Pointer to crypto key
- *
- * Return: QDF_STATUS
- */
-static QDF_STATUS
-wlan_crypto_save_key_at_psoc(struct wlan_objmgr_vdev *vdev, uint8_t key_index,
-			     struct wlan_crypto_key *crypto_key)
+static QDF_STATUS wlan_crypto_save_key_sta(struct wlan_objmgr_vdev *vdev,
+					   uint8_t key_index,
+					   struct wlan_crypto_key *crypto_key)
 {
 	struct wlan_objmgr_psoc *psoc;
 	struct crypto_psoc_priv_obj *crypto_psoc_obj;
@@ -4477,11 +4400,10 @@ QDF_STATUS wlan_crypto_save_key(struct wlan_objmgr_vdev *vdev,
 		crypto_err("Invalid Key index %d", key_index);
 		return QDF_STATUS_E_FAILURE;
 	}
-	if ((wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE ||
-	     wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE) &&
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
 	    wlan_vdev_mlme_is_mlo_vdev(vdev) &&
 	    is_mlo_adv_enable()) {
-		wlan_crypto_save_key_at_psoc(vdev, key_index, crypto_key);
+		wlan_crypto_save_key_sta(vdev, key_index, crypto_key);
 	} else {
 		priv_key = &crypto_priv->crypto_key;
 		if (key_index < WLAN_CRYPTO_MAXKEYIDX) {
@@ -4560,17 +4482,9 @@ struct wlan_crypto_key *wlan_crypto_get_ml_sta_link_key(
 }
 #endif
 
-/**
- * wlan_crypto_get_ml_keys_from_index() - Get the stored key information from
- * key index
- * @vdev: vdev object
- * @key_index: the index of the key that needs to be retrieved
- *
- * Return: Key material
- */
-static struct wlan_crypto_key *
-wlan_crypto_get_ml_keys_from_index(struct wlan_objmgr_vdev *vdev,
-				   uint8_t key_index)
+static struct wlan_crypto_key *wlan_crypto_get_ml_key_sta(
+					struct wlan_objmgr_vdev *vdev,
+					uint8_t key_index)
 {
 	struct wlan_objmgr_psoc *psoc;
 	struct crypto_psoc_priv_obj *crypto_psoc_obj;
@@ -4640,11 +4554,11 @@ struct wlan_crypto_key *wlan_crypto_get_key(struct wlan_objmgr_vdev *vdev,
 		return NULL;
 	}
 
-	if ((wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE ||
-	     wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE) &&
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
 	    wlan_vdev_mlme_is_mlo_vdev(vdev) &&
 	    is_mlo_adv_enable()) {
-		return wlan_crypto_get_ml_keys_from_index(vdev, key_index);
+		return wlan_crypto_get_ml_key_sta(vdev, key_index);
+
 	} else {
 		if (key_index < WLAN_CRYPTO_MAXKEYIDX)
 			return priv_key->key[key_index];

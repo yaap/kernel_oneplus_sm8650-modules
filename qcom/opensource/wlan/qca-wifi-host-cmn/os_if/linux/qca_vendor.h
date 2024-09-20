@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -831,30 +831,6 @@
  *
  *	The attributes used with this subcommand are defined in
  *	enum qca_wlan_vendor_attr_tx_latency.
- *
- * @QCA_NL80211_VENDOR_SUBCMD_RECONFIG_REMOVE_COMPLETE_EVENT: This vendor
- *	subcommand is used to send event to the user space once the MLD remove
- *	link process is completed in the API mlme_ext_vap_down and the event
- *	is sent through wlan_cfg80211_reconfig_remove_complete_event.
- *
- * @QCA_NL80211_VENDOR_SUBCMD_REGULATORY_TPC_INFO: Vendor command is used to
- *	query transmit power information on STA interface from the driver for a
- *	connected AP. The attributes included in response are defined in
- *	enum qca_wlan_vendor_attr_tpc_links. In case of MLO STA, multiple links
- *	TPC info may be returned. The information includes regulatory maximum
- *	transmit power limit, AP local power constraint advertised from AP's
- *	Beacon and Probe Response frames. For PSD power mode, the information
- *	includes PSD power levels for each subchannel of operating bandwidth.
- *	The information is driver calculated power limits based on the current
- *	regulatory domain, AP local power constraint, and other IEs. The
- *	information will be set to target. Target will decide the final TX power
- *	based on this and chip specific power conformance test limits (CTL), and
- *	SAR limits.
- *
- * @QCA_NL80211_VENDOR_SUBCMD_FW_PAGE_FAULT_REPORT: Event indication from the
- *      driver to user space which is carrying firmware page fault related
- *      summary report. The attributes for this command are defined in
- *      enum qca_wlan_vendor_attr_fw_page_fault_report.
  */
 
 enum qca_nl80211_vendor_subcmds {
@@ -1125,9 +1101,6 @@ enum qca_nl80211_vendor_subcmds {
 	#endif /* OPLUS_BUG_STABILITY */
 	QCA_NL80211_VENDOR_SUBCMD_AUDIO_TRANSPORT_SWITCH = 232,
 	QCA_NL80211_VENDOR_SUBCMD_TX_LATENCY = 233,
-	QCA_NL80211_VENDOR_SUBCMD_RECONFIG_REMOVE_COMPLETE_EVENT = 234,
-	QCA_NL80211_VENDOR_SUBCMD_REGULATORY_TPC_INFO = 237,
-	QCA_NL80211_VENDOR_SUBCMD_FW_PAGE_FAULT_REPORT = 238,
 };
 
 #ifdef OPLUS_BUG_STABILITY
@@ -1261,25 +1234,6 @@ enum qca_wlan_vendor_hang_reason {
 	QCA_WLAN_HANG_FLUSH_LOGS = 35,
 	/* Host wakeup because of page fault */
 	QCA_WLAN_HANG_HOST_WAKEUP_REASON_PAGE_FAULT = 36,
-};
-
-/**
- * enum qca_wlan_vendor_attr_fw_page_fault_report - Used by the vendor
- * command %QCA_NL80211_VENDOR_SUBCMD_FW_PAGE_FAULT_REPORT.
- *
- * @QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_DATA: The binary blob data
- * associated with the firmware page fault that is expected to contain the
- * required dump to analyze frequent page faults.
- * NLA_BINARY attribute, the maximum size is QDF_HANG_EVENT_DATA_SIZE
- */
-enum qca_wlan_vendor_attr_fw_page_fault_report {
-	QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_INVALID = 0,
-	QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_DATA = 1,
-
-	/* keep last */
-	QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_LAST,
-	QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_MAX =
-	QCA_WLAN_VENDOR_ATTR_FW_PAGE_FAULT_REPORT_LAST - 1,
 };
 
 /**
@@ -1872,23 +1826,6 @@ enum qca_wlan_vendor_attr {
 	 * QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE.
 	 */
 	QCA_WLAN_VENDOR_ATTR_SETBAND_MASK = 43,
-
-	/* Unsigned 8-bit used by QCA_NL80211_VENDOR_SUBCMD_GET_FEATURES.
-	 * This field describes the maximum number of links supported by the
-	 * chip for MLO association.
-	 * This is an optional attribute.
-	 */
-	QCA_WLAN_VENDOR_ATTR_MLO_CAPABILITY_MAX_ASSOCIATION_COUNT = 44,
-
-	/* Unsigned 8-bit used by QCA_NL80211_VENDOR_SUBCMD_GET_FEATURES.
-	 * This field describes the maximum number of Simultaneous Transmit
-	 * and Receive (STR) links used in Multi-Link Operation.
-	 * The maximum number of STR links used can be different
-	 * from the maximum number of radios supported by the chip.
-	 * This is a static configuration of the chip.
-	 * This is an optional attribute.
-	 */
-	QCA_WLAN_VENDOR_ATTR_MLO_CAPABILITY_MAX_STR_LINK_COUNT = 45,
 
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_AFTER_LAST,
@@ -5071,7 +5008,7 @@ enum qca_wlan_vendor_attr_config {
 	 * the DTIM period. If DTIM is set to 3, the STA shall wake up every 3
 	 * DTIM beacons.
 	 */
-	QCA_WLAN_VENDOR_ATTR_CONFIG_DYNAMIC_DTIM = 1,
+	QCA_WLAN_VENDOR_ATTR_CONFIG_MODULATED_DTIM = 1,
 	/*
 	 * Unsigned 32-bit value to set the wifi_iface stats averaging factor
 	 * used to calculate statistics like average the TSF offset or average
@@ -5819,11 +5756,8 @@ enum qca_wlan_vendor_attr_config {
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_EPCS_FUNCTION = 98,
 
-	/* 8-bit unsigned value. Used to specify the MLO link ID of a link
-	 * that is being configured. This attribute must be included in each
-	 * record nested inside %QCA_WLAN_VENDOR_ATTR_CONFIG_MLO_LINKS, and
-	 * may be included without nesting to indicate the link that is the
-	 * target of other configuration attributes.
+	/* 8-bit unsigned value. Used only for representing MLO link ID of a
+	 * link inside %QCA_WLAN_VENDOR_ATTR_CONFIG_MLO_LINKS.
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_MLO_LINK_ID = 99,
 
@@ -5916,19 +5850,6 @@ enum qca_wlan_vendor_attr_config {
 	 * This attribute is used for testing purposes.
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_TTLM_NEGOTIATION_SUPPORT = 104,
-
-	/* 8-bit unsigned value
-	 *
-	 * This attribute configures a traffic shaping mode
-	 * applied during coex scenarios.
-	 * By default all coex traffic shaping modes are enabled,
-	 * i.e., shape WLAN traffic based on coex traffic pattern and priority.
-	 * To shape traffic, STA may enter in power save mode
-	 * and AP may send CTS-to-self frame.
-	 *
-	 * Uses enum qca_coex_traffic_shaping_mode values.
-	 */
-	QCA_WLAN_VENDOR_ATTR_CONFIG_COEX_TRAFFIC_SHAPING_MODE = 105,
 
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_AFTER_LAST,
@@ -9548,16 +9469,6 @@ enum qca_wlan_ttlm_negotiation_support {
 };
 
 /**
- * enum qca_coex_traffic_shaping_mode: Coex traffic shaping mode
- * @QCA_COEX_TRAFFIC_SHAPING_MODE_DISABLE: Coex policies disabled
- * @QCA_COEX_TRAFFIC_SHAPING_MODE_ENABLE: All coex policies enabled
- */
-enum qca_coex_traffic_shaping_mode {
-	QCA_COEX_TRAFFIC_SHAPING_MODE_DISABLE = 0,
-	QCA_COEX_TRAFFIC_SHAPING_MODE_ENABLE = 1,
-};
-
-/**
  * enum qca_wlan_vendor_attr_omi_tx: Represents attributes for HE and
  * EHT operating mode control transmit request. These attributes are
  * sent as part of QCA_WLAN_VENDOR_ATTR_WIFI_TEST_CONFIG_OMI_TX and
@@ -12084,12 +11995,6 @@ enum qca_wlan_vendor_attr_add_sta_node_params {
 	 */
 	QCA_WLAN_VENDOR_ATTR_ADD_STA_NODE_AUTH_ALGO = 2,
 
-	/*
-	 * This flag attribute is set if the node being added is an
-	 * MLD STA node.
-	 */
-	QCA_WLAN_VENDOR_ATTR_ADD_STA_NODE_IS_ML = 3,
-
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_ADD_STA_NODE_PARAM_AFTER_LAST,
 	QCA_WLAN_VENDOR_ATTR_ADD_STA_NODE_PARAM_MAX =
@@ -13433,37 +13338,25 @@ enum qca_wlan_vendor_attr_roam_stats_scan_chan_info {
  * enum qca_wlan_roam_stats_frame_subtype - Roam frame subtypes. These values
  * are used by the attribute %QCA_WLAN_VENDOR_ATTR_ROAM_STATS_FRAME_SUBTYPE.
  *
- * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_RESP: Authentication Response frame
- * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_RESP: Reassociation Response frame
+ * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH: Pre-authentication frame
+ * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC: Reassociation frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M1: EAPOL-Key M1 frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M2: EAPOL-Key M2 frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M3: EAPOL-Key M3 frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M4: EAPOL-Key M4 frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_GTK_M1: EAPOL-Key GTK M1 frame
  * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_GTK_M2: EAPOL-Key GTK M2 frame
- * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_REQ: Authentication Request frame
- * @QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_REQ: Reassociation Request frame
  */
 enum qca_wlan_roam_stats_frame_subtype {
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_RESP = 1,
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_RESP = 2,
+	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH = 1,
+	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC = 2,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M1 = 3,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M2 = 4,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M3 = 5,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M4 = 6,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_GTK_M1 = 7,
 	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_GTK_M2 = 8,
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_REQ = 9,
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_REQ = 10,
 };
-
-/* Compatibility defines for previously used names.
- * These values should not be used in any new implementation.
- */
-#define QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH \
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_RESP
-#define QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC \
-	QCA_WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_RESP
 
 /**
  * enum roam_frame_status - Specifies the valid values the vendor roam frame
@@ -13499,14 +13392,6 @@ enum qca_wlan_vendor_attr_roam_stats_frame_info {
 	 * from system boot.
 	 */
 	QCA_WLAN_VENDOR_ATTR_ROAM_STATS_FRAME_TIMESTAMP = 3,
-	/* This attribute indicates a 6-byte MAC address representing
-	 * the BSSID of the AP.
-	 * For non-MLO scenario, it indicates the AP BSSID.
-	 * For MLO scenario, it indicates the AP BSSID which may be the primary
-	 * link BSSID or a nonprimary link BSSID.
-	 */
-	QCA_WLAN_VENDOR_ATTR_ROAM_STATS_FRAME_BSSID = 5,
-
 
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_ROAM_STATS_FRAME_INFO_AFTER_LAST,
@@ -15767,25 +15652,12 @@ enum qca_wlan_vendor_attr_scs_rule_config {
  * CTL group but user can choose up to 3 SAR set index only, as the top half
  * of the SAR index (0 to 2) is used for non DBS purpose and the bottom half of
  * the SAR index (3 to 5) is used for DBS mode.
- *
- * @QCA_WLAN_VENDOR_SAR_VERSION_4: The firmware supports SAR version 4,
- * known as SAR Smart Transmit (STX) mode. STX is time averaging algorithmic
- * for power limit computation in collaboration with WWAN.
- * In STX mode, firmware has 41 indexes and there is no ctl grouping uses.
- *
- * @QCA_WLAN_VENDOR_SAR_VERSION_5: The firmware supports SAR version 5,
- * known as TAS (Time Averaging SAR) mode. In TAS mode, as name implies
- * instead of fixed static SAR power limit firmware uses time averaging
- * to adjust the SAR limit dynamically. It is wlan soc standalone mechanism.
- * In this mode firmware has up to 43 indexes.
  */
 enum qca_wlan_vendor_sar_version {
 	QCA_WLAN_VENDOR_SAR_VERSION_INVALID = 0,
 	QCA_WLAN_VENDOR_SAR_VERSION_1 = 1,
 	QCA_WLAN_VENDOR_SAR_VERSION_2 = 2,
 	QCA_WLAN_VENDOR_SAR_VERSION_3 = 3,
-	QCA_WLAN_VENDOR_SAR_VERSION_4 = 4,
-	QCA_WLAN_VENDOR_SAR_VERSION_5 = 5,
 };
 
 /**
@@ -17431,112 +17303,5 @@ enum qca_wlan_vendor_attr_tx_latency {
 	QCA_WLAN_VENDOR_ATTR_TX_LATENCY_AFTER_LAST,
 	QCA_WLAN_VENDOR_ATTR_TX_LATENCY_MAX =
 	QCA_WLAN_VENDOR_ATTR_TX_LATENCY_AFTER_LAST - 1,
-};
-
-/**
- * qca_wlan_vendor_attr_RECONFIG_REMOVE_COMPLETE_EVENT - Defines attributes for
- * ML Reconfig (Mlo Link removal) parameters used by the attribute
- * @QCA_WLAN_VENDOR_ATTR_RECONFIG_REMOVE_COMPLETE_EVENT_IFINDEX: u32 attribute
- * used to pass the netdev ifindex of the MLO Reconfiguration link.
- */
-enum qca_wlan_vendor_attr_reconfig_remove_complete_EVENT {
-	QCA_WLAN_VENDOR_ATTR_RECONFIG_REMOVE_COMPLETE_EVENT_IFINDEX = 0,
-
-	/* keep last */
-	QCA_WLAN_VENDOR_ATTR_RECONFIG_REMOVE_COMPLETE_EVENT_AFTER_LAST,
-	QCA_WLAN_VENDOR_ATTR_RECONFIG_REMOVE_COMPLETE_EVENT_MAX =
-	QCA_WLAN_VENDOR_ATTR_RECONFIG_REMOVE_COMPLETE_EVENT_AFTER_LAST - 1,
-};
-
-/**
- * enum qca_wlan_vendor_attr_tpc_pwr_level - Definition of attributes
- * used inside nested attribute %QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_FREQUENCY: u32 channel center
- * frequency (MHz): If PSD power, carries one 20 MHz sub-channel center
- * frequency. If non PSD power, carries either 20 MHz bandwidth's center
- * channel frequency or 40 MHz bandwidth's center channel frequency
- * (or 80/160 MHz bandwidth's center channel frequency).
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_TX_POWER: s8 transmit power limit (dBm).
- * If PSD power, carries PSD power value of the
- * QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_FREQUENCY mentioned sub-channel.
- * If non PSD power, carries EIRP power value of bandwidth mentioned
- * by QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_FREQUENCY center frequency.
- */
-enum qca_wlan_vendor_attr_tpc_pwr_level {
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_INVALID = 0,
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_FREQUENCY = 1,
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_TX_POWER = 2,
-
-	/* keep last */
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_AFTER_LAST,
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_MAX =
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL_AFTER_LAST - 1,
-};
-
-/**
- * enum qca_wlan_vendor_tpc - Definition of link attributes
- * used inside nested attribute %QCA_WLAN_VENDOR_ATTR_TPC_LINKS.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_BSSID: 6-bytes AP BSSID.
- * For MLO STA, AP BSSID indicates the AP's link address.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_PSD_POWER: PSD power flag
- * Indicates using PSD power mode if this flag is present.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_EIRP_POWER: s8 Regulatory EIRP power
- * value in dBm
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_POWER_TYPE_6GHZ: u8 power type of 6 GHz
- * AP, refer to Table E-12-Regulatory Info subfield encoding in
- * IEEE P802.11-REVme/D4.0. Only present if link is connected to 6 GHz AP.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_AP_CONSTRAINT_POWER: u8 Local Power Constraint
- * (dBm) advertised by AP in Power Constraint element, refer to
- * IEEE Std 802.11-2020, 9.4.2.13 Power Constraint element.
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL: A nested attribute containing
- * attributes defined by enum qca_wlan_vendor_attr_tpc_pwr_level.
- * If PSD power, each power level describes each 20 MHz subchannel PSD
- * power value. If non PSD power, each power level describes each supported
- * bandwidth's EIRP power value (up to Max bandwidth of AP operating on),
- * each level attribute contains corresponding bandwidth's center channel
- * frequency and its EIRP power value.
- */
-enum qca_wlan_vendor_attr_tpc {
-	QCA_WLAN_VENDOR_ATTR_TPC_INVALID = 0,
-	QCA_WLAN_VENDOR_ATTR_TPC_BSSID = 1,
-	QCA_WLAN_VENDOR_ATTR_TPC_PSD_POWER = 2,
-	QCA_WLAN_VENDOR_ATTR_TPC_EIRP_POWER = 3,
-	QCA_WLAN_VENDOR_ATTR_TPC_POWER_TYPE_6GHZ = 4,
-	QCA_WLAN_VENDOR_ATTR_TPC_AP_CONSTRAINT_POWER = 5,
-	QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL = 6,
-
-	/* keep last */
-	QCA_WLAN_VENDOR_ATTR_TPC_AFTER_LAST,
-	QCA_WLAN_VENDOR_ATTR_TPC_MAX =
-	QCA_WLAN_VENDOR_ATTR_TPC_AFTER_LAST - 1,
-};
-
-/**
- * enum qca_wlan_vendor_attr_tpc_links - Definition of attributes
- * for %QCA_NL80211_VENDOR_SUBCMD_REGULATORY_TPC_INFO subcommand
- *
- * @QCA_WLAN_VENDOR_ATTR_TPC_LINKS: A nested attribute containing
- * per-link TPC information of all the active links of MLO STA.
- * For non MLO STA, only one link TPC information will be returned
- * for connected AP in this nested attribute.
- * The attributes used inside this nested attributes are defined
- * in enum qca_wlan_vendor_attr_tpc.
- */
-enum qca_wlan_vendor_attr_tpc_links {
-	QCA_WLAN_VENDOR_ATTR_TPC_LINKS_INVALID = 0,
-	QCA_WLAN_VENDOR_ATTR_TPC_LINKS = 1,
-
-	/* keep last */
-	QCA_WLAN_VENDOR_ATTR_TPC_LINKS_AFTER_LAST,
-	QCA_WLAN_VENDOR_ATTR_TPC_LINKS_MAX =
-	QCA_WLAN_VENDOR_ATTR_TPC_AFTER_LAST - 1,
 };
 #endif

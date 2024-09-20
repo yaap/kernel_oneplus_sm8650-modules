@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -900,10 +900,6 @@ int32_t cam_handle_mem_ptr(uint64_t handle, uint32_t cmd,
 	CAM_DBG(CAM_SENSOR, "Received Header opcode: %u", probe_ver);
 
 	for (i = 0; i < pkt->num_cmd_buf; i++) {
-		rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
-		if (rc)
-			return rc;
-
 		if (!(cmd_desc[i].length))
 			continue;
 		rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle,
@@ -1048,9 +1044,6 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-	if (s_ctrl->hw_no_ops)
-		return rc;
-
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
@@ -1128,7 +1121,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 {
 	int rc = 0, pkt_opcode = 0;
 	struct cam_control *cmd = (struct cam_control *)arg;
-	struct cam_sensor_power_ctrl_t *power_info = NULL;
+	struct cam_sensor_power_ctrl_t *power_info =
+		&s_ctrl->sensordata->power_info;
 	struct timespec64 ts;
 	uint64_t ms, sec, min, hrs;
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
@@ -1141,8 +1135,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
 		return -EINVAL;
 	}
-
-	power_info = &s_ctrl->sensordata->power_info;
 
 	if (cmd->op_code != CAM_SENSOR_PROBE_CMD) {
 		if (cmd->handle_type != CAM_HANDLE_USER_POINTER) {
@@ -1734,10 +1726,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 		if (s_ctrl->i2c_data.read_settings.is_settings_valid) {
-			if (!s_ctrl->hw_no_ops)
-				rc = cam_sensor_i2c_read_data(
-					&s_ctrl->i2c_data.read_settings,
-					&s_ctrl->io_master_info);
+			rc = cam_sensor_i2c_read_data(
+				&s_ctrl->i2c_data.read_settings,
+				&s_ctrl->io_master_info);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR, "%s: cannot read data: %d",
 					s_ctrl->sensor_name, rc);
@@ -1855,10 +1846,6 @@ int cam_sensor_establish_link(struct cam_req_mgr_core_dev_link_setup *link)
 int cam_sensor_power(struct v4l2_subdev *sd, int on)
 {
 	struct cam_sensor_ctrl_t *s_ctrl = v4l2_get_subdevdata(sd);
-	if (!s_ctrl) {
-		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
-		return -EINVAL;
-	}
 
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
 	if (!on && s_ctrl->sensor_state == CAM_SENSOR_START) {
@@ -1876,7 +1863,7 @@ int cam_sensor_power(struct v4l2_subdev *sd, int on)
 
 int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 {
-	int rc = 0;
+	int rc;
 	struct cam_sensor_power_ctrl_t *power_info;
 	struct cam_camera_slave_info   *slave_info;
 	struct cam_hw_soc_info         *soc_info = &s_ctrl->soc_info;
@@ -1886,9 +1873,6 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: %pK", s_ctrl);
 		return -EINVAL;
 	}
-
-	if (s_ctrl->hw_no_ops)
-		return rc;
 
 	power_info = &s_ctrl->sensordata->power_info;
 	slave_info = &(s_ctrl->sensordata->slave_info);
@@ -1980,9 +1964,6 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: s_ctrl %pK", s_ctrl);
 		return -EINVAL;
 	}
-
-	if (s_ctrl->hw_no_ops)
-		return rc;
 
 	power_info = &s_ctrl->sensordata->power_info;
 	soc_info = &s_ctrl->soc_info;
@@ -2110,10 +2091,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 			list_for_each_entry(i2c_list,
 				&(i2c_set->list_head), list) {
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				rc = cam_sensor_i2c_modes_util(
+					&(s_ctrl->io_master_info),
+					i2c_list);
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR,
 						"Failed to apply settings: %d",
@@ -2149,10 +2129,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			i2c_set[offset].request_id == req_id) {
 			list_for_each_entry(i2c_list,
 				&(i2c_set[offset].list_head), list) {
-				if (!s_ctrl->hw_no_ops)
-					rc = cam_sensor_i2c_modes_util(
-						&(s_ctrl->io_master_info),
-						i2c_list);
+				rc = cam_sensor_i2c_modes_util(
+					&(s_ctrl->io_master_info),
+					i2c_list);
 				if (rc < 0) {
 					CAM_ERR(CAM_SENSOR,
 						"Failed to apply settings: %d",
@@ -2269,12 +2248,18 @@ int32_t cam_sensor_apply_request(struct cam_req_mgr_apply_request *apply)
 	}
 
 	if ((apply->recovery) && (apply->request_id > 0)) {
-		if (apply->request_id <= s_ctrl->last_applied_req) {
-			/*
-			 * Use bubble update for request reapply
-			 */
-			curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
-			last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
+		curr_idx = apply->request_id % MAX_PER_FRAME_ARRAY;
+		last_applied_idx = s_ctrl->last_applied_req % MAX_PER_FRAME_ARRAY;
+
+		/*
+		 * If the sensor resolution index in current req isn't same with
+		 * last applied index, we should apply bubble update.
+		 */
+
+		if ((s_ctrl->sensor_res[curr_idx].res_index !=
+			s_ctrl->sensor_res[last_applied_idx].res_index) ||
+			(s_ctrl->sensor_res[curr_idx].feature_mask !=
+			s_ctrl->sensor_res[last_applied_idx].feature_mask)) {
 			opcode = CAM_SENSOR_PACKET_OPCODE_SENSOR_BUBBLE_UPDATE;
 			CAM_INFO(CAM_REQ,
 				"Sensor[%d] update req id: %lld [last_applied: %lld] with opcode:%d recovery: %d last_applied_res_idx: %u current_res_idx: %u",

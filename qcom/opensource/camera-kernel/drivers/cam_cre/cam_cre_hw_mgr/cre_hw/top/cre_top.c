@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/platform_device.h>
 #include <linux/delay.h>
@@ -47,8 +46,8 @@ static int cam_cre_top_reset(struct cam_cre_hw *cre_hw_info,
 	cam_io_w_mb(top_reg_val->irq_mask,
 		cre_hw_info->top_reg_offset->base + top_reg->irq_mask);
 
-	/* CRE HW RESET */
-	cam_io_w_mb(top_reg_val->hw_reset_cmd,
+	/* CRE SW RESET */
+	cam_io_w_mb(top_reg_val->sw_reset_cmd,
 		cre_hw_info->top_reg_offset->base + top_reg->reset_cmd);
 
 	rc = wait_for_completion_timeout(

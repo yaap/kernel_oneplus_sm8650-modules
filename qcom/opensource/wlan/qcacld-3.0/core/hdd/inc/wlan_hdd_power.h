@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -362,17 +362,6 @@ void hdd_enable_ns_offload(struct hdd_adapter *adapter,
 void hdd_disable_ns_offload(struct hdd_adapter *adapter,
 			    struct wlan_objmgr_vdev *vdev,
 			    enum pmo_offload_trigger trigger);
-
-/**
- * hdd_send_ps_config_to_fw() - Check user pwr save config set/reset PS
- * @adapter: pointer to hdd adapter
- *
- * This function checks the power save configuration saved in MAC context
- * and sends power save config to FW.
- *
- * Return: None
- */
-void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter);
 #else /* WLAN_NS_OFFLOAD */
 static inline
 void hdd_enable_ns_offload(struct hdd_adapter *adapter,
@@ -385,11 +374,6 @@ static inline
 void hdd_disable_ns_offload(struct hdd_adapter *adapter,
 			    struct wlan_objmgr_vdev *vdev,
 			    enum pmo_offload_trigger trigger)
-{
-}
-
-static inline
-void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter)
 {
 }
 #endif /* WLAN_NS_OFFLOAD */
@@ -486,8 +470,7 @@ int wlan_hdd_pm_qos_notify(struct notifier_block *nb, unsigned long curr_val,
  * Return: true if there is PM QoS global vote,
  *	   or an false otherwise
  */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0) && \
-	defined(__ANDROID_COMMON_KERNEL__))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 bool wlan_hdd_is_cpu_pm_qos_in_progress(struct hdd_context *hdd_ctx);
 #else
 static inline bool
@@ -700,17 +683,4 @@ void hdd_enable_icmp_offload(struct hdd_adapter *adapter,
 {}
 #endif /* FEATURE_ICMP_OFFLOAD */
 
-#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
-int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
-			bool allow_power_save, int timeout,
-			int link_id);
-#else
-static inline
-int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
-			bool allow_power_save, int timeout,
-			int link_id)
-{
-        return 0;
-}
-#endif
 #endif /* __WLAN_HDD_POWER_H */

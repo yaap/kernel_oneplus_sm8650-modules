@@ -20,7 +20,7 @@
 
 #ifdef IPA_OFFLOAD
 
-#include <linux/ipa.h>
+#include "ipa.h"
 #include <linux/version.h>
 
 /**

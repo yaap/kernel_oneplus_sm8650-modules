@@ -469,7 +469,7 @@ struct wcd_mbhc_intr {
 
 struct wcd_mbhc_register {
 	const char *id;
-	u32 reg;
+	u16 reg;
 	u8 mask;
 	u8 offset;
 	u8 invert;
@@ -641,8 +641,7 @@ struct wcd_mbhc {
 
 	struct wcd_mbhc_fn *mbhc_fn;
 	bool force_linein;
-	struct device_node *wcd_usbss_aatc_dev_np;
-	struct device_node *fsa_aatc_dev_np;
+	struct device_node *aatc_dev_np;
 	struct notifier_block aatc_dev_nb;
 
 	struct extcon_dev *extdev;

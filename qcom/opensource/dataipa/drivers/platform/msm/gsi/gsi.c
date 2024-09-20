@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -1240,7 +1240,6 @@ static uint32_t gsi_get_max_event_rings(enum gsi_ver ver)
 		max_ev = hw_param.gsi_ev_ch_num;
 		break;
 	case GSI_VER_3_0:
-	case GSI_VER_5_2:
 	case GSI_VER_5_5:
 		gsihal_read_reg_n_fields(GSI_EE_n_GSI_HW_PARAM_4,
 			gsi_ctx->per.ee, &hw_param4);

@@ -256,10 +256,6 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_IRQ_INJECTION,
 	CAM_ISP_HW_CMD_DUMP_IRQ_DESCRIPTION,
 	CAM_ISP_HW_CMD_GET_SET_PRIM_SOF_TS_ADDR,
-	CAM_ISP_HW_CMD_DYNAMIC_CLOCK_UPDATE,
-	CAM_ISP_HW_CMD_SET_SYNC_HW_IDX,
-	CAM_ISP_HW_CMD_BUS_WM_DISABLE,
-	CAM_ISP_HW_CMD_BUFFER_ALIGNMENT_UPDATE,
 	CAM_ISP_HW_CMD_MAX,
 };
 
@@ -441,13 +437,11 @@ struct cam_isp_hw_get_wm_update {
  * @Brief:           Get the out resource id for given mid
  *
  * @mid:             Mid number of hw outport numb
- * @pid:             Pid number associated with mid
  * @out_res_id:      Out resource id
  *
  */
 struct cam_isp_hw_get_res_for_mid {
 	uint32_t                       mid;
-	uint32_t                       pid;
 	uint32_t                       out_res_id;
 };
 
@@ -520,7 +514,6 @@ struct cam_isp_hw_fcg_cmd {
  * @cmd:             Command buffer information
  * @use_scratch_cfg: To indicate if it's scratch buffer config
  * @trigger_cdm_en:  Flag to indicate if cdm is trigger
- * @reg_write:        if set use AHB to config rup/aup
  *
  */
 struct cam_isp_hw_get_cmd_update {
@@ -535,7 +528,6 @@ struct cam_isp_hw_get_cmd_update {
 		struct cam_isp_hw_get_wm_update      *rm_update;
 	};
 	bool trigger_cdm_en;
-	bool reg_write;
 };
 
 /*
@@ -589,20 +581,6 @@ struct cam_isp_hw_dump_header {
 	uint8_t   tag[CAM_ISP_HW_DUMP_TAG_MAX_LEN];
 	uint64_t  size;
 	uint32_t  word_size;
-};
-
-/**
- * struct cam_isp_session_data - Session data
- *
- * @Brief:          ISP session or usecase data
- *
- * @link_hdl:       Link handle
- * @is_shdr:        Indicate is usecase is shdr
- *
- */
-struct cam_isp_session_data {
-	int32_t   link_hdl;
-	bool      is_shdr;
 };
 
 /**

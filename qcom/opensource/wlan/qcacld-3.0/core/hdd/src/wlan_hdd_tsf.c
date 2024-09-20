@@ -3015,8 +3015,7 @@ hdd_set_tsf_auto_report(struct hdd_adapter *adapter, bool ena,
 
 	enabled = !!adapter->tsf.auto_rpt_src;
 	if (enabled == ena) {
-		hdd_debug_rl("source %d current %d and no action is required",
-			     source, enabled);
+		hdd_info_rl("current %d and no action is required", enabled);
 		goto set_src;
 	}
 
@@ -3025,7 +3024,7 @@ hdd_set_tsf_auto_report(struct hdd_adapter *adapter, bool ena,
 				  (int)GEN_PARAM_TSF_AUTO_REPORT_DISABLE,
 				  ena, GEN_CMD);
 	if (ret) {
-		hdd_err_rl("source %d enable %d failed: %d", source, ena, ret);
+		hdd_err_rl("tsf auto report %d failed: %d", ena, ret);
 		ret = -EINPROGRESS;
 		goto out;
 	}

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -53,7 +53,7 @@
 #include "wlan_reg_ucfg_api.h"
 #include <wlan_objmgr_vdev_obj.h>
 #include <wlan_dfs_utils_api.h>
-#include "wlan_crypto_def_i.h"
+#include "wlan_crypto_global_def.h"
 #include "wlan_crypto_global_api.h"
 #include "wlan_cm_bss_score_param.h"
 
@@ -243,8 +243,6 @@ void scm_filter_rnr_flag_pno(struct wlan_objmgr_vdev *vdev,
 			continue;
 
 		qdf_list_for_each(&chan->rnr_list, rnr_node, node) {
-			if (!rnr_node)
-				continue;
 			if (rnr_node->entry.short_ssid) {
 				if (rnr_node->entry.short_ssid == short_ssid) {
 			/* If short ssid entry present in RNR db cache, remove
@@ -1681,12 +1679,12 @@ scm_scan_apply_filter_flush_entry(struct wlan_objmgr_psoc *psoc,
  * @psoc: psoc ptr
  * @scan_db: scan db
  * @filter: filter
- * @pdev_id: pdev id of the scan db
  *
  * Return: void
  */
 static void scm_flush_scan_entries(struct wlan_objmgr_psoc *psoc,
-	struct scan_dbs *scan_db, struct scan_filter *filter, uint8_t pdev_id)
+	struct scan_dbs *scan_db,
+	struct scan_filter *filter)
 {
 	int i;
 	struct scan_cache_node *cur_node;
@@ -1703,9 +1701,6 @@ static void scm_flush_scan_entries(struct wlan_objmgr_psoc *psoc,
 			cur_node = next_node;
 		}
 	}
-	/* if all scan results are flushed reset scan channel info as well */
-	if (!filter)
-		scm_reset_scan_chan_info(psoc, pdev_id);
 }
 
 QDF_STATUS scm_flush_results(struct wlan_objmgr_pdev *pdev,
@@ -1732,8 +1727,7 @@ QDF_STATUS scm_flush_results(struct wlan_objmgr_pdev *pdev,
 		return QDF_STATUS_E_INVAL;
 	}
 
-	scm_flush_scan_entries(psoc, scan_db, filter,
-			       wlan_objmgr_pdev_get_pdev_id(pdev));
+	scm_flush_scan_entries(psoc, scan_db, filter);
 
 	return status;
 }
@@ -1855,19 +1849,6 @@ QDF_STATUS scm_scan_register_bcn_cb(struct wlan_objmgr_psoc *psoc,
 	return QDF_STATUS_SUCCESS;
 }
 
-void scm_reset_scan_chan_info(struct wlan_objmgr_psoc *psoc, uint8_t pdev_id)
-{
-	struct wlan_scan_obj *scan_obj;
-
-	scan_obj = wlan_psoc_get_scan_obj(psoc);
-	if (!scan_obj)
-		return;
-
-	scm_debug("pdev %d, Reset all channel info", pdev_id);
-	qdf_mem_zero(&scan_obj->pdev_info[pdev_id].chan_scan_info,
-		     sizeof(scan_obj->pdev_info[pdev_id].chan_scan_info));
-}
-
 QDF_STATUS scm_db_init(struct wlan_objmgr_psoc *psoc)
 {
 	int i, j;
@@ -1890,7 +1871,6 @@ QDF_STATUS scm_db_init(struct wlan_objmgr_psoc *psoc)
 		for (j = 0; j < SCAN_HASH_SIZE; j++)
 			qdf_list_create(&scan_db->scan_hash_tbl[j],
 				MAX_SCAN_CACHE_SIZE);
-		scm_reset_scan_chan_info(psoc, i);
 	}
 	return QDF_STATUS_SUCCESS;
 }
@@ -1913,7 +1893,7 @@ QDF_STATUS scm_db_deinit(struct wlan_objmgr_psoc *psoc)
 			continue;
 		}
 
-		scm_flush_scan_entries(psoc, scan_db, NULL, i);
+		scm_flush_scan_entries(psoc, scan_db, NULL);
 		for (j = 0; j < SCAN_HASH_SIZE; j++)
 			qdf_list_destroy(&scan_db->scan_hash_tbl[j]);
 		qdf_spinlock_destroy(&scan_db->scan_db_lock);
@@ -2349,75 +2329,4 @@ exit:
 		scm_purge_scan_results(list);
 
 	return scan_entry;
-}
-
-bool scm_scan_entries_contain_cmn_akm(struct scan_cache_entry *entry1,
-				      struct scan_cache_entry *entry2)
-{
-	wlan_crypto_key_mgmt akm_type;
-	uint32_t key_mgmt;
-	struct security_info *entry1_sec_info, *entry2_sec_info;
-
-	/* For Open security, allow connection */
-	if (!entry1->ie_list.rsn && !entry2->ie_list.rsn)
-		return true;
-
-	/* If only one is open connection, remove the partner link */
-	if (!entry1->ie_list.rsn || !entry2->ie_list.rsn)
-		return false;
-
-	entry1_sec_info = &entry1->neg_sec_info;
-	entry2_sec_info = &entry2->neg_sec_info;
-
-	/* Check if MFPC is equal */
-	if ((entry1_sec_info->rsn_caps & WLAN_CRYPTO_RSN_CAP_MFP_ENABLED) ^
-	    (entry2_sec_info->rsn_caps & WLAN_CRYPTO_RSN_CAP_MFP_ENABLED)) {
-		scm_debug("MFPC capability is not equal 0x%x, 0x%x",
-			  entry1_sec_info->rsn_caps, entry2_sec_info->rsn_caps);
-		return false;
-	}
-
-	/* Check UC cipher suite */
-	if (!UCAST_CIPHER_MATCH(entry1_sec_info, entry2_sec_info)) {
-		scm_debug("Intersected UC cipher bitmap NULL 0x%x, 0x%x",
-			  entry1_sec_info->ucastcipherset,
-			  entry2_sec_info->ucastcipherset);
-		return false;
-	}
-
-	/* Check MC cipher suite */
-	if (!MCAST_CIPHER_MATCH(entry1_sec_info, entry2_sec_info)) {
-		scm_debug("Intersected MC cipher bitmap NULL 0x%x, 0x%x",
-			  entry1_sec_info->mcastcipherset,
-			  entry2_sec_info->mcastcipherset);
-		return false;
-	}
-
-	/* Check AKM suite */
-	key_mgmt = entry1_sec_info->key_mgmt;
-	akm_type = wlan_crypto_get_secure_akm_available(key_mgmt);
-	if (akm_type == WLAN_CRYPTO_KEY_MGMT_MAX) {
-		scm_debug("No matching AKM 0x%x", key_mgmt);
-		return false;
-	} else if (!HAS_KEY_MGMT(entry2_sec_info, akm_type)) {
-		scm_debug("Intersected AKM bitmap NULL 0x%x, 0x%x",
-			  entry1_sec_info->key_mgmt, entry2_sec_info->key_mgmt);
-		return false;
-	} else {
-		key_mgmt = 0x0;
-		QDF_SET_PARAM(key_mgmt, akm_type);
-	}
-
-	/* If not SAE AKM no need to check H2E capability match */
-	if (!WLAN_CRYPTO_IS_AKM_SAE(key_mgmt))
-		return true;
-
-	/* If SAE_H2E capability is not equal then treat as mismatch */
-	if (util_scan_entry_sae_h2e_capable(entry1) ^
-	    util_scan_entry_sae_h2e_capable(entry2)) {
-		scm_debug("SAE-H2E capability mismatch");
-		return false;
-	}
-
-	return true;
 }

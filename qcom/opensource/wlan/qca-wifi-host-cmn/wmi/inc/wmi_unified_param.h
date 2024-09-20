@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1261,7 +1261,6 @@ struct wmi_host_link_bss_params {
  * @bssid: AP link address
  * @chan: Wlan channel information
  * @mac_addr: Self mac addresses
- * @rec_max_simultaneous_links: Max recommended simultaneous links
  */
 struct peer_assoc_mlo_params {
 	uint32_t mlo_enabled:1,
@@ -1295,7 +1294,6 @@ struct peer_assoc_mlo_params {
 	struct qdf_mac_addr bssid;
 	struct wlan_channel chan;
 	struct qdf_mac_addr mac_addr;
-	uint8_t rec_max_simultaneous_links;
 };
 
 /**
@@ -4336,39 +4334,7 @@ struct rx_reorder_queue_setup_params {
 	uint16_t queue_no;
 	uint8_t ba_window_size_valid;
 	uint16_t ba_window_size;
-};
 
-#define WMI_MAX_TIDS 17 /* This should be kept the same as (C)DP_MAX_TIDS */
-
-/**
- * struct rx_reorder_queue_params_list  - Specific params for each tid
- * @hw_qdesc_paddr: 64 bits of queue desc address
- * @queue_no: 16-bit number assigned by host for queue
- * @ba_window_size: BA window size
- * @ba_window_size_valid: BA window size validity flag
- */
-struct rx_reorder_queue_params_list {
-	qdf_dma_addr_t hw_qdesc_paddr;
-	uint16_t queue_no;
-	uint16_t ba_window_size;
-	uint8_t ba_window_size_valid;
-};
-
-/**
- * struct multi_rx_reorder_queue_setup_params  - Multi reorder
- *	queue setup params
- * @queue_params_list: An array for recording the specific params for each tid.
- * @peer_macaddr: Peer mac address
- * @tid_bitmap: A group of TIDs to be set at a time
- * @tid_num: The number of TIDs to be set
- * @vdev_id: vdev id
- */
-struct multi_rx_reorder_queue_setup_params {
-	struct rx_reorder_queue_params_list queue_params_list[WMI_MAX_TIDS];
-	uint8_t *peer_macaddr;
-	uint32_t tid_bitmap;
-	uint8_t tid_num;
-	uint16_t vdev_id;
 };
 
 /**
@@ -5405,11 +5371,6 @@ typedef enum {
 	wmi_pdev_enhanced_aoa_phasedelta_eventid,
 #endif
 	wmi_peer_oper_mode_change_event_id,
-
-#ifdef WLAN_FEATURE_LL_LT_SAP
-	wmi_audio_transport_switch_type_event_id,
-#endif
-
 	wmi_events_max,
 } wmi_conv_event_id;
 
@@ -5790,9 +5751,6 @@ typedef enum {
 		   PDEV_PARAM_ATF_VO_DEDICATED_TIME),
 	PDEV_PARAM(pdev_param_atf_vi_dedicated_time,
 		   PDEV_PARAM_ATF_VI_DEDICATED_TIME),
-	PDEV_PARAM(pdev_param_ul_ofdma_rtd, PDEV_PARAM_UL_OFDMA_RTD),
-	PDEV_PARAM(pdev_param_tid_mapping_3link_mlo,
-		   PDEV_PARAM_TID_MAPPING_3LINK_MLO),
 	pdev_param_max,
 } wmi_conv_pdev_params_id;
 
@@ -6123,10 +6081,6 @@ typedef enum {
 		   VDEV_PARAM_RTT_11AZ_NTB_MIN_TIME_BW_MEAS),
 	VDEV_PARAM(vdev_param_disable_2g_twt,
 		   VDEV_PARAM_DISABLE_2G_TWT),
-	VDEV_PARAM(vdev_param_disable_twt_info_frame,
-		   VDEV_PARAM_DISABLE_TWT_INFO_FRAME),
-	VDEV_PARAM(vdev_param_mlo_max_recom_active_links,
-		   VDEV_PARAM_MLO_MAX_RECOM_ACTIVE_LINKS),
 	vdev_param_max,
 } wmi_conv_vdev_param_id;
 
@@ -6321,7 +6275,6 @@ typedef enum {
 	wmi_service_tx_compl_tsf64,
 	wmi_service_vdev_delete_all_peer,
 	wmi_service_three_way_coex_config_legacy,
-	wmi_service_multiple_coex_config_support,
 	wmi_service_rx_fse_support,
 	wmi_service_dynamic_hw_mode,
 	wmi_service_sae_roam_support,
@@ -6501,7 +6454,6 @@ typedef enum {
 	wmi_service_n_link_mlo_support,
 	wmi_service_per_link_stats_support,
 	wmi_service_pdev_wsi_stats_info_support,
-	wmi_service_mlo_tid_to_link_mapping_support,
 #endif
 	wmi_service_aux_mac_support,
 #ifdef WLAN_ATF_INCREASED_STA
@@ -6509,15 +6461,6 @@ typedef enum {
 #endif
 	wmi_service_fisa_dynamic_msdu_aggr_size_support,
 	wmi_service_radar_flags_support,
-#ifdef WLAN_FEATURE_ROAM_OFFLOAD
-	wmi_service_5ghz_hi_rssi_roam_support,
-#endif
-	wmi_service_pdev_param_in_utf_wmi,
-#ifdef WLAN_FEATURE_LL_LT_SAP
-	wmi_service_xpan_support,
-#endif
-	wmi_service_multiple_reorder_queue_setup_support,
-	wmi_service_p2p_device_update_mac_addr_support,
 	wmi_services_max,
 } wmi_conv_service_ids;
 #define WMI_SERVICE_UNAVAILABLE 0xFFFF
@@ -6693,6 +6636,7 @@ typedef enum {
  * @enable_tdls_offchannel: Enable tdls offchannel
  * @enable_tdls_capability_enhance: Enable tdls capability enhance
  * @max_tdls_peers: Max tdls peers
+ * @sta_dual_p2p_support: Indicates sta+p2p+p2p support
  * @peer_bigdata_getbssinfo_support: Indicates bigdata getbssinfo support
  * @peer_bigdata_assocreject_info_support: Indicates bigdata assoc reject
  *                                         info support
@@ -6700,7 +6644,6 @@ typedef enum {
  * @feature_set_version: Indicates feature set version info
  * @num_antennas: Indicates number of antennas supported
  * @sta_dump_support: Indicates sta dump info support
- * @iface_combinations: Iface combination bit map
  */
 struct target_feature_set {
 	WMI_HOST_WIFI_STANDARD wifi_standard;
@@ -6754,13 +6697,13 @@ struct target_feature_set {
 	bool enable_tdls_offchannel;
 	bool enable_tdls_capability_enhance;
 	uint8_t max_tdls_peers;
+	bool sta_dual_p2p_support;
 	bool peer_bigdata_getbssinfo_support;
 	bool peer_bigdata_assocreject_info_support;
 	bool peer_getstainfo_support;
 	uint16_t feature_set_version;
 	WMI_HOST_NUM_ANTENNAS num_antennas;
 	bool sta_dump_support;
-	uint32_t iface_combinations;
 };
 #endif
 
@@ -7452,7 +7395,6 @@ enum {
 	PEER_PARAM(PEER_CHWIDTH_PUNCTURE_20MHZ_BITMAP),
 	PEER_PARAM(PEER_FT_ROAMING_PEER_UPDATE),
 	PEER_PARAM(PEER_PARAM_DMS_SUPPORT),
-	PEER_PARAM(PEER_PARAM_UL_OFDMA_RTD),
 
 };
 #define WMI_HOST_PEER_MIMO_PS_NONE	0x0
@@ -8801,40 +8743,6 @@ struct coex_config_params {
 	uint32_t config_arg6;
 };
 
-/**
- * struct coex_config_item - Multiple coex config item
- * @config_type: Configuration type - wmi_coex_config_type enum
- * @config_arg1: Configuration argument based on config type
- * @config_arg2: Configuration argument based on config type
- * @config_arg3: Configuration argument based on config type
- * @config_arg4: Configuration argument based on config type
- * @config_arg5: Configuration argument based on config type
- * @config_arg6: Configuration argument based on config type
- */
-struct coex_config_item {
-	uint32_t config_type;
-	uint32_t config_arg1;
-	uint32_t config_arg2;
-	uint32_t config_arg3;
-	uint32_t config_arg4;
-	uint32_t config_arg5;
-	uint32_t config_arg6;
-};
-
-#define COEX_MULTI_CONFIG_MAX_CNT  32
-
-/**
- * struct coex_multi_config - Multiple coex config command parameters
- * @vdev_id: Vdev id
- * @num_configs: Number of config items
- * @cfg_items: Array of coex config items
- */
-struct coex_multi_config {
-	uint32_t vdev_id;
-	uint32_t num_configs;
-	struct coex_config_item cfg_items[COEX_MULTI_CONFIG_MAX_CNT];
-};
-
 #define WMI_HOST_PDEV_ID_SOC 0xFF
 #define WMI_HOST_PDEV_ID_0   0
 #define WMI_HOST_PDEV_ID_1   1
@@ -9445,7 +9353,6 @@ struct wmi_roam_scan_data {
  * @status:             0 - Roaming is success ; 1 - Roaming failed ;
  * 2 - No roam
  * @fail_reason:        One of WMI_ROAM_FAIL_REASON_ID
- * @roam_abort_reason:  Roam abort reason codes
  * @fail_bssid:         BSSID of the last attempted roam failed AP
  */
 struct wmi_roam_result {
@@ -9453,7 +9360,6 @@ struct wmi_roam_result {
 	uint32_t timestamp;
 	uint32_t status;
 	uint32_t fail_reason;
-	uint32_t roam_abort_reason;
 	struct qdf_mac_addr fail_bssid;
 };
 

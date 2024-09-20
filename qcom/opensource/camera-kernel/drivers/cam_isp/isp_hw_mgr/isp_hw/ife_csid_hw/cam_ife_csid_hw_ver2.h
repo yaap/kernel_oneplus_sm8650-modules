@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_IFE_CSID_HW_VER2_H_
@@ -742,12 +742,6 @@ struct cam_ife_csid_ver2_reg_info {
 	const uint32_t                                    num_path_err_irqs;
 	const uint32_t                                    num_top_regs;
 	const uint32_t                                    num_rx_regs;
-	const uint32_t                                    fused_max_dualife_width[
-		   CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX];
-	const uint32_t                                    fused_max_width[
-		   CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX];
-	const uint32_t                                    width_fuse_max_val;
-	bool                                              is_ife_sfe_mapped;
 };
 
 /*

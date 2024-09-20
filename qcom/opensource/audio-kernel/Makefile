@@ -1,15 +1,3 @@
-ifeq ($(TARGET_SUPPORT), monaco)
-KBUILD_OPTIONS := CONFIG_SND_SOC_AUTO=y
-KBUILD_OPTIONS += CONFIG_SND_SOC_SA7255=m
-KBUILD_OPTIONS += MODNAME=audio_dlkm
-endif
-
-ifeq ($(AUTO_GVM), yes)
-KBUILD_OPTIONS += CONFIG_SND_SOC_AUTO=y
-KBUILD_OPTIONS += CONFIG_SND_SOC_GVM=y
-KBUILD_OPTIONS += MODNAME=audio_dlkm
-endif
-
 M=$(PWD)
 AUDIO_ROOT=$(KERNEL_SRC)/$(M)
 
@@ -18,7 +6,7 @@ KBUILD_OPTIONS += MODNAME=audio_dlkm
 KBUILD_OPTIONS += BOARD_PLATFORM=pineapple
 KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS=$(OUT_DIR)/../sm8650-modules/qcom/opensource/mm-drivers/msm_ext_display/Module.symvers
 
-all: clean modules
+all: modules
 
 clean:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean

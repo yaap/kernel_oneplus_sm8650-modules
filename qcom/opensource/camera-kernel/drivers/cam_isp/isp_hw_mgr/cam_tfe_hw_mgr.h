@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_TFE_HW_MGR_H_
@@ -19,6 +19,7 @@
 
 /* TFE resource constants */
 #define CAM_TFE_HW_IN_RES_MAX            (CAM_ISP_TFE_IN_RES_MAX & 0xFF)
+#define CAM_TFE_HW_OUT_RES_MAX           (CAM_ISP_TFE_OUT_RES_MAX & 0xFF)
 #define CAM_TFE_HW_RES_POOL_MAX          64
 
 /**
@@ -31,7 +32,7 @@
  * @camif_debug:               enable sensor diagnosis status
  * @enable_reg_dump:           enable reg dump on error;
  * @per_req_reg_dump:          Enable per request reg dump
- * @enable_cdm_cmd_check:      Enable invalid command check in cmd_buf
+ *
  */
 struct cam_tfe_hw_mgr_debug {
 	struct dentry  *dentry;
@@ -41,7 +42,6 @@ struct cam_tfe_hw_mgr_debug {
 	uint32_t       camif_debug;
 	uint32_t       enable_reg_dump;
 	uint32_t       per_req_reg_dump;
-	bool           enable_cdm_cmd_check;
 };
 
 /**
@@ -72,28 +72,6 @@ struct cam_tfe_comp_record_query {
 };
 
 /**
- * struct cam_tfe_cdm_user_data - TFE HW user data with CDM
- *
- * @prepare:                   hw_update_data
- * @request_id:                Request id
- */
-struct cam_tfe_cdm_user_data {
-	struct cam_isp_prepare_hw_update_data    *hw_update_data;
-	uint64_t                                  request_id;
-};
-
-/**
- * struct cam_isp_tfe_hw_caps - BUS capabilities
- *
- * @max_tfe_out_res_type  :  max tfe out res type value from hw
- * @support_consumed_addr :  indicate whether hw supports last consumed address
- */
-struct cam_isp_tfe_hw_caps {
-	uint32_t     max_tfe_out_res_type;
-	bool         support_consumed_addr;
-};
-
-/**
  * struct cam_tfe_hw_mgr_ctx - TFE HW manager Context object
  *
  * @list:                     used by the ctx list.
@@ -104,9 +82,7 @@ struct cam_isp_tfe_hw_caps {
  * @res_list_csid:            csid resource list
  * @res_list_tfe_in:          tfe input resource list
  * @res_list_tfe_out:         tfe output resoruces array
- * @num_acq_tfe_out:          Number of acquired TFE out resources
  * @free_res_list:            free resources list for the branch node
- * @tfe_out_map:              Map for TFE out ports
  * @res_pool:                 memory storage for the free resource list
  * @base                      device base index array contain the all TFE HW
  *                            instance associated with this context.
@@ -137,14 +113,6 @@ struct cam_isp_tfe_hw_caps {
  * @packet                     CSL packet from user mode driver
  * @bw_config_version          BW Config version
  * @tfe_bus_comp_grp          pointer to tfe comp group info
- * @cdm_userdata               CDM user data
- * @try_recovery_cnt          Retry count for overflow recovery
- * @current_mup               Current MUP val
- * @recovery_req_id           The request id on which overflow recovery happens
- * @acquired_wm_mask          Bitmask of acquired out resource
- * @is_shdr                   Indicate if the usecase is SHDR
- * @is_shdr_slave             Indicate whether context is slave in shdr usecase
- * @ctx_state                 Indicate if ctx is active or paused
  */
 struct cam_tfe_hw_mgr_ctx {
 	struct list_head                list;
@@ -156,11 +124,10 @@ struct cam_tfe_hw_mgr_ctx {
 
 	struct list_head                res_list_tfe_csid;
 	struct list_head                res_list_tfe_in;
-	struct cam_isp_hw_mgr_res       *res_list_tfe_out;
-	uint32_t                        num_acq_tfe_out;
+	struct cam_isp_hw_mgr_res
+			res_list_tfe_out[CAM_TFE_HW_OUT_RES_MAX];
 
 	struct list_head                free_res_list;
-	uint8_t                         *tfe_out_map;
 	struct cam_isp_hw_mgr_res       res_pool[CAM_TFE_HW_RES_POOL_MAX];
 
 	struct cam_isp_ctx_base_info    base[CAM_TFE_HW_NUM_MAX];
@@ -189,15 +156,6 @@ struct cam_tfe_hw_mgr_ctx {
 	struct cam_packet              *packet;
 	uint32_t                        bw_config_version;
 	struct cam_tfe_hw_comp_record  *tfe_bus_comp_grp;
-	struct cam_tfe_cdm_user_data    cdm_userdata;
-	uint32_t                        current_mup;
-	uint32_t                        try_recovery_cnt;
-	uint64_t                        recovery_req_id;
-	uint64_t                        acquired_wm_mask;
-	enum cam_cdm_id                 cdm_id;
-	bool                            is_shdr;
-	bool                            is_shdr_slave;
-	uint32_t                        ctx_state;
 };
 
 /**
@@ -214,35 +172,31 @@ struct cam_tfe_hw_mgr_ctx {
  * @free_ctx_list:         free hw context list
  * @used_ctx_list:         used hw context list
  * @ctx_pool:              context storage
- * @session_data:          Data related to current session
  * @tfe_csid_dev_caps      csid device capability stored per core
  * @tfe_dev_caps           tfe device capability per core
  * @work q                 work queue for TFE hw manager
  * @debug_cfg              debug configuration
- * @path_port_map          Mapping of outport to TFE mux
+ * @support_consumed_addr  indicate whether hw supports last consumed address
  * @ctx_lock               Spinlock for HW manager
- * @isp_caps               Capability of underlying TFE HW
  */
 struct cam_tfe_hw_mgr {
-	struct cam_isp_hw_mgr            mgr_common;
-	struct cam_hw_intf              *csid_devices[CAM_TFE_CSID_HW_NUM_MAX];
-	struct cam_isp_hw_intf_data     *tfe_devices[CAM_TFE_HW_NUM_MAX];
-	struct cam_soc_reg_map          *cdm_reg_map[CAM_TFE_HW_NUM_MAX];
-	struct mutex                     ctx_mutex;
-	atomic_t                         active_ctx_cnt;
-	struct list_head                 free_ctx_list;
-	struct list_head                 used_ctx_list;
-	struct cam_tfe_hw_mgr_ctx        ctx_pool[CAM_TFE_CTX_MAX];
-	struct cam_isp_session_data      session_data[CAM_TFE_HW_NUM_MAX];
+	struct cam_isp_hw_mgr          mgr_common;
+	struct cam_hw_intf            *csid_devices[CAM_TFE_CSID_HW_NUM_MAX];
+	struct cam_isp_hw_intf_data   *tfe_devices[CAM_TFE_HW_NUM_MAX];
+	struct cam_soc_reg_map        *cdm_reg_map[CAM_TFE_HW_NUM_MAX];
+	struct mutex                   ctx_mutex;
+	atomic_t                       active_ctx_cnt;
+	struct list_head               free_ctx_list;
+	struct list_head               used_ctx_list;
+	struct cam_tfe_hw_mgr_ctx      ctx_pool[CAM_TFE_CTX_MAX];
 
-	struct cam_tfe_csid_hw_caps      tfe_csid_dev_caps[
+	struct cam_tfe_csid_hw_caps    tfe_csid_dev_caps[
 						CAM_TFE_CSID_HW_NUM_MAX];
-	struct cam_tfe_hw_get_hw_cap     tfe_dev_caps[CAM_TFE_HW_NUM_MAX];
-	struct cam_req_mgr_core_workq   *workq;
-	struct cam_tfe_hw_mgr_debug      debug_cfg;
-	struct cam_isp_hw_path_port_map  path_port_map;
-	spinlock_t                       ctx_lock;
-	struct cam_isp_tfe_hw_caps       isp_caps;
+	struct cam_tfe_hw_get_hw_cap   tfe_dev_caps[CAM_TFE_HW_NUM_MAX];
+	struct cam_req_mgr_core_workq *workq;
+	struct cam_tfe_hw_mgr_debug    debug_cfg;
+	bool                           support_consumed_addr;
+	spinlock_t                     ctx_lock;
 };
 
 /**

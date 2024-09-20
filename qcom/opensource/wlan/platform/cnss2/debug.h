@@ -62,7 +62,6 @@ extern enum log_level cnss_ipc_log_level;
 	oplus_cnss_error_log_add(_fmt, ##__VA_ARGS__);			\
 } while (0)
 #endif  /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
-
 #define cnss_pr_warn(_fmt, ...) \
 	cnss_debug_log_print(proc_name, __func__, \
 			     WARNING_LOG, WARNING_LOG, _fmt, ##__VA_ARGS__)
@@ -114,7 +113,6 @@ void cnss_debugfs_destroy(struct cnss_plat_data *plat_priv);
 void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 			      enum log_level kern_log_level,
 			      enum log_level ipc_log_level, char *fmt, ...);
-
 #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
 //Add for wifi switch monitor
 void oplus_cnss_error_log_add(char *fmt, ...);

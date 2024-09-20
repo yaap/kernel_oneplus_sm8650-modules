@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,8 +86,6 @@
 #include "wlan_mlo_mgr_cmn.h"
 #include "wlan_mlo_mgr_peer.h"
 #include "wlan_mlo_mgr_sta.h"
-#include "wlan_cp_stats_mc_defs.h"
-
 
 /**
  * WMA_SET_VDEV_IE_SOURCE_HOST - Flag to identify the source of VDEV SET IE
@@ -1422,7 +1420,7 @@ static bool handle_csa_standby_link(wmi_csa_event_fixed_param *csa_event,
 		return is_csa_standby;
 	}
 
-	mlo_mgr_update_csa_link_info(pdev, mldev, &csa_param, link_id);
+	mlo_mgr_update_csa_link_info(mldev, &csa_param, link_id);
 
 	params.link_id = link_info->link_id;
 	params.chan = qdf_mem_malloc(sizeof(struct wlan_channel));
@@ -2508,7 +2506,6 @@ static void wma_log_pkt_icmpv4(uint8_t *data, uint32_t length)
 	wma_debug("Pkt_len: %u, Seq_num: %u",
 		 qdf_cpu_to_be16(pkt_len), qdf_cpu_to_be16(seq_num));
 }
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 //add for  connectivity power monitor
 #define RET_ERR  1
@@ -2581,7 +2578,6 @@ static int oplusLpmSendUevent(const char *src)
 	return RET_OK;
 }
 #endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
-
 static void wma_log_pkt_icmpv6(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, seq_num;
@@ -2599,7 +2595,6 @@ static void wma_log_pkt_ipv4(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, src_port, dst_port;
 	char *ip_addr;
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 	//add for  connectivity power monitor
 	char event_msg[256] = {'\0'};
@@ -2607,7 +2602,6 @@ static void wma_log_pkt_ipv4(uint8_t *data, uint32_t length)
 	uint8_t *dst_ip;
 	uint8_t poto;
 #endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
-
 	if (length < WMA_IPV4_PKT_INFO_GET_MIN_LEN)
 		return;
 
@@ -2632,10 +2626,10 @@ static void wma_log_pkt_ipv4(uint8_t *data, uint32_t length)
 		      ip_addr[2], ip_addr[3]);
 	src_port = *(uint16_t *)(data + IPV4_SRC_PORT_OFFSET);
 	dst_port = *(uint16_t *)(data + IPV4_DST_PORT_OFFSET);
-	wma_debug("Pkt_len: %u, src_port: %u, dst_port: %u",
-		  qdf_cpu_to_be16(pkt_len),
-		  qdf_cpu_to_be16(src_port),
-		  qdf_cpu_to_be16(dst_port));
+	wma_info("Pkt_len: %u, src_port: %u, dst_port: %u",
+		qdf_cpu_to_be16(pkt_len),
+		qdf_cpu_to_be16(src_port),
+		qdf_cpu_to_be16(dst_port));
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 	//add for  connectivity power monitor
 	src_ip = (char *)(data + IPV4_SRC_ADDR_OFFSET);
@@ -2652,7 +2646,6 @@ static void wma_log_pkt_ipv6(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, src_port, dst_port;
 	char *ip_addr;
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 	//add for  connectivity power monitor
 	char event_msg[256] = {'\0'};
@@ -2660,7 +2653,6 @@ static void wma_log_pkt_ipv6(uint8_t *data, uint32_t length)
 	uint8_t *dst_ip;
 	uint8_t poto;
 #endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
-
 	if (length < WMA_IPV6_PKT_INFO_GET_MIN_LEN)
 		return;
 
@@ -3375,357 +3367,36 @@ static void wma_wake_event_log_reason(t_wma_handle *wma,
 	qdf_wma_wow_wakeup_stats_event(wma);
 }
 
-static QDF_STATUS wma_wow_pagefault_action_cb(void *buf)
-{
-	struct mac_context *mac = cds_get_context(QDF_MODULE_ID_PE);
-
-	return mac->sme.pagefault_action_cb(buf, WLAN_WMA_PF_APPS_NOTIFY_BUF_LEN);
-}
-
-static QDF_STATUS
-wma_wow_pagefault_add_sym_to_event(tp_wma_handle wma, struct wow_pf_sym *pf_sym)
-{
-	uint8_t *buf_ptr = wma->wma_pf_hist.pf_notify_buf_ptr;
-	uint32_t buf_len = wma->wma_pf_hist.pf_notify_buf_len;
-
-	if (WLAN_WMA_PF_APPS_NOTIFY_BUF_LEN - buf_len <
-	    WLAN_WMA_PER_PF_SYM_NOTIFY_BUF_LEN) {
-		wma_wow_pagefault_action_cb(buf_ptr);
-		buf_len = 0;
-	}
-
-	/* Mem zero to send buffer with zero padding */
-	if (!buf_len)
-		qdf_mem_zero(buf_ptr, WLAN_WMA_PF_APPS_NOTIFY_BUF_LEN);
-
-	qdf_mem_copy(buf_ptr + buf_len, pf_sym,
-		     WLAN_WMA_PER_PF_SYM_NOTIFY_BUF_LEN);
-	buf_len += WLAN_WMA_PER_PF_SYM_NOTIFY_BUF_LEN;
-
-	wma->wma_pf_hist.pf_notify_buf_len = buf_len;
-
-	return QDF_STATUS_SUCCESS;
-}
-
+/**
+ * wma_wow_wakeup_host_trigger_ssr() - Trigger SSR on host wakeup
+ * @handle: wma handle
+ * @reason: Host wakeup reason
+ *
+ * This function triggers SSR if host is woken up by fw with reason as pagefault
+ *
+ * Return: None
+ */
 static void
-wma_wow_pagefault_add_new_sym_from_event(tp_wma_handle wma,
-					 struct wow_pf_wakeup_ev_data *pf_sym_list,
-					 qdf_time_t cur_time)
+wma_wow_wakeup_host_trigger_ssr(t_wma_handle *wma, uint32_t reason)
 {
-	uint8_t tbl_idx, ev_lst_idx, new_pf_idx, idx2;
-	uint8_t new_idx_cnt, cur_idx_cnt, ev_sym_cnt, pf_th;
-	uint8_t max_sym_count = WLAN_WMA_MAX_PF_SYM;
-	qdf_time_t new_idx_last_ts, cur_idx_last_ts;
-	qdf_time_t new_idx_old_ts, cur_idx_old_ts;
-	struct wma_pf_sym *cur_pf_entry, *new_pf_entry;
-	struct wma_pf_sym_hist *pf_sym_hist = &wma->wma_pf_hist;
-
-	pf_th = wlan_pmo_get_min_pagefault_wakeups_for_action(wma->psoc);
-	for (tbl_idx = 0; tbl_idx < max_sym_count; tbl_idx++) {
-		if (!pf_sym_list->pending_pf_syms)
-			break;
-
-		new_pf_idx = tbl_idx;
-		new_pf_entry = &pf_sym_hist->wma_pf_sym[tbl_idx];
-		new_idx_cnt = new_pf_entry->pf_sym.count;
-		new_idx_last_ts = new_pf_entry->pf_ev_ts[new_idx_cnt - 1];
-		new_idx_old_ts = new_pf_entry->pf_ev_ts[0];
-
-		for (ev_lst_idx = 0; ev_lst_idx < pf_sym_list->num_pf_syms;
-		     ev_lst_idx++) {
-			if (!pf_sym_list->pf_sym[ev_lst_idx].count)
-				continue;
-
-			/* Add the sym that already met threshold to the buf */
-			if (pf_sym_list->pf_sym[ev_lst_idx].count >= pf_th) {
-				wma_wow_pagefault_add_sym_to_event(wma,
-								   pf_sym_list->pf_sym);
-				pf_sym_list->pf_sym[ev_lst_idx].count = 0x0;
-				pf_sym_list->pending_pf_syms--;
-				continue;
-			}
-
-			ev_sym_cnt = pf_sym_list->pf_sym[ev_lst_idx].count;
-
-			/* If current entry is NULL, add the symbol here */
-			if (!new_idx_cnt)
-				goto add_sym;
-
-			/* Replace event if count is equal as current event
-			 * is latest and don't replace symbol from current event
-			 */
-			if (new_idx_cnt > ev_sym_cnt ||
-			    qdf_system_time_after_eq(new_idx_last_ts, cur_time))
-				break;
-
-			for (idx2 = tbl_idx + 1; idx2 < max_sym_count; idx2++) {
-				cur_pf_entry = &pf_sym_hist->wma_pf_sym[idx2];
-				cur_idx_cnt = cur_pf_entry->pf_sym.count;
-				cur_idx_last_ts =
-					cur_pf_entry->pf_ev_ts[cur_idx_cnt - 1];
-				cur_idx_old_ts = cur_pf_entry->pf_ev_ts[0];
-
-				if (cur_idx_cnt > new_idx_cnt)
-					continue;
-
-				/* Don't replace symbol from current event */
-				if (qdf_system_time_after_eq(cur_idx_last_ts,
-							     cur_time)) {
-					continue;
-				}
-
-				if (cur_idx_cnt == new_idx_cnt &&
-				    qdf_system_time_after_eq(cur_idx_old_ts,
-							     new_idx_old_ts)) {
-					continue;
-				}
-
-				new_pf_idx = idx2;
-				new_idx_cnt = cur_idx_cnt;
-				new_idx_last_ts = cur_idx_last_ts;
-				new_idx_old_ts = cur_idx_old_ts;
-			}
-
-add_sym:
-			/* Replace symbol with current event symbol */
-			new_pf_entry = &pf_sym_hist->wma_pf_sym[new_pf_idx];
-			new_pf_entry->pf_sym.symbol =
-					pf_sym_list->pf_sym[ev_lst_idx].symbol;
-			new_pf_entry->pf_sym.count = ev_sym_cnt;
-			for (idx2 = 0; idx2 < ev_sym_cnt; idx2++)
-				new_pf_entry->pf_ev_ts[idx2] = cur_time;
-
-			pf_sym_list->pending_pf_syms--;
-			pf_sym_list->pf_sym[ev_lst_idx].count = 0;
-			break;
-		}
-	}
-}
-
-static void
-wma_wow_pagefault_process_existing_syms(tp_wma_handle wma,
-					struct wma_pf_sym *pf_sym_entry,
-					struct wow_pf_wakeup_ev_data *ev_list,
-					qdf_time_t cur_time)
-{
-	uint8_t ev_idx, add_idx;
-	uint8_t pf_th, *tbl_sym_cnt, ev_sym_cnt;
-
-	pf_th = wlan_pmo_get_min_pagefault_wakeups_for_action(wma->psoc);
-	tbl_sym_cnt = &pf_sym_entry->pf_sym.count;
-
-	for (ev_idx = 0; ev_idx < ev_list->num_pf_syms; ev_idx++) {
-		/* Ignore if all symbols are processed */
-		if (!ev_list->pending_pf_syms)
-			break;
-
-		if (!ev_list->pf_sym[ev_idx].count)
-			continue;
-
-		/* Only process symbol equals current entry in the history */
-		if (ev_list->pf_sym[ev_idx].symbol !=
-		    pf_sym_entry->pf_sym.symbol) {
-			continue;
-		}
-
-		ev_sym_cnt = ev_list->pf_sym[ev_idx].count;
-
-		/* If symbol reaches threshold, then clear the ts data */
-		if (*tbl_sym_cnt + ev_sym_cnt >= pf_th) {
-			qdf_mem_zero(&pf_sym_entry->pf_ev_ts[0],
-				     (*tbl_sym_cnt * sizeof(qdf_time_t)));
-			*tbl_sym_cnt += ev_sym_cnt;
-			wma_wow_pagefault_add_sym_to_event(wma,
-							   &pf_sym_entry->pf_sym);
-			*tbl_sym_cnt = 0x0;
-
-			goto sym_handled;
-		}
-
-		for (add_idx = 0; add_idx < ev_sym_cnt; add_idx++)
-			pf_sym_entry->pf_ev_ts[(*tbl_sym_cnt)++] = cur_time;
-
-sym_handled:
-		ev_list->pending_pf_syms--;
-		ev_list->pf_sym[ev_idx].count = 0;
-		break;
-	}
-}
-
-static void
-wma_wow_pagefault_flush_ageout_entries(struct wma_pf_sym *pf_sym_entry,
-				       qdf_time_t cutoff_time)
-{
-	qdf_time_t entry_ts;
-	uint8_t *cur_pf_count, pf_ts_idx;
-
-	cur_pf_count = &pf_sym_entry->pf_sym.count;
-	/* Find the count of entries which elapsed cutoff time */
-	for (pf_ts_idx = 0; pf_ts_idx < *cur_pf_count; pf_ts_idx++) {
-		entry_ts = pf_sym_entry->pf_ev_ts[pf_ts_idx];
-		if (qdf_system_time_before(cutoff_time, entry_ts))
-			break;
-	}
-
-	/* Remove the entries which elapsed cutoff time */
-	if (pf_ts_idx > 0) {
-		*cur_pf_count -= pf_ts_idx;
-		qdf_mem_copy(&pf_sym_entry->pf_ev_ts[0],
-			     &pf_sym_entry->pf_ev_ts[pf_ts_idx],
-			     (*cur_pf_count * sizeof(qdf_time_t)));
-		qdf_mem_zero(&pf_sym_entry->pf_ev_ts[*cur_pf_count],
-			     pf_ts_idx * sizeof(qdf_time_t));
-	}
-}
-
-static QDF_STATUS
-wma_wow_pagefault_parse_event(struct wlan_objmgr_psoc *psoc,
-			      void *ev, uint32_t ev_len,
-			      struct wow_pf_wakeup_ev_data *pf_sym_list)
-{
-	WMI_WOW_WAKEUP_HOST_EVENTID_param_tlvs *event_param = ev;
-	uint8_t *cur_list_count, *pf_sym_addr, buf_idx, sym_idx, i;
-	uint32_t packet_len, symbol, pf_sym_count;
-	struct wow_pf_sym tmp_pf_sym;
-
-	if (event_param->num_wow_packet_buffer <= sizeof(packet_len)) {
-		wma_err("Invalid wow packet buffer from FW %u",
-			event_param->num_wow_packet_buffer);
-		return QDF_STATUS_E_INVAL;
-	}
-
-	packet_len = *(uint32_t *)event_param->wow_packet_buffer;
-	if (!packet_len) {
-		wma_err("Wake event packet is empty");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	if (packet_len >
-	    (event_param->num_wow_packet_buffer - sizeof(packet_len))) {
-		wma_err("Invalid packet_len from firmware, packet_len: %u, num_wow_packet_buffer: %u",
-			packet_len, event_param->num_wow_packet_buffer);
-		return QDF_STATUS_E_INVAL;
-	}
-
-	pf_sym_count = packet_len / sizeof(symbol);
-	/* First 4 bytes following packet len contains UUID */
-	pf_sym_count--;
-
-	pf_sym_list->pf_sym =
-		qdf_mem_malloc(pf_sym_count * sizeof(*pf_sym_list->pf_sym));
-	if (!pf_sym_list->pf_sym)
-		return QDF_STATUS_E_NOMEM;
-
-	/* First 4 bytes of buffer gives length and next 4 bytes for UUID */
-	pf_sym_addr = event_param->wow_packet_buffer + (sizeof(packet_len) * 2);
-
-	cur_list_count = &pf_sym_list->num_pf_syms;
-	for (buf_idx = 0; buf_idx < pf_sym_count; buf_idx++) {
-		symbol = *(uint32_t *)pf_sym_addr;
-
-		/* Ignore invalid symbols */
-		if (!symbol || symbol == (uint32_t)-1)
-			goto iter_next_sym;
-
-		for (sym_idx = 0; sym_idx < *cur_list_count; sym_idx++) {
-			if (pf_sym_list->pf_sym[sym_idx].symbol == symbol) {
-				pf_sym_list->pf_sym[sym_idx].count++;
-				goto iter_next_sym;
-			}
-		}
-
-		pf_sym_list->pf_sym[*cur_list_count].symbol = symbol;
-		pf_sym_list->pf_sym[*cur_list_count].count++;
-		(*cur_list_count)++;
-
-iter_next_sym:
-		pf_sym_addr += sizeof(symbol);
-	}
-
-	pf_sym_list->pending_pf_syms = *cur_list_count;
-
-	/* Reorder to prioritize syms with high frequency */
-	for (sym_idx = 0; sym_idx < *cur_list_count; sym_idx++) {
-		for (i = sym_idx + 1; i < *cur_list_count; i++) {
-			if (pf_sym_list->pf_sym[i].count <=
-			    pf_sym_list->pf_sym[sym_idx].count) {
-				continue;
-			}
-
-			tmp_pf_sym.symbol = pf_sym_list->pf_sym[sym_idx].symbol;
-			tmp_pf_sym.count = pf_sym_list->pf_sym[sym_idx].count;
-
-			pf_sym_list->pf_sym[sym_idx].symbol =
-						pf_sym_list->pf_sym[i].symbol;
-			pf_sym_list->pf_sym[sym_idx].count =
-						pf_sym_list->pf_sym[i].count;
-
-			pf_sym_list->pf_sym[i].symbol = tmp_pf_sym.symbol;
-			pf_sym_list->pf_sym[i].count = tmp_pf_sym.count;
-		}
-	}
-
-	return QDF_STATUS_SUCCESS;
-}
-
-static void wma_wow_pagefault_handle_ssr_action(tp_wma_handle wma)
-{
-	QDF_STATUS status;
-	uint8_t *cur_count, pf_thresh;
-	qdf_time_t cur_time, cutoff_time;
-	uint32_t pf_wakeup_intv;
-	struct wma_pf_sym *pf_sym_entry;
-
-	cur_time = qdf_get_system_uptime();
-	pf_wakeup_intv =
-		wlan_pmo_get_interval_for_pagefault_wakeup_counts(wma->psoc);
-	pf_thresh = wlan_pmo_get_min_pagefault_wakeups_for_action(wma->psoc);
-	cutoff_time = cur_time - qdf_system_msecs_to_ticks(pf_wakeup_intv);
-
-	pf_sym_entry = &wma->wma_pf_hist.wma_pf_sym[0];
-	cur_count = &pf_sym_entry->pf_sym.count;
-	if (cutoff_time < cur_time) {
-		wma_wow_pagefault_flush_ageout_entries(pf_sym_entry,
-						       cutoff_time);
-	}
-
-	pf_sym_entry->pf_ev_ts[(*cur_count)++] = cur_time;
-	if (*cur_count < pf_thresh)
-		return;
-
-	/* If SSR threshold condition fails, SSR will not be triggered, so
-	 * save current event and flush oldest entry.
-	 */
-	status = wma_wow_pagefault_action_cb(NULL);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		(*cur_count)--;
-		qdf_mem_copy(&pf_sym_entry->pf_ev_ts[0],
-			     &pf_sym_entry->pf_ev_ts[1],
-			     (*cur_count * sizeof(qdf_time_t)));
-		qdf_mem_zero(&pf_sym_entry->pf_ev_ts[*cur_count],
-			     sizeof(qdf_time_t));
-	}
-}
-
-static void
-wma_wow_wakeup_pagefault_notify(tp_wma_handle wma, void *ev, uint32_t ev_len)
-{
-	QDF_STATUS status;
-	uint32_t pf_wakeup_intv;
-	qdf_time_t cur_time, cutoff_time;
-	struct wma_pf_sym *pf_sym_entry;
-	struct wma_pf_sym_hist *pf_sym_hist = &wma->wma_pf_hist;
-	struct wlan_objmgr_psoc *psoc = wma->psoc;
-	uint8_t pf_tbl_idx;
-	struct wow_pf_wakeup_ev_data pf_sym_list = {0};
+	uint8_t pagefault_wakeups_for_ssr;
+	uint32_t interval_for_pagefault_wakeup_counts;
+	qdf_time_t curr_time;
 	struct mac_context *mac = cds_get_context(QDF_MODULE_ID_PE);
 
 	if (!mac) {
-		wma_debug("MAC context NULL");
+		wma_debug("NULL mac ptr");
+		return;
+	}
+	if (WOW_REASON_PAGE_FAULT != reason)
+		return;
+
+	if (!mac->sme.ssr_on_pagefault_cb) {
+		wma_debug("NULL SSR on pagefault cb");
 		return;
 	}
 
-	if (wlan_pmo_no_op_on_page_fault(psoc))
+	if (!wlan_pmo_enable_ssr_on_page_fault(wma->psoc))
 		return;
 
 	if (wmi_get_runtime_pm_inprogress(wma->wmi_handle)) {
@@ -3733,55 +3404,32 @@ wma_wow_wakeup_pagefault_notify(tp_wma_handle wma, void *ev, uint32_t ev_len)
 		return;
 	}
 
-	if (!mac->sme.pagefault_action_cb) {
-		wma_debug("NULL pagefault action cb");
+	pagefault_wakeups_for_ssr =
+			wlan_pmo_get_max_pagefault_wakeups_for_ssr(wma->psoc);
+
+	interval_for_pagefault_wakeup_counts =
+		wlan_pmo_get_interval_for_pagefault_wakeup_counts(wma->psoc);
+
+	curr_time = qdf_get_time_of_the_day_ms();
+
+	if (wma->num_page_fault_wakeups == pagefault_wakeups_for_ssr) {
+		qdf_mem_copy(&wma->pagefault_wakeups_ts[0],
+			     &wma->pagefault_wakeups_ts[1],
+			     (pagefault_wakeups_for_ssr - 1) *
+			     sizeof(qdf_time_t));
+		wma->num_page_fault_wakeups--;
+	}
+
+	wma->pagefault_wakeups_ts[wma->num_page_fault_wakeups++] = curr_time;
+
+	wma_nofl_debug("num pagefault wakeups %d", wma->num_page_fault_wakeups);
+
+	if (wma->num_page_fault_wakeups < pagefault_wakeups_for_ssr)
 		return;
-	}
 
-	if (wlan_pmo_enable_ssr_on_page_fault(psoc)) {
-		wma_wow_pagefault_handle_ssr_action(wma);
-		return;
-	}
-
-	cur_time = qdf_get_system_uptime();
-	pf_wakeup_intv =
-		wlan_pmo_get_interval_for_pagefault_wakeup_counts(psoc);
-	cutoff_time = cur_time - qdf_system_msecs_to_ticks(pf_wakeup_intv);
-
-	status = wma_wow_pagefault_parse_event(psoc, ev, ev_len, &pf_sym_list);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		wma_debug("Failed during page fault payload parse");
-		return;
-	}
-
-	qdf_spinlock_acquire(&pf_sym_hist->lock);
-	for (pf_tbl_idx = 0; pf_tbl_idx < WLAN_WMA_MAX_PF_SYM; pf_tbl_idx++) {
-		pf_sym_entry = &pf_sym_hist->wma_pf_sym[pf_tbl_idx];
-		if (cutoff_time < cur_time) {
-			wma_wow_pagefault_flush_ageout_entries(pf_sym_entry,
-							       cutoff_time);
-		}
-
-		wma_wow_pagefault_process_existing_syms(wma, pf_sym_entry,
-							&pf_sym_list, cur_time);
-
-		if (!pf_sym_list.pending_pf_syms)
-			goto send_event;
-	}
-
-	/* Process if any new symbols are present in the event */
-	wma_wow_pagefault_add_new_sym_from_event(wma, &pf_sym_list, cur_time);
-
-send_event:
-	if (pf_sym_hist->pf_notify_buf_len) {
-		wma_wow_pagefault_action_cb(pf_sym_hist->pf_notify_buf_ptr);
-		pf_sym_hist->pf_notify_buf_len = 0;
-	}
-
-	qdf_spinlock_release(&pf_sym_hist->lock);
-
-	qdf_mem_free(pf_sym_list.pf_sym);
-	pf_sym_list.pf_sym = NULL;
+	if (curr_time - wma->pagefault_wakeups_ts[0] <=
+					interval_for_pagefault_wakeup_counts)
+		mac->sme.ssr_on_pagefault_cb();
 }
 
 /**
@@ -3816,8 +3464,7 @@ int wma_wow_wakeup_host_event(void *handle, uint8_t *event, uint32_t len)
 	}
 
 	wma_wake_event_log_reason(wma, wake_info);
-	if (wake_info->wake_reason == WOW_REASON_PAGE_FAULT)
-		wma_wow_wakeup_pagefault_notify(wma, event, len);
+	wma_wow_wakeup_host_trigger_ssr(wma, wake_info->wake_reason);
 
 	if (wake_info->wake_reason == WOW_REASON_LOCAL_DATA_UC_DROP)
 		hif_rtpm_set_autosuspend_delay(WOW_LARGE_RX_RTPM_DELAY);
@@ -5923,7 +5570,7 @@ wma_vdev_bcn_latency_event_handler(void *handle,
 #endif
 
 static void
-wma_update_scan_channel_info_buf(wmi_unified_t wmi_handle,
+wma_update_sacn_channel_info_buf(wmi_unified_t wmi_handle,
 				 wmi_chan_info_event_fixed_param *event,
 				 struct scan_chan_info *buf,
 				 wmi_cca_busy_subband_info *cca_info,
@@ -5948,27 +5595,19 @@ wma_update_scan_channel_info_buf(wmi_unified_t wmi_handle,
 }
 
 static void
-wma_update_scan_channel_subband_info(wmi_chan_info_event_fixed_param *event,
-				     struct channel_status *channel_status,
-				     wmi_cca_busy_subband_info *cca_info,
-				     uint32_t num_tlvs)
+wma_get_scan_max_rx_clear_count(wmi_cca_busy_subband_info *cca_info,
+				uint32_t num_tlvs, uint32_t *rx_clear_count)
 {
-	uint32_t i;
+	uint32_t i, max_rx_clear_count = 0;
 
-	if (cca_info && num_tlvs > 0) {
-		channel_status->subband_info.num_chan = 0;
-		for (i = 0; i < num_tlvs && i < MAX_WIDE_BAND_SCAN_CHAN; i++) {
-			channel_status->subband_info.cca_busy_subband_info[i] =
-						cca_info->rx_clear_count;
-			wma_debug("cca_info->rx_clear_count[%d]: %d", i,
-				  cca_info->rx_clear_count);
-			channel_status->subband_info.num_chan++;
-			cca_info++;
-		}
-
-		channel_status->subband_info.is_wide_band_scan = true;
-		channel_status->subband_info.vdev_id = event->vdev_id;
+	for (i = 0; i < num_tlvs && i < MAX_WIDE_BAND_SCAN_CHAN; i++) {
+		if (max_rx_clear_count < cca_info->rx_clear_count)
+			max_rx_clear_count = cca_info->rx_clear_count;
+		cca_info++;
 	}
+
+	*rx_clear_count = max_rx_clear_count;
+	wma_debug("max rx_clear_count : %d", *rx_clear_count);
 }
 
 int wma_chan_info_event_handler(void *handle, uint8_t *event_buf, uint32_t len)
@@ -6027,7 +5666,7 @@ int wma_chan_info_event_handler(void *handle, uint8_t *event_buf, uint32_t len)
 		buf.rx_clear_count = event->rx_clear_count;
 		/* wide band scan case */
 		if (is_cca_busy_info && num_tlvs)
-			wma_update_scan_channel_info_buf(wma->wmi_handle,
+			wma_update_sacn_channel_info_buf(wma->wmi_handle,
 							 event, &buf,
 							 cca_info, num_tlvs);
 		mac->chan_info_cb(&buf);
@@ -6041,8 +5680,8 @@ int wma_chan_info_event_handler(void *handle, uint8_t *event_buf, uint32_t len)
 	channel_status->noise_floor = event->noise_floor;
 
 	if (is_cca_busy_info && num_tlvs)
-		wma_update_scan_channel_subband_info(event, channel_status,
-						     cca_info, num_tlvs);
+		wma_get_scan_max_rx_clear_count(cca_info, num_tlvs,
+					&channel_status->rx_clear_count);
 	else
 		channel_status->rx_clear_count = event->rx_clear_count;
 

@@ -169,7 +169,6 @@ enum dfs_bangradar_types {
  * @is_chirp:       Chirp radar or not.
  * @freq_offset:    Frequency offset at which radar was found.
  * @detector_id:    Detector ID corresponding to primary/agile detectors.
- * @is_fh_radar:    Frequency Hopping Radar type or not.
  */
 struct dfs_bangradar_params {
 	enum dfs_bangradar_types bangradar_type;
@@ -177,7 +176,6 @@ struct dfs_bangradar_params {
 	uint8_t is_chirp;
 	int32_t freq_offset;
 	uint8_t detector_id;
-	uint8_t is_fh_radar;
 };
 #define DFS_IOCTL_PARAM_NOVAL  65535
 #define DFS_IOCTL_PARAM_ENABLE 0x8000

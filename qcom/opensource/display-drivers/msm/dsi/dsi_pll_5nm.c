@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -199,8 +199,8 @@ static void dsi_pll_config_slave(struct dsi_pll_resource *rsc)
 	rsc->slave = NULL;
 
 	if (!orsc) {
-		DSI_PLL_DBG(rsc,
-			"slave PLL unavailable, assuming standalone config\n");
+		DSI_PLL_WARN(rsc,
+			"slave PLL unavilable, assuming standalone config\n");
 		return;
 	}
 
@@ -792,7 +792,7 @@ static unsigned long dsi_pll_pclk_recalc_rate(struct clk_hw *hw,
 	struct dsi_pll_resource *pll = NULL;
 	u64 vco_rate = 0;
 	u64 pclk_rate = 0;
-	u32 phy_post_div, pclk_div, dsiclk_sel;
+	u32 phy_post_div, pclk_div;
 
 	if (!pix_pll->priv) {
 		DSI_PLL_INFO(pll, "pll priv is null\n");
@@ -815,21 +815,18 @@ static unsigned long dsi_pll_pclk_recalc_rate(struct clk_hw *hw,
 
 	vco_rate = dsi_pll_vco_recalc_rate(pll);
 
-	phy_post_div = dsi_pll_get_phy_post_div(pll);
-	dsiclk_sel = dsi_pll_get_dsiclk_sel(pll);
-
-	if (dsiclk_sel == 0) {
-		pclk_rate = div_u64(vco_rate, phy_post_div);
-	} else if (dsiclk_sel == 1) {
+	if (pll->type == DSI_PHY_TYPE_DPHY) {
+		phy_post_div = dsi_pll_get_phy_post_div(pll);
 		pclk_rate = div_u64(vco_rate, phy_post_div);
 		pclk_rate = div_u64(pclk_rate, 2);
-	} else if (dsiclk_sel == 3 && pll->type == DSI_PHY_TYPE_CPHY) {
+		pclk_div = dsi_pll_get_pclk_div(pll);
+		pclk_rate = div_u64(pclk_rate, pclk_div);
+	} else {
 		pclk_rate = vco_rate * 2;
 		pclk_rate = div_u64(pclk_rate, 7);
+		pclk_div = dsi_pll_get_pclk_div(pll);
+		pclk_rate = div_u64(pclk_rate, pclk_div);
 	}
-
-	pclk_div = dsi_pll_get_pclk_div(pll);
-	pclk_rate = div_u64(pclk_rate, pclk_div);
 
 	return pclk_rate;
 }
@@ -1058,7 +1055,7 @@ static int dsi_pll_5nm_set_byteclk_div(struct dsi_pll_resource *pll,
 static int dsi_pll_calc_dphy_pclk_div(struct dsi_pll_resource *pll)
 {
 	u32 m_val, n_val; /* M and N values of MND trio */
-	u32 dsiclk_sel, pclk_div;
+	u32 pclk_div;
 
 	if (pll->bpp == 30 && pll->lanes == 4) {
 		/* RGB101010 */
@@ -1081,15 +1078,14 @@ static int dsi_pll_calc_dphy_pclk_div(struct dsi_pll_resource *pll)
 		n_val = 1;
 	}
 
-	dsiclk_sel = dsi_pll_get_dsiclk_sel(pll);
+	/* Calculating pclk_div assuming dsiclk_sel to be 1 */
 	pclk_div = pll->bpp;
 	pclk_div = mult_frac(pclk_div, m_val, n_val);
-	if (dsiclk_sel == 1)
-		do_div(pclk_div, 2);
+	do_div(pclk_div, 2);
 	do_div(pclk_div, pll->lanes);
 
-	DSI_PLL_DBG(pll, "bpp:%d lanes:%d m_val:%u n_val:%u dsiclk_sel:%u pclk_div:%u\n",
-			pll->bpp, pll->lanes, m_val, n_val, dsiclk_sel, pclk_div);
+	DSI_PLL_DBG(pll, "bpp: %d, lanes: %d, m_val: %u, n_val: %u, pclk_div: %u\n",
+                          pll->bpp, pll->lanes, m_val, n_val, pclk_div);
 
 	return pclk_div;
 }
@@ -1097,7 +1093,7 @@ static int dsi_pll_calc_dphy_pclk_div(struct dsi_pll_resource *pll)
 static int dsi_pll_calc_cphy_pclk_div(struct dsi_pll_resource *pll)
 {
 	u32 m_val, n_val; /* M and N values of MND trio */
-	u32 dsiclk_sel, pclk_div, num, den;
+	u32 pclk_div;
 	u32 phy_post_div = dsi_pll_get_phy_post_div(pll);
 
 	if (pll->bpp == 24 && pll->lanes == 2) {
@@ -1140,52 +1136,16 @@ static int dsi_pll_calc_cphy_pclk_div(struct dsi_pll_resource *pll)
 		n_val = 1;
 	}
 
-	dsiclk_sel = dsi_pll_get_dsiclk_sel(pll);
-	num = m_val * pll->bpp;
-	den = n_val * pll->lanes;
+	/* Calculating pclk_div assuming dsiclk_sel to be 3 */
+	pclk_div =  pll->bpp * phy_post_div;
+	pclk_div = mult_frac(pclk_div, m_val, n_val);
+	do_div(pclk_div, 8);
+	do_div(pclk_div, pll->lanes);
 
-	if (dsiclk_sel == 3) {
-		num *= phy_post_div;
-		den *= 8;
-	} else if (dsiclk_sel == 2) {
-		num *= (7 * phy_post_div);
-		den *= 16;
-	} else if (dsiclk_sel == 0) {
-		num *= 7;
-		den *= 16;
-	}
-
-	pclk_div = mult_frac(1, num, den);
-
-	DSI_PLL_DBG(pll,
-		"bpp:%d lanes:%d m_val:%u n_val:%u phy_post_div:%u dsiclk_sel:%u pclk_div:%u\n",
-		pll->bpp, pll->lanes, m_val, n_val, phy_post_div, dsiclk_sel, pclk_div);
+	DSI_PLL_DBG(pll, "bpp: %d, lanes: %d, m_val: %u, n_val: %u, phy_post_div: %u pclk_div: %u\n",
+                          pll->bpp, pll->lanes, m_val, n_val, phy_post_div, pclk_div);
 
 	return pclk_div;
-}
-
-static int dsi_pll_calc_dsiclk_sel(struct dsi_pll_resource *pll)
-{
-	u32 dsiclk_sel;
-
-	if (pll->type == DSI_PHY_TYPE_DPHY) {
-		if (pll->bpp == 30 && (pll->lanes == 2 || pll->lanes == 4))
-			dsiclk_sel = 0;
-		else if (pll->bpp == 3 && pll->lanes >= 3)
-			dsiclk_sel = 0;
-		else
-			dsiclk_sel = 1;
-	} else {
-		if (pll->bpp == 24 || (pll->bpp == 16 && pll->lanes == 2)
-			|| (pll->bpp == 30 && pll->lanes == 1))
-			dsiclk_sel = 3;
-		else if (pll->bpp == 3 && pll->lanes >= 2)
-			dsiclk_sel = 2;
-		else
-			dsiclk_sel = 0;
-	}
-
-	return dsiclk_sel;
 }
 
 static int dsi_pll_5nm_set_pclk_div(struct dsi_pll_resource *pll, bool commit)
@@ -1198,33 +1158,28 @@ static int dsi_pll_5nm_set_pclk_div(struct dsi_pll_resource *pll, bool commit)
 
 	pll_post_div = dsi_pll_get_pll_post_div(pll);
 	pclk_src_rate = div_u64(pll->vco_rate, pll_post_div);
-	phy_post_div = dsi_pll_get_phy_post_div(pll);
-	dsiclk_sel = dsi_pll_calc_dsiclk_sel(pll);
-
-	dsi_pll_set_dsiclk_sel(pll, dsiclk_sel);
-
-	if (dsiclk_sel == 0) {
-		pclk_src_rate = div_u64(pclk_src_rate, phy_post_div);
-	} else if (dsiclk_sel == 1) {
+	if (pll->type == DSI_PHY_TYPE_DPHY) {
+		dsiclk_sel = 0x1;
+		phy_post_div = dsi_pll_get_phy_post_div(pll);
 		pclk_src_rate = div_u64(pclk_src_rate, phy_post_div);
 		pclk_src_rate = div_u64(pclk_src_rate, 2);
-	} else if (dsiclk_sel == 3 && pll->type == DSI_PHY_TYPE_CPHY) {
+		pclk_div = dsi_pll_calc_dphy_pclk_div(pll);
+	} else {
+		dsiclk_sel = 0x3;
 		pclk_src_rate *= 2;
 		pclk_src_rate = div_u64(pclk_src_rate, 7);
-	}
-
-	if (pll->type == DSI_PHY_TYPE_DPHY)
-		pclk_div = dsi_pll_calc_dphy_pclk_div(pll);
-	else
 		pclk_div = dsi_pll_calc_cphy_pclk_div(pll);
+	}
 
 	pll->pclk_rate = div_u64(pclk_src_rate, pclk_div);
 
 	DSI_PLL_DBG(pll, "pclk rate: %llu, dsiclk_sel: %d, pclk_div: %d\n",
 			pll->pclk_rate, dsiclk_sel, pclk_div);
 
-	if (commit)
+	if (commit) {
+		dsi_pll_set_dsiclk_sel(pll, dsiclk_sel);
 		dsi_pll_set_pclk_div(pll, pclk_div);
+	}
 
 	return 0;
 

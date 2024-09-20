@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef GSI_H
@@ -114,9 +114,8 @@ enum gsi_ver {
 	GSI_VER_2_9 = 8,
 	GSI_VER_2_11 = 9,
 	GSI_VER_3_0 = 10,
-	GSI_VER_5_2 = 11,
-	GSI_VER_5_5 = 12,
-	GSI_VER_6_0 = 13,
+	GSI_VER_5_5 = 11,
+	GSI_VER_6_0 = 12,
 	GSI_VER_MAX,
 };
 

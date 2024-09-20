@@ -1330,15 +1330,13 @@ struct tpg_hw_request *tpg_hw_create_request(
 	uint64_t request_id)
 {
 	struct tpg_hw_request *req = NULL;
-	uint32_t num_vc_channels = 0;
+	uint32_t num_vc_channels = hw->hw_info->max_vc_channels;
 	uint32_t i = 0;
 
 	if (!hw) {
 		CAM_ERR(CAM_TPG, "Invalid params");
 		return NULL;
 	}
-
-	num_vc_channels = hw->hw_info->max_vc_channels;
 
 	/* Allocate request */
 	req = kzalloc(sizeof(struct tpg_hw_request),

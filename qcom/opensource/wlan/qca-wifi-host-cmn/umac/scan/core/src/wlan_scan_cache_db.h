@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -195,15 +195,6 @@ QDF_STATUS scm_scan_register_mbssid_cb(struct wlan_objmgr_psoc *psoc,
 				       update_mbssid_bcn_prb_rsp cb);
 
 /**
- * scm_reset_scan_chan_info() - API to reset the scan channel info
- * @psoc: psoc object
- * @pdev_id: pdev id of which info need to be reset
- *
- * Return: void
- */
-void scm_reset_scan_chan_info(struct wlan_objmgr_psoc *psoc, uint8_t pdev_id);
-
-/**
  * scm_db_init() - API to init scan db
  * @psoc: psoc
  *
@@ -389,18 +380,4 @@ scm_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
 	return QDF_STATUS_E_NOSUPPORT;
 }
 #endif
-
-/**
- * scm_scan_entries_contain_cmn_akm() - Check if two entries have common
- * RSN capabilities.
- * @entry1: Primary scan entry for comparison
- * @entry2: Secondary scan entry for comparison
- *
- * Checks various RSN parameters of two scan entries to determine
- * whether both have similar capabilities or not.
- *
- * Return: bool
- */
-bool scm_scan_entries_contain_cmn_akm(struct scan_cache_entry *entry1,
-				      struct scan_cache_entry *entry2);
 #endif

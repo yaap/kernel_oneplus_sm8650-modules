@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -384,9 +384,6 @@ static int a6xx_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 
 	icc_set_bw(pwr->icc_path, 0, kBps_to_icc(pwr->ddr_table[level]));
 
-	/* Clear any hwsched faults that might have been left over */
-	adreno_hwsched_clear_fault(adreno_dev);
-
 	ret = a6xx_gmu_device_start(adreno_dev);
 	if (ret)
 		goto err;
@@ -450,9 +447,6 @@ static int a6xx_hwsched_gmu_boot(struct adreno_device *adreno_dev)
 	a6xx_gmu_register_config(adreno_dev);
 
 	a6xx_gmu_irq_enable(adreno_dev);
-
-	/* Clear any hwsched faults that might have been left over */
-	adreno_hwsched_clear_fault(adreno_dev);
 
 	ret = a6xx_gmu_device_start(adreno_dev);
 	if (ret)
@@ -589,6 +583,9 @@ static int a6xx_hwsched_gpu_boot(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
+
+	/* Clear any GPU faults that might have been left over */
+	adreno_clear_gpu_fault(adreno_dev);
 
 	ret = kgsl_mmu_start(device);
 	if (ret)
@@ -1038,7 +1035,7 @@ static int a6xx_hwsched_dcvs_set(struct adreno_device *adreno_dev,
 
 	if (ret) {
 		dev_err_ratelimited(&gmu->pdev->dev,
-			"Failed to set GPU perf idx %u, bw idx %u\n",
+			"Failed to set GPU perf idx %d, bw idx %d\n",
 			req.freq, req.bw);
 
 		/*
@@ -1121,7 +1118,7 @@ static int a6xx_hwsched_bus_set(struct adreno_device *adreno_dev, int buslevel,
 		pwr->cur_ab = ab;
 	}
 
-	trace_kgsl_buslevel(device, pwr->active_pwrlevel, pwr->cur_buslevel, pwr->cur_ab);
+	trace_kgsl_buslevel(device, pwr->active_pwrlevel, buslevel, ab);
 	return ret;
 }
 

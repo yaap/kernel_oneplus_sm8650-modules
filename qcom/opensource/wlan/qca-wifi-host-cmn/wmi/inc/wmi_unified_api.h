@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -910,13 +910,15 @@ wmi_unified_extract_roam_result_stats(wmi_unified_t wmi, void *evt_buf,
  * @dst:       Pointer to destination structure to fill data
  * @idx:       TLV id
  * @rpt_idx:   index of the current channel
+ * @band: Band of the link on which packet was transmitted/received.
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
 wmi_unified_extract_roam_11kv_stats(wmi_unified_t wmi, void *evt_buf,
 				    struct wmi_neighbor_report_data *dst,
-				    uint8_t idx, uint8_t rpt_idx);
+				    uint8_t idx, uint8_t rpt_idx,
+				    uint8_t band);
 
 /**
  * wmi_unified_vdev_create_send() - send VDEV create command to fw
@@ -957,12 +959,12 @@ wmi_unified_vdev_nss_chain_params_send(
 /**
  * wmi_unified_vdev_stop_send() - send vdev stop command to fw
  * @wmi_handle: wmi handle
- * @params: VDEV stop params
+ * @vdev_id: vdev id
  *
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
 QDF_STATUS wmi_unified_vdev_stop_send(wmi_unified_t wmi_handle,
-				      struct vdev_stop_params *params);
+				      uint8_t vdev_id);
 
 /**
  * wmi_unified_vdev_up_send() - send vdev up command in fw
@@ -1355,7 +1357,7 @@ QDF_STATUS wmi_unified_sta_ps_cmd_send(wmi_unified_t wmi_handle,
  * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
  */
 QDF_STATUS wmi_unified_ap_ps_cmd_send(wmi_unified_t wmi_handle,
-				      uint8_t *macaddr,
+				      uint8_t macaddr[QDF_MAC_ADDR_SIZE],
 				      struct ap_ps_params *param);
 
 /**
@@ -2178,20 +2180,6 @@ wmi_unified_send_coex_ver_cfg_cmd(wmi_unified_t wmi_handle,
 QDF_STATUS
 wmi_unified_send_coex_config_cmd(wmi_unified_t wmi_handle,
 				 struct coex_config_params *param);
-
-/**
- * wmi_unified_send_coex_multi_config_cmd() - send multiple coex config
- * @wmi_handle: wmi handle
- * @param: wmi coex multiple cfg cmd params
- *
- * Send WMI_COEX_MULTIPLE_CONFIG_CMDID parameters to fw.
- *
- * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
- */
-QDF_STATUS
-wmi_unified_send_coex_multi_config_cmd(wmi_unified_t wmi_handle,
-				       struct coex_multi_config *param);
-
 #ifdef WLAN_FEATURE_DBAM_CONFIG
 /**
  * wmi_unified_send_dbam_config_cmd() - send dbam config command
@@ -3754,18 +3742,6 @@ QDF_STATUS wmi_unified_wfa_test_cmd(wmi_unified_t wmi_handle,
 QDF_STATUS wmi_unified_peer_rx_reorder_queue_setup_send(
 		wmi_unified_t wmi_handle,
 		struct rx_reorder_queue_setup_params *param);
-
-/**
- * wmi_unified_peer_multi_rx_reorder_queue_setup_send() - send
- *        multi rx reorder queue setup command to fw
- * @wmi_handle: wmi handle
- * @param: Multi rx reorder queue setup parameters
- *
- * Return: QDF_STATUS for success and QDF_STATUS_E_FAILURE for failure
- */
-QDF_STATUS wmi_unified_peer_multi_rx_reorder_queue_setup_send(
-		wmi_unified_t wmi_handle,
-		struct multi_rx_reorder_queue_setup_params *param);
 
 /**
  * wmi_unified_peer_rx_reorder_queue_remove_send() - send rx reorder queue

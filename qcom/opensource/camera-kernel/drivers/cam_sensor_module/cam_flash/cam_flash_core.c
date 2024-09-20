@@ -1012,10 +1012,6 @@ int cam_flash_i2c_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 
 		/* Loop through multiple command buffers */
 		for (i = 1; i < csl_packet->num_cmd_buf; i++) {
-			rc = cam_packet_util_validate_cmd_desc(&cmd_desc[i]);
-			if (rc)
-				return rc;
-
 			total_cmd_buf_in_bytes = cmd_desc[i].length;
 			if (!total_cmd_buf_in_bytes)
 				continue;
@@ -1536,8 +1532,6 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				CAM_WARN(CAM_FLASH,
 					"Rxed Flash fire ops without linking");
 				flash_data->cmn_attr.is_settings_valid = false;
-				cam_mem_put_cpu_buf(cmd_desc->mem_handle);
-				cam_mem_put_cpu_buf(config.packet_handle);
 				return -EINVAL;
 			}
 			if (remain_len < sizeof(struct cam_flash_set_on_off)) {

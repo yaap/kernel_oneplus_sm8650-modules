@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -205,11 +205,6 @@ struct hdd_config {
 #endif
 #ifdef FEATURE_RUNTIME_PM
 	uint16_t cpu_cxpc_threshold;
-#endif
-	bool exclude_selftx_from_cca_busy;
-#ifdef WLAN_FEATURE_11BE_MLO
-	/* ml link state cache expiry time*/
-	qdf_time_t link_state_cache_expiry_time;
 #endif
 };
 
@@ -494,16 +489,14 @@ int hdd_set_rx_stbc(struct wlan_hdd_link_info *link_info, int value);
 
 /**
  * hdd_update_channel_width() - Update adapter channel width settings
- * @link_info: Link info in HDD adapter
+ * @adapter: adapter being modified
  * @chwidth: new channel width of enum eSirMacHTChannelWidth
  * @bonding_mode: channel bonding mode of the new channel width
  * @link_id: mlo link id
- * @is_restore: is restore
  *
  * Return: 0 on success, negative errno on failure
  */
-int hdd_update_channel_width(struct wlan_hdd_link_info *link_info,
+int hdd_update_channel_width(struct hdd_adapter *adapter,
 			     enum eSirMacHTChannelWidth chwidth,
-			     uint32_t bonding_mode, uint8_t link_id,
-			     bool is_restore);
+			     uint32_t bonding_mode, uint8_t link_id);
 #endif /* end #if !defined(HDD_CONFIG_H__) */

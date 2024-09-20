@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,8 +27,6 @@
 #include <wlan_objmgr_psoc_obj.h>
 #include <wlan_cmn.h>
 #include "sme_api.h"
-
-#define DISABLE_MCS_12_13_2G_40M 1
 
 #define ASSEMBLE_RATECODE_V1(_pream, _nss, _rate) \
 		(((1) << 28) | ((_pream) << 8) | ((_nss) << 5) | (_rate))
@@ -1065,39 +1063,6 @@ bool wlan_mlme_cfg_get_aux_supported_modes(
 		enum wlan_mlme_hw_mode_config_type hw_mode_id,
 		uint32_t *supported_modes_bitmap);
 
-/**
- * wlan_mlme_is_aux_scan_support() - check whether aux scan is supported.
- * @psoc: pointer to psoc object
- * @hw_mode_id: hw mode id
- *
- * Return: true if supporting, else false
- */
-bool
-wlan_mlme_is_aux_scan_support(struct wlan_objmgr_psoc *psoc,
-			      enum wlan_mlme_hw_mode_config_type hw_mode_id);
-
-/**
- * wlan_mlme_is_aux_listen_support() - check whether aux listen is supported.
- * @psoc: pointer to psoc object
- * @hw_mode_id: hw mode id
- *
- * Return: true if supporting, else false
- */
-bool
-wlan_mlme_is_aux_listen_support(struct wlan_objmgr_psoc *psoc,
-				enum wlan_mlme_hw_mode_config_type hw_mode_id);
-
-/**
- * wlan_mlme_is_aux_emlsr_support() - check whether aux emlsr is supported.
- * @psoc: pointer to psoc object
- * @hw_mode_id: hw mode id
- *
- * Return: true if supporting, else false
- */
-bool
-wlan_mlme_is_aux_emlsr_support(struct wlan_objmgr_psoc *psoc,
-			       enum wlan_mlme_hw_mode_config_type hw_mode_id);
-
 #ifdef WLAN_FEATURE_11AX
 /**
  * wlan_mlme_cfg_get_he_ul_mumimo() - Get the HE Ul Mumio
@@ -1212,7 +1177,7 @@ void wlan_mlme_chan_stats_scan_event_cb(struct wlan_objmgr_vdev *vdev,
  * channel bandwidth
  * @psoc: pointer to psoc object
  * @vdev: pointer to vdev object
- * @link_id: mlo link id
+ * @vdev_id: vdev id
  * @ch_width: channel width to update
  *
  * Return: none
@@ -1220,7 +1185,7 @@ void wlan_mlme_chan_stats_scan_event_cb(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS
 wlan_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
 					   struct wlan_objmgr_vdev *vdev,
-					   uint8_t link_id,
+					   uint8_t vdev_id,
 					   enum phy_ch_width ch_width);
 
 /**
@@ -1320,52 +1285,6 @@ bool wlan_mlme_get_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc);
  */
 void wlan_mlme_set_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc,
 				       bool disable);
-
-/**
- * wlan_mlme_get_eht_disable_punct_in_us_lpi() - Get disable eht punct in us
- * lpi mode flag.
- * @psoc: psoc object
- *
- * Return: true if eht punct disabled in us lpi mode
- */
-bool wlan_mlme_get_eht_disable_punct_in_us_lpi(struct wlan_objmgr_psoc *psoc);
-
-/**
- * wlan_mlme_set_eht_disable_punct_in_us_lpi() - Set disable eht punct in us
- * lpi mode flag.
- * @psoc: psoc object
- * @flag: true if eht punct disabled in us lpi mode
- *
- * Return: void
- */
-void wlan_mlme_set_eht_disable_punct_in_us_lpi(struct wlan_objmgr_psoc *psoc,
-					       bool flag);
-/**
- * wlan_mlme_update_bw_no_punct() - update connected VDEV
- * channel bandwidth without puncture bitmap for FCC requirement
- * @psoc: pointer to SOC object
- * @vdev_id: vdev id
- *
- * Return: none
- */
-QDF_STATUS
-wlan_mlme_update_bw_no_punct(struct wlan_objmgr_psoc *psoc,
-			     uint8_t vdev_id);
-
-/**
- * wlan_mlme_get_bw_no_punct() - Get connected VDEV
- * channel bandwidth without puncture bitmap for FCC requirement
- * @psoc: pointer to SOC object
- * @vdev: pointer to vdev
- * @bss_chan: bss chan with puncture
- * @new_ch_width: pointer to new channel bandwidth without puncture
- * Return: none
- */
-QDF_STATUS
-wlan_mlme_get_bw_no_punct(struct wlan_objmgr_psoc *psoc,
-			  struct wlan_objmgr_vdev *vdev,
-			  struct wlan_channel *bss_chan,
-			  enum phy_ch_width *new_ch_width);
 #else
 static inline
 bool wlan_mlme_get_epcs_capability(struct wlan_objmgr_psoc *psoc)
@@ -1388,34 +1307,6 @@ static inline
 void wlan_mlme_set_usr_disable_sta_eht(struct wlan_objmgr_psoc *psoc,
 				       bool disable)
 {
-}
-
-static inline
-bool wlan_mlme_get_eht_disable_punct_in_us_lpi(struct wlan_objmgr_psoc *psoc)
-{
-	return false;
-}
-
-static inline
-void wlan_mlme_set_eht_disable_punct_in_us_lpi(struct wlan_objmgr_psoc *psoc,
-					       bool flag)
-{
-}
-
-static inline QDF_STATUS
-wlan_mlme_update_bw_no_punct(struct wlan_objmgr_psoc *psoc,
-			     uint8_t vdev_id)
-{
-	return QDF_STATUS_E_INVAL;
-}
-
-static inline QDF_STATUS
-wlan_mlme_get_bw_no_punct(struct wlan_objmgr_psoc *psoc,
-			  struct wlan_objmgr_vdev *vdev,
-			  struct wlan_channel *bss_chan,
-			  enum phy_ch_width *new_ch_width)
-{
-	return QDF_STATUS_E_INVAL;
 }
 #endif
 
@@ -2695,18 +2586,6 @@ bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
 			       struct qdf_mac_addr *bssid,
 			       uint8_t *ie_data,
 			       uint32_t ie_length);
-
-/**
- * wlan_mlme_get_oem_eht_mlo_config() - Get the OEM EHT configuration.
- * @psoc: PSOC object manager.
- * @oem_eht_cfg: Pointer to fill OEM cfg
- *
- * Returns success of retrieving OEM cfg else failure.
- *
- * Return: QDF_STATUS.
- */
-QDF_STATUS wlan_mlme_get_oem_eht_mlo_config(struct wlan_objmgr_psoc *psoc,
-					    uint32_t *oem_eht_cfg);
 #else
 static inline
 bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
@@ -2715,14 +2594,6 @@ bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
 			       uint32_t ie_length)
 {
 	return false;
-}
-
-static inline QDF_STATUS
-wlan_mlme_get_oem_eht_mlo_config(struct wlan_objmgr_psoc *psoc,
-				 uint32_t *oem_eht_cfg)
-{
-	*oem_eht_cfg = 0x0;
-	return QDF_STATUS_SUCCESS;
 }
 #endif
 
@@ -3033,6 +2904,18 @@ wlan_mlme_get_t2lm_negotiation_supported(struct wlan_objmgr_psoc *psoc)
 static inline QDF_STATUS
 wlan_mlme_set_t2lm_negotiation_supported(struct wlan_objmgr_psoc *psoc,
 					 uint8_t value)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline uint8_t
+wlan_mlme_get_eht_mld_id(struct wlan_objmgr_psoc *psoc)
+{
+	return 0;
+}
+
+static inline QDF_STATUS
+wlan_mlme_set_eht_mld_id(struct wlan_objmgr_psoc *psoc, uint8_t value)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -4270,16 +4153,6 @@ bool
 wlan_mlme_is_data_stall_recovery_fw_supported(struct wlan_objmgr_psoc *psoc);
 
 /**
- * mlme_cfg_get_orig_eht_caps() - Get the original EHT capability info
- * @psoc: pointer to psoc object
- * @eht_cap: Caps that needs to be filled.
- *
- * Return: QDF Status
- */
-QDF_STATUS mlme_cfg_get_orig_eht_caps(struct wlan_objmgr_psoc *psoc,
-				      tDot11fIEeht_cap *eht_cap);
-
-/**
  * mlme_cfg_get_eht_caps() - Get the EHT capability info
  * @psoc: pointer to psoc object
  * @eht_cap: Caps that needs to be filled.
@@ -4288,26 +4161,6 @@ QDF_STATUS mlme_cfg_get_orig_eht_caps(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS mlme_cfg_get_eht_caps(struct wlan_objmgr_psoc *psoc,
 				 tDot11fIEeht_cap *eht_cap);
-
-/**
- * wlan_mlme_set_bt_profile_con() - Set bluetooth connection profile
- * @psoc: pointer to psoc object
- * @bt_profile_con: Bluetooth connection profile bit
- *
- * Return: None
- */
-void
-wlan_mlme_set_bt_profile_con(struct wlan_objmgr_psoc *psoc,
-			     bool bt_profile_con);
-
-/**
- * wlan_mlme_get_bt_profile_con() - Get Bluetooth connection profile
- * @psoc: pointer to psoc object
- *
- * Return: Bluetooth connection profile
- */
-bool
-wlan_mlme_get_bt_profile_con(struct wlan_objmgr_psoc *psoc);
 
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
@@ -4318,14 +4171,6 @@ wlan_mlme_get_bt_profile_con(struct wlan_objmgr_psoc *psoc);
  * Return: max number of links that sta mlo connection can support
  */
 uint8_t wlan_mlme_get_sta_mlo_conn_max_num(struct wlan_objmgr_psoc *psoc);
-
-/**
- * wlan_mlme_is_5gl_5gh_mlsr_supported() - check 5GH_5GL MLSR supported
- * @psoc: pointer to psoc object
- *
- * Return: true if 5GH_5GL MLSR supported otherwise false
- */
-bool wlan_mlme_is_5gl_5gh_mlsr_supported(struct wlan_objmgr_psoc *psoc);
 
 /**
  * wlan_mlme_set_sta_mlo_conn_max_num() - set max number of links that sta mlo
@@ -4478,12 +4323,6 @@ wlan_mlme_get_sta_mlo_conn_max_num(struct wlan_objmgr_psoc *psoc)
 	return 0;
 }
 
-static inline bool
-wlan_mlme_is_5gl_5gh_mlsr_supported(struct wlan_objmgr_psoc *psoc)
-{
-	return 0;
-}
-
 static inline QDF_STATUS
 wlan_mlme_set_sta_mlo_simultaneous_links(struct wlan_objmgr_psoc *psoc,
 					 uint8_t value)
@@ -4604,18 +4443,6 @@ wlan_mlme_get_mgmt_hw_tx_retry_count(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 wlan_mlme_get_tx_retry_multiplier(struct wlan_objmgr_psoc *psoc,
 				  uint32_t *tx_retry_multiplier);
-
-/**
- * wlan_mlme_get_update_chan_width_allowed  - Get value of INI
- * is_update_chan_width_allowed
- * @psoc: pointer to psoc object
- * @value: pointer to the value which will be filled for the caller
- *
- * Return: QDF Status
- */
-QDF_STATUS
-wlan_mlme_get_update_chan_width_allowed(struct wlan_objmgr_psoc *psoc,
-					bool *value);
 
 /**
  * wlan_mlme_get_channel_bonding_5ghz  - Get the channel bonding
@@ -4956,15 +4783,4 @@ wlan_mlme_get_ap_oper_ch_width(struct wlan_objmgr_vdev *vdev);
 QDF_STATUS
 wlan_mlme_send_csa_event_status_ind(struct wlan_objmgr_vdev *vdev,
 				    uint8_t csa_status);
-
-/**
- * wlan_mlme_is_hs_20_btm_offload_disabled() - Get BTM offload is enable/disable
- * @psoc: pointer to psoc object
- * @val:  Pointer to the value which will be filled for the caller
- *
- * Return: QDF Status
- */
-QDF_STATUS
-wlan_mlme_is_hs_20_btm_offload_disabled(struct wlan_objmgr_psoc *psoc,
-					bool *val);
 #endif /* _WLAN_MLME_API_H_ */

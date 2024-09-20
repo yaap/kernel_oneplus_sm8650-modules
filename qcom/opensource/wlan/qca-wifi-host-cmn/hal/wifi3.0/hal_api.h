@@ -145,23 +145,19 @@ static inline int hal_history_get_next_index(qdf_atomic_t *table_index,
  * @offset: register offset to read
  * @exp_val: the expected value of register
  *
- * Return: QDF_STATUS - Success or Failure
+ * Return: none
  */
-static inline QDF_STATUS hal_reg_write_result_check(struct hal_soc *hal_soc,
-						    uint32_t offset,
-						    uint32_t exp_val)
+static inline void hal_reg_write_result_check(struct hal_soc *hal_soc,
+					      uint32_t offset,
+					      uint32_t exp_val)
 {
 	uint32_t value;
 
 	value = qdf_ioread32(hal_soc->dev_base_addr + offset);
-	if (qdf_unlikely(exp_val != value)) {
+	if (exp_val != value) {
 		HAL_REG_WRITE_FAIL_HIST_ADD(hal_soc, offset, exp_val, value);
 		HAL_STATS_INC(hal_soc, reg_write_fail, 1);
-
-		return QDF_STATUS_E_FAILURE;
 	}
-
-	return QDF_STATUS_SUCCESS;
 }
 
 #ifdef WINDOW_REG_PLD_LOCK_ENABLE
@@ -295,30 +291,17 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 	}
 }
 
-/**
- * hal_write32_mb_confirm() - write register and check writing result
- * @hal_soc: hal soc handle
- * @offset: I/O memory address to write
- * @value: value to write
- *
- * Return: QDF_STATUS - return E_NOSUPPORT as no read back confirmation
- */
-static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
-						uint32_t offset,
-						uint32_t value)
-{
-	hal_write32_mb(hal_soc, offset, value);
-	return QDF_STATUS_E_NOSUPPORT;
-}
+#define hal_write32_mb_confirm(_hal_soc, _offset, _value) \
+		hal_write32_mb(_hal_soc, _offset, _value)
 
 #define hal_write32_mb_cmem(_hal_soc, _offset, _value)
 #else
 static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 				  uint32_t value)
 {
+	int ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
-	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
@@ -332,13 +315,14 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 		return;
 	}
 
-	init_phase = hal_soc->init_phase;
-
 	/* Region greater than BAR + 4K */
-	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
-		hal_err_rl("Wake up request failed");
-		qdf_check_state_before_panic(__func__, __LINE__);
-		return;
+	if (!hal_soc->init_phase) {
+		ret = hif_force_wake_request(hal_soc->hif_handle);
+		if (ret) {
+			hal_err_rl("Wake up request failed");
+			qdf_check_state_before_panic(__func__, __LINE__);
+			return;
+		}
 	}
 
 	if (!hal_soc->use_register_windowing ||
@@ -357,10 +341,13 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
-		hal_err("Wake up release failed");
-		qdf_check_state_before_panic(__func__, __LINE__);
-		return;
+	if (!hal_soc->init_phase) {
+		ret = hif_force_wake_release(hal_soc->hif_handle);
+		if (ret) {
+			hal_err("Wake up release failed");
+			qdf_check_state_before_panic(__func__, __LINE__);
+			return;
+		}
 	}
 }
 
@@ -369,73 +356,71 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
  * @hal_soc: hal soc handle
  * @offset: I/O memory address to write
  * @value: value to write
- *
- * Return: QDF_STATUS - Success or Failure
  */
-static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
-						uint32_t offset,
-						uint32_t value)
+static inline void hal_write32_mb_confirm(struct hal_soc *hal_soc,
+					  uint32_t offset,
+					  uint32_t value)
 {
+	int ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
-	QDF_STATUS status = QDF_STATUS_E_FAILURE;
-	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
 		hal_err_rl("target access is not allowed");
-		return status;
+		return;
 	}
 
 	/* Region < BAR + 4K can be directly accessed */
 	if (offset < MAPPED_REF_OFF) {
 		qdf_iowrite32(hal_soc->dev_base_addr + offset, value);
-		return QDF_STATUS_E_NOSUPPORT;
+		return;
 	}
 
-	init_phase = hal_soc->init_phase;
-
 	/* Region greater than BAR + 4K */
-	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
-		hal_err("Wake up request failed");
-		qdf_check_state_before_panic(__func__, __LINE__);
-		return status;
+	if (!hal_soc->init_phase) {
+		ret = hif_force_wake_request(hal_soc->hif_handle);
+		if (ret) {
+			hal_err("Wake up request failed");
+			qdf_check_state_before_panic(__func__, __LINE__);
+			return;
+		}
 	}
 
 	if (!hal_soc->use_register_windowing ||
 	    offset < MAX_UNWINDOWED_ADDRESS) {
 		qdf_iowrite32(hal_soc->dev_base_addr + offset, value);
-		status = hal_reg_write_result_check(hal_soc, offset,
-						    value);
+		hal_reg_write_result_check(hal_soc, offset,
+					   value);
 	} else if (hal_soc->static_window_map) {
 		new_addr = hal_get_window_address(
 					hal_soc,
 					hal_soc->dev_base_addr + offset);
 		qdf_iowrite32(new_addr, value);
-		status = hal_reg_write_result_check(
-					hal_soc,
-					new_addr - hal_soc->dev_base_addr,
-					value);
+		hal_reg_write_result_check(hal_soc,
+					   new_addr - hal_soc->dev_base_addr,
+					   value);
 	} else {
 		hal_lock_reg_access(hal_soc, &flags);
 		hal_select_window_confirm(hal_soc, offset);
 		qdf_iowrite32(hal_soc->dev_base_addr + WINDOW_START +
 			  (offset & WINDOW_RANGE_MASK), value);
 
-		status = hal_reg_write_result_check(
+		hal_reg_write_result_check(
 				hal_soc,
 				WINDOW_START + (offset & WINDOW_RANGE_MASK),
 				value);
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
-		hal_err("Wake up release failed");
-		qdf_check_state_before_panic(__func__, __LINE__);
-		return QDF_STATUS_E_INVAL;
+	if (!hal_soc->init_phase) {
+		ret = hif_force_wake_release(hal_soc->hif_handle);
+		if (ret) {
+			hal_err("Wake up release failed");
+			qdf_check_state_before_panic(__func__, __LINE__);
+			return;
+		}
 	}
-
-	return status;
 }
 
 /**
@@ -581,7 +566,6 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 	uint32_t ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
-	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
@@ -593,8 +577,8 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 	if (offset < MAPPED_REF_OFF)
 		return qdf_ioread32(hal_soc->dev_base_addr + offset);
 
-	init_phase = hal_soc->init_phase;
-	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
+	if ((!hal_soc->init_phase) &&
+	    hif_force_wake_request(hal_soc->hif_handle)) {
 		hal_err("Wake up request failed");
 		qdf_check_state_before_panic(__func__, __LINE__);
 		return 0;
@@ -616,7 +600,8 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
+	if ((!hal_soc->init_phase) &&
+	    hif_force_wake_release(hal_soc->hif_handle)) {
 		hal_err("Wake up release failed");
 		qdf_check_state_before_panic(__func__, __LINE__);
 		return 0;
@@ -812,14 +797,9 @@ static inline void hal_write32_mb_confirm_retry(struct hal_soc *hal_soc,
 {
 	uint8_t retry_cnt = 0;
 	uint32_t read_value;
-	QDF_STATUS ret;
 
 	while (retry_cnt <= HAL_REG_WRITE_RETRY_MAX) {
-		ret = hal_write32_mb_confirm(hal_soc, offset, value);
-		/* Positive confirmation, return directly */
-		if (qdf_likely(QDF_IS_STATUS_SUCCESS(ret)))
-			return;
-
+		hal_write32_mb_confirm(hal_soc, offset, value);
 		read_value = hal_read32_mb(hal_soc, offset);
 		if (qdf_likely(read_value == value))
 			break;
@@ -1293,16 +1273,6 @@ void hal_srng_dst_set_hp_paddr_confirm(struct hal_srng *sring,
 void hal_srng_dst_init_hp(struct hal_soc_handle *hal_soc,
 			  struct hal_srng *srng,
 			  uint32_t *vaddr);
-
-/**
- * hal_srng_dst_update_hp_addr() - Update hp_addr with current HW HP value
- * @hal_soc: hal_soc handle
- * @hal_ring_hdl: Opaque HAL SRNG pointer
- *
- * Return: None
- */
-void hal_srng_dst_update_hp_addr(struct hal_soc_handle *hal_soc,
-				 hal_ring_handle_t hal_ring_hdl);
 
 /**
  * hal_srng_cleanup() - Deinitialize HW SRNG ring.
@@ -2178,34 +2148,6 @@ void *hal_srng_src_peek_n_get_next(hal_soc_handle_t hal_soc_hdl,
 	}
 
 	return NULL;
-}
-
-/**
- * hal_srng_src_dec_hp - Decrement source srng HP to previous index
- * @hal_soc_hdl: Opaque HAL SOC handle
- * @hal_ring_hdl: Source ring pointer
- *
- * Return: None
- */
-static inline
-void hal_srng_src_dec_hp(hal_soc_handle_t hal_soc_hdl,
-			 hal_ring_handle_t hal_ring_hdl)
-{
-	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
-	uint32_t hp = srng->u.src_ring.hp;
-
-	/* This HP adjustment is mostly done in error cases.
-	 * Only local HP is being decremented not the value
-	 * communicated to consumer or H.W.
-	 */
-	if (hp == srng->u.src_ring.cached_tp)
-		return;
-	else if (hp == 0)
-		hp = srng->ring_size - srng->entry_size;
-	else
-		hp = (hp - srng->entry_size) % srng->ring_size;
-
-	srng->u.src_ring.hp = hp;
 }
 
 /**

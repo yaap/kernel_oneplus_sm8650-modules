@@ -89,6 +89,7 @@ void sde_evtlog_log(struct sde_dbg_evtlog *evtlog, const char *name, int line,
 	}
 	va_end(args);
 	log->data_cnt = i;
+
 #ifndef OPLUS_FEATURE_DISPLAY
 	atomic_inc_return(&evtlog->last);
 #else

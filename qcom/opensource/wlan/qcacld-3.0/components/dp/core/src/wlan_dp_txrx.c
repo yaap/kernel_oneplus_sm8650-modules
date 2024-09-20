@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,7 +49,7 @@ uint32_t wlan_dp_intf_get_pkt_type_bitmap_value(void *intf_ctx)
 	struct wlan_dp_intf *dp_intf = (struct wlan_dp_intf *)intf_ctx;
 
 	if (!dp_intf) {
-		dp_err_rl("DP Context is NULL");
+		dp_err("DP Context is NULL");
 		return 0;
 	}
 
@@ -123,7 +123,7 @@ static int dp_intf_is_tx_allowed(qdf_nbuf_t nbuf,
 {
 	enum ol_txrx_peer_state peer_state;
 
-	peer_state = cdp_peer_state_get(soc, intf_id, peer_mac, false);
+	peer_state = cdp_peer_state_get(soc, intf_id, peer_mac);
 	if (qdf_likely(OL_TXRX_PEER_STATE_AUTH == peer_state))
 		return true;
 	if (OL_TXRX_PEER_STATE_CONN == peer_state &&
@@ -421,17 +421,6 @@ void dp_get_transmit_mac_addr(struct wlan_dp_link *dp_link,
 	bool is_mc_bc_addr = false;
 	enum nan_datapath_state state;
 
-	/* Check for VDEV validity before accessing it. Since VDEV references
-	 * are not taken in the per packet path, there is a change for VDEV
-	 * getting deleted in a parallel context. Because DP VDEV object is
-	 * protected by dp_intf::num_active_task, the chance of VDEV object
-	 * getting deleted while executing dp_start_xmit() is sparse. So, a
-	 * simple VDEV NULL check should be sufficient to handle the case of
-	 * VDEV getting destroyed first followed by dp_start_xmit().
-	 */
-	if (!dp_link->vdev)
-		return;
-
 	switch (dp_intf->device_mode) {
 	case QDF_NDI_MODE:
 		state = wlan_nan_get_ndi_state(dp_link->vdev);
@@ -528,13 +517,6 @@ static void dp_mark_icmp_req_to_fw(struct wlan_dp_psoc_context *dp_ctx,
 	/* Mark all ICMP request to be sent to FW */
 	if (time_interval_ms == WLAN_CFG_ICMP_REQ_TO_FW_MARK_ALL)
 		QDF_NBUF_CB_TX_PACKET_TO_FW(nbuf) = 1;
-
-	/* For fragment IPV4 ICMP frames
-	 * only mark last segment once to FW
-	 */
-	if (qdf_nbuf_is_ipv4_pkt(nbuf) &&
-	    qdf_nbuf_is_ipv4_fragment(nbuf))
-		return;
 
 	curr_time = qdf_get_log_timestamp();
 	time_delta = curr_time - prev_marked_icmp_time;
@@ -692,7 +674,7 @@ dp_start_xmit(struct wlan_dp_link *dp_link, qdf_nbuf_t nbuf)
 
 	/* check whether need to linearize nbuf, like non-linear udp data */
 	if (dp_nbuf_nontso_linearize(nbuf) != QDF_STATUS_SUCCESS) {
-		dp_err_rl(" nbuf %pK linearize failed. drop the pkt", nbuf);
+		dp_err(" nbuf %pK linearize failed. drop the pkt", nbuf);
 		goto drop_pkt_and_release_nbuf;
 	}
 
@@ -700,7 +682,7 @@ dp_start_xmit(struct wlan_dp_link *dp_link, qdf_nbuf_t nbuf)
 	 * If a transmit function is not registered, drop packet
 	 */
 	if (!dp_intf->txrx_ops.tx.tx) {
-		dp_err_rl("TX function not registered by the data path");
+		dp_err("TX function not registered by the data path");
 		goto drop_pkt_and_release_nbuf;
 	}
 
@@ -852,18 +834,17 @@ QDF_STATUS dp_mon_rx_packet_cbk(void *context, qdf_nbuf_t rxbuf)
 	qdf_nbuf_t nbuf_next;
 	unsigned int cpu_index;
 	struct dp_tx_rx_stats *stats;
-	enum dp_nbuf_push_type type;
 
 	/* Sanity check on inputs */
 	if ((!context) || (!rxbuf)) {
-		dp_err_rl("Null params being passed");
+		dp_err("Null params being passed");
 		return QDF_STATUS_E_FAILURE;
 	}
 
 	dp_link = (struct wlan_dp_link *)context;
 	dp_intf = dp_link->dp_intf;
 	if (!dp_intf) {
-		dp_err_rl("dp_intf is NULL for dp_link %pK", dp_link);
+		dp_err("dp_intf is NULL for dp_link %pK", dp_link);
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -898,10 +879,8 @@ QDF_STATUS dp_mon_rx_packet_cbk(void *context, qdf_nbuf_t rxbuf)
 			 * This is the last packet on the chain
 			 * Scheduling rx sirq
 			 */
-			type = qdf_in_atomic() ? DP_NBUF_PUSH_NAPI :
-						 DP_NBUF_PUSH_BH_DISABLE;
 			status = dp_intf->dp_ctx->dp_ops.dp_nbuf_push_pkt(nbuf,
-							type);
+							DP_NBUF_PUSH_NAPI);
 		}
 
 		if (QDF_IS_STATUS_SUCCESS(status))
@@ -1382,7 +1361,7 @@ QDF_STATUS dp_rx_pkt_thread_enqueue_cbk(void *link_ctx,
 	qdf_nbuf_t head_ptr;
 
 	if (qdf_unlikely(!link_ctx || !nbuf_list)) {
-		dp_err_rl("Null params being passed");
+		dp_err("Null params being passed");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -1668,7 +1647,7 @@ QDF_STATUS dp_rx_packet_cbk(void *dp_link_context,
 
 	/* Sanity check on inputs */
 	if (qdf_unlikely((!dp_link_context) || (!rxBuf))) {
-		dp_err_rl("Null params being passed");
+		dp_err("Null params being passed");
 		return QDF_STATUS_E_FAILURE;
 	}
 

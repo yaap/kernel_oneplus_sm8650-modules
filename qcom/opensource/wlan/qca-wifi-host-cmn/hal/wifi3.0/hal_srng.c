@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -796,8 +796,6 @@ static inline bool hal_reg_write_need_delay(struct hal_reg_write_q_elem *elem)
 }
 #endif
 
-#define MAX_DELAYED_REG_WRITE_RETRY 5
-
 /**
  * hal_reg_write_work() - Worker to process delayed writes
  * @arg: hal_soc pointer
@@ -813,7 +811,6 @@ static void hal_reg_write_work(void *arg)
 	uint8_t ring_id;
 	uint32_t *addr;
 	uint32_t num_processed = 0;
-	uint8_t retry_count = 0;
 
 	q_elem = &hal->reg_write_queue[(hal->read_idx)];
 	q_elem->work_scheduled_time = qdf_get_log_timestamp();
@@ -846,14 +843,9 @@ static void hal_reg_write_work(void *arg)
 		if (qdf_unlikely(!q_elem->srng ||
 				 (qdf_atomic_read(&q_elem->ring_id) !=
 				 q_elem->srng->ring_id))) {
-			hal_err_rl("q_elem fields not up to date 0x%x 0x%x",
-				   q_elem->srng ? q_elem->srng->ring_id : 0xDEAD,
+			hal_err_rl("q_elem fields not up to date %d %d",
+				   q_elem->srng->ring_id,
 				   qdf_atomic_read(&q_elem->ring_id));
-			if (retry_count++ < MAX_DELAYED_REG_WRITE_RETRY) {
-				/* Sleep for 1ms before retry */
-				qdf_sleep(1);
-				continue;
-			}
 			qdf_assert_always(0);
 		}
 
@@ -884,7 +876,6 @@ static void hal_reg_write_work(void *arg)
 		hal->read_idx = (hal->read_idx + 1) &
 					(HAL_REG_WRITE_QUEUE_LEN - 1);
 		q_elem = &hal->reg_write_queue[(hal->read_idx)];
-		retry_count = 0;
 	}
 
 	hif_allow_link_low_power_states(hal->hif_handle);
@@ -1473,27 +1464,6 @@ void hal_srng_dst_init_hp(struct hal_soc_handle *hal_soc,
 }
 
 qdf_export_symbol(hal_srng_dst_init_hp);
-
-void hal_srng_dst_update_hp_addr(struct hal_soc_handle *hal_soc,
-				 hal_ring_handle_t hal_ring_hdl)
-{
-	struct hal_srng *srng = (struct hal_srng *)hal_ring_hdl;
-	int32_t hw_hp;
-	int32_t hw_tp;
-
-	if (!srng)
-		return;
-
-	if (srng->u.dst_ring.hp_addr) {
-		hal_get_hw_hptp(hal_soc, hal_ring_hdl, &hw_hp, &hw_tp,
-				WBM2SW_RELEASE);
-		*srng->u.dst_ring.hp_addr = hw_hp;
-		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_DEBUG,
-			  "hw_hp=%d", hw_hp);
-	}
-}
-
-qdf_export_symbol(hal_srng_dst_update_hp_addr);
 
 /**
  * hal_srng_hw_init - Private function to initialize SRNG HW

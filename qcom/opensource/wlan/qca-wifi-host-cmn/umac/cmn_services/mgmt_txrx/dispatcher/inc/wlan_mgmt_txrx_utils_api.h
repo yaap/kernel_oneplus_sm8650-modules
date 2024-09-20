@@ -377,7 +377,6 @@ enum wnm_actioncode {
  * @TDLS_PEER_TRAFFIC_RESPONSE: tdls peer traffic response frame
  * @TDLS_DISCOVERY_REQUEST: tdls discovery request frame
  * @TDLS_DISCOVERY_RESPONSE: tdls discovery response frame
- * @TDLS_MAX_ACTION_CODE: tdls max number of invalid action
  */
 enum tdls_actioncode {
 	TDLS_SETUP_REQUEST = 0,
@@ -392,8 +391,6 @@ enum tdls_actioncode {
 	TDLS_PEER_TRAFFIC_RESPONSE = 9,
 	TDLS_DISCOVERY_REQUEST = 10,
 	TDLS_DISCOVERY_RESPONSE = 14,
-	/* keep last one */
-	TDLS_MAX_ACTION_CODE,
 };
 
 /**

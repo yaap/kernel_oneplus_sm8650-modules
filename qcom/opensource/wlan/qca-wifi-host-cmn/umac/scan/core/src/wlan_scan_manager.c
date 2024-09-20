@@ -470,7 +470,6 @@ end:
 		 & SCAN_FLAG_EXT_DBS_SCAN_POLICY_MASK);
 }
 
-
 /**
  * scm_update_passive_dwell_time() - update dwell passive time
  * @vdev: vdev object
@@ -1110,27 +1109,6 @@ scm_req_update_dwell_time_as_per_scan_mode(
 }
 
 /**
- * scm_update_aux_scan_ctrl_ext_flag() - update aux scan policy
- * @req: pointer to scan request
- *
- * Set aux scan bits in scan_ctrl_ext_flag value depending on scan type.
- *
- * Return: None
- */
-
-static void
-scm_update_aux_scan_ctrl_ext_flag(struct scan_start_request  *req)
-{
-	if (req->scan_req.scan_policy_low_span)
-		req->scan_req.scan_ctrl_flags_ext |= SCAN_FLAG_EXT_AUX_FAST_SCAN;
-	else if (req->scan_req.scan_policy_low_power)
-		req->scan_req.scan_ctrl_flags_ext |= SCAN_FLAG_EXT_AUX_FAST_SCAN;
-	else if (req->scan_req.scan_policy_high_accuracy)
-		req->scan_req.scan_ctrl_flags_ext |=
-					SCAN_FLAG_EXT_AUX_RELIABLE_SCAN;
-}
-
-/**
  * scm_scan_req_update_params() - update scan req params depending on modes
  * and scan type.
  * @vdev: vdev object pointer
@@ -1147,7 +1125,6 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 	struct chan_list *custom_chan_list;
 	struct wlan_objmgr_pdev *pdev;
 	uint8_t pdev_id;
-	struct wlan_objmgr_psoc *psoc;
 
 	/* Ensure correct number of probes are sent on active channel */
 	if (!req->scan_req.repeat_probe_time)
@@ -1226,10 +1203,6 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 
 	scm_update_dbs_scan_ctrl_ext_flag(req);
 
-	psoc = wlan_vdev_get_psoc(vdev);
-	if (wlan_scan_get_aux_support(psoc))
-		scm_update_aux_scan_ctrl_ext_flag(req);
-
 	/*
 	 * No need to update conncurrency parmas if req is passive scan on
 	 * single channel ie ROC, Preauth etc
@@ -1241,13 +1214,6 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 
 	if (req->scan_req.scan_type == SCAN_TYPE_RRM)
 		req->scan_req.scan_ctrl_flags_ext |= SCAN_FLAG_EXT_RRM_SCAN_IND;
-
-	if ((wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_DEVICE_MODE ||
-	     wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_CLIENT_MODE) &&
-	    !qdf_is_macaddr_zero(&req->scan_req.bssid_list[0]) &&
-	    !qdf_is_macaddr_broadcast(&req->scan_req.bssid_list[0]))
-		req->scan_req.scan_ctrl_flags_ext |=
-			SCAN_FLAG_EXT_STOP_IF_BSSID_FOUND;
 
 	scm_req_update_dwell_time_as_per_scan_mode(vdev, req);
 
@@ -1694,6 +1660,8 @@ void scm_update_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 	for (i = 0; i < chan_info->num_chan ; i++) {
 		if (chan_info->ch_scan_info[i].freq == chan_freq) {
 			chan_info->ch_scan_info[i].last_scan_time = time;
+			scm_debug("chan freq %d scan time %u\n",
+				  chan_freq, time);
 			chan_found = true;
 			break;
 		}
@@ -1704,6 +1672,7 @@ void scm_update_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 		chan_info->ch_scan_info[chan_info->num_chan].last_scan_time =
 									time;
 		chan_info->num_chan++;
+		scm_debug("chan freq %d scan time %u\n", chan_freq, time);
 	}
 }
 

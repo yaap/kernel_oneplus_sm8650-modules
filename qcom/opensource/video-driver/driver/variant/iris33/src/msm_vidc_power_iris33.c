@@ -8,7 +8,6 @@
 #include "msm_vidc_driver.h"
 #include "msm_vidc_inst.h"
 #include "msm_vidc_core.h"
-#include "msm_vidc_platform.h"
 #include "msm_vidc_debug.h"
 #include "perf_static_model.h"
 #include "msm_vidc_power.h"
@@ -51,7 +50,6 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 {
 	enum msm_vidc_port_type port;
 	u32 color_fmt, tile_rows_columns = 0;
-	struct msm_vidc_core *core;
 
 	if (is_encode_session(inst)) {
 		codec_input->decoder_or_encoder = CODEC_ENCODER;
@@ -159,9 +157,6 @@ static int msm_vidc_init_codec_input_freq(struct msm_vidc_inst *inst, u32 data_s
 	/* set as sanity mode, this regression mode has no effect on power calculations */
 	codec_input->regression_mode = REGRESSION_MODE_SANITY;
 
-	core = inst->core;
-	codec_input->vpu_ver = core->platform->data.vpu_ver;
-
 	return 0;
 }
 
@@ -170,7 +165,6 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 {
 	u32 complexity_factor_int = 0, complexity_factor_frac = 0, tile_rows_columns = 0;
 	bool opb_compression_enabled = false;
-	struct msm_vidc_core *core;
 
 	if (!d)
 		return -EINVAL;
@@ -327,9 +321,6 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		codec_input->av1d_commer_tile_enable = 0;
 	}
 
-	core = inst->core;
-	codec_input->vpu_ver = core->platform->data.vpu_ver;
-
 	/* Dump all the variables for easier debugging */
 	if (msm_vidc_debug & VIDC_BUS) {
 		struct dump dump[] = {
@@ -363,7 +354,6 @@ static int msm_vidc_init_codec_input_bus(struct msm_vidc_inst *inst, struct vidc
 		{"lumaonly_decode", "%d", codec_input->lumaonly_decode},
 		{"av1d_commer_tile_enable", "%d", codec_input->av1d_commer_tile_enable},
 		{"regression_mode", "%d", codec_input->regression_mode},
-		{"vpu_ver", "%d", codec_input->vpu_ver},
 		};
 		__dump(dump, ARRAY_SIZE(dump));
 	}

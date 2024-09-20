@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
 * Copyright (c) 2020, The Linux Foundation. All rights reserved.
-* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
 */
 
 #ifndef _GSIHAL_REG_I_H_
@@ -26,7 +25,6 @@
 #define GSI_V2_7_GSI_INST_RAM_n_MAXn 5119
 #define GSI_V2_9_GSI_INST_RAM_n_MAXn 6143
 #define GSI_V3_0_GSI_INST_RAM_n_MAXn 8255
-#define GSI_V5_2_GSI_INST_RAM_n_MAXn 6207
 
 /* GSI_EE_n_CNTXT_TYPE_IRQ */
 #define GSI_EE_n_CNTXT_TYPE_IRQ_GENERAL_BMSK 0x40

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -16,12 +16,7 @@
 #define REG_MASK_SHIFT(n, shift)        ((REG_MASK(n)) << (shift))
 #define REG_MASK_ULL(n)                 ((BIT_ULL(n)) - 1)
 #define REG_MASK_SHIFT_ULL(n, shift)    ((REG_MASK_ULL(n)) << (shift))
-
-enum sde_ddr_type {
-	LP_DDR4 = 0x7,
-	LP_DDR5,
-	LP_DDR5X
-};
+#define LP_DDR4_TYPE			0x7
 
 struct sde_format_extended;
 

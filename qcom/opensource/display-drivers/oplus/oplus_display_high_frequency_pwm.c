@@ -27,6 +27,7 @@ extern bool refresh_rate_change;
 
 static u32 pwm_switch_cmd_restore = 0;
 static u32 pwm_switch_state_before = 0;
+bool oplus_pwm_onepluse_switch = false;
 u32 bl_lvl = 0;
 static struct oplus_pwm_turbo_params g_oplus_pwm_turbo_params = {0};
 
@@ -198,17 +199,14 @@ void oplus_pwm_disable_duty_set_work_handler(struct work_struct *work)
 	int rc = 0;
 	struct dsi_panel *panel = container_of(work, struct dsi_panel, oplus_pwm_disable_duty_set_work);
 	unsigned int refresh_rate = panel->cur_mode->timing.refresh_rate;
+	unsigned int last_refresh_rate = panel->last_refresh_rate;
 
 	oplus_sde_early_wakeup(panel);
 	oplus_wait_for_vsync(panel);
-	if (refresh_rate == 60) {
+	if (refresh_rate == 60 || refresh_rate == 90 || (refresh_rate == 120 && last_refresh_rate == 90)) {
 		oplus_need_to_sync_te(panel);
-	}
-
-	if (oplus_panel_pwm_onepulse_is_enabled(panel)) {
-		if (refresh_rate == 90) {
-			oplus_need_to_sync_te(panel);
-		}
+	} else {
+		usleep_range(120, 120);
 	}
 
 	mutex_lock(&panel->panel_lock);
@@ -235,6 +233,7 @@ int oplus_panel_pwm_switch_wait_te_tx_cmd(struct dsi_panel *panel, u32 pwm_switc
 {
 	int rc = 0;
 	unsigned int refresh_rate = panel->cur_mode->timing.refresh_rate;
+	unsigned int last_refresh_rate = panel->last_refresh_rate;
 
 	if (!panel || !panel->cur_mode) {
 		LCD_ERR("[DISP][ERR][%s:%d]Invalid panel params\n", __func__, __LINE__);
@@ -251,16 +250,10 @@ int oplus_panel_pwm_switch_wait_te_tx_cmd(struct dsi_panel *panel, u32 pwm_switc
 	if ((pwm_switch_state_before != panel->pwm_params.oplus_pwm_switch_state) || (panel->pwm_params.oplus_pwm_switch_state_changed == true)) {
 		oplus_sde_early_wakeup(panel);
 		oplus_wait_for_vsync(panel);
-		if (refresh_rate == 60) {
+		if (refresh_rate == 60 || refresh_rate == 90 || (refresh_rate == 120 && last_refresh_rate == 90)) {
 			oplus_need_to_sync_te(panel);
 		} else {
 			usleep_range(120, 120);
-		}
-
-		if (oplus_panel_pwm_onepulse_is_enabled(panel)) {
-			if (refresh_rate == 90) {
-				oplus_need_to_sync_te(panel);
-			}
 		}
 
 		rc = dsi_panel_tx_cmd_set(panel, pwm_switch_cmd);
@@ -343,6 +336,11 @@ int oplus_panel_pwm_switch(struct dsi_panel *panel, u32 *backlight_level)
 		return rc;
 	}
 
+	if (panel->power_mode == SDE_MODE_DPMS_OFF) {
+		LCD_INFO("pwm switch cmd shound not send ,because the panel is off status\n");
+		return rc;
+	}
+
 	pwm_switch_state_before = panel->pwm_params.oplus_pwm_switch_state;
 
 	if (bl_lvl > panel->pwm_params.pwm_bl_threshold) {
@@ -396,6 +394,19 @@ int oplus_panel_pwm_switch_timing_switch(struct dsi_panel *panel)
 
 	rc = dsi_panel_tx_cmd_set(panel, pwm_switch_cmd);
 
+	return rc;
+}
+
+int oplus_panel_pwm_onepulse_switch(struct dsi_panel *panel)
+{
+	int rc = 0;
+	if(oplus_panel_pwm_onepulse_is_enabled(panel) && oplus_pwm_onepluse_switch == true) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_PWM_SWITCH_ONEPULSE);
+		oplus_pwm_onepluse_switch = false;
+	}
+	if (rc) {
+		LCD_INFO("[%s] failed to send DSI_CMD_TIMMING_PWM_SWITCH_ONEPULSE, rc=%d\n", panel->name, rc);
+	}
 	return rc;
 }
 

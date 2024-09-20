@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -102,7 +102,7 @@ QDF_STATUS dp_rx_desc_sanity(struct dp_soc *soc, hal_soc_handle_t hal_soc,
 
 fail:
 	DP_STATS_INC(soc, rx.err.invalid_cookie, 1);
-	dp_err_rl("Sanity failed for ring Desc:");
+	dp_err("Ring Desc:");
 	hal_srng_dump_ring_desc(hal_soc, hal_ring_hdl,
 				ring_desc);
 	return QDF_STATUS_E_NULL_VALUE;
@@ -239,7 +239,7 @@ dp_pdev_frag_alloc_and_map(struct dp_soc *dp_soc,
 	QDF_STATUS ret = QDF_STATUS_E_FAILURE;
 
 	(nbuf_frag_info_t->virt_addr).vaddr =
-			qdf_frag_alloc(&rx_desc_pool->pf_cache, rx_desc_pool->buf_size);
+			qdf_frag_alloc(NULL, rx_desc_pool->buf_size);
 
 	if (!((nbuf_frag_info_t->virt_addr).vaddr)) {
 		dp_err("Frag alloc failed");
@@ -385,8 +385,7 @@ dp_pdev_nbuf_alloc_and_map_replenish(struct dp_soc *dp_soc,
 QDF_STATUS
 __dp_rx_buffers_no_map_lt_replenish(struct dp_soc *soc, uint32_t mac_id,
 				    struct dp_srng *dp_rxdma_srng,
-				    struct rx_desc_pool *rx_desc_pool,
-				    bool force_replenish)
+				    struct rx_desc_pool *rx_desc_pool)
 {
 	struct dp_pdev *dp_pdev = dp_get_pdev_for_lmac_id(soc, mac_id);
 	uint32_t count;
@@ -422,8 +421,8 @@ __dp_rx_buffers_no_map_lt_replenish(struct dp_soc *soc, uint32_t mac_id,
 	dp_rx_debug("%pK: no of available entries in rxdma ring: %d",
 		    soc, num_entries_avail);
 
-	if (qdf_unlikely(!force_replenish && (num_entries_avail <
-			 ((dp_rxdma_srng->num_entries * 3) / 4)))) {
+	if (qdf_unlikely(num_entries_avail <
+			 ((dp_rxdma_srng->num_entries * 3) / 4))) {
 		hal_srng_access_end(soc->hal_soc, rxdma_srng);
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -758,10 +757,8 @@ QDF_STATUS __dp_pdev_rx_buffers_no_map_attach(struct dp_soc *soc,
 					       rx_desc_pool->buf_size);
 		rxdma_ring_entry = (struct dp_buffer_addr_info *)
 			hal_srng_src_get_next(soc->hal_soc, rxdma_srng);
-		if (!rxdma_ring_entry) {
-			qdf_nbuf_free(nbuf);
+		if (!rxdma_ring_entry)
 			break;
-		}
 
 		desc_list->rx_desc.nbuf = nbuf;
 		dp_rx_set_reuse_nbuf(&desc_list->rx_desc, nbuf);
@@ -916,8 +913,7 @@ QDF_STATUS __dp_rx_buffers_replenish(struct dp_soc *dp_soc, uint32_t mac_id,
 				uint32_t num_req_buffers,
 				union dp_rx_desc_list_elem_t **desc_list,
 				union dp_rx_desc_list_elem_t **tail,
-				bool req_only, bool force_replenish,
-				const char *func_name)
+				bool req_only, const char *func_name)
 {
 	uint32_t num_alloc_desc;
 	uint16_t num_desc_to_free = 0;
@@ -961,9 +957,8 @@ QDF_STATUS __dp_rx_buffers_replenish(struct dp_soc *dp_soc, uint32_t mac_id,
 	dp_verbose_debug("%pK: no of available entries in rxdma ring: %d",
 			 dp_soc, num_entries_avail);
 
-	if (!req_only && !(*desc_list) &&
-	    (force_replenish || (num_entries_avail >
-	     ((dp_rxdma_srng->num_entries * 3) / 4)))) {
+	if (!req_only && !(*desc_list) && (num_entries_avail >
+		((dp_rxdma_srng->num_entries * 3) / 4))) {
 		num_req_buffers = num_entries_avail;
 		DP_STATS_INC(dp_pdev, replenish.low_thresh_intrs, 1);
 	} else if (num_entries_avail < num_req_buffers) {
@@ -2018,7 +2013,7 @@ static inline int dp_rx_drop_nbuf_list(struct dp_pdev *pdev,
  *
  * Return: true if packet is delivered to netdev per STA.
  */
-bool
+static inline bool
 dp_rx_deliver_to_stack_ext(struct dp_soc *soc, struct dp_vdev *vdev,
 			   struct dp_txrx_peer *txrx_peer, qdf_nbuf_t nbuf_head)
 {
@@ -2787,45 +2782,6 @@ static bool dp_rx_is_udp_allowed_over_roam_peer(struct dp_vdev *vdev,
 	return false;
 }
 #endif
-
-#if defined(WLAN_FEATURE_11BE_MLO) && defined(DP_MLO_LINK_STATS_SUPPORT)
-/**
- * dp_rx_nbuf_band_set() - set nbuf band.
- * @soc: dp soc handle
- * @nbuf: nbuf handle
- *
- * Return: None
- */
-static inline void
-dp_rx_nbuf_band_set(struct dp_soc *soc, qdf_nbuf_t nbuf)
-{
-	struct qdf_mac_addr *mac_addr;
-	struct dp_peer *peer;
-	struct dp_txrx_peer *txrx_peer;
-
-	uint8_t link_id;
-
-	mac_addr = (struct qdf_mac_addr *)(qdf_nbuf_data(nbuf) +
-					   QDF_NBUF_SRC_MAC_OFFSET);
-
-	peer = dp_mld_peer_find_hash_find(soc, mac_addr->bytes, 0,
-					  DP_VDEV_ALL, DP_MOD_ID_RX);
-	if (qdf_likely(peer)) {
-		txrx_peer = dp_get_txrx_peer(peer);
-		if (qdf_likely(txrx_peer)) {
-			link_id = QDF_NBUF_CB_RX_LOGICAL_LINK_ID(nbuf);
-			qdf_nbuf_rx_set_band(nbuf, txrx_peer->ll_band[link_id]);
-		}
-		dp_peer_unref_delete(peer, DP_MOD_ID_RX);
-	}
-}
-#else
-static inline void
-dp_rx_nbuf_band_set(struct dp_soc *soc, qdf_nbuf_t nbuf)
-{
-}
-#endif
-
 void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 {
 	uint16_t peer_id;
@@ -2836,9 +2792,7 @@ void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 	uint32_t pkt_len = 0;
 	uint8_t *rx_tlv_hdr;
 	uint32_t frame_mask = FRAME_MASK_IPV4_ARP | FRAME_MASK_IPV4_DHCP |
-			      FRAME_MASK_IPV4_EAPOL | FRAME_MASK_IPV6_DHCP |
-			      FRAME_MASK_DNS_QUERY | FRAME_MASK_DNS_RESP;
-
+				FRAME_MASK_IPV4_EAPOL | FRAME_MASK_IPV6_DHCP;
 	bool is_special_frame = false;
 	struct dp_peer *peer = NULL;
 
@@ -2870,7 +2824,6 @@ void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 		if (is_special_frame ||
 		    dp_rx_is_udp_allowed_over_roam_peer(vdev, rx_tlv_hdr,
 							nbuf)) {
-			dp_rx_nbuf_band_set(soc, nbuf);
 			qdf_nbuf_set_exc_frame(nbuf, 1);
 			if (QDF_STATUS_SUCCESS !=
 			    vdev->osif_rx(vdev->osif_vdev, nbuf))
@@ -3281,8 +3234,6 @@ void dp_rx_enable_mon_dest_frag(struct rx_desc_pool *rx_desc_pool,
 	rx_desc_pool->rx_mon_dest_frag_enable = is_mon_dest_desc;
 	if (is_mon_dest_desc)
 		dp_alert("Feature DP_RX_MON_MEM_FRAG for mon_dest is enabled");
-	else
-		qdf_frag_cache_drain(&rx_desc_pool->pf_cache);
 }
 #else
 void dp_rx_enable_mon_dest_frag(struct rx_desc_pool *rx_desc_pool,

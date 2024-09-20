@@ -3,7 +3,7 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -27,9 +27,7 @@
 #include "ipahal.h"
 #include "ipahal_fltrt.h"
 #include "ipa_stats.h"
-#ifdef CONFIG_IPA_RMNET_MEM
-#include <rmnet_mem.h>
-#endif
+#include "rmnet_mem.h"
 
 #define IPA_GSI_EVENT_RP_SIZE 8
 #define IPA_WAN_NAPI_MAX_FRAMES (NAPI_WEIGHT / IPA_WAN_AGGR_PKT_CNT)
@@ -1396,8 +1394,6 @@ static void ipa3_tasklet_find_freepage(unsigned long data)
 
 	sys = (struct ipa3_sys_context *)data;
 
-	if(sys->page_recycle_repl == NULL)
-		return;
 	INIT_LIST_HEAD(&temp_head);
 	spin_lock_bh(&sys->common_sys->spinlock);
 	list_for_each_entry_safe(rx_pkt, tmp,
@@ -1461,6 +1457,8 @@ int ipa_setup_sys_pipe(struct ipa_sys_connect_params *sys_in, u32 *clnt_hdl)
 		goto fail_gen;
 	}
 
+	*clnt_hdl = 0;
+
 	if (sys_in->client >= IPA_CLIENT_MAX || sys_in->desc_fifo_sz == 0) {
 		IPAERR("bad parm client:%d fifo_sz:%d\n",
 			sys_in->client, sys_in->desc_fifo_sz);
@@ -1478,7 +1476,6 @@ int ipa_setup_sys_pipe(struct ipa_sys_connect_params *sys_in, u32 *clnt_hdl)
 		goto fail_gen;
 	}
 
-	*clnt_hdl = 0;
 	wan_coal_ep_id = ipa_get_ep_mapping(IPA_CLIENT_APPS_WAN_COAL_CONS);
 	lan_coal_ep_id = ipa_get_ep_mapping(IPA_CLIENT_APPS_LAN_COAL_CONS);
 
@@ -1937,11 +1934,11 @@ fail_wq3:
 fail_wq2:
 	destroy_workqueue(ep->sys->wq);
 fail_wq:
+	*clnt_hdl = -1;
 	kfree(ep->sys);
 	memset(&ipa3_ctx->ep[ipa_ep_idx], 0, sizeof(struct ipa3_ep_context));
 fail_and_disable_clocks:
 	IPA_ACTIVE_CLIENTS_DEC_EP(sys_in->client);
-	*clnt_hdl = -1;
 fail_gen:
 	IPA_STATS_INC_CNT(ipa3_ctx->stats.pipe_setup_fail_cnt);
 	return result;
@@ -2679,7 +2676,6 @@ static struct page *ipa3_alloc_page(
 	return page;
 }
 
-#ifdef CONFIG_IPA_RMNET_MEM
 static struct page *ipa3_rmnet_alloc_page(
 	gfp_t flag, u32 *page_order, bool try_lower)
 {
@@ -2709,7 +2705,7 @@ static struct page *ipa3_rmnet_alloc_page(
 	*page_order = p_order;
 	return page;
 }
-#endif
+
 
 static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	gfp_t flag, bool is_tmp_alloc, struct ipa3_sys_context *sys)
@@ -2726,14 +2722,8 @@ static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	/* For temporary allocations, avoid triggering OOM Killer. */
 	if (is_tmp_alloc) {
 		flag |= __GFP_RETRY_MAYFAIL | __GFP_NOWARN;
-#ifdef CONFIG_IPA_RMNET_MEM
 		rx_pkt->page_data.page = ipa3_rmnet_alloc_page(
 			flag, &rx_pkt->page_data.page_order, true);
-#else
-		rx_pkt->page_data.page = ipa3_alloc_page(flag,
-					&rx_pkt->page_data.page_order,
-					(is_tmp_alloc && rx_pkt->page_data.page_order == 3));
-#endif
 	} else {
 		/* Try a lower order page for order 3 pages in case allocation fails. */
 		rx_pkt->page_data.page = ipa3_alloc_page(flag,

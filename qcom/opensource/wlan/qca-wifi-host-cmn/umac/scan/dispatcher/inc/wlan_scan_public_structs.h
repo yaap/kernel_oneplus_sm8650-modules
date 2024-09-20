@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -368,7 +368,6 @@ struct security_info {
  * @profile_num: profile number
  * @profile_count: total profile count
  * @trans_bssid: TX BSSID address
- * @non_trans_bssid: non TX BSSID address
  * @split_profile: Indicates if next MBSSID tag has the other part
  *                 of the non tx profile
  * @prof_residue: Set prof_residue to true, if the first non TX
@@ -385,7 +384,6 @@ struct scan_mbssid_info {
 	uint8_t profile_num;
 	uint8_t profile_count;
 	uint8_t trans_bssid[QDF_MAC_ADDR_SIZE];
-	uint8_t non_trans_bssid[QDF_MAC_ADDR_SIZE];
 	bool split_profile;
 	bool prof_residue;
 	bool split_prof_continue;
@@ -423,7 +421,6 @@ struct non_inheritance_ie {
 	bool non_inh_ie_found;
 };
 
-#define TBTT_BSS_PARAM_TRANS_BSSID_BIT 0x08
 /**
  * struct rnr_bss_info - Reduced Neighbor Report BSS information
  * @neighbor_ap_tbtt_offset: Neighbor AP TBTT offset
@@ -479,9 +476,6 @@ struct neighbor_ap_info_field {
  * short ssid, bss params and 20MHz PSD
  * bssid, short ssid, bss params, 20MHz PSD and MLD param
  * @TBTT_NEIGHBOR_AP_BSSID_S_SSID_BSS_PARAM_20MHZ_PSD_MLD_PARAM:
- * @TBTT_NEIGHBOR_AP_PARAM_AFTER_LAST: This is to calculate the max supported
- * param length and maintain it in TBTT_NEIGHBOR_AP_PARAM_MAX
- * @TBTT_NEIGHBOR_AP_PARAM_MAX: This is to track the max supported param length
  */
 enum tbtt_information_field {
 	TBTT_NEIGHBOR_AP_OFFSET_ONLY = 1,
@@ -494,11 +488,7 @@ enum tbtt_information_field {
 	TBTT_NEIGHBOR_AP_BSSSID_S_SSID = 11,
 	TBTT_NEIGHBOR_AP_BSSID_S_SSID_BSS_PARAM = 12,
 	TBTT_NEIGHBOR_AP_BSSID_S_SSID_BSS_PARAM_20MHZ_PSD = 13,
-	TBTT_NEIGHBOR_AP_BSSID_S_SSID_BSS_PARAM_20MHZ_PSD_MLD_PARAM = 16,
-
-	/* keep last */
-	TBTT_NEIGHBOR_AP_PARAM_AFTER_LAST,
-	TBTT_NEIGHBOR_AP_PARAM_MAX = TBTT_NEIGHBOR_AP_PARAM_AFTER_LAST - 1,
+	TBTT_NEIGHBOR_AP_BSSID_S_SSID_BSS_PARAM_20MHZ_PSD_MLD_PARAM = 16
 };
 
 /**
@@ -529,8 +519,6 @@ struct reduced_neighbor_report {
  * @ecsa_ie: Pointer to eCSA IE
  * @max_cst_ie: Pointer to Max Channel Switch Time IE
  * @is_valid_link: The partner link can be used if true
- * @is_scan_entry_not_found: If set to true, the partner link scan entry is
- * not present in scan DB (currently using for non-TxMBSSID MLO AP)
  * @op_class: Operating class
  */
 struct partner_link_info {
@@ -541,8 +529,7 @@ struct partner_link_info {
 	const uint8_t *csa_ie;
 	const uint8_t *ecsa_ie;
 	const uint8_t *max_cst_ie;
-	bool is_valid_link;
-	bool is_scan_entry_not_found;
+	uint8_t  is_valid_link;
 	uint8_t op_class;
 };
 
@@ -624,7 +611,6 @@ enum number_of_partner_link {
  * @raw_frame: contain raw frame and the length of the raw frame
  * @pdev_id: pdev id
  * @ml_info: Multi link information
- * @mlo_max_recom_simult_links: Max recommended simultaneous link
  * @non_intersected_phymode: Non intersected phy mode of the AP
  */
 struct scan_cache_entry {
@@ -678,7 +664,6 @@ struct scan_cache_entry {
 	uint8_t pdev_id;
 #ifdef WLAN_FEATURE_11BE_MLO
 	struct ml_info ml_info;
-	uint8_t mlo_max_recom_simult_links;
 #endif
 	enum wlan_phymode non_intersected_phymode;
 };
@@ -739,7 +724,6 @@ enum dot11_mode_filter {
  *                        this is set (For WPS/OSEN connection)
  * @ignore_nol_chan: Ignore entry with channel in the NOL list
  * @ignore_6ghz_channel: ignore 6Ghz channels
- * @match_mld_addr: Flag to match mld addr of scan entry
  * @age_threshold: If set return entry which are newer than the age_threshold
  * @num_of_bssid: number of bssid passed
  * @num_of_ssid: number of ssid
@@ -765,7 +749,6 @@ enum dot11_mode_filter {
  * @ccx_validate_bss: Function pointer to custom bssid filter
  * @ccx_validate_bss_arg: Function argument to custom bssid filter
  * @band_bitmap: Allowed band bit map, BIT0: 2G, BIT1: 5G, BIT2: 6G
- * @mld_addr: MLD addr to match if @match_mld_addr is set to true.
  */
 struct scan_filter {
 	uint8_t enable_adaptive_11r:1,
@@ -773,8 +756,7 @@ struct scan_filter {
 		ignore_pmf_cap:1,
 		ignore_auth_enc_type:1,
 		ignore_nol_chan:1,
-		ignore_6ghz_channel:1,
-		match_mld_addr:1;
+		ignore_6ghz_channel:1;
 	qdf_time_t age_threshold;
 	uint8_t num_of_bssid;
 	uint8_t num_of_ssid;
@@ -803,7 +785,6 @@ struct scan_filter {
 	bss_filter_arg_t ccx_validate_bss_arg;
 #ifdef WLAN_FEATURE_11BE_MLO
 	uint32_t band_bitmap;
-	struct qdf_mac_addr mld_addr;
 #endif
 };
 
@@ -1136,7 +1117,6 @@ enum scan_request_type {
  * @num_hint_bssid: number of BSSID hints
  * @hint_s_ssid: short SSID hints
  * @hint_bssid: BSSID hints
- * @mld_id: MLD ID of the requested BSS within ML probe request
  */
 struct scan_req_params {
 	uint32_t scan_id;
@@ -1237,7 +1217,6 @@ struct scan_req_params {
 	uint32_t num_hint_bssid;
 	struct hint_short_ssid hint_s_ssid[WLAN_SCAN_MAX_HINT_S_SSID];
 	struct hint_bssid hint_bssid[WLAN_SCAN_MAX_HINT_BSSID];
-	uint8_t mld_id;
 };
 
 /**

@@ -1196,6 +1196,13 @@ dp_rx_wbm_err_reap_desc_li(struct dp_intr *int_ctx, struct dp_soc *soc,
 			dp_info_rl("Rx error Nbuf %pk sanity check failure!",
 				   nbuf);
 			rx_desc->in_err_state = 1;
+			rx_desc->unmapped = 1;
+			rx_bufs_reaped[rx_desc->pool_id]++;
+
+			dp_rx_add_to_free_desc_list(
+				&head[rx_desc->pool_id],
+				&tail[rx_desc->pool_id],
+				rx_desc);
 			continue;
 		}
 
@@ -1528,11 +1535,11 @@ dp_rx_null_q_desc_handle_li(struct dp_soc *soc, qdf_nbuf_t nbuf,
 				if (qdf_unlikely(vdev->mesh_vdev) ||
 				    qdf_unlikely(txrx_peer->nawds_enabled))
 					dp_rx_tid_setup_wifi3(
-						peer, BIT(tid),
+						peer, tid,
 						hal_get_rx_max_ba_window(soc->hal_soc,tid),
 						IEEE80211_SEQ_MAX);
 				else
-					dp_rx_tid_setup_wifi3(peer, BIT(tid), 1,
+					dp_rx_tid_setup_wifi3(peer, tid, 1,
 							      IEEE80211_SEQ_MAX);
 			}
 			qdf_spin_unlock_bh(&rx_tid->tid_lock);

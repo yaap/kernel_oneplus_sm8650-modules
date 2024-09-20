@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,7 +26,6 @@
 #include "vdev_mgr_ops.h"
 #include <wlan_objmgr_vdev_obj.h>
 #include <wlan_vdev_mlme_api.h>
-#include <wlan_pdev_mlme.h>
 #include <wlan_mlme_dbg.h>
 #include <wlan_vdev_mgr_tgt_if_tx_api.h>
 #include <target_if.h>
@@ -42,7 +41,6 @@
 #include <wlan_mlo_mgr_ap.h>
 #endif
 #include <wlan_vdev_mgr_utils_api.h>
-#include <wlan_vdev_mgr_api.h>
 
 #ifdef QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT
 /**
@@ -428,25 +426,11 @@ vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
 	param->cac_duration_ms =
 			wlan_util_vdev_mgr_get_cac_timeout_for_vdev(vdev);
 }
-
-static inline
-bool vdev_mgr_is_sta_max_phy_enabled(enum QDF_OPMODE op_mode,
-				     struct wlan_objmgr_pdev *pdev)
-{
-	return false;
-}
 #else
 static void
 vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
 				   struct vdev_start_params *param)
 {
-}
-
-static inline
-bool vdev_mgr_is_sta_max_phy_enabled(enum QDF_OPMODE op_mode,
-				     struct wlan_objmgr_pdev *pdev)
-{
-	return (op_mode == QDF_STA_MODE && wlan_rptr_check_rpt_max_phy(pdev));
 }
 #endif
 
@@ -486,8 +470,7 @@ static QDF_STATUS vdev_mgr_start_param_update(
 	param->vdev_id = wlan_vdev_get_id(vdev);
 
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
-	if (!vdev_mgr_is_sta_max_phy_enabled(op_mode, pdev) &&
-	    vdev_mgr_is_opmode_sap_or_p2p_go(op_mode) &&
+	if (vdev_mgr_is_opmode_sap_or_p2p_go(op_mode) &&
 	    vdev_mgr_is_49G_5G_chan_freq(des_chan->ch_freq)) {
 		vdev_mgr_set_cur_chan_punc_bitmap(des_chan, &puncture_bitmap);
 		tgt_dfs_set_current_channel_for_freq(pdev, des_chan->ch_freq,
@@ -646,8 +629,6 @@ static QDF_STATUS vdev_mgr_stop_param_update(
 	}
 
 	param->vdev_id = wlan_vdev_get_id(vdev);
-	param->is_mlo_link_switch =
-		wlan_vdev_mlme_is_mlo_link_switch_in_progress(vdev);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -699,25 +680,11 @@ static QDF_STATUS vdev_mgr_up_param_update(
 {
 	struct vdev_mlme_mbss_11ax *mbss;
 	struct wlan_objmgr_vdev *vdev;
-	uint8_t bssid[QDF_MAC_ADDR_SIZE];
 
 	vdev = mlme_obj->vdev;
 	param->vdev_id = wlan_vdev_get_id(vdev);
 	param->assoc_id = mlme_obj->proto.sta.assoc_id;
-
 	mbss = &mlme_obj->mgmt.mbss_11ax;
-	wlan_vdev_mgr_get_param_bssid(vdev, bssid);
-
-	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_SAP_MODE) {
-		mlme_debug("trans BSSID " QDF_MAC_ADDR_FMT " non-trans BSSID " QDF_MAC_ADDR_FMT " profile_num %d, profile_idx %d",
-			   QDF_MAC_ADDR_REF(mbss->trans_bssid),
-			   QDF_MAC_ADDR_REF(mbss->non_trans_bssid),
-			  mbss->profile_idx, mbss->profile_num);
-		if ((qdf_mem_cmp(bssid, mbss->trans_bssid, QDF_MAC_ADDR_SIZE)) &&
-		    (qdf_mem_cmp(bssid, mbss->non_trans_bssid, QDF_MAC_ADDR_SIZE)))
-			return QDF_STATUS_SUCCESS;
-	}
-
 	param->profile_idx = mbss->profile_idx;
 	param->profile_num = mbss->profile_num;
 	qdf_mem_copy(param->trans_bssid, mbss->trans_bssid, QDF_MAC_ADDR_SIZE);

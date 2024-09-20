@@ -1456,7 +1456,5 @@ QDF_STATUS target_if_register_regulatory_tx_ops(
 
 	reg_ops->is_80p80_supported = NULL;
 
-	reg_ops->is_freq_80p80_supported = NULL;
-
 	return QDF_STATUS_SUCCESS;
 }

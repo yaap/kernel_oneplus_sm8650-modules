@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -1304,11 +1304,6 @@ int cam_vfe_camif_lite_ver3_deinit(
 		camif_lite_node->res_priv;
 	int                                 i = 0;
 
-	if (!camif_lite_priv) {
-		CAM_ERR(CAM_ISP, "Error! camif_priv is NULL");
-		return -ENODEV;
-	}
-
 	CAM_DBG(CAM_ISP, "VFE:%d CAMIF LITE:%d %s Deinit",
 		camif_lite_node->hw_intf->hw_idx, camif_lite_node->res_id,
 		camif_lite_node->res_name);
@@ -1324,6 +1319,11 @@ int cam_vfe_camif_lite_ver3_deinit(
 	camif_lite_node->bottom_half_handler = NULL;
 
 	camif_lite_node->res_priv = NULL;
+
+	if (!camif_lite_priv) {
+		CAM_ERR(CAM_ISP, "Error. camif_priv is NULL");
+		return -ENODEV;
+	}
 
 	kfree(camif_lite_priv);
 

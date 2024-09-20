@@ -170,7 +170,6 @@ struct cam_cpas_kobj_map {
  * @print_poweron_settings: Function pointer for hw to print poweron settings
  * @qchannel_handshake: Function pointer for hw core specific qchannel
  *                      handshake settings
- * @set_tpg_mux_sel: Set tpg mux select on CPAS TOP register
  *
  */
 struct cam_cpas_internal_ops {
@@ -187,7 +186,6 @@ struct cam_cpas_internal_ops {
 		uint32_t selection_mask);
 	int (*print_poweron_settings)(struct cam_hw_info *cpas_hw);
 	int (*qchannel_handshake)(struct cam_hw_info *cpas_hw, bool power_on, bool force_on);
-	int (*set_tpg_mux_sel)(struct cam_hw_info *cpas_hw, uint32_t tpg_num);
 };
 
 /**
@@ -459,8 +457,5 @@ int cam_cpas_util_reg_read(struct cam_hw_info *cpas_hw,
 	enum cam_cpas_reg_base reg_base, struct cam_cpas_reg *reg_info);
 
 int cam_cpas_util_client_cleanup(struct cam_hw_info *cpas_hw);
-
-int cam_cpas_util_vote_default_ahb_axi(struct cam_hw_info *cpas_hw,
-	int enable);
 
 #endif /* _CAM_CPAS_HW_H_ */

@@ -642,13 +642,11 @@ static int msm_buffer_delivery_mode_based_min_count_iris3(struct msm_vidc_inst *
 	uint32_t count)
 {
 	struct v4l2_format *f;
-	struct msm_vidc_core *core = NULL;
 	u32 width, height, total_num_slices = 1;
 	u32 hfi_codec = 0;
 	u32 max_mbs_per_slice = 0;
 	u32 slice_mode = 0;
 	u32 delivery_mode = 0;
-	u32 num_vpp_pipes;
 
 	slice_mode = inst->capabilities[SLICE_MODE].value;
 	delivery_mode = inst->capabilities[DELIVERY_MODE].value;
@@ -668,11 +666,8 @@ static int msm_buffer_delivery_mode_based_min_count_iris3(struct msm_vidc_inst *
 	else if (inst->codec == MSM_VIDC_HEVC)
 		hfi_codec = HFI_CODEC_ENCODE_HEVC;
 
-	core = inst->core;
-	num_vpp_pipes = core->capabilities[NUM_VPP_PIPE].value;
-
 	HFI_IRIS3_ENC_MB_BASED_MULTI_SLICE_COUNT(total_num_slices, width, height,
-			hfi_codec, max_mbs_per_slice, num_vpp_pipes);
+			hfi_codec, max_mbs_per_slice);
 
 	return (total_num_slices * count);
 }

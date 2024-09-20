@@ -2412,27 +2412,31 @@ hdd_convert_chwidth_to_phy_chwidth(enum eSirMacHTChannelWidth chwidth)
 
 /**
  * hdd_update_bss_rate_flags() - update bss rate flag as per new channel width
- * @link_info: Link info in HDD adapter
+ * @adapter: adapter being modified
  * @psoc: psoc common object
  * @cw: channel width for which bss rate flag being updated
  *
  * Return: QDF_STATUS
  */
-static QDF_STATUS
-hdd_update_bss_rate_flags(struct wlan_hdd_link_info *link_info,
-			  struct wlan_objmgr_psoc *psoc, enum phy_ch_width cw)
+static QDF_STATUS hdd_update_bss_rate_flags(struct hdd_adapter *adapter,
+					    struct wlan_objmgr_psoc *psoc,
+					    enum phy_ch_width cw)
 {
 	struct hdd_station_ctx *hdd_sta_ctx;
 	uint8_t eht_present, he_present, vht_present, ht_present;
 
-	hdd_sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(link_info);
+	hdd_sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(adapter->deflink);
+	if (!hdd_sta_ctx) {
+		hdd_err("hdd_sta_ctx is null");
+		return QDF_STATUS_E_INVAL;
+	}
 
 	eht_present = hdd_sta_ctx->conn_info.conn_flag.eht_present;
 	he_present = hdd_sta_ctx->conn_info.conn_flag.he_present;
 	vht_present = hdd_sta_ctx->conn_info.conn_flag.vht_present;
 	ht_present = hdd_sta_ctx->conn_info.conn_flag.ht_present;
 
-	return ucfg_mlme_update_bss_rate_flags(psoc, link_info->vdev_id,
+	return ucfg_mlme_update_bss_rate_flags(psoc, adapter->deflink->vdev_id,
 					       cw, eht_present, he_present,
 					       vht_present, ht_present);
 }
@@ -2610,153 +2614,44 @@ static void hdd_restore_sme_config(struct wlan_hdd_link_info *link_info,
 	}
 }
 
-/**
- * wlan_update_mlo_link_chn_width() - API to update mlo link chn width
- * @adapter: the pointer to adapter
- * @ch_width: channel width to update
- * @link_id: mlo link id
- *
- * Get link id and channel bandwidth from user space and save in link_info.
- * When link switch happen and host driver connect done, if the link change
- * from standby to non-standby, ch_width will send to fw again.
- *
- * Return: QDF_STATUS
- */
-
-#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_HDD_MULTI_VDEV_SINGLE_NDEV)
-static struct wlan_hdd_link_info *
-wlan_update_mlo_link_chn_width(struct hdd_adapter *adapter,
-			       enum phy_ch_width ch_width,
-			       uint8_t link_id)
-{
-	struct wlan_hdd_link_info *link_info;
-	struct hdd_station_ctx *sta_ctx;
-
-	link_info = hdd_get_link_info_by_ieee_link_id(adapter, link_id);
-	if (!link_info)
-		return NULL;
-
-	sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(link_info);
-
-	sta_ctx->user_cfg_chn_width = ch_width;
-	hdd_debug("save ch_width:%u to link_id:%u vdev_id:%u",
-		  ch_width, link_id, link_info->vdev_id);
-
-	return link_info;
-}
-#else
-static struct wlan_hdd_link_info *
-wlan_update_mlo_link_chn_width(struct hdd_adapter *adapter,
-			       enum phy_ch_width ch_width,
-			       uint8_t link_id)
-{
-	return NULL;
-}
-#endif
-
-int hdd_update_channel_width(struct wlan_hdd_link_info *link_info,
+int hdd_update_channel_width(struct hdd_adapter *adapter,
 			     enum eSirMacHTChannelWidth chwidth,
-			     uint32_t bonding_mode, uint8_t link_id,
-			     bool is_restore)
+			     uint32_t bonding_mode, uint8_t link_id)
 {
 	struct hdd_context *hdd_ctx;
 	int ret;
-	enum phy_ch_width ch_width;
-	struct wlan_objmgr_vdev *link_vdev;
-	struct wlan_objmgr_vdev *vdev;
-	struct wlan_hdd_link_info *link_info_t;
-	uint8_t link_vdev_id;
-	enum QDF_OPMODE op_mode;
+	enum phy_ch_width ch_width = CH_WIDTH_INVALID;
 	QDF_STATUS status;
-	uint8_t vdev_id = link_info->vdev_id;
-	enum phy_ch_width new_ch_width;
 
-	hdd_ctx = WLAN_HDD_GET_CTX(link_info->adapter);
+	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	if (!hdd_ctx) {
 		hdd_err("hdd_ctx failure");
 		return -EINVAL;
 	}
 
-	op_mode = link_info->adapter->device_mode;
-	if (op_mode != QDF_STA_MODE) {
-		hdd_debug("vdev %d: op mode %d, CW update not supported",
-			  vdev_id, op_mode);
-		return -EINVAL;
-	}
-
-	vdev = hdd_objmgr_get_vdev_by_user(link_info, WLAN_OSIF_ID);
-	if (!vdev) {
-		hdd_err("vdev %d: vdev not found", vdev_id);
-		return -EINVAL;
-	}
-
-	ch_width = hdd_convert_chwidth_to_phy_chwidth(chwidth);
-
-	/**
-	 * Link_id check is for disconnect restore process.
-	 * Disconnect will not update channel bandwidth into cache struct.
-	 */
-	if (wlan_vdev_mlme_is_mlo_vdev(vdev) &&
-	    link_id != WLAN_INVALID_LINK_ID) {
-		link_info_t = wlan_update_mlo_link_chn_width(link_info->adapter,
-							     ch_width, link_id);
-		if (!link_info_t) {
-			hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_ID);
-			return -EINVAL;
-		}
-
-		hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_ID);
-
-		link_vdev = hdd_objmgr_get_vdev_by_user(link_info_t,
-							WLAN_OSIF_ID);
-		if (!link_vdev)
-			return 0;
-
-		link_vdev_id = link_info_t->vdev_id;
-		status = wlan_mlme_get_bw_no_punct(hdd_ctx->psoc,
-						   link_vdev,
-						   wlan_vdev_mlme_get_des_chan(link_vdev),
-						   &new_ch_width);
-		if (QDF_IS_STATUS_SUCCESS(status) && ch_width > new_ch_width)
-			ch_width = new_ch_width;
-	} else {
-		link_vdev = vdev;
-		link_vdev_id = vdev_id;
-		link_info_t = link_info;
-	}
-
 	if (ucfg_mlme_is_chwidth_with_notify_supported(hdd_ctx->psoc) &&
-	    hdd_cm_is_vdev_connected(link_info_t)) {
+	    hdd_cm_is_vdev_connected(adapter->deflink)) {
 		ch_width = hdd_convert_chwidth_to_phy_chwidth(chwidth);
 		hdd_debug("vdev %d : process update ch width request to %d",
-			  link_vdev_id, ch_width);
-		status = ucfg_mlme_send_ch_width_update_with_notify(hdd_ctx->psoc,
-								    link_vdev,
-								    ch_width,
-								    link_vdev_id);
-
-		if (QDF_IS_STATUS_ERROR(status)) {
-			hdd_objmgr_put_vdev_by_user(link_vdev, WLAN_OSIF_ID);
+			  adapter->deflink->vdev_id, ch_width);
+		status =
+		    ucfg_mlme_send_ch_width_update_with_notify(hdd_ctx->psoc,
+					adapter->deflink->vdev_id, ch_width,
+					link_id);
+		if (QDF_IS_STATUS_ERROR(status))
 			return -EIO;
-		}
-		status = hdd_update_bss_rate_flags(link_info_t, hdd_ctx->psoc,
+		status = hdd_update_bss_rate_flags(adapter, hdd_ctx->psoc,
 						   ch_width);
-		if (QDF_IS_STATUS_ERROR(status)) {
-			hdd_objmgr_put_vdev_by_user(link_vdev, WLAN_OSIF_ID);
+		if (QDF_IS_STATUS_ERROR(status))
 			return -EIO;
-		}
-
-		hdd_objmgr_put_vdev_by_user(link_vdev, WLAN_OSIF_ID);
-		return 0;
 	}
-	hdd_objmgr_put_vdev_by_user(link_vdev, WLAN_OSIF_ID);
 
-	ret = wma_cli_set_command(link_vdev_id, wmi_vdev_param_chwidth,
-				  chwidth, VDEV_CMD);
+	ret = wma_cli_set_command(adapter->deflink->vdev_id,
+				  wmi_vdev_param_chwidth, chwidth, VDEV_CMD);
 	if (ret)
 		return ret;
 
-	hdd_restore_sme_config(link_info_t, chwidth, is_restore, bonding_mode);
+	hdd_restore_sme_config(adapter->deflink, chwidth, false, bonding_mode);
 
 	return 0;
 }

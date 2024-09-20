@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -105,7 +105,7 @@ do {                                                           \
 #define MAX_CDP_SEC_TYPE 12
 
 /* number of dwords for htt_tx_msdu_desc_ext2_t */
-#define DP_TX_MSDU_INFO_META_DATA_DWORDS 9
+#define DP_TX_MSDU_INFO_META_DATA_DWORDS 7
 
 #define dp_tx_alert(params...) QDF_TRACE_FATAL(QDF_MODULE_ID_DP_TX, params)
 #define dp_tx_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_DP_TX, params)
@@ -205,7 +205,6 @@ struct dp_tx_queue {
  * @u.sg_info: Scatter Gather information for non-TSO SG frames
  * @meta_data: Mesh meta header information
  * @ppdu_cookie: 16-bit ppdu_cookie that has to be replayed back in completions
- * @xmit_type: xmit type of packet Link (0)/MLD (1)
  * @gsn: global sequence for reinjected mcast packets
  * @vdev_id : vdev_id for reinjected mcast packets
  * @skip_hp_update : Skip HP update for TSO segments and update in last segment
@@ -230,7 +229,6 @@ struct dp_tx_msdu_info_s {
 	} u;
 	uint32_t meta_data[DP_TX_MSDU_INFO_META_DATA_DWORDS];
 	uint16_t ppdu_cookie;
-	uint8_t xmit_type;
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 #ifdef WLAN_MCAST_MLO
 	uint16_t gsn;
@@ -1872,13 +1870,11 @@ dp_tx_limit_check(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
 {
 	struct dp_pdev *pdev = vdev->pdev;
 	struct dp_soc *soc = pdev->soc;
-	uint8_t xmit_type = qdf_nbuf_get_vdev_xmit_type(nbuf);
 
 	if (__dp_tx_limit_check(soc)) {
 		if (is_dp_spl_tx_limit_reached(vdev, nbuf)) {
 			dp_tx_info("queued packets are more than max tx, drop the frame");
-			DP_STATS_INC(vdev,
-				     tx_i[xmit_type].dropped.desc_na.num, 1);
+			DP_STATS_INC(vdev, tx_i.dropped.desc_na.num, 1);
 			return true;
 		}
 	}
@@ -1887,11 +1883,9 @@ dp_tx_limit_check(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
 			pdev->num_reg_tx_allowed) {
 		if (is_dp_spl_tx_limit_reached(vdev, nbuf)) {
 			dp_tx_info("queued packets are more than max tx, drop the frame");
+			DP_STATS_INC(vdev, tx_i.dropped.desc_na.num, 1);
 			DP_STATS_INC(vdev,
-				     tx_i[xmit_type].dropped.desc_na.num, 1);
-			DP_STATS_INC(vdev,
-				     tx_i[xmit_type].dropped.desc_na_exc_outstand.num,
-				     1);
+				     tx_i.dropped.desc_na_exc_outstand.num, 1);
 			return true;
 		}
 	}
@@ -1903,13 +1897,12 @@ dp_tx_limit_check(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
  * dp_tx_exception_limit_check - Check if allocated tx exception descriptors
  * reached soc max limit
  * @vdev: DP vdev handle
- * @xmit_type: xmit type of packet - MLD/Link
  *
  * Return: true if allocated tx descriptors reached max configured value, else
  * false
  */
 static inline bool
-dp_tx_exception_limit_check(struct dp_vdev *vdev, uint8_t xmit_type)
+dp_tx_exception_limit_check(struct dp_vdev *vdev)
 {
 	struct dp_pdev *pdev = vdev->pdev;
 	struct dp_soc *soc = pdev->soc;
@@ -1917,7 +1910,7 @@ dp_tx_exception_limit_check(struct dp_vdev *vdev, uint8_t xmit_type)
 	if (qdf_atomic_read(&soc->num_tx_exception) >=
 			soc->num_msdu_exception_desc) {
 		dp_info("exc packets are more than max drop the exc pkt");
-		DP_STATS_INC(vdev, tx_i[xmit_type].dropped.exc_desc_na.num, 1);
+		DP_STATS_INC(vdev, tx_i.dropped.exc_desc_na.num, 1);
 		return true;
 	}
 
@@ -2058,7 +2051,7 @@ dp_tx_limit_check(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
 }
 
 static inline bool
-dp_tx_exception_limit_check(struct dp_vdev *vdev, uint8_t xmit_type)
+dp_tx_exception_limit_check(struct dp_vdev *vdev)
 {
 	return false;
 }
@@ -2148,7 +2141,7 @@ static inline int dp_get_rtpm_tput_policy_requirement(struct dp_soc *soc)
  * @txrx_peer: txrx_peer pointer
  * @link_id: Peer Link ID
  *
- * Return: None
+ * Returen: None
  */
 static inline void
 dp_tx_set_nbuf_band(qdf_nbuf_t nbuf, struct dp_txrx_peer *txrx_peer,

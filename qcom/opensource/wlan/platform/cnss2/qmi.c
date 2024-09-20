@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -53,6 +53,10 @@ enum REGION_VERSION {
 #define HDS_FILE_NAME			"hds.bin"
 #define CHIP_ID_GF_MASK			0x10
 
+#define CONN_ROAM_FILE_NAME		"wlan-connection-roaming"
+#define INI_EXT			".ini"
+#define INI_FILE_NAME_LEN		100
+
 #define QDSS_TRACE_CONFIG_FILE		"qdss_trace_config"
 /*
  * Download QDSS config file based on build type. Add build type string to
@@ -82,10 +86,6 @@ enum REGION_VERSION {
 
 #define QMI_WLFW_MAC_READY_TIMEOUT_MS	50
 #define QMI_WLFW_MAC_READY_MAX_RETRY	200
-
-// these error values are not defined in <linux/soc/qcom/qmi.h> and fw is sending as error response
-#define QMI_ERR_HARDWARE_RESTRICTED_V01		0x0053
-#define QMI_ERR_ENOMEM_V01		0x0002
 
 enum nm_modem_bit {
 	SLEEP_CLOCK_SELECT_INTERNAL_BIT = BIT(1),
@@ -1035,7 +1035,6 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 
 	temp = fw_entry->data;
 	remaining = fw_entry->size;
-
 	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
 	//Add for wifi switch monitor
 	if (bdf_type == CNSS_BDF_REGDB) {
@@ -1221,108 +1220,6 @@ out:
 	return ret;
 }
 
-int cnss_wlfw_tme_opt_file_dnld_send_sync(struct cnss_plat_data *plat_priv,
-				       enum wlfw_tme_lite_file_type_v01 file)
-{
-	struct wlfw_tme_lite_info_req_msg_v01 *req;
-	struct wlfw_tme_lite_info_resp_msg_v01 *resp;
-	struct qmi_txn txn;
-	struct cnss_fw_mem *tme_opt_file_mem = NULL;
-	char *file_name = NULL;
-	int ret = 0;
-
-	if (plat_priv->device_id != PEACH_DEVICE_ID)
-		return 0;
-
-	cnss_pr_dbg("Sending TME opt file information message, state: 0x%lx\n",
-		    plat_priv->driver_state);
-
-	req = kzalloc(sizeof(*req), GFP_KERNEL);
-	if (!req)
-		return -ENOMEM;
-
-	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
-	if (!resp) {
-		kfree(req);
-		return -ENOMEM;
-	}
-
-	if (file == WLFW_TME_LITE_OEM_FUSE_FILE_V01) {
-		tme_opt_file_mem = &plat_priv->tme_opt_file_mem[0];
-		file_name = TME_OEM_FUSE_FILE_NAME;
-	} else if (file == WLFW_TME_LITE_RPR_FILE_V01) {
-		tme_opt_file_mem = &plat_priv->tme_opt_file_mem[1];
-		file_name = TME_RPR_FILE_NAME;
-	} else if (file == WLFW_TME_LITE_DPR_FILE_V01) {
-		tme_opt_file_mem = &plat_priv->tme_opt_file_mem[2];
-		file_name = TME_DPR_FILE_NAME;
-	}
-
-	if (!tme_opt_file_mem || !tme_opt_file_mem->pa ||
-	    !tme_opt_file_mem->size) {
-		cnss_pr_err("Memory for TME opt file is not available\n");
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	cnss_pr_dbg("TME opt file %s memory, va: 0x%pK, pa: %pa, size: 0x%zx\n",
-		    file_name, tme_opt_file_mem->va, &tme_opt_file_mem->pa, tme_opt_file_mem->size);
-
-	req->tme_file = file;
-	req->addr = tme_opt_file_mem->pa;
-	req->size = tme_opt_file_mem->size;
-
-	ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
-			   wlfw_tme_lite_info_resp_msg_v01_ei, resp);
-	if (ret < 0) {
-		cnss_pr_err("Failed to initialize txn for TME opt file information request, err: %d\n",
-			    ret);
-		goto out;
-	}
-
-	ret = qmi_send_request(&plat_priv->qmi_wlfw, NULL, &txn,
-			       QMI_WLFW_TME_LITE_INFO_REQ_V01,
-			       WLFW_TME_LITE_INFO_REQ_MSG_V01_MAX_MSG_LEN,
-			       wlfw_tme_lite_info_req_msg_v01_ei, req);
-	if (ret < 0) {
-		qmi_txn_cancel(&txn);
-		cnss_pr_err("Failed to send TME opt file information request, err: %d\n",
-			    ret);
-		goto out;
-	}
-
-	ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
-	if (ret < 0) {
-		cnss_pr_err("Failed to wait for response of TME opt file information request, err: %d\n",
-			    ret);
-		goto out;
-	}
-
-	if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
-		ret = -resp->resp.result;
-		if (resp->resp.error == QMI_ERR_HARDWARE_RESTRICTED_V01) {
-			cnss_pr_err("TME Power On failed\n");
-			goto out;
-		} else if (resp->resp.error == QMI_ERR_ENOMEM_V01) {
-			cnss_pr_err("malloc SRAM failed\n");
-			goto out;
-		}
-		cnss_pr_err("TME opt file information request failed, result: %d, err: %d\n",
-			    resp->resp.result, resp->resp.error);
-		goto out;
-	}
-
-	kfree(req);
-	kfree(resp);
-	return 0;
-
-out:
-	CNSS_QMI_ASSERT();
-	kfree(req);
-	kfree(resp);
-	return ret;
-}
-
 int cnss_wlfw_m3_dnld_send_sync(struct cnss_plat_data *plat_priv)
 {
 	struct wlfw_m3_info_req_msg_v01 *req;
@@ -1488,7 +1385,6 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 	int i;
 	char revert_mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
 #endif /* OPLUS_FEATURE_WIFI_MAC */
-
 	if (!plat_priv || !mac || mac_len != QMI_WLFW_MAC_ADDR_SIZE_V01)
 		return -EINVAL;
 
@@ -4191,7 +4087,7 @@ int ims_subscribe_for_indication_send_async(struct cnss_plat_data *plat_priv)
 	(&plat_priv->ims_qmi, NULL, txn,
 	QMI_IMS_PRIVATE_SERVICE_SUBSCRIBE_FOR_INDICATIONS_REQ_V01,
 	IMS_PRIVATE_SERVICE_SUBSCRIBE_FOR_INDICATIONS_REQ_MSG_V01_MAX_MSG_LEN,
-	ims_private_service_subscribe_ind_req_msg_v01_ei, req);
+	ims_private_service_subscribe_for_indications_req_msg_v01_ei, req);
 	if (ret < 0) {
 		qmi_txn_cancel(txn);
 		cnss_pr_err("Fail to send ims subscribe for indication req %d\n",
@@ -4282,7 +4178,7 @@ static struct qmi_msg_handler qmi_ims_msg_handlers[] = {
 		.msg_id =
 		QMI_IMS_PRIVATE_SERVICE_SUBSCRIBE_FOR_INDICATIONS_REQ_V01,
 		.ei =
-		ims_private_service_subscribe_ind_rsp_msg_v01_ei,
+		ims_private_service_subscribe_for_indications_rsp_msg_v01_ei,
 		.decoded_size = sizeof(struct
 		ims_private_service_subscribe_for_indications_rsp_msg_v01),
 		.fn = ims_subscribe_for_indication_resp_cb

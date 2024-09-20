@@ -62,7 +62,6 @@
 #define WCD939X_MBHC_MOISTURE_RREF      R_24_KOHM
 
 #define OHMS_TO_MILLIOHMS 1000
-#define SLOPE_FACTOR_SCALER 10000
 #define FLOAT_TO_FIXED_XTALK (1UL << 16)
 #define MAX_XTALK_ALPHA 255
 #define MIN_RL_EFF_MOHMS 1
@@ -78,61 +77,10 @@
 
 #define WCD_USBSS_WRITE true
 #define WCD_USBSS_READ false
-#define ZDET_SE 0
-#define ZDET_DIFF 1
 #define WCD_USBSS_EXT_LIN_EN 0x3D
 #define WCD_USBSS_EXT_SW_CTRL_1 0x43
 #define WCD_USBSS_MG1_BIAS 0x25
 #define WCD_USBSS_MG2_BIAS 0x29
-
-#define SE_SLOPE_MEAS_BIAS 10000
-#define DIFF_SLOPE_MEAS_BIAS 20000
-#define XTALK_CH_REG_ADDR_DELTA 4
-#define NUM_DIFF_MEAS 2
-#define ZDET_SE_MAX_MOHMS 600000
-#define ZDET_ACC_LMT_MOHMS 100000
-#define R_CONN_PAR_LOAD_POS_MOHMS 7895
-#define LINEARIZER_DEFAULT_TAP 0xE8
-#define GND_EXT_FET_MAX_MOHMS 2000
-
-struct zdet_dnl_entry {
-	u8  base_val_ohms;
-	s16 se_corr_mohms;
-	s16 diff_corr_mohms;
-};
-
-static const struct zdet_dnl_entry zdet_dnl_table[] = {
-	{  0,    0,    0},
-	{  5,   56,   13},
-	{ 10,   60,   34},
-	{ 15,   13,   -4},
-	{ 20,   21,   14},
-	{ 25,  -16,  -20},
-	{ 30,    5,    7},
-	{ 35,  -46,  -90},
-	{ 40,   -4,  -17},
-	{ 45,  -74,  -40},
-	{ 50,  -52,    3},
-	{ 55,  -37,   -5},
-	{ 60,    4,  -79},
-	{ 65,  -34,  -82},
-	{ 70, -105,  -33},
-	{ 75,  -81,  -55},
-	{ 80,  -39,   34},
-	{ 85,  -37,   46},
-	{ 90,  -51,   81},
-	{ 95,   14,  132},
-	{100,  101,  197},
-	{105,  150,  247},
-	{110,  217,  245},
-	{115,  232, -189},
-	{120,  201, -146},
-	{125, -152, -121},
-	{130, -157,  -69},
-	{135, -118,  -72},
-	{140,  -54,  -24},
-	{145,  -55,   51},
-};
 
 static struct wcd_mbhc_register
 	wcd_mbhc_registers[WCD_MBHC_REG_FUNC_MAX] = {
@@ -598,15 +546,8 @@ static inline void wcd939x_wcd_mbhc_qfuse_cal(
 		q1_cal = (10000 - ((q1 & 0x7F) * 10));
 	else
 		q1_cal = (10000 + (q1 * 10));
-
-	if (q1_cal > 0) {
-		if (*z_val < 200 * OHMS_TO_MILLIOHMS)
-			*z_val = ((*z_val) * 10000) / q1_cal;
-		else if (*z_val < 2000 * OHMS_TO_MILLIOHMS)
-			*z_val = ((*z_val) * 1000) / q1_cal * 10;
-		else if (*z_val < 20000 * OHMS_TO_MILLIOHMS)
-			*z_val = ((*z_val) * 100) / q1_cal * 100;
-	}
+	if (q1_cal > 0)
+		*z_val = ((*z_val) * 10000) / q1_cal;
 }
 
 static void rdown_timer_callback(struct timer_list *timer)
@@ -616,15 +557,15 @@ static void rdown_timer_callback(struct timer_list *timer)
 	wcd939x_mbhc->rdown_timer_complete = true;
 }
 
-static void update_hd2_codes(struct regmap *regmap, u32 r_gnd_res_tot_mohms, u32 r_load_eff_mohms)
+static void update_hd2_codes(struct regmap *regmap, u32 r_gnd_res_tot_mohms, u32 r_load_eff)
 {
 	u64 hd2_delta = 0;
 
 	if (!regmap)
 		return;
 	hd2_delta = (HD2_CODE_INV_RESOLUTION * (u64) r_gnd_res_tot_mohms +
-		    FLOAT_TO_FIXED_XTALK * (u64) ((r_gnd_res_tot_mohms + r_load_eff_mohms) / 2)) /
-		    (FLOAT_TO_FIXED_XTALK * (u64) (r_gnd_res_tot_mohms + r_load_eff_mohms));
+		    FLOAT_TO_FIXED_XTALK * (u64) ((r_gnd_res_tot_mohms + r_load_eff) / 2)) /
+		    (FLOAT_TO_FIXED_XTALK * (u64) (r_gnd_res_tot_mohms + r_load_eff));
 	if (hd2_delta >= HD2_CODE_BASE_VALUE) {
 		regmap_update_bits(regmap, WCD939X_RDAC_HD2_CTL_L, 0x1F, 0x00);
 		regmap_update_bits(regmap, WCD939X_RDAC_HD2_CTL_R, 0x1F, 0x00);
@@ -669,135 +610,174 @@ static u8 get_xtalk_alpha(u32 gain, u8 scale)
 	return (alpha <= MAX_XTALK_ALPHA) ? ((u8) alpha) : MAX_XTALK_ALPHA;
 }
 
-static void update_xtalk_scale_and_alpha(struct wcd939x_priv *wcd939x)
+static u32 get_v_common_gnd_factor(u32 r_gnd_res_tot_mohms, u32 r_load_eff_mohms,
+				   u32 r_aud_res_tot_mohms)
 {
-	u32 r_gnd_res_tot_mohms = 0, r_gnd_int_fet_mohms = 0, r_gnd_par_route1_mohms = 0;
-	u32 xtalk_gain_l = 0, xtalk_gain_r = 0, r_load_eff_mohms = 0;
-	u32 xtalk_gain_denom_l = 0, xtalk_gain_denom_r = 0, r7 = 0;
-	struct wcd939x_pdata *pdata = dev_get_platdata(wcd939x->dev);
+	/* Proof 1: The numerator does not overflow.
+	 * r_gnd_res_tot_mohms = r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms =
+	 * r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_route1_mohms +
+	 * r_gnd_par_route2_mohms
+	 *
+	 * r_gnd_int_fet_mohms, r_gnd_ext_fet_mohms, r_gnd_par_route{1,2}_mohms are all less
+	 * than MAX_USBCSS_HS_IMPEDANCE_MOHMS
+	 * -->
+	 * FLOAT_TO_FIXED_XTALK * r_gnd_res_tot_mohms <=
+	 * FLOAT_TO_FIXED_XTALK * 4 * MAX_USBCSS_HS_IMPEDANCE_MOHMS =
+	 * (1 << 16) * 4 * 20,000 = 65,536 * 80,000 = 3,932,160,000 <= 2^32 - 1 =
+	 * 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 2: The denominator is greater than 0.
+	 * r_load_eff_mohms >= MIN_RL_EFF_MOHMS = 1 > 0
+	 * -->
+	 * r_load_eff_mohms + r_aud_res_tot_mohms + r_gnd_res_tot_mohms > 0
+	 *
+	 * Proof 3: The deonominator does not overflow.
+	 * r_load_eff_mohms <= MAX_RL_EFF_MOHMS
+	 * r_aud_res_tot_mohms and r_gnd_res_tot_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS
+	 * -->
+	 * r_load_eff_mohms + r_aud_res_tot_mohms + r_gnd_res_tot_mohms <=
+	 * MAX_RL_EFF_MOHMS + 2 * MAX_USBCSS_HS_IMPEDANCE_MOHMS = 900,000 + 2 * 20,000 = 940,000
+	 * <= U32_MAX = 2^32 - 1 = 4,294,967,295
+	 */
+	return FLOAT_TO_FIXED_XTALK * r_gnd_res_tot_mohms /
+	       (r_load_eff_mohms + r_aud_res_tot_mohms + r_gnd_res_tot_mohms);
+}
 
-	if (!pdata || pdata->usbcss_hs.xtalk.xtalk_config == XTALK_NONE)
+static u32 get_v_feedback_tap_factor_digital(u32 r_gnd_int_fet_mohms, u32 r_gnd_par_route1_mohms,
+					    u32 r_load_eff_mohms, u32 r_gnd_res_tot_mohms,
+					    u32 r_aud_res_tot_mohms)
+{
+	/* Proof 4: The numerator does not overflow.
+	 * r_gnd_int_fet_mohms and r_gnd_par_route1_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS
+	 * -->
+	 * FLOAT_TO_FIXED_XTALK * (r_gnd_int_fet_mohms + r_gnd_par_route1_mohms) <=
+	 * FLOAT_TO_FIXED_XTALK * 2 * MAX_USBCSS_HS_IMPEDANCE_MOHMS =
+	 * (1 << 16) * 2 * 20,000 = 65,536 * 40,000 = 2,621,440,000 <= 2^32 - 1 =
+	 * 4,294,967,295 = U32_MAX
+	 *
+	 * The denominator is greater than 0: See Proof 2
+	 * The deonominator does not overflow: See Proof 3
+	 */
+	return FLOAT_TO_FIXED_XTALK * (r_gnd_int_fet_mohms + r_gnd_par_route1_mohms) /
+	       (r_load_eff_mohms + r_gnd_res_tot_mohms + r_aud_res_tot_mohms);
+}
+
+static u32 get_v_feedback_tap_factor_analog(u32 r_gnd_par_route2_mohms, u32 r_load_eff_mohms,
+					    u32 r_gnd_res_tot_mohms, u32 r_aud_res_tot_mohms)
+{
+	/* Proof 5: The numerator does not overflow.
+	 * r_gnd_res_tot_mohms = r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms =
+	 * r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_route1_mohms +
+	 * r_gnd_par_route2_mohms
+	 *
+	 *  r_gnd_res_tot_mohms - r_gnd_par_route2_mohms =
+	 *  r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_route1_mohms
+	 *
+	 * r_gnd_int_fet_mohms, r_gnd_ext_fet_mohms, r_gnd_par_route1_mohms
+	 * <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 * -->
+	 * FLOAT_TO_FIXED_XTALK * (r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms +
+	 *			   r_gnd_par_route1_mohms)
+	 * <= FLOAT_TO_FIXED_XTALK * 3 * MAX_USBCSS_HS_IMPEDANCE_MOHMS =
+	 * (1 << 16) * 3 * 20,000 = 65,536 * 60,000 = 3,932,160,000 <= 2^32 - 1 =
+	 * 4,294,967,295 = U32_MAX
+	 *
+	 *  The denominator is greater than 0: See Proof 2
+	 *  The deonominator does not overflow: See Proof 3
+	 */
+	return FLOAT_TO_FIXED_XTALK * (r_gnd_res_tot_mohms - r_gnd_par_route2_mohms) /
+	       (r_load_eff_mohms + r_gnd_res_tot_mohms + r_aud_res_tot_mohms);
+}
+
+static u32 get_xtalk_gain(u32 v_common_gnd_factor, u32 v_feedback_tap_factor)
+{
+	return v_common_gnd_factor - v_feedback_tap_factor;
+}
+
+static void update_xtalk_scale_and_alpha(struct wcd939x_pdata *pdata, struct regmap *regmap)
+{
+	u32 r_gnd_res_tot_mohms = 0, r_gnd_int_fet_mohms = 0, v_common_gnd_factor = 0;
+	u32 v_feedback_tap_factor = 0, xtalk_gain = 0;
+
+	if (!pdata || pdata->usbcss_hs.xtalk_config == XTALK_NONE)
 		return;
-
-	/* Default xtalk values */
-	pdata->usbcss_hs.xtalk.scale_l = MAX_XTALK_SCALE;
-	pdata->usbcss_hs.xtalk.alpha_l = MIN_XTALK_ALPHA;
-	pdata->usbcss_hs.xtalk.scale_r = MAX_XTALK_SCALE;
-	pdata->usbcss_hs.xtalk.alpha_r = MIN_XTALK_ALPHA;
 
 	/* Orientation-dependent ground impedance parameters */
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU2_ORIENTATION_A) {
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_res_tot_mohms;
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_int_fet_mohms;
-		r_gnd_par_route1_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_par_route1_mohms;
-		r7 = pdata->usbcss_hs.gnd.sbu2.r7;
+		r_gnd_res_tot_mohms = pdata->usbcss_hs.r_gnd_sbu2_res_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu2_int_fet_mohms;
 	} else if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU1_ORIENTATION_B) {
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_res_tot_mohms;
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_int_fet_mohms;
-		r_gnd_par_route1_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_par_route1_mohms;
-		r7 = pdata->usbcss_hs.gnd.sbu1.r7;
+		r_gnd_res_tot_mohms = pdata->usbcss_hs.r_gnd_sbu1_res_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu1_int_fet_mohms;
 	} else {
-		dev_dbg(wcd939x->dev, "%s: Using default scale and alpha values\n", __func__);
+		pdata->usbcss_hs.scale_l = MAX_XTALK_SCALE;
+		pdata->usbcss_hs.alpha_l = MIN_XTALK_ALPHA;
+		pdata->usbcss_hs.scale_r = MAX_XTALK_SCALE;
+		pdata->usbcss_hs.alpha_r = MIN_XTALK_ALPHA;
 		return;
 	}
 #endif
 
-	r_load_eff_mohms = (pdata->usbcss_hs.aud.l.r_load_eff_mohms +
-			    pdata->usbcss_hs.aud.r.r_load_eff_mohms) / 2;
-
-	if (pdata->usbcss_hs.xtalk.xtalk_config == XTALK_ANALOG) {
+	/* Recall assumptions about L and R channel impedance parameters being equivalent */
+	/* Xtalk gain calculation */
+	v_common_gnd_factor = get_v_common_gnd_factor(r_gnd_res_tot_mohms,
+						      pdata->usbcss_hs.r_load_eff_l_mohms,
+						      pdata->usbcss_hs.r_aud_res_tot_l_mohms);
+	if (pdata->usbcss_hs.xtalk_config == XTALK_ANALOG) {
+		v_feedback_tap_factor = get_v_feedback_tap_factor_analog(
+						pdata->usbcss_hs.r_gnd_par_route2_mohms,
+						pdata->usbcss_hs.r_load_eff_l_mohms,
+						r_gnd_res_tot_mohms,
+						pdata->usbcss_hs.r_aud_res_tot_l_mohms);
 		/* Update HD2 codes for analog xtalk */
-		update_hd2_codes(wcd939x->regmap, r_gnd_res_tot_mohms, r_load_eff_mohms);
-	}
-
-	/* Left channel */
-	xtalk_gain_denom_l = pdata->usbcss_hs.aud.l.zval - r_gnd_int_fet_mohms -
-			     r_gnd_par_route1_mohms + pdata->usbcss_hs.aud.l.r1;
-	if (xtalk_gain_denom_l == 0) {
-		dev_dbg(wcd939x->dev,
-			"%s: Using default scale and alpha values for the left channel\n",
-			__func__);
+		update_hd2_codes(regmap, r_gnd_res_tot_mohms, pdata->usbcss_hs.r_load_eff_l_mohms);
 	} else {
-		xtalk_gain_l = FLOAT_TO_FIXED_XTALK * pdata->usbcss_hs.gnd.r_common_gnd_mohms /
-			       xtalk_gain_denom_l;
-		/* Store scale and alpha values */
-		pdata->usbcss_hs.xtalk.scale_l = get_xtalk_scale(xtalk_gain_l);
-		pdata->usbcss_hs.xtalk.alpha_l = get_xtalk_alpha(xtalk_gain_l,
-								 pdata->usbcss_hs.xtalk.scale_l);
+		v_feedback_tap_factor = get_v_feedback_tap_factor_digital(
+						r_gnd_int_fet_mohms,
+						pdata->usbcss_hs.r_gnd_par_route1_mohms,
+						pdata->usbcss_hs.r_load_eff_l_mohms,
+						r_gnd_res_tot_mohms,
+						pdata->usbcss_hs.r_aud_res_tot_l_mohms);
 	}
-
-	/* Right channel */
-	xtalk_gain_denom_r = pdata->usbcss_hs.aud.r.zval - r_gnd_int_fet_mohms -
-			     r_gnd_par_route1_mohms + pdata->usbcss_hs.aud.r.r1;
-	if (xtalk_gain_denom_r == 0) {
-		dev_dbg(wcd939x->dev,
-			"%s: Using default scale and alpha values for the right channel\n",
-			__func__);
-	} else {
-		xtalk_gain_r = FLOAT_TO_FIXED_XTALK * pdata->usbcss_hs.gnd.r_common_gnd_mohms /
-			       xtalk_gain_denom_r;
-		pdata->usbcss_hs.xtalk.scale_r = get_xtalk_scale(xtalk_gain_r);
-		pdata->usbcss_hs.xtalk.alpha_r = get_xtalk_alpha(xtalk_gain_r,
-								 pdata->usbcss_hs.xtalk.scale_r);
-	}
-
-	/* Print relevant values */
-	dev_dbg(wcd939x->dev, "%s: %s = %dmohms, %s = %dmohms, %s = %dmohms\n", __func__,
-		"Left SE measurement", pdata->usbcss_hs.aud.l.zval,
-		"right SE measurment", pdata->usbcss_hs.aud.r.zval,
-		"differential measurement", pdata->usbcss_hs.zdiffval);
-	dev_dbg(wcd939x->dev,
-		"%s: %s = %dmohms, %s = %dmohms, %s = %dmohms, %s = %dmohms, %s = %dmohms\n",
-		__func__, "R1_L", pdata->usbcss_hs.aud.l.r1, "R1_R", pdata->usbcss_hs.aud.r.r1,
-		"R7", r7, "r_gnd_int_fet_mohms", r_gnd_int_fet_mohms, "r_common_gnd_mohms",
-		pdata->usbcss_hs.gnd.r_common_gnd_mohms);
-	dev_dbg(wcd939x->dev, "%s: %s = %d, %s = %d %s %d\n", __func__,
-		"Xtalk gain (L->R)", xtalk_gain_l, "xtalk gain (R->L)", xtalk_gain_r,
-		". To convert xtalk gain to floating point, divide by", FLOAT_TO_FIXED_XTALK);
+	xtalk_gain = get_xtalk_gain(v_common_gnd_factor, v_feedback_tap_factor);
+	/* Store scale and alpha values */
+	pdata->usbcss_hs.scale_l = get_xtalk_scale(xtalk_gain);
+	pdata->usbcss_hs.alpha_l = get_xtalk_alpha(xtalk_gain, pdata->usbcss_hs.scale_l);
+	pdata->usbcss_hs.scale_r = pdata->usbcss_hs.scale_l;
+	pdata->usbcss_hs.alpha_r = pdata->usbcss_hs.alpha_l;
 }
 
-static void update_ext_fet_res(struct wcd939x_pdata *pdata, u32 r_aud_ext_fet_mohms,
-			       u32 r_gnd_ext_fet_mohms)
+static void update_ext_fet_res(struct wcd939x_pdata *pdata, u32 r_gnd_ext_fet_mohms)
 {
 	if (!pdata)
 		return;
 
-	pdata->usbcss_hs.gnd.r_gnd_ext_fet_mohms = (r_gnd_ext_fet_mohms >
-						    MAX_USBCSS_HS_IMPEDANCE_MOHMS)
-						   ? MAX_USBCSS_HS_IMPEDANCE_MOHMS
-						   : r_gnd_ext_fet_mohms;
-	pdata->usbcss_hs.aud.l.r_aud_ext_fet_mohms = (r_aud_ext_fet_mohms >
-						      MAX_USBCSS_HS_IMPEDANCE_MOHMS)
-						     ? MAX_USBCSS_HS_IMPEDANCE_MOHMS
-						     : r_aud_ext_fet_mohms;
-	pdata->usbcss_hs.aud.r.r_aud_ext_fet_mohms = pdata->usbcss_hs.aud.l.r_aud_ext_fet_mohms;
-	pdata->usbcss_hs.gnd.sbu1.r_gnd_res_tot_mohms = get_r_gnd_res_tot_mohms(
-						     pdata->usbcss_hs.gnd.sbu1.r_gnd_int_fet_mohms,
-						     pdata->usbcss_hs.gnd.r_gnd_ext_fet_mohms,
-						     pdata->usbcss_hs.gnd.sbu1.r_gnd_par_tot_mohms);
-	pdata->usbcss_hs.gnd.sbu2.r_gnd_res_tot_mohms = get_r_gnd_res_tot_mohms(
-						     pdata->usbcss_hs.gnd.sbu2.r_gnd_int_fet_mohms,
-						     pdata->usbcss_hs.gnd.r_gnd_ext_fet_mohms,
-						     pdata->usbcss_hs.gnd.sbu2.r_gnd_par_tot_mohms);
-	pdata->usbcss_hs.aud.l.r_aud_res_tot_mohms = get_r_aud_res_tot_mohms(
-						  pdata->usbcss_hs.aud.l.r_aud_int_fet_mohms,
-						  pdata->usbcss_hs.aud.l.r_aud_ext_fet_mohms,
-						  pdata->usbcss_hs.aud.l.r_load_eff_mohms);
-	pdata->usbcss_hs.aud.r.r_aud_res_tot_mohms = get_r_aud_res_tot_mohms(
-						  pdata->usbcss_hs.aud.r.r_aud_int_fet_mohms,
-						  pdata->usbcss_hs.aud.r.r_aud_ext_fet_mohms,
-						  pdata->usbcss_hs.aud.r.r_load_eff_mohms);
+	pdata->usbcss_hs.r_gnd_ext_fet_mohms = (r_gnd_ext_fet_mohms > MAX_USBCSS_HS_IMPEDANCE_MOHMS)
+					       ? MAX_USBCSS_HS_IMPEDANCE_MOHMS
+					       : r_gnd_ext_fet_mohms;
+	pdata->usbcss_hs.r_aud_ext_fet_l_mohms = pdata->usbcss_hs.r_gnd_ext_fet_mohms;
+	pdata->usbcss_hs.r_aud_ext_fet_r_mohms = pdata->usbcss_hs.r_gnd_ext_fet_mohms;
+	pdata->usbcss_hs.r_gnd_sbu1_res_tot_mohms = get_r_gnd_res_tot_mohms(
+							pdata->usbcss_hs.r_gnd_sbu1_int_fet_mohms,
+							pdata->usbcss_hs.r_gnd_ext_fet_mohms,
+							pdata->usbcss_hs.r_gnd_par_tot_mohms);
+	pdata->usbcss_hs.r_gnd_sbu2_res_tot_mohms = get_r_gnd_res_tot_mohms(
+							pdata->usbcss_hs.r_gnd_sbu2_int_fet_mohms,
+							pdata->usbcss_hs.r_gnd_ext_fet_mohms,
+							pdata->usbcss_hs.r_gnd_par_tot_mohms);
+	pdata->usbcss_hs.r_aud_res_tot_l_mohms = get_r_aud_res_tot_mohms(
+							pdata->usbcss_hs.r_aud_int_fet_l_mohms,
+							pdata->usbcss_hs.r_aud_ext_fet_l_mohms);
+	pdata->usbcss_hs.r_aud_res_tot_r_mohms = get_r_aud_res_tot_mohms(
+							pdata->usbcss_hs.r_aud_int_fet_r_mohms,
+							pdata->usbcss_hs.r_aud_ext_fet_r_mohms);
 }
 
-static void get_linearizer_taps(struct wcd939x_pdata *pdata, u32 *aud_tap)
+static void get_linearizer_taps(struct wcd939x_pdata *pdata, u32 *aud_tap, u32 *gnd_tap)
 {
-	u32 r_gnd_int_fet_mohms = 0, r_gnd_par_tot_mohms = 0;
-	u32 v_aud1 = 0, v_aud2 = 0, aud_denom = 0;
-	u32 r_load_eff_mohms = 0, r3 = 0, r_aud_ext_fet_mohms = 0, r_aud_int_fet_mohms = 0;
-#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
-	u32 r_gnd_res_tot_mohms = 0;
-#endif
+	u32 r_gnd_res_tot_mohms = 0, r_gnd_int_fet_mohms = 0, v_aud1 = 0, v_aud2 = 0;
+	u32 v_gnd_denom = 0, v_gnd1 = 0, v_gnd2 = 0, aud_denom = 0, gnd_denom = 0;
 
 	if (!pdata)
 		goto err_data;
@@ -805,150 +785,196 @@ static void get_linearizer_taps(struct wcd939x_pdata *pdata, u32 *aud_tap)
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Orientation-dependent ground impedance parameters */
 	if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU2_ORIENTATION_A) {
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_res_tot_mohms;
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_int_fet_mohms;
+		r_gnd_res_tot_mohms = pdata->usbcss_hs.r_gnd_sbu2_res_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu2_int_fet_mohms;
 	} else if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU1_ORIENTATION_B) {
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_res_tot_mohms;
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_int_fet_mohms;
+		r_gnd_res_tot_mohms = pdata->usbcss_hs.r_gnd_sbu1_res_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu1_int_fet_mohms;
 	} else {
 		goto err_data;
 	}
 #endif
 
-	r_load_eff_mohms = (pdata->usbcss_hs.aud.l.r_load_eff_mohms +
-			    pdata->usbcss_hs.aud.r.r_load_eff_mohms) / 2;
-	r3 = (pdata->usbcss_hs.aud.l.r3 + pdata->usbcss_hs.aud.r.r3) / 2;
-	r_aud_ext_fet_mohms = (pdata->usbcss_hs.aud.l.r_aud_ext_fet_mohms +
-			       pdata->usbcss_hs.aud.l.r_aud_ext_fet_mohms) / 2;
-	r_aud_int_fet_mohms = (pdata->usbcss_hs.aud.l.r_aud_int_fet_mohms +
-			       pdata->usbcss_hs.aud.l.r_aud_int_fet_mohms) / 2;
-
+	/* Proof 6: Neither aud_denom nor gnd_denom is 0 and neither overflows.
+	 * MIN_K_TIMES_100 = -50 <= MAX_K_TIMES_100 <= 10,000 = k_aud_times_100
+	 * -->
+	 * 0 < 410 = 0.1 * 4,096 = 0.1 * FLOAT_TO_FIXED_LINEARIZER < {aud,gnd}_denom <
+	 * 101 * FLOAT_TO_FIXED_LINEARIZER =
+	 * 101 * (1 << 12) < 413,696 <= 4,294,967,295 = U32_MAX
+	 */
 	aud_denom = (u32) (FLOAT_TO_FIXED_LINEARIZER +
-			  (FLOAT_TO_FIXED_LINEARIZER * pdata->usbcss_hs.aud.k_aud_times_100 / 100));
+			   (FLOAT_TO_FIXED_LINEARIZER * pdata->usbcss_hs.k_aud_times_100 / 100));
+	gnd_denom = (u32) (FLOAT_TO_FIXED_LINEARIZER +
+			   (FLOAT_TO_FIXED_LINEARIZER * pdata->usbcss_hs.k_gnd_times_100 / 100));
 
-	v_aud2 = r_load_eff_mohms - r3 + r_gnd_int_fet_mohms +
-		 pdata->usbcss_hs.gnd.r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms;
-	v_aud1 = v_aud2 + r_aud_ext_fet_mohms;
-	v_aud1 = FLOAT_TO_FIXED_LINEARIZER * v_aud1 / (v_aud1 + r_aud_int_fet_mohms);
+	/* Proof 7: v_aud2 does not overflow.
+	 * MIN_RL_EFF_MOHMS = 1 = <= pdata->usbcss_hs.r_load_eff_l_mohms <= MAX_RL_EFF_MOHMS =
+	 * 900,000
+	 *
+	 * pdata->usbcss_hs.r_gnd_par_tot_mohms = r_gnd_par_route1_mohms + r_gnd_par_route2_mohms
+	 * <= 2 * MAX_USBCSS_HS_IMPEDANCE_MOHMS = 4,0000
+	 *
+	 * r_gnd_int_fet_mohms, pdata->usbcss_hs.r_gnd_ext_fet_mohms, r_gnd_par_route1_mohms,
+	 * r_gnd_par_route2_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 * -->
+	 * 1 <= v_aud2 <= MAX_RL_EFF_MOHMS + 4 * MAX_USBCSS_HS_IMPEDANCE_MOHMS =
+	 * 900,000 + 4 * 20,000 = 980,000 <= 4,294,967,295 = U32_MAX
+	 */
+	v_aud2 = pdata->usbcss_hs.r_load_eff_l_mohms - pdata->usbcss_hs.r3 + r_gnd_int_fet_mohms +
+		 pdata->usbcss_hs.r_gnd_ext_fet_mohms + pdata->usbcss_hs.r_gnd_par_tot_mohms;
+
+	/* Proof 8: v_aud1 does not overflow.
+	 * pdata->usbcss_hs.r_aud_ext_fet_l_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 * From Proof 7,
+	 * 1 <= v_aud2 <= MAX_RL_EFF_MOHMS + 4 * MAX_USBCSS_HS_IMPEDANCE_MOHMS <= S32_MAX
+	 * -->
+	 * 1 <= v_aud1 <= MAX_RL_EFF_MOHMS + 5 * MAX_USBCSS_HS_IMPEDANCE_MOHMS =
+	 * 900,000 + 5 * 20,000 = 1,000,000 <= 2,147,483,647 = S32_MAX
+	 */
+	v_aud1 = v_aud2 + pdata->usbcss_hs.r_aud_ext_fet_l_mohms;
+
+	/* Proof 9: The numerator of v_aud1 does not overflow.
+	 * From Proof 8, v_aud1 was less than or equal to 1,000,000
+	 * Thus, the new v_aud1 numerator is less than or equal to
+	 * FLOAT_TO_FIXED_LINEARIZER * 1,000,000 =
+	 * 4,096 * 1,000,000 = 4,096,000,000 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 10: The denominator of v_aud1 is not 0.
+	 * From Proof 8, v_aud1 was greater than or equal to 1 > 0
+	 *
+	 * Proof 11: The denominator does not overflow.
+	 * From Proof 8, v_aud1 was less than or equal to 1,000,000
+	 * Thus, the new v_aud1 denominator is less than or equal to
+	 * 1,000,000 + pdata->usbcss_hs.r_aud_int_fet_l_mohms = 1,000,000 + 20,000 = 1,020,000 <=
+	 * 4,294,967,295 = U32_MAX
+	 */
+	v_aud1 = FLOAT_TO_FIXED_LINEARIZER * v_aud1 /
+		 (v_aud1 + pdata->usbcss_hs.r_aud_int_fet_l_mohms);
+
+	/* Proof 12: The numerator of v_aud2 does not overflow.
+	 * From Proof 7, v_aud2 was less than or equal to 980,000
+	 * Thus, the new v_aud2 numerator is less than or equal to
+	 * FLOAT_TO_FIXED_LINEARIZER * 980,000 =
+	 * 4,096 * 980,000 = 4,014,080,000 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 13: The denominator of v_aud2 is not 0.
+	 * From Proof 7, v_aud2 was greater than or equal to 1 > 0
+	 *
+	 * Proof 14: The denominator does not overflow.
+	 * From Proof 7, v_aud2 was less than or equal to 980,000
+	 * Thus, the new v_aud2 denominator is less than or equal to
+	 * 980,000 + pdata->usbcss_hs.r_aud_int_fet_l_mohms pdata->usbcss_hs.r_aud_int_fet_l_mohms =
+	 * 980,000 + 20,000 + + 20,000 = 1,020,000 <= 4,294,967,295 = U32_MAX
+	 */
 	v_aud2 = FLOAT_TO_FIXED_LINEARIZER * v_aud2 /
-					     (v_aud2 + r_aud_ext_fet_mohms + r_aud_int_fet_mohms);
+		 (v_aud2 + pdata->usbcss_hs.r_aud_ext_fet_l_mohms +
+		  pdata->usbcss_hs.r_aud_int_fet_l_mohms);
 
-	*aud_tap = (u32) ((s32) ((1000 * v_aud1 + 10 * pdata->usbcss_hs.aud.k_aud_times_100 * v_aud2
-				  + aud_denom / 2) / aud_denom) +
-				 pdata->usbcss_hs.aud.aud_tap_offset);
+	/* Proof 15: The numerator of aud_tap does not overflow.
+	 * Looking at the formula for v_aud1 from Proofs 9 to 11, the greatest value of v_aud1 is
+	 * FLOAT_TO_FIXED_LINEARIZER = 4,096
+	 * Looking at the formula for v_aud2 from Proofs 12 to 14, the greatest value of v_aud2 is
+	 * FLOAT_TO_FIXED_LINEARIZER = 4,096
+	 * From Proof 6, aud_denom <= 413,696
+	 * Thus, the numerator <= 1,000 * 4,096 + 10 * 10,000 * 4,096 + 413,696 / 2 =
+	 * 4,096,000 + 409,600,000 + 206,848 = 413,902,848 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 16: The denominator of aud_tap is not 0.
+	 * From Proof 6, aud_denom > 410 > 0
+	 *
+	 * Proof 17: The denominator of aud_tap does not overflow
+	 * From Proof 6, aud_denom <= 413,696 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 18: The result of aud_tap does not overflow.
+	 * From Proof 15, the numerator <= 413,902,848 and from Proof 16, the denominator > 410
+	 * Thus, the divsion will be at most 1,009,519.
+	 * pdata->usbcss_hs.aud_tap_offset <= MAX_TAP_OFFSET = 1,023
+	 * The sum will thus be bounded by 1,009,519 + 1,023 = 1,010,542 <= 2,147,483,647 = S32_MAX
+	 * Note: aud_tap won't underflow either since pdata->usbcss_hs.aud_tap_offset >= -1,023
+	 */
+	*aud_tap = (u32) ((s32) ((1000 * v_aud1 + 10 * pdata->usbcss_hs.k_aud_times_100 * v_aud2
+				  + aud_denom / 2) / aud_denom) + pdata->usbcss_hs.aud_tap_offset);
 	if (*aud_tap > MAX_TAP)
 		*aud_tap = MAX_TAP;
 	else if (*aud_tap < MIN_TAP)
 		*aud_tap = MIN_TAP;
 
+	/* Proof 19: v_gnd_denom does not overflow.
+	 * r_gnd_res_tot_mohms = r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms
+	 *
+	 * r_gnd_int_fet_mohms, r_gnd_ext_fet_mohms, r_gnd_par_tot_mohms,
+	 * pdata->usbcss_hs.r_aud_ext_fet_l_mohms, pdata->usbcss_hs.r_aud_int_fet_l_mohms are all
+	 * <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 *
+	 * pdata->usbcss_hs.r_load_eff_l_mohms <= MAX_RL_EFF_MOHMS = 900,000
+	 *
+	 * --> v_gnd_denom <= 3 * 20,000 + 900,000 + 2 * 20,000 = 60,000 + 900,000 + 40,000 =
+	 * 1,000,000 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 20: v_gnd_denom is not 0.
+	 * pdata->usbcss_hs.r_load_eff_l_mohms >= MIN_RL_EFF_MOHMS = 1
+	 * -->  v_gnd_denom >= 1 > 0
+	 */
+
+	v_gnd_denom = (r_gnd_res_tot_mohms + pdata->usbcss_hs.r_load_eff_l_mohms -
+		       pdata->usbcss_hs.r3 + pdata->usbcss_hs.r_aud_ext_fet_l_mohms +
+		       pdata->usbcss_hs.r_aud_int_fet_l_mohms);
+
+	/* Proof 21: v_gnd1 numerator does not overflow.
+	 * r_gnd_int_fet_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 * --> v_gnd1 numerator <= 4,096 * 20,000 = 81,920,000 <= 4,294,967,295 = U32_MAX
+	 *
+	 * v_gnd1 denominator is not 0: See Proof 20
+	 * v_gnd1 denominator does not overflow: See Proof 19
+	 */
+	v_gnd1 = FLOAT_TO_FIXED_LINEARIZER * r_gnd_int_fet_mohms / v_gnd_denom;
+
+	/* Proof 22: v_gnd2 numerator does not overflow.
+	 * r_gnd_int_fet_mohms <= MAX_USBCSS_HS_IMPEDANCE_MOHMS = 20,000
+	 * pdata->usbcss_hs.r_load_eff_l_mohms <= MAX_RL_EFF_MOHMS = 900,000
+	 * --> v_gnd2 numerator <= 4,096 * (20,000 + 900,000) = 4,096 * 920,000 = 3,768,320,000
+	 * <= 4,294,967,295 = U32_MAX
+	 *
+	 * v_gnd2 denominator is not 0: See Proof 20
+	 * v_gnd2 denominator does not overflow: See Proof 19
+	 */
+	v_gnd2 = FLOAT_TO_FIXED_LINEARIZER * (r_gnd_int_fet_mohms +
+					      pdata->usbcss_hs.r_gnd_ext_fet_mohms) / v_gnd_denom;
+
+	/* Proof 23: The numerator of gnd_tap does not overflow.
+	 * Looking at the formula for v_gnd1 from Proof 21, and considering that
+	 * r_gnd_res_tot_mohms = r_gnd_int_fet_mohms + r_gnd_ext_fet_mohms + r_gnd_par_tot_mohms,
+	 * the greatest value of v_gnd1 is FLOAT_TO_FIXED_LINEARIZER = 4,096.
+	 * Looking at the formula for v_aud2 from Proof 22 and again at the definintion of
+	 * r_gnd_res_tot_mohms, the greatest value of v_gnd2 is FLOAT_TO_FIXED_LINEARIZER = 4,096
+	 * From Proof 6, gnd_denom <= 413,696
+	 * Thus, the numerator <= 1,000 * 4,096 + 10 * 10,000 * 4,096 + 413,696 / 2 =
+	 * 4,096,000 + 409,600,000 + 206,848 = 413,902,848 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 24: The denominator of gnd_tap is not 0.
+	 * From Proof 6, gnd_denom > 410 > 0
+	 *
+	 * Proof 25: The denominator of gnd_tap does not overflow
+	 * From Proof 6, gnd_denom <= 413,696 <= 4,294,967,295 = U32_MAX
+	 *
+	 * Proof 26: The result of aud_tap does not overflow.
+	 * From Proof 15, the numerator <= 413,902,848 and from Proof 16, the denominator > 410
+	 * Thus, the divsion will be at most 1,009,519.
+	 * pdata->usbcss_hs.aud_tap_offset <= MAX_TAP_OFFSET = 1,023
+	 * The sum will thus be bounded by 1,009,519 + 1,023 = 1,010,542 <= 2,147,483,647 = S32_MAX
+	 * Note: gnd_tap won't underflow either since pdata->usbcss_hs.aud_tap_offset >= -1,023
+	 */
+	*gnd_tap = (u32) ((s32) ((1000 * v_gnd1 + 10 * pdata->usbcss_hs.k_gnd_times_100 * v_gnd2
+				  + gnd_denom / 2) / gnd_denom) + pdata->usbcss_hs.gnd_tap_offset);
+	if (*gnd_tap > MAX_TAP)
+		*gnd_tap = MAX_TAP;
+	else if (*gnd_tap < MIN_TAP)
+		*gnd_tap = MIN_TAP;
 	return;
 
 err_data:
-	*aud_tap = LINEARIZER_DEFAULT_TAP;
-}
-
-static void interpolate_zdet_val(uint32_t *z, s64 z_meas_bias_removed, s64 z_val_slope_corrected,
-				 int lb, int flag_se_diff)
-{
-	s64 lb_to_z = 0, lb_to_ub = 0, z_to_ub = 0, lb_corr = 0, ub_corr = 0, z_interp = 0;
-
-	/* If lb is the table upper bound, no interpolation needed, just use the lb corr factor */
-	if ((lb + 1) >= ARRAY_SIZE(zdet_dnl_table)) {
-		z_interp = (s64) ((flag_se_diff) ? (zdet_dnl_table[lb].diff_corr_mohms) :
-						   (zdet_dnl_table[lb].se_corr_mohms));
-		goto apply_interpolated_bias;
-	}
-
-	/* Set up interpolation */
-	lb_to_ub = OHMS_TO_MILLIOHMS *
-		   (s64) (u64) ((zdet_dnl_table[lb + 1].base_val_ohms -
-				 zdet_dnl_table[lb].base_val_ohms));
-	z_to_ub = (OHMS_TO_MILLIOHMS *
-		   ((s64) (u64) (zdet_dnl_table[lb + 1].base_val_ohms))) - z_meas_bias_removed;
-	lb_to_z = z_meas_bias_removed - (OHMS_TO_MILLIOHMS *
-			      ((s64) (u64) (zdet_dnl_table[lb].base_val_ohms)));
-	lb_corr = (s64) ((flag_se_diff) ? (zdet_dnl_table[lb].diff_corr_mohms) :
-					  (zdet_dnl_table[lb].se_corr_mohms));
-	ub_corr = (s64) ((flag_se_diff) ? (zdet_dnl_table[lb + 1].diff_corr_mohms) :
-					  (zdet_dnl_table[lb + 1].se_corr_mohms));
-	/* Linear interpolation */
-	z_interp = (lb_corr * z_to_ub + ub_corr * lb_to_z) / lb_to_ub;
-
-apply_interpolated_bias:
-	/* Subtract interpolated bias to correct error */
-	if (z_interp < z_val_slope_corrected)
-		*z = (u32) (s32) (z_val_slope_corrected - z_interp);
-}
-
-static int get_lb_zdet_base_val_index(uint32_t z_val)
-{
-	int i;
-
-	/* Find the lower bound index, whose base value is the smallest value that is still higher
-	 * than the load
-	 */
-	for (i = 1; i < ARRAY_SIZE(zdet_dnl_table); i++) {
-		if (z_val < (OHMS_TO_MILLIOHMS * (u32) zdet_dnl_table[i].base_val_ohms))
-			return i - 1;
-	}
-
-	/* Return the last index if the load is larger than all base values */
-	return ARRAY_SIZE(zdet_dnl_table) - 1;
-}
-
-static void apply_zdet_correction(uint32_t *z, int flag_se_diff, u32 se_slope_factor_times_1000,
-				  u32 diff_slope_factor_times_1000)
-{
-	s64 z_val_slope_corrected = 0, slope_corr = 0;
-	uint32_t z_meas_bias_removed = 0;
-	int lb;
-
-	/* Apply slope correction */
-	slope_corr = (s64) ((flag_se_diff) ? diff_slope_factor_times_1000 :
-					     se_slope_factor_times_1000);
-	z_val_slope_corrected = ((s64) (u64) *z) * (FLOAT_TO_FIXED_XTALK) * slope_corr /
-				 SLOPE_FACTOR_SCALER / (FLOAT_TO_FIXED_XTALK);
-
-	/* Interpolate correction term to bias out and apply correction */
-	z_meas_bias_removed = (flag_se_diff) ? *z - DIFF_SLOPE_MEAS_BIAS : *z - SE_SLOPE_MEAS_BIAS;
-	lb = get_lb_zdet_base_val_index(z_meas_bias_removed);
-	interpolate_zdet_val(z, (s64) (u64) z_meas_bias_removed, z_val_slope_corrected, lb,
-			     flag_se_diff);
-}
-
-static void get_r_common_gnd(struct wcd939x_priv *wcd939x, u32 r_gnd_res_tot_mohms,
-			     u32 r_gnd_int_fet_mohms, u32 r_gnd_par_route1_mohms)
-{
-	u32 r_common_gnd_mohms = 0, r_accum = 0, r_avg = 0;
-	size_t i;
-	struct wcd939x_pdata *pdata = dev_get_platdata(wcd939x->dev);
-	size_t index = pdata->usbcss_hs.gnd.r_cm_gnd_buffer.write_index;
-
-	r_common_gnd_mohms = r_gnd_res_tot_mohms - r_gnd_int_fet_mohms - r_gnd_par_route1_mohms;
-
-	/* Compute average from r_common_gnd buffer */
-	for (i = 0; i < R_COMMON_GND_BUFFER_SIZE; i++)
-		r_accum += pdata->usbcss_hs.gnd.r_cm_gnd_buffer.data[i];
-	r_avg = r_accum / R_COMMON_GND_BUFFER_SIZE;
-
-	/* If r_common_gnd_mohms is OOB, use the average of the buffer values instead */
-	if (r_common_gnd_mohms > (r_avg + pdata->usbcss_hs.gnd.r_common_gnd_margin) ||
-	    (r_avg >= pdata->usbcss_hs.gnd.r_common_gnd_margin &&
-	     r_common_gnd_mohms < (r_avg - pdata->usbcss_hs.gnd.r_common_gnd_margin))) {
-		dev_dbg(wcd939x->dev, "%s: %s %d %s %d %s\n", __func__,
-			"The average of the r_common_gnd buffer,", r_avg,
-			"mohms, is being used instead of the calculated r_common_gnd value of",
-			r_common_gnd_mohms, "mohms");
-		pdata->usbcss_hs.gnd.r_common_gnd_mohms = r_avg;
-		return;
-	}
-
-	/* Otherwise, use the computed value and store it in the buffer, updating the write index */
-	pdata->usbcss_hs.gnd.r_common_gnd_mohms = r_common_gnd_mohms;
-	pdata->usbcss_hs.gnd.r_cm_gnd_buffer.data[index] = r_common_gnd_mohms;
-	pdata->usbcss_hs.gnd.r_cm_gnd_buffer.write_index = (index + 1) % R_COMMON_GND_BUFFER_SIZE;
-	dev_dbg(wcd939x->dev, "%s: %s %d %s\n", __func__, "The calculated r_common_gnd value,",
-		r_common_gnd_mohms, "mohms, is being used");
+	*aud_tap = 0;
+	*gnd_tap = 0;
 }
 
 struct usbcss_hs_attr {
@@ -958,30 +984,21 @@ struct usbcss_hs_attr {
 };
 
 static char *usbcss_sysfs_files[] = {
-	"rdson_3p6v",
-	"rdson_6v",
-	"r1_l",
-	"r1_r",
-	"r3_l",
-	"r3_r",
-	"r4_sbu1",
-	"r4_sbu2",
-	"r5_sbu1",
-	"r5_sbu2",
-	"r6_sbu1",
-	"r6_sbu2",
-	"r7_sbu1",
-	"r7_sbu2",
-	"r_common_gnd_offset",
-	"rcom_margin",
-	"se_slope_factor_times_1000",
-	"diff_slope_factor_times_1000",
-	"lin_k_aud",
+	"rdson",
+	"r2",
+	"r3",
+	"r4",
+	"r5",
+	"r6",
+	"r7",
+	"lin-k-aud",
+	"lin-k-gnd",
 	"xtalk_config",
 };
 
-static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *attr,
-				  const char *buf, size_t count)
+static ssize_t usbcss_sysfs_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf,
+		size_t count)
 {
 	struct usbcss_hs_attr *usbc_attr;
 	struct wcd939x_priv *wcd939x;
@@ -989,7 +1006,7 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 	struct wcd939x_usbcss_hs_params *usbcss_hs;
 	long val;
 	int rc;
-	u32 aud_tap = 0;
+	u32 aud_tap = 0, gnd_tap = 0;
 	bool update_xtalk = false, update_linearizer = false;
 
 	usbc_attr = container_of(attr, struct usbcss_hs_attr, attr);
@@ -1005,86 +1022,64 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 	if (rc)
 		return rc;
 
-	if (strcmp(attr->attr.name, "rdson_3p6v") == 0) {
+	if (strcmp(attr->attr.name, "rdson") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->gnd.rdson_3p6v_mohms = val;
-		usbcss_hs->gnd.gnd_ext_fet_delta_mohms = (s32) (usbcss_hs->gnd.rdson_3p6v_mohms -
-								usbcss_hs->gnd.rdson_mohms);
-		update_linearizer = usbcss_hs->xtalk.xtalk_config == XTALK_ANALOG;
-	} else if (strcmp(attr->attr.name, "rdson_6v") == 0) {
+		usbcss_hs->r_gnd_ext_fet_customer_mohms = val;
+		update_linearizer = usbcss_hs->xtalk_config == XTALK_ANALOG;
+	} else if (strcmp(attr->attr.name, "r2") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->gnd.rdson_mohms = val;
-		update_linearizer = usbcss_hs->xtalk.xtalk_config == XTALK_ANALOG;
-	} else if (strcmp(attr->attr.name, "r1_l") == 0) {
+		usbcss_hs->r_conn_par_load_pos_mohms = val;
+	} else if (strcmp(attr->attr.name, "r3") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->aud.l.r1 = val;
-		update_xtalk = true;
-	} else if (strcmp(attr->attr.name, "r1_r") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->aud.r.r1 = val;
-		update_xtalk = true;
-	} else if (strcmp(attr->attr.name, "r3_l") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->aud.l.r3 = val;
+		usbcss_hs->r3 = val;
 		update_linearizer = true;
-	} else if (strcmp(attr->attr.name, "r3_r") == 0) {
+	} else if (strcmp(attr->attr.name, "r4") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->aud.r.r3 = val;
-		update_linearizer = true;
-	} else if (strcmp(attr->attr.name, "r4_sbu1") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu1.r4 = val;
+		usbcss_hs->r4 = val;
 		update_xtalk = true;
 		update_linearizer = true;
-	} else if (strcmp(attr->attr.name, "r4_sbu2") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu2.r4 = val;
-		update_xtalk = true;
-		update_linearizer = true;
-	} else if (strcmp(attr->attr.name, "r5_sbu1") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu1.r5 = val;
 
-		switch (usbcss_hs->xtalk.xtalk_config) {
+		switch (usbcss_hs->xtalk_config) {
+		case XTALK_DIGITAL:
+			usbcss_hs->r_gnd_par_route2_mohms = usbcss_hs->r6 + val;
+			break;
+		case XTALK_ANALOG:
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r5 + val;
+			break;
+		case XTALK_NONE:
+			fallthrough;
+		default:
+			return count;
+		}
+	} else if (strcmp(attr->attr.name, "r5") == 0) {
+		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
+			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
+			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
+			return count;
+		}
+		usbcss_hs->r5 = val;
+
+		switch (usbcss_hs->xtalk_config) {
 		case XTALK_ANALOG:
 			update_xtalk = true;
 			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route1_mohms = val + usbcss_hs->r4;
 			break;
 		case XTALK_DIGITAL:
 			fallthrough;
@@ -1093,38 +1088,19 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 		default:
 			return count;
 		}
-	} else if (strcmp(attr->attr.name, "r5_sbu2") == 0) {
+	} else if (strcmp(attr->attr.name, "r6") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->gnd.sbu2.r5 = val;
+		usbcss_hs->r6 = val;
 
-		switch (usbcss_hs->xtalk.xtalk_config) {
-		case XTALK_ANALOG:
-			update_xtalk = true;
-			update_linearizer = true;
-			break;
-		case XTALK_DIGITAL:
-			fallthrough;
-		case XTALK_NONE:
-			fallthrough;
-		default:
-			return count;
-		}
-	} else if (strcmp(attr->attr.name, "r6_sbu1") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu1.r6 = val;
-
-		switch (usbcss_hs->xtalk.xtalk_config) {
+		switch (usbcss_hs->xtalk_config) {
 		case XTALK_DIGITAL:
 			update_xtalk = true;
 			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route2_mohms = val + usbcss_hs->r4;
 			break;
 		case XTALK_ANALOG:
 			fallthrough;
@@ -1133,18 +1109,19 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 		default:
 			return count;
 		}
-	} else if (strcmp(attr->attr.name, "r6_sbu2") == 0) {
+	} else if (strcmp(attr->attr.name, "r7") == 0) {
 		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
 			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
 			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
 			return count;
 		}
-		usbcss_hs->gnd.sbu2.r6 = val;
+		usbcss_hs->r7 = val;
 
-		switch (usbcss_hs->xtalk.xtalk_config) {
+		switch (usbcss_hs->xtalk_config) {
 		case XTALK_DIGITAL:
 			update_xtalk = true;
 			update_linearizer = true;
+			usbcss_hs->r_gnd_par_route1_mohms = val;
 			break;
 		case XTALK_ANALOG:
 			fallthrough;
@@ -1153,99 +1130,41 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 		default:
 			return count;
 		}
-	} else if (strcmp(attr->attr.name, "r7_sbu1") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu1.r7 = val;
-
-		switch (usbcss_hs->xtalk.xtalk_config) {
-		case XTALK_DIGITAL:
-			update_xtalk = true;
-			update_linearizer = true;
-			break;
-		case XTALK_ANALOG:
-			fallthrough;
-		case XTALK_NONE:
-			fallthrough;
-		default:
-			return count;
-		}
-	} else if (strcmp(attr->attr.name, "r7_sbu2") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.sbu2.r7 = val;
-
-		switch (usbcss_hs->xtalk.xtalk_config) {
-		case XTALK_DIGITAL:
-			update_xtalk = true;
-			update_linearizer = true;
-			break;
-		case XTALK_ANALOG:
-			fallthrough;
-		case XTALK_NONE:
-			fallthrough;
-		default:
-			return count;
-		}
-	} else if (strcmp(attr->attr.name, "r_common_gnd_offset") == 0) {
-		if (val < -MAX_USBCSS_HS_IMPEDANCE_MOHMS || val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of bounds. Min: %d, Max: %d\n",
-			__func__, val, -MAX_USBCSS_HS_IMPEDANCE_MOHMS,
-			MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.r_common_gnd_offset = val;
-		update_xtalk = true;
-	} else if (strcmp(attr->attr.name, "rcom_margin") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->gnd.r_common_gnd_margin = val;
-	} else if (strcmp(attr->attr.name, "se_slope_factor_times_1000") == 0) {
-		if (val > MAX_USBCSS_HS_IMPEDANCE_MOHMS) {
-			dev_err(wcd939x->dev, "%s: Value %d out of HS impedance range %d\n",
-			__func__, val, MAX_USBCSS_HS_IMPEDANCE_MOHMS);
-			return count;
-		}
-		usbcss_hs->se_slope_factor_times_1000 = val;
-	} else if (strcmp(attr->attr.name, "diff_slope_factor_times_1000") == 0) {
-		if (val > MAX_DIFF_SLOPE_FACTOR || val < MIN_DIFF_SLOPE_FACTOR) {
-			dev_err(wcd939x->dev, "%s: Value %d out of range of %d to %d\n",
-			__func__, val, MIN_DIFF_SLOPE_FACTOR, MAX_DIFF_SLOPE_FACTOR);
-			return count;
-		}
-		usbcss_hs->diff_slope_factor_times_1000 = val;
-	} else if (strcmp(attr->attr.name, "lin_k_aud") == 0) {
+	} else if (strcmp(attr->attr.name, "lin-k-aud") == 0) {
 		if (val < MIN_K_TIMES_100 || val > MAX_K_TIMES_100) {
 			dev_err(wcd939x->dev, "%s: Value %d out of bounds. Min: %d, Max: %d\n",
 			__func__, val, MIN_K_TIMES_100, MAX_K_TIMES_100);
 			return count;
 		}
-		usbcss_hs->aud.k_aud_times_100 = val;
+		usbcss_hs->k_aud_times_100 = val;
+		update_linearizer = true;
+	} else if (strcmp(attr->attr.name, "lin-k-gnd") == 0) {
+		if (val < MIN_K_TIMES_100 || val > MAX_K_TIMES_100) {
+			dev_err(wcd939x->dev, "%s: Value %d out of bounds. Min: %d, Max: %d\n",
+			__func__, val, MIN_K_TIMES_100, MAX_K_TIMES_100);
+			return count;
+		}
+		usbcss_hs->k_gnd_times_100 = val;
 		update_linearizer = true;
 	} else if (strcmp(attr->attr.name, "xtalk_config") == 0) {
-		pdata->usbcss_hs.xtalk.xtalk_config = val;
+		pdata->usbcss_hs.xtalk_config = val;
 		update_xtalk = true;
 
 		switch (val) {
 		case XTALK_NONE:
-			usbcss_hs->xtalk.scale_l = MAX_XTALK_SCALE;
-			usbcss_hs->xtalk.scale_r = MAX_XTALK_SCALE;
-			usbcss_hs->xtalk.alpha_l = MIN_XTALK_ALPHA;
-			usbcss_hs->xtalk.alpha_r = MIN_XTALK_ALPHA;
+			usbcss_hs->scale_l = MAX_XTALK_SCALE;
+			usbcss_hs->scale_r = MAX_XTALK_SCALE;
+			usbcss_hs->alpha_l = MIN_XTALK_ALPHA;
+			usbcss_hs->alpha_r = MIN_XTALK_ALPHA;
 			break;
 		case XTALK_DIGITAL:
+			usbcss_hs->r_gnd_par_route2_mohms = usbcss_hs->r6 + usbcss_hs->r4;
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r7;
 			update_linearizer = true;
 			break;
 		case XTALK_ANALOG:
+			usbcss_hs->r_gnd_par_route1_mohms = usbcss_hs->r5 + usbcss_hs->r4;
+			usbcss_hs->r_gnd_par_route2_mohms = 1;
 			update_linearizer = true;
 			break;
 		default:
@@ -1253,79 +1172,25 @@ static ssize_t usbcss_sysfs_store(struct kobject *kobj, struct kobj_attribute *a
 		}
 	}
 
-	/* Update parastics */
-	switch (pdata->usbcss_hs.xtalk.xtalk_config) {
-	case XTALK_NONE:
-		fallthrough;
-	case XTALK_DIGITAL:
-		usbcss_hs->gnd.sbu1.r_gnd_par_route1_mohms = usbcss_hs->gnd.sbu1.r7;
-		usbcss_hs->gnd.sbu2.r_gnd_par_route1_mohms = usbcss_hs->gnd.sbu2.r7;
-		usbcss_hs->gnd.sbu1.r_gnd_par_route2_mohms = usbcss_hs->gnd.sbu1.r6 +
-							     usbcss_hs->gnd.sbu1.r4;
-		usbcss_hs->gnd.sbu2.r_gnd_par_route2_mohms = usbcss_hs->gnd.sbu2.r6 +
-							     usbcss_hs->gnd.sbu2.r4;
-		break;
-	case XTALK_ANALOG:
-		usbcss_hs->gnd.sbu1.r_gnd_par_route1_mohms = usbcss_hs->gnd.sbu1.r5 +
-							     usbcss_hs->gnd.sbu1.r4;
-		usbcss_hs->gnd.sbu2.r_gnd_par_route1_mohms = usbcss_hs->gnd.sbu2.r5 +
-							     usbcss_hs->gnd.sbu2.r4;
-		usbcss_hs->gnd.sbu1.r_gnd_par_route2_mohms = 1;
-		usbcss_hs->gnd.sbu2.r_gnd_par_route2_mohms = 1;
-		break;
-	default:
-		return count;
-	}
-
-	/* Update parastics total */
-	usbcss_hs->gnd.sbu1.r_gnd_par_tot_mohms = usbcss_hs->gnd.sbu1.r_gnd_par_route1_mohms +
-						  usbcss_hs->gnd.sbu1.r_gnd_par_route2_mohms;
-	usbcss_hs->gnd.sbu2.r_gnd_par_tot_mohms = usbcss_hs->gnd.sbu2.r_gnd_par_route1_mohms +
-						  usbcss_hs->gnd.sbu2.r_gnd_par_route2_mohms;
-
 	if (update_xtalk) {
-		/* Apply r_common_gnd offset */
-		usbcss_hs->gnd.r_common_gnd_mohms = (usbcss_hs->gnd.r_common_gnd_offset >= 0) ?
-						    usbcss_hs->gnd.r_common_gnd_mohms +
-						    (u32) usbcss_hs->gnd.r_common_gnd_offset :
-						    usbcss_hs->gnd.r_common_gnd_mohms -
-						    (u32) (-1 * usbcss_hs->gnd.r_common_gnd_offset);
-		/* Compute and store xtalk values */
-		update_xtalk_scale_and_alpha(wcd939x);
-		/* Revert r_common_gnd offset */
-		usbcss_hs->gnd.r_common_gnd_mohms = (usbcss_hs->gnd.r_common_gnd_offset >= 0) ?
-						    usbcss_hs->gnd.r_common_gnd_mohms -
-						    (u32) usbcss_hs->gnd.r_common_gnd_offset :
-						    usbcss_hs->gnd.r_common_gnd_mohms +
-						    (u32) (-1 * usbcss_hs->gnd.r_common_gnd_offset);
-		/* Apply xtalk scale and alpha values */
-		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0, 0x1F,
-				   pdata->usbcss_hs.xtalk.scale_l);
-		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1, 0xFF,
-				   pdata->usbcss_hs.xtalk.alpha_l);
-		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0 +
-						    XTALK_CH_REG_ADDR_DELTA, 0x1F,
-				   pdata->usbcss_hs.xtalk.scale_r);
-		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1 +
-						    XTALK_CH_REG_ADDR_DELTA, 0xFF,
-				   pdata->usbcss_hs.xtalk.alpha_r);
+		update_xtalk_scale_and_alpha(pdata, wcd939x->regmap);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0,
+				0x1F, pdata->usbcss_hs.scale_l);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1,
+				0xFF, pdata->usbcss_hs.alpha_l);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC0 + 1,
+				0x1F, pdata->usbcss_hs.scale_r);
+		regmap_update_bits(wcd939x->regmap, WCD939X_HPHL_RX_PATH_SEC1 + 1,
+				0xFF, pdata->usbcss_hs.alpha_r);
 		dev_err(wcd939x->dev, "%s: Updated xtalk thru sysfs\n",
 			__func__);
-		dev_dbg(wcd939x->dev, "%s: Left-channel: Xtalk scale is 0x%x and alpha is 0x%x\n",
-			__func__, pdata->usbcss_hs.xtalk.scale_l, pdata->usbcss_hs.xtalk.alpha_l);
-		dev_dbg(wcd939x->dev, "%s: Right-channel: Xtalk scale is 0x%x and alpha is 0x%x\n",
-			__func__, pdata->usbcss_hs.xtalk.scale_r, pdata->usbcss_hs.xtalk.alpha_r);
 	}
 
 	if (update_linearizer) {
-		get_linearizer_taps(pdata, &aud_tap);
-#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
-		wcd_usbss_set_linearizer_sw_tap(aud_tap, LINEARIZER_DEFAULT_TAP);
-#endif
+		get_linearizer_taps(pdata, &aud_tap, &gnd_tap);
+		wcd_usbss_set_linearizer_sw_tap(aud_tap, gnd_tap);
 		dev_err(wcd939x->dev, "%s: Updated linearizer thru sysfs\n",
 			__func__);
-		dev_dbg(wcd939x->dev, "%s: Linearizer aud_tap is 0x%x\n",
-			__func__, aud_tap);
 	}
 
 	return count;
@@ -1342,46 +1207,27 @@ static ssize_t usbcss_sysfs_show(struct kobject *kobj,
 	wcd939x = usbc_attr->priv;
 	pdata = dev_get_platdata(wcd939x->dev);
 
-	if (strcmp(attr->attr.name, "rdson_3p6v") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.rdson_3p6v_mohms);
-	else if (strcmp(attr->attr.name, "rdson_6v") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.rdson_mohms);
-	else if (strcmp(attr->attr.name, "r1_l") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.aud.l.r1);
-	else if (strcmp(attr->attr.name, "r1_r") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.aud.r.r1);
-	else if (strcmp(attr->attr.name, "r3_l") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.aud.l.r3);
-	else if (strcmp(attr->attr.name, "r3_r") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.aud.r.r3);
-	else if (strcmp(attr->attr.name, "r4_sbu1") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu1.r4);
-	else if (strcmp(attr->attr.name, "r4_sbu2") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu2.r4);
-	else if (strcmp(attr->attr.name, "r5_sbu1") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu1.r5);
-	else if (strcmp(attr->attr.name, "r5_sbu2") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu2.r5);
-	else if (strcmp(attr->attr.name, "r6_sbu1") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu1.r6);
-	else if (strcmp(attr->attr.name, "r6_sbu2") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu2.r6);
-	else if (strcmp(attr->attr.name, "r7_sbu1") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu1.r7);
-	else if (strcmp(attr->attr.name, "r7_sbu2") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.sbu2.r7);
-	else if (strcmp(attr->attr.name, "r_common_gnd_offset") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.r_common_gnd_offset);
-	else if (strcmp(attr->attr.name, "rcom_margin") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.gnd.r_common_gnd_margin);
-	else if (strcmp(attr->attr.name, "se_slope_factor_times_1000") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.se_slope_factor_times_1000);
-	else if (strcmp(attr->attr.name, "diff_slope_factor_times_1000") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.diff_slope_factor_times_1000);
-	else if (strcmp(attr->attr.name, "lin_k_aud") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.aud.k_aud_times_100);
+	if (strcmp(attr->attr.name, "rdson") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r_gnd_ext_fet_customer_mohms);
+	else if (strcmp(attr->attr.name, "r2") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r_conn_par_load_pos_mohms);
+	else if (strcmp(attr->attr.name, "r3") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r3);
+	else if (strcmp(attr->attr.name, "r4") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r4);
+	else if (strcmp(attr->attr.name, "r5") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r5);
+	else if (strcmp(attr->attr.name, "r6") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r6);
+	else if (strcmp(attr->attr.name, "r7") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.r7);
+	else if (strcmp(attr->attr.name, "lin-k-aud") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.k_aud_times_100);
+	else if (strcmp(attr->attr.name, "lin-k-gnd") == 0)
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.k_gnd_times_100);
 	else if (strcmp(attr->attr.name, "xtalk_config") == 0)
-		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.xtalk.xtalk_config);
+		return scnprintf(buf, 10, "%d\n", pdata->usbcss_hs.xtalk_config);
+
 	return 0;
 }
 
@@ -1441,32 +1287,27 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	struct wcd939x_priv *wcd939x = dev_get_drvdata(component->dev);
 	struct wcd939x_pdata *pdata = dev_get_platdata(wcd939x->dev);
 	s16 reg0, reg1, reg2, reg3, reg4;
-	uint32_t zdiff_val = 0, r_gnd_int_fet_mohms = 0, rl_eff_l_mohms = 0, rl_eff_r_mohms = 0;
-	uint32_t r_gnd_ext_fet_mohms = 0, r_aud_ext_fet_mohms = 0, r_gnd_res_tot_mohms = 0;
-	uint32_t r_gnd_par_tot_mohms = 0, r_gnd_par_route1_mohms = 0;
-	uint32_t aud_tap = LINEARIZER_DEFAULT_TAP, zdiff_counter = 0, zdiff_sum = 0;
+	uint32_t zdiff_val = 0, r_gnd_int_fet_mohms = 0, rl_eff_mohms = 0, r_gnd_ext_fet_mohms = 0;
+	uint32_t aud_tap = 0, gnd_tap = 0;
 	uint32_t *zdiff = &zdiff_val;
-	s32 z_L_R_delta_mohms = 0;
 	int32_t z1L, z1R, z1Ls, z1Diff;
 	int zMono, z_diff1, z_diff2;
-	size_t i;
-	bool is_fsm_disable = false, calculate_lin_aud_tap = false, gnd_ext_fet_updated = false;
+	bool is_fsm_disable = false;
 	struct wcd939x_mbhc_zdet_param zdet_param = {4, 0, 6, 0x18, 0x60, 0x78};
 	struct wcd939x_mbhc_zdet_param *zdet_param_ptr = &zdet_param;
 	s16 d1[] = {0, 30, 30, 6};
-#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	uint32_t cached_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0}, {WCD_USBSS_EXT_SW_CTRL_1, 0},
 				      {WCD_USBSS_MG1_BIAS, 0}, {WCD_USBSS_MG2_BIAS, 0}};
 	uint32_t l_3_6V_regs[4][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0x00},
 				      {WCD_USBSS_MG1_BIAS, 0x0E}, {WCD_USBSS_MG2_BIAS, 0x0E}};
-	uint32_t diff_regs[2][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0x00}};
-#endif
+	uint32_t diff_regs[2][2] = {{WCD_USBSS_EXT_LIN_EN, 0x00}, {WCD_USBSS_EXT_SW_CTRL_1, 0xE8}};
+
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
 	/* Turn on RX supplies */
 	if (wcd939x->version == WCD939X_VERSION_2_0) {
 		/* Start up Buck/Flyback, Enable RX bias, Use MBHC RCO for MBHC Zdet, Enable Vneg */
-		regmap_update_bits(wcd939x->regmap, WCD939X_ZDET_VNEG_CTL, 0x4E, 0x4E);
+		regmap_update_bits(wcd939x->regmap, WCD939X_ZDET_VNEG_CTL, 0x4C, 0x4C);
 		/* Wait 100us for settling */
 		usleep_range(100, 110);
 		/* Enable VNEGDAC_LDO */
@@ -1484,8 +1325,6 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Cache relevant USB-SS registers */
 	wcd_usbss_register_update(cached_regs, WCD_USBSS_READ, ARRAY_SIZE(cached_regs));
-	/* Disable 2k pulldown on MG for improved measurement */
-	wcd_usbss_register_update(l_3_6V_regs, WCD_USBSS_WRITE, ARRAY_SIZE(l_3_6V_regs));
 #endif
 
 	/* Store register values */
@@ -1528,27 +1367,24 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 #endif
 
 	/* L-channel impedance */
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_register_update(l_3_6V_regs, WCD_USBSS_WRITE, ARRAY_SIZE(l_3_6V_regs));
+#endif
 	wcd939x_mbhc_zdet_ramp(component, zdet_param_ptr, &z1L, NULL, d1);
 	if ((z1L == WCD939X_ZDET_FLOATING_IMPEDANCE) || (z1L > WCD939X_ZDET_VAL_100K)) {
 		*zl = WCD939X_ZDET_FLOATING_IMPEDANCE;
 	} else {
 		*zl = z1L;
 		wcd939x_wcd_mbhc_qfuse_cal(component, zl, 0);
-		dev_dbg(component->dev, "%s: Calibrated left SE measurement is %d(mohms)\n",
-			__func__, *zl);
-		apply_zdet_correction(zl, ZDET_SE, pdata->usbcss_hs.se_slope_factor_times_1000,
-				      pdata->usbcss_hs.diff_slope_factor_times_1000);
 	}
-	pdata->usbcss_hs.aud.l.zval = *zl;
-
+	/* Differential measurement for USB-C analog platforms */
 	if (mbhc->mbhc_cfg->enable_usbc_analog) {
-		dev_dbg(component->dev,
-			"%s: Calibrated and adjusted left SE measurement is %d(mohms)\n", __func__,
-			*zl);
-	} else {
-		dev_dbg(component->dev, "%s: impedance on HPH_L = %d(mohms)\n",
+		dev_dbg(component->dev, "%s: effective impedance on HPH_L = %d(mohms)\n",
 			__func__, *zl);
+		goto diff_impedance;
 	}
+	dev_dbg(component->dev, "%s: impedance on HPH_L = %d(mohms)\n",
+		__func__, *zl);
 
 	/* R-channel impedance */
 	wcd939x_mbhc_zdet_ramp(component, zdet_param_ptr, NULL, &z1R, d1);
@@ -1557,28 +1393,15 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	} else {
 		*zr = z1R;
 		wcd939x_wcd_mbhc_qfuse_cal(component, zr, 4);
-		dev_dbg(component->dev, "%s: Calibrated right SE measurement is %d(mohms)\n",
-			__func__, *zr);
-		apply_zdet_correction(zr, ZDET_SE, pdata->usbcss_hs.se_slope_factor_times_1000,
-				      pdata->usbcss_hs.diff_slope_factor_times_1000);
 	}
-	pdata->usbcss_hs.aud.r.zval = *zr;
-
-
-	if (mbhc->mbhc_cfg->enable_usbc_analog) {
-		dev_dbg(component->dev,
-			"%s: Calibrated and adjusted right SE measurement is %d(mohms)\n", __func__,
-			*zr);
-	} else {
-		dev_dbg(component->dev, "%s: impedance on HPH_R = %d(mohms)\n",
-			__func__, *zr);
+	dev_dbg(component->dev, "%s: impedance on HPH_R = %d(mohms)\n",
+		__func__, *zr);
 		/* Convert from mohms to ohms (rounded) */
-		*zl = (*zl + OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
-		*zr = (*zr + OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
-		goto mono_stereo_detection;
-	}
+	*zl = (*zl + OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
+	*zr = (*zr + OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
+	goto mono_stereo_detection;
 
-	/* Differential measurement L to R */
+diff_impedance:
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Disable AGND switch */
 	wcd_usbss_set_switch_settings_enable(AGND_SWITCHES, USBSS_SWITCH_DISABLE);
@@ -1586,38 +1409,17 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 #endif
 	/* Enable HPHR NCLAMP */
 	regmap_update_bits(wcd939x->regmap, WCD939X_HPHLR_SURGE_MISC1, 0x08, 0x08);
-	/* Wait 3ms for settling */
-	usleep_range(3000, 3010);
-	/* Differential impedance */
-	for (i = 0; i < NUM_DIFF_MEAS; i++) {
-		wcd939x_mbhc_zdet_ramp(component, zdet_param_ptr, &z1Diff, NULL, d1);
-		if ((z1Diff == WCD939X_ZDET_FLOATING_IMPEDANCE) ||
-		    (z1Diff > WCD939X_ZDET_VAL_100K)) {
-		} else {
-			*zdiff = z1Diff;
-			wcd939x_wcd_mbhc_qfuse_cal(component, zdiff, 0);
-			dev_dbg(component->dev,
-				"%s: Calibrated differential measurement %d is %d(mohms)\n",
-				__func__, i + 1, *zdiff);
-			apply_zdet_correction(zdiff, ZDET_DIFF,
-					      pdata->usbcss_hs.se_slope_factor_times_1000,
-					      pdata->usbcss_hs.diff_slope_factor_times_1000);
-			zdiff_sum += *zdiff;
-			zdiff_counter++;
-		}
-		dev_dbg(component->dev,
-			"%s: Calibrated and adjusted differential measurement %d is %d(mohms)\n",
-			__func__, i + 1, *zdiff);
-	}
-	/* Take average of measurements */
-	if (zdiff_counter == 0)
+
+	/* Diffrential impedance */
+	wcd939x_mbhc_zdet_ramp(component, zdet_param_ptr, &z1Diff, NULL, d1);
+	if ((z1Diff == WCD939X_ZDET_FLOATING_IMPEDANCE) || (z1Diff > WCD939X_ZDET_VAL_100K)) {
 		*zdiff = WCD939X_ZDET_FLOATING_IMPEDANCE;
-	else
-		*zdiff = zdiff_sum / zdiff_counter;
-	/* Store the average of the measurements */
-	pdata->usbcss_hs.zdiffval = *zdiff;
-	dev_dbg(component->dev, "%s: %s %d(mohms)\n", __func__,
-		"Average of the calibrated and adjusted differential measurement(s) is", *zdiff);
+	} else {
+		*zdiff = z1Diff;
+		wcd939x_wcd_mbhc_qfuse_cal(component, zdiff, 0);
+	}
+	dev_dbg(component->dev, "%s: effective impedance on HPH_diff after calib = %d(mohms)\n",
+		__func__, *zdiff);
 	/* Disable HPHR NCLAMP */
 	regmap_update_bits(wcd939x->regmap, WCD939X_HPHLR_SURGE_MISC1, 0x08, 0x00);
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
@@ -1625,169 +1427,44 @@ static void wcd939x_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	wcd_usbss_set_switch_settings_enable(AGND_SWITCHES, USBSS_SWITCH_ENABLE);
 	/* Get ground internal resistance based on orientation */
 	if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU2_ORIENTATION_A) {
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_int_fet_mohms;
-		r_gnd_par_route1_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_par_route1_mohms;
-		r_gnd_par_tot_mohms = pdata->usbcss_hs.gnd.sbu2.r_gnd_par_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu2_int_fet_mohms;
 	} else if (wcd_usbss_get_sbu_switch_orientation() == GND_SBU1_ORIENTATION_B) {
-		r_gnd_int_fet_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_int_fet_mohms;
-		r_gnd_par_route1_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_par_route1_mohms;
-		r_gnd_par_tot_mohms = pdata->usbcss_hs.gnd.sbu1.r_gnd_par_tot_mohms;
+		r_gnd_int_fet_mohms = pdata->usbcss_hs.r_gnd_sbu1_int_fet_mohms;
 	} else {
-		dev_dbg(component->dev, "%s: Invalid SBU switch orientation\n", __func__);
 		*zl = 0;
 		*zr = 0;
-		goto default_vals;
+		dev_dbg(component->dev, "%s: Invalid SBU switch orientation\n", __func__);
+		goto zdet_complete;
 	}
 #endif
-	z_L_R_delta_mohms = *zl - *zr;
-	dev_dbg(component->dev, "%s: %s : %d mohms\n", __func__,
-		"The difference between the L and R SE measurements (L - R) is", z_L_R_delta_mohms);
+	/* Compute external fet and effective load impedance */
+	r_gnd_ext_fet_mohms = *zl - *zdiff / 2 + pdata->usbcss_hs.r_surge_mohms / 2 -
+			      pdata->usbcss_hs.r_gnd_par_tot_mohms - r_gnd_int_fet_mohms;
+	rl_eff_mohms = *zdiff / 2 - pdata->usbcss_hs.r_aud_int_fet_r_mohms -
+		       pdata->usbcss_hs.r_gnd_ext_fet_mohms - pdata->usbcss_hs.r_surge_mohms / 2 -
+		       pdata->usbcss_hs.r_gnd_par_tot_mohms;
+	/* Store values */
+	*zl = (rl_eff_mohms - pdata->usbcss_hs.r_conn_par_load_pos_mohms - pdata->usbcss_hs.r3 +
+		   OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
+	*zr = *zl;
 
-	/* Ground path resistance */
-	/* Use DTSI params for high zdet SE measurements */
-	if (pdata->usbcss_hs.aud.l.zval > ZDET_ACC_LMT_MOHMS ||
-	    pdata->usbcss_hs.aud.r.zval > ZDET_ACC_LMT_MOHMS) {
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.rdson_mohms + r_gnd_par_tot_mohms +
-				      r_gnd_int_fet_mohms;
-		pdata->usbcss_hs.gnd.r_common_gnd_mohms = r_gnd_res_tot_mohms -
-							  r_gnd_int_fet_mohms -
-							  r_gnd_par_route1_mohms;
-		dev_dbg(component->dev, "%s: %s %d %s\n", __func__,
-			"The r_common_gnd value determined by DTSI parameters,",
-			pdata->usbcss_hs.gnd.r_common_gnd_mohms,
-			"mohms, is being used instead of calculating r_common_gnd");
-		calculate_lin_aud_tap = false;
-	} else {
-		r_gnd_res_tot_mohms = (*zl + *zr - *zdiff + pdata->usbcss_hs.aud.r_surge_mohms) / 2;
-		/* Offset to account for using 3.6V SE measurements */
-		r_gnd_res_tot_mohms = (pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms >= 0) ?
-				r_gnd_res_tot_mohms -
-				(u32) (s32) pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms :
-				r_gnd_res_tot_mohms +
-				(u32) (s32) (-1 * pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms);
-		/* Compute r_common_gnd */
-		get_r_common_gnd(wcd939x, r_gnd_res_tot_mohms, r_gnd_int_fet_mohms,
-				 r_gnd_par_route1_mohms);
-		/* Re-calculate ground path resistance based on r_common_gnd */
-		r_gnd_res_tot_mohms = pdata->usbcss_hs.gnd.r_common_gnd_mohms +
-				      r_gnd_int_fet_mohms + r_gnd_par_route1_mohms;
-		calculate_lin_aud_tap = true;
-	}
-	dev_dbg(component->dev, "%s: r_gnd_res_tot_mohms is : %d mohms\n", __func__,
-		r_gnd_res_tot_mohms);
-	/* Print r_common_gnd buffer */
-	for (i = 0; i < R_COMMON_GND_BUFFER_SIZE; i++) {
-		dev_dbg(component->dev, "%s: Element %d in r_common_gnd_buffer is : %d mohms\n",
-			__func__, i + 1, pdata->usbcss_hs.gnd.r_cm_gnd_buffer.data[i]);
-	}
-	/* Apply r_common_gnd offset */
-	pdata->usbcss_hs.gnd.r_common_gnd_mohms =
-				(pdata->usbcss_hs.gnd.r_common_gnd_offset >= 0) ?
-					pdata->usbcss_hs.gnd.r_common_gnd_mohms +
-					(u32) pdata->usbcss_hs.gnd.r_common_gnd_offset :
-					pdata->usbcss_hs.gnd.r_common_gnd_mohms -
-					(u32) (-1 * pdata->usbcss_hs.gnd.r_common_gnd_offset);
-
-	/* Ground external FET */
-	r_gnd_ext_fet_mohms = r_gnd_res_tot_mohms - r_gnd_par_tot_mohms - r_gnd_int_fet_mohms;
-	dev_dbg(component->dev, "%s: r_gnd_ext_fet_mohms is : %d mohms\n", __func__,
-		r_gnd_ext_fet_mohms);
-
-	/* Audio external FET */
-	r_aud_ext_fet_mohms = (pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms >= 0) ?
-	      r_gnd_ext_fet_mohms + (u32) (s32) pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms :
-	      r_gnd_ext_fet_mohms - (u32) (s32) (-1 * pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms);
-	dev_dbg(component->dev, "%s: r_aud_ext_fet_mohms is : %d mohms\n", __func__,
-		r_aud_ext_fet_mohms);
-
-	/* Compute effective load resistance */
-	rl_eff_l_mohms = *zl - pdata->usbcss_hs.aud.l.r_aud_int_fet_mohms - r_aud_ext_fet_mohms -
-			 r_gnd_res_tot_mohms;
-	rl_eff_r_mohms = *zr - pdata->usbcss_hs.aud.r.r_aud_int_fet_mohms - r_aud_ext_fet_mohms -
-			 r_gnd_res_tot_mohms;
-
-	/* Store z values */
-	*zl = (rl_eff_l_mohms - R_CONN_PAR_LOAD_POS_MOHMS - pdata->usbcss_hs.aud.l.r3 +
-	       OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
-	dev_dbg(component->dev, "%s: rload_l is : %d mohms\n", __func__,
-		rl_eff_l_mohms - R_CONN_PAR_LOAD_POS_MOHMS - pdata->usbcss_hs.aud.l.r3);
-	*zr = (rl_eff_r_mohms - R_CONN_PAR_LOAD_POS_MOHMS - pdata->usbcss_hs.aud.r.r3 +
-	       OHMS_TO_MILLIOHMS / 2) / OHMS_TO_MILLIOHMS;
-	dev_dbg(component->dev, "%s: rload_r is : %d mohms\n", __func__,
-		rl_eff_r_mohms - R_CONN_PAR_LOAD_POS_MOHMS - pdata->usbcss_hs.aud.r.r3);
-
-	/* Check bounds on effective load values and store the value */
-	if (rl_eff_l_mohms > MAX_RL_EFF_MOHMS)
-		rl_eff_l_mohms = MAX_RL_EFF_MOHMS;
-	else if (rl_eff_l_mohms < MIN_RL_EFF_MOHMS)
-		rl_eff_l_mohms = MIN_RL_EFF_MOHMS;
-	pdata->usbcss_hs.aud.l.r_load_eff_mohms = rl_eff_l_mohms;
-	if (rl_eff_r_mohms > MAX_RL_EFF_MOHMS)
-		rl_eff_r_mohms = MAX_RL_EFF_MOHMS;
-	else if (rl_eff_r_mohms < MIN_RL_EFF_MOHMS)
-		rl_eff_r_mohms = MIN_RL_EFF_MOHMS;
-	pdata->usbcss_hs.aud.r.r_load_eff_mohms = rl_eff_r_mohms;
-
-	/* Update FET values and resistances */
-	update_ext_fet_res(pdata, r_aud_ext_fet_mohms, r_gnd_ext_fet_mohms);
-
-	/* Update xtalk params */
-	/* For SE measurements greater than ZDET_SE_MAX_MOHMS, use default xtalk values */
-	if (pdata->usbcss_hs.aud.l.zval > ZDET_SE_MAX_MOHMS ||
-	    pdata->usbcss_hs.aud.r.zval > ZDET_SE_MAX_MOHMS) {
-		pdata->usbcss_hs.xtalk.scale_l = MAX_XTALK_SCALE;
-		pdata->usbcss_hs.xtalk.scale_r = MAX_XTALK_SCALE;
-		pdata->usbcss_hs.xtalk.alpha_l = MIN_XTALK_ALPHA;
-		pdata->usbcss_hs.xtalk.alpha_r = MIN_XTALK_ALPHA;
-		dev_dbg(component->dev, "%s: %s %d, %s\n",
-			__func__, "The SE zdet measurement is greater than ZDET_SE_MAX_MOHMS,",
-			ZDET_SE_MAX_MOHMS,
-			"so the default xtalk scale and alpha values will be used");
-	} else {
-		update_xtalk_scale_and_alpha(wcd939x);
-		/* Compute updated linearizer tap */
-		if (calculate_lin_aud_tap) {
-			if (r_gnd_ext_fet_mohms < pdata->usbcss_hs.gnd.gnd_ext_fet_min_mohms) {
-				r_gnd_ext_fet_mohms = pdata->usbcss_hs.gnd.gnd_ext_fet_min_mohms;
-				gnd_ext_fet_updated = true;
-			}
-			if (r_gnd_ext_fet_mohms > GND_EXT_FET_MAX_MOHMS) {
-				r_gnd_ext_fet_mohms = GND_EXT_FET_MAX_MOHMS;
-				gnd_ext_fet_updated = true;
-			}
-			if (gnd_ext_fet_updated) {
-				dev_dbg(component->dev, "%s: %s %d mohms\n", __func__,
-					"Updated (for linearizer) r_gnd_ext_fet_mohms is :",
-					r_gnd_ext_fet_mohms);
-				/* Audio external FET */
-				    r_aud_ext_fet_mohms =
-				    (pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms >= 0) ?
-				    r_gnd_ext_fet_mohms +
-				    (u32) (s32) pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms :
-				    r_gnd_ext_fet_mohms -
-				    (u32) (s32) (-1 * pdata->usbcss_hs.gnd.gnd_ext_fet_delta_mohms);
-				dev_dbg(component->dev, "%s: %s %d mohms\n", __func__,
-					"Updated (for linearizer) r_aud_ext_fet_mohms is :",
-					r_aud_ext_fet_mohms);
-				/* Update FET values and resistances */
-				update_ext_fet_res(pdata, r_aud_ext_fet_mohms, r_gnd_ext_fet_mohms);
-			}
-			get_linearizer_taps(pdata, &aud_tap);
-		}
-	}
-
-	/* Print xtalk params */
-	dev_dbg(component->dev, "%s: Left-channel: Xtalk scale is 0x%x and alpha is 0x%x\n",
-		__func__, pdata->usbcss_hs.xtalk.scale_l, pdata->usbcss_hs.xtalk.alpha_l);
-	dev_dbg(component->dev, "%s: Right-channel: Xtalk scale is 0x%x and alpha is 0x%x\n",
-		__func__, pdata->usbcss_hs.xtalk.scale_r, pdata->usbcss_hs.xtalk.alpha_r);
-
-	/* Revert r_common_gnd offset */
-	pdata->usbcss_hs.gnd.r_common_gnd_mohms = (pdata->usbcss_hs.gnd.r_common_gnd_offset >= 0) ?
-					pdata->usbcss_hs.gnd.r_common_gnd_mohms -
-					(u32) pdata->usbcss_hs.gnd.r_common_gnd_offset :
-					pdata->usbcss_hs.gnd.r_common_gnd_mohms +
-					(u32) (-1 * pdata->usbcss_hs.gnd.r_common_gnd_offset);
+	/* Update USBC-SS HS params */
+	if (rl_eff_mohms > MAX_RL_EFF_MOHMS)
+		rl_eff_mohms = MAX_RL_EFF_MOHMS;
+	else if (rl_eff_mohms == 0)
+		rl_eff_mohms = MIN_RL_EFF_MOHMS;
+	pdata->usbcss_hs.r_load_eff_l_mohms = rl_eff_mohms;
+	pdata->usbcss_hs.r_load_eff_r_mohms = rl_eff_mohms;
+	update_ext_fet_res(pdata, r_gnd_ext_fet_mohms);
+	update_xtalk_scale_and_alpha(pdata, wcd939x->regmap);
+	dev_dbg(component->dev, "%s: Xtalk scale is 0x%x and alpha is 0x%x\n",
+		__func__, pdata->usbcss_hs.scale_l, pdata->usbcss_hs.alpha_l);
+	get_linearizer_taps(pdata, &aud_tap, &gnd_tap);
+#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+	wcd_usbss_set_linearizer_sw_tap(aud_tap, gnd_tap);
+#endif
+	dev_dbg(component->dev, "%s: Linearizer aud_tap is 0x%x and gnd_tap is 0x%x\n",
+		__func__, aud_tap, gnd_tap);
 
 mono_stereo_detection:
 	/* Mono/stereo detection */
@@ -1827,29 +1504,8 @@ mono_stereo_detection:
 			__func__);
 		mbhc->hph_type = WCD_MBHC_HPH_MONO;
 	}
-	goto zdet_complete;
-#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
-default_vals:
-	pdata->usbcss_hs.xtalk.scale_l = MAX_XTALK_SCALE;
-	pdata->usbcss_hs.xtalk.scale_r = MAX_XTALK_SCALE;
-	pdata->usbcss_hs.xtalk.alpha_l = MIN_XTALK_ALPHA;
-	pdata->usbcss_hs.xtalk.alpha_r = MIN_XTALK_ALPHA;
-	/* Print xtalk params */
-	dev_dbg(component->dev,
-		"%s: Left-channel: Xtalk scale is 0x%x and alpha is 0x%x\n", __func__,
-		pdata->usbcss_hs.xtalk.scale_l, pdata->usbcss_hs.xtalk.alpha_l);
-	dev_dbg(component->dev,
-		"%s: Right-channel: Xtalk scale is 0x%x and alpha is 0x%x\n", __func__,
-		pdata->usbcss_hs.xtalk.scale_r, pdata->usbcss_hs.xtalk.alpha_r);
-#endif
+
 zdet_complete:
-	/* Configure linearizer */
-#if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
-	wcd_usbss_set_linearizer_sw_tap(aud_tap, LINEARIZER_DEFAULT_TAP);
-#endif
-	/* Print linearizer values */
-	dev_dbg(component->dev, "%s: Linearizer aud_tap is 0x%x\n",
-		__func__, aud_tap);
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	/* Enable sense switch and MIC for USB-C analog platforms */
 	if (mbhc->mbhc_cfg->enable_usbc_analog) {
@@ -1857,11 +1513,9 @@ zdet_complete:
 		wcd_usbss_set_switch_settings_enable(MIC_SWITCHES, USBSS_SWITCH_ENABLE);
 	}
 #endif
-	/* Enable surge protection again after impedance detection for platforms other than USB-C
-	 * analog platforms
-	 */
-	if (!(mbhc->mbhc_cfg->enable_usbc_analog))
-		regmap_update_bits(wcd939x->regmap, WCD939X_HPHLR_SURGE_EN, 0xC0, 0xC0);
+	/* Enable surge protection again after impedance detection */
+	regmap_update_bits(wcd939x->regmap,
+			   WCD939X_HPHLR_SURGE_EN, 0xC0, 0xC0);
 
 	snd_soc_component_write(component, WCD939X_MBHC_BTN5, reg0);
 	snd_soc_component_write(component, WCD939X_MBHC_BTN6, reg1);

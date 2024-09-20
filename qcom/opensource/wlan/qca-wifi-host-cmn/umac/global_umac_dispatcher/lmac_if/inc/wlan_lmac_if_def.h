@@ -592,8 +592,7 @@ struct wlan_lmac_if_mlme_tx_ops {
 	QDF_STATUS (*target_if_mlo_ready)(struct wlan_objmgr_pdev **pdev,
 					  uint8_t num_pdevs);
 	QDF_STATUS (*target_if_mlo_teardown_req)(struct wlan_objmgr_pdev *pdev,
-						 uint32_t grp_id, bool reset,
-						 bool standby_active);
+						 uint32_t grp_id, bool reset);
 #endif
 #ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
 QDF_STATUS (*vdev_send_set_mac_addr)(struct qdf_mac_addr mac_addr,
@@ -1135,8 +1134,6 @@ struct wlan_lmac_if_ftm_rx_ops {
  *			response from fw.
  * @is_80p80_supported: Callback function to check if the device supports a
  * 6GHz 80p80 channel.
- * @is_freq_80p80_supported: Callback function to check if the given primary
- * frequency supports 80P80 mode of operation.
  */
 struct wlan_lmac_if_reg_tx_ops {
 	QDF_STATUS (*register_master_handler)(struct wlan_objmgr_psoc *psoc,
@@ -1209,8 +1206,6 @@ struct wlan_lmac_if_reg_tx_ops {
 			struct wlan_objmgr_psoc *psoc,
 			uint32_t pdev_id);
 	bool (*is_80p80_supported)(struct wlan_objmgr_pdev *pdev);
-	bool (*is_freq_80p80_supported)(struct wlan_objmgr_pdev *pdev,
-					qdf_freq_t freq);
 };
 
 /**
@@ -1412,21 +1407,14 @@ struct wlan_lmac_if_green_ap_tx_ops {
 
 #ifdef FEATURE_COEX
 struct coex_config_params;
-struct coex_multi_config;
 
 /**
  * struct wlan_lmac_if_coex_tx_ops - south bound tx function pointers for coex
  * @coex_config_send: function pointer to send coex config to fw
- * @coex_multi_config_send: function pointer to send multiple coex config to fw
- * @coex_get_multi_config_support: function pointer to get multiple coex config
- * support or not
  */
 struct wlan_lmac_if_coex_tx_ops {
 	QDF_STATUS (*coex_config_send)(struct wlan_objmgr_pdev *pdev,
 				       struct coex_config_params *param);
-	QDF_STATUS (*coex_multi_config_send)(struct wlan_objmgr_pdev *pdev,
-					     struct coex_multi_config *param);
-	bool (*coex_get_multi_config_support)(struct wlan_objmgr_psoc *psoc);
 };
 #endif
 

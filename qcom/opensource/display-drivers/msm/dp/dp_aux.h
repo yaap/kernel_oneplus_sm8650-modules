@@ -30,12 +30,6 @@
 #define DP_STATE_AUX_TIMEOUT                BIT(12)
 #define DP_STATE_PLL_LOCKED                 BIT(13)
 
-enum dp_aux_switch_type {
-	DP_AUX_SWITCH_BYPASS,
-	DP_AUX_SWITCH_FSA4480,
-	DP_AUX_SWITCH_WCD939x,
-};
-
 enum dp_aux_error {
 	DP_AUX_ERR_NONE	= 0,
 	DP_AUX_ERR_ADDR	= -1,
@@ -70,8 +64,7 @@ struct dp_aux {
 
 struct dp_aux *dp_aux_get(struct device *dev, struct dp_catalog_aux *catalog,
 		struct dp_parser *parser, struct device_node *aux_switch,
-		struct dp_aux_bridge *aux_bridge, void *ipc_log_context,
-		enum dp_aux_switch_type switch_type);
+		struct dp_aux_bridge *aux_bridge, void *ipc_log_context);
 void dp_aux_put(struct dp_aux *aux);
 
 #endif /*__DP_AUX_H_*/

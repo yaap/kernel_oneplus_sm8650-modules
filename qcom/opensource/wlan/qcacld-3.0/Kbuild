@@ -144,6 +144,11 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wowl.o\
 		$(HDD_SRC_DIR)/wlan_hdd_ll_lt_sap.o\
 
+
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_OPLUSWFD_SMARTMCC
+HDD_OBJS +=	$(HDD_SRC_DIR)/wlan_oplus_smartmcc.o
+### End
+
 ifeq ($(CONFIG_UNIT_TEST), y)
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_unit_test.o
 endif
@@ -1639,27 +1644,15 @@ MLME_OBJS += $(WFA_TGT_IF_DIR)/src/target_if_wfa_testcmd.o \
 
 ####### LL_SAP #######
 LL_SAP_DIR := components/umac/mlme/sap/ll_sap
-LL_SAP_OS_IF_DIR := os_if/mlme/sap/ll_sap
-LL_SAP_TARGET_IF_DIR := components/target_if/sap/ll_sap
-LL_SAP_WMI_DIR := components/wmi/
 
 LL_SAP_INC := -I$(WLAN_ROOT)/$(LL_SAP_DIR)/dispatcher/inc \
-		-I$(WLAN_ROOT)/$(LL_SAP_OS_IF_DIR)/inc \
-		-I$(WLAN_ROOT)/$(LL_SAP_TARGET_IF_DIR)/inc \
-		-I$(WLAN_ROOT)/$(LL_SAP_WMI_DIR)/inc
 
 MLME_INC += $(LL_SAP_INC)
 
 ifeq ($(CONFIG_WLAN_FEATURE_LL_LT_SAP), y)
 MLME_OBJS += $(LL_SAP_DIR)/dispatcher/src/wlan_ll_sap_ucfg_api.o \
-		$(LL_SAP_DIR)/dispatcher/src/wlan_ll_sap_api.o \
 		$(LL_SAP_DIR)/core/src/wlan_ll_sap_main.o \
-		$(LL_SAP_DIR)/core/src/wlan_ll_lt_sap_main.o \
-		$(LL_SAP_DIR)/core/src/wlan_ll_lt_sap_bearer_switch.o \
-		$(LL_SAP_OS_IF_DIR)/src/os_if_ll_sap.o \
-		$(LL_SAP_TARGET_IF_DIR)/src/target_if_ll_sap.o \
-		$(LL_SAP_WMI_DIR)/src/wmi_unified_ll_sap_api.o \
-		$(LL_SAP_WMI_DIR)/src/wmi_unified_ll_sap_tlv.o
+		$(LL_SAP_DIR)/core/src/wlan_ll_lt_sap_main.o
 endif
 
 $(call add-wlan-objs,mlme,$(MLME_OBJS))
@@ -1859,10 +1852,7 @@ POLICY_MGR_OBJS := $(POLICY_MGR_DIR)/src/wlan_policy_mgr_action.o \
 	$(POLICY_MGR_DIR)/src/wlan_policy_mgr_get_set_utils.o \
 	$(POLICY_MGR_DIR)/src/wlan_policy_mgr_init_deinit.o \
 	$(POLICY_MGR_DIR)/src/wlan_policy_mgr_ucfg.o \
-	$(POLICY_MGR_DIR)/src/wlan_policy_mgr_pcl.o
-ifeq ($(CONFIG_WLAN_FEATURE_LL_LT_SAP), y)
-POLICY_MGR_OBJS += $(POLICY_MGR_DIR)/src/wlan_policy_mgr_ll_sap.o
-endif
+	$(POLICY_MGR_DIR)/src/wlan_policy_mgr_pcl.o \
 
 $(call add-wlan-objs,policy_mgr,$(POLICY_MGR_OBJS))
 
@@ -2630,7 +2620,6 @@ KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_SIGNAL
 #ifdef OPLUS_FEATURE_WIFI_SWITCH
 KBUILD_CPPFLAGS += -DOPLUS_CNSS_POWER_DEBUG
 #endif /* OPLUS_FEATURE_WIFI_SWITCH */
-
 ifeq ($(CONFIG_WLAN_LRO), y)
 WLAN_DP_COMP_OBJS += $(DP_COMP_OS_IF_DIR)/os_if_dp_lro.o
 endif
@@ -3351,7 +3340,8 @@ INCS +=		$(COAP_WMI_INC)
 
 ccflags-y += $(INCS)
 
-ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h
+ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h \
+		-D__ANDROID_COMMON_KERNEL__
 
 # CFG80211_MLO_KEY_OPERATION_SUPPORT
 # Used to indicate the Linux Kernel contains support for ML key operation
@@ -4091,9 +4081,6 @@ ccflags-$(CONFIG_FEATURE_WLAN_AP_AP_ACS_OPTIMIZE) += -DFEATURE_WLAN_AP_AP_ACS_OP
 #Enable 4address scheme
 ccflags-$(CONFIG_FEATURE_WLAN_STA_4ADDR_SCHEME) += -DFEATURE_WLAN_STA_4ADDR_SCHEME
 
-#Optimize GC connection speed by skipping JOIN
-ccflags-$(CONFIG_FEATURE_WLAN_GC_SKIP_JOIN) += -DFEATURE_WLAN_GC_SKIP_JOIN
-
 #enable MDM/SDX special config
 ccflags-$(CONFIG_MDM_PLATFORM) += -DMDM_PLATFORM
 
@@ -4179,12 +4166,6 @@ ccflags-y += -DWLAN_FEATURE_TSF_UPLINK_DELAY
 CONFIG_WLAN_TSF_AUTO_REPORT := y
 endif
 
-# Enable tx latency stats feature
-ifeq ($(CONFIG_WLAN_TX_LATENCY_STATS), y)
-ccflags-y += -DWLAN_FEATURE_TX_LATENCY_STATS
-CONFIG_WLAN_TSF_AUTO_REPORT := y
-endif
-
 # Enable TSF auto report feature
 ccflags-$(CONFIG_WLAN_TSF_AUTO_REPORT) += -DWLAN_FEATURE_TSF_AUTO_REPORT
 
@@ -4236,7 +4217,6 @@ ccflags-$(CONFIG_DP_RX_UDP_OVER_PEER_ROAM) += -DDP_RX_UDP_OVER_PEER_ROAM
 cppflags-$(CONFIG_WLAN_BOOST_CPU_FREQ_IN_ROAM) += -DWLAN_BOOST_CPU_FREQ_IN_ROAM
 
 ccflags-$(CONFIG_QCA_WIFI_EMULATION) += -DQCA_WIFI_EMULATION
-ccflags-$(CONFIG_SAP_MULTI_LINK_EMULATION) += -DSAP_MULTI_LINK_EMULATION
 ccflags-$(CONFIG_SHADOW_V2) += -DCONFIG_SHADOW_V2
 ccflags-$(CONFIG_SHADOW_V3) += -DCONFIG_SHADOW_V3
 ccflags-$(CONFIG_QCA6290_HEADERS_DEF) += -DQCA6290_HEADERS_DEF
@@ -4332,8 +4312,6 @@ ccflags-$(CONFIG_DP_WAR_VALIDATE_RX_ERR_MSDU_COOKIE) += -DDP_WAR_VALIDATE_RX_ERR
 ccflags-$(CONFIG_WLAN_DP_SRNG_USAGE_WM_TRACKING) += -DWLAN_DP_SRNG_USAGE_WM_TRACKING
 ccflags-$(CONFIG_WLAN_FEATURE_DP_CFG_EVENT_HISTORY) += -DWLAN_FEATURE_DP_CFG_EVENT_HISTORY
 ccflags-$(CONFIG_WLAN_DP_VDEV_NO_SELF_PEER) += -DWLAN_DP_VDEV_NO_SELF_PEER
-ccflags-$(CONFIG_DP_RX_MSDU_DONE_FAIL_HISTORY) += -DDP_RX_MSDU_DONE_FAIL_HISTORY
-ccflags-$(CONFIG_DP_RX_PEEK_MSDU_DONE_WAR) += -DDP_RX_PEEK_MSDU_DONE_WAR
 
 # Enable Low latency
 ccflags-$(CONFIG_WLAN_FEATURE_LL_MODE) += -DWLAN_FEATURE_LL_MODE
@@ -4698,17 +4676,6 @@ endif
 ccflags-y += -DWLAN_MAX_ML_DEFAULT_LINK=$(CONFIG_WLAN_MAX_ML_DEFAULT_LINK)
 
 ifdef CONFIG_WLAN_FEATURE_11BE_MLO
-ifndef CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-CONFIG_WLAN_DEFAULT_REC_LINK_VALUE  ?= 2
-endif
-else
-ifndef CONFIG_WLAN_DEFAULT_REC_LINK_VALUE
-CONFIG_WLAN_DEFAULT_REC_LINK_VALUE  ?= 2
-endif
-endif
-ccflags-y += -DWLAN_DEFAULT_REC_LINK_VALUE=$(CONFIG_WLAN_DEFAULT_REC_LINK_VALUE)
-
-ifdef CONFIG_WLAN_FEATURE_11BE_MLO
 CONFIG_WLAN_MAX_ML_BSS_LINKS ?= 3
 else
 CONFIG_WLAN_MAX_ML_BSS_LINKS ?= 1
@@ -4936,11 +4903,6 @@ ccflags-$(CONFIG_WLAN_FEATURE_PEER_TXQ_FLUSH_CONF) += -DWLAN_FEATURE_PEER_TXQ_FL
 
 ifeq ($(CONFIG_DP_HW_TX_DELAY_STATS_ENABLE), y)
 ccflags-y += -DHW_TX_DELAY_STATS_ENABLE
-endif
-
-# Config MAX SAP interface number
-ifdef CONFIG_QDF_MAX_NO_OF_SAP_MODE
-ccflags-y += -DQDF_MAX_NO_OF_SAP_MODE=$(CONFIG_QDF_MAX_NO_OF_SAP_MODE)
 endif
 
 #Flags to enable/disable Dynamic WLAN interface control feature

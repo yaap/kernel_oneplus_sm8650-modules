@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -535,7 +535,6 @@ typedef enum {
 	NET_DEV_HOLD_START_PRE_CAC_TRANS = 60,
 	NET_DEV_HOLD_IS_ANY_STA_CONNECTED = 61,
 	NET_DEV_HOLD_GET_ADAPTER_BY_BSSID = 62,
-	NET_DEV_HOLD_ALLOW_NEW_INTF = 63,
 
 	/* Keep it at the end */
 	NET_DEV_HOLD_ID_MAX
@@ -750,7 +749,6 @@ struct hdd_mon_set_ch_info {
  * @ch_info: monitor mode channel information
  * @ap_supports_immediate_power_save: Does the current AP allow our STA
  *    to immediately go into power save?
- * @user_cfg_chn_width: max channel bandwidth set by user space
  */
 struct hdd_station_ctx {
 	uint32_t reg_phymode;
@@ -759,7 +757,6 @@ struct hdd_station_ctx {
 	struct hdd_connection_info cache_conn_info;
 	struct hdd_mon_set_ch_info ch_info;
 	bool ap_supports_immediate_power_save;
-	uint8_t user_cfg_chn_width;
 };
 
 /**
@@ -1188,7 +1185,6 @@ struct wlan_hdd_tx_power {
  * @ctw: stores CT Window value once we receive Opps command from
  *       wpa_supplicant then using CT Window value we need to Enable
  *       Opportunistic Power Save
- * @allow_power_save: STA/CLI powersave enable/disable from userspace
  * @mac_addr: Current MAC Address for the adapter
  * @mld_addr: MLD address for adapter
  * @event_flags: a bitmap of hdd_adapter_flags
@@ -1294,8 +1290,6 @@ struct wlan_hdd_tx_power {
  * @deflink: Default link pointing to the 0th index of the linkinfo array
  * @link_info: Data structure to hold link specific information
  * @tx_power: Structure to hold connection tx Power info
- * @tx_latency_cfg: configuration for per-link transmit latency statistics
- * @link_state_cached_timestamp: link state cached timestamp
  */
 struct hdd_adapter {
 	uint32_t magic;
@@ -1318,7 +1312,6 @@ struct hdd_adapter {
 
 	uint8_t ops;
 	uint32_t ctw;
-	bool allow_power_save;
 
 	struct qdf_mac_addr mac_addr;
 #ifndef WLAN_HDD_MULTI_VDEV_SINGLE_NDEV
@@ -1487,12 +1480,6 @@ struct hdd_adapter {
 	struct wlan_hdd_link_info *deflink;
 	struct wlan_hdd_link_info link_info[WLAN_MAX_ML_BSS_LINKS];
 	struct wlan_hdd_tx_power tx_power;
-#ifdef WLAN_FEATURE_TX_LATENCY_STATS
-	struct cdp_tx_latency_config tx_latency_cfg;
-#endif
-#ifdef WLAN_FEATURE_11BE_MLO
-	qdf_time_t link_state_cached_timestamp;
-#endif
 };
 
 #define WLAN_HDD_GET_STATION_CTX_PTR(link_info) (&(link_info)->session.station)
@@ -1819,18 +1806,6 @@ static inline bool hdd_get_wlan_driver_status(void)
 #endif
 
 /**
- * struct hdd_lpc_info - Local packet capture information
- * @lpc_wk: local packet capture work
- * @lpc_wk_scheduled: flag to indicate if lpc work is scheduled or not
- * @mon_adapter: monitor adapter
- */
-struct hdd_lpc_info {
-	qdf_work_t lpc_wk;
-	bool lpc_wk_scheduled;
-	struct hdd_adapter *mon_adapter;
-};
-
-/**
  * enum wlan_state_ctrl_str_id - state control param string id
  * @WLAN_OFF_STR: Turn OFF WiFi
  * @WLAN_ON_STR: Turn ON WiFi
@@ -2042,7 +2017,6 @@ enum wlan_state_ctrl_str_id {
  * @is_mlo_per_link_stats_supported: Per link mlo stats is supported or not
  * @num_mlo_peers: Total number of MLO peers
  * @more_peer_data: more mlo peer data in peer stats
- * @lpc_info: Local packet capture info
  */
 struct hdd_context {
 	struct wlan_objmgr_psoc *psoc;
@@ -2324,9 +2298,6 @@ struct hdd_context {
 	uint8_t num_mlo_peers;
 	uint32_t more_peer_data;
 #endif
-#ifdef WLAN_FEATURE_LOCAL_PKT_CAPTURE
-	struct hdd_lpc_info lpc_info;
-#endif
 };
 
 /**
@@ -2396,7 +2367,6 @@ struct hdd_channel_info {
 	u_int8_t vht_center_freq_seg0;
 	u_int8_t vht_center_freq_seg1;
 };
-
 #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
 //Add for wifi switch monitor
 enum wlan_hostdriver_loadstatus {
@@ -2416,7 +2386,6 @@ struct wlan_hostdriver_loadresult {
 
 void wlan_driver_send_uevent(char *enable);
 #endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
-
 /**
  * struct hdd_chwidth_info - channel width related info
  * @sir_chwidth_valid: If nl_chan_width is valid in Sir
@@ -2434,16 +2403,6 @@ struct hdd_chwidth_info {
 	char *ch_bw_str;
 	enum phy_ch_width phy_chwidth;
 	int bonding_mode;
-};
-
-/**
- * struct mac_addr_set_priv: Set MAC addr private context
- * @fw_resp_status: F/W response status
- * @pending_rsp_cnt: Pending response count
- */
-struct mac_addr_set_priv {
-	uint32_t fw_resp_status;
-	qdf_atomic_t pending_rsp_cnt;
 };
 
 /*
@@ -3738,21 +3697,6 @@ void wlan_hdd_stop_sap(struct hdd_adapter *ap_adapter);
  */
 void wlan_hdd_start_sap(struct wlan_hdd_link_info *link_info, bool reinit);
 
-/**
- * wlan_hdd_set_sap_beacon_protection() - this function will set beacon
- * protection for SAP.
- * @hdd_ctx: pointer to HDD context
- * @link_info: Link info pointer
- * @beacon: pointer to beacon data structure
- *
- * This function will enable beacon protection and cache the value in vdev
- * priv object.
- *
- * Return: None
- */
-void wlan_hdd_set_sap_beacon_protection(struct hdd_context *hdd_ctx,
-					struct wlan_hdd_link_info *link_info,
-					struct hdd_beacon_data *beacon);
 #ifdef QCA_CONFIG_SMP
 int wlan_hdd_get_cpu(void);
 #else
@@ -5524,55 +5468,6 @@ void hdd_set_sar_init_index(struct hdd_context *hdd_ctx);
 #else
 static inline void hdd_set_sar_init_index(struct hdd_context *hdd_ctx)
 {}
-#endif
-/**
- * hdd_send_coex_traffic_shaping_mode() - Send coex traffic shaping mode
- * to FW
- * @vdev_id: vdev ID
- * @mode: traffic shaping mode
- *
- * This function is used to send coex traffic shaping mode to FW
- *
- * Return: 0 on success and -EINVAL on failure
- */
-int hdd_send_coex_traffic_shaping_mode(uint8_t vdev_id, uint8_t mode);
-
-#ifdef WLAN_FEATURE_LOCAL_PKT_CAPTURE
-/**
- * wlan_hdd_lpc_handle_concurrency() - Handle local packet capture
- * concurrency scenario
- * @hdd_ctx: hdd_ctx
- * @is_virtual_iface: is virtual interface
- *
- * This function takes care of handling concurrency scenario
- * If STA+Mon present and SAP is coming up, terminate Mon and let SAP come up
- * If STA+Mon present and P2P is coming up, terminate Mon and let P2P come up
- * If STA+Mon present and NAN is coming up, terminate Mon and let NAN come up
- *
- * Return: none
- */
-void wlan_hdd_lpc_handle_concurrency(struct hdd_context *hdd_ctx,
-				     bool is_virtual_iface);
-
-/**
- * hdd_lpc_is_work_scheduled() - function to return if lpc wq scheduled
- * @hdd_ctx: hdd_ctx
- *
- * Return: true if scheduled; false otherwise
- */
-bool hdd_lpc_is_work_scheduled(struct hdd_context *hdd_ctx);
-
-#else
-static inline void
-wlan_hdd_lpc_handle_concurrency(struct hdd_context *hdd_ctx,
-				bool is_virtual_iface)
-{}
-
-static inline bool
-hdd_lpc_is_work_scheduled(struct hdd_context *hdd_ctx)
-{
-	return false;
-}
 #endif
 
 #endif /* end #if !defined(WLAN_HDD_MAIN_H) */

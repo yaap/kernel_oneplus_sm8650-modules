@@ -1124,10 +1124,6 @@ static int __boot_firmware_iris33(struct msm_vidc_core *core)
 		if (rc)
 			return rc;
 
-		rc = __read_register(core, HFI_CTRL_INIT_IRIS33, &ctrl_init_val);
-		if (rc)
-			return rc;
-
 		if ((ctrl_status & HFI_CTRL_ERROR_FATAL) ||
 			(ctrl_status & HFI_CTRL_ERROR_UC_REGION_NOT_SET) ||
 			(ctrl_status & HFI_CTRL_ERROR_HW_FENCE_QUEUE)) {
@@ -1145,8 +1141,7 @@ static int __boot_firmware_iris33(struct msm_vidc_core *core)
 	}
 
 	if (count >= max_tries) {
-		d_vpr_e("Error booting up vidc firmware, ctrl status %#x, ctrl init %#x\n",
-			ctrl_status, ctrl_init_val);
+		d_vpr_e("Error booting up vidc firmware, ctrl status %#x\n", ctrl_status);
 		return -ETIME;
 	}
 

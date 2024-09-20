@@ -13,15 +13,3 @@ def define_pineapple():
             "CONFIG_MSM_VIDC_PINEAPPLE",
         ],
     )
-
-def define_volcano():
-    define_consolidate_gki_modules(
-        target = "volcano",
-        registry = video_driver_modules,
-        modules = [
-            "msm_video",
-        ],
-        config_options = [
-            "CONFIG_MSM_VIDC_VOLCANO",
-        ],
-    )

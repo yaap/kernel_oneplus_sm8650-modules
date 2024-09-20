@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -279,27 +279,6 @@ int cam_isp_add_command_buffers(
 int cam_isp_add_io_buffers(struct cam_isp_io_buf_info   *io_info);
 
 /*
- * cam_isp_add_disable_wm_update()
- *
- * @brief                  Add disable wm command
- *
- * @prepare:               Contain the  packet and HW update variables
- * @isp_hw_res:            Resource list for IFE/VFE out resource
- * @base_idx:              Base or dev index of the IFE/VFE HW instance
- * @kmd_buf_info:          Kmd buffer to store the change base command
- * @wm_mask                Bit mask of unconfigured resource
- * @io_info                IO buf info
- *
- */
-int cam_isp_add_disable_wm_update(
-	struct cam_hw_prepare_update_args    *prepare,
-	struct cam_isp_hw_mgr_res            *isp_hw_res,
-	uint32_t                              base_idx,
-	struct cam_kmd_buf_info              *kmd_buf_info,
-	uint64_t                              *wm_mask,
-	struct cam_isp_io_buf_info *io_info);
-
-/*
  * cam_isp_add_reg_update()
  *
  * @brief                  Add reg update in the hw entries list
@@ -311,7 +290,6 @@ int cam_isp_add_disable_wm_update(
  * @base_idx:              Base or dev index of the IFE/VFE HW instance
  * @kmd_buf_info:          Kmd buffer to store the change base command
  * @combine:               Indicate whether combine with prev update entry
- * @priv_data:             private data for HW driver
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
@@ -320,8 +298,7 @@ int cam_isp_add_reg_update(
 	struct list_head                     *res_list_isp_src,
 	uint32_t                              base_idx,
 	struct cam_kmd_buf_info              *kmd_buf_info,
-	bool                                  combine,
-	void                                 *priv_data);
+	bool                                  combine);
 
 /*
  * cam_isp_add_comp_wait()

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -333,21 +333,16 @@ static void reg_populate_band_channels(enum channel_enum start_chan,
  * @num_reg_rules: Number of regulatory rules.
  * @reg_rule_start: Pointer to regulatory rules.
  * @max_bw: Maximum bandwidth
- * @country_max_allowed_bw: max allowed bw for all reg rules of client
  */
 static void reg_update_max_bw_per_rule(uint32_t num_reg_rules,
 				       struct cur_reg_rule *reg_rule_start,
-				       uint16_t max_bw,
-				       uint32_t *country_max_allowed_bw)
+				       uint16_t max_bw)
 {
 	uint32_t count;
 
-	for (count = 0; count < num_reg_rules; count++) {
+	for (count = 0; count < num_reg_rules; count++)
 		reg_rule_start[count].max_bw =
 			min(reg_rule_start[count].max_bw, max_bw);
-		if (reg_rule_start[count].max_bw > *country_max_allowed_bw)
-			*country_max_allowed_bw = reg_rule_start[count].max_bw;
-	}
 }
 
 /**
@@ -1364,14 +1359,13 @@ static void reg_propagate_6g_mas_channel_list(
 		mas_chan_params->reg_6g_superid;
 	pdev_priv_obj->reg_6g_thresh_priority_freq =
 				mas_chan_params->reg_6g_thresh_priority_freq;
+	reg_set_ap_pwr_type(pdev_priv_obj);
 }
 
-#ifndef CONFIG_REG_CLIENT
-#ifdef CONFIG_AFC_SUPPORT
-#ifdef CONFIG_6G_FREQ_OVERLAP
+#if defined(CONFIG_AFC_SUPPORT) && !defined(CONFIG_REG_CLIENT)
 void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 {
-	uint8_t  *num_rules;
+	uint8_t  *num_rules = pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules;
 	bool is_6ghz_pdev;
 
 	is_6ghz_pdev = reg_is_range_overlap_6g(pdev_priv_obj->range_5g_low,
@@ -1382,7 +1376,6 @@ void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 		return;
 	}
 
-	num_rules = pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules;
 	if (pdev_priv_obj->reg_afc_dev_deployment_type ==
 	    AFC_DEPLOYMENT_OUTDOOR) {
 		if (num_rules[REG_VERY_LOW_POWER_AP])
@@ -1406,40 +1399,9 @@ void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 #else
 void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 {
-}
-#endif /* CONFIG_6G_FREQ_OVERLAP */
-#else
-void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
-{
 	pdev_priv_obj->reg_cur_6g_ap_pwr_type = REG_INDOOR_AP;
 }
 #endif /* CONFIG_AFC_SUPPORT */
-#else
-void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
-{
-	enum reg_6g_ap_type ap_pwr_type = REG_CURRENT_MAX_AP_TYPE;
-	uint8_t  *num_rules;
-
-	num_rules = pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules;
-
-	if (wlan_reg_is_afc_power_event_received(pdev_priv_obj->pdev_ptr) &&
-	    num_rules[REG_STANDARD_POWER_AP]) {
-		ap_pwr_type = REG_STANDARD_POWER_AP;
-	} else if (pdev_priv_obj->indoor_chan_enabled) {
-		if (num_rules[REG_INDOOR_AP])
-			ap_pwr_type = REG_INDOOR_AP;
-		else if (num_rules[REG_VERY_LOW_POWER_AP])
-			ap_pwr_type = REG_VERY_LOW_POWER_AP;
-	} else if (num_rules[REG_VERY_LOW_POWER_AP]) {
-		ap_pwr_type = REG_VERY_LOW_POWER_AP;
-	}
-
-	pdev_priv_obj->reg_cur_6g_ap_pwr_type = ap_pwr_type;
-
-	reg_debug("indoor_chan_enabled %d ap_pwr_type %d",
-		  pdev_priv_obj->indoor_chan_enabled, ap_pwr_type);
-}
-#endif /* CONFIG_REG_CLIENT */
 #else
 static inline void reg_propagate_6g_mas_channel_list(
 		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj,
@@ -1538,17 +1500,17 @@ reg_modify_chan_list_for_srd_channels(struct wlan_objmgr_pdev *pdev,
 {
 	enum channel_enum chan_enum;
 
-	if (!reg_is_etsi_regdmn(pdev))
+	if (!reg_is_etsi13_regdmn(pdev))
 		return;
 
-	if (reg_is_etsi_srd_chan_allowed_master_mode(pdev))
+	if (reg_is_etsi13_srd_chan_allowed_master_mode(pdev))
 		return;
 
 	for (chan_enum = 0; chan_enum < NUM_CHANNELS; chan_enum++) {
 		if (chan_list[chan_enum].chan_flags & REGULATORY_CHAN_DISABLED)
 			continue;
 
-		if (reg_is_etsi_srd_chan_for_freq(
+		if (reg_is_etsi13_srd_chan_for_freq(
 					pdev,
 					chan_list[chan_enum].center_freq)) {
 			chan_list[chan_enum].state =
@@ -1961,7 +1923,8 @@ static void
 reg_append_mas_chan_list_for_6g(struct wlan_regulatory_pdev_priv_obj
 				*pdev_priv_obj)
 {
-	if (pdev_priv_obj->reg_cur_6g_client_mobility_type >=
+	if (pdev_priv_obj->reg_cur_6g_ap_pwr_type >= REG_CURRENT_MAX_AP_TYPE ||
+	    pdev_priv_obj->reg_cur_6g_client_mobility_type >=
 	    REG_MAX_CLIENT_TYPE) {
 		reg_debug("invalid 6G AP or client power type");
 		return;
@@ -2098,7 +2061,6 @@ reg_populate_secondary_cur_chan_list(struct wlan_regulatory_pdev_priv_obj
 	struct wlan_regulatory_psoc_priv_obj *soc_reg;
 	struct regulatory_channel *chan_list;
 	uint32_t len_6ghz;
-	enum reg_6g_ap_type cur_ap_power_type = REG_CURRENT_MAX_AP_TYPE;
 
 	psoc = wlan_pdev_get_psoc(pdev_priv_obj->pdev_ptr);
 	if (!psoc) {
@@ -2132,14 +2094,14 @@ reg_populate_secondary_cur_chan_list(struct wlan_regulatory_pdev_priv_obj
 	if (!chan_list)
 		return;
 
-	reg_get_cur_6g_ap_pwr_type(pdev_priv_obj->pdev_ptr, &cur_ap_power_type);
-
-	if (cur_ap_power_type == REG_INDOOR_AP) {
+	if (pdev_priv_obj->indoor_chan_enabled &&
+	    pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules[REG_INDOOR_AP]) {
 		qdf_mem_copy(chan_list,
 			     pdev_priv_obj->mas_chan_list_6g_ap[REG_INDOOR_AP],
 			     len_6ghz);
 		/* has flag REGULATORY_CHAN_INDOOR_ONLY */
-	} else if (cur_ap_power_type == REG_VERY_LOW_POWER_AP) {
+	} else if (pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules
+		   [REG_VERY_LOW_POWER_AP]) {
 		qdf_mem_copy(chan_list,
 			     pdev_priv_obj->mas_chan_list_6g_ap
 			     [REG_VERY_LOW_POWER_AP],
@@ -4279,7 +4241,7 @@ reg_fill_master_channels(struct cur_regulatory_info *regulat_info,
 		[REG_CURRENT_MAX_AP_TYPE][REG_MAX_CLIENT_TYPE],
 	struct wlan_regulatory_psoc_priv_obj *soc_reg)
 {
-	uint32_t i, j, k, curr_reg_rule_location, country_max_allowed_bw = 0;
+	uint32_t i, j, k, curr_reg_rule_location;
 	uint32_t num_2g_reg_rules, num_5g_reg_rules;
 	uint32_t num_6g_reg_rules_ap[REG_CURRENT_MAX_AP_TYPE];
 	uint32_t *num_6g_reg_rules_client[REG_CURRENT_MAX_AP_TYPE];
@@ -4296,15 +4258,13 @@ reg_fill_master_channels(struct cur_regulatory_info *regulat_info,
 	max_bw_2g = regulat_info->max_bw_2g;
 	reg_rule_2g = regulat_info->reg_rules_2g_ptr;
 	num_2g_reg_rules = regulat_info->num_2g_reg_rules;
-	reg_update_max_bw_per_rule(num_2g_reg_rules, reg_rule_2g, max_bw_2g,
-				   &country_max_allowed_bw);
+	reg_update_max_bw_per_rule(num_2g_reg_rules, reg_rule_2g, max_bw_2g);
 
 	min_bw_5g = regulat_info->min_bw_5g;
 	max_bw_5g = regulat_info->max_bw_5g;
 	reg_rule_5g = regulat_info->reg_rules_5g_ptr;
 	num_5g_reg_rules = regulat_info->num_5g_reg_rules;
-	reg_update_max_bw_per_rule(num_5g_reg_rules, reg_rule_5g, max_bw_5g,
-				   &country_max_allowed_bw);
+	reg_update_max_bw_per_rule(num_5g_reg_rules, reg_rule_5g, max_bw_5g);
 
 	for (i = 0; i < REG_CURRENT_MAX_AP_TYPE; i++) {
 		min_bw_6g_ap[i] = regulat_info->min_bw_6g_ap[i];
@@ -4312,8 +4272,7 @@ reg_fill_master_channels(struct cur_regulatory_info *regulat_info,
 		reg_rule_6g_ap[i] = regulat_info->reg_rules_6g_ap_ptr[i];
 		num_6g_reg_rules_ap[i] = regulat_info->num_6g_reg_rules_ap[i];
 		reg_update_max_bw_per_rule(num_6g_reg_rules_ap[i],
-					   reg_rule_6g_ap[i], max_bw_6g_ap[i],
-					   &country_max_allowed_bw);
+					   reg_rule_6g_ap[i], max_bw_6g_ap[i]);
 	}
 
 	for (j = 0; j < REG_CURRENT_MAX_AP_TYPE; j++) {
@@ -4327,14 +4286,9 @@ reg_fill_master_channels(struct cur_regulatory_info *regulat_info,
 			reg_update_max_bw_per_rule(
 						num_6g_reg_rules_client[j][k],
 						reg_rule_6g_client[j][k],
-						max_bw_6g_client[j][k],
-						&country_max_allowed_bw);
+						max_bw_6g_client[j][k]);
 		}
 	}
-
-	soc_reg->country_max_allowed_bw = country_max_allowed_bw;
-	reg_debug("max_allowed_bw as per current reg rules: %d",
-		  country_max_allowed_bw);
 
 	reg_reset_reg_rules(reg_rules);
 
@@ -5821,7 +5775,7 @@ static QDF_STATUS
 __reg_process_master_chan_list(struct cur_regulatory_info *regulat_info)
 {
 	struct wlan_regulatory_psoc_priv_obj *soc_reg;
-	uint32_t num_2g_reg_rules, num_5g_reg_rules, country_max_allowed_bw = 0;
+	uint32_t num_2g_reg_rules, num_5g_reg_rules;
 	struct cur_reg_rule *reg_rule_2g, *reg_rule_5g;
 	uint16_t min_bw_2g, max_bw_2g, min_bw_5g, max_bw_5g;
 	struct regulatory_channel *mas_chan_list;
@@ -5904,18 +5858,14 @@ __reg_process_master_chan_list(struct cur_regulatory_info *regulat_info)
 	reg_rule_2g = regulat_info->reg_rules_2g_ptr;
 	num_2g_reg_rules = regulat_info->num_2g_reg_rules;
 	reg_update_max_bw_per_rule(num_2g_reg_rules,
-				   reg_rule_2g, max_bw_2g,
-				   &country_max_allowed_bw);
+				   reg_rule_2g, max_bw_2g);
 
 	min_bw_5g = regulat_info->min_bw_5g;
 	max_bw_5g = regulat_info->max_bw_5g;
 	reg_rule_5g = regulat_info->reg_rules_5g_ptr;
 	num_5g_reg_rules = regulat_info->num_5g_reg_rules;
 	reg_update_max_bw_per_rule(num_5g_reg_rules,
-				   reg_rule_5g, max_bw_5g,
-				   &country_max_allowed_bw);
-
-	soc_reg->country_max_allowed_bw = country_max_allowed_bw;
+				   reg_rule_5g, max_bw_5g);
 	soc_reg->mas_chan_params[phy_id].max_bw_5g = regulat_info->max_bw_5g;
 	reg_rules = &soc_reg->mas_chan_params[phy_id].reg_rules;
 	reg_reset_reg_rules(reg_rules);

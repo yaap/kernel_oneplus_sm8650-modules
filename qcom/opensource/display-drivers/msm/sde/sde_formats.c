@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1336,21 +1335,21 @@ int sde_format_validate_fmt(struct msm_kms *kms,
 
 	while (fmt_list->fourcc_format) {
 		fmt_tmp = sde_get_sde_format_ext(fmt_list->fourcc_format,
-			fmt_list->modifier);
-		if (fmt_tmp &&
-			(fmt_tmp->base.pixel_format == sde_fmt->base.pixel_format) &&
-			(fmt_tmp->fetch_mode == sde_fmt->fetch_mode) &&
-			(bitmap_equal(fmt_tmp->flag, sde_fmt->flag, SDE_FORMAT_FLAG_BIT_MAX)) &&
-			(fmt_tmp->unpack_tight == sde_fmt->unpack_tight)) {
+					fmt_list->modifier);
+		if (fmt_tmp
+		  && (fmt_tmp->base.pixel_format == sde_fmt->base.pixel_format)
+		  && (fmt_tmp->fetch_mode == sde_fmt->fetch_mode)) {
 			valid_format = true;
 			break;
 		}
 		++fmt_list;
 	}
 
-	if (!valid_format)
-
+	if (!valid_format) {
+		SDE_ERROR("fmt:%d mode:%d not found within the list!\n",
+			sde_fmt->base.pixel_format, sde_fmt->fetch_mode);
 		ret = -EINVAL;
+	}
 exit:
 	return ret;
 }

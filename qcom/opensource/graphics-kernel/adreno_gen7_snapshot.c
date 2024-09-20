@@ -9,7 +9,6 @@
 #include "adreno_gen7_0_0_snapshot.h"
 #include "adreno_gen7_2_0_snapshot.h"
 #include "adreno_gen7_9_0_snapshot.h"
-#include "adreno_gen7_11_0_snapshot.h"
 
 static struct kgsl_memdesc *gen7_capturescript;
 static struct kgsl_memdesc *gen7_crashdump_registers;
@@ -98,32 +97,6 @@ const struct gen7_snapshot_block_list gen7_9_0_snapshot_block_list = {
 	.index_registers_len = ARRAY_SIZE(gen7_9_0_cp_indexed_reg_list),
 };
 
-const struct gen7_snapshot_block_list gen7_11_0_snapshot_block_list = {
-	.pre_crashdumper_regs = gen7_0_0_pre_crashdumper_gpu_registers,
-	.debugbus_blocks = gen7_11_0_debugbus_blocks,
-	.debugbus_blocks_len = ARRAY_SIZE(gen7_11_0_debugbus_blocks),
-	.gbif_debugbus_blocks = gen7_11_0_gbif_debugbus_blocks,
-	.gbif_debugbus_blocks_len = ARRAY_SIZE(gen7_11_0_gbif_debugbus_blocks),
-	.cx_debugbus_blocks = gen7_11_0_cx_debugbus_blocks,
-	.cx_debugbus_blocks_len = ARRAY_SIZE(gen7_11_0_cx_debugbus_blocks),
-	.external_core_regs = gen7_11_0_external_core_regs,
-	.num_external_core_regs = ARRAY_SIZE(gen7_11_0_external_core_regs),
-	.gmu_regs = gen7_11_0_gmu_registers,
-	.gmu_gx_regs = gen7_11_0_gmugx_registers,
-	.rscc_regs = gen7_11_0_rscc_registers,
-	.reg_list = gen7_11_0_reg_list,
-	.cx_misc_regs = gen7_11_0_cx_misc_registers,
-	.shader_blocks = gen7_11_0_shader_blocks,
-	.num_shader_blocks = ARRAY_SIZE(gen7_11_0_shader_blocks),
-	.clusters = gen7_11_0_clusters,
-	.num_clusters = ARRAY_SIZE(gen7_11_0_clusters),
-	.sptp_clusters = gen7_11_0_sptp_clusters,
-	.num_sptp_clusters = ARRAY_SIZE(gen7_11_0_sptp_clusters),
-	.post_crashdumper_regs = gen7_0_0_post_crashdumper_registers,
-	.index_registers = gen7_11_0_cp_indexed_reg_list,
-	.index_registers_len = ARRAY_SIZE(gen7_11_0_cp_indexed_reg_list),
-};
-
 #define GEN7_SP_READ_SEL_VAL(_location, _pipe, _statetype, _usptp, _sptp) \
 				(FIELD_PREP(GENMASK(19, 18), _location) | \
 				 FIELD_PREP(GENMASK(17, 16), _pipe) | \
@@ -169,7 +142,7 @@ static void CD_FINISH(u64 *ptr, u32 offset)
 
 static bool CD_SCRIPT_CHECK(struct kgsl_device *device)
 {
-	return (adreno_smmu_is_stalled(ADRENO_DEVICE(device)) || (!device->snapshot_crashdumper) ||
+	return (gen7_is_smmu_stalled(device) || (!device->snapshot_crashdumper) ||
 		IS_ERR_OR_NULL(gen7_capturescript) ||
 		IS_ERR_OR_NULL(gen7_crashdump_registers) ||
 		gen7_crashdump_timedout);
@@ -1670,14 +1643,6 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 		kgsl_regwrite(device, GEN7_RBBM_CLOCK_CNTL3_TP0, cgc2);
 	}
 
-	/* SQE Firmware */
-	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_DEBUG,
-		snapshot, gen7_snapshot_sqe, NULL);
-
-	/* AQE Firmware */
-	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_DEBUG,
-		snapshot, gen7_snapshot_aqe, NULL);
-
 	if (!adreno_gx_is_on(adreno_dev))
 		return;
 
@@ -1754,6 +1719,14 @@ void gen7_snapshot(struct adreno_device *adreno_dev,
 
 		gen7_snapshot_lpac_roq(device, snapshot);
 	}
+
+	/* SQE Firmware */
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_DEBUG,
+		snapshot, gen7_snapshot_sqe, NULL);
+
+	/* AQE Firmware */
+	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_DEBUG,
+		snapshot, gen7_snapshot_aqe, NULL);
 
 	/* Mempool debug data */
 	gen7_snapshot_mempool(device, snapshot);

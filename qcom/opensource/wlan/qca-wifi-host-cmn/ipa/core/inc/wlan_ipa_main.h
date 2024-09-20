@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -72,14 +72,6 @@ extern uint8_t g_instances_added;
 	QDF_TRACE_ENTER(QDF_MODULE_ID_IPA, "enter")
 #define IPA_EXIT() \
 	QDF_TRACE_EXIT(QDF_MODULE_ID_IPA, "exit")
-
-/**
- * ipa_set_cap_offload() - set IPA capability offload support
- * @flag: flag to set
- *
- * Return: None
- */
-void ipa_set_cap_offload(bool flag);
 
 /**
  * ipa_set_pld_enable() - set g_ipa_pld_enable
@@ -625,30 +617,6 @@ bool ipa_is_wds_enabled(void);
 QDF_STATUS ipa_get_alt_pipe(struct wlan_objmgr_pdev *pdev,
 			    uint8_t vdev_id,
 			    bool *alt_pipe);
-
-/**
- * ipa_set_perf_level_bw_enabled - Get bandwidth based IPA perf voting status
- * @pdev: pdev objmgr pointer
- *
- * This function returns true or false for bandwidth based IPA perf level
- * voting.
- *
- * Return: true - bandwidth based IPA perf voting is enabld. Otherwise false.
- */
-bool ipa_set_perf_level_bw_enabled(struct wlan_objmgr_pdev *pdev);
-
-/**
- * ipa_set_perf_level_bw() - Set IPA perf level based on BW
- * @pdev: pdev objmgr pointer
- * @lvl: enum wlan_ipa_bw_level
- *
- * This routine is called to set IPA perf level based on max BW
- * configured among in-use STA and SAP vdevs
- *
- * Return: None
- */
-void ipa_set_perf_level_bw(struct wlan_objmgr_pdev *pdev,
-			   enum wlan_ipa_bw_level lvl);
 
 #else /* Not IPA_OFFLOAD */
 typedef QDF_STATUS (*wlan_ipa_softap_xmit)(qdf_nbuf_t nbuf, qdf_netdev_t dev);

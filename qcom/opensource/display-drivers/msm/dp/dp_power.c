@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -464,12 +464,6 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 				DP_ERR("failed to set link parent\n");
 				goto error;
 			}
-		}
-
-		if (((pm_type == DP_STREAM0_PM) || (pm_type == DP_STREAM1_PM))
-				&& (!power->link_clks_on)) {
-			DP_ERR("Need to enable link clk before stream clks\n");
-			goto error;
 		}
 	}
 

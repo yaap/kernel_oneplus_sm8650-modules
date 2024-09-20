@@ -25,6 +25,7 @@
 #include <wlan_reg_ucfg_api.h>
 #include <wlan_objmgr_pdev_obj.h>
 #include <wlan_osif_priv.h>
+#include <wlan_hdd_object_manager.h>
 #include <wlan_afc_ucfg_api.h>
 
 /* Maximum AFC data length can pass to target limited by platform driver */
@@ -864,7 +865,7 @@ static struct afc_resp_extracted *extract_afc_resp(struct nlattr **attr)
 	if (attr[QCA_WLAN_VENDOR_ATTR_AFC_RESP_DATA]) {
 		nl = attr[QCA_WLAN_VENDOR_ATTR_AFC_RESP_DATA];
 		afc_rsp->json_data = qdf_mem_malloc(nla_len(nl));
-		if (!afc_rsp->json_data)
+		if (!afc_rsp)
 			goto fail;
 
 		afc_rsp->json_len = nla_len(nl);

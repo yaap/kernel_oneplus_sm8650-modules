@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,7 +49,6 @@
 #include "wmi.h"
 #include "wlan_cm_roam_public_struct.h"
 #include "target_if.h"
-#include <qdf_hang_event_notifier.h>
 
 /* Platform specific configuration for max. no. of fragments */
 #define QCA_OL_11AC_TX_MAX_FRAGS            2
@@ -443,8 +442,6 @@ enum wma_rx_exec_ctx {
  * @noa_sub_ie_len: NOA sub IE length
  * @noa_ie: NOA IE
  * @p2p_ie_offset: p2p IE offset
- * @csa_count_offset: Offset of Switch count field in CSA IE
- * @ecsa_count_offset: Offset of Switch count field in ECSA IE
  * @lock: lock
  */
 struct beacon_info {
@@ -458,8 +455,6 @@ struct beacon_info {
 	uint16_t noa_sub_ie_len;
 	uint8_t *noa_ie;
 	uint16_t p2p_ie_offset;
-	uint16_t csa_count_offset;
-	uint16_t ecsa_count_offset;
 	qdf_spinlock_t lock;
 };
 
@@ -770,13 +765,11 @@ struct mac_ss_bw_info {
 /**
  * struct wma_ini_config - Structure to hold wma ini configuration
  * @max_no_of_peers: Max Number of supported
- * @exclude_selftx_from_cca_busy: Exclude self tx time from cca busy time flag.
  *
  * Placeholder for WMA ini parameters.
  */
 struct wma_ini_config {
 	uint8_t max_no_of_peers;
-	bool exclude_selftx_from_cca_busy;
 };
 
 /**
@@ -802,63 +795,6 @@ struct wma_wlm_stats_data {
 	wma_wlm_stats_cb wlm_stats_callback;
 };
 #endif
-
-#define WLAN_WMA_MAX_PF_SYM 50
-#define WLAN_WMA_PF_APPS_NOTIFY_BUF_LEN QDF_HANG_EVENT_DATA_SIZE
-#define WLAN_WMA_PF_SYM_LEN 4
-#define WLAN_WMA_PF_SYM_CNT_LEN 1
-#define WLAN_WMA_PF_SYM_FLAGS_LEN 1
-#define WLAN_WMA_PER_PF_SYM_NOTIFY_BUF_LEN  (WLAN_WMA_PF_SYM_LEN + \
-					     WLAN_WMA_PF_SYM_CNT_LEN + \
-					     WLAN_WMA_PF_SYM_FLAGS_LEN)
-
-/*
- * struct wow_pf_sym - WOW PF wakeup symbol info
- * @symbol: Address of PF symbol
- * @count: Count of PF symbol
- * @flags: Flags associated with @symbol
- */
-struct wow_pf_sym {
-	uint32_t symbol;
-	uint8_t count;
-	uint8_t flags;
-};
-
-/*
- * struct wow_pf_wakeup_ev_data - WOW PF wakeup event data
- * @pf_sym: Array of each unique PF symbol in wakeup event payload
- * @num_pf_syms: Total unique symbols in event.
- * @pending_pf_syms: Pending PF symbols to process
- */
-struct wow_pf_wakeup_ev_data {
-	struct wow_pf_sym *pf_sym;
-	uint8_t num_pf_syms;
-	uint8_t pending_pf_syms;
-};
-
-/**
- * struct wma_pf_sym - Per symbol PF data in PF symbol history
- * @pf_sym: PF symbol info
- * @pf_event_ts: Array of page fault event ts
- */
-struct wma_pf_sym {
-	struct wow_pf_sym pf_sym;
-	qdf_time_t *pf_ev_ts;
-};
-
-/*
- * struct wma_pf_sym_hist - System level FW PF symbol history
- * @wma_pf_sym: Array of symbols in history.
- * @pf_notify_buf_ptr: Pointer to APPS notify buffer
- * @pf_notify_buf_len: Current data length of @pf_notify_buf_ptr
- * @lock: Lock to access PF symbol history
- */
-struct wma_pf_sym_hist {
-	struct wma_pf_sym wma_pf_sym[WLAN_WMA_MAX_PF_SYM];
-	uint8_t *pf_notify_buf_ptr;
-	uint32_t pf_notify_buf_len;
-	qdf_spinlock_t lock;
-};
 
 /**
  * struct t_wma_handle - wma context
@@ -947,7 +883,6 @@ struct wma_pf_sym_hist {
  * @pe_roam_synch_cb: pe callback for firmware Roam Sync events
  * @csr_roam_auth_event_handle_cb: CSR callback for target authentication
  * offload event.
- * @pe_roam_set_ie_cb: PE callback to set IEs to firmware.
  * @wmi_cmd_rsp_wake_lock: wmi command response wake lock
  * @wmi_cmd_rsp_runtime_lock: wmi command response bus lock
  * @active_uc_apf_mode: Setting that determines how APF is applied in
@@ -978,7 +913,10 @@ struct wma_pf_sym_hist {
  * * @fw_therm_throt_support: FW Supports thermal throttling?
  * @eht_cap: 802.11be capabilities
  * @set_hw_mode_resp_status: Set HW mode response status
- * @wma_pf_hist: PF symbol history
+ * @pagefault_wakeups_ts: Stores timestamps at which host wakes up by fw
+ * because of pagefaults
+ * @num_page_fault_wakeups: Stores the number of times host wakes up by fw
+ * because of pagefaults
  *
  * This structure is the global wma context.  It contains global wma
  * module parameters and handles of other modules.
@@ -1073,9 +1011,6 @@ typedef struct {
 					uint8_t *deauth_disassoc_frame,
 					uint16_t deauth_disassoc_frame_len,
 					uint16_t reason_code);
-	QDF_STATUS (*pe_roam_set_ie_cb)(struct mac_context *mac_ctx,
-					uint8_t vdev_id, uint16_t dot11_mode,
-					enum QDF_OPMODE device_mode);
 	qdf_wake_lock_t wmi_cmd_rsp_wake_lock;
 	qdf_runtime_lock_t wmi_cmd_rsp_runtime_lock;
 	qdf_runtime_lock_t sap_prevent_runtime_pm_lock;
@@ -1115,7 +1050,8 @@ typedef struct {
 	qdf_wake_lock_t sap_d3_wow_wake_lock;
 	qdf_wake_lock_t go_d3_wow_wake_lock;
 	enum set_hw_mode_status set_hw_mode_resp_status;
-	struct wma_pf_sym_hist wma_pf_hist;
+	qdf_time_t *pagefault_wakeups_ts;
+	uint8_t num_page_fault_wakeups;
 } t_wma_handle, *tp_wma_handle;
 
 /**
@@ -1178,14 +1114,12 @@ enum frame_index {
  * @sub_type: sub type
  * @status: status
  * @ack_cmp_work: work structure
- * @frame: frame nbuf
  */
 struct wma_tx_ack_work_ctx {
 	tp_wma_handle wma_handle;
 	uint16_t sub_type;
 	int32_t status;
 	qdf_work_t ack_cmp_work;
-	qdf_nbuf_t frame;
 };
 
 /**
@@ -1542,29 +1476,8 @@ int wma_mgmt_tx_bundle_completion_handler(void *handle,
 uint32_t wma_get_vht_ch_width(void);
 
 #ifdef WLAN_FEATURE_11BE
-/**
- * wma_get_orig_eht_ch_width() - Get original EHT channel width supported
- *
- * API to get original EHT channel width
- *
- * Return: void
- */
-uint32_t wma_get_orig_eht_ch_width(void);
-
-/**
- * wma_get_orig_eht_ch_width() - Get current EHT channel width supported
- *
- * API to get current EHT channel width
- *
- * Return: void
- */
 uint32_t wma_get_eht_ch_width(void);
 #else
-static inline uint32_t wma_get_orig_eht_ch_width(void)
-{
-	return 0;
-}
-
 static inline uint32_t wma_get_eht_ch_width(void)
 {
 	return 0;
@@ -2535,15 +2448,6 @@ void wma_add_bss_lfr3(tp_wma_handle wma, struct bss_params *add_bss);
 QDF_STATUS wma_add_bss_lfr2_vdev_start(struct wlan_objmgr_vdev *vdev,
 				       struct bss_params *add_bss);
 #endif
-
-/**
- * wma_set_vdev_bw() - wma send vdev bw
- * @vdev_id: vdev id
- * @bw: band width
- *
- * Return: QDF_STATUS
- */
-QDF_STATUS wma_set_vdev_bw(uint8_t vdev_id, uint8_t bw);
 
 /**
  * wma_send_peer_assoc_req() - wma send peer assoc req when sta connect

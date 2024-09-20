@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _DSI_CLK_H_
@@ -304,15 +304,6 @@ int dsi_display_clk_ctrl(void *handle, u32 clk_type, u32 clk_state);
 int dsi_clk_set_link_frequencies(void *client, struct link_clk_freq freq,
 					u32 index);
 
-/**
- * dsi_clk_get_link_frequencies() - get link clk frequencies
- * @link_freq:       Structure to get link clock frequencies
- * @client:     DSI clock client pointer.
- * @index:      Index of the DSI controller.
- *
- * return: error code in case of failure or 0 for success.
- */
-int dsi_clk_get_link_frequencies(struct link_clk_freq *link_freq, void *client, u32 index);
 
 /**
  * dsi_clk_set_pixel_clk_rate() - set frequency for pixel_clk
@@ -322,6 +313,7 @@ int dsi_clk_get_link_frequencies(struct link_clk_freq *link_freq, void *client, 
  * return: error code in case of failure or 0 for success.
  */
 int dsi_clk_set_pixel_clk_rate(void *client, u64 pixel_clk, u32 index);
+
 
 /**
  * dsi_clk_set_byte_clk_rate() - set frequency for byte clock
@@ -361,17 +353,5 @@ void dsi_clk_disable_unprepare(struct dsi_clk_link_set *clk);
  * @client:       DSI clock client pointer.
  */
 int dsi_display_dump_clk_handle_state(void *client);
-
-/**
- * dsi_clk_acquire_mngr_lock() - acquire clk manager mutex lock
- * @client:       DSI clock client pointer.
- */
-void dsi_clk_acquire_mngr_lock(void *client);
-
-/**
- * dsi_clk_release_mngr_lock() - release clk manager mutex lock
- * @client:       DSI clock client pointer.
- */
-void dsi_clk_release_mngr_lock(void *client);
 
 #endif /* _DSI_CLK_H_ */

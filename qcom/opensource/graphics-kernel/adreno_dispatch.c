@@ -905,51 +905,6 @@ static void _dispatcher_update_timers(struct adreno_device *adreno_dev)
 	}
 }
 
-static inline void _decrement_submit_now(struct kgsl_device *device)
-{
-	spin_lock(&device->submit_lock);
-	device->submit_now--;
-	spin_unlock(&device->submit_lock);
-}
-
-/**
- * adreno_dispatcher_issuecmds() - Issue commmands from pending contexts
- * @adreno_dev: Pointer to the adreno device struct
- *
- * Lock the dispatcher and call _adreno_dispatcher_issueibcmds
- */
-static void adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
-{
-	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-
-	spin_lock(&device->submit_lock);
-	/* If state is not ACTIVE, schedule the work for later */
-	if (device->skip_inline_submit) {
-		spin_unlock(&device->submit_lock);
-		goto done;
-	}
-	device->submit_now++;
-	spin_unlock(&device->submit_lock);
-
-	/* If the dispatcher is busy then schedule the work for later */
-	if (!mutex_trylock(&dispatcher->mutex)) {
-		_decrement_submit_now(device);
-		goto done;
-	}
-
-	_adreno_dispatcher_issuecmds(adreno_dev);
-
-	if (dispatcher->inflight)
-		_dispatcher_update_timers(adreno_dev);
-
-	mutex_unlock(&dispatcher->mutex);
-	_decrement_submit_now(device);
-	return;
-done:
-	adreno_dispatcher_schedule(device);
-}
-
 /**
  * get_timestamp() - Return the next timestamp for the context
  * @drawctxt - Pointer to an adreno draw context struct
@@ -1364,17 +1319,7 @@ static int adreno_dispatcher_queue_cmds(struct kgsl_device_private *dev_priv,
 		goto done;
 	}
 
-	/*
-	 * Only issue commands if inflight is less than burst -this prevents us
-	 * from sitting around waiting for the mutex on a busy system - the work
-	 * loop will schedule it for us. Inflight is mutex protected but the
-	 * worse that can happen is that it will go to 0 after we check and if
-	 * it goes to 0 it is because the work loop decremented it and the work
-	 * queue will try to schedule new commands anyway.
-	 */
-
-	if (dispatch_q->inflight < _context_drawobj_burst)
-		adreno_dispatcher_issuecmds(adreno_dev);
+	adreno_dispatcher_schedule(device);
 done:
 	if (test_and_clear_bit(ADRENO_CONTEXT_FAULT, &context->priv))
 		return -EPROTO;
@@ -1533,7 +1478,6 @@ static void adreno_fault_header(struct kgsl_device *device,
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
 	struct adreno_context *drawctxt =
 			drawobj ? ADRENO_CONTEXT(drawobj->context) : NULL;
-	const struct adreno_gpudev *gpudev  = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned int status, rptr, wptr, ib1sz, ib2sz;
 	uint64_t ib1base, ib2base;
 	bool gx_on = adreno_gx_is_on(adreno_dev);
@@ -1555,9 +1499,6 @@ static void adreno_fault_header(struct kgsl_device *device,
 
 		return;
 	}
-
-	if (gpudev->fault_header)
-		return gpudev->fault_header(adreno_dev, drawobj);
 
 	adreno_readreg(adreno_dev, ADRENO_REG_RBBM_STATUS, &status);
 	adreno_readreg(adreno_dev, ADRENO_REG_CP_RB_RPTR, &rptr);
@@ -1980,14 +1921,17 @@ static int dispatcher_do_fault(struct adreno_device *adreno_dev)
 	gx_on = adreno_gx_is_on(adreno_dev);
 
 	/*
-	 * On non-A3xx, Check if this function was entered after a pagefault. If so, only
+	 * On non-A3xx, read RBBM_STATUS3:SMMU_STALLED_ON_FAULT (BIT 24)
+	 * to tell if this function was entered after a pagefault. If so, only
 	 * proceed if the fault handler has already run in the IRQ thread,
 	 * else return early to give the fault handler a chance to run.
 	 */
 	if (!(fault & ADRENO_IOMMU_PAGE_FAULT) &&
 		!adreno_is_a3xx(adreno_dev) && gx_on) {
+		unsigned int val;
 
-		if (adreno_smmu_is_stalled(adreno_dev)) {
+		adreno_readreg(adreno_dev, ADRENO_REG_RBBM_STATUS3, &val);
+		if (val & BIT(24)) {
 			mutex_unlock(&device->mutex);
 			dev_err(device->dev,
 				"SMMU is stalled without a pagefault\n");
@@ -2769,7 +2713,6 @@ static const struct adreno_dispatch_ops swsched_ops = {
 	.setup_context = adreno_dispatcher_setup_context,
 	.queue_context = adreno_dispatcher_queue_context,
 	.fault = adreno_dispatcher_fault,
-	.get_fault = adreno_gpu_fault,
 };
 
 /**

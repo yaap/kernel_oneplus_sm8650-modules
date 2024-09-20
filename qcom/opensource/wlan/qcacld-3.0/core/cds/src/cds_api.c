@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,9 +37,7 @@
 #include "wlan_hdd_power.h"
 #include "wlan_hdd_tsf.h"
 #include <linux/vmalloc.h>
-#if (defined(__ANDROID_COMMON_KERNEL__) && \
-	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)) && \
-	defined(MSM_PLATFORM))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)) && defined(MSM_PLATFORM)
 #include <linux/qcom-iommu-util.h>
 #endif
 #include <scheduler_core.h>
@@ -128,8 +126,6 @@ static struct ol_if_ops  dp_ol_if_ops = {
 	.peer_set_default_routing = target_if_peer_set_default_routing,
 	.peer_rx_reorder_queue_setup = target_if_peer_rx_reorder_queue_setup,
 	.peer_rx_reorder_queue_remove = target_if_peer_rx_reorder_queue_remove,
-	.peer_multi_rx_reorder_queue_setup =
-		target_if_peer_multi_rx_reorder_queue_setup,
 	.is_hw_dbs_capable = policy_mgr_is_dp_hw_dbs_capable,
 	.lro_hash_config = target_if_lro_hash_config,
 	.rx_invalid_peer = wma_rx_invalid_peer_ind,
@@ -696,21 +692,6 @@ static qdf_notif_block cds_hang_event_notifier = {
 };
 
 /**
- * cds_set_exclude_selftx_from_cca_busy_time() - Set exclude self tx time
- * from cca busy time bool in cds config
- * @exclude_selftx_from_cca_busy: Bool to be stored in cds config
- * @cds_cfg: Pointer to cds config
- *
- * Return: None
- */
-static void
-cds_set_exclude_selftx_from_cca_busy_time(bool exclude_selftx_from_cca_busy,
-					  struct cds_config_info *cds_cfg)
-{
-	cds_cfg->exclude_selftx_from_cca_busy = exclude_selftx_from_cca_busy;
-}
-
-/**
  * cds_open() - open the CDS Module
  *
  * cds_open() function opens the CDS Scheduler
@@ -826,9 +807,6 @@ QDF_STATUS cds_open(struct wlan_objmgr_psoc *psoc)
 		goto err_htc_close;
 	}
 
-	cds_set_exclude_selftx_from_cca_busy_time(
-				hdd_ctx->config->exclude_selftx_from_cca_busy,
-				cds_cfg);
 	/*Open the WMA module */
 	status = wma_open(psoc, hdd_update_tgt_cfg, cds_cfg,
 			  hdd_ctx->target_type);

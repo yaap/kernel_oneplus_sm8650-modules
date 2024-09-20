@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -749,6 +749,9 @@ void dp_rx_mon_dest_process(struct dp_soc *soc, struct dp_intr *int_ctx,
 			rx_mon_stats->ppdu_id_hist_idx =
 				(rx_mon_stats->ppdu_id_hist_idx + 1) &
 					(MAX_PPDU_ID_HIST - 1);
+			mon_pdev->mon_ppdu_status = DP_PPDU_STATUS_START;
+			qdf_mem_zero(&mon_pdev->ppdu_info.rx_status,
+				     sizeof(mon_pdev->ppdu_info.rx_status));
 			dp_rx_mon_dest_debug("%pK: ppdu_id %x != ppdu_info.com_info.ppdu_id %x",
 					     soc, ppdu_id,
 					     mon_pdev->ppdu_info.com_info.ppdu_id);
@@ -1501,27 +1504,25 @@ dp_rx_pdev_mon_desc_pool_init(struct dp_pdev *pdev)
 	qdf_spinlock_create(&pdev->monitor_pdev->mon_lock);
 }
 
+static void
+dp_rx_pdev_mon_cmn_buffers_free(struct dp_pdev *pdev, int mac_id)
+{
+	uint8_t pdev_id = pdev->pdev_id;
+	int mac_for_pdev;
+
+	mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id, pdev_id);
+	dp_rx_pdev_mon_status_buffers_free(pdev, mac_for_pdev);
+
+	dp_rx_pdev_mon_dest_buffers_free(pdev, mac_for_pdev);
+}
+
 void
 dp_rx_pdev_mon_buffers_free(struct dp_pdev *pdev)
 {
 	int mac_id;
-	int mac_for_pdev;
-	uint8_t pdev_id = pdev->pdev_id;
-	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx = pdev->soc->wlan_cfg_ctx;
 
-	for (mac_id = 0; mac_id < soc_cfg_ctx->num_rxdma_status_rings_per_pdev;
-	     mac_id++) {
-		mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id,
-							  pdev_id);
-		dp_rx_pdev_mon_status_buffers_free(pdev, mac_for_pdev);
-	}
-
-	for (mac_id = 0; mac_id < soc_cfg_ctx->num_rxdma_dst_rings_per_pdev;
-	     mac_id++) {
-		mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id,
-							  pdev_id);
-		dp_rx_pdev_mon_dest_buffers_free(pdev, mac_for_pdev);
-	}
+	for (mac_id = 0; mac_id < NUM_RXDMA_RINGS_PER_PDEV; mac_id++)
+		dp_rx_pdev_mon_cmn_buffers_free(pdev, mac_id);
 	pdev->monitor_pdev->pdev_mon_init = 0;
 }
 

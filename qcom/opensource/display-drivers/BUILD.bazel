@@ -68,5 +68,5 @@ ddk_headers(
     hdrs = [ ":linux_includes", ":uapi_headers", ":msm_headers",":dp_headers",":dsi_headers",":sde_headers",":rotator_headers"]
 )
 
-load(":target.bzl", "define_display_target")
-define_display_target()
+load(":target.bzl", "define_pineapple")
+define_pineapple()

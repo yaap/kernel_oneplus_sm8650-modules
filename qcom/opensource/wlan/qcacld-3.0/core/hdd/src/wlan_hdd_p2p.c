@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -56,7 +56,6 @@
 #include "wlan_pre_cac_ucfg_api.h"
 #include "wlan_dp_ucfg_api.h"
 #include "wlan_psoc_mlme_ucfg_api.h"
-#include "os_if_dp_local_pkt_capture.h"
 
 /* Ms to Time Unit Micro Sec */
 #define MS_TO_TU_MUS(x)   ((x) * 1024)
@@ -112,9 +111,7 @@ static int __wlan_hdd_cfg80211_remain_on_channel(struct wiphy *wiphy,
 		return -EINVAL;
 	}
 
-	wlan_hdd_lpc_handle_concurrency(hdd_ctx, false);
-	if (policy_mgr_is_sta_mon_concurrency(hdd_ctx->psoc) &&
-	    !hdd_lpc_is_work_scheduled(hdd_ctx))
+	if (policy_mgr_is_sta_mon_concurrency(hdd_ctx->psoc))
 		return -EINVAL;
 
 	if (wlan_hdd_validate_vdev_id(adapter->deflink->vdev_id))
@@ -124,11 +121,6 @@ static int __wlan_hdd_cfg80211_remain_on_channel(struct wiphy *wiphy,
 	if (!vdev) {
 		hdd_err("vdev is NULL");
 		return -EINVAL;
-	}
-
-	if (!wlan_is_scan_allowed(vdev)) {
-		wlan_objmgr_vdev_release_ref(vdev, WLAN_OSIF_P2P_ID);
-		return -EBUSY;
 	}
 
 	/* Disable NAN Discovery if enabled */
@@ -643,40 +635,6 @@ int hdd_set_p2p_ps(struct net_device *dev, void *msgData)
 }
 
 /**
- * hdd_allow_new_intf() - Allow new intf created or not
- * @hdd_ctx: hdd context
- * @mode: qdf opmode of new interface
- *
- * Return: true if allowed, otherwise false
- */
-static bool hdd_allow_new_intf(struct hdd_context *hdd_ctx,
-			       enum QDF_OPMODE mode)
-{
-	struct hdd_adapter *adapter = NULL;
-	struct hdd_adapter *next_adapter = NULL;
-	uint8_t num_active_adapter = 0;
-
-	if (mode != QDF_SAP_MODE)
-		return true;
-
-	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
-					   NET_DEV_HOLD_ALLOW_NEW_INTF) {
-		if (hdd_is_interface_up(adapter) &&
-		    adapter->device_mode == mode)
-			num_active_adapter++;
-
-		hdd_adapter_dev_put_debug(adapter,
-					  NET_DEV_HOLD_ALLOW_NEW_INTF);
-	}
-
-	if (num_active_adapter >= QDF_MAX_NO_OF_SAP_MODE)
-		hdd_err("sap max allowed intf %d, curr %d",
-			QDF_MAX_NO_OF_SAP_MODE, num_active_adapter);
-
-	return num_active_adapter < QDF_MAX_NO_OF_SAP_MODE;
-}
-
-/**
  * __wlan_hdd_add_virtual_intf() - Add virtual interface
  * @wiphy: wiphy pointer
  * @name: User-visible name of the interface
@@ -721,29 +679,19 @@ struct wireless_dev *__wlan_hdd_add_virtual_intf(struct wiphy *wiphy,
 	if (ret)
 		return ERR_PTR(ret);
 
-	status = hdd_nl_to_qdf_iface_type(type, &mode);
-	if (QDF_IS_STATUS_ERROR(status))
-		return ERR_PTR(qdf_status_to_os_return(status));
-
-	if (mode == QDF_MONITOR_MODE &&
-	    !os_if_lpc_mon_intf_creation_allowed(hdd_ctx->psoc))
-		return ERR_PTR(-EOPNOTSUPP);
-
-	wlan_hdd_lpc_handle_concurrency(hdd_ctx, true);
-
-	if (policy_mgr_is_sta_mon_concurrency(hdd_ctx->psoc) &&
-	    !hdd_lpc_is_work_scheduled(hdd_ctx))
+	if (policy_mgr_is_sta_mon_concurrency(hdd_ctx->psoc))
 		return ERR_PTR(-EINVAL);
 
 	if (wlan_hdd_is_mon_concurrency())
 		return ERR_PTR(-EINVAL);
 
-	if (!hdd_allow_new_intf(hdd_ctx, mode))
-		return ERR_PTR(-EOPNOTSUPP);
-
 	qdf_mtrace(QDF_MODULE_ID_HDD, QDF_MODULE_ID_HDD,
 		   TRACE_CODE_HDD_ADD_VIRTUAL_INTF,
 		   NO_SESSION, type);
+
+	status = hdd_nl_to_qdf_iface_type(type, &mode);
+	if (QDF_IS_STATUS_ERROR(status))
+		return ERR_PTR(qdf_status_to_os_return(status));
 
 	switch (mode) {
 	case QDF_SAP_MODE:
@@ -1133,8 +1081,6 @@ __hdd_indicate_mgmt_frame_to_user(struct hdd_adapter *adapter,
 	struct hdd_adapter *assoc_adapter;
 	bool eht_capab;
 	struct hdd_ap_ctx *ap_ctx;
-	struct action_frm_hdr *action_hdr;
-	tpSirMacVendorSpecificPublicActionFrameHdr vendor_specific;
 
 	hdd_debug("Frame Type = %d Frame Length = %d freq = %d",
 		  frame_type, frm_len, rx_freq);
@@ -1170,24 +1116,6 @@ __hdd_indicate_mgmt_frame_to_user(struct hdd_adapter *adapter,
 			    adapter->device_mode == QDF_P2P_GO_MODE)) {
 			ap_ctx = WLAN_HDD_GET_AP_CTX_PTR(adapter->deflink);
 			ap_ctx->during_auth_offload = true;
-		}
-	}
-
-	if (type == WLAN_FC0_TYPE_MGMT && sub_type == WLAN_FC0_STYPE_ACTION &&
-	    frm_len >= (sizeof(struct wlan_frame_hdr) +
-			sizeof(*vendor_specific))) {
-		action_hdr = (struct action_frm_hdr *)(pb_frames +
-						sizeof(struct wlan_frame_hdr));
-		vendor_specific =
-			(tpSirMacVendorSpecificPublicActionFrameHdr)action_hdr;
-		if (is_nan_oui(vendor_specific->Oui)) {
-			adapter = hdd_get_adapter(hdd_ctx, QDF_NAN_DISC_MODE);
-			if (!adapter) {
-				hdd_err("NAN adapter is null");
-				return;
-			}
-
-			goto check_adapter;
 		}
 	}
 
@@ -1229,7 +1157,6 @@ __hdd_indicate_mgmt_frame_to_user(struct hdd_adapter *adapter,
 		}
 	}
 
-check_adapter:
 	if (!adapter->dev) {
 		hdd_err("adapter->dev is NULL");
 		return;
@@ -1378,6 +1305,9 @@ static void wlan_hdd_update_mcc_p2p_quota(struct hdd_adapter *adapter,
 	}
 }
 
+extern void wlan_hdd_update_private_mcc_p2p_quota(struct hdd_adapter *adapter, int sta_quota);
+// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
+
 int32_t wlan_hdd_set_mas(struct hdd_adapter *adapter, uint8_t mas_value)
 {
 	struct hdd_context *hdd_ctx;
@@ -1407,9 +1337,14 @@ int32_t wlan_hdd_set_mas(struct hdd_adapter *adapter, uint8_t mas_value)
 				return -EAGAIN;
 			}
 		}
-
-		/* Config p2p quota */
-		wlan_hdd_update_mcc_p2p_quota(adapter, true);
+		// the original is only source or sink 0/1, >=10 stands for quota
+		if (mas_value >= 10) {
+			wlan_hdd_update_private_mcc_p2p_quota(adapter, mas_value);
+		} else {
+			/* Config p2p quota */
+			wlan_hdd_update_mcc_p2p_quota(adapter, true);
+		}
+		// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
 	} else {
 		hdd_info("Miracast is OFF. Enable MAS and reset P2P quota");
 		wlan_hdd_update_mcc_p2p_quota(adapter, false);

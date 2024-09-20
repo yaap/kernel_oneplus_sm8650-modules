@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -188,14 +188,12 @@ mlo_mgr_update_link_info_mac_addr(struct wlan_objmgr_vdev *vdev,
 
 /**
  * mlo_mgr_update_link_info_reset() - Reset link info of ml dev context
- * @psoc: psoc pointer
  * @ml_dev: MLO device context
  *
  * Reset link info of ml links
  * Return: QDF_STATUS
  */
-void mlo_mgr_update_link_info_reset(struct wlan_objmgr_psoc *psoc,
-				    struct wlan_mlo_dev_context *ml_dev);
+void mlo_mgr_update_link_info_reset(struct wlan_mlo_dev_context *ml_dev);
 
 /**
  * mlo_mgr_update_ap_link_info() - Update AP links information
@@ -210,17 +208,6 @@ void mlo_mgr_update_link_info_reset(struct wlan_objmgr_psoc *psoc,
 void mlo_mgr_update_ap_link_info(struct wlan_objmgr_vdev *vdev, uint8_t link_id,
 				 uint8_t *ap_link_addr,
 				 struct wlan_channel channel);
-
-/**
- * mlo_mgr_clear_ap_link_info() - Clear AP link information
- * @vdev: Object Manager vdev
- * @ap_link_addr: AP link addresses
- *
- * Clear AP link info
- * Return: void
- */
-void mlo_mgr_clear_ap_link_info(struct wlan_objmgr_vdev *vdev,
-				uint8_t *ap_link_addr);
 
 /**
  * mlo_mgr_reset_ap_link_info() - Reset AP links information
@@ -246,17 +233,6 @@ void mlo_mgr_update_ap_channel_info(struct wlan_objmgr_vdev *vdev,
 				    struct wlan_channel channel);
 
 /**
- * mlo_mgr_get_ap_link() - Assoc mlo link info from link id
- * @vdev: Object Manager vdev
- *
- * Get Assoc link info.
- *
- * Return: Pointer of link info
- */
-struct mlo_link_info *mlo_mgr_get_ap_link(struct wlan_objmgr_vdev *vdev);
-
-#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
-/**
  * mlo_mgr_get_ap_link_by_link_id() - Get mlo link info from link id
  * @mlo_dev_ctx: mlo context
  * @link_id: Link id of the AP MLD link
@@ -272,15 +248,24 @@ mlo_mgr_get_ap_link_by_link_id(struct wlan_mlo_dev_context *mlo_dev_ctx,
 			       int link_id);
 
 /**
+ * mlo_mgr_get_ap_link() - Assoc mlo link info from link id
+ * @vdev: Object Manager vdev
+ *
+ * Get Assoc link info.
+ *
+ * Return: Pointer of link info
+ */
+struct mlo_link_info *mlo_mgr_get_ap_link(struct wlan_objmgr_vdev *vdev);
+
+#ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+/**
  * mlo_mgr_update_csa_link_info - update mlo sta csa params
- * @pdev: pdev object manager
  * @mlo_dev_ctx: mlo dev ctx
  * @csa_param: csa parameters to be updated
  * @link_id: link id
  * Return : true if csa parameters are updated
  */
-bool mlo_mgr_update_csa_link_info(struct wlan_objmgr_pdev *pdev,
-				  struct wlan_mlo_dev_context *mlo_dev_ctx,
+bool mlo_mgr_update_csa_link_info(struct wlan_mlo_dev_context *mlo_dev_ctx,
 				  struct csa_offload_params *csa_param,
 				  uint8_t link_id);
 
@@ -598,7 +583,6 @@ mlo_mgr_link_switch_defer_disconnect_req(struct wlan_objmgr_vdev *vdev,
 
 /**
  * mlo_mgr_link_switch_init() - API to initialize link switch
- * @psoc: PSOC object manager
  * @ml_dev: MLO dev context
  *
  * Initializes the MLO link context in @ml_dev and allocates various
@@ -606,8 +590,7 @@ mlo_mgr_link_switch_defer_disconnect_req(struct wlan_objmgr_vdev *vdev,
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS mlo_mgr_link_switch_init(struct wlan_objmgr_psoc *psoc,
-				    struct wlan_mlo_dev_context *ml_dev);
+QDF_STATUS mlo_mgr_link_switch_init(struct wlan_mlo_dev_context *ml_dev);
 
 /**
  * mlo_mgr_link_switch_deinit() - API to de-initialize link switch
@@ -627,13 +610,6 @@ mlo_mgr_is_link_switch_supported(struct wlan_objmgr_vdev *vdev)
 }
 
 #else
-static inline struct mlo_link_info
-*mlo_mgr_get_ap_link_by_link_id(struct wlan_mlo_dev_context *mlo_dev_ctx,
-				int link_id)
-{
-	return NULL;
-}
-
 static inline bool
 mlo_mgr_is_link_switch_supported(struct wlan_objmgr_vdev *vdev)
 {
@@ -679,8 +655,7 @@ mlo_mgr_link_switch_deinit(struct wlan_mlo_dev_context *ml_dev)
 }
 
 static inline QDF_STATUS
-mlo_mgr_link_switch_init(struct wlan_objmgr_psoc *psoc,
-			 struct wlan_mlo_dev_context *ml_dev)
+mlo_mgr_link_switch_init(struct wlan_mlo_dev_context *ml_dev)
 {
 	return QDF_STATUS_SUCCESS;
 }

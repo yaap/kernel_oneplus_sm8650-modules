@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_I_H_
@@ -43,10 +43,6 @@
 #include <linux/rmnet_ipa_fd_ioctl.h>
 #include "ipa_uc_holb_monitor.h"
 #include <soc/qcom/minidump.h>
-#ifdef CONFIG_IPA_RTP
-#include "ipa_rtp_genl.h"
-#endif
-#include <linux/dma-buf.h>
 
 #define IPA_DEV_NAME_MAX_LEN 15
 #define DRV_NAME "ipa"
@@ -573,11 +569,6 @@ enum {
 #define MBOX_TOUT_MS 100
 
 #define IPA_RULE_CNT_MAX 512
-
-/* XR-IPA uC temp buffers sizes */
-#define TEMP_BUFF_SIZE	0x300000
-/* XR-IPA uC no. of temp buffers */
-#define NO_OF_BUFFS	0x04
 
 /* miscellaneous for rmnet_ipa and qmi_service */
 enum ipa_type_mode {
@@ -1574,7 +1565,6 @@ enum ipa3_platform_type {
 	IPA_PLAT_TYPE_MDM	= 0,
 	IPA_PLAT_TYPE_MSM	= 1,
 	IPA_PLAT_TYPE_APQ	= 2,
-	IPA_PLAT_TYPE_XR	= 3,
 };
 
 enum ipa3_config_this_ep {
@@ -2433,8 +2423,6 @@ struct ipa3_context {
 	bool ipa_wdi2_over_gsi;
 	bool ipa_wdi3_over_gsi;
 	bool ipa_wdi_opt_dpath;
-	bool ipa_xr_wdi_flt_rsv_status;
-	u8 rtp_stream_id_cnt;
 	bool ipa_endp_delay_wa;
 	bool lan_coal_enable;
 	bool ipa_fltrt_not_hashable;
@@ -3560,7 +3548,6 @@ struct iommu_domain *ipa3_get_smmu_domain_by_type
 int ipa3_iommu_map(struct iommu_domain *domain, unsigned long iova,
 	phys_addr_t paddr, size_t size, int prot);
 int ipa3_ap_suspend(struct device *dev);
-int ipa3_ap_freeze(struct device *dev);
 int ipa3_ap_resume(struct device *dev);
 int ipa3_init_interrupts(void);
 struct iommu_domain *ipa3_get_smmu_domain(void);
@@ -3837,18 +3824,4 @@ int ipa3_update_apps_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t da
 int ipa3_update_client_holb_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
 int ipa3_update_dma_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
 
-/* XR-IPA API's */
-#ifdef CONFIG_IPA_RTP
-int ipa3_uc_send_tuple_info_cmd(struct traffic_tuple_info *data);
-int ipa3_alloc_temp_buffs_to_uc(unsigned int size, unsigned int no_of_buffs);
-int ipa3_map_buff_to_device_addr(struct map_buffer *map_buffs);
-int ipa3_unmap_buff_from_device_addr(struct unmap_buffer *unmap_buffs);
-int ipa3_send_bitstream_buff_info(struct bitstream_buffers *data);
-int ipa3_tuple_info_cmd_to_wlan_uc(struct traffic_tuple_info *req, u32 stream_id);
-int ipa3_uc_send_remove_stream_cmd(struct remove_bitstream_buffers *data);
-int ipa3_create_hfi_send_uc(void);
-int ipa3_allocate_uc_pipes_er_tr_send_to_uc(void);
-void ipa3_free_uc_temp_buffs(unsigned int no_of_buffs);
-void ipa3_free_uc_pipes_er_tr(void);
-#endif
 #endif /* _IPA3_I_H_ */

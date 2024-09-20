@@ -51,7 +51,7 @@ static int32_t cam_qup_i2c_rxdata(
 
 static inline void  cam_qup_i2c_txdata_fill(
 	struct camera_io_master *dev_client, unsigned char *txdata,
-	uint16_t length, struct i2c_msg *msgs, int curr_mindx)
+	int length, struct i2c_msg *msgs, int curr_mindx)
 {
 	msgs[curr_mindx].addr =  dev_client->client->addr >> 1;
 	msgs[curr_mindx].flags = 0;
@@ -61,7 +61,7 @@ static inline void  cam_qup_i2c_txdata_fill(
 
 static int32_t cam_qup_i2c_txdata(
 	struct camera_io_master *dev_client, unsigned char *txdata,
-	uint16_t length)
+	int length)
 {
 	int32_t rc = 0;
 	uint16_t saddr = dev_client->client->addr >> 1;
@@ -267,7 +267,7 @@ static int32_t cam_qup_i2c_write_optimized(struct camera_io_master *client,
 	int curr_mindx, unsigned char *buf, uint32_t *offset)
 {
 	int32_t rc = 0;
-	uint16_t len = 0;
+	uint8_t len = 0;
 
 	CAM_DBG(CAM_SENSOR, "reg addr = 0x%x data type: %d",
 			reg_setting->reg_addr, data_type);
@@ -415,7 +415,7 @@ static int32_t cam_qup_i2c_write_burst(struct camera_io_master *client,
 {
 	int i;
 	int32_t rc = 0;
-	uint16_t len = 0;
+	uint32_t len = 0;
 	unsigned char *buf = NULL;
 	struct cam_sensor_i2c_reg_array *reg_setting;
 	enum camera_sensor_i2c_type addr_type;

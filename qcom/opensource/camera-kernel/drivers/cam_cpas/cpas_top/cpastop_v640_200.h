@@ -547,9 +547,6 @@ static struct cam_camnoc_err_logger_info cam640_cpas200_err_logger_offsets = {
 };
 
 static struct cam_cpas_hw_errata_wa_list cam640_cpas200_errata_wa_list = {
-	.enable_icp_clk_for_qchannel = {
-		.enable = true,
-	},
 };
 
 static struct cam_camnoc_info cam640_cpas200_camnoc_info = {
@@ -574,12 +571,6 @@ static struct cam_cpas_info cam640_cpas200_cpas_info = {
 	},
 	.qchannel_info = {&cam640_cpas200_qchannel_info},
 	.num_qchannel = 1,
-};
-
-static struct cam_cpas_top_regs cam640_cpas200_cpas_top_info = {
-	.tpg_mux_sel_enabled = true,
-	.tpg_mux_sel_shift   = 0x0,
-	.tpg_mux_sel         = 0x1C,
 };
 
 #endif /* _CPASTOP_V640_200_H_ */

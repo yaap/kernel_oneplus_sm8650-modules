@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -51,7 +51,6 @@
 #include "cdp_txrx_host_stats.h"
 #include "utils_mlo.h"
 #include "wlan_mlo_mgr_sta.h"
-#include <wlan_policy_mgr_ll_sap.h>
 
 #define MAX_CTRL_STAT_VDEV_ENTRIES 1
 #define MAX_CTRL_STAT_MAC_ADDR_ENTRIES 1
@@ -347,15 +346,15 @@ rrm_process_link_measurement_request(struct mac_context *mac,
 			pe_session->maxTxPower = LinkReport.txPower;
 		}
 	}
-	pe_warn_rl("Link Request Tx Pwr: %d Link Report Tx Pwr: %d",
-		   pLinkReq->MaxTxPower.maxTxPower, LinkReport.txPower);
+	pe_warn("Link Request Tx Pwr: %d Link Report Tx Pwr: %d",
+		pLinkReq->MaxTxPower.maxTxPower, LinkReport.txPower);
 
 	LinkReport.dialogToken = pLinkReq->DialogToken.token;
 	LinkReport.rxAntenna = 0;
 	LinkReport.txAntenna = 0;
 	currentRSSI = WMA_GET_RX_RSSI_RAW(pRxPacketInfo);
 
-	pe_info_rl("Received Link report frame with %d", currentRSSI);
+	pe_info("Received Link report frame with %d", currentRSSI);
 
 	rrm_calculate_and_fill_rcpi(&LinkReport.rcpi, currentRSSI);
 	LinkReport.rsni = WMA_GET_RX_SNR(pRxPacketInfo);
@@ -666,6 +665,9 @@ rrm_update_mac_cp_stats(struct infra_cp_stats_event *ev,
 	 * by FW and previous stats.
 	 */
 	case STA_STAT_GROUP_ID_COUNTER_STATS:
+		counter_stats->group_transmitted_frame_count =
+			ev_counter_stats.group_transmitted_frame_count -
+			counter_stats->group_transmitted_frame_count;
 		counter_stats->failed_count =
 			ev_counter_stats.failed_count -
 			counter_stats->failed_count;
@@ -693,7 +695,8 @@ rrm_update_mac_cp_stats(struct infra_cp_stats_event *ev,
 	default:
 		pe_debug("group id not supported");
 	}
-	pe_nofl_debug("counter stats: group rx frame count %d failed_count %d fcs_error %d tx frame count %d mac stats: rts success count %d rts fail count %d ack fail count %d",
+	pe_nofl_debug("counter stats: group frame count ( tx %d rx %d ) failed_count %d fcs_error %d tx frame count %d mac stats: rts success count %d rts fail count %d ack fail count %d",
+		      counter_stats->group_transmitted_frame_count,
 		      counter_stats->group_received_frame_count,
 		      counter_stats->failed_count,
 		      counter_stats->fcs_error_count,
@@ -797,10 +800,9 @@ rrm_update_vdev_stats(tpSirMacRadioMeasureReport rrm_report, uint8_t vdev_id)
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	pe_nofl_debug("counter stats count: fragment (tx: %d rx: %d) group tx: %d mac stats count: retry : %d multiple retry: %d frame duplicate %d",
+	pe_nofl_debug("counter stats count: fragment (tx: %d rx: %d) mac stats count: retry : %d multiple retry: %d frame duplicate %d",
 		      stats->tx.fragment_count, stats->rx.fragment_count,
-		      stats->tx.mcast.num, stats->tx.retry_count,
-		      stats->tx.multiple_retry_count,
+		      stats->tx.retry_count, stats->tx.multiple_retry_count,
 		      stats->rx.duplicate_count);
 
 	switch (rrm_report->report.statistics_report.group_id) {
@@ -811,9 +813,6 @@ rrm_update_vdev_stats(tpSirMacRadioMeasureReport rrm_report, uint8_t vdev_id)
 		counter_stats->received_fragment_count =
 			stats->rx.fragment_count -
 				counter_stats->received_fragment_count;
-		counter_stats->group_transmitted_frame_count =
-			stats->tx.mcast.num -
-			counter_stats->group_transmitted_frame_count;
 		break;
 	case STA_STAT_GROUP_ID_MAC_STATS:
 		mac_stats->retry_count =
@@ -1217,11 +1216,6 @@ rrm_process_beacon_report_req(struct mac_context *mac,
 		return eRRM_INCAPABLE;
 	}
 
-	if (wlan_policy_mgr_get_ll_lt_sap_vdev_id(mac->psoc) != WLAN_INVALID_VDEV_ID) {
-		pe_debug("RX: [802.11 BCN_RPT] reject req as ll_lt_sap is present");
-		return eRRM_REFUSED;
-	}
-
 	if (pBeaconReq->measurement_request.Beacon.rrm_reporting.present &&
 	    (pBeaconReq->measurement_request.Beacon.rrm_reporting.reporting_condition != 0)) {
 		/* Repeated measurement is not supported. This means number of repetitions should be zero.(Already checked) */
@@ -1240,18 +1234,18 @@ rrm_process_beacon_report_req(struct mac_context *mac,
 
 	measDuration = pBeaconReq->measurement_request.Beacon.meas_duration;
 
-	pe_nofl_rl_info("RX: [802.11 BCN_RPT] seq:%d SSID:" QDF_SSID_FMT " BSSID:" QDF_MAC_ADDR_FMT " Token:%d op_class:%d ch:%d meas_mode:%d meas_duration:%d max_meas_dur: %d",
-			mac->rrm.rrmPEContext.prev_rrm_report_seq_num,
-			QDF_SSID_REF(
+	pe_nofl_info("RX: [802.11 BCN_RPT] seq:%d SSID:" QDF_SSID_FMT " BSSID:" QDF_MAC_ADDR_FMT " Token:%d op_class:%d ch:%d meas_mode:%d meas_duration:%d max_meas_dur: %d",
+		     mac->rrm.rrmPEContext.prev_rrm_report_seq_num,
+		     QDF_SSID_REF(
 			pBeaconReq->measurement_request.Beacon.SSID.num_ssid,
 			pBeaconReq->measurement_request.Beacon.SSID.ssid),
-			QDF_MAC_ADDR_REF(
+		     QDF_MAC_ADDR_REF(
 			pBeaconReq->measurement_request.Beacon.BSSID),
-			pBeaconReq->measurement_token,
-			pBeaconReq->measurement_request.Beacon.regClass,
-			pBeaconReq->measurement_request.Beacon.channel,
-			pBeaconReq->measurement_request.Beacon.meas_mode,
-			measDuration, maxMeasduration);
+		     pBeaconReq->measurement_token,
+		     pBeaconReq->measurement_request.Beacon.regClass,
+		     pBeaconReq->measurement_request.Beacon.channel,
+		     pBeaconReq->measurement_request.Beacon.meas_mode,
+		     measDuration, maxMeasduration);
 
 	req_mode = (pBeaconReq->parallel << 0) | (pBeaconReq->enable << 1) |
 		   (pBeaconReq->request << 2) | (pBeaconReq->report << 3) |
@@ -2061,70 +2055,18 @@ rrm_process_channel_load_req(struct mac_context *mac,
 {
 	struct scheduler_msg msg = {0};
 	struct ch_load_ind *load_ind;
-	struct bw_ind_element bw_ind = {0};
-	struct wide_bw_chan_switch wide_bw = {0};
-	struct rrm_reporting rrm_report;
-	uint8_t op_class, channel;
+	uint8_t op_class, channel, reporting_condition;
 	uint16_t randomization_intv, meas_duration, max_meas_duration;
-	bool is_rrm_reporting, is_wide_bw_chan_switch;
+	bool present;
 	uint8_t country[WNI_CFG_COUNTRY_CODE_LEN];
 	qdf_freq_t chan_freq;
-	bool is_freq_enabled, is_bw_ind;
+	bool is_freq_enabled;
 
-	if (wlan_policy_mgr_get_ll_lt_sap_vdev_id(mac->psoc) != WLAN_INVALID_VDEV_ID) {
-		pe_debug("RX:[802.11 CH_LOAD] reject req as ll_lt_sap is present");
-		return eRRM_REFUSED;
-	}
-
-	is_rrm_reporting = chan_load_req->measurement_request.channel_load.rrm_reporting.present;
-	is_wide_bw_chan_switch = chan_load_req->measurement_request.channel_load.wide_bw_chan_switch.present;
-	is_bw_ind = chan_load_req->measurement_request.channel_load.bw_indication.present;
-
-	pe_debug("RX:[802.11 CH_LOAD] vdev: %d, is_rrm_reporting: %d, is_wide_bw_chan_switch: %d, is_bw_ind: %d",
-		 pe_session->vdev_id, is_rrm_reporting, is_wide_bw_chan_switch,
-		 is_bw_ind);
-
-	if (is_rrm_reporting) {
-		rrm_report.threshold = chan_load_req->measurement_request.channel_load.rrm_reporting.threshold;
-		rrm_report.reporting_condition = chan_load_req->measurement_request.channel_load.rrm_reporting.reporting_condition;
-		pe_debug("RX:[802.11 CH_LOAD] threshold:%d reporting_c:%d",
-			 rrm_report.threshold, rrm_report.reporting_condition);
-		if (rrm_report.reporting_condition != 0) {
-			pe_debug("RX:[802.11 CH_LOAD]: Dropping req");
-			return eRRM_INCAPABLE;
-		}
-	}
-
-	if (is_bw_ind) {
-		bw_ind.is_bw_ind_element = true;
-		bw_ind.channel_width = chan_load_req->measurement_request.channel_load.bw_indication.channel_width;
-		bw_ind.ccfi0 = chan_load_req->measurement_request.channel_load.bw_indication.ccfs0;
-		bw_ind.ccfi1 = chan_load_req->measurement_request.channel_load.bw_indication.ccfs1;
-		bw_ind.center_freq = wlan_reg_compute_6g_center_freq_from_cfi(bw_ind.ccfi0);
-		pe_debug("RX:[802.11 CH_LOAD] chan_width:%d ccfs0:%d, ccfs1:%d, center_freq:%d",
-			 bw_ind.channel_width, bw_ind.ccfi0,
-			 bw_ind.ccfi1, bw_ind.center_freq);
-
-		if (bw_ind.channel_width == 0 || !bw_ind.ccfi0 ||
-		    bw_ind.channel_width < CH_WIDTH_320MHZ || !bw_ind.center_freq) {
-			pe_debug("Dropping req: invalid is_bw_ind_element IE");
-			return eRRM_REFUSED;
-		}
-	}
-
-	if (is_wide_bw_chan_switch) {
-		wide_bw.is_wide_bw_chan_switch = true;
-		wide_bw.channel_width = chan_load_req->measurement_request.channel_load.wide_bw_chan_switch.new_chan_width;
-		wide_bw.center_chan_freq0 = chan_load_req->measurement_request.channel_load.wide_bw_chan_switch.new_center_chan_freq0;
-		wide_bw.center_chan_freq1 = chan_load_req->measurement_request.channel_load.wide_bw_chan_switch.new_center_chan_freq1;
-		pe_debug("RX:[802.11 CH_LOAD] cw:%d ccf0:%d, ccf1:%d",
-			 wide_bw.channel_width, wide_bw.center_chan_freq0,
-			 wide_bw.center_chan_freq1);
-		if (wide_bw.channel_width < CH_WIDTH_20MHZ ||
-		    wide_bw.channel_width >= CH_WIDTH_320MHZ) {
-			pe_debug("Dropping req: invalid wide_bw IE");
-			return eRRM_REFUSED;
-		}
+	present = chan_load_req->measurement_request.channel_load.rrm_reporting.present;
+	reporting_condition = chan_load_req->measurement_request.channel_load.rrm_reporting.reporting_condition;
+	if (present && reporting_condition != 0) {
+		pe_err("Dropping req: Reporting condition is not zero");
+		return eRRM_INCAPABLE;
 	}
 
 	op_class = chan_load_req->measurement_request.channel_load.op_class;
@@ -2134,7 +2076,6 @@ rrm_process_channel_load_req(struct mac_context *mac,
 	randomization_intv =
 	     chan_load_req->measurement_request.channel_load.randomization_intv;
 	max_meas_duration = rrm_get_max_meas_duration(mac, pe_session);
-
 	if (max_meas_duration < meas_duration) {
 		if (chan_load_req->durationMandatory) {
 			pe_nofl_err("RX:[802.11 CH_LOAD] Dropping the req: duration mandatory & max duration > meas duration");
@@ -2142,14 +2083,12 @@ rrm_process_channel_load_req(struct mac_context *mac,
 		}
 		meas_duration = max_meas_duration;
 	}
-
 	pe_debug("RX:[802.11 CH_LOAD] vdev :%d, seq:%d Token:%d op_c:%d ch:%d meas_dur:%d, rand intv: %d, max_dur:%d",
 		 pe_session->vdev_id,
 		 mac->rrm.rrmPEContext.prev_rrm_report_seq_num,
 		 chan_load_req->measurement_token, op_class,
 		 channel, meas_duration, randomization_intv,
 		 max_meas_duration);
-
 	if (!meas_duration || meas_duration > RRM_SCAN_MAX_DWELL_TIME)
 		return eRRM_REFUSED;
 
@@ -2194,17 +2133,9 @@ rrm_process_channel_load_req(struct mac_context *mac,
 	load_ind->randomization_intv = SYS_TU_TO_MS(randomization_intv);
 	load_ind->measurement_idx = curr_req->measurement_idx;
 	load_ind->channel = channel;
-	load_ind->req_freq = chan_freq;
 	load_ind->op_class = op_class;
 	load_ind->meas_duration = meas_duration;
 	curr_req->token = chan_load_req->measurement_token;
-
-	if (is_wide_bw_chan_switch)
-		load_ind->wide_bw = wide_bw;
-
-	if (is_bw_ind)
-		load_ind->bw_ind = bw_ind;
-
 	/* Send request to SME. */
 	msg.type = eWNI_SME_CHAN_LOAD_REQ_IND;
 	msg.bodyptr = load_ind;
@@ -2332,10 +2263,7 @@ rrm_process_chan_load_report_xmit(struct mac_context *mac_ctx,
 	channel_load_report->rrm_scan_tsf = chan_load_ind->rrm_scan_tsf;
 	channel_load_report->meas_duration = chan_load_ind->duration;
 	channel_load_report->chan_load = chan_load_ind->chan_load;
-	qdf_mem_copy(&channel_load_report->bw_ind, &chan_load_ind->bw_ind,
-		     sizeof(channel_load_report->bw_ind));
-	qdf_mem_copy(&channel_load_report->wide_bw, &chan_load_ind->wide_bw,
-		     sizeof(channel_load_report->wide_bw));
+
 	pe_err("send chan load report for bssId:"QDF_MAC_ADDR_FMT" reg_class:%d, channel:%d, measStartTime:%llu, measDuration:%d, chan_load:%d",
 	       QDF_MAC_ADDR_REF(sessionBssId.bytes),
 	       channel_load_report->op_class,

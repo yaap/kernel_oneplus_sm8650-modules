@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -654,7 +654,7 @@ bool reg_is_dsrc_freq(qdf_freq_t freq)
 }
 #endif  /*CONFIG_CHAN_FREQ_API*/
 #else
-bool reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev)
+bool reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev)
 {
 	struct cur_regdmn_info cur_reg_dmn;
 	QDF_STATUS status;
@@ -665,25 +665,25 @@ bool reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev)
 		return false;
 	}
 
-	return reg_etsi_regdmn(cur_reg_dmn.dmn_id_5g);
+	return reg_etsi13_regdmn(cur_reg_dmn.dmn_id_5g);
 }
 
 #ifdef CONFIG_CHAN_FREQ_API
-bool reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
-				   uint16_t freq)
+bool reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
+				     uint16_t freq)
 {
 	if (!REG_IS_5GHZ_FREQ(freq))
 		return false;
 
-	if (!(freq >= REG_ETSI_SRD_START_FREQ &&
-	      freq <= REG_ETSI_SRD_END_FREQ))
+	if (!(freq >= REG_ETSI13_SRD_START_FREQ &&
+	      freq <= REG_ETSI13_SRD_END_FREQ))
 		return false;
 
-	return reg_is_etsi_regdmn(pdev);
+	return reg_is_etsi13_regdmn(pdev);
 }
 #endif /* CONFIG_CHAN_FREQ_API */
 
-bool reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
+bool reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
 {
 	struct wlan_objmgr_psoc *psoc;
 	struct wlan_regulatory_psoc_priv_obj *psoc_priv_obj;
@@ -701,7 +701,7 @@ bool reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev *pdev)
 	}
 
 	return psoc_priv_obj->enable_srd_chan_in_master_mode &&
-	       reg_is_etsi_regdmn(pdev);
+	       reg_is_etsi13_regdmn(pdev);
 }
 #endif
 
@@ -996,26 +996,6 @@ bool reg_get_fcc_constraint(struct wlan_objmgr_pdev *pdev, uint32_t freq)
 	return true;
 }
 
-uint32_t reg_get_country_max_allowed_bw(struct wlan_objmgr_pdev *pdev)
-{
-	struct wlan_regulatory_psoc_priv_obj *psoc_priv_obj;
-	struct wlan_objmgr_psoc *psoc;
-
-	psoc = wlan_pdev_get_psoc(pdev);
-	if (!psoc) {
-		reg_err("psoc is NULL");
-		return 0;
-	}
-
-	psoc_priv_obj = reg_get_psoc_obj(psoc);
-	if (!IS_VALID_PSOC_REG_OBJ(psoc_priv_obj)) {
-		reg_err("psoc reg component is NULL");
-		return 0;
-	}
-
-	return psoc_priv_obj->country_max_allowed_bw;
-}
-
 bool reg_is_user_country_set_allowed(struct wlan_objmgr_psoc *psoc)
 {
 	struct wlan_regulatory_psoc_priv_obj *psoc_reg;
@@ -1050,6 +1030,39 @@ bool reg_is_fcc_constraint_set(struct wlan_objmgr_pdev *pdev)
 
 	return true;
 }
+
+#ifdef CONFIG_BAND_6GHZ
+enum reg_6g_ap_type reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
+{
+	struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj;
+	enum reg_6g_ap_type ap_pwr_type = REG_INDOOR_AP;
+
+	pdev_priv_obj = reg_get_pdev_obj(pdev);
+	if (!IS_VALID_PDEV_REG_OBJ(pdev_priv_obj)) {
+		reg_err("pdev reg component is NULL");
+		return REG_VERY_LOW_POWER_AP;
+	}
+
+	if (wlan_reg_is_afc_power_event_received(pdev) &&
+	    pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules[REG_STANDARD_POWER_AP]) {
+		ap_pwr_type = REG_STANDARD_POWER_AP;
+	} else if (pdev_priv_obj->indoor_chan_enabled) {
+		if (pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules[REG_INDOOR_AP])
+			ap_pwr_type = REG_INDOOR_AP;
+		else
+			ap_pwr_type = REG_VERY_LOW_POWER_AP;
+	} else if (pdev_priv_obj->reg_rules.num_of_6g_ap_reg_rules[REG_VERY_LOW_POWER_AP]) {
+		ap_pwr_type = REG_VERY_LOW_POWER_AP;
+	}
+	reg_debug("indoor_chan_enabled %d ap_pwr_type %d",
+		  pdev_priv_obj->indoor_chan_enabled, ap_pwr_type);
+
+	reg_set_ap_pwr_and_update_chan_list(pdev, ap_pwr_type);
+
+	return ap_pwr_type;
+}
+#endif /* CONFIG_BAND_6GHZ */
+
 #endif /* CONFIG_REG_CLIENT */
 
 /**

@@ -290,7 +290,7 @@ static struct msm_platform_core_capability core_data_pineapple[] = {
 	{MAX_NUM_4K_SESSIONS, 8},
 	{MAX_NUM_8K_SESSIONS, 2},
 	{MAX_SECURE_SESSION_COUNT, 3},
-	{MAX_RT_MBPF, 259200},	/* ((7680x4320)/256) * 2)*/
+	{MAX_RT_MBPF, 174080},	/* (8192x4352)/256 + (4096x2176)/256*/
 	{MAX_MBPF, 278528}, /* ((8192x4352)/256) * 2 */
 	{MAX_MBPS, 7833600},
 	/* max_load
@@ -2879,10 +2879,6 @@ static const u32 pineapple_vdec_output_properties_av1[] = {
 	HFI_PROP_FENCE,
 };
 
-static const u32 pineapple_msm_vidc_ssr_type[] = {
-	HFI_SSR_TYPE_SW_ERR_FATAL,
-};
-
 static const struct msm_vidc_platform_data pineapple_data = {
 	/* resources dependent on other module */
 	.bw_tbl = pineapple_bw_table,
@@ -2950,10 +2946,6 @@ static const struct msm_vidc_platform_data pineapple_data = {
 	.dec_output_prop_size_hevc = ARRAY_SIZE(pineapple_vdec_output_properties_hevc),
 	.dec_output_prop_size_vp9 = ARRAY_SIZE(pineapple_vdec_output_properties_vp9),
 	.dec_output_prop_size_av1 = ARRAY_SIZE(pineapple_vdec_output_properties_av1),
-
-	.msm_vidc_ssr_type = pineapple_msm_vidc_ssr_type,
-	.msm_vidc_ssr_type_size = ARRAY_SIZE(pineapple_msm_vidc_ssr_type),
-
 };
 
 int msm_vidc_pineapple_check_ddr_type(void)

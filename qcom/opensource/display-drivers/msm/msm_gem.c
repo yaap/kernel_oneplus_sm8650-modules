@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -440,20 +440,20 @@ static int msm_gem_get_iova_locked(struct drm_gem_object *obj,
 {
 	struct msm_gem_object *msm_obj = to_msm_bo(obj);
 	struct msm_gem_vma *vma;
-	struct device *dev;
 	int ret = 0;
 
 	WARN_ON(!mutex_is_locked(&msm_obj->lock));
 
 	vma = lookup_vma(obj, aspace);
 
-	dev = msm_gem_get_aspace_device(aspace);
 	if (!vma) {
 		struct page **pages;
+		struct device *dev;
 		struct dma_buf *dmabuf;
 		bool reattach = false;
 		unsigned long dma_map_attrs;
 
+		dev = msm_gem_get_aspace_device(aspace);
 		if ((dev && obj->import_attach) &&
 				((dev != obj->import_attach->dev) ||
 				msm_obj->obj_dirty)) {
@@ -535,10 +535,6 @@ static int msm_gem_get_iova_locked(struct drm_gem_object *obj,
 		mutex_lock(&aspace->list_lock);
 		msm_gem_add_obj_to_aspace_active_list(aspace, obj);
 		mutex_unlock(&aspace->list_lock);
-	}
-	if (dev && !dev_is_dma_coherent(dev) && (msm_obj->flags & MSM_BO_CACHED)) {
-		dma_sync_sg_for_cpu(dev, msm_obj->sgt->sgl,
-				msm_obj->sgt->nents, DMA_BIDIRECTIONAL);
 	}
 
 	return 0;

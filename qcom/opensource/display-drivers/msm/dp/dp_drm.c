@@ -726,17 +726,12 @@ enum drm_mode_status dp_connector_mode_valid(struct drm_connector *connector,
 		return MODE_ERROR;
 	}
 
-	/* As per spec, failsafe mode should always be present */
-	if ((mode->hdisplay == 640) && (mode->vdisplay == 480) && (mode->clock == 25175))
-		goto validate_mode;
-
 	if (dp_panel->mode_override && (mode->hdisplay != dp_panel->hdisplay ||
 			mode->vdisplay != dp_panel->vdisplay ||
 			vrefresh != dp_panel->vrefresh ||
 			mode->picture_aspect_ratio != dp_panel->aspect_ratio))
 		return MODE_BAD;
 
-validate_mode:
 	return dp_disp->validate_mode(dp_disp, sde_conn->drv_panel,
 			mode, &avail_dp_res);
 }

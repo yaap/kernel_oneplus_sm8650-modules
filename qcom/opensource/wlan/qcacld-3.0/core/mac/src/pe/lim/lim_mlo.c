@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -903,14 +903,6 @@ void lim_mlo_delete_link_peer(struct pe_session *pe_session,
 	wlan_objmgr_peer_release_ref(peer, WLAN_LEGACY_MAC_ID);
 }
 
-#if defined(SAP_MULTI_LINK_EMULATION)
-QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
-					 struct pe_session *pe_session,
-					 struct mlo_partner_info *mlo_info)
-{
-	return QDF_STATUS_SUCCESS;
-}
-#else
 QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 					 struct pe_session *pe_session,
 					 struct mlo_partner_info *mlo_info)
@@ -1015,7 +1007,6 @@ QDF_STATUS lim_mlo_assoc_ind_upper_layer(struct mac_context *mac,
 
 	return status;
 }
-#endif
 
 void lim_mlo_save_mlo_info(tpDphHashNode sta_ds,
 			   struct mlo_partner_info *mlo_info)
@@ -1065,11 +1056,6 @@ QDF_STATUS lim_fill_complete_mlo_ie(struct pe_session *session,
 	target[consumed++] = buf[index++];
 	target[consumed++] = buf[index++];
 	mlo_ie_total_len = pbuf - buf - MIN_IE_LEN;
-	if (mlo_ie_total_len > total_len - MIN_IE_LEN) {
-		pe_err("Invalid len: %u, %u", mlo_ie_total_len, total_len);
-		qdf_mem_free(buf);
-		return QDF_STATUS_E_INVAL;
-	}
 
 	for (i = 0; i < mlo_ie_total_len; i++) {
 		if (i && (i % WLAN_MAX_IE_LEN) == 0) {
@@ -1414,13 +1400,19 @@ bool lim_is_emlsr_band_supported(struct pe_session *session)
 		partner_info = &session->lim_join_req->partner_info;
 	}
 
-	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq))
+	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq)) {
+		pe_debug("Pri link freq: %d, EMLSR mode not allowed",
+			 session->curr_op_freq);
 		return false;
+	}
 
 	for (i = 0; i < partner_info->num_partner_links; i++) {
 		freq = partner_info->partner_link_info[i].chan_freq;
-		if (wlan_reg_is_24ghz_ch_freq(freq))
+		if (wlan_reg_is_24ghz_ch_freq(freq)) {
+			pe_debug("Partner link freq: %d, EMLSR mode not allwed",
+				 freq);
 			return false;
+		}
 	}
 
 	return true;

@@ -383,16 +383,17 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	 * has passed since the last run or the gpu hasn't been
 	 * busier than MIN_BUSY.
 	 */
-	if ((stats->total_time == 0) ||
-		(priv->bin.total_time < FLOOR) ||
-		(unsigned int) priv->bin.busy_time < MIN_BUSY) {
-		return 0;
-	}
-
 	level = devfreq_get_freq_level(devfreq, stats->current_frequency);
 	if (level < 0) {
 		pr_err(TAG "bad freq %ld\n", stats->current_frequency);
 		return level;
+	}
+
+	if ((stats->total_time == 0) ||
+		(priv->bin.total_time < FLOOR) ||
+		((unsigned int) priv->bin.busy_time < MIN_BUSY &&
+		level == (devfreq->profile->max_state - 1))) {
+		return 0;
 	}
 
 	/*

@@ -73,22 +73,6 @@ static void cam_isp_dev_iommu_fault_handler(struct cam_smmu_pf_info *pf_smmu_inf
 	}
 }
 
-static void cam_isp_subdev_handle_message(
-		struct v4l2_subdev *sd,
-		enum cam_subdev_message_type_t message_type,
-		void *data)
-{
-	int i, rc = 0;
-	struct cam_node  *node = v4l2_get_subdevdata(sd);
-
-	CAM_DBG(CAM_ISP, "node name %s", node->name);
-	for (i = 0; i < node->ctx_size; i++) {
-		rc = cam_context_handle_message(&(node->ctx_list[i]), message_type, data);
-		if (rc)
-			CAM_ERR(CAM_ISP, "Failed to handle message for %s", node->name);
-	}
-}
-
 static const struct of_device_id cam_isp_dt_match[] = {
 	{
 		.compatible = "qcom,cam-isp"
@@ -186,7 +170,6 @@ static int cam_isp_dev_component_bind(struct device *dev,
 	} else if (strnstr(compat_str, "tfe", strlen(compat_str))) {
 		rc = cam_subdev_probe(&g_isp_dev.sd, pdev, CAM_ISP_DEV_NAME,
 		CAM_TFE_DEVICE_TYPE);
-		g_isp_dev.sd.msg_cb = cam_isp_subdev_handle_message;
 		g_isp_dev.isp_device_type = CAM_TFE_DEVICE_TYPE;
 		g_isp_dev.max_context = CAM_TFE_CTX_MAX;
 	} else  {
@@ -226,7 +209,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 		g_isp_dev.isp_device_type);
 	if (rc != 0) {
 		CAM_ERR(CAM_ISP, "Can not initialized ISP HW manager!");
-		goto free_mem;
+		goto kfree;
 	}
 
 	for (i = 0; i < g_isp_dev.max_context; i++) {
@@ -238,23 +221,19 @@ static int cam_isp_dev_component_bind(struct device *dev,
 			g_isp_dev.isp_device_type, iommu_hdl);
 		if (rc) {
 			CAM_ERR(CAM_ISP, "ISP context init failed!");
-			goto free_mem;
+			goto kfree;
 		}
 	}
 
-	if (g_isp_dev.isp_device_type == CAM_IFE_DEVICE_TYPE)
-		cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
-			CAM_COMMON_EVT_INJECT_HW_IFE);
-	else
-		cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
-			CAM_COMMON_EVT_INJECT_HW_TFE);
+	cam_common_register_evt_inject_cb(cam_isp_dev_evt_inject_cb,
+		CAM_COMMON_EVT_INJECT_HW_ISP);
 
 	rc = cam_node_init(node, &hw_mgr_intf, g_isp_dev.ctx,
 			g_isp_dev.max_context, CAM_ISP_DEV_NAME);
 
 	if (rc) {
 		CAM_ERR(CAM_ISP, "ISP node init failed!");
-		goto free_mem;
+		goto kfree;
 	}
 
 	node->sd_handler = cam_isp_subdev_close_internal;
@@ -267,7 +246,7 @@ static int cam_isp_dev_component_bind(struct device *dev,
 
 	return 0;
 
-free_mem:
+kfree:
 	kfree(g_isp_dev.ctx);
 	g_isp_dev.ctx = NULL;
 	kfree(g_isp_dev.ctx_isp);

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -85,16 +85,6 @@
 
 #define mlo_nofl_debug_rl(format, args...) \
 		QDF_TRACE_DEBUG_RL_NO_FL(QDF_MODULE_ID_MLO, format, ## args)
-
-#if defined(WLAN_FEATURE_11BE_MLO_ENABLE_ENHANCED_TRACE)
-#define mlo_etrace_debug(format, args...) \
-		QDF_TRACE_DEBUG(QDF_MODULE_ID_MLO, format, ## args)
-#define mlo_etrace_err_rl(format, args...) \
-		QDF_TRACE_ERROR_RL(QDF_MODULE_ID_MLO, format, ## args)
-#else
-#define mlo_etrace_debug(format, args...)
-#define mlo_etrace_err_rl(format, args...)
-#endif
 
 #define MLO_INVALID_LINK_IDX 0xFF
 /**
@@ -638,6 +628,7 @@ mlo_get_link_state_register_resp_cb(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS ml_post_get_link_state_msg(struct wlan_objmgr_vdev *vdev);
 
 #endif
+#endif
 #ifdef WLAN_FEATURE_11BE
 /**
  * util_add_bw_ind() - Adding bandwidth indiacation element
@@ -694,15 +685,4 @@ QDF_STATUS wlan_mlo_set_ptqm_migration(struct wlan_objmgr_vdev *vdev,
 				       bool link_migration,
 				       uint32_t link_id,
 				       bool force_mig);
-#endif
-
-/*
- * wlan_mlo_is_csa_allow() - API to check if CSA allowed for MLO vdev
- * @vdev: vdev object
- * @csa_freq: CSA target freq
- *
- * Return: true if CSA allowed
- */
-bool
-wlan_mlo_is_csa_allow(struct wlan_objmgr_vdev *vdev, uint16_t csa_freq);
 #endif

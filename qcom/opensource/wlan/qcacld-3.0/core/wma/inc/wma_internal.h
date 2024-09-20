@@ -1770,7 +1770,6 @@ uint16_t wma_mcs_rate_match(uint16_t raw_rate, bool is_he,
 QDF_STATUS
 wma_update_edca_pifs_param(WMA_HANDLE handle,
 			   struct edca_pifs_vparam *edca_pifs_param);
-
 /**
  * wma_update_bss_peer_phy_mode() - Update phymode of peer object
  * @des_chan: des_chan object which has channel information
@@ -1783,7 +1782,6 @@ wma_update_edca_pifs_param(WMA_HANDLE handle,
 QDF_STATUS
 wma_update_bss_peer_phy_mode(struct wlan_channel *des_chan,
 			     struct wlan_objmgr_vdev *vdev);
-
 #ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
 //add for connectivity power monitor
 int oplusLpmUeventInit(void);

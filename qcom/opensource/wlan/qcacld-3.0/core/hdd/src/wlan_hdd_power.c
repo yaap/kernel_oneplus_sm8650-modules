@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -679,7 +679,16 @@ static inline void hdd_send_mlo_ps_to_fw(struct hdd_adapter *adapter)
 {}
 #endif
 
-void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter)
+/**
+ * hdd_send_ps_config_to_fw() - Check user pwr save config set/reset PS
+ * @adapter: pointer to hdd adapter
+ *
+ * This function checks the power save configuration saved in MAC context
+ * and sends power save config to FW.
+ *
+ * Return: None
+ */
+static void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter)
 {
 	struct hdd_context *hdd_ctx;
 	bool is_mlo_vdev;
@@ -1212,9 +1221,7 @@ int wlan_hdd_pm_qos_notify(struct notifier_block *nb, unsigned long curr_val,
 	return NOTIFY_DONE;
 }
 
-/** cpuidle_governor_latency_req() is not exported by upstream kernel **/
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0) && \
-	defined(__ANDROID_COMMON_KERNEL__))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 bool wlan_hdd_is_cpu_pm_qos_in_progress(struct hdd_context *hdd_ctx)
 {
 	long long curr_val_ns;
@@ -1880,14 +1887,6 @@ QDF_STATUS hdd_wlan_shutdown(void)
 	hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	if (!hdd_ctx)
 		return QDF_STATUS_E_FAILURE;
-
-	if (ucfg_ipa_is_enabled()) {
-		ucfg_ipa_uc_force_pipe_shutdown(hdd_ctx->pdev);
-
-		if (pld_is_fw_rejuvenate(hdd_ctx->parent_dev) ||
-		    pld_is_pdr(hdd_ctx->parent_dev))
-			ucfg_ipa_fw_rejuvenate_send_msg(hdd_ctx->pdev);
-	}
 
 	hdd_set_connection_in_progress(false);
 
@@ -2873,18 +2872,13 @@ static int wlan_hdd_set_ps(struct wlan_hdd_link_info *link_info,
 
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
 #ifdef WLAN_HDD_MULTI_VDEV_SINGLE_NDEV
-int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
-			bool allow_power_save, int timeout,
-			int link_id)
+static int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
+			       bool allow_power_save, int timeout)
 {
 	struct wlan_hdd_link_info *link_info;
 	int status = -EINVAL;
 
 	hdd_adapter_for_each_active_link_info(adapter, link_info) {
-		if (link_id >= 0 &&
-		    wlan_vdev_get_link_id(link_info->vdev) != link_id)
-			continue;
-
 		status = wlan_hdd_set_ps(link_info,
 					 link_info->link_addr.bytes,
 					 allow_power_save, timeout);
@@ -2895,9 +2889,8 @@ int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
 	return status;
 }
 #else
-int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
-			bool allow_power_save, int timeout,
-			int link_id)
+static int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
+			       bool allow_power_save, int timeout)
 {
 	struct hdd_adapter *link_adapter;
 	struct hdd_mlo_adapter_info *mlo_adapter_info;
@@ -2908,12 +2901,6 @@ int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
 		link_adapter = mlo_adapter_info->link_adapter[i];
 		if (!link_adapter)
 			continue;
-
-		if (link_id >= 0 &&
-		    wlan_vdev_get_link_id(link_adapter->deflink->vdev) !=
-		    link_id)
-			continue;
-
 		status = wlan_hdd_set_ps(link_adapter->deflink,
 					 link_adapter->mac_addr.bytes,
 					 allow_power_save, timeout);
@@ -2921,12 +2908,15 @@ int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
 			break;
 	}
 
-	if (i == WLAN_MAX_MLD && link_id >= 0)
-		hdd_err("No link adapter found for link id: %d", link_id);
-
 	return status;
 }
 #endif
+#else
+static int wlan_hdd_set_mlo_ps(struct hdd_adapter *adapter,
+			       bool allow_power_save, int timeout)
+{
+	return 0;
+}
 #endif
 
 /**
@@ -2951,8 +2941,8 @@ static int __wlan_hdd_cfg80211_set_power_mgmt(struct wiphy *wiphy,
 	hdd_enter();
 
 	if (timeout < 0) {
-		hdd_debug("User space timeout: %d; Enter full power or power save: %d",
-			  timeout, allow_power_save);
+		hdd_debug("User space timeout: %d; Enter full power or power save",
+			  timeout);
 		timeout = 0;
 	}
 
@@ -2988,7 +2978,7 @@ static int __wlan_hdd_cfg80211_set_power_mgmt(struct wiphy *wiphy,
 
 	if (hdd_adapter_is_ml_adapter(adapter)) {
 		status = wlan_hdd_set_mlo_ps(adapter, allow_power_save,
-					     timeout, -1);
+					     timeout);
 		goto exit;
 	}
 
@@ -2996,10 +2986,6 @@ static int __wlan_hdd_cfg80211_set_power_mgmt(struct wiphy *wiphy,
 				 allow_power_save, timeout);
 
 exit:
-	/* Cache the powersave state for success case */
-	if (!status)
-		adapter->allow_power_save = allow_power_save;
-
 	hdd_exit();
 	return status;
 }

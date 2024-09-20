@@ -1761,3 +1761,4 @@ void sde_hw_sspp_destroy(struct sde_hw_pipe *ctx)
 	}
 	kfree(ctx);
 }
+

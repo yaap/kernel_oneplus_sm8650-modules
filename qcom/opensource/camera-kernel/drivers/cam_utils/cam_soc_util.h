@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_SOC_UTIL_H_
@@ -608,18 +608,6 @@ int cam_soc_util_clk_disable(struct cam_hw_soc_info *soc_info, int cesta_client_
 	bool optional_clk, int32_t clk_idx);
 
 /**
- * cam_soc_util_dump_clk()
- *
- * @brief:              Dumps all the clocks of the caller hw, using
- *                      clock api.
- *
- * @soc_info:           Device soc information
- * @return:             Success or failure
- */
-
-int cam_soc_util_dump_clk(struct cam_hw_soc_info *soc_info);
-
-/**
  * cam_soc_util_irq_enable()
  *
  * @brief:              Enable IRQ in SOC
@@ -680,6 +668,38 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	uint32_t rgltr_op_mode, uint32_t rgltr_delay);
 
 /**
+ * cam_soc_util_reg_addr_validation()
+ *
+ * @brief:              Camera SOC util for validating address to be accessed
+ *
+ * @soc_info:           Device soc information
+ * @base_index:         Index of register space in the HW block
+ * @offset:             Register offset
+ *
+ * @return:             0 or specific error code
+ */
+static inline int cam_soc_util_reg_addr_validation(
+	struct cam_hw_soc_info *soc_info,
+	uint32_t base_idx, uint32_t offset)
+{
+	if (offset > (uint32_t)soc_info->reg_map[base_idx].size) {
+		CAM_ERR(CAM_UTIL,
+			"Reg offset out of range, offset: 0x%X reg_map size: 0x%X",
+			offset,
+			(uint32_t)soc_info->reg_map[base_idx].size);
+		return -EINVAL;
+	}
+
+	if (offset % 4) {
+		CAM_ERR(CAM_UTIL, "Offset: 0x%X is not memory aligned",
+			offset);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/**
  * cam_soc_util_w()
  *
  * @brief:              Camera SOC util for register write
@@ -698,6 +718,10 @@ static inline int cam_soc_util_w(struct cam_hw_soc_info *soc_info,
 		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
 	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -724,6 +748,10 @@ static inline int cam_soc_util_w_mb(struct cam_hw_soc_info *soc_info,
 		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return -EINVAL;
 	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return -EINVAL;
+
 	return cam_io_w_mb(data,
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -746,6 +774,10 @@ static inline uint32_t cam_soc_util_r(struct cam_hw_soc_info *soc_info,
 		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
 	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -771,6 +803,10 @@ static inline uint32_t cam_soc_util_r_mb(struct cam_hw_soc_info *soc_info,
 		CAM_ERR(CAM_UTIL, "No valid mapped starting address found");
 		return 0;
 	}
+
+	if (cam_soc_util_reg_addr_validation(soc_info, base_index, offset))
+		return 0;
+
 	return cam_io_r_mb(
 		CAM_SOC_GET_REG_MAP_START(soc_info, base_index) + offset);
 }
@@ -798,10 +834,6 @@ int cam_soc_util_clk_enable_default(struct cam_hw_soc_info *soc_info, int cesta_
 
 int cam_soc_util_get_clk_level(struct cam_hw_soc_info *soc_info,
 	int64_t clk_rate, int clk_idx, int32_t *clk_lvl);
-
-unsigned long cam_soc_util_get_clk_rate_applied(
-	struct cam_hw_soc_info *soc_info, int32_t index, bool is_src,
-	enum cam_vote_level clk_level);
 
 /* Callback to get reg space data for specific HW */
 typedef int (*cam_soc_util_regspace_data_cb)(uint32_t reg_base_type,

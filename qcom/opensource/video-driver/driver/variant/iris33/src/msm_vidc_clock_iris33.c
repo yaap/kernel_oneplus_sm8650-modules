@@ -5,7 +5,6 @@
 
 #include "perf_static_model.h"
 #include "msm_vidc_debug.h"
-#include "msm_vidc_platform.h"
 
 #define ENABLE_FINEBITRATE_SUBUHD60 0
 
@@ -23,11 +22,6 @@ static u32 frequency_table_iris33[2][6] = {
 	{840, 720, 652, 570, 450, 294},
 };
 
-static u32 frequency_table_iris33_2p[2][6] = {
-	/* //make lowsvs_D1 as invalid; */
-	{ 533, 444, 366, 338, 240, 192 },
-	{ 800, 666, 549, 507, 360, 288 },
-};
 
  /*
   * TODO Move to pineapple.c
@@ -74,15 +68,6 @@ static u32 pipe_penalty_iris33[3][3] = {
 	{2039, 2464, 1191},
 };
 
-static u32 pipe_penalty_iris33_2p[3][3] = {
-	/* NON AV1 */
-	{ 1059, 1059, 1059 },
-	/* AV1 RECOMMENDED TILE 1080P_V2XH1, UHD_V2X2, 8KUHD_V8X2 */
-	{ 1123, 1079, 1079 },
-	/* AV1 YOUTUBE/NETFLIX TILE 1080P_V4XH2_V4X1, UHD_V8X4_V8X1, 8KUHD_V8X8_V8X1 */
-	{ 1197, 1287, 1051 },
-};
-
 /*
  * Video IP Core Technology: bitrate constraint
  * HW limit bitrate table (these values are measured end to end fw/sw impacts are also considered)
@@ -99,18 +84,6 @@ static u32 bitrate_table_iris33_2stage_fp[5][10] = {
 	{90, 90, 90, 90, 90, 90, 90, 90, 90, 90},
 	/* av1 */
 	{130, 130, 120, 120, 120, 120, 120, 120, 120, 120},
-};
-
-static u32 bitrate_table_iris33_2p_2stage_fp[5][10] = {
-	/* h264 cavlc */
-	{ 0, 220, 220, 220, 220, 220, 220, 220, 220, 220 },
-	/* h264 cabac */
-	{ 0, 140, 150, 160, 160, 160, 160, 160, 160, 160 },
-	/* h265 */
-	{ 90, 140, 160, 160, 160, 160, 160, 160, 160, 160 },
-	/*vp9 */
-	{ 90, 90, 90, 90, 90, 90, 90, 90, 90, 90 },
-	{ 130, 130, 120, 120, 120, 120, 120, 120, 120, 120 },
 };
 
 /*
@@ -323,8 +296,6 @@ u32 get_bitrate_entry(u32 pixle_count)
 static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		struct api_calculation_freq_output *codec_output)
 {
-	u32 (*frequency_table_value)[6];
-	u32 (*bitrate_table_2stage_value)[10];
 	/*
 	 * VSP calculation
 	 * different methodology from Lahaina
@@ -346,14 +317,6 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 
 	input_bitrate_fp = ((u32)(codec_input.bitrate_mbps * 100 + 99)) / 100;
 
-	if (codec_input.vpu_ver == VPU_VERSION_IRIS33) {
-		frequency_table_value = frequency_table_iris33;
-		bitrate_table_2stage_value = bitrate_table_iris33_2stage_fp;
-	} else if (codec_input.vpu_ver == VPU_VERSION_IRIS33_2P) {
-		frequency_table_value = frequency_table_iris33_2p;
-		bitrate_table_2stage_value = bitrate_table_iris33_2p_2stage_fp;
-	}
-
 	/* 8KUHD60fps with B frame */
 	if ((pixle_count >= fp_pixel_count_bar0) &&
 		(codec_input.hierachical_layer != CODEC_GOP_IPP)) {
@@ -371,26 +334,26 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 		 *  TODO : Reduce these conditions by removing the zero entries from Bitrate table.
 		 */
 
-		vsp_hw_min_frequency = frequency_table_value[0][2] *
+		vsp_hw_min_frequency = frequency_table_iris33[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1)
-			vsp_hw_min_frequency = frequency_table_value[0][1] *
+			vsp_hw_min_frequency = frequency_table_iris33[0][1] *
 				input_bitrate_fp * 1000;
 
 		if ((codec_input.codec == CODEC_H264) ||
 			(codec_input.codec == CODEC_H264_CAVLC)) {
-			vsp_hw_min_frequency = (frequency_table_value[0][2] * 1000 +
+			vsp_hw_min_frequency = (frequency_table_iris33[0][2] * 1000 +
 				(fw_sw_vsp_offset - 1));
 			vsp_hw_min_frequency =
 				DIV_ROUND_UP(vsp_hw_min_frequency, fw_sw_vsp_offset);
 		} else {
 			if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 				vsp_hw_min_frequency = vsp_hw_min_frequency +
-					(bitrate_table_2stage_value[codec][0] *
+					(bitrate_table_iris33_2stage_fp[codec][0] *
 					fw_sw_vsp_offset - 1);
 				vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-					(bitrate_table_2stage_value[codec][0]) *
+					(bitrate_table_iris33_2stage_fp[codec][0]) *
 						fw_sw_vsp_offset);
 			} else {
 				vsp_hw_min_frequency = vsp_hw_min_frequency +
@@ -402,19 +365,19 @@ static int calculate_vsp_min_freq(struct api_calculation_input codec_input,
 			}
 		}
 	} else {
-		vsp_hw_min_frequency = frequency_table_value[0][2] *
+		vsp_hw_min_frequency = frequency_table_iris33[0][2] *
 			input_bitrate_fp * 1000;
 
 		if (codec_input.codec == CODEC_AV1 && bitrate_entry == 1)
-			vsp_hw_min_frequency = frequency_table_value[0][1] *
+			vsp_hw_min_frequency = frequency_table_iris33[0][1] *
 				input_bitrate_fp * 1000;
 
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			vsp_hw_min_frequency = vsp_hw_min_frequency +
-				(bitrate_table_2stage_value[codec][bitrate_entry] *
+				(bitrate_table_iris33_2stage_fp[codec][bitrate_entry] *
 				fw_sw_vsp_offset - 1);
 			vsp_hw_min_frequency = DIV_ROUND_UP(vsp_hw_min_frequency,
-				(bitrate_table_2stage_value[codec][bitrate_entry]) *
+				(bitrate_table_iris33_2stage_fp[codec][bitrate_entry]) *
 					fw_sw_vsp_offset);
 		} else {
 			vsp_hw_min_frequency = vsp_hw_min_frequency +
@@ -435,37 +398,31 @@ static u32 calculate_pipe_penalty(struct api_calculation_input codec_input)
 	u32 pipe_penalty_codec = 0;
 	u8 avid_commercial_content = 0;
 	u32 pixel_count = 0;
-	u32 (*pipe_penalty_value)[3];
-
-	if (codec_input.vpu_ver == VPU_VERSION_IRIS33)
-		pipe_penalty_value = pipe_penalty_iris33;
-	else if (codec_input.vpu_ver == VPU_VERSION_IRIS33_2P)
-		pipe_penalty_value = pipe_penalty_iris33_2p;
 
 	/* decoder */
 	if (codec_input.decoder_or_encoder == CODEC_DECODER) {
-		pipe_penalty_codec = pipe_penalty_value[0][0];
+		pipe_penalty_codec = pipe_penalty_iris33[0][0];
 		avid_commercial_content = codec_input.av1d_commer_tile_enable;
 		if (codec_input.codec == CODEC_AV1) {
 			pixel_count = codec_input.frame_width * codec_input.frame_height;
 			if (pixel_count <= 1920 * 1080)
 				pipe_penalty_codec =
-					pipe_penalty_value[avid_commercial_content + 1][0];
+					pipe_penalty_iris33[avid_commercial_content + 1][0];
 			else if (pixel_count < 3840 * 2160)
 				pipe_penalty_codec =
-					(pipe_penalty_value[avid_commercial_content + 1][0] +
-					pipe_penalty_value[avid_commercial_content + 1][1]) / 2;
+					(pipe_penalty_iris33[avid_commercial_content + 1][0] +
+					pipe_penalty_iris33[avid_commercial_content + 1][1]) / 2;
 			else if ((pixel_count == 3840 * 2160) ||
 				(pixel_count == 4096 * 2160) || (pixel_count == 4096 * 2304))
 				pipe_penalty_codec =
-					pipe_penalty_value[avid_commercial_content + 1][1];
+					pipe_penalty_iris33[avid_commercial_content + 1][1];
 			else if (pixel_count < 7680 * 4320)
 				pipe_penalty_codec =
-					(pipe_penalty_value[avid_commercial_content + 1][1] +
-					pipe_penalty_value[avid_commercial_content + 1][2]) / 2;
+					(pipe_penalty_iris33[avid_commercial_content + 1][1] +
+					pipe_penalty_iris33[avid_commercial_content + 1][2]) / 2;
 			else
 				pipe_penalty_codec =
-					pipe_penalty_value[avid_commercial_content + 1][2];
+					pipe_penalty_iris33[avid_commercial_content + 1][2];
 		}
 	} else {
 		pipe_penalty_codec = 101;
@@ -518,6 +475,7 @@ static int calculate_vpp_min_freq(struct api_calculation_input codec_input,
 
 		if (codec_input.vsp_vpp_mode == CODEC_VSPVPP_MODE_2S) {
 			/* FW overhead, convert FW cycles to impact to one pipe */
+			u64 decoder_vpp_fw_overhead = 0;
 
 			decoder_vpp_fw_overhead =
 				DIV_ROUND_UP((decoder_vpp_fw_overhead * 10 *

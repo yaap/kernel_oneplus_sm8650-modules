@@ -382,26 +382,19 @@ void sde_hw_reset_ubwc(struct sde_hw_mdp *mdp, struct sde_mdss_cfg *m)
 	c = mdp->hw;
 	c.blk_off = 0x0;
 	ubwc_dec_version = SDE_REG_READ(&c, UBWC_DEC_HW_VERSION);
-	/* global ubwc version used in input fb encoding */
 	ubwc_enc_version = m->ubwc_rev;
 
 	if (IS_UBWC_40_SUPPORTED(ubwc_dec_version) || IS_UBWC_43_SUPPORTED(ubwc_dec_version)) {
-		/* for UBWC 2.0 ver = 0, mode = 0 will be programmed */
-		u32 ver = 0;
-		u32 mode = 0;
+		u32 ver = IS_UBWC_43_SUPPORTED(ubwc_dec_version) ? 3 : 2;
+		u32 mode = 1;
 		u32 reg = (m->mdp[0].ubwc_swizzle & 0x7) |
 			((m->mdp[0].ubwc_static & 0x1) << 3) |
 			((m->mdp[0].highest_bank_bit & 0x7) << 4) |
 			((m->macrotile_mode & 0x1) << 12);
 
-		if (IS_UBWC_43_SUPPORTED(ubwc_enc_version)) {
-			ver = 3;
-			mode = 1;
-		} else if (IS_UBWC_40_SUPPORTED(ubwc_enc_version)) {
-			ver = 2;
-			mode = 1;
-		} else if (IS_UBWC_30_SUPPORTED(ubwc_enc_version)) {
+		if (IS_UBWC_30_SUPPORTED(ubwc_enc_version)) {
 			ver = 1;
+			mode = 0;
 		}
 
 		SDE_REG_WRITE(&c, UBWC_STATIC, reg);

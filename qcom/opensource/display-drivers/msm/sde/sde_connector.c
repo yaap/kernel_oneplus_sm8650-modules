@@ -1152,7 +1152,6 @@ static int _sde_connector_update_dirty_properties(
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;
 	int idx;
-	u32 b_lvl;
 
 	if (!connector) {
 		SDE_ERROR("invalid argument\n");
@@ -1175,11 +1174,6 @@ static int _sde_connector_update_dirty_properties(
 			break;
 		case CONNECTOR_PROP_HDR_METADATA:
 			_sde_connector_update_hdr_metadata(c_conn, c_state);
-			break;
-		case CONNECTOR_PROP_BRIGHTNESS:
-			b_lvl = sde_connector_get_property(connector->state,
-						CONNECTOR_PROP_BRIGHTNESS);
-			backlight_device_set_brightness(c_conn->bl_device, b_lvl);
 			break;
 #ifdef OPLUS_FEATURE_DISPLAY
 		case CONNECTOR_PROP_SYNC_BACKLIGHT_LEVEL:
@@ -3647,15 +3641,6 @@ static int _sde_connector_install_properties(struct drm_device *dev,
 			0, 0, e_power_mode,
 			ARRAY_SIZE(e_power_mode), 0,
 			CONNECTOR_PROP_LP);
-
-	if (connector_type == DRM_MODE_CONNECTOR_DSI) {
-		dsi_display = (struct dsi_display *)(display);
-		if (dsi_display && dsi_display->panel) {
-			msm_property_install_range(&c_conn->property_info, "brightness",
-			0x0, 0, dsi_display->panel->bl_config.brightness_max_level, 0,
-			CONNECTOR_PROP_BRIGHTNESS);
-		}
-	}
 
 	return 0;
 }

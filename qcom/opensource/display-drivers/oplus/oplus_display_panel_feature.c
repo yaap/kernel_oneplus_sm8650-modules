@@ -263,6 +263,8 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 	LCD_DEBUG_BACKLIGHT("[%s] panel backlight changed: %d -> %d\n",
 			panel->oplus_priv.vendor_name, oplus_last_backlight, bl_lvl);
 
+	oplus_panel_pwm_onepulse_switch(panel);
+
 	oplus_last_backlight = bl_lvl;
 }
 

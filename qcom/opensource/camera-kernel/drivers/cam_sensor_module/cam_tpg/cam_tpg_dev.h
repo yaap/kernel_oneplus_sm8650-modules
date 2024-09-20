@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CAM_TPG_DEV_H__
@@ -112,7 +112,6 @@ struct tpg_crm_intf_params {
  * @state   : state machine states
  * @slot_id : slot index of this tpg
  * @phy_id  : phy index mapped to this tpg
- * @hw_no_ops: To determine whether HW operations need to be disabled
  * @waiting_request_q : waiting request queue
  * @active_request_q : active request queue
  * @tpg_irq_state : tpg irq state
@@ -129,7 +128,6 @@ struct cam_tpg_device {
 	int                        state;
 	int                        slot_id;
 	int                        phy_id;
-	bool                       hw_no_ops;
 	atomic_t                   tpg_irq_state;
 	struct list_head           waiting_request_q;
 	struct list_head           active_request_q;

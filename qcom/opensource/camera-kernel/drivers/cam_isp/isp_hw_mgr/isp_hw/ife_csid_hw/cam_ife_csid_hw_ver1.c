@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -2733,14 +2733,14 @@ int cam_ife_csid_ver1_init_hw(void *hw_priv,
 	struct cam_hw_info *hw_info;
 	int rc = 0;
 
+	hw_info = (struct cam_hw_info *)hw_priv;
+	csid_hw = (struct cam_ife_csid_ver1_hw *)hw_info->core_info;
+
 	if (!hw_priv || !init_args ||
 		(arg_size != sizeof(struct cam_isp_resource_node))) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid args");
 		return -EINVAL;
 	}
-
-	hw_info = (struct cam_hw_info *)hw_priv;
-	csid_hw = (struct cam_ife_csid_ver1_hw *)hw_info->core_info;
 
 	rc = cam_ife_csid_ver1_enable_hw(csid_hw);
 

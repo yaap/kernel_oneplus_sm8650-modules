@@ -138,12 +138,11 @@ static inline qdf_nbuf_t dp_tx_fast_send_be(struct cdp_soc_t *soc, uint8_t vdev_
  * @tx_comp_hal_desc: HAL TX Comp Descriptor
  * @r_tx_desc: SW Tx Descriptor retrieved from HAL desc.
  *
- * Return: QDF_STATUS
+ * Return: None
  */
-QDF_STATUS
-dp_tx_comp_get_params_from_hal_desc_be(struct dp_soc *soc,
-				       void *tx_comp_hal_desc,
-				       struct dp_tx_desc_s **r_tx_desc);
+void dp_tx_comp_get_params_from_hal_desc_be(struct dp_soc *soc,
+					    void *tx_comp_hal_desc,
+					    struct dp_tx_desc_s **r_tx_desc);
 
 /**
  * dp_tx_process_htt_completion_be() - Tx HTT Completion Indication Handler

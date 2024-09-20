@@ -1468,9 +1468,9 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 				break;
 
 			d_vpr_e("%s: failed to acquire video_xo_reset control, count %d\n",
-				__func__, count);
-			count++;
-			usleep_range(1000, 1500);
+					__func__, count);
+				count++;
+				usleep_range(1000, 1500);
 		} while (count < 1000);
 
 		if (count >= 1000) {
@@ -1485,7 +1485,7 @@ static int __reset_control_acquire_name(struct msm_vidc_core *core,
 			d_vpr_e("%s: failed to acquire reset control (%s), rc = %d\n",
 				__func__, rcinfo->name, rc);
 		else
-			d_vpr_h("%s: acquire reset control (%s)\n",
+			d_vpr_h("%s: acquire reset control (%s) \n",
 				__func__, rcinfo->name);
 		break;
 	}
@@ -1555,7 +1555,7 @@ static int __reset_control_assert_name(struct msm_vidc_core *core,
 			d_vpr_e("%s: failed to assert reset control (%s), rc = %d\n",
 				__func__, rcinfo->name, rc);
 		else
-			d_vpr_h("%s: assert reset control (%s)\n",
+			d_vpr_h("%s: assert reset control (%s) \n",
 				__func__, rcinfo->name);
 		break;
 	}

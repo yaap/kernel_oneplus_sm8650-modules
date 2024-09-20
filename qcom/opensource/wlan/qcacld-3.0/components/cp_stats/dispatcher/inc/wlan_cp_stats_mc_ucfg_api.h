@@ -398,12 +398,14 @@ void wlan_cp_stats_update_chan_info(struct wlan_objmgr_psoc *psoc,
  * wlan_cp_stats_get_rx_clear_count() - API to get rx clear count for a channel
  * @psoc: pointer to psoc
  * @vdev_id: vdev id
- * @req_freq: freq for which rx clear count require
+ * @channel: channel for which rx clear count require
+ * @chan_load: buffer to store rx clear count for a channel
  *
- * Return: channel load
+ * Return: None
  */
-uint8_t wlan_cp_stats_get_rx_clear_count(struct wlan_objmgr_psoc *psoc,
-					 uint8_t vdev_id, qdf_freq_t req_freq);
+void wlan_cp_stats_get_rx_clear_count(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id, uint8_t channel,
+				      uint8_t *chan_load);
 
 /**
  * ucfg_mc_cp_stats_clear_channel_status() - API to clear chan stats
@@ -518,8 +520,9 @@ void wlan_cp_stats_update_chan_info(struct wlan_objmgr_psoc *psoc,
 }
 
 static inline
-uint8_t wlan_cp_stats_get_rx_clear_count(struct wlan_objmgr_psoc *psoc,
-					 uint8_t vdev_id, qdf_freq_t req_freq)
+void wlan_cp_stats_get_rx_clear_count(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id, uint8_t channel,
+				      uint8_t *chan_load)
 {
 }
 

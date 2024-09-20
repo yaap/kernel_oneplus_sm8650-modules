@@ -99,7 +99,6 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 
 		/* Check the pointer and header length to avoid dangerous overflow in HW */
 		if (unlikely(!entry->hdr || !entry->hdr->offset_entry ||
-			!entry->offset_entry ||
 			entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1])) {
 			IPAERR_RL("Found invalid hdr entry\n");
 			return -EINVAL;

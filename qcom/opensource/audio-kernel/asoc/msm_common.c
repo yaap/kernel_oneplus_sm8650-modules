@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/gpio.h>
@@ -9,7 +9,6 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/of_device.h>
-#include <linux/arch_topology.h>
 #include <sound/control.h>
 #include <sound/core.h>
 #include <sound/soc.h>
@@ -23,10 +22,6 @@
 #include <linux/sched/walt.h>
 
 #include "msm_common.h"
-
-#ifndef topology_cluster_id
-#define topology_cluster_id(cpu) topology_physical_package_id(cpu)
-#endif
 
 struct snd_card_pdata {
 	struct kobject snd_card_kobj;
@@ -91,17 +86,18 @@ static const struct snd_pcm_hardware dummy_dma_hardware = {
 };
 
 #define MAX_USR_INPUT 10
-#define MAX_CPU_CLUSTER 4 /* Silver, Gold, T, Prime */
+#define MAX_AUDIO_CPU_CORE_NUM 2
 
 static int qos_vote_status;
-static uint8_t cpu_vote_mask;
 static bool lpi_pcm_logging_enable;
 static bool vote_against_sleep_enable;
 static unsigned int vote_against_sleep_cnt;
 
 static struct dev_pm_qos_request latency_pm_qos_req; /* pm_qos request */
 static unsigned int qos_client_active_cnt;
-static int cluster_first_cpu[MAX_CPU_CLUSTER] = {-1, };
+static uint32_t *audio_core_list = NULL;
+static uint32_t audio_core_num = MAX_AUDIO_CPU_CORE_NUM;
+static cpumask_t audio_cpu_map = CPU_MASK_NONE;
 static struct dev_pm_qos_request *msm_audio_req = NULL;
 static bool kregister_pm_qos_latency_controls = false;
 #define MSM_LL_QOS_VALUE	300 /* time in us to ensure LPM doesn't go in C3/C4 */
@@ -121,7 +117,7 @@ static ssize_t aud_dev_sysfs_store(struct kobject *kobj,
 
 	sscanf(buf, "%d %d", &pcm_id, &state);
 
-	if ((pcm_id >= pdata->num_aud_devs) || (pcm_id < 0)) {
+	if ((pcm_id > pdata->num_aud_devs) || (pcm_id < 0)) {
 		pr_err("%s: invalid pcm id %d \n", __func__, pcm_id);
 		goto done;
 	}
@@ -621,44 +617,32 @@ void msm_common_snd_shutdown(struct snd_pcm_substream *substream)
 
 static void msm_audio_add_qos_request(void)
 {
-	int num_req = 0;
+	int i;
 	int cpu = 0;
 	int ret = 0;
-	int cid, prev_cid = -1;
-	int cluster_num = 0;
-	cpumask_t *cluster_cpu_mask = NULL;
 
 	msm_audio_req = kcalloc(num_possible_cpus(),
 			sizeof(struct dev_pm_qos_request), GFP_KERNEL);
 	if (!msm_audio_req)
 		return;
 
-	for_each_cpu(cpu, cpu_possible_mask) {
-		cid = topology_cluster_id(cpu);
-		if (cid != prev_cid) {
-			cluster_first_cpu[cluster_num++] = cpu;
-			prev_cid = cid;
-		}
+	for (i = 0; i < audio_core_num; i++) {
+		if (audio_core_list[i] >= num_possible_cpus())
+			pr_err("%s incorrect cpu id: %d specified.\n",
+                                    __func__, audio_core_list[i]);
+		else
+			cpumask_set_cpu(audio_core_list[i], &audio_cpu_map);
 	}
 
-	/* Pick the first cluster as it represents the Silver cluster. */
-	cluster_cpu_mask = topology_core_cpumask(cluster_first_cpu[0]);
-
-	for_each_cpu(cpu, cluster_cpu_mask) {
+	for_each_cpu(cpu, &audio_cpu_map) {
 		ret = dev_pm_qos_add_request(get_cpu_device(cpu),
 			    &msm_audio_req[cpu],
 			    DEV_PM_QOS_RESUME_LATENCY,
 			    PM_QOS_CPU_LATENCY_DEFAULT_VALUE);
-		if (ret < 0) {
+		if (ret < 0)
 			pr_err("%s error (%d) adding resume latency to cpu %d.\n",
                                                 __func__, ret, cpu);
-		} else {
-			cpu_vote_mask |= (1 << cpu);
-			pr_debug("%s set cpu affinity to logical core %d.\n", __func__, cpu);
-		}
-		/* Limit the request to 2 silver cpu cores. */
-		if (++num_req == 2)
-			break;
+		pr_debug("%s set cpu affinity to core %d.\n", __func__, cpu);
 	}
 }
 
@@ -666,21 +650,11 @@ static void msm_audio_remove_qos_request(void)
 {
 	int cpu = 0;
 	int ret = 0;
-	uint8_t cpu_bit = 0;
-	cpumask_t *cluster_cpu_mask = NULL;
-
-	cluster_cpu_mask = topology_core_cpumask(cluster_first_cpu[0]);
 
 	if (msm_audio_req) {
-		for_each_cpu(cpu, cluster_cpu_mask) {
-			cpu_bit = 1 << cpu;
-			if (cpu_bit & cpu_vote_mask) {
-				ret = dev_pm_qos_remove_request(
-					    &msm_audio_req[cpu]);
-				cpu_vote_mask &= ~cpu_bit;
-			} else
-				pr_debug("%s: core %d not voted.\n",
-								__func__, cpu);
+		for_each_cpu(cpu, &audio_cpu_map) {
+			ret = dev_pm_qos_remove_request(
+				    &msm_audio_req[cpu]);
 			if (ret < 0)
 				pr_err("%s error (%d) removing request from cpu %d.\n",
                                                 __func__, ret, cpu);
@@ -696,6 +670,7 @@ int msm_common_snd_init(struct platform_device *pdev, struct snd_soc_card *card)
 	int count, ret = 0;
 	uint32_t val_array[MI2S_TDM_AUXPCM_MAX] = {0};
 	struct clk *lpass_audio_hw_vote = NULL;
+	uint32_t *core_val_array = NULL;
 	common_pdata = kcalloc(1, sizeof(struct msm_common_pdata), GFP_KERNEL);
 	if (!common_pdata)
 		return -ENOMEM;
@@ -799,7 +774,47 @@ int msm_common_snd_init(struct platform_device *pdev, struct snd_soc_card *card)
 	msm_common_set_pdata(card, common_pdata);
 
 	/* Add QoS request for audio tasks */
+	core_val_array = devm_kcalloc(&pdev->dev, num_possible_cpus(), sizeof(uint32_t), GFP_KERNEL);
+	if (!core_val_array) {
+		dev_info(&pdev->dev, "%s: core val array is nullptr\n", __func__);
+		goto exit;
+	}
+	ret = of_property_read_variable_u32_array(pdev->dev.of_node, "qcom,audio-core-list",
+                      core_val_array, 0, num_possible_cpus());
+	dev_info(&pdev->dev, "%s: getting the core list size:%d, num_possible_cpus:%d \n",
+				__func__,  ret, num_possible_cpus());
+	if (ret > 0 && (ret <= num_possible_cpus())) {
+		audio_core_num = ret;
+		audio_core_list = devm_kcalloc(&pdev->dev, audio_core_num, sizeof(uint32_t), GFP_KERNEL);
+		if (!audio_core_list) {
+			dev_info(&pdev->dev, "%s: calloc failed for audio core list\n", __func__);
+			goto exit;
+		}
+		for (count = 0; count < audio_core_num; count++) {
+			audio_core_list[count] = core_val_array[count];
+			dev_info(&pdev->dev, "%s: update core %d\n", __func__, core_val_array[count]);
+		}
+	} else {
+		dev_info(&pdev->dev, "%s: keep default core\n", __func__);
+		audio_core_list = devm_kcalloc(&pdev->dev, audio_core_num, sizeof(uint32_t), GFP_KERNEL);
+		/* set audio task affinity to core 1 & 2 as default*/
+		if (!audio_core_list) {
+			dev_info(&pdev->dev, "%s: calloc failed for audio core list\n", __func__);
+			goto exit;
+		}
+		audio_core_list[0] = 1;
+		audio_core_list[1] = 2;
+	}
 	msm_audio_add_qos_request();
+
+exit:
+	if (audio_core_list) {
+		devm_kfree(&pdev->dev, audio_core_list);
+		audio_core_list = NULL;
+	}
+	if (core_val_array) {
+		devm_kfree(&pdev->dev, core_val_array);
+	}
 
 	mutex_init(&vote_against_sleep_lock);
 
@@ -967,22 +982,12 @@ void msm_common_get_backend_name(const char *stream_name, char **backend_name)
 static void msm_audio_update_qos_request(u32 latency)
 {
 	int cpu = 0;
-	uint8_t cpu_bit = 0;
 	int ret = -1;
-	int num_req = 0;
-	cpumask_t *cluster_cpu_mask = NULL;
-
-	cluster_cpu_mask = topology_core_cpumask(cluster_first_cpu[0]);
 
 	if (msm_audio_req) {
-		for_each_cpu(cpu, cluster_cpu_mask) {
-			cpu_bit = 1 << cpu;
-			if (cpu_bit & cpu_vote_mask)
-				ret = dev_pm_qos_update_request(
-						&msm_audio_req[cpu], latency);
-			else
-				pr_debug("%s: core %d not voted.\n",
-								__func__, cpu);
+		for_each_cpu(cpu, &audio_cpu_map) {
+			ret = dev_pm_qos_update_request(
+					&msm_audio_req[cpu], latency);
 			if (1 == ret ) {
 				pr_debug("%s: updated latency of core %d to %u.\n",
 								__func__, cpu, latency);
@@ -993,9 +998,6 @@ static void msm_audio_update_qos_request(u32 latency)
 				pr_err("%s: failed to update latency of core %d, error %d \n",
 								__func__, cpu, ret);
 			}
-			/* Limit the request to 2 Silver CPU cores. */
-			if (++num_req == 2)
-				break;
 		}
 	}
 }
@@ -1022,10 +1024,8 @@ static int msm_qos_ctl_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	cpumask_t expected_cpu_map = CPU_MASK_NONE;
-	cpumask_t *cluster_cpu_mask = NULL;
 	qos_vote_status = ucontrol->value.enumerated.item[0];
 
-	cluster_cpu_mask = topology_core_cpumask(cluster_first_cpu[0]);
 	pr_debug("%s: qos_vote_status = %d, qos_client_active_cnt = %d.\n",
 				__func__, qos_vote_status, qos_client_active_cnt);
 	if (qos_vote_status) {
@@ -1036,14 +1036,14 @@ static int msm_qos_ctl_put(struct snd_kcontrol *kcontrol,
 		if (qos_client_active_cnt == 1) {
 			msm_audio_update_qos_request(MSM_LL_QOS_VALUE);
 
-			expected_cpu_map = *cluster_cpu_mask;
+			expected_cpu_map = audio_cpu_map;
 			if (msm_get_and_print_cpu_map_taken(&expected_cpu_map)) {
 				pr_debug("%s: already expected, don't need to set it.\n",
 							__func__);
 				return 0;
 			}
 
-			walt_set_cpus_taken(cluster_cpu_mask);
+			walt_set_cpus_taken(&audio_cpu_map);
 			pr_debug("%s: set cpus taken to walt for audio RT tasks.\n",
 						__func__);
 
@@ -1064,7 +1064,7 @@ static int msm_qos_ctl_put(struct snd_kcontrol *kcontrol,
 				return 0;
 			}
 
-			walt_unset_cpus_taken(cluster_cpu_mask);
+			walt_unset_cpus_taken(&audio_cpu_map);
 			pr_debug("%s: unset cpus taken to walt for audio RT tasks.\n",
 						__func__);
 

@@ -977,31 +977,30 @@ QDF_STATUS qdf_uint64_parse(const char *int_str, uint64_t *out_int);
 #define QDF_MAC_ADDR_SIZE 6
 
 /*
- * If the feature WLAN_TRACE_HIDE_MAC_ADDRESS is enabled,
- * then the requirement is to hide 4th and 5th octet of the
+ * If the feature CONFIG_WLAN_TRACE_HIDE_MAC_ADDRESS is enabled,
+ * then the requirement is to hide 2nd, 3rd and 4th octet of the
  * MAC address in the kernel logs and driver logs.
  *
  * Developers must use QDF_MAC_ADDR_FMT instead of "%pM",
  * as this macro helps avoid accidentally breaking the feature
- * WLAN_TRACE_HIDE_MAC_ADDRESS if enabled and code auditing
+ * CONFIG_WLAN_TRACE_HIDE_MAC_ADDRESS if enabled and code auditing
  * becomes easy.
  */
 
 #if defined(WLAN_TRACE_HIDE_MAC_ADDRESS)
-#define QDF_MAC_ADDR_FMT "%02x:%02x:%02x:**:**:%02x"
+#define QDF_MAC_ADDR_FMT "%02x:**:**:**:%02x:%02x"
 
 /*
  * The input data type for QDF_MAC_ADDR_REF can be pointer or an array.
  * In case of array, compiler was throwing following warning
  * 'address of array will always evaluate as ‘true’
  * and if the pointer is NULL, zero is passed to the format specifier
- * which results in zero mac address (00:00:00:**:**:00)
+ * which results in zero mac address (00:**:**:**:00:00)
  * For this reason, input data type is typecasted to (uintptr_t).
  */
 #define QDF_MAC_ADDR_REF(a) \
 	(((uintptr_t)NULL != (uintptr_t)(a)) ? (a)[0] : 0), \
-	(((uintptr_t)NULL != (uintptr_t)(a)) ? (a)[1] : 0), \
-	(((uintptr_t)NULL != (uintptr_t)(a)) ? (a)[2] : 0), \
+	(((uintptr_t)NULL != (uintptr_t)(a)) ? (a)[4] : 0), \
 	(((uintptr_t)NULL != (uintptr_t)(a)) ? (a)[5] : 0)
 #else
 #define QDF_MAC_ADDR_FMT "%pM"
@@ -1606,14 +1605,6 @@ enum qdf_suspend_type {
  * of order packet counter values
  * @QDF_MGMT_RX_REO_ZERO_DURATION_PKT: Reception of management packet with zero
  * packet duration
- * @QDF_VDEV_ACTIVE_SER_CONNECT_TIMEOUT: Active connect cmd in serialization
- * timed out.
- * @QDF_VDEV_ACTIVE_SER_DISCONNECT_TIMEOUT: Active disconnect cmd in
- * serialization timed out.
- * @QDF_VDEV_ACTIVE_SER_REASSOC_TIMEOUT:  Active reassoc cmd in serialization
- * timed out.
- * @QDF_VDEV_ACTIVE_SER_LINK_SWITCH_TIMEOUT: Active link switch cmd in
- * serialization timed out.
  */
 enum qdf_hang_reason {
 	QDF_REASON_UNSPECIFIED,
@@ -1654,10 +1645,6 @@ enum qdf_hang_reason {
 	QDF_MGMT_RX_REO_INCONSISTENT_SNAPSHOT,
 	QDF_MGMT_RX_REO_OUT_OF_ORDER_PKT,
 	QDF_MGMT_RX_REO_ZERO_DURATION_PKT,
-	QDF_VDEV_ACTIVE_SER_CONNECT_TIMEOUT,
-	QDF_VDEV_ACTIVE_SER_DISCONNECT_TIMEOUT,
-	QDF_VDEV_ACTIVE_SER_REASSOC_TIMEOUT,
-	QDF_VDEV_ACTIVE_SER_LINK_SWITCH_TIMEOUT,
 };
 
 /**

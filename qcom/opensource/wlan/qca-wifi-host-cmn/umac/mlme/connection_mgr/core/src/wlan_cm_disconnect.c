@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015,2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -158,8 +158,6 @@ cm_ser_disconnect_cb(struct wlan_serialization_command *cmd,
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	struct wlan_objmgr_vdev *vdev;
 	struct cnx_mgr *cm_ctx;
-	enum qdf_hang_reason hang_reason =
-				QDF_VDEV_ACTIVE_SER_DISCONNECT_TIMEOUT;
 
 	if (!cmd) {
 		mlme_err("cmd is NULL, reason: %d", reason);
@@ -194,7 +192,7 @@ cm_ser_disconnect_cb(struct wlan_serialization_command *cmd,
 	case WLAN_SER_CB_ACTIVE_CMD_TIMEOUT:
 		mlme_err(CM_PREFIX_FMT "Active command timeout",
 			 CM_PREFIX_REF(wlan_vdev_get_id(vdev), cmd->cmd_id));
-		cm_trigger_panic_on_cmd_timeout(cm_ctx->vdev, hang_reason);
+		cm_trigger_panic_on_cmd_timeout(cm_ctx->vdev);
 		cm_send_disconnect_resp(cm_ctx, cmd->cmd_id);
 		break;
 	case WLAN_SER_CB_RELEASE_MEM_CMD:
@@ -321,7 +319,6 @@ QDF_STATUS cm_disconnect_start(struct cnx_mgr *cm_ctx,
 {
 	struct wlan_objmgr_pdev *pdev;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	bool is_link_switch_discon = cm_is_link_switch_disconnect_req(req);
 
 	pdev = wlan_vdev_get_pdev(cm_ctx->vdev);
 	if (!pdev) {
@@ -329,7 +326,8 @@ QDF_STATUS cm_disconnect_start(struct cnx_mgr *cm_ctx,
 		return QDF_STATUS_E_INVAL;
 	}
 
-	if (wlan_vdev_mlme_is_mlo_vdev(cm_ctx->vdev) && !is_link_switch_discon)
+	if (wlan_vdev_mlme_is_mlo_vdev(cm_ctx->vdev) &&
+	    req->req.source != CM_MLO_LINK_SWITCH_DISCONNECT)
 		mlo_internal_disconnect_links(cm_ctx->vdev);
 
 	cm_vdev_scan_cancel(pdev, cm_ctx->vdev);
@@ -338,7 +336,7 @@ QDF_STATUS cm_disconnect_start(struct cnx_mgr *cm_ctx,
 	mlme_cm_osif_disconnect_start_ind(cm_ctx->vdev, req->req.source);
 
 	/* For link switch disconnect, don't serialize the command */
-	if (!is_link_switch_discon) {
+	if (req->req.source != CM_MLO_LINK_SWITCH_DISCONNECT) {
 		/* Serialize disconnect req, Handle failure status */
 		status = cm_ser_disconnect_req(pdev, cm_ctx, req);
 	} else {
@@ -359,14 +357,14 @@ cm_update_scan_mlme_on_disconnect(struct wlan_objmgr_vdev *vdev,
 {
 	struct wlan_objmgr_pdev *pdev;
 	struct bss_info bss_info;
-	struct mlme_info mlme = {0};
+	struct mlme_info mlme;
 	struct wlan_channel *chan;
 	QDF_STATUS status;
 
 	/* Avoid setting the scan entry as not connected when it is
 	 * due to link switch disconnect
 	 */
-	if (cm_is_link_switch_disconnect_req(req))
+	if (req->req.source == CM_MLO_LINK_SWITCH_DISCONNECT)
 		return;
 
 	pdev = wlan_vdev_get_pdev(vdev);
@@ -600,7 +598,7 @@ QDF_STATUS cm_disconnect_complete(struct cnx_mgr *cm_ctx,
 				  struct wlan_cm_discon_rsp *resp)
 {
 	QDF_STATUS link_switch_status = QDF_STATUS_SUCCESS;
-	bool is_link_switch_cmd = cm_is_link_switch_disconnect_resp(resp);
+	bool is_link_switch_cmd = resp->req.cm_id & CM_ID_LSWITCH_BIT;
 
 	/*
 	 * If the entry is not present in the list, it must have been cleared
@@ -688,7 +686,7 @@ cm_handle_discon_req_in_non_connected_state(struct cnx_mgr *cm_ctx,
 	/* Reject any link switch disconnect request
 	 * while in disconnecting state
 	 */
-	if (cm_is_link_switch_disconnect_req(cm_req)) {
+	if (cm_req->req.source == CM_MLO_LINK_SWITCH_DISCONNECT) {
 		mlme_info(CM_PREFIX_FMT "Ignore disconnect req from source %d state %d",
 			  CM_PREFIX_REF(vdev_id, cm_req->cm_id),
 			  cm_req->req.source, cm_state_substate);
@@ -774,18 +772,10 @@ cm_handle_discon_req_in_non_connected_state(struct cnx_mgr *cm_ctx,
 		 *
 		 * So no need to do anything here, just return failure and drop
 		 * disconnect.
-		 */
-
-		mlme_info(CM_PREFIX_FMT "dropping disconnect req from source %d in INIT state",
-			  CM_PREFIX_REF(vdev_id, cm_req->cm_id),
-			  cm_req->req.source);
-
-		return QDF_STATUS_E_ALREADY;
-	case WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH:
-		/*
+		 *
 		 * Notification to userspace is done on non-LINK VDEV in case of
 		 * MLO connection, and if assoc VDEV is in INIT state due to
-		 * link switch disconnect and dropping userspace disconnect
+		 * link switch disconnect and dropping userspace disconnect here
 		 * might lead to not notifying kernel and any further connect
 		 * requests from supplicant will be dropped by kernel saying
 		 * already connected and supplicant will immediately attempt
@@ -795,15 +785,22 @@ cm_handle_discon_req_in_non_connected_state(struct cnx_mgr *cm_ctx,
 		 * to disconnecting and add disconnect request to queue so that
 		 * kernel and driver will be in sync.
 		 */
-		if (wlan_vdev_mlme_is_mlo_link_switch_in_progress(cm_ctx->vdev)) {
+		if (cm_req->req.source != CM_MLO_LINK_SWITCH_DISCONNECT &&
+		    wlan_vdev_mlme_is_mlo_link_switch_in_progress(cm_ctx->vdev)) {
 			mlme_info(CM_PREFIX_FMT "Notfiy MLO MGR to abort link switch",
 				  CM_PREFIX_REF(vdev_id, cm_req->cm_id));
 			mlo_mgr_link_switch_disconnect_done(cm_ctx->vdev,
 							    QDF_STATUS_E_ABORTED,
 							    false);
+			break;
+
+		} else {
+			mlme_info(CM_PREFIX_FMT "dropping disconnect req from source %d in INIT state",
+				  CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+				  cm_req->req.source);
 		}
 
-		break;
+		return QDF_STATUS_E_ALREADY;
 	default:
 		mlme_err(CM_PREFIX_FMT "disconnect req in invalid state %d",
 			 CM_PREFIX_REF(vdev_id, cm_req->cm_id),

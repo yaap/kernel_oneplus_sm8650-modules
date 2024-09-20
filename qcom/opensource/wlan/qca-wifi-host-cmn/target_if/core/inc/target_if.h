@@ -3013,13 +3013,11 @@ QDF_STATUS target_if_mlo_ready(struct wlan_objmgr_pdev **pdev,
  * @pdev: Pointer to pdev object
  * @reason: Reason for triggering teardown
  * @reset: UMAC reset for mode1 SSR
- * @standby_active: Active radio while in standby mode
  *
  * Return: QDF_STATUS codes
  */
 QDF_STATUS target_if_mlo_teardown_req(struct wlan_objmgr_pdev *pdev,
-				      uint32_t reason, bool reset,
-				      bool standby_active);
+				      uint32_t reason, bool reset);
 #endif /*WLAN_FEATURE_11BE_MLO && WLAN_MLO_MULTI_CHIP*/
 
 /**

@@ -160,12 +160,6 @@ audio_modules.register(
         "CONFIG_SND_SOC_PINEAPPLE": [
             "pineapple.c"
         ],
-        "CONFIG_SND_SOC_PITTI": [
-            "pineapple.c"
-        ],
-        "CONFIG_SND_SOC_NIOBE": [
-            "pineapple.c"
-        ],
         "CONFIG_SND_SOC_HOLI": [
             "holi.c"
         ],
@@ -399,7 +393,7 @@ audio_modules.register(
         "wcd937x-regmap.c",
         "wcd937x-tables.c",
         "wcd937x-mbhc.c",
-    ]
+    ],
 )
 audio_modules.register(
     name = "wcd937x_slave_dlkm",
@@ -442,22 +436,4 @@ audio_modules.register(
     path = ASOC_CODECS_PATH + "/wcd939x",
     config_option = "CONFIG_SND_SOC_WCD939X_SLAVE",
     srcs = ["wcd939x-slave.c"]
-)
-# >>>> WCD9378 MODULES <<<<
-audio_modules.register(
-    name = "wcd9378_dlkm",
-    path = ASOC_CODECS_PATH + "/wcd9378",
-    config_option = "CONFIG_SND_SOC_WCD9378",
-    srcs = [
-        "wcd9378.c",
-        "wcd9378-regmap.c",
-        "wcd9378-tables.c",
-        "wcd9378-mbhc.c",
-    ]
-)
-audio_modules.register(
-    name = "wcd9378_slave_dlkm",
-    path = ASOC_CODECS_PATH + "/wcd9378",
-    config_option = "CONFIG_SND_SOC_WCD9378_SLAVE",
-    srcs = ["wcd9378-slave.c"]
 )

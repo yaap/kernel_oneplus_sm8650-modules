@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -784,7 +784,6 @@ int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 	uint32_t    *num_pid = NULL;
 	struct cam_hw_soc_info               *soc_info = NULL;
 	int i, rc = 0;
-	unsigned long flags = 0;
 
 	if (!device_priv) {
 		CAM_ERR(CAM_JPEG, "Invalid arguments");
@@ -814,7 +813,7 @@ int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 		}
 
 		irq_cb_data = &irq_cb->irq_cb_data;
-		spin_lock_irqsave(&jpeg_enc_dev->hw_lock, flags);
+		spin_lock(&jpeg_enc_dev->hw_lock);
 
 		if (irq_cb->b_set_cb) {
 			core_info->irq_cb.jpeg_hw_mgr_cb = irq_cb->jpeg_hw_mgr_cb;
@@ -825,7 +824,7 @@ int cam_jpeg_enc_process_cmd(void *device_priv, uint32_t cmd_type,
 			core_info->irq_cb.irq_cb_data.private_data = NULL;
 			core_info->irq_cb.irq_cb_data.jpeg_req = NULL;
 		}
-		spin_unlock_irqrestore(&jpeg_enc_dev->hw_lock, flags);
+		spin_unlock(&jpeg_enc_dev->hw_lock);
 		rc = 0;
 		break;
 	}

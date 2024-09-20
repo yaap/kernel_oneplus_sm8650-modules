@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.*/
-/* Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.*/
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ */
 
 #ifndef __AUDIO_EXT_CLK_H
 #define __AUDIO_EXT_CLK_H
@@ -23,7 +23,5 @@
 #define AUDIO_LPASS_MCLK_11           14 /* WSA_TX CORE CLK */
 #define AUDIO_LPASS_MCLK_12           15 /* WSA2_TX CORE CLK */
 #define AUDIO_LPASS_MCLK_13           16 /* RX_MCLK2 2X CLK */
-#define AUDIO_LPASS_MCLK_14           17 /* HW SEQUNCER MCLK */
-#define AUDIO_LPASS_MCLK_15           18 /* BT_SWR CLK */
-#define AUDIO_LPASS_MCLK_16           19 /* BT_SWR 2X CLK */
+
 #endif

@@ -41,8 +41,12 @@ static int gen7_counter_br_enable(struct adreno_device *adreno_dev,
 	kgsl_regread(device, GEN7_CP_APERTURE_CNTL_HOST, &val);
 	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, FIELD_PREP(GENMASK(13, 12), PIPE_BR));
 
-	ret = gen7_perfcounter_update(adreno_dev, reg, true,
-					FIELD_PREP(GENMASK(13, 12), PIPE_BR), group->flags);
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_BR));
+	else
+		kgsl_regwrite(device, reg->select, countable);
+
 	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, val);
 
 	if (!ret)
@@ -63,8 +67,12 @@ static int gen7_counter_bv_enable(struct adreno_device *adreno_dev,
 	kgsl_regread(device, GEN7_CP_APERTURE_CNTL_HOST, &val);
 	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, FIELD_PREP(GENMASK(13, 12), PIPE_BV));
 
-	ret = gen7_perfcounter_update(adreno_dev, reg, true,
-					FIELD_PREP(GENMASK(13, 12), PIPE_BV), group->flags);
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_BV));
+	else
+		kgsl_regwrite(device, reg->select, countable);
+
 	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, val);
 
 	if (!ret)
@@ -77,11 +85,16 @@ static int gen7_counter_enable(struct adreno_device *adreno_dev,
 		const struct adreno_perfcount_group *group,
 		unsigned int counter, unsigned int countable)
 {
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct adreno_perfcount_register *reg = &group->regs[counter];
 	int ret = 0;
 
-	ret = gen7_perfcounter_update(adreno_dev, reg, true,
-					FIELD_PREP(GENMASK(13, 12), PIPE_NONE), group->flags);
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_NONE));
+	else
+		kgsl_regwrite(device, reg->select, countable);
+
 	if (!ret)
 		reg->value = 0;
 
@@ -114,8 +127,9 @@ static int gen7_counter_inline_enable(struct adreno_device *adreno_dev,
 		return gen7_counter_enable(adreno_dev, group, counter,
 			countable);
 
-	gen7_perfcounter_update(adreno_dev, reg, false,
-				FIELD_PREP(GENMASK(13, 12), PIPE_NONE), group->flags);
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		gen7_perfcounter_update(adreno_dev, reg, false,
+						FIELD_PREP(GENMASK(13, 12), PIPE_NONE));
 
 	cmds[0] = cp_type7_packet(CP_WAIT_FOR_IDLE, 0);
 	cmds[1] = cp_type4_packet(reg->select, 1);
@@ -1057,10 +1071,10 @@ static const struct adreno_perfcount_group gen7_hwsched_perfcounter_groups
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CP, cp),
 	GEN7_PERFCOUNTER_GROUP_FLAGS(gen7, RBBM, rbbm, 0,
 		gen7_counter_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(PC, pc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_PERFCOUNTER_GROUP(VFD, vfd, gen7_hwsched_counter_enable, gen7_counter_read),
 	GEN7_PERFCOUNTER_GROUP(HLSQ, hlsq, gen7_counter_br_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CCU, ccu),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CMP, cmp),
 	GEN7_PERFCOUNTER_GROUP(TSE, tse, gen7_counter_br_enable, gen7_counter_read),
@@ -1087,9 +1101,9 @@ static const struct adreno_perfcount_group gen7_hwsched_perfcounter_groups
 		gen7_counter_gmu_perf_enable, gen7_counter_read_norestore),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(CP, cp),
-	GEN7_BV_PERFCOUNTER_GROUP(PC, pc, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VFD, vfd),
-	GEN7_BV_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(TP, tp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(SP, sp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
@@ -1104,10 +1118,10 @@ static const struct adreno_perfcount_group gen7_9_0_hwsched_perfcounter_groups
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CP, cp),
 	GEN7_PERFCOUNTER_GROUP_FLAGS(gen7, RBBM, rbbm, 0,
 		gen7_counter_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(PC, pc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_PERFCOUNTER_GROUP(VFD, vfd, gen7_hwsched_counter_enable, gen7_counter_read),
 	GEN7_PERFCOUNTER_GROUP(HLSQ, hlsq, gen7_counter_br_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CCU, ccu),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CMP, cmp),
 	GEN7_PERFCOUNTER_GROUP(TSE, tse, gen7_counter_br_enable, gen7_counter_read),
@@ -1135,9 +1149,8 @@ static const struct adreno_perfcount_group gen7_9_0_hwsched_perfcounter_groups
 	GEN7_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(CP, cp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(PC, pc),
-	GEN7_BV_PERFCOUNTER_GROUP(PC, pc, gen7_counter_bv_enable, gen7_counter_read),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VFD, vfd),
-	GEN7_BV_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(TP, tp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(SP, sp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
@@ -1152,10 +1165,10 @@ static const struct adreno_perfcount_group gen7_perfcounter_groups
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CP, cp),
 	GEN7_PERFCOUNTER_GROUP_FLAGS(gen7, RBBM, rbbm, 0,
 		gen7_counter_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(PC, pc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_PERFCOUNTER_GROUP(VFD, vfd, gen7_counter_inline_enable, gen7_counter_read),
 	GEN7_PERFCOUNTER_GROUP(HLSQ, hlsq, gen7_counter_br_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CCU, ccu),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CMP, cmp),
 	GEN7_PERFCOUNTER_GROUP(TSE, tse, gen7_counter_br_enable, gen7_counter_read),
@@ -1182,9 +1195,9 @@ static const struct adreno_perfcount_group gen7_perfcounter_groups
 		gen7_counter_gmu_perf_enable, gen7_counter_read_norestore),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(CP, cp),
-	GEN7_BV_PERFCOUNTER_GROUP(PC, pc, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VFD, vfd),
-	GEN7_BV_PERFCOUNTER_GROUP(VPC, vpc, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(TP, tp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(SP, sp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),

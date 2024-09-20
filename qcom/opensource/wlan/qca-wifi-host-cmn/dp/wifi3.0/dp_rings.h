@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,7 +52,7 @@ static inline bool dp_is_mon_mask_valid(struct dp_soc *soc,
  */
 static inline int dp_srng_get_cpu(void)
 {
-	return qdf_get_cpu();
+	return smp_processor_id();
 }
 
 #else /* QCA_HOST_MODE_WIFI_DISABLED */
@@ -565,12 +565,12 @@ dp_dump_wbm_idle_hptp(struct dp_soc *soc, struct dp_pdev *pdev);
  * READ NOC error when UMAC is in low power state. MCC does not have
  * device force wake working yet.
  *
- * Return: rings are empty
+ * Return: none
  */
-bool dp_display_srng_info(struct cdp_soc_t *soc_hdl);
+void dp_display_srng_info(struct cdp_soc_t *soc_hdl);
 
 #if defined(DP_POWER_SAVE) || defined(FEATURE_RUNTIME_PM)
-QDF_STATUS dp_drain_txrx(struct cdp_soc_t *soc_handle, uint8_t rx_only);
+void dp_drain_txrx(struct cdp_soc_t *soc_handle);
 
 /*
  * dp_update_ring_hptp() - update dp rings hptp
@@ -730,12 +730,6 @@ static inline void
 dp_htt_setup_rxdma_err_dst_ring(struct dp_soc *soc, int mac_id,
 				int lmac_id)
 {
-	if ((soc->cdp_soc.ol_ops->get_con_mode &&
-	     soc->cdp_soc.ol_ops->get_con_mode() == QDF_GLOBAL_MONITOR_MODE) &&
-	    soc->rxdma_err_dst_ring[lmac_id].hal_srng)
-		htt_srng_setup(soc->htt_handle, mac_id,
-			       soc->rxdma_err_dst_ring[lmac_id].hal_srng,
-			       RXDMA_DST);
 }
 #endif
 
@@ -809,19 +803,16 @@ static inline QDF_STATUS dp_soc_srng_alloc(struct dp_soc *soc)
  *
  * This function dumps the SW Read/Write idx for the important rings.
  *
- * Return:  rings are empty
+ * Return: none
  */
-static inline bool dp_display_srng_info(struct cdp_soc_t *soc_hdl)
+static inline void dp_display_srng_info(struct cdp_soc_t *soc_hdl)
 {
 /*TODO add support display SOFTUMAC data rings info*/
-	return true;
 }
 
 #if defined(DP_POWER_SAVE) || defined(FEATURE_RUNTIME_PM)
-static inline QDF_STATUS dp_drain_txrx(struct cdp_soc_t *soc_handle,
-				       uint8_t rx_only)
+static inline void dp_drain_txrx(struct cdp_soc_t *soc_handle)
 {
-	return QDF_STATUS_SUCCESS;
 }
 #endif
 #endif /* WLAN_SOFTUMAC_SUPPORT */
@@ -871,18 +862,5 @@ dp_srng_configure_nf_interrupt_thresholds(struct dp_soc *soc,
 					  int ring_type)
 {
 }
-#endif
-
-#ifdef WLAN_SUPPORT_DPDK
-/*
- * dp_soc_reset_dpdk_intr_mask() - reset interrupt mask
- * @dp_soc - DP Soc handle
- *
- * Return: Return void
- */
-void dp_soc_reset_dpdk_intr_mask(struct dp_soc *soc);
-#else
-static inline void dp_soc_reset_dpdk_intr_mask(struct dp_soc *soc)
-{ }
 #endif
 #endif /* _DP_RINGS_H_ */

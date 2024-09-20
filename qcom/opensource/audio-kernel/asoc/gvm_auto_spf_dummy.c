@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -24,8 +24,7 @@
 #include "msm_dailink.h"
 #include <soc/qcom/boot_stats.h>
 #include "msm_common.h"
-#include <linux/cdev.h>
-#include <linux/err.h>
+
 
 #define DRV_NAME "spf-asoc-snd"
 
@@ -60,9 +59,6 @@
 #define MSM_LL_QOS_VALUE 300 /* time in us to ensure LPM doesn't go in C3/C4 */
 #define MSM_HIFI_ON 1
 #define DIR_SZ 10
-
-#define AUTO_VIRT_SNDCARD_ONLINE 0
-#define AUTO_VIRT_SNDCARD_OFFLINE 1
 
 struct snd_card_pdata {
 	struct kobject snd_card_kobj;
@@ -195,7 +191,6 @@ struct msm_asoc_mach_data {
 	struct snd_soc_codec *codec;
 	struct work_struct adsp_power_up_work;
 	struct tdm_conf tdm_intf_conf[TDM_INTERFACE_MAX];
-	struct snd_pcm_hardware hw_params;
 };
 
 static const char *const pin_states[] = {"sleep", "i2s-active",
@@ -226,31 +221,12 @@ static const struct snd_soc_dapm_widget msm_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Digital Mic7", NULL),
 };
 
-static int tdm_snd_startup(struct snd_pcm_substream *substream)
-{
-	int ret = 0;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *card = rtd->card;
-	struct snd_soc_dai_link *dai_link = rtd->dai_link;
-	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
-
-	if (!dai_link->no_pcm)
-		ret = snd_soc_set_runtime_hwparams(substream, &pdata->hw_params);
-
-	return ret;
-}
-
-static const struct snd_soc_ops tdm_be_ops = {
-	.startup = tdm_snd_startup,
-};
-
 static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	/* BackEnd DAI Links */
 	{
 	.name = "PRI_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -261,7 +237,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "PRI_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -272,7 +247,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEC_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-RX-SECONDARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -283,7 +257,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEC_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-TX-SECONDARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -294,7 +267,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "TERT_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-RX-TERTIARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -305,7 +277,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "TERT_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF-TX-TERTIARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -316,7 +287,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "QUAT_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_RXTX-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -327,7 +297,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "QUAT_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_RXTX-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -338,7 +307,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "QUIN_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_VA-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -349,7 +317,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "QUIN_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_VA-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -360,7 +327,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEN_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_WSA-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -371,7 +337,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEN_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_WSA-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -382,7 +347,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEP_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_AUD-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -393,7 +357,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "SEP_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_AUD-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -404,7 +367,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "OCT_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_WSA2-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -415,7 +377,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "OCT_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_WSA2-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -426,7 +387,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF0_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-RX-PRIMARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -437,7 +397,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF0_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-TX-PRIMARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -448,7 +407,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF1_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-RX-SECONDARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -459,7 +417,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF1_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-TX-SECONDARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -470,7 +427,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF2_TDM_RX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-RX-TERTIARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -481,7 +437,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF2_TDM_TX_0_DUMMY",
 	.stream_name = "TDM-LPAIF_SDR-TX-TERTIARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -492,7 +447,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF3_TDM_RX_0",
 	.stream_name = "TDM-LPAIF_SDR-RX-QUATERNARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -503,7 +457,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF3_TDM_TX_0",
 	.stream_name = "TDM-LPAIF_SDR-TX-QUATERNARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -514,7 +467,6 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF4_TDM_RX_0",
 	.stream_name = "TDM-LPAIF_SDR-RX-QUINARY",
 	.dpcm_playback = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
@@ -525,22 +477,11 @@ static struct snd_soc_dai_link msm_gvm_auto_dai_links[] = {
 	.name = "HS_IF4_TDM_TX_0",
 	.stream_name = "TDM-LPAIF_SDR-TX-QUINARY",
 	.dpcm_capture = 1,
-	.ops = &tdm_be_ops,
 	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 	.ignore_suspend = 1,
 	.ignore_pmdown_time = 1,
 	SND_SOC_DAILINK_REG(hs_if4_tdm_tx_0_dummy),
-	},
-	{
-	.name = "PCM_DUMMY-TX-0",
-	.stream_name = "PCM_DUMMY-TX-0",
-	.dpcm_capture = 1,
-	.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-				SND_SOC_DPCM_TRIGGER_POST},
-	.ignore_suspend = 1,
-	.ignore_pmdown_time = 1,
-	SND_SOC_DAILINK_REG(pcm_dummy_tx0),
 	},
 };
 
@@ -751,139 +692,6 @@ void msm_common_set_pdata(struct snd_soc_card *card,
 	pdata->common_pdata = common_pdata;
 }
 
-static long virt_sndcard_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
-{
-	int ret = 0;
-
-	switch (cmd) {
-	case AUTO_VIRT_SNDCARD_OFFLINE:
-		snd_card_notify_user(SND_CARD_STATUS_OFFLINE);
-		pr_debug("%s: mark sndcard offline\n", __func__);
-	break;
-	case AUTO_VIRT_SNDCARD_ONLINE:
-		snd_card_notify_user(SND_CARD_STATUS_ONLINE);
-		pr_debug("%s: mark sndcard online\n", __func__);
-	break;
-	default:
-		pr_err("%s: Invalid command = %d\n", __func__, cmd);
-		ret = -EFAULT;
-	break;
-	}
-
-	return ret;
-}
-
-static const struct file_operations virt_sndcard_ctl_fops = {
-	.owner = THIS_MODULE,
-	.unlocked_ioctl = virt_sndcard_ioctl,
-};
-
-static struct cdev virt_sndcard_ctl = {
-	.ops  = &virt_sndcard_ctl_fops,
-};
-
-int msm_audio_ssr_register(struct cdev *virt_sndcard_ctl)
-{
-	static struct class *dev_class;
-	dev_t dev;
-
-	if ((alloc_chrdev_region(&dev, 0, 1, "virt_sndcard_ctl")) < 0) {
-		pr_err("%s: Cannot allocate major number\n", __func__);
-		return -EINVAL;
-	}
-	pr_debug("Major = %d Minor = %d\n", MAJOR(dev), MINOR(dev));
-	cdev_init(virt_sndcard_ctl, &virt_sndcard_ctl_fops);
-	if ((cdev_add(virt_sndcard_ctl, dev, 1)) < 0) {
-		pr_err("%s: Cannot add the device to the system\n", __func__);
-		goto err;
-	}
-	dev_class = class_create(THIS_MODULE, "SSR");
-	if (IS_ERR(dev_class)) {
-		pr_err("%s: Cannot create the struct class\n", __func__);
-		goto err;
-	}
-	if (IS_ERR(device_create(dev_class, NULL, dev, NULL, "virt_sndcard_ctl"))) {
-		pr_err("%s: Cannot create the Device\n", __func__);
-		goto fail;
-	}
-	return 0;
-
-fail:
-	class_destroy(dev_class);
-err:
-	unregister_chrdev_region(dev, 1);
-	return -EINVAL;
-}
-
-static int msm_get_hwparams(struct platform_device *pdev)
-{
-	struct snd_soc_card *card = NULL;
-	struct msm_asoc_mach_data *pdata = NULL;
-	u32 pcm_info = 0;
-	u32 buffer_bytes_max = 0;
-	u32 periods_bytes[2] = {0};
-	u32 periods_count[2] = {0};
-	int ret = 0;
-
-	card = platform_get_drvdata(pdev);
-	if (!card) {
-		pr_err("%s: card is NULL\n",
-			__func__);
-		return -EINVAL;
-	}
-	pdata = snd_soc_card_get_drvdata(card);
-	if (!pdata) {
-		pr_err("%s: pdata is NULL\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	ret = of_property_read_u32(pdev->dev.of_node,
-			"qcom,hw_pcm_info",
-			&pcm_info);
-	if (ret) {
-		pr_err("%s: read pcm info failed\n",
-			__func__);
-		return ret;
-	}
-
-	ret = of_property_read_u32(pdev->dev.of_node,
-			"qcom,hw_buffer_size_max",
-			&buffer_bytes_max);
-	if (ret) {
-		pr_err("%s: read buffer size max failed\n",
-			__func__);
-		return ret;
-	}
-
-	ret = of_property_read_u32_array(pdev->dev.of_node,
-			"qcom,hw_period_byte_size",
-			periods_bytes, 2);
-	if (ret) {
-		pr_err("%s: read period byte size failed\n",
-			__func__);
-		return ret;
-	}
-
-	ret = of_property_read_u32_array(pdev->dev.of_node,
-			"qcom,hw_period_count_size",
-			periods_count, 2);
-	if (ret) {
-		pr_err("%s: read period count size failed\n",
-			__func__);
-		return ret;
-	}
-
-	pdata->hw_params.info = pcm_info;
-	pdata->hw_params.buffer_bytes_max = buffer_bytes_max;
-	pdata->hw_params.period_bytes_min = periods_bytes[0];
-	pdata->hw_params.period_bytes_max = periods_bytes[1];
-	pdata->hw_params.periods_min = periods_count[0];
-	pdata->hw_params.periods_max = periods_count[1];
-
-	return ret;
-}
-
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card;
@@ -943,19 +751,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	pr_debug("%s: DRIVER Audio Ready\n", __func__);
 
-	ret = msm_get_hwparams(pdev);
-	if (ret) {
-		dev_err(&pdev->dev,
-			"%s: hwparams get failed with %d\n",
-			__func__, ret);
-		return ret;
-	}
-
 	spdev = pdev;
-	ret = msm_audio_ssr_register(&virt_sndcard_ctl);
-	if (ret)
-		pr_err("%s: Audio virtual sndcard ctrl register fail, ret=%d\n", __func__, ret);
-	dev_info(&pdev->dev, "Audio virtual sndcard ctrl register complete\n");
 
 	ret = snd_card_sysfs_init();
 	if (ret)

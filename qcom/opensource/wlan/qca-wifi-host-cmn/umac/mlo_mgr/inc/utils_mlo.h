@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -105,47 +105,6 @@ util_gen_link_assoc_rsp(uint8_t *frame, qdf_size_t frame_len, bool isreassoc,
 			uint8_t *link_frame,
 			qdf_size_t link_frame_maxsize,
 			qdf_size_t *link_frame_len);
-
-/**
- * util_gen_link_probe_rsp_from_assoc_rsp() - Generate link specific
- * probe response from assoc response.
- * @frame: Pointer to original association response. This should not contain the
- * 802.11 header, and must start from the fixed fields in the association
- * response. This is required due to some caller semantics built into the end to
- * end design.
- * @frame_len: Length of original association response
- * @link_id: Link ID for secondary links
- * @link_addr: Secondary link's MAC address
- * @link_frame: Generated secondary link specific association response. Note
- * that this will start from the 802.11 header (unlike the original association
- * response). This should be ignored in the case of failure.
- * @link_frame_maxsize: Maximum size of generated secondary link specific
- * association response
- * @link_frame_len: Pointer to location where populated length of generated
- * secondary link specific association response should be written. This should
- * be ignored in the case of failure.
- * @bcn_prb_ptr: Pointer to probe response of the current link on which assoc
- * response is received, This should not contain the 802.11 header, and must
- * start from the fixed fields in the probe response.
- * @bcn_prb_len: Length of probe response of @bcn_prb_ptr.
- *
- * Generate a link specific logically equivalent probe response for the
- * secondary link from the original association response containing a Multi-Link
- * element.
- * Currently, only two link MLO is supported.
- *
- * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
- * the reason for error in the case of failure.
- */
-QDF_STATUS
-util_gen_link_probe_rsp_from_assoc_rsp(uint8_t *frame, qdf_size_t frame_len,
-				       uint8_t link_id,
-				       struct qdf_mac_addr link_addr,
-				       uint8_t *link_frame,
-				       qdf_size_t link_frame_maxsize,
-				       qdf_size_t *link_frame_len,
-				       uint8_t *bcn_prb_ptr,
-				       qdf_size_t bcn_prb_len);
 
 /**
  * util_gen_link_probe_rsp() - Generate link specific probe response
@@ -445,35 +404,6 @@ util_get_bvmlie_bssparamchangecnt(uint8_t *mlieseq, qdf_size_t mlieseqlen,
 QDF_STATUS
 util_get_bvmlie_mldcap(uint8_t *mlieseq, qdf_size_t mlieseqlen,
 		       bool *mldcapfound, uint16_t *mldcap);
-/**
- * util_get_bvmlie_ext_mld_cap_op_info() - Get Ext MLD Capabilities and
- * operation
- * @mlie_seq: Starting address of the Multi-Link element or Multi-Link element
- * fragment sequence
- * @mlie_seqlen: Total length of the Multi-Link element or Multi-Link element
- * fragment sequence
- * @ext_mld_cap_found: Pointer to the location where a boolean status should be
- * updated indicating whether the Ext MLD capabilities was found or not.
- * This should be ignored by the caller if the function returns error.
- * @ext_mld_cap: Pointer to the location where the value of the Ext MLD
- * capabilities should be updated. This should be ignored by the caller if the
- * function returns error, or if the function indicates that the MLD
- * capabilities was not found.
- *
- * Get the Ext MLD capabilities from a given Basic variant Multi-Link element or
- * element fragment sequence, of the AP that transmits the Multi-Link element/
- * element fragment sequence or the non-transmitted BSSID in the same
- * multiple BSSID set as the AP that transmits the Multi-Link element/element
- * fragment sequence and that is affiliated with the MLD that is described in
- * the Multi-Link element.
- *
- * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
- * the reason for error in the case of failure
- */
-QDF_STATUS
-util_get_bvmlie_ext_mld_cap_op_info(uint8_t *mlie_seq, qdf_size_t mlie_seqlen,
-				    bool *ext_mld_cap_found,
-				    uint16_t *ext_mld_cap);
 
 /**
  * util_get_bvmlie_persta_partner_info() - Get per-STA partner link information
@@ -635,19 +565,6 @@ util_gen_link_assoc_rsp(uint8_t *frame, qdf_size_t frame_len, bool isreassoc,
 			uint8_t *link_frame,
 			qdf_size_t link_frame_maxsize,
 			qdf_size_t *link_frame_len)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline QDF_STATUS
-util_gen_link_probe_rsp_from_assoc_rsp(uint8_t *frame, qdf_size_t frame_len,
-				       uint8_t link_id,
-				       struct qdf_mac_addr link_addr,
-				       uint8_t *link_frame,
-				       qdf_size_t link_frame_maxsize,
-				       qdf_size_t *link_frame_len,
-				       uint8_t *bcn_prb_ptr,
-				       qdf_size_t bcn_prb_len)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }

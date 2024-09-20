@@ -16,7 +16,7 @@
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #if !defined(__arch_um__)
-	#include <linux/ipa.h>
+	#include "ipa.h"
 #endif /* !defined(__arch_um__) */
 #include <linux/if_ether.h>
 #include <linux/interrupt.h>

@@ -46,9 +46,6 @@
 #endif
 #include <wlan_lmac_if_def.h>
 #include "target_if_mlme.h"
-#include "wlan_mlo_mgr_sta.h"
-#include "wlan_cp_stats_mc_tgt_api.h"
-#include "wlan_objmgr_pdev_obj.h"
 
 static struct vdev_mlme_ops sta_mlme_ops;
 static struct vdev_mlme_ops ap_mlme_ops;
@@ -870,8 +867,6 @@ QDF_STATUS mlme_set_chan_switch_in_progress(struct wlan_objmgr_vdev *vdev,
 	}
 
 	mlme_priv->chan_switch_in_progress = val;
-	mlo_set_chan_switch_in_progress(vdev, val);
-
 	mlme_legacy_info("Set chan_switch_in_progress: %d vdev %d",
 			 val, wlan_vdev_get_id(vdev));
 
@@ -1365,8 +1360,6 @@ QDF_STATUS mlme_set_mbssid_info(struct wlan_objmgr_vdev *vdev,
 	mbss_11ax->profile_num = mbssid_info->profile_count;
 	qdf_mem_copy(mbss_11ax->trans_bssid,
 		     mbssid_info->trans_bssid, QDF_MAC_ADDR_SIZE);
-	qdf_mem_copy(mbss_11ax->non_trans_bssid,
-		     mbssid_info->non_trans_bssid, QDF_MAC_ADDR_SIZE);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1603,6 +1596,62 @@ static void mlme_ext_handler_destroy(struct vdev_mlme_obj *vdev_mlme)
 	qdf_mem_free(vdev_mlme->ext_vdev_ptr);
 	vdev_mlme->ext_vdev_ptr = NULL;
 }
+/**
+ * vdevmgr_mlme_ext_hdl_create () - Create mlme legacy priv object
+ * @vdev_mlme: vdev mlme object
+ *
+ * Return: QDF_STATUS
+ */
+static
+QDF_STATUS vdevmgr_mlme_ext_hdl_create(struct vdev_mlme_obj *vdev_mlme)
+{
+	QDF_STATUS status;
+
+	mlme_legacy_debug("vdev id = %d ",
+			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
+	vdev_mlme->ext_vdev_ptr =
+		qdf_mem_malloc(sizeof(struct mlme_legacy_priv));
+	if (!vdev_mlme->ext_vdev_ptr)
+		return QDF_STATUS_E_NOMEM;
+
+	mlme_init_rate_config(vdev_mlme);
+	mlme_init_connect_chan_info_config(vdev_mlme);
+	mlme_cm_alloc_roam_stats_info(vdev_mlme);
+	vdev_mlme->ext_vdev_ptr->connect_info.fils_con_info = NULL;
+	mlme_init_wait_for_key_timer(vdev_mlme->vdev,
+				     &vdev_mlme->ext_vdev_ptr->wait_key_timer);
+
+	qdf_wake_lock_create(
+			&vdev_mlme->ext_vdev_ptr->bss_color_change_wakelock,
+			"bss_color_change_wakelock");
+	qdf_runtime_lock_init(
+		&vdev_mlme->ext_vdev_ptr->bss_color_change_runtime_lock);
+	qdf_runtime_lock_init(
+		&vdev_mlme->ext_vdev_ptr->disconnect_runtime_lock);
+
+	sme_get_vdev_type_nss(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
+			      &vdev_mlme->proto.generic.nss_2g,
+			      &vdev_mlme->proto.generic.nss_5g);
+
+	status = mlme_get_vdev_types(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
+				     &vdev_mlme->mgmt.generic.type,
+				     &vdev_mlme->mgmt.generic.subtype);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Get vdev type failed; status:%d", status);
+		mlme_ext_handler_destroy(vdev_mlme);
+		return status;
+	}
+
+	status = vdev_mgr_create_send(vdev_mlme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_err("Failed to create vdev for vdev id %d",
+			 wlan_vdev_get_id(vdev_mlme->vdev));
+		mlme_ext_handler_destroy(vdev_mlme);
+		return status;
+	}
+
+	return status;
+}
 
 static QDF_STATUS
 mlme_wma_vdev_detach_post_cb(struct scheduler_msg *msg)
@@ -1665,63 +1714,6 @@ QDF_STATUS vdevmgr_mlme_ext_hdl_destroy(struct vdev_mlme_obj *vdev_mlme)
 	mlme_ext_handler_destroy(vdev_mlme);
 
 	return QDF_STATUS_SUCCESS;
-}
-
-/**
- * vdevmgr_mlme_ext_hdl_create () - Create mlme legacy priv object
- * @vdev_mlme: vdev mlme object
- *
- * Return: QDF_STATUS
- */
-static
-QDF_STATUS vdevmgr_mlme_ext_hdl_create(struct vdev_mlme_obj *vdev_mlme)
-{
-	QDF_STATUS status;
-
-	mlme_legacy_debug("vdev id = %d ",
-			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
-	vdev_mlme->ext_vdev_ptr =
-		qdf_mem_malloc(sizeof(struct mlme_legacy_priv));
-	if (!vdev_mlme->ext_vdev_ptr)
-		return QDF_STATUS_E_NOMEM;
-
-	mlme_init_rate_config(vdev_mlme);
-	mlme_init_connect_chan_info_config(vdev_mlme);
-	mlme_cm_alloc_roam_stats_info(vdev_mlme);
-	vdev_mlme->ext_vdev_ptr->connect_info.fils_con_info = NULL;
-	mlme_init_wait_for_key_timer(vdev_mlme->vdev,
-				     &vdev_mlme->ext_vdev_ptr->wait_key_timer);
-
-	qdf_wake_lock_create(
-			&vdev_mlme->ext_vdev_ptr->bss_color_change_wakelock,
-			"bss_color_change_wakelock");
-	qdf_runtime_lock_init(
-		&vdev_mlme->ext_vdev_ptr->bss_color_change_runtime_lock);
-	qdf_runtime_lock_init(
-		&vdev_mlme->ext_vdev_ptr->disconnect_runtime_lock);
-
-	sme_get_vdev_type_nss(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
-			      &vdev_mlme->proto.generic.nss_2g,
-			      &vdev_mlme->proto.generic.nss_5g);
-
-	status = mlme_get_vdev_types(wlan_vdev_mlme_get_opmode(vdev_mlme->vdev),
-				     &vdev_mlme->mgmt.generic.type,
-				     &vdev_mlme->mgmt.generic.subtype);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		mlme_err("Get vdev type failed; status:%d", status);
-		mlme_ext_handler_destroy(vdev_mlme);
-		return status;
-	}
-
-	status = vdev_mgr_create_send(vdev_mlme);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		mlme_err("Failed to create vdev for vdev id %d",
-			 wlan_vdev_get_id(vdev_mlme->vdev));
-		vdevmgr_mlme_ext_hdl_destroy(vdev_mlme);
-		return status;
-	}
-
-	return status;
 }
 
 #ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
@@ -1824,31 +1816,6 @@ static QDF_STATUS mon_mlme_vdev_disconnect_peers(
 		uint16_t data_len, void *data,
 		bool is_disconnect_legacy_only)
 {
-	struct wlan_objmgr_psoc *psoc = NULL;
-	struct wlan_objmgr_pdev *pdev = NULL;
-	uint32_t pdev_id;
-
-	psoc = wlan_vdev_get_psoc(vdev_mlme->vdev);
-	if (!psoc) {
-		mlme_legacy_debug("Invalid psoc");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	pdev = wlan_vdev_get_pdev(vdev_mlme->vdev);
-	if (!pdev) {
-		mlme_legacy_debug("Invalid pdev");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	pdev_id = wlan_objmgr_pdev_get_pdev_id(pdev);
-	if (pdev_id == WLAN_INVALID_PDEV_ID) {
-		mlme_legacy_debug("Invalid pdev id");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	/* Cancel periodic pdev stats update */
-	tgt_set_pdev_stats_update_period(psoc, pdev_id, 0);
-
 	mlme_legacy_debug("vdev id = %d",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
 	return wlan_vdev_mlme_sm_deliver_evt(
@@ -2150,20 +2117,6 @@ vdevmgr_vdev_reconfig_notify(struct vdev_mlme_obj *vdev_mlme,
 	return QDF_STATUS_SUCCESS;
 }
 
-static QDF_STATUS
-vdevmgr_vdev_reconfig_notify_standby(struct vdev_mlme_obj *vdev_mlme,
-				     struct ml_rv_info *reconfig_info)
-{
-	struct wlan_objmgr_vdev *vdev = vdev_mlme->vdev;
-
-	if (!vdev) {
-		mlme_err("invalid vdev");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	return policy_mgr_handle_link_removal_on_standby(vdev, reconfig_info);
-}
-
 static void
 vdevmgr_vdev_reconfig_timer_complete(struct vdev_mlme_obj *vdev_mlme)
 {
@@ -2332,24 +2285,6 @@ wlan_ll_sap_sort_channel_list(uint8_t vdev_id, qdf_list_t *list,
 {
 	return wlansap_sort_channel_list(vdev_id, list, ch_info);
 }
-
-void wlan_ll_sap_free_chan_info(struct sap_sel_ch_info *ch_param)
-{
-	return wlansap_free_chan_info(ch_param);
-}
-
-bool wlan_ll_sap_freq_present_in_pcl(struct policy_mgr_pcl_list *pcl,
-				     qdf_freq_t freq)
-{
-	uint8_t i;
-
-	for (i = 0; i < pcl->pcl_len; i++) {
-		if (pcl->pcl_list[i] == freq)
-			return true;
-	}
-
-	return false;
-}
 #endif
 
 void
@@ -2383,9 +2318,6 @@ static struct vdev_mlme_ops sta_mlme_ops = {
 			vdevmgr_vdev_reconfig_notify,
 	.mlme_vdev_reconfig_timer_complete =
 			vdevmgr_vdev_reconfig_timer_complete,
-	.mlme_vdev_reconfig_notify_standby =
-			vdevmgr_vdev_reconfig_notify_standby,
-
 #endif
 };
 

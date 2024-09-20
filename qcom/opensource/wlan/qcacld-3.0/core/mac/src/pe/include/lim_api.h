@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -151,7 +151,6 @@ typedef enum eMgmtFrmDropReason {
 	eMGMT_DROP_SPURIOUS_FRAME,
 	eMGMT_DROP_DUPLICATE_AUTH_FRAME,
 	eMGMT_DROP_EXCESSIVE_MGMT_FRAME,
-	eMGMT_DROP_DEAUTH_DURING_ROAM_STARTED,
 } tMgmtFrmDropReason;
 
 /**
@@ -371,10 +370,6 @@ pe_disconnect_callback(struct mac_context *mac, uint8_t vdev_id,
 		       uint16_t deauth_disassoc_frame_len,
 		       uint16_t reason_code);
 
-QDF_STATUS
-pe_set_ie_for_roam_invoke(struct mac_context *mac_ctx, uint8_t vdev_id,
-			  uint16_t dot11_mode, enum QDF_OPMODE opmode);
-
 #else
 static inline QDF_STATUS
 pe_roam_synch_callback(struct mac_context *mac_ctx,
@@ -391,13 +386,6 @@ pe_disconnect_callback(struct mac_context *mac, uint8_t vdev_id,
 		       uint8_t *deauth_disassoc_frame,
 		       uint16_t deauth_disassoc_frame_len,
 		       uint16_t reason_code)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline QDF_STATUS
-pe_set_ie_for_roam_invoke(struct mac_context *mac_ctx, uint8_t vdev_id,
-			  uint16_t dot11_mode, enum QDF_OPMODE opmode)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -615,23 +603,6 @@ void lim_set_twt_ext_capabilities(struct mac_context *mac_ctx,
  */
 void lim_get_basic_rates(tSirMacRateSet *b_rates, uint32_t chan_freq);
 
-#define FW_CTS2SELF_PROFILE 34
-
-/**
- * lim_enable_cts_to_self_for_exempted_iot_ap() - enable cts to self for iot ap
- * @mac_ctx: mac context
- * @session: pe session
- * @ie_ptr: ie pointer
- * @ie_len: ie length
- *
- * Return: true on success else false
- */
-bool lim_enable_cts_to_self_for_exempted_iot_ap(
-				       struct mac_context *mac_ctx,
-				       struct pe_session *session,
-				       uint8_t *ie_ptr,
-				       uint16_t ie_len);
-
 /**
  * lim_fill_pe_session() - Lim fill pe session
  * @mac_ctx: Pointer to mac context
@@ -649,23 +620,6 @@ lim_fill_pe_session(struct mac_context *mac_ctx,
 		    struct bss_description *bss_desc);
 
 #ifdef WLAN_FEATURE_11BE_MLO
-/*
- * lim_add_bcn_probe() - Add the generated probe resp to scan DB
- * @vdev: VDEV object manager
- * @bcn_probe: Pointer to bcn/probe
- * @len: Length of frame.
- * @freq: Freq on frame.
- * @rssi: RSSI of the frame.
- *
- * Prepares the meta data to add the generated bcn/probe frame to
- * scan DB.
- *
- * Return: QDF_STATUS
- */
-QDF_STATUS
-lim_add_bcn_probe(struct wlan_objmgr_vdev *vdev, uint8_t *bcn_probe,
-		  uint32_t len, qdf_freq_t freq, int32_t rssi);
-
 /**
  * lim_update_mlo_mgr_info() - API to update mlo_mgr link info
  * @mac_ctx: Pointer to mac context
@@ -731,13 +685,6 @@ lim_process_cu_for_probe_rsp(struct mac_context *mac_ctx,
 			     uint32_t probe_rsp_len);
 
 #else
-static inline QDF_STATUS
-lim_add_bcn_probe(struct wlan_objmgr_vdev *vdev, uint8_t *bcn_probe,
-		  uint32_t len, qdf_freq_t freq, int32_t rssi)
-{
-	return QDF_STATUS_E_NOSUPPORT;
-}
-
 static inline QDF_STATUS
 lim_update_mlo_mgr_info(struct mac_context *mac_ctx,
 			struct wlan_objmgr_vdev *vdev,

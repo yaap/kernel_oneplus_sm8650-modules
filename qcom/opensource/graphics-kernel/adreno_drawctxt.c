@@ -168,11 +168,11 @@ int adreno_drawctxt_wait(struct adreno_device *adreno_dev,
 			_check_context_timestamp(device, context, timestamp),
 			msecs_to_jiffies(timeout));
 
-	if (ret_temp <= 0) {
-		kgsl_cancel_event(device, &context->events, timestamp,
-			wait_callback, (void *)drawctxt);
-
-		ret = ret_temp ? (int)ret_temp : -ETIMEDOUT;
+	if (ret_temp == 0) {
+		ret = -ETIMEDOUT;
+		goto done;
+	} else if (ret_temp < 0) {
+		ret = (int) ret_temp;
 		goto done;
 	}
 	ret = 0;

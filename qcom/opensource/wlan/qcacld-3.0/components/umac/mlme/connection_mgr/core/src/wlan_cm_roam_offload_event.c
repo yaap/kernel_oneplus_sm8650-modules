@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -473,7 +473,6 @@ cm_roam_sync_frame_event_handler(struct wlan_objmgr_psoc *psoc,
 	if (sync_frame_ind->bcn_probe_rsp_len) {
 		roam_candidate.frame_length = sync_frame_ind->bcn_probe_rsp_len;
 		roam_candidate.frame = sync_frame_ind->bcn_probe_rsp;
-		roam_candidate.rssi = sync_frame_ind->rssi;
 		roam_candidate.roam_offload_candidate_frm = false;
 		wlan_cm_add_all_link_probe_rsp_to_scan_db(psoc,
 							  &roam_candidate);
@@ -483,7 +482,6 @@ cm_roam_sync_frame_event_handler(struct wlan_objmgr_psoc *psoc,
 		roam_candidate.frame_length =
 					sync_frame_ind->link_bcn_probe_rsp_len;
 		roam_candidate.frame = sync_frame_ind->link_bcn_probe_rsp;
-		roam_candidate.rssi = sync_frame_ind->rssi;
 		roam_candidate.roam_offload_candidate_frm = false;
 		wlan_cm_add_all_link_probe_rsp_to_scan_db(psoc,
 							  &roam_candidate);
@@ -504,14 +502,9 @@ QDF_STATUS cm_roam_sync_key_event_handler(struct wlan_objmgr_psoc *psoc,
 
 	for (i = 0; i < num_keys; i++) {
 		status = wlan_crypto_add_key_entry(psoc, &keys[i]);
-		if (QDF_IS_STATUS_ERROR(status)) {
+		if (QDF_IS_STATUS_ERROR(status))
 			mlme_err("Failed to add key entry for link:%d",
 				 keys[i].link_id);
-			wlan_crypto_free_key(&keys[i].keys);
-			qdf_mem_zero(&keys[i],
-				     sizeof(struct wlan_crypto_key_entry));
-			qdf_mem_free(&keys[i]);
-		}
 	}
 
 	return status;
@@ -582,8 +575,9 @@ QDF_STATUS cm_roam_sync_event_handler_cb(struct wlan_objmgr_vdev *vdev,
 	    sync_ind->link_beacon_probe_resp_length) {
 		if (sync_ind->link_beacon_probe_resp_length >
 		    (QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET)) {
-			ie_len = MAX_MGMT_MPDU_LEN -
-			(QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET);
+			ie_len = sync_ind->link_beacon_probe_resp_length -
+					(QDF_IEEE80211_3ADDR_HDR_LEN +
+					 MAC_B_PR_SSID_OFFSET);
 		} else {
 			mlme_err("LFR3: MLO: vdev:%d Invalid link Beacon Length",
 				 vdev_id);

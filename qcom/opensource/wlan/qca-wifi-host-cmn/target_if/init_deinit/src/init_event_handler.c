@@ -43,7 +43,6 @@
 #include <wlan_mlo_mgr_setup.h>
 #endif
 #include <target_if_twt.h>
-#include <target_if_scan.h>
 
 static void init_deinit_set_send_init_cmd(struct wlan_objmgr_psoc *psoc,
 					  struct target_psoc_info *tgt_hdl)
@@ -430,7 +429,6 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 	target_if_reg_set_6ghz_info(psoc);
 	target_if_reg_set_5dot9_ghz_info(psoc);
 	target_if_twt_fill_tgt_caps(psoc, wmi_handle);
-	target_if_update_aux_support(psoc);
 
 	/* Send num_msdu_desc to DP layer */
 	cdp_soc_set_param(wlan_psoc_get_dp_handle(psoc),
@@ -475,11 +473,6 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 		target_psoc_set_num_radios(tgt_hdl, 1);
 		init_deinit_set_send_init_cmd(psoc, tgt_hdl);
 	}
-
-	if (wmi_service_enabled(wmi_handle,
-			wmi_service_multiple_reorder_queue_setup_support))
-		cdp_soc_set_param(wlan_psoc_get_dp_handle(psoc),
-			DP_SOC_PARAM_MULTI_RX_REORDER_SETUP_SUPPORT, 1);
 
 exit:
 	return err_code;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "cam_csiphy_soc.h"
@@ -11,7 +11,6 @@
 #include "include/cam_csiphy_2_1_2_hwreg.h"
 #include "include/cam_csiphy_2_1_3_hwreg.h"
 #include "include/cam_csiphy_2_2_0_hwreg.h"
-#include "include/cam_csiphy_2_2_1_hwreg.h"
 #include "include/cam_csiphy_2_3_0_hwreg.h"
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 #include "include/cam_csiphy_2_2_0_hwreg_enhance.h"
@@ -190,7 +189,6 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 	struct cam_hw_soc_info   *soc_info;
 	enum cam_vote_level vote_level;
 	struct cam_csiphy_param *param = &csiphy_dev->csiphy_info[index];
-	unsigned long clk_rate = 0;
 	int i;
 
 	soc_info = &csiphy_dev->soc_info;
@@ -245,31 +243,6 @@ int32_t cam_csiphy_enable_hw(struct csiphy_device *csiphy_dev, int32_t index)
 			goto disable_platform_resource;
 		}
 
-	} else {
-		clk_rate = soc_info->clk_rate[0][soc_info->src_clk_idx];
-		rc = cam_soc_util_set_src_clk_rate(soc_info,
-			CAM_CLK_SW_CLIENT_IDX, clk_rate, 0);
-		if (rc) {
-			CAM_ERR(CAM_CSIPHY, "csiphy_set_src_clk_rate failed"
-				" rc: %d", rc);
-			rc = -EINVAL;
-			goto disable_platform_resource;
-		}
-
-		for (i = 0; i < soc_info->num_clk; i++) {
-			if (i == soc_info->src_clk_idx) {
-				CAM_DBG(CAM_CSIPHY, "Skipping call back"
-				" for src clk %s", soc_info->clk_name[i]);
-				continue;
-			}
-			clk_rate = cam_soc_util_get_clk_rate_applied(soc_info,
-				i, false, vote_level);
-			if (clk_rate > 0) {
-				cam_subdev_notify_message(CAM_TFE_DEVICE_TYPE,
-					CAM_SUBDEV_MESSAGE_CLOCK_UPDATE,
-					(void *)(&clk_rate));
-			}
-		}
 	}
 
 	cam_csiphy_reset(csiphy_dev);
@@ -363,11 +336,6 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0")) {
 		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0;
 		csiphy_dev->hw_version = CSIPHY_VERSION_V220;
-		csiphy_dev->is_divisor_32_comp = true;
-		csiphy_dev->clk_lane = 0;
-	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1")) {
-		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1;
-		csiphy_dev->hw_version = CSIPHY_VERSION_V221;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
 	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.3.0")) {

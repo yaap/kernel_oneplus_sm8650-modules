@@ -25,9 +25,6 @@ endif
 ifeq ($(CONFIG_ARCH_BLAIR), y)
 	include $(KGSL_PATH)/config/gki_blair.conf
 endif
-ifeq ($(CONFIG_ARCH_PITTI), y)
-	include $(KGSL_PATH)/config/gki_pitti.conf
-endif
 ifeq ($(CONFIG_ARCH_SA8155), y)
 	include $(KGSL_PATH)/config/gki_sa8155.conf
 endif
@@ -55,11 +52,8 @@ endif
 ifeq ($(CONFIG_ARCH_QCS405), y)
 	include $(KGSL_PATH)/config/gki_qcs405.conf
 endif
-ifeq ($(CONFIG_ARCH_HOLI), y)
-	include $(KGSL_PATH)/config/gki_blair.conf
-endif
 
-ccflags-y += -I$(KGSL_PATH) -I$(KGSL_PATH)/include/linux -I$(KGSL_PATH)/include -I$(KERNEL_SRC)/drivers/devfreq
+ccflags-y += -I$(KGSL_PATH) -I$(KGSL_PATH)/include/linux -I$(KGSL_PATH)/include -I$(KERNEL_SRC)/drivers/devfreq -I$(KERNEL_SRC)/mm/mm_osvelte
 
 obj-$(CONFIG_QCOM_KGSL) += msm_kgsl.o
 
@@ -129,17 +123,6 @@ msm_kgsl-y += \
 	adreno_gen7_ringbuffer.o \
 	adreno_gen7_rpmh.o \
 	adreno_gen7_snapshot.o \
-	adreno_gen8.o \
-	adreno_gen8_gmu.o \
-	adreno_gen8_gmu_snapshot.o \
-	adreno_gen8_hfi.o \
-	adreno_gen8_hwsched.o \
-	adreno_gen8_hwsched_hfi.o \
-	adreno_gen8_perfcounter.o \
-	adreno_gen8_preempt.o \
-	adreno_gen8_ringbuffer.o \
-	adreno_gen8_rpmh.o \
-	adreno_gen8_snapshot.o \
 	adreno_hwsched.o \
 	adreno_ioctl.o \
 	adreno_perfcounter.o \

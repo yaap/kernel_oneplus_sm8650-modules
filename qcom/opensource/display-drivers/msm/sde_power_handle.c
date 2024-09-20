@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"[drm:%s:%d]: " fmt, __func__, __LINE__
@@ -17,7 +17,6 @@
 
 #include <linux/sde_io_util.h>
 #include <linux/sde_rsc.h>
-#include <linux/soc/qcom/msm_mmrm.h>
 
 #include "sde_power_handle.h"
 #include "sde_trace.h"
@@ -243,7 +242,6 @@ static int sde_power_parse_dt_clock(struct platform_device *pdev,
 	u32 clock_mmrm = 0;
 	u32 clock_max_rate = 0;
 	int num_clk = 0;
-	bool is_mmrm_supported = false;
 
 	if (!pdev || !mp) {
 		pr_err("invalid input param pdev:%pK mp:%pK\n", pdev, mp);
@@ -266,8 +264,6 @@ static int sde_power_parse_dt_clock(struct platform_device *pdev,
 		mp->num_clk = 0;
 		goto clk_err;
 	}
-	is_mmrm_supported = mmrm_client_check_scaling_supported(MMRM_CLIENT_CLOCK,
-				MMRM_CLIENT_DOMAIN_DISPLAY);
 
 	for (i = 0; i < num_clk; i++) {
 		of_property_read_string_index(pdev->dev.of_node, "clock-names",
@@ -287,12 +283,12 @@ static int sde_power_parse_dt_clock(struct platform_device *pdev,
 		clock_mmrm = 0;
 		of_property_read_u32_index(pdev->dev.of_node, "clock-mmrm",
 							i, &clock_mmrm);
-		if (clock_mmrm && is_mmrm_supported) {
+		if (clock_mmrm) {
 			mp->clk_config[i].type = DSS_CLK_MMRM;
 			mp->clk_config[i].mmrm.clk_id = clock_mmrm;
 		}
-		pr_debug("clk[%d] clock-mmrm:%d mmrm status:%d rate:%d name:%s dev:%s\n",
-			i, clock_mmrm, is_mmrm_supported, clock_rate, clock_name,
+		pr_debug("clk[%d] mmrm:%d rate:%d name:%s dev:%s\n",
+			i, clock_mmrm, clock_rate, clock_name,
 			pdev->name ? pdev->name : "<unknown>");
 
 		clock_max_rate = 0;

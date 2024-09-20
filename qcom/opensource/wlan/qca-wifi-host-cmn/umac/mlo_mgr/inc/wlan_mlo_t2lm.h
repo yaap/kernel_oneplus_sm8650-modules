@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -397,9 +397,6 @@ typedef QDF_STATUS (*wlan_mlo_t2lm_link_update_handler)(
  * @is_valid_handler: T2LM handler is valid or not
  * @mst_start_tsf: calculated mapping switch start tsf
  * @mst_end_tsf: calculated mapping switch end tsf
- * @link_update_callback_index: Link update callback index. This callback is
- *                              invoked as part of mapping switch time and
- *                              expected duration expiry.
  */
 struct wlan_t2lm_context {
 	struct wlan_mlo_t2lm_ie established_t2lm;
@@ -418,7 +415,6 @@ struct wlan_t2lm_context {
 	uint64_t mst_start_tsf;
 	uint64_t mst_end_tsf;
 #endif
-	int link_update_callback_index;
 };
 
 #ifdef WLAN_FEATURE_11BE
@@ -627,13 +623,11 @@ uint8_t *wlan_mlo_add_t2lm_action_frame(
  * probe response frame
  * @t2lm_ctx: T2LM context
  * @ie: Pointer to T2LM IE
- * @frame_len: Frame length
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS wlan_mlo_parse_bcn_prbresp_t2lm_ie(
-		struct wlan_t2lm_context *t2lm_ctx, uint8_t *ie,
-		uint32_t frame_len);
+		struct wlan_t2lm_context *t2lm_ctx, uint8_t *ie);
 
 /**
  * wlan_mlo_parse_t2lm_info() - Parse T2LM IE fields
@@ -711,17 +705,6 @@ wlan_mlo_t2lm_timer_expiry_handler(void *vdev);
  */
 QDF_STATUS
 wlan_handle_t2lm_timer(struct wlan_objmgr_vdev *vdev);
-
-/**
- * wlan_mlo_t2lm_register_link_update_notify_handler() - API to register a T2LM
- * callback that needs to be invoked on mapping switch time expiry and expected
- * duration expiry.
- * @ml_dev: Pointer MLO dev context
- *
- * Return: QDF_STATUS
- */
-QDF_STATUS wlan_mlo_t2lm_register_link_update_notify_handler(
-		struct wlan_mlo_dev_context *ml_dev);
 
 /**
  * wlan_process_bcn_prbrsp_t2lm_ie() - API to process the received T2LM IE from
@@ -806,8 +789,7 @@ uint8_t *wlan_mlo_add_t2lm_action_frame(
 
 static inline
 QDF_STATUS wlan_mlo_parse_bcn_prbresp_t2lm_ie(
-		struct wlan_t2lm_context *t2lm_ctx, uint8_t *ie,
-		uint32_t frame_len)
+		struct wlan_t2lm_context *t2lm_ctx, uint8_t *ie)
 {
 	return QDF_STATUS_E_FAILURE;
 }
@@ -859,13 +841,6 @@ static inline QDF_STATUS
 wlan_handle_t2lm_timer(struct wlan_objmgr_vdev *vdev)
 {
 	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline
-QDF_STATUS wlan_mlo_t2lm_register_link_update_notify_handler(
-		struct wlan_mlo_dev_context *ml_dev)
-{
-	return QDF_STATUS_SUCCESS;
 }
 
 static inline QDF_STATUS

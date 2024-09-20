@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,12 +30,6 @@
 static struct wlan_ipa_config *g_ipa_config;
 static bool g_ipa_hw_support;
 static bool g_ipa_pld_enable = true;
-static bool g_ipa_cap_offload = true;
-
-void ipa_set_cap_offload(bool flag)
-{
-	g_ipa_cap_offload = flag;
-}
 
 void ipa_set_pld_enable(bool flag)
 {
@@ -44,7 +38,7 @@ void ipa_set_pld_enable(bool flag)
 
 bool ipa_get_pld_enable(void)
 {
-	return (g_ipa_pld_enable && g_ipa_cap_offload);
+	return g_ipa_pld_enable;
 }
 
 bool ipa_check_hw_present(void)
@@ -841,6 +835,7 @@ uint32_t get_ipa_config(struct wlan_objmgr_psoc *psoc)
 			ipa_err("Invalid IPA Config 0x%x", val);
 		val = INTRL_MODE_ENABLE;
 	}
+	ipa_info("IPAConfig set as 0x%x", val);
 	return val;
 }
 #else
@@ -866,10 +861,10 @@ void ipa_component_config_update(struct wlan_objmgr_psoc *psoc)
 		return;
 	}
 
-	if (g_ipa_pld_enable && g_ipa_cap_offload) {
+	if (g_ipa_pld_enable) {
 		g_ipa_config->ipa_config = get_ipa_config(psoc);
-		ipa_debug("IPA ini configuration: 0x%x",
-			  g_ipa_config->ipa_config);
+		ipa_info("IPA ini configuration: 0x%x",
+			 g_ipa_config->ipa_config);
 	} else {
 		g_ipa_config->ipa_config = 0;
 		ipa_info("IPA disabled from platform driver");
@@ -972,44 +967,5 @@ QDF_STATUS ipa_get_alt_pipe(struct wlan_objmgr_pdev *pdev,
 	}
 
 	return wlan_ipa_get_alt_pipe(ipa_obj, vdev_id, alt_pipe);
-}
-
-bool ipa_set_perf_level_bw_enabled(struct wlan_objmgr_pdev *pdev)
-{
-	struct wlan_ipa_priv *ipa_obj;
-
-	if (!ipa_config_is_enabled())
-		return false;
-
-	if (!ipa_cb_is_ready())
-		return false;
-
-	ipa_obj = ipa_pdev_get_priv_obj(pdev);
-	if (!ipa_obj) {
-		ipa_err("IPA object is NULL");
-		return false;
-	}
-
-	return wlan_ipa_set_perf_level_bw_enabled(ipa_obj);
-}
-
-void ipa_set_perf_level_bw(struct wlan_objmgr_pdev *pdev,
-			   enum wlan_ipa_bw_level lvl)
-{
-	struct wlan_ipa_priv *ipa_obj;
-
-	if (!ipa_config_is_enabled())
-		return;
-
-	if (!ipa_cb_is_ready())
-		return;
-
-	ipa_obj = ipa_pdev_get_priv_obj(pdev);
-	if (!ipa_obj) {
-		ipa_err("IPA object is NULL");
-		return;
-	}
-
-	wlan_ipa_set_perf_level_bw(ipa_obj, lvl);
 }
 

@@ -522,7 +522,6 @@ const char *sub_state_name(enum msm_vidc_sub_state sub_state)
 	case MSM_VIDC_DRC_LAST_BUFFER:     return "DRC_LAST_BUFFER ";
 	case MSM_VIDC_INPUT_PAUSE:         return "INPUT_PAUSE ";
 	case MSM_VIDC_OUTPUT_PAUSE:        return "OUTPUT_PAUSE ";
-	case MSM_VIDC_FIRST_IPSC:          return "FIRST_IPSC ";
 	}
 
 	return "SUB_STATE_NONE";
@@ -1411,8 +1410,7 @@ static int msm_vidc_set_sub_state(struct msm_vidc_inst *inst,
 								   MSM_VIDC_OUTPUT_PAUSE         },
 		{MSM_VIDC_INPUT_STREAMING,   MSM_VIDC_ALLOW,       MSM_VIDC_DRC                 |
 								   MSM_VIDC_DRAIN               |
-								   MSM_VIDC_INPUT_PAUSE         |
-								   MSM_VIDC_FIRST_IPSC           },
+								   MSM_VIDC_INPUT_PAUSE          },
 
 		{MSM_VIDC_OUTPUT_STREAMING,  MSM_VIDC_DISALLOW,    MSM_VIDC_DRC                 |
 								   MSM_VIDC_DRAIN               |

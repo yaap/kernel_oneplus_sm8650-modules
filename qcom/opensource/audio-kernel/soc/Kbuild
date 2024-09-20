@@ -24,16 +24,6 @@ ifeq ($(CONFIG_SND_SOC_AUTO), y)
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
 	endif
-	ifdef CONFIG_SND_SOC_GVM
-		include $(AUDIO_ROOT)/config/gvmauto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/gvmautoconf.h
-	endif
-	ifdef CONFIG_SND_SOC_SA7255
-		include $(AUDIO_ROOT)/config/sa7255auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/sa7255autoconf.h
-	endif
 else
 ifeq ($(KERNEL_BUILD), 0)
 	ifeq ($(CONFIG_ARCH_SM8150), y)
@@ -59,17 +49,9 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/kalamaauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/kalamaautoconf.h
 	endif
-	ifeq ($(BOARD_PLATFORM), pineapple)
+	ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
-	endif
-	ifeq ($(BOARD_PLATFORM), cliffs)
-		include $(AUDIO_ROOT)/config/pineappleauto.conf
-		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
-	endif
-	ifeq ($(CONFIG_ARCH_PITTI), y)
-		include $(AUDIO_ROOT)/config/pittiauto.conf
-		INCS    +=  -include $(AUDIO_ROOT)/config/pittiautoconf.h
 	endif
 	ifeq ($(CONFIG_ARCH_LITO), y)
 		include $(AUDIO_ROOT)/config/litoauto.conf

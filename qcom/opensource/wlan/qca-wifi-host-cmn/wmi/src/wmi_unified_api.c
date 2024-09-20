@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -124,10 +124,11 @@ wmi_unified_vdev_nss_chain_params_send(wmi_unified_t wmi_handle,
 }
 
 QDF_STATUS wmi_unified_vdev_stop_send(wmi_unified_t  wmi_handle,
-				      struct vdev_stop_params *params)
+				      uint8_t vdev_id)
 {
 	if (wmi_handle->ops->send_vdev_stop_cmd)
-		return wmi_handle->ops->send_vdev_stop_cmd(wmi_handle, params);
+		return wmi_handle->ops->send_vdev_stop_cmd(wmi_handle,
+			   vdev_id);
 
 	return QDF_STATUS_E_FAILURE;
 }
@@ -246,18 +247,6 @@ QDF_STATUS wmi_unified_peer_rx_reorder_queue_setup_send(
 	if (wmi_handle->ops->send_peer_rx_reorder_queue_setup_cmd)
 		return wmi_handle->ops->send_peer_rx_reorder_queue_setup_cmd(
 			wmi_handle, param);
-
-	return QDF_STATUS_E_FAILURE;
-}
-
-QDF_STATUS wmi_unified_peer_multi_rx_reorder_queue_setup_send(
-		wmi_unified_t wmi_handle,
-		struct multi_rx_reorder_queue_setup_params *param)
-{
-	if (wmi_handle->ops->send_peer_multi_rx_reorder_queue_setup_cmd)
-		return wmi_handle->ops->
-			send_peer_multi_rx_reorder_queue_setup_cmd(
-							wmi_handle, param);
 
 	return QDF_STATUS_E_FAILURE;
 }
@@ -2954,17 +2943,6 @@ wmi_unified_send_coex_config_cmd(wmi_unified_t wmi_handle,
 	return QDF_STATUS_E_FAILURE;
 }
 
-QDF_STATUS
-wmi_unified_send_coex_multi_config_cmd(wmi_unified_t wmi_handle,
-				       struct coex_multi_config *param)
-{
-	if (wmi_handle->ops->send_coex_multi_config_cmd)
-		return wmi_handle->ops->send_coex_multi_config_cmd(wmi_handle,
-								   param);
-
-	return QDF_STATUS_E_FAILURE;
-}
-
 #ifdef WLAN_FEATURE_DBAM_CONFIG
 QDF_STATUS
 wmi_unified_send_dbam_config_cmd(wmi_unified_t wmi_handle,
@@ -3734,11 +3712,11 @@ wmi_unified_extract_roam_result_stats(wmi_unified_t wmi, void *buf,
 QDF_STATUS
 wmi_unified_extract_roam_11kv_stats(wmi_unified_t wmi, void *evt_buf,
 				    struct wmi_neighbor_report_data *dst,
-				    uint8_t idx, uint8_t rpt_idx)
+				    uint8_t idx, uint8_t rpt_idx, uint8_t band)
 {
 	if (wmi->ops->extract_roam_11kv_stats)
 		return wmi->ops->extract_roam_11kv_stats(wmi, evt_buf, dst, idx,
-							 rpt_idx);
+							 rpt_idx, band);
 
 	return QDF_STATUS_E_FAILURE;
 }

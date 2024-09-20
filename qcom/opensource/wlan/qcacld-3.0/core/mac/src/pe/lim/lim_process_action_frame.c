@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -56,7 +56,6 @@
 #include "son_api.h"
 #include "wlan_t2lm_api.h"
 #include "wlan_epcs_api.h"
-#include <wlan_mlo_mgr_sta.h>
 #include "wlan_mlo_mgr_public_structs.h"
 
 #define SA_QUERY_REQ_MIN_LEN \
@@ -64,11 +63,6 @@
 #define SA_QUERY_RESP_MIN_LEN \
 (DOT11F_FF_CATEGORY_LEN + DOT11F_FF_ACTION_LEN + DOT11F_FF_TRANSACTIONID_LEN)
 #define SA_QUERY_IE_OFFSET (4)
-
-#define MIN_OCI_IE_LEN 6
-#define OCI_IE_OUI_SIZE 1
-#define OCI_IE_OP_CLS_OFFSET 3
-#define ELE_ID_EXT_LEN 1
 
 static last_processed_msg rrm_link_action_frm;
 
@@ -1102,6 +1096,11 @@ __lim_process_radio_measure_request(struct mac_context *mac, uint8_t *pRxPacketI
 	}
 	/* Save seq no of currently processing rrm report req frame */
 	mac->rrm.rrmPEContext.prev_rrm_report_seq_num = curr_seq_num;
+	lim_send_sme_mgmt_frame_ind(mac, pHdr->fc.subType, (uint8_t *)pHdr,
+				    frameLen + sizeof(tSirMacMgmtHdr), 0,
+				    WMA_GET_RX_FREQ(pRxPacketInfo),
+				    WMA_GET_RX_RSSI_NORMALIZED(pRxPacketInfo),
+				    RXMGMT_FLAG_NONE);
 
 	frm = qdf_mem_malloc(sizeof(*frm));
 	if (!frm)
@@ -1129,9 +1128,6 @@ __lim_process_radio_measure_request(struct mac_context *mac, uint8_t *pRxPacketI
 		 QDF_MAC_ADDR_REF(pHdr->bssId),
 		 QDF_MAC_ADDR_REF(pe_session->bssId),
 		 QDF_MAC_ADDR_REF(pe_session->self_mac_addr));
-
-	pe_debug("RX RRM - type %hu, sub type %hu, seq num[%d]",
-		 pHdr->fc.type, pHdr->fc.subType, curr_seq_num);
 
 	rrm_process_radio_measurement_request(mac, pe_session->bssId, frm,
 					      pe_session);
@@ -1231,22 +1227,16 @@ static bool
 lim_check_oci_match(struct mac_context *mac, struct pe_session *pe_session,
 		    uint8_t *ie, uint8_t *peer, uint32_t ie_len)
 {
-	const uint8_t *oci_ie, ext_id_param = WLAN_EXTN_ELEMID_OCI;
-	tDot11fIEoci self_oci, peer_oci = {0};
+	const uint8_t *oci_ie;
+	tDot11fIEoci self_oci, *peer_oci;
 	uint16_t peer_chan_width;
 	uint16_t local_peer_chan_width = 0;
 	uint8_t country_code[CDS_COUNTRY_CODE_LEN + 1];
-	uint32_t status = DOT11F_PARSE_SUCCESS;
 
 	if (!lim_is_self_and_peer_ocv_capable(mac, peer, pe_session))
 		return true;
 
-	if (ie_len < MIN_OCI_IE_LEN)
-		return false;
-
-	oci_ie = wlan_get_ext_ie_ptr_from_ext_id(&ext_id_param,
-						 OCI_IE_OUI_SIZE,
-						 ie, ie_len);
+	oci_ie = wlan_get_ie_ptr_from_eid(DOT11F_EID_OCI, ie, ie_len);
 	if (!oci_ie) {
 		pe_err("OCV not found OCI in SA Query frame!");
 		return false;
@@ -1260,35 +1250,29 @@ lim_check_oci_match(struct mac_context *mac, struct pe_session *pe_session,
 	 * Primary channel      : 1 byte
 	 * Freq_seg_1_ch_num    : 1 byte
 	 */
-	status = dot11f_unpack_ie_oci(mac,
-				      (uint8_t *)&oci_ie[OCI_IE_OP_CLS_OFFSET],
-				      oci_ie[SIR_MAC_IE_LEN_OFFSET] -
-				      ELE_ID_EXT_LEN,
-				      &peer_oci, false);
-	if (!DOT11F_SUCCEEDED(status) || !peer_oci.present)
-		return false;
+	peer_oci = (tDot11fIEoci *)&oci_ie[2];
 
 	wlan_reg_read_current_country(mac->psoc, country_code);
 	peer_chan_width =
 	wlan_reg_dmn_get_chanwidth_from_opclass_auto(
 			country_code,
-			peer_oci.prim_ch_num,
-			peer_oci.op_class);
+			peer_oci->prim_ch_num,
+			peer_oci->op_class);
 
 	lim_fill_oci_params(mac, pe_session, &self_oci, peer,
 			    &local_peer_chan_width);
-	if ((self_oci.op_class != peer_oci.op_class &&
-	     local_peer_chan_width > peer_chan_width) ||
-	    self_oci.prim_ch_num != peer_oci.prim_ch_num ||
-	    self_oci.freq_seg_1_ch_num != peer_oci.freq_seg_1_ch_num) {
+	if (((self_oci.op_class != peer_oci->op_class) &&
+	     (local_peer_chan_width > peer_chan_width)) ||
+	    (self_oci.prim_ch_num != peer_oci->prim_ch_num) ||
+	    (self_oci.freq_seg_1_ch_num != peer_oci->freq_seg_1_ch_num)) {
 		pe_err("OCI mismatch,self %d %d %d %d, peer %d %d %d %d",
 		       self_oci.op_class,
 		       self_oci.prim_ch_num,
 		       self_oci.freq_seg_1_ch_num,
 		       local_peer_chan_width,
-		       peer_oci.op_class,
-		       peer_oci.prim_ch_num,
-		       peer_oci.freq_seg_1_ch_num,
+		       peer_oci->op_class,
+		       peer_oci->prim_ch_num,
+		       peer_oci->freq_seg_1_ch_num,
 		       peer_chan_width);
 		return false;
 	}
@@ -1559,11 +1543,6 @@ static void lim_process_addba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 	bool eht_cap = false;
 	uint8_t extd_buff_size = 0;
 
-	if (mlo_is_any_link_disconnecting(session->vdev)) {
-		pe_err("Ignore ADDBA, vdev is in not in conncted state");
-		return;
-	}
-
 	mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
 	body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
 	frame_len = WMA_GET_RX_PAYLOAD_LEN(rx_pkt_info);
@@ -1638,7 +1617,7 @@ static void lim_process_addba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 			session,
 			addba_req->addba_extn_element.present,
 			addba_req->addba_param_set.amsdu_supp,
-			mac_hdr->fc.wep, buff_size, mac_hdr->bssId);
+			mac_hdr->fc.wep, buff_size);
 		if (qdf_status != QDF_STATUS_SUCCESS) {
 			pe_err("Failed to send addba response frame");
 			cdp_addba_resp_tx_completion(
@@ -1736,7 +1715,6 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 	enum wlan_t2lm_resp_frm_type status_code;
 	uint8_t token = 0;
 	struct wlan_objmgr_peer *peer = NULL;
-	QDF_STATUS status;
 
 	if (frame_len < sizeof(*action_hdr)) {
 		pe_debug("frame_len %d less than Action Frame Hdr size",
@@ -2194,30 +2172,24 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 		}
 		switch (action_hdr->actionID) {
 		case EHT_T2LM_REQUEST:
-			status = wlan_t2lm_deliver_event(
+			if (wlan_t2lm_deliver_event(
 				session->vdev, peer,
 				WLAN_T2LM_EV_ACTION_FRAME_RX_REQ,
 				(void *)body_ptr, frame_len,
-				&token);
-			if (QDF_IS_STATUS_SUCCESS(status))
+				&token) == QDF_STATUS_SUCCESS)
 				status_code = WLAN_T2LM_RESP_TYPE_SUCCESS;
 			else
 				status_code =
 				WLAN_T2LM_RESP_TYPE_DENIED_TID_TO_LINK_MAPPING;
 
-			if (status == QDF_STATUS_E_NOSUPPORT)
-				pe_err("STA does not support T2LM drop frame");
-			else if (lim_send_t2lm_action_rsp_frame(
+			if (lim_send_t2lm_action_rsp_frame(
 					mac_ctx, mac_hdr->sa, session, token,
-					status_code) != QDF_STATUS_SUCCESS) {
+					status_code) != QDF_STATUS_SUCCESS)
 				pe_err("T2LM action response frame not sent");
-			} else {
+			else
 				wlan_send_peer_level_tid_to_link_mapping(
 								session->vdev,
 								peer);
-				wlan_connectivity_t2lm_status_event(
-								session->vdev);
-			}
 			break;
 		case EHT_T2LM_RESPONSE:
 			wlan_t2lm_deliver_event(
@@ -2294,10 +2266,8 @@ void lim_process_action_frame_no_session(struct mac_context *mac, uint8_t *pBd)
 
 
 	pe_debug("Received an action frame category: %d action_id: %d",
-		 action_hdr->category, (action_hdr->category ==
-		 ACTION_CATEGORY_PUBLIC || action_hdr->category ==
-		 ACTION_CATEGORY_PROTECTED_DUAL_OF_PUBLIC_ACTION) ?
-		 action_hdr->actionID : 255);
+		 action_hdr->category, action_hdr->category ==
+		 ACTION_CATEGORY_PUBLIC ? action_hdr->actionID : 255);
 
 	if (frame_len < sizeof(*action_hdr)) {
 		pe_debug("frame_len %d less than action frame header len",
@@ -2307,7 +2277,6 @@ void lim_process_action_frame_no_session(struct mac_context *mac, uint8_t *pBd)
 
 	switch (action_hdr->category) {
 	case ACTION_CATEGORY_PUBLIC:
-	case ACTION_CATEGORY_PROTECTED_DUAL_OF_PUBLIC_ACTION:
 		if (action_hdr->actionID == PUB_ACTION_VENDOR_SPECIFIC) {
 			vendor_specific =
 				(tpSirMacVendorSpecificPublicActionFrameHdr)

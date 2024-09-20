@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -150,15 +150,6 @@ uint16_t wlan_reg_get_max_chwidth(struct wlan_objmgr_pdev *pdev,
  */
 enum phy_ch_width
 wlan_reg_get_next_lower_bandwidth(enum phy_ch_width ch_width);
-
-/**
- * wlan_reg_get_next_higher_bandwidth() - Get next higher bandwdith
- * @ch_width: channel bandwdith
- *
- * Return: Return next higher bandwidth of input channel bandwidth
- */
-enum phy_ch_width
-wlan_reg_get_next_higher_bandwidth(enum phy_ch_width ch_width);
 
 #ifdef CONFIG_REG_CLIENT
 /**
@@ -539,14 +530,6 @@ QDF_STATUS wlan_reg_read_default_country(struct wlan_objmgr_psoc *psoc,
 				   uint8_t *country);
 
 /**
- * wlan_get_next_lower_bandwidth() - Get next lower bandwidth
- * @ch_width: Channel width
- *
- * Return: Channel width
- */
-enum phy_ch_width wlan_get_next_lower_bandwidth(enum phy_ch_width ch_width);
-
-/**
  * wlan_reg_get_max_5g_bw_from_country_code() - Get the max 5G
  * bandwidth from country code
  * @pdev: pdev pointer
@@ -607,15 +590,6 @@ bool wlan_reg_is_regdb_offloaded(struct wlan_objmgr_psoc *psoc);
 bool wlan_reg_get_fcc_constraint(struct wlan_objmgr_pdev *pdev, uint32_t freq);
 
 /**
- * wlan_reg_get_country_max_allowed_bw() - get max allowed channel width as per
- * all reg rules of client
- * @pdev: physical dev to get
- *
- * Return: max allowed channel width for current country code
- */
-uint32_t wlan_reg_get_country_max_allowed_bw(struct wlan_objmgr_pdev *pdev);
-
-/**
  * wlan_reg_is_6ghz_band_set - Check if 6 GHz band set
  * @pdev: Pointer to pdev
  *
@@ -664,36 +638,34 @@ wlan_reg_get_best_6g_power_type(struct wlan_objmgr_psoc *psoc,
 
 #ifdef CONFIG_CHAN_FREQ_API
 /**
- * wlan_reg_is_etsi_srd_chan_for_freq() - Checks if the ch is
- * ETSI13/ETSI18/ETSI20 srd ch
+ * wlan_reg_is_etsi13_srd_chan_for_freq() - Checks if the ch is ETSI13 srd ch
  * or not
  * @pdev: pdev ptr
  * @freq: channel center frequency
  *
  * Return: true or false
  */
-bool wlan_reg_is_etsi_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
-					qdf_freq_t freq);
+bool wlan_reg_is_etsi13_srd_chan_for_freq(struct wlan_objmgr_pdev *pdev,
+					  qdf_freq_t freq);
 #endif /*CONFIG_CHAN_FREQ_API*/
 
 /**
- * wlan_reg_is_etsi_regdmn() - Check if current reg domain is
- * ETSI13/ETSI18/ETSI20 or not
+ * wlan_reg_is_etsi13_regdmn() - Checks if current reg domain is ETSI13 or not
  * @pdev: pdev ptr
  *
  * Return: true or false
  */
-bool wlan_reg_is_etsi_regdmn(struct wlan_objmgr_pdev *pdev);
+bool wlan_reg_is_etsi13_regdmn(struct wlan_objmgr_pdev *pdev);
 
 /**
- * wlan_reg_is_etsi_srd_chan_allowed_master_mode() - Checks if regdmn is
+ * wlan_reg_is_etsi13_srd_chan_allowed_master_mode() - Checks if regdmn is
  * ETSI13 and SRD channels are allowed in master mode or not.
  *
  * @pdev: pdev ptr
  *
  * Return: true or false
  */
-bool wlan_reg_is_etsi_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev
+bool wlan_reg_is_etsi13_srd_chan_allowed_master_mode(struct wlan_objmgr_pdev
 						     *pdev);
 #endif
 
@@ -2192,15 +2164,6 @@ uint16_t wlan_reg_chan_opclass_to_freq(uint8_t chan,
 				       bool global_tbl_lookup);
 
 /**
- * wlan_reg_compute_6g_center_freq_from_cfi() - Given the IEEE value of the
- * 6 GHz center frequency, find the 6 GHz center frequency.
- * @ieee_6g_cfi: IEEE value of 6 GHz cfi
- *
- * Return: Center frequency in MHz
- */
-qdf_freq_t wlan_reg_compute_6g_center_freq_from_cfi(uint8_t ieee_6g_cfi);
-
-/**
  * wlan_reg_chan_opclass_to_freq_auto() - Convert channel number and opclass to
  * frequency
  * @chan: IEEE channel number
@@ -2440,6 +2403,17 @@ wlan_reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 				      uint16_t *eirp_psd_power);
 
 /**
+ * wlan_reg_decide_6g_ap_pwr_type() - Decide which power mode AP should operate
+ * in
+ *
+ * @pdev: pdev ptr
+ *
+ * Return: AP power type
+ */
+enum reg_6g_ap_type
+wlan_reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev);
+
+/**
  * wlan_reg_set_ap_pwr_and_update_chan_list() - Set the AP power mode and
  * recompute the current channel list
  *
@@ -2573,6 +2547,12 @@ wlan_reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 	*tx_power = 0;
 	*eirp_psd_power = 0;
 	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline enum reg_6g_ap_type
+wlan_reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
+{
+	return REG_INDOOR_AP;
 }
 
 static inline QDF_STATUS
@@ -2858,6 +2838,7 @@ wlan_reg_get_num_afc_freq_obj(struct wlan_objmgr_pdev *pdev,
 QDF_STATUS wlan_reg_set_afc_power_event_received(struct wlan_objmgr_pdev *pdev,
 						 bool val);
 #endif
+
 #else
 static inline bool
 wlan_is_sup_chan_entry_afc_done(struct wlan_objmgr_pdev *pdev,
@@ -2872,6 +2853,7 @@ wlan_reg_display_super_chan_list(struct wlan_objmgr_pdev *pdev)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
+
 #endif
 
 /**

@@ -51,8 +51,6 @@
 #include "wlan_lmac_if_def.h"
 #include "wlan_reg_services_api.h"
 #include "wlan_mlo_mgr_sta.h"
-#include "wlan_mlme_main.h"
-#include <wlan_mlo_mgr_link_switch.h>
 
 static void
 ap_beacon_process_5_ghz(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
@@ -602,7 +600,6 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 	struct vdev_mlme_obj *mlme_obj;
 	struct wlan_lmac_if_reg_tx_ops *tx_ops;
 	bool ap_constraint_change = false, tpe_change = false;
-	bool allow_tpc = false;
 	int8_t regMax = 0, maxTxPower = 0;
 	QDF_STATUS status;
 	bool skip_tpe = false, is_sap_go_switched_ch;
@@ -688,7 +685,6 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 			return;
 
 		session->best_6g_power_type = pwr_type_6g;
-		mlme_set_best_6g_power_type(session->vdev, pwr_type_6g);
 	}
 
 	/*
@@ -715,11 +711,10 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 				bcn->localPowerConstraint.localPowerConstraints;
 				is_power_constraint_abs = false;
 			}
-			allow_tpc = true;
 		}
 
-		if (allow_tpc && local_constraint !=
-		    mlme_obj->reg_tpc_obj.ap_constraint_power) {
+		if (local_constraint !=
+				mlme_obj->reg_tpc_obj.ap_constraint_power) {
 			mlme_obj->reg_tpc_obj.ap_constraint_power =
 							local_constraint;
 			mlme_obj->reg_tpc_obj.is_power_constraint_abs =
@@ -727,14 +722,15 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 			ap_constraint_change = true;
 		}
 
-		if (ap_constraint_change || (tpe_change && !skip_tpe)) {
+		if ((ap_constraint_change && local_constraint) ||
+		    (tpe_change && !skip_tpe)) {
 			lim_calculate_tpc(mac_ctx, session);
 
 			if (tx_ops->set_tpc_power)
 				tx_ops->set_tpc_power(mac_ctx->psoc,
 						      session->vdev_id,
 						      &mlme_obj->reg_tpc_obj);
-		}
+			}
 	} else if (!session->sta_follows_sap_power) {
 		/* Obtain the Max Tx power for the current regulatory  */
 		regMax = wlan_reg_get_channel_reg_power_for_freq(
@@ -1029,32 +1025,12 @@ sch_beacon_process(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 
 	if (!session)
 		return;
-
-	/*
-	 * Drop the beacon/probe response from current connected AP in
-	 * below cases to avoid responding to the changes in beacon(e.g. doing
-	 * VDEV_RESTART to update to the latest capabilities),
-	 * 1. vdev is not in connected state: vdev might be transitioning
-	 * 2. Link switch is in progress: Current link or one of the partner
-	 *                                links are getting replaced.
-	 *
-	 * New beacons/probe rsps can be considered once post these operations.
-	 */
-	if (LIM_IS_STA_ROLE(session) &&
-	    (!wlan_cm_is_vdev_connected(session->vdev) ||
-	     mlo_mgr_is_link_switch_in_progress(session->vdev))) {
-		pe_debug_rl("vdev %d, drop beacon", session->vdev_id);
-		return;
-	}
-
 	/* Convert the beacon frame into a structure */
 	if (sir_convert_beacon_frame2_struct(mac_ctx, (uint8_t *) rx_pkt_info,
 		&bcn) != QDF_STATUS_SUCCESS) {
 		pe_err_rl("beacon parsing failed");
 		return;
 	}
-
-	session->dtimPeriod = bcn.tim.dtimPeriod;
 
 	sch_send_beacon_report(mac_ctx, &bcn, session);
 	__sch_beacon_process_for_session(mac_ctx, &bcn, rx_pkt_info, session);

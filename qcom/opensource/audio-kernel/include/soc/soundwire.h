@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _LINUX_SOUNDWIRE_H
@@ -270,11 +269,8 @@ struct swr_device {
 	struct device    dev;
 	u64 addr;
 	u8 group_id;
-	bool paging_support;
 	struct irq_domain *slave_irq;
 	bool slave_irq_pending;
-	u8 scp1_val; /*used for v1.2 or class devices*/
-	u8 scp2_val; /*used for v1.2 or class devices*/
 };
 
 static inline struct swr_device *to_swr_device(struct device *dev)

@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_ODL_H_
@@ -74,6 +73,5 @@ int ipa_odl_init(void);
 void ipa_odl_cleanup(void);
 void ipa3_odl_pipe_cleanup(bool is_ssr);
 int ipa3_odl_pipe_open(void);
-void ipa3_odl_pipe_open_from_ssr(void);
-void ipa3_odl_pipe_cleanup_from_ssr(void);
+
 #endif /* _IPA3_ODL_H_ */

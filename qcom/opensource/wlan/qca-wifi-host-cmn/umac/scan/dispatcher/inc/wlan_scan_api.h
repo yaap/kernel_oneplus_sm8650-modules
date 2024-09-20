@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -126,28 +126,11 @@ QDF_STATUS wlan_scan_cfg_get_passive_6g_dwelltime(struct wlan_objmgr_psoc *psoc,
  */
 void wlan_scan_cfg_get_min_dwelltime_6g(struct wlan_objmgr_psoc *psoc,
 					uint32_t *min_dwell_time_6ghz);
-
-/**
- * wlan_scan_cfg_set_scan_mode_6g() - API to set scan mode for 6 GHz
- * @psoc: pointer to psoc object
- * @scan_mode_6g: scan mode value for 6 GHz
- *
- * Return: QDF_STATUS
- */
-QDF_STATUS wlan_scan_cfg_set_scan_mode_6g(struct wlan_objmgr_psoc *psoc,
-					  enum scan_mode_6ghz scan_mode_6g);
 #else
 static inline
 void wlan_scan_cfg_get_min_dwelltime_6g(struct wlan_objmgr_psoc *psoc,
 					uint32_t *min_dwell_time_6ghz)
 {
-}
-
-static inline
-QDF_STATUS wlan_scan_cfg_set_scan_mode_6g(struct wlan_objmgr_psoc *psoc,
-					  enum scan_mode_6ghz scan_mode_6g)
-{
-	return QDF_STATUS_E_NOSUPPORT;
 }
 #endif
 
@@ -558,21 +541,4 @@ QDF_STATUS
 wlan_scan_get_mld_addr_by_link_addr(struct wlan_objmgr_pdev *pdev,
 				    struct qdf_mac_addr *link_addr,
 				    struct qdf_mac_addr *mld_mac_addr);
-
-/**
- * wlan_scan_get_aux_support() - get aux scan policy
- * @psoc: psoc object
- *
- * Set aux scan bits in scan_ctrl_ext_flag value depending on scan type.
- *
- * Return: true/false
- */
-bool wlan_scan_get_aux_support(struct wlan_objmgr_psoc *psoc);
-
-static inline bool
-wlan_scan_entries_contain_cmn_akm(struct scan_cache_entry *entry1,
-				  struct scan_cache_entry *entry2)
-{
-	return scm_scan_entries_contain_cmn_akm(entry1, entry2);
-}
 #endif

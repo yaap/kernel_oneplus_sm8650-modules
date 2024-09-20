@@ -3661,7 +3661,6 @@ static int dsi_panel_parse_topology(
 		goto parse_fail;
 	}
 
-parse_done:
 	if (!(priv_info->dsc_enabled || priv_info->vdc_enabled) !=
 			!topology[top_sel].num_enc) {
 		DSI_ERR("topology and compression info mismatch dsc:%d vdc:%d num_enc:%d\n",
@@ -3680,6 +3679,7 @@ parse_done:
 		topology[top_sel].num_enc,
 		topology[top_sel].num_intf);
 
+parse_done:
 	memcpy(&priv_info->topology, &topology[top_sel],
 		sizeof(struct msm_display_topology));
 parse_fail:
@@ -4580,8 +4580,16 @@ int dsi_panel_get_mode_count(struct dsi_panel *panel)
 	num_dfps_rates = !panel->dfps_caps.dfps_support ? 1 :
 					panel->dfps_caps.dfps_list_len;
 
-	/* Inflate num_of_modes by fps in dfps. */
+	/*
+	 * Inflate num_of_modes by fps in dfps.
+	 * Single command mode for video mode panels supporting
+	 * panel operating mode switch.
+	 */
 	num_video_modes = num_video_modes * num_dfps_rates;
+
+	if ((panel->panel_mode == DSI_OP_VIDEO_MODE) &&
+			(panel->panel_mode_switch_enabled))
+		num_cmd_modes  = 1;
 
 	panel->num_display_modes = num_video_modes + num_cmd_modes;
 

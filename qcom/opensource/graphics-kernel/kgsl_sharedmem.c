@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <asm/cacheflush.h>
@@ -11,7 +11,6 @@
 #include <linux/random.h>
 #include <linux/shmem_fs.h>
 #include <linux/sched/signal.h>
-#include <linux/version.h>
 
 #include "kgsl_device.h"
 #include "kgsl_pool.h"
@@ -711,32 +710,16 @@ static void _dma_cache_op(struct device *dev, struct page *page,
 	sg_set_page(&sgl, page, PAGE_SIZE, 0);
 	sg_dma_address(&sgl) = page_to_phys(page);
 
-	/*
-	 * APIs for Cache Maintenance Operations are updated in kernel
-	 * version 6.1. Prior to 6.1, dma_sync_sg_for_device() with
-	 * DMA_FROM_DEVICE as direction triggers cache invalidate and
-	 * clean whereas in kernel version 6.1, it triggers only cache
-	 * clean. Hence use dma_sync_sg_for_cpu() for cache invalidate
-	 * for kernel version 6.1 and above.
-	 */
-
 	switch (op) {
 	case KGSL_CACHE_OP_FLUSH:
 		dma_sync_sg_for_device(dev, &sgl, 1, DMA_TO_DEVICE);
-#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
-		dma_sync_sg_for_cpu(dev, &sgl, 1, DMA_FROM_DEVICE);
-#else
 		dma_sync_sg_for_device(dev, &sgl, 1, DMA_FROM_DEVICE);
-#endif
 		break;
 	case KGSL_CACHE_OP_CLEAN:
 		dma_sync_sg_for_device(dev, &sgl, 1, DMA_TO_DEVICE);
 		break;
 	case KGSL_CACHE_OP_INV:
 		dma_sync_sg_for_device(dev, &sgl, 1, DMA_FROM_DEVICE);
-#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
-		dma_sync_sg_for_cpu(dev, &sgl, 1, DMA_FROM_DEVICE);
-#endif
 		break;
 	}
 }
@@ -827,6 +810,7 @@ void kgsl_memdesc_init(struct kgsl_device *device,
 		memdesc->priv |= KGSL_MEMDESC_SECURE;
 
 	memdesc->flags = flags;
+	memdesc->kgsl_dev = device->dev;
 
 	/*
 	 * For io-coherent buffers don't set memdesc->dev, so that we skip DMA
@@ -1141,7 +1125,7 @@ static int kgsl_alloc_page(struct kgsl_memdesc *memdesc, int *page_size,
 	    (list_empty(&memdesc->shmem_page_list) && (pcount > 1)))
 		clear_highpage(page);
 
-	kgsl_page_sync(memdesc->dev, page, PAGE_SIZE, DMA_TO_DEVICE);
+	kgsl_page_sync(memdesc->kgsl_dev, page, PAGE_SIZE, DMA_TO_DEVICE);
 
 	*page_size = PAGE_SIZE;
 	*pages = page;
@@ -1204,7 +1188,7 @@ static int kgsl_alloc_page(struct kgsl_memdesc *memdesc, int *page_size,
 		return -ENOMEM;
 
 	return kgsl_pool_alloc_page(page_size, pages,
-			pages_len, align, memdesc->dev);
+			pages_len, align, memdesc->kgsl_dev);
 }
 
 static int kgsl_memdesc_file_setup(struct kgsl_memdesc *memdesc)
@@ -1241,21 +1225,7 @@ void kgsl_page_sync(struct device *dev, struct page *page,
 	sg_set_page(&sg, page, size, 0);
 	sg_dma_address(&sg) = page_to_phys(page);
 
-	/*
-	 * APIs for Cache Maintenance Operations are updated in kernel
-	 * version 6.1. Prior to 6.1, dma_sync_sg_for_device() with
-	 * DMA_BIDIRECTIONAL as direction triggers cache invalidate and
-	 * clean whereas in kernel version 6.1, it triggers only cache
-	 * clean. Hence use dma_sync_sg_for_cpu() for cache invalidate
-	 * for kernel version 6.1 and above.
-	 */
-
-	if ((dir == DMA_BIDIRECTIONAL) &&
-		KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE) {
-		dma_sync_sg_for_device(dev, &sg, 1, DMA_TO_DEVICE);
-		dma_sync_sg_for_cpu(dev, &sg, 1, DMA_FROM_DEVICE);
-	} else
-		dma_sync_sg_for_device(dev, &sg, 1, dir);
+	dma_sync_sg_for_device(dev, &sg, 1, dir);
 }
 
 void kgsl_zero_page(struct page *p, unsigned int order,
@@ -1637,7 +1607,7 @@ static int kgsl_system_alloc_pages(struct kgsl_memdesc *memdesc, struct page ***
 		}
 
 		/* Make sure the cache is clean */
-		kgsl_page_sync(memdesc->dev, local[i], PAGE_SIZE, DMA_TO_DEVICE);
+		kgsl_page_sync(memdesc->kgsl_dev, local[i], PAGE_SIZE, DMA_TO_DEVICE);
 	}
 
 	*pages = local;

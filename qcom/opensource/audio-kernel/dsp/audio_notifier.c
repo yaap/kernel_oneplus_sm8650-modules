@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2017, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -25,7 +25,6 @@
 #define NO_SERVICE -2
 #define UNINIT_SERVICE -1
 
-static bool service_early_down;
 static struct platform_device *adsp_private;
 
 struct adsp_notify_private {
@@ -247,10 +246,8 @@ static int audio_notifier_dereg_service(int service, int domain)
 		__func__, service_data[service][domain].name,
 		service_data[service][domain].handle);
 
-	mutex_lock(&notifier_mutex);
 	service_data[service][domain].state = AUDIO_NOTIFIER_SERVICE_DOWN;
 	service_data[service][domain].handle = NULL;
-	mutex_unlock(&notifier_mutex);
 done:
 	return ret;
 }
@@ -430,25 +427,12 @@ static int audio_notifier_convert_opcode(unsigned long opcode,
 
 	switch (opcode) {
 	case QCOM_SSR_BEFORE_SHUTDOWN:
-	case SERVREG_SERVICE_STATE_EARLY_DOWN:
+	case SERVREG_SERVICE_STATE_DOWN:
 		*notifier_opcode = AUDIO_NOTIFIER_SERVICE_DOWN;
-		if (opcode == SERVREG_SERVICE_STATE_EARLY_DOWN)
-			service_early_down = true;
 		break;
 	case QCOM_SSR_AFTER_POWERUP:
 	case SERVREG_SERVICE_STATE_UP:
 		*notifier_opcode = AUDIO_NOTIFIER_SERVICE_UP;
-		break;
-	case SERVREG_SERVICE_STATE_DOWN:
-		if (!service_early_down)
-			*notifier_opcode = AUDIO_NOTIFIER_SERVICE_DOWN;
-		else {
-			/* Reset service_early_down and nothing to do*/
-			service_early_down = false;
-			ret = -EINVAL;
-			pr_info("%s: Early down aleady handled %d\n", __func__,
-						service_early_down);
-		}
 		break;
 	default:
 		pr_debug("%s: Unused opcode 0x%lx\n", __func__, opcode);
@@ -475,16 +459,16 @@ static int audio_notifier_service_cb(unsigned long opcode,
 		__func__, service_data[service][domain].name, notifier_opcode);
 
 	mutex_lock(&notifier_mutex);
-	service_data[service][domain].state = notifier_opcode;
 
+	service_data[service][domain].state = notifier_opcode;
 	ret = srcu_notifier_call_chain(&service_data[service][domain].
 		client_nb_list, notifier_opcode, &data);
-	mutex_unlock(&notifier_mutex);
 	if (ret < 0)
 		pr_err_ratelimited("%s: srcu_notifier_call_chain returned %d, service %s, \
 			opcode 0x%lx\n", __func__, ret, service_data[service][domain].name,
 			notifier_opcode);
 
+	mutex_unlock(&notifier_mutex);
 
 	return NOTIFY_OK;
 }
@@ -522,6 +506,7 @@ int audio_notifier_deregister(char *client_name)
 		ret = -EINVAL;
 		goto done;
 	}
+	mutex_lock(&notifier_mutex);
 	list_for_each_safe(ptr, next, &client_list) {
 		client_data = list_entry(ptr, struct client_data, list);
 		if (!strcmp(client_name, client_data->client_name)) {
@@ -538,6 +523,7 @@ int audio_notifier_deregister(char *client_name)
 			kfree(client_data);
 		}
 	}
+	mutex_unlock(&notifier_mutex);
 done:
 	return ret;
 }

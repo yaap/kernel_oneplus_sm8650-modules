@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,7 +59,6 @@
 #include "wlan_dp_ucfg_api.h"
 #include "os_if_dp.h"
 #include "wlan_ipa_ucfg_api.h"
-#include "wlan_hdd_stats.h"
 
 #ifdef TX_MULTIQ_PER_AC
 #if defined(QCA_LL_TX_FLOW_CONTROL_V2) || defined(QCA_LL_PDEV_TX_FLOW_CONTROL)
@@ -519,7 +518,6 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 		return;
 
 	osif_dp_mark_pkt_type(skb);
-	hdd_tx_latency_record_ingress_ts(adapter, skb);
 
 	/* Get TL AC corresponding to Qdisc queue index/AC. */
 	ac = hdd_qdisc_ac_to_tl_ac[skb->queue_mapping];
@@ -1064,8 +1062,8 @@ void wlan_hdd_netif_queue_control(struct hdd_adapter *adapter,
 	if (hdd_adapter_is_link_adapter(adapter))
 		return;
 
-	hdd_debug_rl("netif_control's vdev_id: %d, action: %d, reason: %d",
-		     adapter->deflink->vdev_id, action, reason);
+	hdd_debug("netif_control's vdev_id: %d, action: %d, reason: %d",
+		  adapter->deflink->vdev_id, action, reason);
 
 	switch (action) {
 

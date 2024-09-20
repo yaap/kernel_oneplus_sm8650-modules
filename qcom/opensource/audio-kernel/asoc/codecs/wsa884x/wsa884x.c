@@ -227,10 +227,8 @@ static int wsa884x_handle_post_irq(void *data)
 	if (!wsa884x->pa_mute) {
 		do {
 			wsa884x->pa_mute = 0;
-			if (test_bit(SPKR_STATUS, &wsa884x->status_mask))
-				regmap_update_bits(wsa884x->regmap,
-					REG_FIELD_VALUE(PA_FSM_EN, GLOBAL_PA_EN, 0x01));
-
+			regmap_update_bits(wsa884x->regmap,
+				REG_FIELD_VALUE(PA_FSM_EN, GLOBAL_PA_EN, 0x01));
 			usleep_range(1000, 1100);
 
 			regmap_read(wsa884x->regmap, WSA884X_INTR_STATUS0, &sts1);
