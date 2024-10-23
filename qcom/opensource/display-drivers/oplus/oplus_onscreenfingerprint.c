@@ -1789,20 +1789,20 @@ bool oplus_ofp_backlight_filter(void *dsi_panel, unsigned int bl_level)
 		}
 	} else if (p_oplus_ofp_params->aod_unlocking && p_oplus_ofp_params->fp_press && bl_level) {
 		OFP_INFO("aod unlocking is true, filter backlight %u setting\n", bl_level);
-		need_filter_backlight = true;
+		need_filter_backlight = false;
 	} else if (!p_oplus_ofp_params->aod_unlocking && !p_oplus_ofp_params->doze_active
 				&& (hbm_enable & OPLUS_OFP_PROPERTY_DIM_LAYER) && bl_level
 					&& panel->cur_mode->priv_info->oplus_ofp_need_to_separate_backlight
 						&& oplus_last_backlight) {
 		/* backlight will affect hbm on time in some panel, need to separate the 51 cmd for stable hbm on time */
 		OFP_INFO("dim layer exist, filter backlight %u setting in advance\n", bl_level);
-		need_filter_backlight = true;
+		need_filter_backlight = false;
 	} else if (oplus_ofp_get_aod_state()) {
 		OFP_INFO("aod state is true, filter backlight %u setting\n", bl_level);
-		need_filter_backlight = true;
+		need_filter_backlight = false;
 	} else if (!oplus_ofp_get_aod_state() && (hbm_enable & OPLUS_OFP_PROPERTY_AOD_LAYER) && bl_level) {
 		OFP_INFO("aod layer exist, filter backlight %u setting\n", bl_level);
-		need_filter_backlight = true;
+		need_filter_backlight = false;
 	} else if (p_oplus_ofp_params->dimlayer_hbm || hbm_enable) {
 		OFP_INFO("backlight lvl:%u\n", bl_level);
 	}
@@ -2309,6 +2309,7 @@ void oplus_ofp_aod_off_set_work_handler(struct work_struct *work_item)
 	return;
 }
 
+/*
 static int oplus_ofp_aod_off_set(void)
 {
 	struct oplus_ofp_params *p_oplus_ofp_params = oplus_ofp_get_params(oplus_ofp_display_id);
@@ -2350,6 +2351,7 @@ static int oplus_ofp_aod_off_set(void)
 
 	return 0;
 }
+*/
 
 /*
  touchpanel notify touchdown event when fingerprint is pressed,
@@ -2376,7 +2378,8 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 			if (tp_event->touch_state == 1) {
 				OFP_INFO("tp touchdown\n");
 				/* send aod off cmds in doze mode to speed up fingerprint unlocking */
-				oplus_ofp_aod_off_set();
+				//oplus_ofp_aod_off_set();
+				return NOTIFY_OK;
 			}
 		}
 	}
@@ -3090,7 +3093,7 @@ int oplus_ofp_notify_fp_press(void *buf)
 	if (p_oplus_ofp_params->fp_press) {
 		/* send aod off cmds in doze mode to speed up fingerprint unlocking */
 		OFP_DEBUG("fp press is true\n");
-		oplus_ofp_aod_off_set();
+		//oplus_ofp_aod_off_set();
 	}
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_notify_fp_press");
@@ -3135,7 +3138,7 @@ ssize_t oplus_ofp_notify_fp_press_attr(struct kobject *obj,
 	if (p_oplus_ofp_params->fp_press) {
 		/* send aod off cmds in doze mode to speed up fingerprint unlocking */
 		OFP_DEBUG("fp press is true\n");
-		oplus_ofp_aod_off_set();
+		//oplus_ofp_aod_off_set();
 	}
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_notify_fp_press_attr");
