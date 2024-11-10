@@ -565,7 +565,7 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	struct sde_encoder_phys_cmd_te_timestamp *te_timestamp;
 	unsigned long lock_flags;
 	u32 fence_ready = 0;
-#if defined(OPLUS_FEATURE_DISPLAY) || defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+#if defined(OPLUS_FEATURE_DISPLAY)
 	struct sde_connector *conn;
 #endif
 

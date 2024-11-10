@@ -81,10 +81,10 @@ ifeq ($(OPLUS_FEATURE_DISPLAY), y)
 endif
 #endif /* OPLUS_FEATURE_DISPLAY */
 
-ifeq (${CONFIG_PXLW_IRIS},y)
-PWATOP=$(DISPLAY_ROOT)/msm/iris
-LINUX_INC += -I$(PWATOP)/
-endif
+#ifeq (${CONFIG_PXLW_IRIS},y)
+#PWATOP=$(DISPLAY_ROOT)/msm/iris
+#LINUX_INC += -I$(PWATOP)/
+#endif
 
 CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 	-DANI_LITTLE_BIT_ENDIAN \
@@ -287,10 +287,10 @@ msm_drm-$(CONFIG_DRM_MSM_DSI) += dsi/dsi_phy.o \
 				 dsi/dsi_clk_manager.o \
 				 dsi/dsi_display_test.o
 
-ifeq (${CONFIG_PXLW_IRIS},y)
-$(warning The feature of pixelworks iris will be added to the kernel)
-include $(PWATOP)/Kbuild
-endif
+#ifeq (${CONFIG_PXLW_IRIS},y)
+#$(warning The feature of pixelworks iris will be added to the kernel)
+#include $(PWATOP)/Kbuild
+#endif
 
 msm_drm-$(CONFIG_DSI_PARSER) += dsi/dsi_parser.o
 
