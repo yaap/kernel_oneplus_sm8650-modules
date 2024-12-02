@@ -12,11 +12,11 @@
 #include "cam_presil_hw_access.h"
 #include "cam_trace.h"
 
-extern unsigned long long debug_mdl;
-extern unsigned int debug_type;
-extern unsigned int debug_priority;
-extern unsigned int debug_drv;
-extern unsigned int debug_bypass_drivers;
+static unsigned long long debug_mdl;
+static unsigned int debug_type;
+static unsigned int debug_priority;
+static unsigned int debug_drv;
+static unsigned int debug_bypass_drivers;
 
 #define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
 
@@ -215,8 +215,10 @@ enum cam_log_print_type {
  * @fmt:       Formatting string
  */
 
-void cam_print_log(int type, int module, int tag, const char *func,
-	int line, const char *fmt, ...);
+static inline void cam_print_log(int type, int module, int tag, const char *func,
+	int line, const char *fmt, ...)
+{
+}
 
 #define __CAM_LOG(type, tag, module_id, fmt, args...)                               \
 ({                                                                                  \
@@ -322,8 +324,10 @@ __CAM_LOG(CAM_PRINT_TRACE, CAM_TYPE_TRACE, __module, fmt, ##args)
  * @fmt:           Formatted string which needs to be print in log
  * @args:          Arguments which needs to be print in log
  */
-void cam_print_to_buffer(char *buf, const size_t buf_size, size_t *len, unsigned int tag,
-	unsigned long long module_id, const char *fmt, ...);
+static inline void cam_print_to_buffer(char *buf, const size_t buf_size, size_t *len, unsigned int tag,
+	unsigned long long module_id, const char *fmt, ...)
+{
+}
 
 /**
  * CAM_[ERR/WARN/INFO]_BUF
@@ -391,28 +395,38 @@ struct camera_debug_settings {
  * @brief : API to get camera debug settings
  * @return const struct camera_debug_settings pointer.
  */
-const struct camera_debug_settings *cam_debug_get_settings(void);
+static inline const struct camera_debug_settings *cam_debug_get_settings(void)
+{
+	return NULL;
+}
 
 /**
  * @brief : API to parse and store input from sysfs debug node
  * @return Number of bytes read from buffer on success, or -EPERM on error.
  */
-ssize_t cam_debug_sysfs_node_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count);
+static inline ssize_t cam_debug_sysfs_node_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	return 0;
+}
 
 /**
  * cam_debugfs_init()
  *
  * @brief: create camera debugfs root folder
  */
-void cam_debugfs_init(void);
+static inline void cam_debugfs_init(void)
+{
+}
 
 /**
  * cam_debugfs_deinit()
  *
  * @brief: remove camera debugfs root folder
  */
-void cam_debugfs_deinit(void);
+static inline void cam_debugfs_deinit(void)
+{
+}
 
 /**
  * cam_debugfs_create_subdir()
@@ -424,7 +438,10 @@ void cam_debugfs_deinit(void);
  *
  * @return: 0 on success, negative on failure
  */
-int cam_debugfs_create_subdir(const char *name, struct dentry **subdir);
+static inline int cam_debugfs_create_subdir(const char *name, struct dentry **subdir)
+{
+	return 0;
+}
 
 /**
  * cam_debugfs_lookup_subdir()
@@ -436,7 +453,10 @@ int cam_debugfs_create_subdir(const char *name, struct dentry **subdir);
  *
  * @return: 0 on success, negative on failure
  */
-int cam_debugfs_lookup_subdir(const char *name, struct dentry **subdir);
+static inline int cam_debugfs_lookup_subdir(const char *name, struct dentry **subdir)
+{
+	return 0;
+}
 
 /**
  * cam_debugfs_available()
