@@ -23,6 +23,7 @@
  *  Trace, logging, and debugging definitions and APIs
  */
 
+#ifdef WLAN_DEBUG
 /* Include Files */
 #include "qdf_str.h"
 #include <qdf_trace.h>
@@ -4530,4 +4531,5 @@ void __qdf_minidump_remove(void *addr, size_t size, const char *name)
 }
 
 qdf_export_symbol(__qdf_minidump_remove);
+#endif
 #endif
