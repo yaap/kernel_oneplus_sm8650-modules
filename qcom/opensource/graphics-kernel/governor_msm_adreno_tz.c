@@ -7,7 +7,6 @@
 #include <linux/devfreq.h>
 #include <linux/dma-mapping.h>
 #include <linux/math64.h>
-#include <linux/of_platform.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -506,10 +505,6 @@ static int tz_suspend(struct devfreq *devfreq)
 static int tz_handler(struct devfreq *devfreq, unsigned int event, void *data)
 {
 	int result;
-	struct device_node *node = devfreq->dev.parent->of_node;
-
-	if (!of_device_is_compatible(node, "qcom,kgsl-3d0"))
-		return -EINVAL;
 
 	switch (event) {
 	case DEVFREQ_GOV_START:
