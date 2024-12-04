@@ -221,6 +221,44 @@ struct sde_dbg_reglog {
 extern struct sde_dbg_reglog *sde_dbg_base_reglog;
 
 /**
+ * sde_evtlog_log - log an entry into the event log.
+ *	log collection may be enabled/disabled entirely via debugfs
+ *	log area collection may be filtered by user provided flags via debugfs.
+ * @evtlog:	pointer to evtlog
+ * @name:	function name of call site
+ * @line:	line number of call site
+ * @flag:	log area filter flag checked against user's debugfs request
+ * Returns:	none
+ */
+static inline void sde_evtlog_log(struct sde_dbg_evtlog *evtlog, const char *name, int line,
+		int flag, ...)
+{
+}
+
+/**
+ * sde_reglog_log - log an entry into the reg log.
+ *      log collection may be enabled/disabled entirely via debugfs
+ *      log area collection may be filtered by user provided flags via debugfs.
+ * @reglog:     pointer to evtlog
+ * Returns:     none
+ */
+static inline void sde_reglog_log(u8 blk_id, u32 val, u32 addr)
+{
+}
+
+/**
+ * sde_evtlog_is_enabled - check whether log collection is enabled for given
+ *	event log and log area flag
+ * @evtlog:	pointer to evtlog
+ * @flag:	log area filter flag
+ * Returns:	none
+ */
+static inline bool sde_evtlog_is_enabled(struct sde_dbg_evtlog *evtlog, u32 flag)
+{
+	return false;
+}
+
+/**
  * SDE_REG_LOG - Write register write to the register log
  */
 #define SDE_REG_LOG(blk_id, val, addr) sde_reglog_log(blk_id, val, addr)
@@ -336,28 +374,6 @@ void sde_evtlog_destroy(struct sde_dbg_evtlog *evtlog);
 void sde_reglog_destroy(struct sde_dbg_reglog *reglog);
 
 /**
- * sde_evtlog_log - log an entry into the event log.
- *	log collection may be enabled/disabled entirely via debugfs
- *	log area collection may be filtered by user provided flags via debugfs.
- * @evtlog:	pointer to evtlog
- * @name:	function name of call site
- * @line:	line number of call site
- * @flag:	log area filter flag checked against user's debugfs request
- * Returns:	none
- */
-void sde_evtlog_log(struct sde_dbg_evtlog *evtlog, const char *name, int line,
-		int flag, ...);
-
-/**
- * sde_reglog_log - log an entry into the reg log.
- *      log collection may be enabled/disabled entirely via debugfs
- *      log area collection may be filtered by user provided flags via debugfs.
- * @reglog:     pointer to evtlog
- * Returns:     none
- */
-void sde_reglog_log(u8 blk_id, u32 val, u32 addr);
-
-/**
  * sde_evtlog_dump_to_buffer - parse one line of evtlog to a given buffer
  * @evtlog:	pointer to evtlog
  * @evtlog_buf: buffer to store evtlog
@@ -376,15 +392,6 @@ ssize_t sde_evtlog_dump_to_buffer(struct sde_dbg_evtlog *evtlog,
  * Returns:	log size
  */
 u32 sde_evtlog_count(struct sde_dbg_evtlog *evtlog);
-
-/**
- * sde_evtlog_is_enabled - check whether log collection is enabled for given
- *	event log and log area flag
- * @evtlog:	pointer to evtlog
- * @flag:	log area filter flag
- * Returns:	none
- */
-bool sde_evtlog_is_enabled(struct sde_dbg_evtlog *evtlog, u32 flag);
 
 /**
  * sde_evtlog_dump_to_buffer - print content of event log to the given buffer

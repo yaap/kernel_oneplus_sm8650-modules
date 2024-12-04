@@ -24,7 +24,7 @@ struct sde_evtlog_filter {
 	struct list_head list;
 	char filter[SDE_EVTLOG_FILTER_STRSIZE];
 };
-
+#if 0
 static bool _sde_evtlog_is_filtered_no_lock(
 		struct sde_dbg_evtlog *evtlog, const char *str)
 {
@@ -118,7 +118,7 @@ void sde_reglog_log(u8 blk_id, u32 val, u32 addr)
 	log->pid = current->pid;
 	reglog->last++;
 }
-
+#endif
 /* always dump the last entries which are not dumped yet */
 static bool _sde_evtlog_dump_calc_range(struct sde_dbg_evtlog *evtlog,
 		bool update_last_entry, bool full_dump)
