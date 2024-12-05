@@ -12107,7 +12107,7 @@ int ipa3_plat_drv_probe(struct platform_device *pdev_p)
 		ipa3_res.transport_mem_size,
 		ipa3_get_gsi_ver(ipa3_res.ipa_hw_type)) != 0) {
 		IPAERR("Allocation of gsi base failed\n");
-		return -EFAULT;
+		return -EPROBE_DEFER;
 	}
 
 	/* Get GSI version */
