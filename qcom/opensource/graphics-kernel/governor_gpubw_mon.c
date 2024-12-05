@@ -117,10 +117,10 @@ static u32 generate_hint(struct devfreq_msm_adreno_tz_data *priv, int buslevel,
 
 	/* Increase BW vote to avoid starving GPU for BW if required */
 	if (priv->fast_bus_hint && minfreq == freq) {
-		if (wait_active_percent > 95)
+		if (wait_active_percent > 40)
 			return BUSMON_FLAG_SUPER_FAST_HINT;
 
-		if (wait_active_percent > 80)
+		if (wait_active_percent > 20)
 			return BUSMON_FLAG_FAST_HINT;
 	}
 
