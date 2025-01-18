@@ -1,0 +1,1003 @@
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:		ctx_pool->res_list_ife_out = kzalloc((max_ife_out_res *
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:		if (!ctx_pool->res_list_ife_out) {
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:			ctx_pool->res_list_sfe_out = kzalloc((max_sfe_out_res *
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:			if (!ctx_pool->res_list_sfe_out) {
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:			res_list_ife_out = &ctx_pool->res_list_ife_out[j];
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_ife_hw_mgr.c:			res_list_sfe_out = &ctx_pool->res_list_sfe_out[j];
+qcom/opensource/camera-kernel/drivers/cam_isp/isp_hw_mgr/cam_tfe_hw_mgr.c:			res_list_tfe_out = &ctx_pool->res_list_tfe_out[j];
+qcom/opensource/dataipa/drivers/platform/msm/ipa/ipa_v3/ipa.c:                "qcom,ipa-gen-rx-cmn-page-pool-sz-factor",
+qcom/opensource/dataipa/drivers/platform/msm/ipa/ipa_v3/ipa.c:                "qcom,ipa-gen-rx-cmn-temp-pool-sz-factor",
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:	if (!list_empty(&pool->free_list)) {
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:		frag_desc = list_first_entry(&pool->free_list,
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:		pool->pool_size++;
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:	list_add_tail(&frag_desc->list, &pool->free_list);
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:	list_for_each_entry_safe(frag_desc, tmp, &pool->free_list, list) {
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:		pool->pool_size--;
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:	INIT_LIST_HEAD(&pool->free_list);
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:		list_add_tail(&frag_desc->list, &pool->free_list);
+qcom/opensource/datarmnet/core/rmnet_descriptor.c:		pool->pool_size++;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	new_page = pool->mempool ? mempool_alloc(pool->mempool, gfp_mask) :
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_lock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	node = &pool->pool_rbtree.rb_node;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	rb_insert_color(&new_page->node, &pool->pool_rbtree);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->page_count++;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	node = rb_first(&pool->pool_rbtree);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	rb_erase(&entry->node, &pool->pool_rbtree);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	if (pool->mempool)
+qcom/opensource/graphics-kernel/kgsl_pool.c:		mempool_free(entry, pool->mempool);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->page_count--;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->pool_rbtree = RB_ROOT;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	mempool_destroy(pool->mempool);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_lock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	list_add_tail(&p->lru, &pool->page_list);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->page_count++;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	p = list_first_entry_or_null(&pool->page_list, struct page, lru);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		pool->page_count--;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	INIT_LIST_HEAD(&pool->page_list);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		__free_pages(p, pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		__free_pages(p, pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:				(1 << pool->pool_order));
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_lock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:				-(1 << pool->pool_order));
+qcom/opensource/graphics-kernel/kgsl_pool.c:		spin_lock(&kgsl_pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		total += kgsl_pool->page_count * (1 << kgsl_pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		spin_unlock(&kgsl_pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		spin_lock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		if (pool->page_count > pool->reserved_pages)
+qcom/opensource/graphics-kernel/kgsl_pool.c:			total += (pool->page_count - pool->reserved_pages) *
+qcom/opensource/graphics-kernel/kgsl_pool.c:					(1 << pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_lock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	if (pool->page_count <= pool->reserved_pages) {
+qcom/opensource/graphics-kernel/kgsl_pool.c:		spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_unlock(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:				-(1 << pool->pool_order));
+qcom/opensource/graphics-kernel/kgsl_pool.c:	num_pages = (num_pages + (1 << pool->pool_order) - 1) >>
+qcom/opensource/graphics-kernel/kgsl_pool.c:				pool->pool_order;
+qcom/opensource/graphics-kernel/kgsl_pool.c:		__free_pages(page, pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		pcount += (1 << pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		if (pool != NULL  && (pool->page_count < pool->max_pages)) {
+qcom/opensource/graphics-kernel/kgsl_pool.c:	*val = (u64) pool->reserved_pages;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	*val = (u64) pool->page_count;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	of_property_read_u32(node, "qcom,mempool-reserved", &reserved);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	reserved = min_t(u32, reserved, pool->max_pages);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->reserved_pages = min_t(u32, reserved, 4096);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->mempool = mempool_create(pool->reserved_pages,
+qcom/opensource/graphics-kernel/kgsl_pool.c:	for (i = 0; i < pool->reserved_pages; i++) {
+qcom/opensource/graphics-kernel/kgsl_pool.c:		gfp_t gfp_mask = kgsl_gfp_mask(pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:		page = alloc_pages(gfp_mask, pool->pool_order);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	if (of_property_read_u32(node, "qcom,mempool-page-size", &size))
+qcom/opensource/graphics-kernel/kgsl_pool.c:	pool->pool_order = order;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	if (of_property_read_u32(node, "qcom,mempool-max-pages", &pool->max_pages))
+qcom/opensource/graphics-kernel/kgsl_pool.c:		pool->max_pages = UINT_MAX;
+qcom/opensource/graphics-kernel/kgsl_pool.c:	spin_lock_init(&pool->list_lock);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	snprintf(name, sizeof(name), "%d_order", (pool->pool_order));
+qcom/opensource/graphics-kernel/kgsl_pool.c:	kgsl_pool_init_debugfs(pool->debug_root, name, (void *) pool);
+qcom/opensource/graphics-kernel/kgsl_pool.c:	of_property_read_u32(node, "qcom,mempool-max-pages",
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	if (!list_empty(&pool->free_pool)) {
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:		hdr = list_first_entry(&pool->free_pool,
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:		memset((char *)hdr->buf, 0, pool->size);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:		list_add_tail(&hdr->list, &pool->busy_pool);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	if (msm_vidc_vmem_alloc(pool->size + sizeof(struct msm_memory_alloc_header),
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	list_add_tail(&hdr->list, &pool->busy_pool);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:			pool->name, vidc_buf);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	list_add_tail(&hdr->list, &pool->free_pool);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	if (!list_empty(&pool->busy_pool))
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:			__func__, pool->name);
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	list_for_each_entry_safe(hdr, dummy, &pool->free_pool, list) {
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:	list_for_each_entry_safe(hdr, dummy, &pool->busy_pool, list) {
+qcom/opensource/video-driver/driver/vidc/src/msm_vidc_memory.c:		__func__, pool->name, fcount, bcount);
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{8 * 1024, 16, "cnss-pool-8k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{16 * 1024, 16, "cnss-pool-16k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{32 * 1024, 22, "cnss-pool-32k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{64 * 1024, 38, "cnss-pool-64k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{128 * 1024, 10, "cnss-pool-128k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{8 * 1024, 2, "cnss-pool-8k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{16 * 1024, 10, "cnss-pool-16k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{32 * 1024, 8, "cnss-pool-32k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{64 * 1024, 4, "cnss-pool-64k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{128 * 1024, 2, "cnss-pool-128k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{8 * 1024, 2, "cnss-pool-8k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{16 * 1024, 8, "cnss-pool-16k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{32 * 1024, 11, "cnss-pool-32k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{64 * 1024, 15, "cnss-pool-64k", NULL, NULL, NULL},
+qcom/opensource/wlan/platform/cnss_prealloc/cnss_prealloc.c:	{128 * 1024, 4, "cnss-pool-128k", NULL, NULL, NULL},
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	if (!rx_desc_pool->pool_size) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	rx_desc_elem = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	if (!rx_desc_pool->pool_size) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	for (i = 0; i <= rx_desc_pool->pool_size - 1; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:		if (i == rx_desc_pool->pool_size - 1)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:			rx_desc_pool->array[i].next = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:			rx_desc_pool->array[i].next =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:				&rx_desc_pool->array[i + 1];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:					 &rx_desc_pool->array[i].rx_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:		rx_desc_pool->array[i].rx_desc.cookie =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:		rx_desc_pool->array[i].rx_desc.pool_id = pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:		rx_desc_pool->array[i].rx_desc.in_use = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:		rx_desc_pool->array[i].rx_desc.chip_id =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	if (rx_desc_pool->desc_type == QDF_DP_RX_DESC_BUF_TYPE) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_rx.c:	if (rx_desc_pool->desc_type == QDF_DP_RX_DESC_BUF_TYPE)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/be/dp_be_tx.c:	tx_desc = tx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	qdf_spin_lock_bh(&rx_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	num_desc = rx_pool->pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	num_desc_per_page = rx_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:		if (qdf_unlikely(!(rx_pool->desc_pages.cacheable_pages)))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:						       rx_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	qdf_spin_unlock_bh(&rx_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	qdf_spin_lock_bh(&rx_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	for (i = 0; i < rx_pool->pool_size; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:		if ((!(rx_pool->array[i].rx_desc.in_use)) ||
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:		    rx_pool->array[i].rx_desc.unmapped)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:		nbuf = rx_pool->array[i].rx_desc.nbuf;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:		__dp_ipa_handle_buf_smmu_mapping(soc, nbuf, rx_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_ipa.c:	qdf_spin_unlock_bh(&rx_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c:		if (!(tx_desc_pool->pool_size) ||
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c:		    !(tx_desc_pool->desc_pages.cacheable_pages))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c:		num_desc = tx_desc_pool->pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c:			tx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c:			if (qdf_unlikely(!(tx_desc_pool->
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:			qdf_frag_alloc(NULL, rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:			       rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					  rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					       rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					     rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					       rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					     rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					       rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					     rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:				     rx_desc->cookie, rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:		uint32_t rx_sw_desc_num = rx_desc_pool->pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:		    !rx_desc_pool->array)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:				(struct dp_rx_desc *)&rx_desc_pool->array[i];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:		if (qdf_unlikely(rx_desc_pool->rx_mon_dest_frag_enable))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:		if (qdf_unlikely(rx_desc_pool->rx_mon_dest_frag_enable))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:						rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	qdf_assert_always(pkt_len <= rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:		qdf_nbuf_alloc(dp_soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:			       rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:			if (qdf_unlikely(rx_desc_pool->rx_mon_dest_frag_enable))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:			if (qdf_unlikely(rx_desc_pool->rx_mon_dest_frag_enable))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:						     rx_desc_pool->owner);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:						rx_desc_pool->buf_size, true,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:					  rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->rx_mon_dest_frag_enable = is_mon_dest_desc;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->rx_mon_dest_frag_enable = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->desc_type = QDF_DP_RX_DESC_BUF_TYPE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->owner = dp_rx_get_rx_bm_id(soc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->buf_size = RX_DATA_BUFFER_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.c:	rx_desc_pool->buf_alignment = RX_DATA_BUFFER_ALIGNMENT;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:		(rx_desc_pool->desc_pages.cacheable_pages[page_id] +
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:		rx_desc_pool->elem_size * offset);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:		(rx_desc_pool->desc_pages.cacheable_pages[page_id] +
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:		rx_desc_pool->elem_size * offset);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	if (qdf_unlikely(index >= rx_desc_pool->pool_size))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	return &rx_desc_pool->array[index].rx_desc;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	if (page_id >= rx_desc_pool->desc_pages.num_pages ||
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	    offset >= rx_desc_pool->desc_pages.num_element_per_page)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:						     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:					    rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:					    rx_desc_pool->buf_alignment,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:						 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:					     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:			       (void *)(nbuf->data + rx_desc_pool->buf_size));
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:			       (void *)(nbuf->data + rx_desc_pool->buf_size));
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	return qdf_nbuf_alloc_simple(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:				     rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:			    rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:					  rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:				     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:			    rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:					  rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:				     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:	return qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx.h:			      rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (!bufpool->is_initialized || !pdev)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		if (qdf_likely(qdf_nbuf_queue_head_qlen(&bufpool->emerg_nbuf_q) >=
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		refill_nbuf = qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:					     rx_desc_pool->buf_alignment,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		qdf_nbuf_queue_head_enqueue_tail(&bufpool->emerg_nbuf_q,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (qdf_likely(qdf_nbuf_queue_head_qlen(&buff_pool->emerg_nbuf_q) >=
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	    !buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		       rx_desc_pool->buf_alignment);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	qdf_nbuf_queue_head_enqueue_tail(&buff_pool->emerg_nbuf_q, nbuf);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (!buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	head = buff_pool->head;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	tail = buff_pool->tail;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		total_num_refill = (buff_pool->max_bufq_len - head +
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:			nbuf = qdf_nbuf_alloc(dev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:					      rx_desc_pool->buf_alignment,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:							 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:					  rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:			buff_pool->buf_elem[head++] = nbuf;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:			head &= (buff_pool->max_bufq_len - 1);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:			buff_pool->head = head;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	DP_STATS_INC(buff_pool->dp_pdev,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	head = buff_pool->head;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	tail = buff_pool->tail;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	nbuf = buff_pool->buf_elem[tail++];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	tail &= (buff_pool->max_bufq_len - 1);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->tail = tail;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	nbuf = qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:			      rx_desc_pool->buf_alignment,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (!buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->nbuf_fail_cnt = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->nbuf_fail_cnt++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (buff_pool->nbuf_fail_cnt >= DP_RX_BUFFER_POOL_ALLOC_THRES ||
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		nbuf = qdf_nbuf_queue_head_dequeue(&buff_pool->emerg_nbuf_q);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:						 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:					  rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->is_initialized = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->max_bufq_len =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->dp_pdev = dp_get_pdev_for_lmac_id(soc, 0);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->tail = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	for (i = 0; i < (buff_pool->max_bufq_len - 1); i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		nbuf = qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:				      rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:						 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:				  rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->buf_elem[head] = nbuf;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->head =  head;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->max_bufq_len,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->head);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->is_initialized = true;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		buff_pool->is_initialized = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	qdf_nbuf_queue_head_init(&buff_pool->emerg_nbuf_q);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		nbuf = qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:				      rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		qdf_nbuf_queue_head_enqueue_tail(&buff_pool->emerg_nbuf_q,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		qdf_nbuf_queue_head_qlen(&buff_pool->emerg_nbuf_q));
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->is_initialized = true;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (!buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:				    rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:					     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		count, buff_pool->head, buff_pool->tail);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->is_initialized = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	if (!buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:		qdf_nbuf_queue_head_qlen(&buff_pool->emerg_nbuf_q));
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	while ((nbuf = qdf_nbuf_queue_head_dequeue(&buff_pool->emerg_nbuf_q)))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.c:	buff_pool->is_initialized = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:	uint16_t head = buff_pool->head;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:	uint16_t tail = buff_pool->tail;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:	if (!buff_pool->is_initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:		num_refill = (buff_pool->max_bufq_len - head + tail - 1);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:	return qdf_nbuf_alloc(soc->osdev, rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:			      rx_desc_pool->buf_alignment, FALSE);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:					    rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_buffer_pool.h:			  rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_defrag.c:					 rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_defrag.c:					  rx_desc_pool->buf_size, true,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_defrag.c:			  QDF_NBUF_CB_PADDR(head), rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (!rx_desc_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		       rx_desc_pool->elem_size, rx_desc_pool->pool_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->elem_size = desc_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->desc_pages.page_size = DP_BLOCKMEM_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	dp_desc_multi_pages_mem_alloc(soc, rx_desc_pool->desc_type,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				      &rx_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (!rx_desc_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				    &rx_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	num_desc_per_page = rx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_elem = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_create(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->pool_size = pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->freelist = (union dp_rx_desc_list_elem_t *)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				  *rx_desc_pool->desc_pages.cacheable_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	return rx_desc_pool->desc_pages.cacheable_pages[page_id] +
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		rx_desc_pool->elem_size * offset;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (qdf_unlikely(!(rx_desc_pool->desc_pages.cacheable_pages))) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	num_desc = rx_desc_pool->pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	num_desc_per_page = rx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				rx_desc_pool->buf_size, false);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_destroy(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				rx_desc_pool->buf_size, is_mon_pool);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (qdf_unlikely(!(rx_desc_pool->desc_pages.cacheable_pages)))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	dp_desc_multi_pages_mem_free(soc, rx_desc_pool->desc_type,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				     &rx_desc_pool->desc_pages, 0, true);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->rx_mon_dest_frag_enable = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_destroy(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (!rx_desc_pool->array) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->array = qdf_mem_malloc(pool_size *
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	if (!(rx_desc_pool->array)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	for (i = 0; i <= rx_desc_pool->pool_size - 1; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		if (i == rx_desc_pool->pool_size - 1)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			rx_desc_pool->array[i].next = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			rx_desc_pool->array[i].next =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				&rx_desc_pool->array[i + 1];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		rx_desc_pool->array[i].rx_desc.cookie = i | (pool_id << 18);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		rx_desc_pool->array[i].rx_desc.pool_id = pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		rx_desc_pool->array[i].rx_desc.in_use = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_create(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->pool_size = pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->freelist = &rx_desc_pool->array[0];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_mem_zero(rx_desc_pool->freelist, rx_desc_pool->pool_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	for (i = 0; i < rx_desc_pool->pool_size; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		if (rx_desc_pool->array[i].rx_desc.in_use) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			nbuf = rx_desc_pool->array[i].rx_desc.nbuf;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			if (!(rx_desc_pool->array[i].rx_desc.unmapped)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				rx_desc_pool->array[i].rx_desc.unmapped = 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_mem_free(rx_desc_pool->array);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_destroy(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	for (i = 0; i < rx_desc_pool->pool_size; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		dp_rx_desc_free_dbg_info(&rx_desc_pool->array[i].rx_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		if (rx_desc_pool->array[i].rx_desc.in_use) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			nbuf = rx_desc_pool->array[i].rx_desc.nbuf;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			if (!(rx_desc_pool->array[i].rx_desc.unmapped)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				rx_desc_pool->array[i].rx_desc.unmapped = 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	for (i = 0; i < rx_desc_pool->pool_size; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		if (rx_desc_pool->array[i].rx_desc.in_use) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			paddr = rx_desc_pool->array[i].rx_desc.paddr_buf_start;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			vaddr = rx_desc_pool->array[i].rx_desc.rx_buf_start;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			dp_rx_desc_free_dbg_info(&rx_desc_pool->array[i].rx_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			if (!(rx_desc_pool->array[i].rx_desc.unmapped)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:						   rx_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:				rx_desc_pool->array[i].rx_desc.unmapped = 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_mem_free(rx_desc_pool->array);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->rx_mon_dest_frag_enable = false;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spinlock_destroy(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	*desc_list = *tail = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		if (qdf_unlikely(!rx_desc_pool->freelist)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:			qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		*tail = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:		rx_desc_pool->freelist = rx_desc_pool->freelist->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	temp_list = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	rx_desc_pool->freelist = *local_desc_list;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_rx_desc.c:	qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:		if (!(tx_desc_pool->pool_size) ||
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:		    !(tx_desc_pool->desc_pages.cacheable_pages))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:			qdf_spin_lock_bh(&tx_desc_pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:		num_desc = tx_desc_pool->pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:			tx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:			if (qdf_unlikely(!(tx_desc_pool->
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:			qdf_spin_unlock_bh(&tx_desc_pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:		if (!tx_desc_pool->desc_pages.cacheable_pages)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx.c:			tx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	tx_desc_pool->num_free = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	tx_desc_pool->num_allocated = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:						   &tx_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:						   tx_desc_pool->elem_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:						   tx_desc_pool->elem_count,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	tx_desc_pool->desc_pages.page_size = DP_BLOCKMEM_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:				      &tx_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	if (!tx_desc_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	if (tx_desc_pool->desc_pages.num_pages)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					     &tx_desc_pool->desc_pages, 0,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:				    &tx_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	tx_desc_pool->freelist = (struct dp_tx_desc_s *)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		*tx_desc_pool->desc_pages.cacheable_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	tx_desc_pool->elem_size = DP_TX_DESC_SIZE(sizeof(struct dp_tx_desc_s));
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	TX_DESC_LOCK_CREATE(&tx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:	TX_DESC_LOCK_DESTROY(&tx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					  &dp_tx_ext_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		if (!dp_tx_ext_desc_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					  &dp_tx_ext_desc_pool->desc_link_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		if (!dp_tx_ext_desc_pool->desc_link_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					&dp_tx_ext_desc_pool->desc_link_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					&dp_tx_ext_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		dp_tx_ext_desc_pool->freelist = (struct dp_tx_ext_desc_elem_s *)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:			*dp_tx_ext_desc_pool->desc_link_pages.cacheable_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					    &dp_tx_ext_desc_pool->
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					    dp_tx_ext_desc_pool->link_elem_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					    dp_tx_ext_desc_pool->elem_count,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		pages = &dp_tx_ext_desc_pool->desc_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		page_info = dp_tx_ext_desc_pool->desc_pages.dma_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		c_elem = dp_tx_ext_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		for (i = 0; i < dp_tx_ext_desc_pool->elem_count; i++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					dp_tx_ext_desc_pool->elem_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					dp_tx_ext_desc_pool->elem_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		dp_tx_ext_desc_pool->num_free = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_create(&dp_tx_ext_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					&dp_tx_ext_desc_pool->desc_link_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					&dp_tx_ext_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_destroy(&dp_tx_ext_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->num_free = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					&tso_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		if (!tso_desc_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					     &tso_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					     &tso_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					    &tso_desc_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->freelist = (struct qdf_tso_seg_elem_t *)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:			*tso_desc_pool->desc_pages.cacheable_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->num_free = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:			  tso_desc_pool->num_free);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->pool_size = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_create(&tso_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spin_lock_bh(&tso_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->num_free = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_desc_pool->pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spin_unlock_bh(&tso_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_destroy(&tso_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->num_free = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					      &tso_num_seg_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		if (!tso_num_seg_pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					     &tso_num_seg_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					     &tso_num_seg_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:					    &tso_num_seg_pool->desc_pages,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->freelist = (struct qdf_tso_num_seg_elem_t *)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:			*tso_num_seg_pool->desc_pages.cacheable_pages;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->num_free = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->num_seg_pool_size = num_elem;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_create(&tso_num_seg_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spin_lock_bh(&tso_num_seg_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->num_free = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		tso_num_seg_pool->num_seg_pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spin_unlock_bh(&tso_num_seg_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.c:		qdf_spinlock_destroy(&tso_num_seg_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	struct dp_tx_desc_s *tx_desc = pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = pool->freelist->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->avail_desc--;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	tx_desc->next = pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = tx_desc;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->avail_desc++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->elem_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->avail_desc = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_mem_zero(pool->start_th, FL_TH_MAX);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_mem_zero(pool->stop_th, FL_TH_MAX);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->status = FLOW_POOL_INACTIVE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	if (qdf_unlikely(avail_desc == pool->stop_th[DP_TH_BE_BK]))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	else if (qdf_unlikely(avail_desc == pool->stop_th[DP_TH_VI]))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	else if (qdf_unlikely(avail_desc == pool->stop_th[DP_TH_VO]))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	else if (qdf_unlikely(avail_desc == pool->stop_th[DP_TH_HI]))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	if (pool->avail_desc > pool->stop_th[DP_TH_BE_BK]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	} else if (pool->avail_desc <= pool->stop_th[DP_TH_BE_BK] &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		   pool->avail_desc > pool->stop_th[DP_TH_VI]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		pool->status = FLOW_POOL_BE_BK_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	} else if (pool->avail_desc <= pool->stop_th[DP_TH_VI] &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		   pool->avail_desc > pool->stop_th[DP_TH_VO]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		pool->status = FLOW_POOL_VI_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	} else if (pool->avail_desc <= pool->stop_th[DP_TH_VO] &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		   pool->avail_desc > pool->stop_th[DP_TH_HI]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		pool->status = FLOW_POOL_VO_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	} else if (pool->avail_desc <= pool->stop_th[DP_TH_HI]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	switch (pool->status) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		dp_err("Invalid pool status:%u to adjust", pool->status);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (qdf_likely(pool->avail_desc &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		    pool->status != FLOW_POOL_INVALID &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		    pool->status != FLOW_POOL_INACTIVE)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:							      pool->avail_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (qdf_unlikely(pool->status ==
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				switch (pool->status) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->status = FLOW_POOL_BE_BK_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->status = FLOW_POOL_VI_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->status = FLOW_POOL_VO_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:						  pool->status);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->latest_pause_time[level] =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->pkt_drop_no_desc++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	switch (pool->status) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc > pool->start_th[DP_TH_HI]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->status = FLOW_POOL_VO_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->latest_pause_time[DP_TH_HI];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (pool->max_pause_time[DP_TH_HI] < pause_dur)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				pool->max_pause_time[DP_TH_HI] = pause_dur;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc > pool->start_th[DP_TH_VO]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->status = FLOW_POOL_VI_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->latest_pause_time[DP_TH_VO];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (pool->max_pause_time[DP_TH_VO] < pause_dur)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				pool->max_pause_time[DP_TH_VO] = pause_dur;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc > pool->start_th[DP_TH_VI]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->status = FLOW_POOL_BE_BK_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->latest_pause_time[DP_TH_VI];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (pool->max_pause_time[DP_TH_VI] < pause_dur)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				pool->max_pause_time[DP_TH_VI] = pause_dur;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc > pool->start_th[DP_TH_BE_BK]) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:					pool->latest_pause_time[DP_TH_BE_BK];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (pool->max_pause_time[DP_TH_BE_BK] < pause_dur)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				pool->max_pause_time[DP_TH_BE_BK] = pause_dur;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc == pool->pool_size) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	if (qdf_unlikely(avail_desc < pool->stop_th))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->status <= FLOW_POOL_ACTIVE_PAUSED &&
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		    pool->avail_desc) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			if (qdf_unlikely(pool->avail_desc < pool->stop_th)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:				qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->pkt_drop_no_desc++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	switch (pool->status) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc > pool->start_th) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		if (pool->avail_desc == pool->pool_size) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	status = dp_tx_is_threshold_reached(pool, pool->avail_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_LOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	tx_desc = pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		TX_DESC_LOCK_UNLOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = pool->freelist->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_allocated++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_free--;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	dp_tx_prefetch_desc(pool->freelist);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_UNLOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_LOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			(pool->num_free < num_requested)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		TX_DESC_LOCK_UNLOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			__func__, pool->num_free,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	h_desc = pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_free -= count;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_allocated += count;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = c_desc->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_UNLOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_LOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	tx_desc->next = pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->freelist = tx_desc;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_allocated--;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	pool->num_free++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	TX_DESC_LOCK_UNLOCK(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	if (page_id >= pool->desc_pages.num_pages) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			  pool->desc_pages.num_pages);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	if (offset >= pool->desc_pages.num_element_per_page) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:			  pool->desc_pages.num_element_per_page);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:	return tx_desc_pool->desc_pages.cacheable_pages[page_id] +
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_desc.h:		tx_desc_pool->elem_size * offset;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th[DP_TH_BE_BK] = (start_threshold
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->stop_th[DP_TH_BE_BK] = (stop_threshold
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th[DP_TH_VI] = (pool->start_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->stop_th[DP_TH_VI] = (pool->stop_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th[DP_TH_VO] = (pool->start_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->stop_th[DP_TH_VO] = (pool->stop_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th[DP_TH_HI] = (pool->start_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->stop_th[DP_TH_HI] = (pool->stop_th[DP_TH_BE_BK]
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		  __func__, pool->pool_create_cnt);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->status = FLOW_POOL_ACTIVE_UNPAUSED_REATTACH;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_create_cnt++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:			  i, pool->start_th[i], pool->stop_th[i]);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:			  i, pool->max_pause_time[i]);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:			  i, pool->latest_pause_time[i]);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		soc->pause_cb(pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th = (start_threshold * flow_pool_size) / 100;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->stop_th = (stop_threshold * flow_pool_size) / 100;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		  __func__, pool->pool_create_cnt);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (pool->avail_desc > pool->start_th)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_create_cnt++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->start_th, pool->stop_th);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		if (pool->status > FLOW_POOL_INVALID)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		if (pool->status > FLOW_POOL_INVALID)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:				      pool->flow_pool_id, pool->status,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:				      pool->pool_size, pool->avail_desc,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:				      pool->pkt_drop_no_desc);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if ((pool->status != FLOW_POOL_INACTIVE) || pool->pool_create_cnt) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		       pool->status, pool->pool_create_cnt);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->flow_pool_id = flow_pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_size = flow_pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->avail_desc = flow_pool_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_create_cnt++;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool->flow_pool_id, pool->pool_create_cnt, pool->avail_desc,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool->pool_size, pool->status);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (!dp_is_tx_flow_pool_delete_allowed(soc, pool->flow_pool_id)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:			pool->flow_pool_id);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (!pool->pool_create_cnt) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_create_cnt--;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (pool->pool_create_cnt) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		       pool->pool_create_cnt);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (pool->avail_desc < pool->pool_size) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool_status = pool->status;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		pool->status = FLOW_POOL_INVALID;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		vdev = dp_vdev_get_ref_by_id(soc, pool->flow_pool_id,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	dp_tx_desc_pool_deinit(soc, pool->flow_pool_id);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	dp_tx_desc_pool_free(soc, pool->flow_pool_id);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->pool_owner_ctx = soc;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	pool->flow_pool_id = vdev_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	dp_info("pool status: %d", pool->status);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:	if (pool->status == FLOW_POOL_INACTIVE) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/dp_tx_flow_control.c:		if (!tx_desc_pool->desc_pages.num_pages)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/li/dp_li_rx.h:	if (qdf_unlikely(index >= rx_desc_pool->pool_size))
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/li/dp_li_tx.c:	tx_desc = tx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/li/dp_li_tx.c:	num_desc_per_page = tx_desc_pool->desc_pages.num_element_per_page;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:						       rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:						       rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:	if (rx_desc_pool->freelist)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:	rx_desc_pool->owner = HAL_RX_BUF_RBM_SW3_BM(soc->wbm_sw0_bm_id);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:	rx_desc_pool->buf_size = RX_MONITOR_BUFFER_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:	rx_desc_pool->buf_alignment = RX_MONITOR_BUFFER_ALIGNMENT;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_dest_1.0.c:	if (rx_desc_pool->rx_mon_dest_frag_enable)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:							rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:							     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:	rx_desc_pool->desc_type = QDF_DP_RX_DESC_STATUS_TYPE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:	rx_desc_pool->owner = HAL_RX_BUF_RBM_SW3_BM(soc->wbm_sw0_bm_id);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:	rx_desc_pool->buf_size = RX_MON_STATUS_BUF_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:	rx_desc_pool->buf_alignment = RX_DATA_BUFFER_ALIGNMENT;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:						     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:						     rx_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:			qdf_spin_lock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:			if (!rx_desc_pool->freelist) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:				qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:			rx_desc_elem = rx_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:			rx_desc_pool->freelist = rx_desc_pool->freelist->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/1.0/dp_rx_mon_status_1.0.c:			qdf_spin_unlock_bh(&rx_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_lock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	temp_list = mon_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->freelist = *local_desc_list;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_lock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	*desc_list = *tail = mon_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		if (qdf_unlikely(!mon_desc_pool->freelist)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		*tail = mon_desc_pool->freelist;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		mon_desc_pool->freelist = mon_desc_pool->freelist->next;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_lock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	for (desc_id = 0; desc_id < mon_desc_pool->pool_size; desc_id++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		if (mon_desc_pool->array[desc_id].mon_desc.in_use) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			vaddr = mon_desc_pool->array[desc_id].mon_desc.buf_addr;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			paddr = mon_desc_pool->array[desc_id].mon_desc.paddr;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			if (!(mon_desc_pool->array[desc_id].mon_desc.unmapped)) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:						   mon_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:				mon_desc_pool->array[desc_id].mon_desc.unmapped = 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:				mon_desc_pool->array[desc_id].mon_desc.cookie = desc_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc->buf_addr = qdf_frag_alloc(&mon_desc_pool->pf_cache,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:					    mon_desc_pool->buf_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			       mon_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spinlock_create(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_lock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->buf_size = DP_MON_DATA_BUFFER_SIZE;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->freelist = &mon_desc_pool->array[0];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->pool_size = pool_size - 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_mem_zero(mon_desc_pool->freelist,
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		     mon_desc_pool->pool_size *
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	for (desc_id = 0; desc_id < mon_desc_pool->pool_size; desc_id++) {
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		if (desc_id == mon_desc_pool->pool_size - 1)
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			mon_desc_pool->array[desc_id].next = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:			mon_desc_pool->array[desc_id].next =
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:				&mon_desc_pool->array[desc_id + 1];
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		mon_desc_pool->array[desc_id].mon_desc.in_use = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:		mon_desc_pool->array[desc_id].mon_desc.cookie = desc_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_lock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->freelist = NULL;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->pool_size = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spin_unlock_bh(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_spinlock_destroy(&mon_desc_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	qdf_mem_free(mon_desc_pool->array);
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->pool_size = pool_size - 1;
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_mon_2.0.c:	mon_desc_pool->array = qdf_mem_malloc((mon_desc_pool->pool_size) *
+qcom/opensource/wlan/qca-wifi-host-cmn/dp/wifi3.0/monitor/2.0/dp_rx_mon_2.0.c:					   rx_mon_desc_pool->buf_size,
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_lro.c:	INIT_LIST_HEAD(&lro_desc_pool->lro_free_list_head);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_lro.c:		lro_desc_pool->lro_desc_array[i].lro_desc =
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_lro.c:		list_add_tail(&lro_desc_pool->lro_desc_array[i].lro_node,
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_lro.c:			 &lro_desc_pool->lro_free_list_head);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_lro.c:		 &free_pool->lro_free_list_head,
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		new_pool->flags = flags;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		new_pool->elem_size = elem_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		new_pool->max_elem = elem_cnt;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->flags = flags;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->pool_id = pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->elem_size = roundup(elem_size, L1_CACHE_BYTES);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->mem_size = elem_cnt * new_pool->elem_size +
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->pool_mem = kzalloc(new_pool->mem_size, GFP_KERNEL);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	if (!new_pool->pool_mem) {
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	spin_lock_init(&new_pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	aligned_pool_mem = (unsigned long)(new_pool->pool_mem) +
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:			((align) ? (unsigned long)(new_pool->pool_mem)%align:0);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	STAILQ_INIT(&new_pool->free_list);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		STAILQ_INSERT_TAIL(&(new_pool->free_list),
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:			(new_pool->elem_size * i)), mempool_entry);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	new_pool->free_cnt = elem_cnt;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	pool_id = pool->pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	kfree(pool->pool_mem);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		return  qdf_mem_malloc(pool->elem_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	spin_lock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	buf = STAILQ_FIRST(&pool->free_list);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		STAILQ_REMOVE_HEAD(&pool->free_list, mempool_entry);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		pool->free_cnt--;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	spin_unlock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	spin_lock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	pool->free_cnt++;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:		(&pool->free_list, (mempool_elem_t *)buf, mempool_entry);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/linux/src/qdf_mem.c:	spin_unlock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		pool->item_size * QDF_FM_BITMAP_BITS;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_list_insert_back(&pool->seg_list, &seg->node);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spinlock_create(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	for (i = 0; i < pool->reduction_limit; i++)
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spinlock_destroy(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_list_for_each_del(&pool->seg_list, seg, next, node) {
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		qdf_list_remove_node(&pool->seg_list, &seg->node);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_list_for_each(&pool->seg_list, seg, node) {
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		ptr = &seg->bytes[index * pool->item_size];
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		qdf_mem_zero(ptr, pool->item_size);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spin_lock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spin_unlock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	if (qdf_list_size(&pool->seg_list) <= pool->reduction_limit)
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_list_remove_node(&pool->seg_list, &seg->node);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_list_for_each(&pool->seg_list, seg, node) {
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		high_addr = low_addr + pool->item_size * QDF_FM_BITMAP_BITS;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:		index = (ptr - low_addr) / pool->item_size;
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spin_lock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/qdf/src/qdf_flex_mem.c:	qdf_spin_unlock_bh(&pool->lock);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		if (!pool->initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		if ((len > prev_buf_size) && (len <= pool->buffer_size))
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:	wbuff_pool->mem_alloc += qdf_nbuf_get_allocsize(buf);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:			if (!wbuff_pool->initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:					    j, wbuff_pool->mem_alloc,
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:					    wbuff_pool->alloc_success,
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:					    wbuff_pool->alloc_fail);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:			if (!wbuff_pool->pool)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:				qdf_nbuf_set_next(buf, wbuff_pool->pool);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:			wbuff_pool->pool = buf;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->pool_id = pool_id;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->buffer_size = len;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->initialized = true;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		if (!wbuff_pool->initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		first = wbuff_pool->pool;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->mem_alloc = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->alloc_success = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->alloc_fail = 0;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:	if (!wbuff_pool->initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:	if (wbuff_pool->pool) {
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		buf = wbuff_pool->pool;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->pool = qdf_nbuf_next(buf);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->alloc_success++;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->alloc_fail++;
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:	if (!wbuff_pool->initialized)
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		qdf_nbuf_set_next(buffer, wbuff_pool->pool);
+qcom/opensource/wlan/qca-wifi-host-cmn/wbuff/src/wbuff.c:		wbuff_pool->pool = buffer;
+qcom/opensource/wlan/qcacld-3.0/core/dp/ol/inc/ol_txrx_ctrl_api.h: * As this function is taking pool->flow_pool_lock inside it, it should
+qcom/opensource/wlan/qcacld-3.0/core/dp/ol/inc/ol_txrx_ctrl_api.h: * pool->flow_pool_lock inside it, it should always be called outside
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	if (pool->avail_desc) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		if (qdf_unlikely(pool->avail_desc < pool->stop_th &&
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:				(pool->avail_desc >= pool->stop_priority_th) &&
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:				(pool->status == FLOW_POOL_ACTIVE_UNPAUSED))) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pool->status = FLOW_POOL_NON_PRIO_PAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		} else if (qdf_unlikely((pool->avail_desc <
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:						pool->stop_priority_th) &&
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:				pool->status == FLOW_POOL_NON_PRIO_PAUSED)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		pool->pkt_drop_no_desc++;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	if (unlikely(pool->overflow_desc)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		--pool->overflow_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	switch (pool->status) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		if (pool->avail_desc > pool->start_priority_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pool->status = FLOW_POOL_NON_PRIO_PAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		if (pool->avail_desc > pool->start_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:		if (pool->avail_desc == pool->flow_pool_size) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:			qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	struct ol_tx_desc_t *tx_desc = &pool->freelist->tx_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	pool->freelist = pool->freelist->next;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	pool->avail_desc--;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	((union ol_tx_desc_list_elem_t *)tx_desc)->next = pool->freelist;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	pool->freelist = (union ol_tx_desc_list_elem_t *)tx_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_desc.h:	pool->avail_desc++;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_send.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_tx_send.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	enough_desc_flag = (pool->avail_desc < (pool->stop_th +
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		free_desc += pool->avail_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->avail_desc == pool->flow_pool_size || force == true)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->status = FLOW_POOL_INACTIVE;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->status = FLOW_POOL_INVALID;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	temp_list = pool->freelist;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	size = pool->avail_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->freelist = NULL;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->avail_desc = 0;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->status == FLOW_POOL_INACTIVE) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spinlock_destroy(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->flow_pool_size -= size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->flow_pool_id = INVALID_FLOW_ID;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_atomic_inc(&pool->ref_cnt);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		    pool, qdf_atomic_read(&pool->ref_cnt));
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (qdf_atomic_dec_and_test(&pool->ref_cnt)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			    pool, qdf_atomic_read(&pool->ref_cnt));
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					  pool->flow_pool_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					  pool->flow_pool_size,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					  pool->avail_desc);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&src_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&src_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		if (dst_pool->deficient_desc)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			dst_pool->deficient_desc--;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&src_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&src_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	uint16_t desc_count = src_pool->avail_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		if (dst_pool->deficient_desc) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				(dst_pool->deficient_desc > desc_count) ?
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					desc_count : dst_pool->deficient_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			qdf_spin_unlock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			qdf_spin_lock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			if (dst_pool->status == FLOW_POOL_ACTIVE_PAUSED) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				if (dst_pool->avail_desc > dst_pool->start_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					pdev->pause_cb(dst_pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					pdev->pause_cb(dst_pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					dst_pool->status =
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->flow_pool_id = flow_pool_id;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->flow_pool_size = flow_pool_size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->start_th = (start_threshold * flow_pool_size)/100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->stop_th = (stop_threshold * flow_pool_size)/100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->stop_priority_th = (TX_PRIORITY_TH * pool->stop_th)/100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->stop_priority_th >= MAX_TSO_SEGMENT_DESC)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->stop_priority_th -= MAX_TSO_SEGMENT_DESC;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->start_priority_th = (TX_PRIORITY_TH * pool->start_th)/100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->start_priority_th >= MAX_TSO_SEGMENT_DESC)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			pool->start_priority_th -= MAX_TSO_SEGMENT_DESC;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spinlock_create(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_atomic_init(&pool->ref_cnt);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pdev->tx_desc.num_free >= pool->flow_pool_size)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		size = pool->flow_pool_size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->freelist = temp_list;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->avail_desc = size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->deficient_desc = pool->flow_pool_size - pool->avail_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->overflow_desc = 0;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if ((!pdev) || (!pool) || (pool->status != FLOW_POOL_INVALID)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->flow_pool_size = pool->avail_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		if (pool->flow_pool_id == flow_pool_id) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->member_flow_id = vdev_id;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->member_flow_id = INVALID_FLOW_ID;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		total_desc_req += dst_pool->deficient_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_lock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		if (dst_pool->deficient_desc) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				(dst_pool->deficient_desc > desc_move_count) ?
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				desc_move_count : dst_pool->deficient_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			dst_pool->deficient_desc -= temp_count;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			if (dst_pool->status == FLOW_POOL_ACTIVE_PAUSED) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				if (dst_pool->avail_desc > dst_pool->start_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					pdev->pause_cb(dst_pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					dst_pool->status =
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			} else if ((dst_pool->status == FLOW_POOL_INVALID) &&
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				   (dst_pool->avail_desc ==
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:					 dst_pool->flow_pool_size)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&dst_pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->avail_desc > pool->start_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	} else if (pool->avail_desc < pool->stop_th &&
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		   pool->avail_desc >= pool->stop_priority_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->status = FLOW_POOL_NON_PRIO_PAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	} else if (pool->avail_desc < pool->stop_priority_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->status = FLOW_POOL_ACTIVE_PAUSED;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pdev->pause_cb(pool->member_flow_id,
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->flow_pool_size = new_pool_size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->start_th = (start_threshold * new_pool_size) / 100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->stop_th = (stop_threshold * new_pool_size) / 100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->stop_priority_th = (TX_PRIORITY_TH * pool->stop_th) / 100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->stop_priority_th >= MAX_TSO_SEGMENT_DESC)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->stop_priority_th -= MAX_TSO_SEGMENT_DESC;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	pool->start_priority_th = (TX_PRIORITY_TH * pool->start_th) / 100;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->start_priority_th >= MAX_TSO_SEGMENT_DESC)
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->start_priority_th -= MAX_TSO_SEGMENT_DESC;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->deficient_desc = deficient_count;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->overflow_desc = overflow_count;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->flow_pool_size == new_pool_size) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->flow_pool_size > new_pool_size) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		diff = pool->flow_pool_size - new_pool_size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		diff += pool->overflow_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->overflow_desc = 0;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		temp = QDF_MIN(pool->deficient_desc, diff);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->deficient_desc -= temp;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			if (pool->avail_desc >=
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				 (diff + pool->start_priority_th)) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:			else if (pool->avail_desc > pool->start_priority_th) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:				move_desc_to_global = pool->avail_desc -
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:						 pool->start_priority_th;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	if (pool->flow_pool_size < new_pool_size) {
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		diff = new_pool_size - pool->flow_pool_size;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		diff += pool->deficient_desc;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->deficient_desc = 0;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		temp = QDF_MIN(pool->overflow_desc, diff);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:		pool->overflow_desc -= temp;
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_lock_bh(&pool->flow_pool_lock);
+qcom/opensource/wlan/qcacld-3.0/core/dp/txrx/ol_txrx_flow_control.c:	qdf_spin_unlock_bh(&pool->flow_pool_lock);
