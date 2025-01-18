@@ -67,6 +67,8 @@
 #ifdef CONFIG_HMBIRD_SCHED_GKI
 #include <linux/sched/sched_ext.h>
 #endif
+#include "sde_fence.h"
+
 /*
  * MSM driver version:
  * - 1.0.0 - initial interface
@@ -2431,6 +2433,7 @@ static int __init msm_drm_register(void)
 		return -EINVAL;
 
 	DBG("init");
+        sde_kmem_pool_init();
 	sde_rsc_rpmh_register();
 	sde_rsc_register();
 	msm_smmu_driver_init();
