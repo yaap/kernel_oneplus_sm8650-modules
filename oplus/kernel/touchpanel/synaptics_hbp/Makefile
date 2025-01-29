@@ -8,8 +8,9 @@ subdir-ccflags-$(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY) += -I$(srctree)/drivers/misc/m
 
 
 TCM_CORE=tcm/
-ccflags-y += -I$(srctree)/drivers/input/touchscreen/synaptics_hbp/
-ccflags-y += -I$(srctree)/drivers/input/touchscreen/synaptics_hbp/tcm/
+ccflags-y += \
+	-I$(srctree)/$(src) \
+	-I$(srctree)/$(src)/../oplus_touchscreen_v2
 
 synaptics_tcm2-y := syna_tcm2.o
 
@@ -31,4 +32,11 @@ synaptics_tcm2-y += touchpanel_autotest/touchpanel_autotest.o
 synaptics_tcm2-y += touchpanel_healthinfo/touchpanel_healthinfo.o
 synaptics_tcm2-y += touchpanel_healthinfo/touchpanel_exception.o
 
-obj-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += synaptics_tcm2.o
+obj-m += oplus_bsp_synaptics_tcm2.o
+oplus_bsp_synaptics_tcm2-y := $(synaptics_tcm2-y)
+ccflags-y += \
+	-DCONFIG_TOUCHPANEL_OPLUS_MODULE \
+	-DBUILD_BY_BAZEL \
+	-DTOUCHPANEL_STATS_TRACE_INCLUDE_PATH=$(srctree)/$(src)/touchpanel_healthinfo
+
+KBUILD_EXTRA_SYMBOLS := $(M)/../oplus_touchscreen_v2/touch_custom/Module.symvers

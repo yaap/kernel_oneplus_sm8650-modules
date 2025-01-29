@@ -11,4 +11,4 @@
 
 oplus_bsp_tp_ft3518-y += ft3518_driver.o
 oplus_bsp_tp_ft3518-y += ft3518_test.o
-obj-$(CONFIG_TOUCHPANEL_FOCAL_FT3518) += oplus_bsp_tp_ft3518.o
+obj-m += oplus_bsp_tp_ft3518.o

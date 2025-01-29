@@ -10,5 +10,5 @@ oplus_bsp_tp_td4377_noflash-y += synaptics_tcm_device.o
 oplus_bsp_tp_td4377_noflash-y += synaptics_tcm_recovery.o
 oplus_bsp_tp_td4377_noflash-y += synaptics_tcm_zeroflash.o
 
-obj-$(CONFIG_TOUCHPANEL_SYNAPTICS_TD4377_NOFLASH) += oplus_bsp_tp_td4377_noflash.o
+obj-m += oplus_bsp_tp_td4377_noflash.o
 #endif

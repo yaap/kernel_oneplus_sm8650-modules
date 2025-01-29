@@ -1,3 +1,4 @@
 oplus_bsp_tp_custom-y := touch.o
 
-obj-$(CONFIG_TOUCHPANEL_CUSTOM)	+= oplus_bsp_tp_custom.o
+obj-m	+= oplus_bsp_tp_custom.o
+ccflags-y += -I$(srctree)/$(src)/..
