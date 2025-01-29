@@ -16,25 +16,20 @@ ccflags-y += -DCONFIG_FP_INJECT_ENABLE
 endif
 
 # gki
-ccflags-$(CONFIG_OPLUS_FINGERPRINT_GKI_ENABLE) += -DCONFIG_OPLUS_FINGERPRINT_GKI_ENABLE
+ccflags-y += -DCONFIG_OPLUS_FINGERPRINT_GKI_ENABLE
 
 ################################################################
 # QCOM
 ################################################################
-ifeq ($(CONFIG_UFF_FINGERPRINT_QCOM),y)
 ccflags-y += -DQCOM_PLATFORM
 
-ifeq ($(CONFIG_OPLUS_FINGERPRINT_GKI_ENABLE),y)
 #tp for gki
-ccflags-y += -I$(srctree)/../../vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2/touchpanel_notify
-endif
+ccflags-y += -I$(srctree)/$(src)/../../../../../../kernel/touchpanel/oplus_touchscreen_v2/touchpanel_notify
 
-obj-$(CONFIG_UFF_FINGERPRINT) += uff_fp_driver.o
+obj-m += oplus_bsp_uff_fp_driver.o
 uff_fp_driver-y := fp_driver.o fp_platform.o fingerprint_event.o fp_health.o fp_netlink.o
-ifeq ($(UFF_FP_DRIVER_INJECT_ENABLE),yes)
 uff_fp_driver-y += fp_fault_inject.o
-endif
-endif
+oplus_bsp_uff_fp_driver-y := $(uff_fp_driver-y)
 
 ################################################################
 # MTK
