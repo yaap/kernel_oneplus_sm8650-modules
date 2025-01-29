@@ -1,0 +1,2 @@
+obj-m := oplus_network_rf_cable_monitor.o
+oplus_network_rf_cable_monitor-y := oplus_rf_cable_monitor.o

@@ -1,0 +1,2 @@
+obj-m := oplus_network_sim_detect.o
+oplus_network_sim_detect-y := sim_detect.o
