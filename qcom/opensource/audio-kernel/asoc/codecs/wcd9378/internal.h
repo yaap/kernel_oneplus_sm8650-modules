@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _WCD9378_INTERNAL_H
@@ -145,10 +145,6 @@ struct wcd9378_priv {
 	bool usbc_hs_status;
 	/* wcd to swr dmic notification */
 	bool notify_swr_dmic;
-	u8 rx_swrclk;
-	u8 rx_clkscale;
-	u8 tx_swrclk;
-	u8 tx_clkscale;
 	struct blocking_notifier_head notifier;
 };
 
