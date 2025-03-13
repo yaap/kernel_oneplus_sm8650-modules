@@ -361,7 +361,11 @@ static struct msm_platform_core_capability core_data_cliffs_v1[] = {
 	{MAX_RT_MBPF, 69632}, /* (2 * ((4096x2176)/256)) */
 	{MAX_MBPF, 104448}, /* (3 * ((4096x2176)/256))*/
 	/* max_load 4096x2176@60fps*/
-	{MAX_MBPS, 2088960}, /* Concurrency: UHD@30 decode + 1080p@30 encode */
+//#ifndef OPLUS_BUG_STABILITY
+//	{MAX_MBPS, 2088960}, /* Concurrency: UHD@30 decode + 1080p@30 encode */
+//#else /* OPLUS_BUG_STABILITY*/
+	{MAX_MBPS, 2203200}, /* Concurrency: 3840x2160@60 encode + 1920x1088@30 encode */
+//#endif /* OPLUS_BUG_STABILITY */
 	{MAX_IMAGE_MBPF, 1048576},  /* (16384x16384)/256 */
 	{MAX_MBPF_HQ, 8160}, /* ((1920x1088)/256) */
 	{MAX_MBPS_HQ, 244800}, /* ((1920x1088)/256)@30fps */

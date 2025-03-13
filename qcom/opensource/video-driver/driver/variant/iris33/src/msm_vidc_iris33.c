@@ -1359,6 +1359,7 @@ static int __boot_firmware_iris33(struct msm_vidc_core *core)
 	}
 
 	if (count >= max_tries) {
+		__read_register(core, HFI_CTRL_INIT_IRIS33, &ctrl_init_val);
 		d_vpr_e(FMT_STRING_BOOT_FIRMWARE_ERROR,
 			ctrl_status, ctrl_init_val);
 		return -ETIME;
