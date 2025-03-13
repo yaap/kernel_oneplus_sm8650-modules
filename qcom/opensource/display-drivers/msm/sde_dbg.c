@@ -1250,6 +1250,37 @@ void sde_evtlog_dump_all(struct sde_dbg_evtlog *evtlog)
 
 }
 
+#ifdef OPLUS_FEATURE_DISPLAY
+void oplus_sde_evtlog_dump_all(void)
+{
+	struct sde_dbg_base *dbg_base = &sde_dbg_base;
+	u32 reg_dump_size;
+	u32 dump_mode_temp;
+
+	pr_err("oplus_sde_evtlog_dump_all entry\n");
+	SDE_EVT32(0x11, 0x22, 0x33);
+	SDE_EVT32(0x11, 0x22, 0x33);
+
+	mutex_lock(&dbg_base->mutex);
+
+	reg_dump_size =  _sde_dbg_get_reg_dump_size();
+	if (!dbg_base->reg_dump_base)
+		dbg_base->reg_dump_base = vzalloc(reg_dump_size);
+
+	dbg_base->reg_dump_addr =  dbg_base->reg_dump_base;
+	dump_mode_temp = dbg_base->evtlog->dump_mode;
+
+	if (sde_evtlog_is_enabled(dbg_base->evtlog, SDE_EVTLOG_ALWAYS)) {
+		dbg_base->evtlog->dump_mode = SDE_DBG_DUMP_IN_LOG;
+		sde_evtlog_dump_all(dbg_base->evtlog);
+		dbg_base->evtlog->dump_mode = dump_mode_temp;
+	}
+
+	mutex_unlock(&dbg_base->mutex);
+	pr_err("oplus_sde_evtlog_dump_all end\n");
+}
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 /**
  * _sde_dump_array - dump array of register bases
  * @do_panic: whether to trigger a panic after dumping
@@ -1549,6 +1580,41 @@ void sde_dbg_ctrl(const char *name, ...)
 
 	va_end(args);
 }
+
+#ifdef OPLUS_FEATURE_DISPLAY
+ssize_t oplus_sde_evtlog_dump_read(struct file *file, char __user *buff,
+		size_t count, loff_t *ppos)
+{
+	ssize_t len = 0;
+	char evtlog_buf[SDE_EVTLOG_BUF_MAX];
+
+	if (!buff || !ppos)
+		return -EINVAL;
+
+	mutex_lock(&sde_dbg_base.mutex);
+	sde_dbg_base.cur_evt_index = 0;
+	sde_dbg_base.evtlog->first = (u32)atomic_add_return(0, &sde_dbg_base.evtlog->curr) + 1;
+	atomic_set(&sde_dbg_base.evtlog->last, sde_dbg_base.evtlog->first + SDE_EVTLOG_ENTRY);
+
+	len = sde_evtlog_dump_to_buffer(sde_dbg_base.evtlog,
+			evtlog_buf, SDE_EVTLOG_BUF_MAX,
+			!sde_dbg_base.cur_evt_index, true);
+	sde_dbg_base.cur_evt_index++;
+	mutex_unlock(&sde_dbg_base.mutex);
+
+	if (len < 0 || len > count) {
+		pr_err("len is more than user buffer size");
+		return 0;
+	}
+
+	if (copy_to_user(buff, evtlog_buf, len))
+		return -EFAULT;
+	*ppos += len;
+
+	return len;
+}
+EXPORT_SYMBOL(oplus_sde_evtlog_dump_read);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 /*

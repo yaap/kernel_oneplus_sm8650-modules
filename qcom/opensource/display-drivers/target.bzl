@@ -29,6 +29,18 @@ def define_pineapple(t, v, lt=None):
             "CONFIG_MSM_MMRM",
             "CONFIG_QTI_HW_FENCE",
             "CONFIG_QCOM_SPEC_SYNC",
+#ifdef OPLUS_FEATURE_DISPLAY
+                "OPLUS_FEATURE_DISPLAY",
+                "OPLUS_FEATURE_DISPLAY_ADFR",
+                "OPLUS_FEATURE_DISPLAY_HIGH_PRECISION",
+                "OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION",
+                "OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT",
+                "OPLUS_TRACKPOINT_REPORT",
+#endif /* OPLUS_FEATURE_DISPLAY */
+#ifdef CONFIG_PXLW_IRIS
+            "CONFIG_PXLW_IRIS",
+            "PXLW_IRIS_DUAL",
+#endif /* CONFIG_PXLW_IRIS */
             "CONFIG_MSM_EXT_DISPLAY",
         ],
         lunch_target = lt,
@@ -106,6 +118,18 @@ def define_volcano(t, v, lt=None):
             "CONFIG_QCOM_SPEC_SYNC",
             "CONFIG_MSM_EXT_DISPLAY",
             "CONFIG_DEBUG_FS",
+#ifdef OPLUS_FEATURE_DISPLAY
+                "OPLUS_FEATURE_DISPLAY",
+                "OPLUS_FEATURE_DISPLAY_ADFR",
+                "OPLUS_FEATURE_DISPLAY_HIGH_PRECISION",
+                "OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION",
+                "OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT",
+                "OPLUS_TRACKPOINT_REPORT",
+#endif /* OPLUS_FEATURE_DISPLAY */
+#ifdef CONFIG_PXLW_IRIS
+            "CONFIG_PXLW_IRIS",
+            "PXLW_IRIS_DUAL",
+#endif /* CONFIG_PXLW_IRIS */
         ],
         lunch_target = lt,
 )

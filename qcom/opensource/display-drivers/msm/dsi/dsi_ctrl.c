@@ -28,6 +28,14 @@
 
 #include "sde_dbg.h"
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "../oplus/oplus_display_interface.h"
+#endif /* OPLUS_FEATURE_DISPLAY */
+
+#if defined(CONFIG_PXLW_IRIS)
+#include "dsi_iris_api.h"
+#endif
+
 #define DSI_CTRL_DEFAULT_LABEL "MDSS DSI CTRL"
 
 #define DSI_CTRL_TX_TO_MS     1200
@@ -46,6 +54,24 @@
 		fmt, c->name, ##__VA_ARGS__)
 #define DSI_CTRL_WARN(c, fmt, ...)	DRM_WARN("[msm-dsi-warn]: %s: " fmt,\
 		c ? c->name : "inv", ##__VA_ARGS__)
+
+#ifdef OPLUS_FEATURE_DISPLAY
+#ifdef OPLUS_TRACKPOINT_REPORT
+#include <soc/oplus/oplus_trackpoint_report.h>
+#define DSI_CTRL_MM_ERR(c, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: %s: "\
+				fmt, c ? c->name : "inv", ##__VA_ARGS__); \
+		display_exception_trackpoint_report(fmt, ##__VA_ARGS__); \
+	} while(0)
+#else
+#define DSI_CTRL_MM_ERR(c, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: %s: "\
+				fmt, c ? c->name : "inv", ##__VA_ARGS__); \
+	} while(0)
+#endif /* OPLUS_TRACKPOINT_REPORT */
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 struct dsi_ctrl_list_item {
 	struct dsi_ctrl *ctrl;
@@ -389,6 +415,10 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct dsi_ctrl *dsi_ctrl)
 	if (ret == 0 && !atomic_read(&dsi_ctrl->dma_irq_trig)) {
 		status = dsi_hw_ops.get_interrupt_status(&dsi_ctrl->hw);
 		if (status & mask) {
+#ifdef OPLUS_FEATURE_DISPLAY
+			DSI_CTRL_MM_ERR(dsi_ctrl, "DisplayDriverID@@416$$dma_tx done but irq not triggered, status=%X, mask=%X\n",
+					status, mask);
+#endif /* OPLUS_FEATURE_DISPLAY */
 			status |= (DSI_CMD_MODE_DMA_DONE | DSI_BTA_DONE);
 			dsi_hw_ops.clear_interrupt_status(&dsi_ctrl->hw,
 					status);
@@ -399,7 +429,14 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct dsi_ctrl *dsi_ctrl)
 			SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_ERROR);
 			DSI_CTRL_ERR(dsi_ctrl,
 					"Command transfer failed\n");
+#ifdef OPLUS_FEATURE_DISPLAY
+			DSI_CTRL_MM_ERR(dsi_ctrl, "DisplayDriverID@@401$$Command transfer failed, status=%X, mask=%X\n",
+					status, mask);
+#endif /* OPLUS_FEATURE_DISPLAY */
 		}
+#ifdef OPLUS_FEATURE_DISPLAY
+		oplus_sde_evtlog_dump_all();
+#endif /* OPLUS_FEATURE_DISPLAY */
 		dsi_ctrl_disable_status_interrupt(dsi_ctrl,
 					DSI_SINT_CMD_MODE_DMA_DONE);
 	}
@@ -643,6 +680,10 @@ bool dsi_ctrl_validate_host_state(struct dsi_ctrl *dsi_ctrl)
 
 	return true;
 }
+
+#ifdef OPLUS_FEATURE_DISPLAY
+EXPORT_SYMBOL(dsi_ctrl_validate_host_state);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 static void dsi_ctrl_update_state(struct dsi_ctrl *dsi_ctrl,
 				  enum dsi_ctrl_driver_ops op,
@@ -1130,6 +1171,9 @@ static int dsi_ctrl_enable_supplies(struct dsi_ctrl *dsi_ctrl, bool enable)
 		if (rc < 0) {
 			DSI_CTRL_ERR(dsi_ctrl, "failed to enable power resource %d\n", rc);
 			SDE_EVT32(rc, SDE_EVTLOG_ERROR);
+#ifdef OPLUS_FEATURE_DISPLAY
+			DSI_CTRL_MM_ERR(dsi_ctrl, "DisplayDriverID@@406$$Power resource enable failed, rc=%d\n", rc);
+#endif /* OPLUS_FEATURE_DISPLAY */
 			goto error;
 		}
 
@@ -1138,6 +1182,9 @@ static int dsi_ctrl_enable_supplies(struct dsi_ctrl *dsi_ctrl, bool enable)
 				&dsi_ctrl->pwr_info.host_pwr, true);
 			if (rc) {
 				DSI_CTRL_ERR(dsi_ctrl, "failed to enable host power regs\n");
+#ifdef OPLUS_FEATURE_DISPLAY
+				DSI_CTRL_MM_ERR(dsi_ctrl, "DisplayDriverID@@406$$failed to enable host power regs\n");
+#endif /* OPLUS_FEATURE_DISPLAY */
 				goto error_get_sync;
 			}
 		}
@@ -1276,14 +1323,34 @@ int dsi_message_validate_tx_mode(struct dsi_ctrl *dsi_ctrl,
 			DSI_CTRL_ERR(dsi_ctrl, " Cannot transfer command,ops not defined\n");
 			return -ENOTSUPP;
 		}
+#if defined(CONFIG_PXLW_IRIS)
+		if (iris_is_chip_supported()) {
+			if ((cmd_len + 4) > IRIS_CMD_SIZE) {
+				DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer,size is greater than %d\n"
+						, IRIS_CMD_SIZE);
+				return -ENOTSUPP;
+			}
+		} else {
+#endif
 		if ((cmd_len + 4) > SZ_4K) {
 			DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer,size is greater than 4096\n");
 			return -ENOTSUPP;
 		}
+#if defined(CONFIG_PXLW_IRIS)
+		}
+#endif
 	}
 
 	if (*flags & DSI_CTRL_CMD_FETCH_MEMORY) {
 		if ((dsi_ctrl->cmd_len + cmd_len + 4) > SZ_4K) {
+#if defined(CONFIG_PXLW_IRIS)
+			if (iris_is_chip_supported()) {
+				if ((dsi_ctrl->cmd_len + cmd_len + 4) <= IRIS_CMD_SIZE)
+					return rc;
+				DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer, size is greater than %d\n"
+						, IRIS_CMD_SIZE);
+			}
+#endif
 			DSI_CTRL_ERR(dsi_ctrl, "Cannot transfer,size is greater than 4096\n");
 			return -ENOTSUPP;
 		}
@@ -1301,6 +1368,17 @@ static void dsi_configure_command_scheduling(struct dsi_ctrl *dsi_ctrl,
 
 	line_no = dsi_ctrl->host_config.common_config.dma_sched_line;
 	window = dsi_ctrl->host_config.common_config.dma_sched_window;
+
+#if defined(CONFIG_PXLW_IRIS)
+	/*
+	 * adjust line no for video mode panel
+	 */
+	if ((dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE) &&
+		iris_is_chip_supported()) {
+		line_no = iris_schedule_line_no_get();
+		pr_debug("line_no: %d\n", line_no);
+	}
+#endif
 
 	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, line_no, window);
 	/*
@@ -1393,12 +1471,12 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 	 * In video mode panel, if the DMA is triggered very close to
 	 * the beginning of the active window and the DMA transfer
 	 * happens in the last line of VBP, then the HW state will
-	 * stay in ‘wait’ and return to ‘idle’ in the first line of VFP.
+	 * stay in 'wait' and return to 'idle' in the first line of VFP.
 	 * But somewhere in the middle of the active window, if SW
 	 * disables DSI command mode engine while the HW is still
 	 * waiting and re-enable after timing engine is OFF. So the
-	 * HW never ‘sees’ another vblank line and hence it gets
-	 * stuck in the ‘wait’ state.
+	 * HW never 'sees' another vblank line and hence it gets
+	 * stuck in the 'wait' state.
 	 */
 	if ((flags & DSI_CTRL_CMD_CUSTOM_DMA_SCHED) ||
 		(dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE))
@@ -1414,6 +1492,10 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 
 	if (flags & DSI_CTRL_CMD_DEFER_TRIGGER) {
 		if (flags & DSI_CTRL_CMD_FETCH_MEMORY) {
+#if defined(CONFIG_PXLW_IRIS)
+			if (iris_is_chip_supported())
+				msm_gem_sync(dsi_ctrl->tx_cmd_buf);
+#endif
 			if (flags & DSI_CTRL_CMD_NON_EMBEDDED_MODE) {
 				dsi_hw_ops.kickoff_command_non_embedded_mode(
 							&dsi_ctrl->hw,
@@ -1497,6 +1579,13 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 
 	msg = &cmd_desc->msg;
 	flags = &cmd_desc->ctrl_flags;
+#ifdef OPLUS_FEATURE_DISPLAY
+	oplus_ctrl_print_cmd_desc(dsi_ctrl, cmd_desc);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
+#if defined(CONFIG_PXLW_IRIS)
+	iris_dsi_ctrl_dump_desc_cmd(dsi_ctrl, msg);
+#endif
 
 	/* Validate the mode before sending the command */
 	rc = dsi_message_validate_tx_mode(dsi_ctrl, msg->tx_len, flags);
@@ -1572,6 +1661,12 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 
 		cmdbuf = (u8 *)(dsi_ctrl->vaddr);
 
+#if defined(CONFIG_PXLW_IRIS)
+		if (!iris_is_chip_supported())
+			msm_gem_sync(dsi_ctrl->tx_cmd_buf);
+#else
+		msm_gem_sync(dsi_ctrl->tx_cmd_buf);
+#endif
 		for (cnt = 0; cnt < length; cnt++)
 			cmdbuf[dsi_ctrl->cmd_len + cnt] = buffer[cnt];
 
@@ -1597,6 +1692,10 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 	}
 
 kickoff:
+#ifdef OPLUS_FEATURE_DISPLAY
+	LCD_DEBUG_CMD("dsi_cmd: kickoff, ctrl_flags=0x%02X, msg_flags=0x%02X",
+			*flags, msg->flags);
+#endif /* OPLUS_FEATURE_DISPLAY */
 	dsi_kickoff_msg_tx(dsi_ctrl, msg, &cmd, &cmd_mem, *flags);
 error:
 	if (buffer)
@@ -1809,6 +1908,10 @@ static int dsi_message_rx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 
 	/* parse the data read from panel */
 	cmd = buff[header_offset];
+#if defined(CONFIG_PXLW_IRIS)
+	if (iris_is_chip_supported())
+		cmd &= 0x3F;
+#endif
 	switch (cmd) {
 	case MIPI_DSI_RX_ACKNOWLEDGE_AND_ERROR_REPORT:
 		DSI_CTRL_ERR(dsi_ctrl, "Rx ACK_ERROR 0x%x\n", cmd);
@@ -2762,6 +2865,12 @@ static bool dsi_ctrl_check_for_spurious_error_interrupts(
 			SDE_EVT32_IRQ(dsi_ctrl->cell_index,
 				      dsi_ctrl->error_interrupt_count,
 				      interrupt_threshold);
+#ifdef OPLUS_FEATURE_DISPLAY
+            //TODO
+			/*if (get_eng_version() == AGING) {
+				SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");
+			}*/
+#endif /* OPLUS_FEATURE_DISPLAY */
 			return true;
 		}
 	} else {
@@ -3055,6 +3164,14 @@ void dsi_ctrl_enable_status_interrupt(struct dsi_ctrl *dsi_ctrl,
 		dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw,
 				dsi_ctrl->irq_info.irq_stat_mask);
 	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	else {
+		if (intr_idx == DSI_SINT_CMD_MODE_DMA_DONE) {
+			SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_ERROR);
+			DSI_WARN("maybe no add lock when send cmd to panel !!!\n");
+		}
+	}
+#endif
 
 	if (intr_idx == DSI_SINT_CMD_MODE_DMA_DONE)
 		dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw,
@@ -3577,6 +3694,10 @@ int dsi_ctrl_cmd_transfer(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd)
 	return rc;
 }
 
+#ifdef OPLUS_FEATURE_DISPLAY
+EXPORT_SYMBOL(dsi_ctrl_cmd_transfer);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 void dsi_ctrl_transfer_cleanup(struct dsi_ctrl *dsi_ctrl)
 {
 	int rc = 0;
@@ -3917,6 +4038,22 @@ int dsi_ctrl_trigger_test_pattern(struct dsi_ctrl *dsi_ctrl)
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
 
 	return ret;
+}
+
+int dsi_ctrl_override_dma_cmd_trig(struct dsi_ctrl *dsi_ctrl, enum dsi_trigger_type type)
+{
+	int rc = 0;
+
+	if (!dsi_ctrl || type == DSI_TRIGGER_MAX) {
+		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+	dsi_ctrl->host_config.common_config.force_dma_cmd_trigger = type;
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
+
+	return rc;
 }
 
 /**

@@ -27,6 +27,25 @@
 #define DSI_MISC_W32(dsi_phy_hw, off, val) \
 	DSI_GEN_W32_DEBUG((dsi_phy_hw)->phy_clamp_base, (dsi_phy_hw)->index, off, val)
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#undef DSI_PHY_ERR
+#ifdef OPLUS_TRACKPOINT_REPORT
+#include <soc/oplus/oplus_trackpoint_report.h>
+#define DSI_PHY_ERR(p, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: DSI_%d: "\
+				fmt, p ? p->index : -1, ##__VA_ARGS__); \
+		display_exception_trackpoint_report("DisplayDriverID@@425$$" fmt, ##__VA_ARGS__); \
+	} while(0)
+#else
+#define DSI_PHY_ERR(p, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: DSI_%d: "\
+				fmt, p ? p->index : -1, ##__VA_ARGS__); \
+	} while(0)
+#endif /* OPLUS_TRACKPOINT_REPORT */
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 /**
  * enum dsi_phy_version - DSI PHY version enumeration
  * @DSI_PHY_VERSION_UNKNOWN:    Unknown version.

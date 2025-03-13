@@ -63,9 +63,21 @@
 #ifdef CONFIG_DRM_SDE_VM
 #include <linux/gunyah/gh_irq_lend.h>
 #endif
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+#include "dsi_iris_api.h"
+#endif
 
 #define CREATE_TRACE_POINTS
 #include "sde_trace.h"
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "../oplus/oplus_display_private_api.h"
+#include "../oplus/oplus_display_interface.h"
+#include "../oplus/oplus_onscreenfingerprint.h"
+#endif /* OPLUS_FEATURE_DISPLAY */
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+#include "../oplus/oplus_adfr.h"
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
 
 /* defines for secure channel call */
 #define MEM_PROTECT_SD_CTRL_SWITCH 0x18
@@ -1021,6 +1033,9 @@ static void _sde_kms_drm_check_dpms(struct drm_atomic_state *old_state,
 			old_fps = 0;
 			old_mode = DRM_PANEL_EVENT_BLANK;
 		}
+#ifdef OPLUS_FEATURE_DISPLAY
+		oplus_check_refresh_rate(old_fps, new_fps);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 		if ((old_mode != new_mode) || (old_fps != new_fps)) {
 			c_conn = to_sde_connector(connector);
@@ -1279,6 +1294,9 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	rc = pm_runtime_resume_and_get(sde_kms->dev->dev);
 	if (rc < 0) {
 		SDE_ERROR("failed to enable power resources %d\n", rc);
+#ifdef OPLUS_FEATURE_DISPLAY
+		SDE_MM_ERROR("DisplayDriverID@@407$$failed to enable power resources %d\n", rc);
+#endif /* OPLUS_FEATURE_DISPLAY */
 		SDE_EVT32(rc, SDE_EVTLOG_ERROR);
 		goto end;
 	}
@@ -1663,6 +1681,14 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i)
 		_sde_kms_release_splash_resource(sde_kms, crtc);
 
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	for_each_old_connector_in_state(old_state, connector,
+			old_conn_state, i) {
+		oplus_adfr_frame_done_te_source_vsync_switch(connector);
+		oplus_adfr_frame_done_mux_vsync_switch(connector);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+
 	SDE_EVT32_VERBOSE(SDE_EVTLOG_FUNC_EXIT);
 	SDE_ATRACE_END("sde_kms_complete_commit");
 }
@@ -1895,7 +1921,11 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.soft_reset   = dsi_display_soft_reset,
 		.pre_kickoff  = dsi_conn_pre_kickoff,
 		.clk_ctrl = dsi_display_clk_ctrl,
+#ifdef OPLUS_FEATURE_DISPLAY
+		.set_power = oplus_display_set_power,
+#else /* OPLUS_FEATURE_DISPLAY */
 		.set_power = dsi_display_set_power,
+#endif /* OPLUS_FEATURE_DISPLAY */
 		.get_mode_info = dsi_conn_get_mode_info,
 		.get_dst_format = dsi_display_get_dst_format,
 		.post_kickoff = dsi_conn_post_kickoff,
@@ -1912,7 +1942,13 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.set_dyn_bit_clk = dsi_conn_set_dyn_bit_clk,
 		.get_qsync_min_fps = dsi_conn_get_qsync_min_fps,
 		.get_avr_step_fps = dsi_conn_get_avr_step_fps,
+#ifdef OPLUS_FEATURE_DISPLAY
+		/* OPLUS_FEATURE_ADFR, qsync enhance */
+		// enable qsync on/off cmds
+		.prepare_commit = dsi_display_pre_commit,
+#else /* OPLUS_FEATURE_DISPLAY */
 		.prepare_commit = dsi_conn_prepare_commit,
+#endif /* OPLUS_FEATURE_DISPLAY */
 		.set_submode_info = dsi_conn_set_submode_blob_info,
 		.get_num_lm_from_mode = dsi_conn_get_lm_from_mode,
 		.update_transfer_time = dsi_display_update_transfer_time,
@@ -4235,8 +4271,17 @@ retry:
 			}
 
 			if (lp != SDE_MODE_DPMS_LP1 ||
-				sde_encoder_check_curr_mode(conn->encoder, MSM_DISPLAY_VIDEO_MODE))
+				sde_encoder_check_curr_mode(conn->encoder, MSM_DISPLAY_VIDEO_MODE)) {
+#ifdef OPLUS_FEATURE_DISPLAY
+				if (oplus_ofp_video_mode_aod_fod_is_enabled() && oplus_ofp_get_aod_state()) {
+					DRM_INFO("video aod state is true, no need to set active to false\n");
+				} else {
+					crtc_state->active = false;
+				}
+#else
 				crtc_state->active = false;
+#endif /* OPLUS_FEATURE_DISPLAY */
+			}
 			++num_crtcs;
 		}
 	}
@@ -4490,6 +4535,9 @@ static const struct msm_kms_funcs kms_funcs = {
 	.get_mixer_count = sde_kms_get_mixer_count,
 	.get_dsc_count = sde_kms_get_dsc_count,
 	.in_trusted_vm = sde_kms_in_trusted_vm,
+#if defined(CONFIG_PXLW_IRIS) || defined(CONFIG_PXLW_SOFT_IRIS)
+	.iris_operate = iris_sde_kms_iris_operate,
+#endif
 };
 
 static int _sde_kms_mmu_destroy(struct sde_kms *sde_kms)

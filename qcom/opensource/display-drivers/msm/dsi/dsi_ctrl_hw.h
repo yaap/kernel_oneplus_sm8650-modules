@@ -34,6 +34,25 @@
 #define DSI_MDP_INTF_W32(dsi_ctrl_hw, off, val) \
 	DSI_GEN_W32_DEBUG((dsi_ctrl_hw)->mdp_intf_base, (dsi_ctrl_hw)->index, off, val)
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#undef DSI_CTRL_HW_ERR
+#ifdef OPLUS_TRACKPOINT_REPORT
+#include <soc/oplus/oplus_trackpoint_report.h>
+#define DSI_CTRL_HW_ERR(c, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: DSI_%d: "\
+			fmt, c ? c->index : -1,	##__VA_ARGS__); \
+		display_exception_trackpoint_report("DisplayDriverID@@424$$" fmt, ##__VA_ARGS__); \
+	} while(0)
+#else
+#define DSI_CTRL_HW_ERR(c, fmt, ...) \
+	do { \
+		DRM_DEV_ERROR(NULL, "[msm-dsi-error]: DSI_%d: "\
+			fmt, c ? c->index : -1,	##__VA_ARGS__); \
+	} while(0)
+#endif /* OPLUS_TRACKPOINT_REPORT */
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 /**
  * Modifier flag for command transmission. If this flag is set, command
  * information is programmed to hardware and transmission is not triggered.

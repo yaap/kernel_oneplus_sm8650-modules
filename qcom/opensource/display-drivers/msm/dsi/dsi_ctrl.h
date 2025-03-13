@@ -959,4 +959,6 @@ void dsi_ctrl_transfer_cleanup(struct dsi_ctrl *dsi_ctrl);
  * @dsi_ctrl:                 DSI controller handle.
  */
 void dsi_ctrl_flush_cmd_dma_queue(struct dsi_ctrl *dsi_ctrl);
+
+int dsi_ctrl_override_dma_cmd_trig(struct dsi_ctrl *dsi_ctrl, enum dsi_trigger_type type);
 #endif /* _DSI_CTRL_H_ */

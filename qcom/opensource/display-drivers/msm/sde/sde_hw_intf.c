@@ -11,6 +11,9 @@
 #include "sde_hw_catalog.h"
 #include "sde_hw_intf.h"
 #include "sde_dbg.h"
+#if defined(CONFIG_PXLW_IRIS)
+#include "dsi_iris_api.h"
+#endif
 
 #define INTF_TIMING_ENGINE_EN           0x000
 #define INTF_CONFIG                     0x004
@@ -1040,6 +1043,11 @@ static void sde_hw_intf_enable_compressed_input(struct sde_hw_intf *intf,
 	c = &intf->hw;
 	intf_cfg2 = SDE_REG_READ(c, INTF_CONFIG2);
 
+#if defined(CONFIG_PXLW_IRIS)
+	if (iris_is_chip_supported())
+	/* fixed for dynamic switching from dsc panel timing into raw timing */
+		intf_cfg2 &= ~BIT(12);
+#endif
 	_check_and_set_comp_bit(intf, dsc_4hs_merge, compression_en,
 			&intf_cfg2);
 

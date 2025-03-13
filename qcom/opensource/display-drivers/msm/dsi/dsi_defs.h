@@ -31,6 +31,50 @@
 								##__VA_ARGS__)
 #define DSI_DEBUG(fmt, ...)	DRM_DEV_DEBUG(NULL, "[msm-dsi-debug]: "fmt, \
 								##__VA_ARGS__)
+
+#ifdef OPLUS_FEATURE_DISPLAY
+#ifdef OPLUS_TRACKPOINT_REPORT
+#include <soc/oplus/oplus_trackpoint_report.h>
+#define DSI_MM_ERR(fmt, ...)	\
+	do { \
+			DRM_DEV_ERROR(NULL, "[msm-dsi-error]: " fmt, ##__VA_ARGS__); \
+			display_exception_trackpoint_report(fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_WARN(fmt, ...)	\
+	do { \
+			DRM_WARN("[msm-dsi-warn]: " fmt, ##__VA_ARGS__); \
+			display_info_trackpoint_report(fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_INFO(fmt, ...)	\
+	do { \
+			DRM_DEV_INFO(NULL, "[msm-dsi-info]: " fmt, ##__VA_ARGS__); \
+			display_info_trackpoint_report(fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_DEBUG(fmt, ...)	\
+	do { \
+			DRM_DEV_DEBUG(NULL, "[msm-dsi-debug]: " fmt, ##__VA_ARGS__); \
+			display_info_trackpoint_report(fmt, ##__VA_ARGS__); \
+		} while(0)
+#else
+#define DSI_MM_ERR(fmt, ...)	\
+	do { \
+			DRM_DEV_ERROR(NULL, "[msm-dsi-error]: " fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_WARN(fmt, ...)	\
+	do { \
+			DRM_WARN("[msm-dsi-warn]: " fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_INFO(fmt, ...)	\
+	do { \
+			DRM_DEV_INFO(NULL, "[msm-dsi-info]: " fmt, ##__VA_ARGS__); \
+		} while(0)
+#define DSI_MM_DEBUG(fmt, ...)	\
+	do { \
+			DRM_DEV_DEBUG(NULL, "[msm-dsi-debug]: " fmt, ##__VA_ARGS__); \
+		} while(0)
+#endif /* OPLUS_TRACKPOINT_REPORT */
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 /**
  * enum dsi_pixel_format - DSI pixel formats
  * @DSI_PIXEL_FORMAT_RGB565:
@@ -293,6 +337,7 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_LP1,
 	DSI_CMD_SET_LP2,
 	DSI_CMD_SET_NOLP,
+	DSI_CMD_SET_NOLP_ONEPULSE,
 	DSI_CMD_SET_PPS,
 	DSI_CMD_SET_ROI,
 	DSI_CMD_SET_TIMING_SWITCH,
@@ -300,6 +345,197 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_QSYNC_ON,
 	DSI_CMD_SET_QSYNC_OFF,
 	DSI_CMD_SET_CALIBRATION_DATA,
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	DSI_CMD_ADFR_AUTO_ON,
+	DSI_CMD_ADFR_AUTO_OFF,
+	DSI_CMD_ADFR_MIN_FPS_0,
+	DSI_CMD_ADFR_MIN_FPS_1,
+	DSI_CMD_ADFR_MIN_FPS_2,
+	DSI_CMD_ADFR_MIN_FPS_3,
+	DSI_CMD_ADFR_MIN_FPS_4,
+	DSI_CMD_ADFR_MIN_FPS_5,
+	DSI_CMD_ADFR_MIN_FPS_6,
+	DSI_CMD_ADFR_MIN_FPS_7,
+	DSI_CMD_ADFR_MIN_FPS_8,
+	DSI_CMD_ADFR_MIN_FPS_9,
+	DSI_CMD_ADFR_MIN_FPS_10,
+	DSI_CMD_ADFR_MIN_FPS_11,
+	DSI_CMD_ADFR_MIN_FPS_12,
+	DSI_CMD_ADFR_MIN_FPS_13,
+	DSI_CMD_ADFR_MIN_FPS_14,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_0,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_1,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_2,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_3,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_4,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_5,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_6,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_7,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_8,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_9,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_10,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_11,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_12,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_13,
+	DSI_CMD_HPWM_ADFR_MIN_FPS_14,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_0,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_1,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_2,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_3,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_4,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_5,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_6,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_7,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_8,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_9,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_10,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_11,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_12,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_13,
+	DSI_CMD_BIGDC_ADFR_MIN_FPS_14,
+	DSI_CMD_ADFR_FAKEFRAME,
+	DSI_CMD_ADFR_PRE_SWITCH,
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+#ifdef OPLUS_FEATURE_DISPLAY_HIGH_PRECISION
+	DSI_CMD_ADFR_HIGH_PRECISION_FPS_0,
+	DSI_CMD_ADFR_HIGH_PRECISION_FPS_1,
+	DSI_CMD_ADFR_HIGH_PRECISION_FPS_2,
+	DSI_CMD_ADFR_HIGH_PRECISION_FPS_3,
+	DSI_CMD_HPWM_ADFR_HIGH_PRECISION_FPS_0,
+	DSI_CMD_HPWM_ADFR_HIGH_PRECISION_FPS_1,
+	DSI_CMD_HPWM_ADFR_HIGH_PRECISION_FPS_2,
+	DSI_CMD_HPWM_ADFR_HIGH_PRECISION_FPS_3,
+	DSI_CMD_BIGDC_ADFR_HIGH_PRECISION_FPS_0,
+	DSI_CMD_BIGDC_ADFR_HIGH_PRECISION_FPS_1,
+	DSI_CMD_BIGDC_ADFR_HIGH_PRECISION_FPS_2,
+	DSI_CMD_BIGDC_ADFR_HIGH_PRECISION_FPS_3,
+	DSI_CMD_ADFR_HIGH_PRECISION_TE_SHIFT_ON,
+	DSI_CMD_ADFR_HIGH_PRECISION_TE_SHIFT_OFF,
+#endif /* OPLUS_FEATURE_DISPLAY_HIGH_PRECISION */
+#ifdef OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION
+	DSI_CMD_READ_TEMP_COMPENSATION_REG,
+	DSI_CMD_TEMPERATURE_COMPENSATION,
+#endif /* OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION */
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	DSI_CMD_HBM_ON,
+	DSI_CMD_HBM_ON_ONEPULSE,
+	DSI_CMD_HBM_ON_60HZ,
+	DSI_CMD_HBM_OFF,
+	DSI_CMD_HBM_OFF_60HZ,
+	DSI_CMD_LHBM_PRESSED_ICON_GAMMA,
+	DSI_CMD_LHBM_PRESSED_ICON_GRAYSCALE,
+	DSI_CMD_LHBM_PRESSED_ICON_ON,
+	DSI_CMD_LHBM_PRESSED_ICON_OFF,
+	DSI_CMD_LHBM_UPDATE_VDC,
+	DSI_CMD_LHBM_DBV_ALPHA,
+	DSI_CMD_AOR_ON,
+	DSI_CMD_AOR_OFF,
+	DSI_CMD_AOD_HIGH_LIGHT_MODE,
+	DSI_CMD_AOD_LOW_LIGHT_MODE,
+	DSI_CMD_ULTRA_LOW_POWER_AOD_ON,
+	DSI_CMD_ULTRA_LOW_POWER_AOD_OFF,
+	DSI_CMD_AOD_OFF_COMPENSATION,
+	DSI_CMD_AOD_OFF_COMPENSATION_ONEPULSE,
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+#ifdef OPLUS_FEATURE_DISPLAY
+	DSI_CMD_POST_ON_BACKLIGHT,
+	DSI_CMD_SEED_MODE0,
+	DSI_CMD_SEED_MODE1,
+	DSI_CMD_SEED_MODE2,
+	DSI_CMD_SEED_MODE3,
+	DSI_CMD_SEED_MODE4,
+	DSI_CMD_SEED_MODE8,
+	DSI_CMD_SEED_OFF,
+	DSI_CMD_SPR_MODE0,
+	DSI_CMD_SPR_MODE1,
+	DSI_CMD_SPR_MODE2,
+	DSI_CMD_DATA_DIMMING_ON,
+	DSI_CMD_DATA_DIMMING_OFF,
+	DSI_CMD_OSC_CLK_MODEO0,
+	DSI_CMD_OSC_CLK_MODEO1,
+	DSI_CMD_OSC_TRACK_ON,
+	DSI_CMD_OSC_TRACK_OFF,
+	DSI_CMD_FFC_MODE0,
+	DSI_CMD_FFC_MODE1,
+	DSI_CMD_FFC_MODE2,
+	DSI_CMD_FFC_MODE3,
+	DSI_CMD_SET_PANEL_ID1,
+	DSI_CMD_PANEL_READ_REGISTER_OPEN,
+	DSI_CMD_PANEL_READ_REGISTER_CLOSE,
+	DSI_CMD_LOADING_EFFECT_MODE1,
+	DSI_CMD_LOADING_EFFECT_MODE2,
+	DSI_CMD_LOADING_EFFECT_OFF,
+	DSI_CMD_HBM_ENTER_SWITCH,
+	DSI_CMD_HBM_EXIT_SWITCH,
+	DSI_CMD_HBM_MAX,
+	DSI_CMD_EXIT_HBM_MAX,
+	DSI_CMD_DIMMING_SETTING,
+	DSI_CMD_PWM_SWITCH_ONEPULSE,
+	DSI_CMD_TIMMING_PWM_SWITCH_ONEPULSE,
+	DSI_CMD_PWM_SWITCH_1TO3,
+	DSI_CMD_PWM_SWITCH_3TO1,
+	DSI_CMD_PWM_SWITCH_1TO18,
+	DSI_CMD_PWM_SWITCH_18TO1,
+	DSI_CMD_PWM_SWITCH_THREEPULSE,
+	DSI_CMD_PWM_SWITCH_HIGH,
+	DSI_CMD_PWM_SWITCH_LOW,
+	DSI_CMD_PWM_SWITCH_ONEPULSE_LOW,
+	DSI_CMD_PWM_SWITCH_HIGH_RESTORE,
+	DSI_CMD_PWM_SWITCH_LOW_RESTORE,
+	DSI_CMD_TIMMING_PWM_SWITCH_HIGH,
+	DSI_CMD_TIMMING_PWM_SWITCH_LOW,
+	DSI_CMD_POWER_ON_PWM_SWITCH_ONEPULSE,
+	DSI_CMD_DLY_ON,
+	DSI_CMD_DLY_OFF,
+	DSI_CMD_CABC_OFF,
+	DSI_CMD_CABC_UI,
+	DSI_CMD_CABC_IMAGE,
+	DSI_CMD_CABC_VIDEO,
+	DSI_CMD_ESD_SWITCH_PAGE,
+	DSI_CMD_PANEL_DATE_SWITCH,
+	DSI_CMD_PANEL_INFO_SWITCH_PAGE,
+	DSI_CMD_PANEL_INIT,
+	DSI_OPTIMIZE_INIT_ON,
+	DSI_OPTIMIZE_INIT_SPLIT_ON,
+	DSI_CMD_SET_COMPATIBILITY_ON,
+	DSI_CMD_VID_120_SWITCH,
+	DSI_CMD_VID_60_SWITCH,
+	DSI_CMD_PWM_TURBO_ON,
+	DSI_CMD_PWM_TURBO_OFF,
+	DSI_CMD_PWM_TURBO_HBM_ON,
+	DSI_CMD_PWM_TURBO_HBM_OFF,
+	DSI_CMD_PWM_TURBO_AOR_ON,
+	DSI_CMD_PWM_TURBO_AOR_OFF,
+	DSI_CMD_PWM_TURBO_TIMING_SWITCH,
+	DSI_CMD_DEFAULT_SWITCH_PAGE,
+	DSI_CMD_SKIPFRAME_DBV,
+	DSI_CMD_DEMURA_DBV_MODE0,
+	DSI_CMD_DEMURA_DBV_MODE1,
+	DSI_CMD_DEMURA_DBV_MODE2,
+	DSI_CMD_DEMURA_DBV_MODE3,
+	DSI_CMD_DEMURA_DBV_MODE4,
+	DSI_CMD_DEMURA_DBV_MODE5,
+	DSI_CMD_DEMURA_DBV_MODE6,
+	DSI_CMD_DEMURA_DBV_MODE7,
+	DSI_CMD_SET_DEMURA2_OFFSET0,
+	DSI_CMD_SET_DEMURA2_OFFSET1,
+	DSI_CMD_SET_DEMURA2_OFFSET2,
+	DSI_CMD_SET_DEMURA2_OFFSET3,
+	DSI_CMD_SET_DEMURA2_OFFSET4,
+	DSI_CMD_UIR_ON_LOADING_EFFECT_MODE1,
+	DSI_CMD_UIR_ON_LOADING_EFFECT_MODE2,
+	DSI_CMD_UIR_ON_LOADING_EFFECT_MODE3,
+	DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE1,
+	DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE2,
+	DSI_CMD_UIR_OFF_LOADING_EFFECT_MODE3,
+	DSI_CMD_UIR_LOADING_EFFECT_MODE1,
+	DSI_CMD_UIR_LOADING_EFFECT_MODE2,
+	DSI_CMD_UIR_LOADING_EFFECT_MODE3,
+	DSI_CMD_SET_DC_ON,
+	DSI_CMD_GAMMA_COMPENSATION_PAGE0,
+	DSI_CMD_GAMMA_COMPENSATION_PAGE1,
+	DSI_CMD_GAMMA_COMPENSATION,
+#endif /* OPLUS_FEATURE_DISPLAY */
 	DSI_CMD_SET_MAX
 };
 
@@ -395,6 +631,9 @@ struct dsi_panel_cmd_set {
 	u32 count;
 	u32 ctrl_idx;
 	struct dsi_cmd_desc *cmds;
+#ifdef OPLUS_FEATURE_DISPLAY
+	bool pack;
+#endif /* OPLUS_FEATURE_DISPLAY */
 };
 
 /**
@@ -522,6 +761,7 @@ struct dsi_host_common_cfg {
 	enum dsi_te_mode te_mode;
 	enum dsi_trigger_type mdp_cmd_trigger;
 	enum dsi_trigger_type dma_cmd_trigger;
+	enum dsi_trigger_type force_dma_cmd_trigger;
 	u32 cmd_trigger_stream;
 	enum dsi_color_swap_mode swap_mode;
 	bool bit_swap_red;
@@ -678,7 +918,43 @@ struct dsi_display_mode_priv_info {
 	struct msm_roi_caps roi_caps;
 	bool widebus_support;
 	u32 allowed_mode_switch;
+
 	bool disable_rsc_solver;
+#ifdef OPLUS_FEATURE_DISPLAY
+	/* Add for apollo */
+	/* width & period of vsync may not conform to refresh rate
+	 * add variable to store width & period of vsync
+	 */
+	u32 vsync_width;
+	u32 vsync_period;
+	u32 async_bl_delay;
+	u32 refresh_rate;
+#endif /* OPLUS_FEATURE_DISPLAY */
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	unsigned int *oplus_adfr_min_fps_mapping_table;
+	unsigned char oplus_adfr_min_fps_mapping_table_count;
+	unsigned int oplus_adfr_fakeframe_config;
+	unsigned int oplus_adfr_idle_off_min_fps;
+	bool oplus_adfr_idle_min_fps_log;
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+#ifdef OPLUS_FEATURE_DISPLAY_HIGH_PRECISION
+	unsigned int *oplus_adfr_high_precision_fps_mapping_table;
+	unsigned char oplus_adfr_high_precision_fps_mapping_table_count;
+	unsigned int oplus_adfr_sw_stabilize_frame_threshold_us;
+	unsigned int *oplus_adfr_sw_stabilize_frame_config_table;
+	unsigned int oplus_adfr_sw_stabilize_frame_config_table_count;
+	unsigned int *oplus_adfr_hw_stabilize_frame_config_table;
+	unsigned int oplus_adfr_hw_stabilize_frame_config_table_count;
+#endif /* OPLUS_FEATURE_DISPLAY_HIGH_PRECISION */
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	bool oplus_ofp_need_to_separate_backlight;
+	bool oplus_ofp_need_to_sync_data_in_aod_unlocking;
+	unsigned int oplus_ofp_backlight_on_period;
+	unsigned int oplus_ofp_hbm_on_period;
+	unsigned int oplus_ofp_uiready_delay_frames;
+	unsigned int oplus_ofp_aod_off_insert_black_frame;
+	unsigned int oplus_ofp_aod_off_black_frame_total_time;
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 };
 
 /**
@@ -703,6 +979,9 @@ struct dsi_display_mode {
 	bool is_preferred;
 	u32 mode_idx;
 	struct dsi_display_mode_priv_info *priv_info;
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	u32 vsync_source;
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
 };
 
 /**

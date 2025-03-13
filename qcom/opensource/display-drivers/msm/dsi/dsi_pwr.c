@@ -11,6 +11,11 @@
 #include "dsi_parser.h"
 #include "dsi_defs.h"
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "dsi_display.h"
+#include "../oplus/oplus_display_interface.h"
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 /*
  * dsi_pwr_parse_supply_node() - parse power supply node from root device node
  */
@@ -128,6 +133,9 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	int num_of_v = 0;
 	u32 pre_on_ms, post_on_ms;
 	u32 pre_off_ms, post_off_ms;
+#ifdef OPLUS_FEATURE_DISPLAY
+	struct dsi_display *display = get_main_display();
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	if (enable) {
 		for (i = 0; i < regs->count; i++) {
@@ -168,6 +176,9 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 			if (vreg->post_on_sleep)
 				usleep_range((post_on_ms * 1000),
 						(post_on_ms * 1000) + 10);
+#ifdef OPLUS_FEATURE_DISPLAY
+			oplus_panel_vddr_on(display, vreg->vreg_name);
+#endif /* OPLUS_FEATURE_DISPLAY */
 		}
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
@@ -193,7 +204,9 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 				(void)regulator_set_voltage(regs->vregs[i].vreg,
 						regs->vregs[i].off_min_voltage,
 						regs->vregs[i].max_voltage);
-
+#ifdef OPLUS_FEATURE_DISPLAY
+			oplus_panel_vddr_off(display, vreg->vreg_name);
+#endif /* OPLUS_FEATURE_DISPLAY */
 		}
 	}
 
@@ -401,6 +414,10 @@ int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable)
 
 	return rc;
 }
+
+#ifdef OPLUS_FEATURE_DISPLAY
+EXPORT_SYMBOL(dsi_pwr_enable_regulator);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 /*
  * dsi_pwr_panel_regulator_mode_set()
