@@ -46,6 +46,7 @@
 
 /* Max CSI Rx irq error count threshold value */
 #define CAM_TFE_CSID_MAX_IRQ_ERROR_COUNT               5
+#define CAM_TFE_CSID_MAX_CRC_ERROR_COUNT               25
 
 static int cam_tfe_csid_is_ipp_ppp_format_supported(
 	uint32_t in_format)
@@ -556,6 +557,7 @@ static int cam_tfe_csid_global_reset(struct cam_tfe_csid_hw *csid_hw)
 		CAM_ERR(CAM_ISP, "CSID:%d IRQ value after reset rc = %d",
 			csid_hw->hw_intf->hw_idx, val);
 	csid_hw->error_irq_count = 0;
+	csid_hw->crc_error_irq_count = 0;
 	csid_hw->prev_boot_timestamp = 0;
 
 	if (csid_hw->pxl_pipe_enable) {
@@ -1424,6 +1426,7 @@ static int cam_tfe_csid_disable_hw(struct cam_tfe_csid_hw *csid_hw)
 	spin_unlock_irqrestore(&csid_hw->spin_lock, flags);
 	csid_hw->hw_info->hw_state = CAM_HW_STATE_POWER_DOWN;
 	csid_hw->error_irq_count = 0;
+	csid_hw->crc_error_irq_count = 0;
 	csid_hw->prev_boot_timestamp = 0;
 
 	return rc;
@@ -3206,7 +3209,9 @@ static int cam_tfe_csid_stop(void *hw_priv,
 				cam_io_w_mb(val, mem_base + pxl_reg->csid_pxl_cfg0_addr);
 			} else
 				continue;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 			break;
+#endif
 		default:
 			CAM_DBG(CAM_ISP, "CSID:%d Invalid res type%d",
 				csid_hw->hw_intf->hw_idx,
@@ -3793,10 +3798,15 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	void *evt_payload_priv)
 {
 	struct cam_tfe_csid_hw *csid_hw;
+	struct cam_hw_soc_info *soc_info;
 	struct cam_csid_evt_payload *evt_payload;
 	const struct cam_tfe_csid_reg_offset    *csid_reg;
-	struct cam_isp_hw_error_event_info err_evt_info;
-	struct cam_isp_hw_event_info event_info;
+	const struct cam_tfe_csid_csi2_rx_reg_offset   *csi2_reg;
+	struct cam_isp_hw_error_event_info err_evt_info = {0};
+	struct cam_isp_hw_event_info event_info = {0};
+	uint32_t  long_pkt_ftr_val;
+	uint32_t  total_crc;
+	uint32_t  val;
 	int i;
 	int rc = 0;
 	uint32_t data_idx;
@@ -3812,6 +3822,8 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 	evt_payload = (struct cam_csid_evt_payload *)evt_payload_priv;
 	csid_reg = csid_hw->csid_info->csid_reg;
 	data_idx = csid_hw->csi2_rx_cfg.phy_sel - 1;
+	soc_info = &csid_hw->hw_info->soc_info;
+	csi2_reg = csid_reg->csi2_reg;
 
 	if (!csid_hw->event_cb || !csid_hw->event_cb_priv) {
 		CAM_ERR_RATE_LIMIT(CAM_ISP,
@@ -3868,6 +3880,31 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 			evt_payload->irq_status[TFE_CSID_IRQ_REG_RDI1],
 			evt_payload->irq_status[TFE_CSID_IRQ_REG_RDI2]);
 	}
+
+	if (evt_payload->irq_status[TFE_CSID_IRQ_REG_RX] & TFE_CSID_CSI2_RX_ERROR_CRC) {
+		long_pkt_ftr_val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			csi2_reg->csid_csi2_rx_captured_long_pkt_ftr_addr);
+		total_crc = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+			csi2_reg->csid_csi2_rx_total_crc_err_addr);
+
+		if (csid_hw->csi2_rx_cfg.lane_type == CAM_ISP_LANE_TYPE_CPHY) {
+			val = cam_io_r_mb(soc_info->reg_map[0].mem_base +
+				csi2_reg->csid_csi2_rx_captured_cphy_pkt_hdr_addr);
+
+			CAM_ERR(CAM_ISP,"PHY_CRC_ERROR: Long pkt payload CRC mismatch. \
+					Total CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x, \
+					VC:%d DT:%d WC:%d",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16, val >> 22,
+					(val >> 16) & 0x3F, val & 0xFFFF);
+		} else {
+			CAM_ERR(CAM_ISP,"PHY_CRC_ERROR: Long pkt payload CRC mismatch. \
+					Totl CRC Errs: %u, Rcvd CRC: 0x%x Caltd CRC: 0x%x",
+					total_crc, long_pkt_ftr_val & 0xffff,
+					long_pkt_ftr_val >> 16);
+		}
+	}
+
 	/* this hunk can be extended to handle more cases
 	 * which we want to offload to bottom half from
 	 * irq handlers
@@ -3889,6 +3926,7 @@ static int cam_tfe_csid_evt_bottom_half_handler(
 		csid_hw->fatal_err_detected = true;
 		break;
 	case CAM_ISP_HW_ERROR_CSID_OUTPUT_FIFO_OVERFLOW:
+	case CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED:
 		event_info.event_data = (void *)&err_evt_info;
 		rc = csid_hw->event_cb(csid_hw->event_cb_priv,
 			CAM_ISP_HW_EVENT_ERROR, (void *)&event_info);
@@ -4091,8 +4129,15 @@ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data)
 			csid_hw->error_irq_count++;
 
 		if (irq_status[TFE_CSID_IRQ_REG_RX] &
-			TFE_CSID_CSI2_RX_ERROR_CRC)
+			TFE_CSID_CSI2_RX_ERROR_CRC) {
 			is_error_irq = true;
+			csid_hw->crc_error_irq_count++;
+			if (csid_hw->crc_error_irq_count >
+				CAM_TFE_CSID_MAX_CRC_ERROR_COUNT) {
+				report_err_type = CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED;
+				csid_hw->crc_error_irq_count = 0;
+			}
+		}
 
 		if (irq_status[TFE_CSID_IRQ_REG_RX] &
 			TFE_CSID_CSI2_RX_ERROR_ECC)
@@ -4715,6 +4760,7 @@ int cam_tfe_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,
 
 	tfe_csid_hw->csid_debug = 0;
 	tfe_csid_hw->error_irq_count = 0;
+	tfe_csid_hw->crc_error_irq_count = 0;
 	tfe_csid_hw->prev_boot_timestamp = 0;
 
 	rc = cam_tfe_csid_disable_soc_resources(

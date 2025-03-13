@@ -3679,6 +3679,7 @@ static int cam_soc_util_dump_cont_reg_range(
 	write_idx = dump_out_buf->bytes_written / sizeof(uint32_t);
 	reg_map_size = (uint32_t)soc_info->reg_map[base_idx].size;
 	for (i = 0; i < reg_read->num_values; i++) {
+
 		rc = cam_soc_util_reg_addr_validation(reg_map_size,
 			reg_read->offset + (i * sizeof(uint32_t)),
 			"cont_reg_range");

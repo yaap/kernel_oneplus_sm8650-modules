@@ -404,6 +404,9 @@ TRACE_EVENT(cam_cdm_cb,
 			__get_str(entity), __entry->status
 	)
 );
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_trace.h"
+#endif
 
 TRACE_EVENT(cam_cci_burst,
 	TP_PROTO(const int32_t idx, int32_t m,

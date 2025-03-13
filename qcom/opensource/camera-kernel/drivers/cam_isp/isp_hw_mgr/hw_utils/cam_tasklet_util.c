@@ -21,7 +21,7 @@
 /* Threshold for execution delay in ms */
 #define CAM_TASKLET_EXE_TIME_THRESHOLD          10
 
-#define CAM_TASKLETQ_SIZE                          256
+#define CAM_TASKLETQ_SIZE                          512
 
 static void cam_tasklet_action(unsigned long data);
 

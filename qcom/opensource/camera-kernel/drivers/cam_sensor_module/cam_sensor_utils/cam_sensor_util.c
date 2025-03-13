@@ -2060,7 +2060,11 @@ static int cam_config_mclk_reg(struct cam_sensor_power_ctrl_t *ctrl,
 	pd = &ctrl->power_down_setting[index];
 
 	for (j = 0; j < num_vreg; j++) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (!strcmp(soc_info->rgltr_name[j], "cam_clk") && NULL != ctrl->power_setting) {
+#else
 		if (!strcmp(soc_info->rgltr_name[j], "cam_clk")) {
+#endif
 			ps = NULL;
 			for (idx = 0; idx < ctrl->power_setting_size; idx++) {
 				if (ctrl->power_setting[idx].seq_type ==
@@ -2284,6 +2288,44 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					seq_min_volt = soc_info->rgltr_min_volt[vreg_idx];
 					seq_max_volt = soc_info->rgltr_max_volt[vreg_idx];
 				}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				if(power_setting->seq_type == SENSOR_VIO && power_setting->config_val == 3){
+					CAM_DBG(CAM_SENSOR, "seq_type:%d rgltr_delay = %d",power_setting->seq_type, soc_info->rgltr_delay[vreg_idx]);
+					for(i = 0 ; i < 2 ; i++) {
+						rc =  cam_soc_util_regulator_enable(
+								soc_info->rgltr[vreg_idx],
+								soc_info->rgltr_name[vreg_idx],
+								soc_info->rgltr_min_volt[vreg_idx],
+								soc_info->rgltr_max_volt[vreg_idx],
+								soc_info->rgltr_op_mode[vreg_idx],
+								soc_info->rgltr_delay[vreg_idx]);
+						if (rc) {
+								CAM_ERR(CAM_SENSOR,
+									"Reg Enable failed for %s",
+									soc_info->rgltr_name[vreg_idx]);
+									goto power_up_failed;
+						}
+						usleep_range(power_setting->delay * 500,
+										(power_setting->delay * 500) + 100);
+
+						rc = cam_soc_util_regulator_disable(
+								soc_info->rgltr[vreg_idx],
+								soc_info->rgltr_name[vreg_idx],
+								soc_info->rgltr_min_volt[vreg_idx],
+								soc_info->rgltr_max_volt[vreg_idx],
+								soc_info->rgltr_op_mode[vreg_idx],
+								soc_info->rgltr_delay[vreg_idx]);
+						if (ret) {
+								CAM_ERR(CAM_SENSOR,
+									"Reg: %s disable failed",
+									soc_info->rgltr_name[vreg_idx]);
+									goto power_up_failed;
+						}
+						usleep_range(power_setting->delay * 500,
+										(power_setting->delay * 500) + 100);
+					}
+				}
+#endif
 
 				rc =  cam_soc_util_regulator_enable(
 					soc_info->rgltr[vreg_idx],
@@ -2489,6 +2531,10 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 			ctrl->power_setting_size);
 		return -EINVAL;
 	}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(ctrl->power_down_setting_size <= 0)
+		CAM_ERR(CAM_SENSOR_UTIL,"power_down_setting_size:%d",ctrl->power_down_setting_size);
+#endif
 
 	for (index = 0; index < ctrl->power_down_setting_size; index++) {
 		CAM_DBG(CAM_SENSOR_UTIL, "power_down_index %d",  index);

@@ -13,6 +13,11 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+ #ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_eeprom_core.h"
+#include "oplus_cam_kevent_fb.h"
+#include "oplus_cam_insensor_eeprom_dev.h"
+#endif
 
 #define MAX_READ_SIZE  0x7FFFF
 
@@ -34,6 +39,10 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_eeprom_memory_map_t    *emap = block->map;
 	struct cam_eeprom_soc_private     *eb_info = NULL;
 	uint8_t                           *memptr = block->mapdata;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int eeprom_cci = 8;
+	char fb_payload[PAYLOAD_LENGTH] = {0};
+#endif
 
 	if (!e_ctrl) {
 		CAM_ERR(CAM_EEPROM, "e_ctrl is NULL");
@@ -102,20 +111,56 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 				return rc;
 			}
 		}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (e_ctrl->actuator_ois_eeprom_merge_flag)
+		{
+			CAM_DBG(CAM_EEPROM, "before actuator_ois_eeprom_merge_flag lock");
+			mutex_lock(e_ctrl->actuator_ois_eeprom_merge_mutex);
+			CAM_DBG(CAM_EEPROM, "after actuator_ois_eeprom_merge_flag lock");
+		}
+#endif
 
 		if (emap[j].mem.valid_size) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if ((eb_info->eeprom_name != NULL) && (!strcmp(eb_info->eeprom_name, "sc820cs_caihong"))) {
+				rc = oplus_cam_eeprom_sc820cs(e_ctrl, memptr);
+				if (rc){
+					CAM_ERR(CAM_EEPROM, "caihong sc820cs otp read failed");
+				} else {
+					CAM_INFO(CAM_EEPROM, "caihong sc820cs otp read success");
+				}
+			} else {
+			oplus_cam_eeprom(e_ctrl);
+#endif
 			rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
 				emap[j].mem.addr, memptr,
 				emap[j].mem.addr_type,
 				emap[j].mem.data_type,
 				emap[j].mem.valid_size);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			}
+#endif
 			if (rc < 0) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				eeprom_cci = (e_ctrl->cci_i2c_master << 1)|(e_ctrl->cci_num);
+				KEVENT_FB_EEPRPOM_WR_FAILED(fb_payload, "camera eeprom read failed",eeprom_cci);
+#endif
 				CAM_ERR(CAM_EEPROM, "read failed rc %d",
 					rc);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				goto error_handle;
+#else
 				return rc;
+#endif
 			}
 			memptr += emap[j].mem.valid_size;
 		}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (e_ctrl->actuator_ois_eeprom_merge_flag)
+		{
+			mutex_unlock(e_ctrl->actuator_ois_eeprom_merge_mutex);
+		}
+#endif
 
 		if (emap[j].pageen.valid_size) {
 			i2c_reg_settings.addr_type = emap[j].pageen.addr_type;
@@ -135,6 +180,14 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			}
 		}
 	}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	return rc;
+error_handle:
+	if (e_ctrl->actuator_ois_eeprom_merge_flag)
+	{
+		mutex_unlock(e_ctrl->actuator_ois_eeprom_merge_mutex);
+	}
+#endif
 	return rc;
 }
 
@@ -397,7 +450,6 @@ static int32_t cam_eeprom_update_slaveInfo(struct cam_eeprom_ctrl_t *e_ctrl,
 	cmd_i2c_info = (struct cam_cmd_i2c_info *)cmd_buf;
 	soc_private->i2c_info.slave_addr = cmd_i2c_info->slave_addr;
 	soc_private->i2c_info.i2c_freq_mode = cmd_i2c_info->i2c_freq_mode;
-
 	rc = cam_eeprom_update_i2c_info(e_ctrl,
 		&soc_private->i2c_info);
 	CAM_DBG(CAM_EEPROM, "Slave addr: 0x%x Freq Mode: %d",
@@ -1476,6 +1528,10 @@ int32_t cam_eeprom_driver_cmd(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	int                            rc = 0;
 	struct cam_eeprom_query_cap_t  eeprom_cap = {0};
 	struct cam_control            *cmd = (struct cam_control *)arg;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int eeprom_cci = 8;
+	char fb_payload[PAYLOAD_LENGTH] = {0};
+#endif
 
 	if (!e_ctrl || !cmd) {
 		CAM_ERR(CAM_EEPROM, "Invalid Arguments");
@@ -1489,6 +1545,15 @@ int32_t cam_eeprom_driver_cmd(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	}
 
 	mutex_lock(&(e_ctrl->eeprom_mutex));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	rc = cam_eeprom_driver_cmd_oem(e_ctrl,arg);
+	if (rc) {
+		CAM_ERR(CAM_EEPROM, "Failed in check eeprom data");
+		eeprom_cci = (e_ctrl->cci_i2c_master << 1)|(e_ctrl->cci_num);
+		KEVENT_FB_EEPRPOM_WR_FAILED(fb_payload, "camera eeprom write failed", eeprom_cci);
+		goto release_mutex;
+	}
+#endif
 	switch (cmd->op_code) {
 	case CAM_QUERY_CAP:
 		eeprom_cap.slot_info = e_ctrl->soc_info.index;

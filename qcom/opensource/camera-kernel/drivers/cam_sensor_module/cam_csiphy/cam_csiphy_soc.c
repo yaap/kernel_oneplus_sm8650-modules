@@ -13,6 +13,21 @@
 #include "include/cam_csiphy_2_2_0_hwreg.h"
 #include "include/cam_csiphy_2_2_1_hwreg.h"
 #include "include/cam_csiphy_2_3_0_hwreg.h"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "include/cam_csiphy_2_2_0_hwreg_enhance.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance1.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance_enzo.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance4wide.h"
+#include "include/cam_csiphy_2_2_1_hwreg_audi_front_enhance.h"
+#include "include/cam_csiphy_2_2_1_hwreg_audi_main_enhance.h"
+#include "include/cam_csiphy_2_2_1_hwreg_audi_wide_enhance.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance1_wide.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance1_tele2.h"
+#include "include/cam_csiphy_2_2_1_hwreg_enhance_bale_a.h"
+#include "include/cam_csiphy_2_2_1_hwreg_enhance_bale_c.h"
+#include "include/cam_csiphy_2_2_0_hwreg_enhance_giulia.h"
+#include "include/cam_csiphy_2_2_1_hwreg_enhance_piaget.h"
+#endif
 
 /* Clock divide factor for CPHY spec v1.0 */
 #define CSIPHY_DIVISOR_16                    16
@@ -369,6 +384,75 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 		csiphy_dev->hw_version = CSIPHY_VERSION_V230;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+        } else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance1")) {
+                csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance1;
+                csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE1;
+                csiphy_dev->is_divisor_32_comp = true;
+                csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance_enzo")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance_enzo;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE_ENZO;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance4wide")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance4wide;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE4WIDE;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+    } else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance_giulia")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance_giulia;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE_GIULIA;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+    } else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-audi-front-enhance")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_audi_front_enhance;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_AUDI_FRONT_ENHANCE;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-audi-main-enhance")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_audi_main_enhance;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_AUDI_MAIN_ENHANCE;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-audi-wide-enhance")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_audi_wide_enhance;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_AUDI_WIDE_ENHANCE;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+        } else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance1_wide")) {
+                csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance1_wide;
+                csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE1_WIDE;
+                csiphy_dev->is_divisor_32_comp = true;
+                csiphy_dev->clk_lane = 0;
+        } else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.0-enhance1_tele2")) {
+                csiphy_dev->ctrl_reg = &ctrl_reg_2_2_0_enhance1_tele2;
+                csiphy_dev->hw_version = CSIPHY_VERSION_V220_ENHANCE1_TELE2;
+                csiphy_dev->is_divisor_32_comp = true;
+                csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-enhance-bale-a")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_enhance_bale_a;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_ENHANCE_BALE_A;
+		csiphy_dev->ctrl_reg->csiphy_2ph_reg = csiphy_2ph_v2_2_0_reg_bale_a;
+		csiphy_dev->ctrl_reg->csiphy_2ph_combo_mode_reg = csiphy_2ph_v2_2_1_combo_mode_reg_bale_a;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-enhance-bale-c")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_enhance_bale_c;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_ENHANCE_BALE_C;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-enhance-piaget")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_enhance_piaget;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_ENHANCE_PIAGET;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+#endif
 	} else {
 		CAM_ERR(CAM_CSIPHY, "invalid hw version : 0x%x",
 			csiphy_dev->hw_version);

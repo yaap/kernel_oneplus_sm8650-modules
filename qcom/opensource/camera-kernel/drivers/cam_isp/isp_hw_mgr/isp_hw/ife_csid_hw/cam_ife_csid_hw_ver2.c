@@ -27,6 +27,9 @@
 #include "cam_common_util.h"
 #include "cam_subdev.h"
 #include "cam_compat.h"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_kevent_fb.h"
+#endif
 
 /* CSIPHY TPG VC/DT values */
 #define CAM_IFE_CPHY_TPG_VC_VAL                         0x0
@@ -54,9 +57,16 @@
 #define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               100
 
 /* Max sensor switch out of sync threshold */
-#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         3
+#define CAM_IFE_CSID_MAX_OUT_OF_SYNC_ERR_COUNT         6
 
 #define CAM_CSID_IRQ_CTRL_NAME_LEN                     10
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+struct timespec64                  curTimestamp;
+struct timespec64                  preTimestamp;
+uint32_t                           counter=0;
+bool                               print_flag = TRUE;
+#endif
 
 static void cam_ife_csid_ver2_print_debug_reg_status(
 	struct cam_ife_csid_ver2_hw *csid_hw,
@@ -1305,11 +1315,21 @@ static int cam_ife_csid_ver2_handle_event_err(
 			cam_ife_csid_ver2_print_debug_reg_status(csid_hw, res);
 			path_cfg = (struct cam_ife_csid_ver2_path_cfg *)res->res_priv;
 			evt.res_id   = res->res_id;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if(print_flag){
+				CAM_ERR(CAM_ISP,
+					"csid[%u] Res:%s Err 0x%x status 0x%x time_stamp: %lld.%09lld",
+					csid_hw->hw_intf->hw_idx, res->res_name, err_type,
+					irq_status, path_cfg->error_ts.tv_sec,
+					path_cfg->error_ts.tv_nsec);
+			}
+#else
 			CAM_ERR(CAM_ISP,
 				"csid[%u] Res:%s Err 0x%x status 0x%x time_stamp: %lld.%09lld",
 				csid_hw->hw_intf->hw_idx, res->res_name, err_type,
 				irq_status, path_cfg->error_ts.tv_sec,
 				path_cfg->error_ts.tv_nsec);
+#endif
 		} else {
 			CAM_ERR(CAM_ISP,
 				"csid[%u] Rx Err: 0x%x status 0x%x",
@@ -1345,6 +1365,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 	uint32_t                                    long_pkt_ftr_val;
 	uint32_t                                    total_crc;
 	int                                         data_idx = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+        char fb_payload[PAYLOAD_LENGTH] = {0};
+#endif
 
 	if (!handler_priv || !evt_payload_priv) {
 		CAM_ERR(CAM_ISP, "Invalid params");
@@ -1427,6 +1450,10 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 			event_type |= CAM_ISP_HW_ERROR_CSID_UNBOUNDED_FRAME;
 			CAM_ERR_BUF(CAM_ISP, log_buf, CAM_IFE_CSID_LOG_BUF_LEN, &len,
 				"UNBOUNDED_FRAME: Frame started with EOF or No EOF");
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			KEVENT_FB_FRAME_ERROR(fb_payload, "UNBOUNDED FRAME", (csid_hw->rx_cfg.phy_sel - 1));
+#endif
+
 		}
 
 		if (irq_status & IFE_CSID_VER2_RX_CPHY_EOT_RECEPTION) {
@@ -1461,6 +1488,9 @@ static int cam_ife_csid_ver2_rx_err_bottom_half(
 					total_crc, long_pkt_ftr_val & 0xffff,
 					long_pkt_ftr_val >> 16);
 			}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			KEVENT_FB_CRC_FAILED(fb_payload, "crc error", (csid_hw->rx_cfg.phy_sel - 1));
+#endif
 		}
 
 		CAM_ERR(CAM_ISP, "CSID[%u] Fatal Errors: %s", csid_hw->hw_intf->hw_idx, log_buf);
@@ -1601,7 +1631,26 @@ void cam_ife_csid_hw_ver2_mup_mismatch_handler(
 	struct cam_hw_soc_info            *soc_info = &csid_hw->hw_info->soc_info;
 	struct cam_ife_csid_ver2_reg_info *csid_reg = NULL;
 	const struct cam_ife_csid_ver2_path_reg_info *path_reg = NULL;
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(timespec64_to_ns(&preTimestamp) == 0){
+		ktime_get_boottime_ts64(&preTimestamp);
+	}else{
+		struct timespec64                  time_delta;
+		ktime_get_boottime_ts64(&curTimestamp);
+		time_delta = timespec64_sub(curTimestamp,preTimestamp);
+		if(counter >=30){
+			if((timespec64_to_ns(&time_delta) <= 1000*1000*1000 )){
+				print_flag = FALSE;
+				return;
+			}else{
+				preTimestamp = curTimestamp;
+				counter = 0;
+				print_flag=TRUE;
+			}
+		}
+	}
+	counter++;
+#endif
 	CAM_INFO(CAM_ISP, "CSID:%u Last MUP value 0x%x programmed for res [id: %d name: %s]",
 		csid_hw->hw_intf->hw_idx, csid_hw->rx_cfg.mup, res->res_id, res->res_name);
 
@@ -1764,12 +1813,21 @@ static void cam_ife_csid_ver2_print_debug_reg_status(
 	if (csid_hw->debug_info.test_bus_enabled)
 		val3 = cam_io_r_mb(mem_base +
 			csid_reg->cmn_reg->test_bus_debug);
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(print_flag){
+		CAM_INFO(CAM_ISP,
+			"CSID:%u debug_camif_0: 0x%x debug_camif_1: 0x%x halt_status: 0x%x test_bus: %s test_bus_val: 0x%x for res: %s ",
+			csid_hw->hw_intf->hw_idx, val0, val1, val2,
+			CAM_BOOL_TO_YESNO(csid_hw->debug_info.test_bus_enabled),
+			val3, res->res_name);
+	}
+#else
 	CAM_INFO(CAM_ISP,
 		"CSID:%u debug_camif_0: 0x%x debug_camif_1: 0x%x halt_status: 0x%x test_bus: %s test_bus_val: 0x%x for res: %s ",
 		csid_hw->hw_intf->hw_idx, val0, val1, val2,
 		CAM_BOOL_TO_YESNO(csid_hw->debug_info.test_bus_enabled),
 		val3, res->res_name);
+#endif
 }
 
 static int cam_ife_csid_ver2_parse_path_irq_status(
@@ -1808,12 +1866,20 @@ static int cam_ife_csid_ver2_parse_path_irq_status(
 		bit_pos++;
 		status >>= 1;
 	}
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(print_flag){
+		if (len){
+			CAM_ERR(CAM_ISP, "CSID[%u] %s status: 0x%x Errors:%s",
+			csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
+			irq_status, log_buf);
+		}
+	}
+#else
 	if (len)
 		CAM_ERR(CAM_ISP, "CSID[%u] %s status: 0x%x Errors:%s",
 			csid_hw->hw_intf->hw_idx, irq_reg_tag[index],
 			irq_status, log_buf);
-
+#endif
 	status = irq_status & csid_hw->debug_info.path_mask;
 	bit_pos = 0;
 	while (status) {
@@ -2140,9 +2206,15 @@ static int cam_ife_csid_ver2_ipp_bottom_half(
 		err_mask, irq_status_ipp, payload);
 
 	if (err_type || out_of_sync_fatal) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (out_of_sync_fatal){
+			err_type = CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP;
+			atomic_set(&path_cfg->switch_out_of_sync_cnt, 0);
+		}
+#else
 		if (out_of_sync_fatal)
 			err_type = CAM_ISP_HW_ERROR_CSID_SENSOR_FRAME_DROP;
-
+#endif
 		cam_ife_csid_ver2_handle_event_err(csid_hw,
 			irq_status_ipp, err_type, false, res);
 	}
@@ -2496,6 +2568,22 @@ static int cam_ife_csid_ver2_wait_for_reset(
 {
 	unsigned long rem_jiffies = 0;
 	int rc = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	struct cam_ife_csid_ver2_reg_info *csid_reg;
+	struct cam_hw_soc_info                *soc_info;
+	void __iomem *mem_base;
+	int val = 0;
+	int top_irq_val[4] = {0};
+	int rx_cfg[2] = {0};
+	int csid_cfg0 = 0;
+	int reset_cfg = 0;
+	uint32_t clk_lvl;
+
+	csid_reg = (struct cam_ife_csid_ver2_reg_info *)
+			csid_hw->core_info->csid_reg;
+	soc_info = &csid_hw->hw_info->soc_info;
+	mem_base = soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base;
+#endif
 
 	rem_jiffies = cam_common_wait_for_completion_timeout(
 		&csid_hw->hw_info->hw_complete,
@@ -2514,11 +2602,66 @@ static int cam_ife_csid_ver2_wait_for_reset(
 				cam_io_r_mb(
 					soc_info->reg_map[CAM_IFE_CSID_CLC_MEM_BASE_ID].mem_base +
 					csid_reg->cmn_reg->test_bus_debug));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		}
+		val = cam_io_r_mb(mem_base + csid_reg->cmn_reg->top_irq_status_addr[0]);
+		if (val & csid_reg->cmn_reg->top_reset_irq_mask[0]) {
+			CAM_WARN(CAM_ISP,
+				"CSID[%d], mode[%d] reset done, scheduling delay, status 0x%0x",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->sync_mode, val);
+		} else {
+			CAM_ERR(CAM_ISP,
+				"CSID[%d], sync-mode[%d] reset time out, TOP IRQ status= 0x%x",
+				csid_hw->hw_intf->hw_idx,
+				csid_hw->sync_mode, val);
+
+			/* Dumping CSID top cfg register */
+			top_irq_val[0] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_status_addr[0]);
+			top_irq_val[1] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_mask_addr[0]);
+			top_irq_val[2] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_clear_addr[0]);
+			top_irq_val[3] = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->top_irq_set_addr[0]);
+			csid_cfg0 = cam_io_r_mb(mem_base +
+				csid_reg->cmn_reg->cfg0_addr);
+
+			reset_cfg = cam_io_r_mb(mem_base + csid_reg->cmn_reg->reset_cfg_addr);
+			rx_cfg[0] = cam_io_r_mb(mem_base + csid_reg->csi2_reg->cfg0_addr);
+			rx_cfg[1] = cam_io_r_mb(mem_base + csid_reg->csi2_reg->cfg1_addr);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] csid top status 0x%x, mask 0x%x, clr 0x%x, set 0x%x",
+				 csid_hw->hw_intf->hw_idx, top_irq_val[0],
+				top_irq_val[1], top_irq_val[2], top_irq_val[3]);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] cfg0 0x%x, reset cfg 0x%x, rx_cfg0 0x%x, rx_cfg1 0x%x",
+				csid_hw->hw_intf->hw_idx, csid_cfg0,
+				reset_cfg, rx_cfg[0], rx_cfg[1]);
+
+			/* Dumping CSID Clock */
+			rc = cam_soc_util_get_clk_level(soc_info, csid_hw->clk_rate,
+				soc_info->src_clk_idx, &clk_lvl);
+
+			CAM_INFO(CAM_ISP,
+				"CSID[%d] clk lvl %u received clk_rate %u applied clk_rate sw_client:%lu hw_client:[%lu %lu]",
+				csid_hw->hw_intf->hw_idx, clk_lvl, csid_hw->clk_rate,
+				soc_info->applied_src_clk_rates.sw_client,
+				soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].high,
+				soc_info->applied_src_clk_rates.hw_client[csid_hw->hw_intf->hw_idx].low);
+
+			rc = -ETIMEDOUT;
+		}
+		cam_ife_csid_ver2_dump_imp_regs(csid_hw);
+#else
 		} else
 			CAM_ERR(CAM_ISP, "CSID[%u], sync-mode[%d] reset timed out",
 				csid_hw->hw_intf->hw_idx, csid_hw->sync_mode);
-
 		cam_ife_csid_ver2_dump_imp_regs(csid_hw);
+#endif
 	} else
 		CAM_DBG(CAM_ISP,
 			"CSID[%u], sync-mode[%d] reset success",
@@ -2544,7 +2687,11 @@ static int cam_ife_csid_ver2_reset_irq_top_half(uint32_t    evt_id,
 }
 
 static int cam_ife_csid_ver2_internal_reset(
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	struct cam_ife_csid_ver2_hw *csid_hw, bool power_on_rst,
+#else
 	struct cam_ife_csid_ver2_hw *csid_hw,
+#endif
 	uint32_t rst_cmd, uint32_t rst_location, uint32_t rst_mode)
 {
 	uint32_t val = 0;
@@ -2572,9 +2719,23 @@ static int cam_ife_csid_ver2_internal_reset(
 		cam_io_w_mb(0x0, mem_base + csi2_reg->cfg0_addr);
 		cam_io_w_mb(0x0, mem_base + csi2_reg->cfg1_addr);
 	}
-
-	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE)
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/*
+	 * After power on once the connection has been established
+	 * between master and slave CSIDs, issuing a reset to master
+	 * will also reset the slave. Reset to the slave is only needed
+	 * when powering on the cores since at this point the master-slave
+	 * connection is not established yet
+	 */
+	if ((csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE) && (!power_on_rst))
 		goto wait_only;
+
+	CAM_DBG(CAM_ISP, "CSID[%u] issuing reset", csid_hw->hw_intf->hw_idx);
+#else
+	if (csid_hw->sync_mode == CAM_ISP_HW_SYNC_SLAVE &&
+		rst_cmd == CAM_IFE_CSID_RESET_CMD_HW_RST)
+		goto wait_only;
+#endif
 
 	reinit_completion(&csid_hw->hw_info->hw_complete);
 
@@ -2636,14 +2797,24 @@ int cam_ife_csid_ver2_reset(void *hw_priv,
 
 	switch (reset->reset_type) {
 	case CAM_IFE_CSID_RESET_GLOBAL:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			csid_hw, reset->power_on_reset,
+#else
+			csid_hw,
+#endif
 			CAM_IFE_CSID_RESET_CMD_SW_RST,
 			CAM_IFE_CSID_RESET_LOC_COMPLETE,
 			CAM_CSID_HALT_IMMEDIATELY);
 		break;
 
 	case CAM_IFE_CSID_RESET_PATH:
-		rc = cam_ife_csid_ver2_internal_reset(csid_hw,
+		rc = cam_ife_csid_ver2_internal_reset(
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			csid_hw, reset->power_on_reset,
+#else
+			csid_hw,
+#endif
 			CAM_IFE_CSID_RESET_CMD_HW_RST,
 			CAM_IFE_CSID_RESET_LOC_PATH_ONLY,
 			CAM_CSID_HALT_IMMEDIATELY);
@@ -5741,6 +5912,9 @@ int cam_ife_csid_ver2_stop(void *hw_priv,
 
 	/* Issue a halt & reset to ensure there is no HW activity post the halt block */
 	reset.reset_type = CAM_IFE_CSID_RESET_PATH;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	reset.power_on_reset = false;
+#endif
 	cam_ife_csid_ver2_reset(hw_priv, &reset,
 		sizeof(struct cam_csid_reset_cfg_args));
 

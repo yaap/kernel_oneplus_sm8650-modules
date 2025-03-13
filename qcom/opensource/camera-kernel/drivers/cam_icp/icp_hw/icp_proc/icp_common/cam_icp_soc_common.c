@@ -164,8 +164,13 @@ static void cam_icp_soc_get_fw_pas_id(struct device_node *np,
 	struct cam_icp_soc_info *icp_soc_info)
 {
 	if (of_property_read_u32(np, "fw-pas-id", &icp_soc_info->fw_pas_id)) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		CAM_INFO(CAM_ICP, "PAS_ID is not passed from DTSI and use default value: %d",
+			CAM_FW_PAS_ID_DEFAULT);
+#else
 		CAM_WARN(CAM_ICP, "PAS_ID is not passed from DTSI and use default value: %d",
 			CAM_FW_PAS_ID_DEFAULT);
+#endif
 		icp_soc_info->fw_pas_id = CAM_FW_PAS_ID_DEFAULT;
 	}
 }

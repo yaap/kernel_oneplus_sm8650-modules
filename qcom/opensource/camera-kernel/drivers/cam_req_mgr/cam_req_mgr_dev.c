@@ -30,7 +30,13 @@
 #include "cam_compat.h"
 #include "camera_main.h"
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_kevent_fb.h"
+
+#define CAM_REQ_MGR_EVENT_MAX 90
+#else
 #define CAM_REQ_MGR_EVENT_MAX 30
+#endif
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
@@ -344,6 +350,9 @@ static long cam_private_ioctl(struct file *file, void *fh,
 {
 	int rc = 0;
 	struct cam_control *k_ioctl;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	camera_provider_pid = task_tgid_nr(current);
+#endif
 
 	if ((!arg) || (cmd != VIDIOC_CAM_CONTROL))
 		return -EINVAL;
@@ -1171,12 +1180,18 @@ struct platform_driver cam_req_mgr_driver = {
 
 int cam_req_mgr_init(void)
 {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	cam_event_proc_init();
+#endif
 	return platform_driver_register(&cam_req_mgr_driver);
 }
 EXPORT_SYMBOL(cam_req_mgr_init);
 
 void cam_req_mgr_exit(void)
 {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	cam_event_proc_exit();
+#endif
 	platform_driver_unregister(&cam_req_mgr_driver);
 }
 

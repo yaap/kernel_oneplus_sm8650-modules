@@ -573,6 +573,7 @@ struct cam_tfe_csid_hw {
 	bool                                sof_irq_triggered;
 	uint32_t                            irq_debug_cnt;
 	uint32_t                            error_irq_count;
+	uint32_t                            crc_error_irq_count;
 	uint32_t                            device_enabled;
 	spinlock_t                          spin_lock;
 	bool                                fatal_err_detected;

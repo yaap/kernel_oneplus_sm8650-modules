@@ -6,6 +6,9 @@
 #define _CAM_EEPROM_SOC_H_
 
 #include "cam_eeprom_dev.h"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_eeprom_soc.h"
+#endif
 
 int cam_eeprom_spi_parse_of(struct cam_sensor_spi_client *client);
 

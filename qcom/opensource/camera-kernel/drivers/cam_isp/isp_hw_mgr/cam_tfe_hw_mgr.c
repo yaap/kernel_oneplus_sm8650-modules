@@ -6830,6 +6830,10 @@ static int cam_tfe_hw_mgr_handle_csid_event(
 		}
 		break;
 	}
+	case CAM_ISP_HW_ERROR_CSID_PKT_PAYLOAD_CORRUPTED: {
+		error_event_data.error_type = err_type;
+		break;
+	}
 	default:
 		CAM_ERR(CAM_ISP, "CSID:%d, unahandled error: %d",
 			event_info->hw_idx, err_type);
