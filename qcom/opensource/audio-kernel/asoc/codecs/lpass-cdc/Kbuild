@@ -38,6 +38,15 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/kalamaauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/kalamaautoconf.h
 	endif
+	ifeq ($(TARGET_BOARD_PLATFORM), volcano)
+		include $(AUDIO_ROOT)/config/volcanoauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/config/volcanoautoconf.h
+#ifdef OPLUS_ARCH_EXTENDS
+#Add for audio extend driver
+		-include $(AUDIO_ROOT)/oplus/config/oplusvolcanoauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/oplus/config/oplusvolcanoautoconf.h
+#endif /* OPLUS_ARCH_EXTENDS */
+	endif
 	ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h

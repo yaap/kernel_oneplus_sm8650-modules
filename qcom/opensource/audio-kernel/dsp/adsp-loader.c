@@ -20,6 +20,10 @@
 #include <linux/remoteproc.h>
 #include <linux/remoteproc/qcom_rproc.h>
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#define OPLUS_AUDIO_EVENTID_AUDIO_DAEMON     10050
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 #define Q6_PIL_GET_DELAY_MS 100
 #define BOOT_CMD 1
@@ -223,9 +227,51 @@ static ssize_t adsp_ssr_store(struct kobject *kobj,
 	rproc_shutdown(adsp_dev);
 	adsp_loader_do(adsp_private);
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_AUDIO_DAEMON, \
+		MM_FB_KEY_RATELIMIT_5MIN, 2, "FieldData@@APPS requesting for ADSP restart$$detailData@@audio$$module@@adsp");
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 	dev_dbg(&pdev->dev, "%s :: ADSP restarted\n", __func__);
 	return count;
 }
+
+#ifdef OPLUS_ARCH_EXTENDS
+bool oplus_daemon_adsp_ssr(void)
+{
+	struct rproc *adsp_dev = NULL;
+	struct platform_device *pdev = adsp_private;
+	struct adsp_loader_private *priv = NULL;
+
+	if (!pdev) {
+		pr_err("%s: Platform device null\n", __func__);
+		return false;
+	}
+	dev_dbg(&pdev->dev, "%s: going to call adsp ssr\n", __func__);
+
+	priv = platform_get_drvdata(pdev);
+	if (!priv)
+		return false;
+
+	adsp_dev = (struct rproc *)priv->pil_h;
+	if (!adsp_dev)
+		return false;
+
+	dev_err(&pdev->dev, "%s: requesting for ADSP restart\n", __func__);
+
+	rproc_shutdown(adsp_dev);
+	adsp_loader_do(adsp_private);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_AUDIO_DAEMON, \
+		MM_FB_KEY_RATELIMIT_5MIN, 2, "FieldData@@oplus daemon requesting for ADSP restart$$detailData@@audio$$module@@adsp");
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
+	dev_dbg(&pdev->dev, "%s :: ADSP restarted\n", __func__);
+	return true;
+}
+EXPORT_SYMBOL(oplus_daemon_adsp_ssr);
+#endif /* OPLUS_ARCH_EXTENDS */
 
 static ssize_t adsp_boot_store(struct kobject *kobj,
 	struct kobj_attribute *attr,

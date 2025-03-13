@@ -18,6 +18,9 @@
 #include <dsp/audio_prm.h>
 #include <dsp/spf-core.h>
 #include <dsp/audio_notifier.h>
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#endif
 
 #define TIMEOUT_MS 500
 #define MAX_RETRY_COUNT 3
@@ -84,6 +87,10 @@ static int audio_prm_callback(struct gpr_device *adev, void *data)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#define PRM_ERROR_FB_COUNT    3
+#define PRM_ERROR_FB_LIMIT_MS 3000
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 {
 	int ret = 0;
@@ -115,6 +122,10 @@ static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 	}
 	g_prm.resp_received = false;
 	ret = gpr_send_pkt(g_prm.adev, pkt);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	ratelimited_count_limit_fb(((ret < 0) && (gpr_get_q6_state() == GPR_SUBSYS_LOADED)), PRM_ERROR_FB_COUNT, PRM_ERROR_FB_LIMIT_MS,
+		"payload@@audio_prm:packet not transmitted,ret=%d", ret);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	if (ret < 0) {
 		pr_err("%s: packet not transmitted %d\n", __func__, ret);
 		mutex_unlock(&g_prm.lock);
@@ -138,6 +149,10 @@ static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 	}
 	pr_debug("%s: exit",__func__);
 	mutex_unlock(&g_prm.lock);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	ratelimited_count_limit_fb(((ret < 0) && (gpr_get_q6_state() == GPR_SUBSYS_LOADED)), PRM_ERROR_FB_COUNT, PRM_ERROR_FB_LIMIT_MS,
+		"payload@@audio_prm:DSP returned error,ret=%d", ret);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	return ret;
 }
 

@@ -668,7 +668,11 @@ static int msm_audio_ion_open(struct inode *inode, struct file *file)
 						cdev);
 	struct device *dev = ion_data->chardev;
 
+#ifdef OPLUS_ARCH_EXTENDS
+	pr_err("Inside %s\n", __func__);
+#else /* OPLUS_ARCH_EXTENDS */
 	pr_debug("Inside %s\n", __func__);
+#endif /* OPLUS_ARCH_EXTENDS */
 	get_device(dev);
 	return ret;
 }
@@ -680,7 +684,11 @@ static int msm_audio_ion_release(struct inode *inode, struct file *file)
 						cdev);
 	struct device *dev = ion_data->chardev;
 
+#ifdef OPLUS_ARCH_EXTENDS
+	pr_err("Inside %s\n", __func__);
+#else /* OPLUS_ARCH_EXTENDS */
 	pr_debug("Inside %s\n", __func__);
+#endif /* OPLUS_ARCH_EXTENDS */
 	put_device(dev);
 	return 0;
 }
@@ -806,6 +814,13 @@ static const struct file_operations msm_audio_ion_fops = {
 #endif
 };
 
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_err
+#undef dev_dbg
+#define dev_dbg dev_err
+#endif /* OPLUS_ARCH_EXTENDS */
+
 static int msm_audio_ion_reg_chrdev(struct msm_audio_ion_private *ion_data)
 {
 	int ret = 0;
@@ -839,6 +854,9 @@ static int msm_audio_ion_reg_chrdev(struct msm_audio_ion_private *ion_data)
 		pr_err("%s cdev add failed, ret : %d\n", __func__, ret);
 		goto err_cdev;
 	}
+#ifdef OPLUS_ARCH_EXTENDS
+	pr_err("%s success ret : %d\n", __func__, ret);
+#endif /* OPLUS_ARCH_EXTENDS */
 	return ret;
 
 err_cdev:
@@ -847,6 +865,9 @@ err_device:
 	class_destroy(ion_data->ion_class);
 err_class:
 	unregister_chrdev_region(0, MINOR_NUMBER_COUNT);
+#ifdef OPLUS_ARCH_EXTENDS
+	pr_err("%s failed ret : %d\n", __func__, ret);
+#endif /* OPLUS_ARCH_EXTENDS */
 	return ret;
 }
 
@@ -947,6 +968,9 @@ static int msm_audio_ion_probe(struct platform_device *pdev)
 			smmu_sid << MSM_AUDIO_SMMU_SID_OFFSET;
 	} else {
 		msm_audio_ion_data->driver_name = "msm_audio_ion_cma";
+#ifdef OPLUS_ARCH_EXTENDS
+		dev_err(dev, "%s: SMMU is not Enabled \n", __func__);
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
 	if (!rc)
@@ -966,6 +990,9 @@ static int msm_audio_ion_probe(struct platform_device *pdev)
 		pr_err("%s register char dev failed, rc : %d", __func__, rc);
 		return rc;
 	}
+#ifdef OPLUS_ARCH_EXTENDS
+	pr_err("%s success, rc : %d", __func__, rc);
+#endif /* OPLUS_ARCH_EXTENDS */
 	return rc;
 }
 

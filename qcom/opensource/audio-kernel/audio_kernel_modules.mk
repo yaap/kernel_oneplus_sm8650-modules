@@ -78,6 +78,10 @@ ifneq (,$(call is-board-platform-in-list2, holi blair))
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/wcd938x_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd938x_slave_dlkm.ko
 endif
+#ifdef OPLUS_ARCH_EXTENDS
+#add for oplus audio extends driver
+-include $(TOP)/vendor/qcom/opensource/audio-kernel/oplus/oplus_audio_kernel_modules.mk
+#endif /* OPLUS_ARCH_EXTENDS */
 endif
 else
 ifneq (,$(call is-board-platform-in-list2, gen4 msmnile))

@@ -71,6 +71,11 @@ ifeq ($(KERNEL_BUILD), 0)
 	ifeq ($(BOARD_PLATFORM), pineapple)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/pineappleautoconf.h
+#ifdef OPLUS_ARCH_EXTENDS
+#Add for audio extend driver
+		-include $(AUDIO_ROOT)/oplus/config/opluspineappleauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/oplus/config/opluspineappleautoconf.h
+#endif /* OPLUS_ARCH_EXTENDS */
 	endif
 	ifeq ($(BOARD_PLATFORM), cliffs)
 		include $(AUDIO_ROOT)/config/pineappleauto.conf
@@ -79,6 +84,11 @@ ifeq ($(KERNEL_BUILD), 0)
 	ifeq ($(BOARD_PLATFORM), volcano)
 		include $(AUDIO_ROOT)/config/volcanoauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/volcanoautoconf.h
+#ifdef OPLUS_ARCH_EXTENDS
+#Add for audio extend driver
+		-include $(AUDIO_ROOT)/oplus/config/oplusvolcanoauto.conf
+		INCS    +=  -include $(AUDIO_ROOT)/oplus/config/oplusvolcanoautoconf.h
+#endif /* OPLUS_ARCH_EXTENDS */
 	endif
 	ifeq ($(CONFIG_ARCH_PITTI), y)
 		include $(AUDIO_ROOT)/config/pittiauto.conf

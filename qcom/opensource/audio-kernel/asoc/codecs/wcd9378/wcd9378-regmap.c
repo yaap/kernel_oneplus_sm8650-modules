@@ -769,14 +769,20 @@ static struct reg_default wcd9378_defaults[] = {
 	{WCD9378_PDE42_REQ_PS,                   0x03},
 	{WCD9378_FU42_MUTE_CH1,                  0x01},
 	{WCD9378_FU42_MUTE_CH2,                  0x01},
+#ifdef OPLUS_ARCH_EXTENDS
 	{WCD9378_FU42_MUTE_CH1_CN,               0x01},
 	{WCD9378_FU42_MUTE_CH2_CN,               0x01},
+#endif /* OPLUS_ARCH_EXTENDS */
 	{WCD9378_FU42_CH_VOL_CH1,                0xe200},
+#ifdef OPLUS_ARCH_EXTENDS
 	{WCD9378_FU42_CH_VOL_CH1_MSB,            0xe2},
 	{WCD9378_FU42_CH_VOL_CH1_LSB,            0x00},
+#endif /* OPLUS_ARCH_EXTENDS */
 	{WCD9378_FU42_CH_VOL_CH2,                0xe200},
+#ifdef OPLUS_ARCH_EXTENDS
 	{WCD9378_FU42_CH_VOL_CH2_MSB,            0xe2},
 	{WCD9378_FU42_CH_VOL_CH2_LSB,            0x00},
+#endif /* OPLUS_ARCH_EXTENDS */
 	{WCD9378_SU43_SELECTOR,                  0x01},
 	{WCD9378_SU45_SELECTOR,                  0x01},
 	{WCD9378_PDE47_REQ_PS,                   0x03},
