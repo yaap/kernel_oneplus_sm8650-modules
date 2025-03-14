@@ -5088,6 +5088,11 @@ ccflags-$(CONFIG_WALT_GET_CPU_TAKEN_SUPPORT) += -DWALT_GET_CPU_TAKEN_SUPPORT
 ccflags-$(CONFIG_FEATURE_EPM) += -DFEATURE_EPM
 ccflags-$(CONFIG_WLAN_CHIPSET_LOG_MAX_SIZE) += -DWLAN_CHIPSET_LOG_MAX_SIZE=50
 
+#ifdef OPLUS_BUG_STABILITY
+#Modify for: enable macro OPLUS_BUG_STABILITY for some bug fix
+ccflags-y +=   -DOPLUS_BUG_STABILITY
+#endif
+
 # Module information used by KBuild framework
 obj-$(CONFIG_QCA_CLD_WLAN) += $(MODNAME).o
 ifeq ($(CONFIG_WLAN_RESIDENT_DRIVER), y)
