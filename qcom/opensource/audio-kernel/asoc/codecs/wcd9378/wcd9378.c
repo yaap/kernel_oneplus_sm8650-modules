@@ -33,6 +33,9 @@
 #define WCD9378_VERSION_1_0 1
 #define WCD9378_VERSION_ENTRY_SIZE 32
 
+#define PDE_PS0     0x00
+#define PDE_PS3     0x03
+
 #define ADC_MODE_VAL_HIFI     0x01
 #define ADC_MODE_VAL_NORMAL   0x03
 #define ADC_MODE_VAL_LP       0x05
@@ -715,7 +718,7 @@ static int wcd9378_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 		dev_err_ratelimited(component->dev, "%s: Invalid DMIC Selection\n",
 			__func__);
 		return -EINVAL;
-	};
+	}
 	dev_dbg(component->dev, "%s: event %d DMIC%d dmic_clk_cnt %d\n",
 			__func__, event,  (w->shift + 1), *dmic_clk_cnt);
 
@@ -755,7 +758,7 @@ static int wcd9378_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 		snd_soc_component_update_bits(component,
 					dmic_clk_en_reg, 0x08, 0x00);
 		break;
-	};
+	}
 	return ret;
 }
 
@@ -913,6 +916,22 @@ void wcd9378_disable_bcs_before_slow_insert(struct snd_soc_component *component,
 			wcd9378->update_wcd_event(wcd9378->handle,
 						SLV_BOLERO_EVT_BCS_CLK_OFF, 1);
 	}
+}
+
+static int wcd9378_pde_act_ps_check(struct snd_soc_component *component,
+				u32 pde_reg, int req_ps)
+{
+	int act_ps = 0, retry = 0;
+
+	do {
+		act_ps = snd_soc_component_read(component, pde_reg);
+		if (act_ps != req_ps)
+			usleep_range(500, 510);
+		else
+			return 0;
+	} while (++retry < 5);
+
+	return -EINVAL;
 }
 
 static int wcd9378_get_clk_rate(int mode)
@@ -1108,7 +1127,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
 	int mode_val = 0, ret = 0, rate = 0;
-	int act_ps = 0, sys_usage_bit = 0;
+	int sys_usage_bit = 0;
 
 	dev_dbg(component->dev, "%s wname: %s wshift: %d event: %d\n", __func__,
 		w->name, w->shift, event);
@@ -1157,7 +1176,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 			/*Power up TX0 sequencer*/
 			snd_soc_component_update_bits(component, WCD9378_PDE11_REQ_PS,
-					WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x00);
+					WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, PDE_PS0);
 			break;
 		case ADC2:
 			/*Check if amic2 is connected to ADC2 MUX*/
@@ -1171,7 +1190,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 				/*Power up TX1 sequencer*/
 				snd_soc_component_update_bits(component,
 						WCD9378_PDE34_REQ_PS,
-						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, 0x00);
+						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, PDE_PS0);
 			} else {
 				snd_soc_component_update_bits(component,
 						WCD9378_SMP_MIC_CTRL1_IT11_USAGE,
@@ -1186,7 +1205,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_component_update_bits(component,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
-					0x00);
+					PDE_PS0);
 			}
 			break;
 		case ADC3:
@@ -1202,7 +1221,8 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 			/*Power up TX2 sequencer*/
 			snd_soc_component_update_bits(component, WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS,
-					WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x00);
+					WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
+					PDE_PS0);
 			break;
 		default:
 			break;
@@ -1218,46 +1238,47 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH2,
 						WCD9378_ANA_TX_CH2_HPF1_INIT_MASK, 0x00);
 
-			act_ps = snd_soc_component_read(component, WCD9378_PDE11_ACT_PS);
-			if (act_ps)
+			ret = wcd9378_pde_act_ps_check(component, WCD9378_PDE11_ACT_PS, PDE_PS0);
+			if (ret)
 				dev_err(component->dev,
-					"%s: TX0 sequencer power on failed\n", __func__);
+						"%s: TX0 sequencer power on failed\n", __func__);
 			else
 				dev_dbg(component->dev,
-					"%s: TX0 sequencer power on success\n", __func__);
+						"%s: TX0 sequencer power on success\n", __func__);
 			break;
 		case ADC2:
 			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH2,
 						WCD9378_ANA_TX_CH2_HPF2_INIT_MASK, 0x00);
 
 			if (test_bit(TX1_AMIC2_EN, &wcd9378->sys_usage_status))
-				act_ps = snd_soc_component_read(component,
-							WCD9378_PDE34_ACT_PS);
+				ret = wcd9378_pde_act_ps_check(component,
+							WCD9378_PDE34_ACT_PS, PDE_PS0);
 			else
-				act_ps = snd_soc_component_read(component,
-							WCD9378_SMP_MIC_CTRL1_PDE11_ACT_PS);
-
-			if (act_ps)
+				ret = wcd9378_pde_act_ps_check(component,
+							WCD9378_SMP_MIC_CTRL1_PDE11_ACT_PS,
+							PDE_PS0);
+			if (ret)
 				dev_err(component->dev,
-					"%s: TX1 sequencer power on failed\n", __func__);
+						"%s: TX1 sequencer power on failed\n", __func__);
 			else
 				dev_dbg(component->dev,
-					"%s: TX1 sequencer power on success\n", __func__);
+						"%s: TX1 sequencer power on success\n", __func__);
 			break;
 		case ADC3:
 			snd_soc_component_update_bits(component, WCD9378_ANA_TX_CH3_HPF,
 						WCD9378_ANA_TX_CH3_HPF_HPF3_INIT_MASK, 0x00);
 
-			act_ps = snd_soc_component_read(component,
-						WCD9378_SMP_MIC_CTRL2_PDE11_ACT_PS);
-			if (act_ps)
+			ret = wcd9378_pde_act_ps_check(component,
+							WCD9378_SMP_MIC_CTRL2_PDE11_ACT_PS,
+							PDE_PS0);
+			if (ret)
 				dev_err(component->dev,
-					"%s: TX2 sequencer power on failed\n", __func__);
+						"%s: TX2 sequencer power on failed\n", __func__);
 			else
 				dev_dbg(component->dev,
-					"%s: TX2 sequencer power on success\n", __func__);
+						"%s: TX2 sequencer power on success\n", __func__);
 			break;
-		};
+		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		wcd9378_tx_connect_port(component, w->shift, 0, false);
@@ -1278,7 +1299,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 			/*tear down TX0 sequencer*/
 			snd_soc_component_update_bits(component, WCD9378_PDE11_REQ_PS,
-					WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x03);
+					WCD9378_PDE11_REQ_PS_PDE11_REQ_PS_MASK, PDE_PS3);
 
 			break;
 		case ADC2:
@@ -1289,7 +1310,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 				/*tear down TX1 sequencer*/
 				snd_soc_component_update_bits(component, WCD9378_PDE34_REQ_PS,
-						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, 0x03);
+						WCD9378_PDE34_REQ_PS_PDE34_REQ_PS_MASK, PDE_PS3);
 			}
 
 			if (test_bit(TX1_AMIC3_EN, &wcd9378->sys_usage_status)) {
@@ -1306,7 +1327,7 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 				snd_soc_component_update_bits(component,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS,
 					WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
-					0x03);
+					PDE_PS3);
 			}
 			break;
 		case ADC3:
@@ -1321,13 +1342,55 @@ static int wcd9378_tx_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 			/*tear down TX2 sequencer*/
 			snd_soc_component_update_bits(component, WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS,
-					WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS_PDE11_REQ_PS_MASK, 0x03);
+					WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS_PDE11_REQ_PS_MASK,
+					PDE_PS3);
 			break;
 		default:
 			break;
 		}
 		/*default delay 800us*/
 		usleep_range(800, 810);
+
+		switch (w->shift) {
+		case ADC1:
+			ret = wcd9378_pde_act_ps_check(component,
+							WCD9378_PDE11_REQ_PS, PDE_PS3);
+			if (ret)
+				dev_err(component->dev,
+					"%s: TX0 sequencer tear down failed\n", __func__);
+			else
+				dev_dbg(component->dev,
+					"%s: TX0 sequencer tear down success\n", __func__);
+			break;
+		case ADC2:
+			if (test_bit(TX1_AMIC2_EN, &wcd9378->sys_usage_status))
+				ret = wcd9378_pde_act_ps_check(component,
+						WCD9378_PDE34_REQ_PS, PDE_PS3);
+
+			if (test_bit(TX1_AMIC3_EN, &wcd9378->sys_usage_status))
+				ret = wcd9378_pde_act_ps_check(component,
+						WCD9378_SMP_MIC_CTRL1_PDE11_REQ_PS, PDE_PS3);
+
+			if (ret)
+				dev_err(component->dev,
+					"%s: TX1 sequencer tear down failed\n", __func__);
+			else
+				dev_dbg(component->dev,
+					"%s: TX1 sequencer tear down success\n", __func__);
+			break;
+		case ADC3:
+			ret = wcd9378_pde_act_ps_check(component,
+						WCD9378_SMP_MIC_CTRL2_PDE11_REQ_PS, PDE_PS3);
+			if (ret)
+				dev_err(component->dev,
+					"%s: TX2 sequencer tear down failed\n", __func__);
+			else
+				dev_dbg(component->dev,
+					"%s: TX2 sequencer tear down success\n", __func__);
+			break;
+		default:
+			break;
+		}
 
 		/*Disable sys_usage_status*/
 		wcd9378_sys_usage_auto_udpate(component, sys_usage_bit, false);
@@ -1362,7 +1425,7 @@ static int wcd9378_tx_swr_ctrl(struct snd_soc_dapm_widget *w,
 				wcd9378->tx_swr_dev->dev_num,
 				false);
 		break;
-	};
+	}
 
 	return ret;
 }
@@ -1399,7 +1462,7 @@ static int wcd9378_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		wcd9378_micbias_control(component, micb_num,
 				MICB_DISABLE, true);
 		break;
-	};
+	}
 
 	return 0;
 }
@@ -1436,7 +1499,7 @@ static int wcd9378_codec_enable_micbias_pullup(struct snd_soc_dapm_widget *w,
 		wcd9378_micbias_control(component, micb_num,
 				MICB_PULLUP_DISABLE, true);
 		break;
-	};
+	}
 
 	return 0;
 }
@@ -1517,7 +1580,7 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		break;
 	default:
 		break;
-	};
+	}
 
 	return 0;
 
@@ -1575,7 +1638,7 @@ static int wcd9378_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 		break;
 	default:
 		break;
-	};
+	}
 
 	return 0;
 }
@@ -1586,8 +1649,8 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
-	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int act_ps = 0;
+	struct wcd9378_priv *wcd9378 =
+			snd_soc_component_get_drvdata(component);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1605,14 +1668,6 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 						(WCD_RX1 << 0x10));
 		wcd_enable_irq(&wcd9378->irq_info,
 					WCD9378_IRQ_HPHL_PDM_WD_INT);
-
-		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
-		if (act_ps)
-			dev_err(component->dev,
-				"%s: HPH sequencer power on failed\n", __func__);
-		else
-			dev_dbg(component->dev,
-				"%s: HPH sequencer power on success\n", __func__);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (wcd9378->update_wcd_event)
@@ -1633,7 +1688,7 @@ static int wcd9378_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 		break;
 	default:
 		break;
-	};
+	}
 
 	return 0;
 }
@@ -1644,8 +1699,8 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
-	struct wcd9378_priv *wcd9378 = snd_soc_component_get_drvdata(component);
-	int act_ps = 0;
+	struct wcd9378_priv *wcd9378 =
+			snd_soc_component_get_drvdata(component);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1663,14 +1718,6 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 						(WCD_RX2 << 0x10));
 		wcd_enable_irq(&wcd9378->irq_info,
 					WCD9378_IRQ_HPHR_PDM_WD_INT);
-
-		act_ps = snd_soc_component_read(component, WCD9378_PDE47_ACT_PS);
-		if (act_ps)
-			dev_err(component->dev,
-				"%s: HPH sequencer power on failed\n", __func__);
-		else
-			dev_dbg(component->dev,
-				"%s: HPH sequencer power on success\n", __func__);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		if (wcd9378->update_wcd_event)
@@ -1691,10 +1738,9 @@ static int wcd9378_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 		break;
 	default:
 		break;
-	};
+	}
 
 	return 0;
-
 }
 
 static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
@@ -1705,7 +1751,7 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 				snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
-	int act_ps = 0, ret = 0;
+	int ret = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1731,8 +1777,9 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 						WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 
-		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
-		if (act_ps)
+		ret = wcd9378_pde_act_ps_check(component,
+						WCD9378_PDE23_ACT_PS, PDE_PS0);
+		if (ret)
 			dev_err(component->dev,
 				"%s: SA sequencer power on failed\n", __func__);
 		else
@@ -1756,7 +1803,7 @@ static int wcd9378_codec_enable_aux_pa(struct snd_soc_dapm_widget *w,
 						WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 		break;
-	};
+	}
 	return ret;
 }
 
@@ -1768,7 +1815,7 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 				snd_soc_dapm_to_component(w->dapm);
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
-	int act_ps = 0, ret = 0;
+	int ret = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1796,8 +1843,9 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 					WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 
-		act_ps = snd_soc_component_read(component, WCD9378_PDE23_ACT_PS);
-		if (act_ps)
+		ret = wcd9378_pde_act_ps_check(component,
+					WCD9378_PDE23_ACT_PS, PDE_PS0);
+		if (ret)
 			dev_err(component->dev,
 				"%s: SA sequencer power on failed\n", __func__);
 		else
@@ -1822,7 +1870,7 @@ static int wcd9378_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 					WCD9378_IRQ_AUX_PDM_WD_INT);
 		}
 		break;
-	};
+	}
 	return ret;
 }
 
@@ -1939,16 +1987,16 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 		/*TURN ON HPH SEQUENCER*/
 		snd_soc_component_update_bits(component, WCD9378_PDE47_REQ_PS,
-				WCD9378_PDE47_REQ_PS_PDE47_REQ_PS_MASK, 0x00);
+				WCD9378_PDE47_REQ_PS_PDE47_REQ_PS_MASK, PDE_PS0);
 
 		wcd9378_hph_set_channel_volume(component);
 
 		if ((!wcd9378->comp1_enable) || (!wcd9378->comp2_enable))
-			/*PA delay is 22400us*/
-			usleep_range(22500, 22510);
+			/*PA delay is 26000us*/
+			usleep_range(26000, 26100);
 		else
-			/*COMP delay is 9400us*/
-			usleep_range(9500, 9510);
+			/*COMP delay is 15000us*/
+			usleep_range(15000, 15100);
 
 #ifndef OPLUS_ARCH_EXTENDS
 		/*RX0 unmute*/
@@ -1977,6 +2025,14 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 		ret = swr_slvdev_datapath_control(wcd9378->rx_swr_dev,
 					wcd9378->rx_swr_dev->dev_num,
 					true);
+
+		ret = wcd9378_pde_act_ps_check(component, WCD9378_PDE47_ACT_PS, PDE_PS0);
+		if (ret)
+			dev_err(component->dev,
+					"%s: HPH sequencer power on failed\n", __func__);
+		else
+			dev_dbg(component->dev,
+					"%s: HPH sequencer power on success\n", __func__);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 #ifndef OPLUS_ARCH_EXTENDS
@@ -1995,20 +2051,28 @@ static int wcd9378_hph_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 		/*TEAR DOWN HPH SEQUENCER*/
 		snd_soc_component_update_bits(component, WCD9378_PDE47_REQ_PS,
-				WCD9378_PDE47_REQ_PS_PDE47_REQ_PS_MASK, 0x03);
+				WCD9378_PDE47_REQ_PS_PDE47_REQ_PS_MASK, PDE_PS3);
 
 		if (!wcd9378->comp1_enable || !wcd9378->comp2_enable)
-			/*PA delay is 24250us*/
-			usleep_range(24300, 24310);
+			/*PA delay is 30000us*/
+			usleep_range(30000, 30100);
 		else
-			/*COMP delay is 11250us*/
-			usleep_range(11300, 11310);
+			/*COMP delay is 17000us*/
+			usleep_range(17000, 17100);
+
+		ret = wcd9378_pde_act_ps_check(component, WCD9378_PDE47_ACT_PS, PDE_PS3);
+		if (ret)
+			dev_err(component->dev,
+					"%s: HPH sequencer tear down failed\n", __func__);
+		else
+			dev_dbg(component->dev,
+					"%s: HPH sequencer tear down success\n", __func__);
 
 		wcd9378_sys_usage_auto_udpate(component, RX0_RX1_HPH_EN, false);
 		break;
 	default:
 		break;
-	};
+	}
 
 	return ret;
 }
@@ -2079,7 +2143,7 @@ static int wcd9378_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 						false);
 		}
 		break;
-	};
+	}
 
 	return ret;
 }
@@ -2136,7 +2200,7 @@ static int wcd9378_codec_aux_dac_event(struct snd_soc_dapm_widget *w,
 						false);
 		}
 		break;
-	};
+	}
 
 	return ret;
 }
@@ -2149,7 +2213,9 @@ static int wcd9378_sa_sequencer_enable(struct snd_soc_dapm_widget *w,
 #ifdef OPLUS_ARCH_EXTENDS
 	struct wcd9378_priv *wcd9378 =
 				snd_soc_component_get_drvdata(component);
+        int ret = 0;
 #endif /* OPLUS_ARCH_EXTENDS */
+
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
 
@@ -2157,7 +2223,7 @@ static int wcd9378_sa_sequencer_enable(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_PRE_PMU:
 		/*TURN ON AMP SEQUENCER*/
 		snd_soc_component_update_bits(component, WCD9378_PDE23_REQ_PS,
-				WCD9378_PDE23_REQ_PS_PDE23_REQ_PS_MASK, 0x00);
+				WCD9378_PDE23_REQ_PS_PDE23_REQ_PS_MASK, PDE_PS0);
 		/*default delay 8550us*/
 		usleep_range(8600, 8610);
 
@@ -2179,15 +2245,23 @@ static int wcd9378_sa_sequencer_enable(struct snd_soc_dapm_widget *w,
 
 		/*TEAR DOWN AMP SEQUENCER*/
 		snd_soc_component_update_bits(component, WCD9378_PDE23_REQ_PS,
-				WCD9378_PDE23_REQ_PS_PDE23_REQ_PS_MASK, 0x03);
+				WCD9378_PDE23_REQ_PS_PDE23_REQ_PS_MASK, PDE_PS3);
 		/*default delay 1530us*/
 		usleep_range(15400, 15410);
+
+		ret = wcd9378_pde_act_ps_check(component, WCD9378_PDE23_ACT_PS, PDE_PS3);
+		if (ret)
+			dev_err(component->dev,
+					"%s: SA sequencer tear down failed\n", __func__);
+		else
+			dev_dbg(component->dev,
+					"%s: SA sequencer tear down success\n", __func__);
 		break;
 	default:
 		break;
-	};
+	}
 
-	return 0;
+	return ret;
 }
 
 int wcd9378_micbias_control(struct snd_soc_component *component,
