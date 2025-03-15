@@ -114,3 +114,8 @@ config DYNAMIC_FD_PORT_CONFIG
 		feature that allows the userspace to configure
 		the FD port to secure or non-secure based on
 		the FD solution in use in secure camera use cases.
+
+config SPECTRA_OPLUS
+	bool "enable oplus camera src files"
+	help
+		This config enables oplus camera src files
