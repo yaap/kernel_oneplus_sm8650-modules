@@ -15,6 +15,9 @@
 #include <drm/drm_panel.h>
 #include <drm/msm_drm.h>
 #include <drm/msm_drm_pp.h>
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+#include <misc/oplus_power_notifier.h>
+#endif
 
 #include "dsi_defs.h"
 #include "dsi_ctrl_hw.h"
@@ -258,6 +261,10 @@ struct dsi_panel_oplus_privite {
 	bool dimming_setting_before_bl_0_enable;
 	bool vidmode_backlight_async_wait_enable;
 	bool set_backlight_not_do_esd_reg_read_enable;
+	bool gamma_compensation_support;
+	/* indicates how many frames cost from aod off cmd sent to normal frame,
+	"0" means once aod off cmd sent the next frame will be normal frame */
+	unsigned int aod_off_frame_cost;
 };
 
 struct dsi_panel_oplus_serial_number {
@@ -502,6 +509,11 @@ struct dsi_panel {
 	bool is_secondary;
 	int hbm_mode;
 	u32 qsync_mode;
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+	struct notifier_block oplus_power_notify_client;
+	int pon_status;
 #endif
 };
 

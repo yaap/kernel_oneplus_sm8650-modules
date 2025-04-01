@@ -74,6 +74,7 @@ static struct dsi_display *secondary_display;
 extern int oplus_display_panel_get_id2(void);
 extern int lcd_closebl_flag;
 extern bool is_lhbm_panel;
+extern bool g_gamma_regs_read_done;
 #endif /* OPLUS_FEATURE_DISPLAY */
 #define SEC_PANEL_NAME_MAX_LEN  256
 
@@ -9432,6 +9433,18 @@ int dsi_display_enable(struct dsi_display *display)
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
 		/* Force update of demurra2 offset from UEFI stage to Kernel stage*/
 		oplus_panel_need_to_set_demura2_offset(display->panel);
+
+		if (!strcmp(display->panel->name, "AA577 P 3 A0020 dsc cmd mode panel")) {
+			oplus_display_panel_A0020_gamma_compensation(display);
+			DSI_ERR("oplus_display_panel_A0020_gamma_compensation success\n");
+			if (display->panel->oplus_priv.gamma_compensation_support && g_gamma_regs_read_done) {
+				rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_GAMMA_COMPENSATION);
+				if (rc) {
+				DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION failed\n");
+				}
+			}
+		}
+
 #endif /* OPLUS_FEATURE_DISPLAY */
 		return 0;
 	}

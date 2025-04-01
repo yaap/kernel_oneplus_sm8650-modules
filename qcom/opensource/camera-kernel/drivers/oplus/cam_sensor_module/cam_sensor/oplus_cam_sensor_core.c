@@ -347,7 +347,7 @@ int cam_ftm_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		sensor_setting.addr_type = sensor_init_settings.imx896_setting.addr_type;
 		sensor_setting.data_type = sensor_init_settings.imx896_setting.data_type;
 		sensor_setting.size = sensor_init_settings.imx896_setting.size;
-		sensor_setting.delay = sensor_init_settings.imx906_setting.delay;
+		sensor_setting.delay = sensor_init_settings.imx896_setting.delay;
 		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
 	}
 	else if (s_ctrl->sensordata->slave_info.sensor_id == 0x32e2)

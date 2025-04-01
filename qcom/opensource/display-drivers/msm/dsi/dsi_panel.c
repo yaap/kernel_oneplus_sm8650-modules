@@ -13,6 +13,9 @@
 /*#ifdef OPLUS_FEATURE_TP_BASIC*/
 #include <linux/soc/qcom/panel_event_notifier.h>
 /*#endif OPLUS_FEATURE_TP_BASIC*/
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+#include <misc/oplus_power_notifier.h>
+#endif
 
 #include "dsi_panel.h"
 #include "dsi_ctrl_hw.h"
@@ -71,6 +74,11 @@
 #define RSCC_MODE_THRESHOLD_TIME_US 40
 #define DCS_COMMAND_THRESHOLD_TIME_US 40
 
+#ifdef OPLUS_FEATURE_DISPLAY
+static bool g_oplus_forced_power_down = false;
+#endif /* OPLUS_FEATURE_DISPLAY */
+
+extern bool g_gamma_regs_read_done;
 /*#ifdef OPLUS_FEATURE_TP_BASIC*/
 extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
 extern int dcc_flags;
@@ -1050,6 +1058,9 @@ error:
 	return rc;
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+static u32 bl_lvl_backup = 0;
+#endif
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
@@ -1057,6 +1068,15 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
+
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+	if (g_oplus_forced_power_down) {
+		if (panel->pon_status == OPLUS_PON_KPDPWR_RESIN_BARK) {
+			DSI_ERR("%s: %d: pon_status is OPLUS_PON_KPDPWR_RESIN_BARK, return\n", __func__, __LINE__);
+			return 0;
+		}
+	}
+#endif
 
 	DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	switch (bl->type) {
@@ -1081,7 +1101,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		DSI_ERR("Backlight type(%d) not supported\n", bl->type);
 		rc = -ENOTSUPP;
 	}
-
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+	bl_lvl_backup = bl_lvl;
+#endif
 	return rc;
 }
 
@@ -2509,6 +2531,9 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-uir-loading-effect-2-command",
 	"qcom,mdss-dsi-uir-loading-effect-3-command",
 	"qcom,mdss-dsi-set-dc-on-command",
+	"oplus,dsi-panel-gamma-compensation-page0-command",
+	"oplus,dsi-panel-gamma-compensation-page1-command",
+	"oplus,dsi-panel-gamma-compensation-command",
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 
@@ -2726,6 +2751,9 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-uir-loading-effect-2-command-state",
 	"qcom,mdss-dsi-uir-loading-effect-3-command-state",
 	"qcom,mdss-dsi-set-dc-on-command-state",
+	"oplus,dsi-panel-gamma-compensation-page0-command-state",
+	"oplus,dsi-panel-gamma-compensation-page1-command-state",
+	"oplus,dsi-panel-gamma-compensation-command-state",
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 };
@@ -4560,6 +4588,56 @@ static void dsi_panel_setup_vm_ops(struct dsi_panel *panel, bool trusted_vm_env)
 	}
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+static int oplus_power_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+{
+	int rc = 0;
+	struct oplus_power_notify_data  *evdata = data;
+	struct dsi_panel *panel = container_of(self, struct dsi_panel,
+						 oplus_power_notify_client);
+
+	if ((!evdata) || (!panel)) {
+		DSI_ERR("evdata or panel is null ptr\n");
+		return 0;
+	}
+
+	DSI_ERR("notifier event:%d, pon_status:%d bl_lvl_backup:%d\n", event, evdata->pon_status, bl_lvl_backup);
+
+	if (event == OPLUS_POWER_EVENT_PON) {
+		if (evdata->pon_status == OPLUS_PON_KPDPWR_RESIN_BARK) {
+			rc = dsi_panel_update_backlight(panel, 0);
+			panel->pon_status = OPLUS_PON_KPDPWR_RESIN_BARK;
+
+			if (rc < 0)
+				DSI_ERR("failed to update backlight: rc = %d\n", rc);
+
+			msleep(5);
+
+			mutex_lock(&panel->panel_lock);
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
+			mutex_unlock(&panel->panel_lock);
+			if (rc < 0)
+				DSI_ERR("failed to dsi_panel_tx_cmd_set DSI_CMD_SET_OFF: rc = %d\n", rc);
+
+			DSI_ERR("OPLUS_PON_KPDPWR_RESIN_BARK wait for pon key debouncing....\n");
+			msleep(200);
+
+			panel->pon_status = OPLUS_PON_KPDPWR_RESIN_RELEASE;
+			DSI_ERR("panel->pon_status recovered to OPLUS_PON_KPDPWR_RESIN_RELEASE....\n");
+		} else if (evdata->pon_status == OPLUS_PON_KPDPWR_RESIN_RELEASE) {
+			DSI_ERR("OPLUS_PON_KPDPWR_RESIN_RELEASE\n");
+			panel->pon_status = OPLUS_PON_KPDPWR_RESIN_RELEASE;
+			rc = dsi_panel_update_backlight(panel, bl_lvl_backup);
+		}
+	}
+
+	if (rc < 0)
+		DSI_ERR("failed to update backlight: rc = %d\n", rc);
+
+	return 0;
+}
+#endif
+
 struct dsi_panel *dsi_panel_get(struct device *parent,
 				struct device_node *of_node,
 				struct device_node *parser_node,
@@ -4587,6 +4665,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 
 	panel->name = utils->get_property(utils->data,
 				"qcom,mdss-dsi-panel-name", NULL);
+
+	g_oplus_forced_power_down = utils->read_bool(utils->data, "oplus,dsi-shutdown-poweroff-support");
+	LCD_INFO("lcm oplus_forced_power_down: %s\n", g_oplus_forced_power_down ? "true" : "false");
+
 #ifdef OPLUS_FEATURE_DISPLAY
 	if (is_project(22111) || is_project(22112)) {
 		if (!strcmp(panel->name, "AA545 P 3 A0005 dsc cmd mode panel")) {
@@ -4601,6 +4683,16 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 			panel->name = "AA584 P 7 A0001 dsc cmd mode panel";
 		}
 	}
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+	if (g_oplus_forced_power_down) {
+		DSI_INFO("dongfeng_panel_flag: true\n");
+		panel->oplus_power_notify_client.notifier_call = oplus_power_notifier_callback;
+		rc = oplus_power_notifier_register_client(&panel->oplus_power_notify_client);
+		if (rc) {
+			DSI_ERR("Unable to register oplus_power_notify_client: %d\n", rc);
+		}
+	}
+#endif
 #endif /* OPLUS_FEATURE_DISPLAY */
 	if (!panel->name)
 		panel->name = DSI_PANEL_DEFAULT_LABEL;
@@ -6001,6 +6093,15 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		if (panel->is_secondary) {
 			panel->panel_initialized = true;
 			goto error;
+		}
+	}
+
+	if (!strcmp(panel->name, "AA577 P 3 A0020 dsc cmd mode panel")) {
+		if (panel->oplus_priv.gamma_compensation_support && g_gamma_regs_read_done) {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION);
+			if (rc) {
+				DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION failed\n");
+			}
 		}
 	}
 #endif

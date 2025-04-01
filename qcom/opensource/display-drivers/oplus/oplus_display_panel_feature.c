@@ -149,6 +149,10 @@ int oplus_panel_features_config(struct dsi_panel *panel)
 	LCD_INFO("oplus,dsi-set-backlight-not-do-esd-reg-read-enable: %s\n",
 			panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable ? "true" : "false");
 
+	panel->oplus_priv.gamma_compensation_support = utils->read_bool(utils->data,
+			"oplus,gamma-compensation-support");
+	LCD_INFO("oplus,gamma-compensation-support: %s\n",
+			panel->oplus_priv.gamma_compensation_support ? "true" : "false");
 	return 0;
 }
 
