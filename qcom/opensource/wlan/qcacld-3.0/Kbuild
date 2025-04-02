@@ -3357,6 +3357,7 @@ INCS +=		$(COAP_CORE_INC)
 INCS +=		$(COAP_WMI_INC)
 
 ccflags-y += $(INCS)
+ldflags-y += --lto-O0
 
 ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h
 
