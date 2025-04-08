@@ -40,6 +40,9 @@
 #include "../syna_tcm2.h"
 #include "../touchpanel_healthinfo/touchpanel_healthinfo.h"
 
+static int single_num = 0;
+u64 tpstart, tpend;
+
 /**
  * syna_tcm_get_touch_data()
  *
@@ -311,6 +314,25 @@ static int syna_tcm_get_custome_grip_info(const unsigned char *report,
 	return 0;
 }
 
+int syna_tcm_check_double_tap(void)
+{
+	uint32_t timeuse = 0;
+	if (single_num == 0) {
+		tpstart = ktime_get_real_ns();
+		single_num++;
+	} else if (single_num == 1) {
+		tpend = ktime_get_real_ns();
+		single_num = 0;
+		timeuse = tpend - tpstart;
+		if (timeuse < 500000000) {
+			return 1;
+		} else {
+			tpstart = ktime_get_real_ns();
+			single_num = 1;
+		}
+	}
+	return 0;
+}
 
 /**
  * syna_tcm_parse_touch_report()
@@ -612,6 +634,15 @@ int syna_tcm_parse_touch_report(struct tcm_dev *tcm_dev,
 					if (report_size > 0) {
 						LOGE("report buf:%*ph\n", report_size, report);
 					}
+				}
+			}
+			if (touch_data->gesture_id == STAP_DETECT) {
+				if (syna_tcm_check_double_tap()) {
+					tcm->double_tap_pressed = 1;
+					sysfs_notify(&tcm->pdev->dev.kobj, NULL, "double_tap_pressed");
+				} else {
+					tcm->single_tap_pressed = 1;
+					sysfs_notify(&tcm->pdev->dev.kobj, NULL, "single_tap_pressed");
 				}
 			}
 			if (retval < 0) {

@@ -714,6 +714,8 @@ struct syna_tcm {
 	bool data_record;
 	bool enter_force_doze;
 	bool under_water;
+	int single_tap_pressed;
+	int double_tap_pressed;
 
 	unsigned int waiting_frame;
 	unsigned int wait_for_ioctl_operation;

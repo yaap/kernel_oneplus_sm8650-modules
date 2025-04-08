@@ -726,6 +726,10 @@ static void findGestId(struct syna_tcm *tcm)
 		gesture_type = DOU_TAP;
 		break;
 
+	case STAP_DETECT:
+		gesture_type = SINGLE_TAP;
+		break;
+
 	case CIRCLE_DETECT:
 		gesture_type = CIRCLE_GESTURE;
 
@@ -807,10 +811,6 @@ static void findGestId(struct syna_tcm *tcm)
 		} else if (touch_data->extra_gesture_info[2] == 0x20) {
 			clockwise = 0;
 		}
-		break;
-
-	case STAP_DETECT:
-		gesture_type = SINGLE_TAP;
 		break;
 
 	case S_UNICODE:
@@ -952,10 +952,12 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 					touchpanel_event_call_notifier(EVENT_ACTION_UNDER_WATER, (void *)&tcm->under_water);
 				}
 			} else {
-				input_report_key(input_dev, 246 + touch_data->g_type, 1); 
-				input_sync(input_dev);
-				input_report_key(input_dev, 246 + touch_data->g_type, 0);
-				input_sync(input_dev);
+				if (touch_data->g_type != DOU_TAP && touch_data->g_type != SINGLE_TAP) {
+					input_report_key(input_dev, 246 + touch_data->g_type, 1);
+					input_sync(input_dev);
+					input_report_key(input_dev, 246 + touch_data->g_type, 0);
+					input_sync(input_dev);
+				}
 			}
 		}
 	}
@@ -1116,13 +1118,11 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 
 	set_bit(KEY_SLEEP, input_dev->keybit);
 #ifdef ENABLE_WAKEUP_GESTURE
-	set_bit(KEY_F4, input_dev->keybit);
-	input_set_capability(input_dev, EV_KEY, KEY_F4);
 	set_bit(KEY_UNDER_WATER, input_dev->keybit);
 	input_set_capability(input_dev, EV_KEY, KEY_UNDER_WATER);
 	set_bit(KEY_ON_WATER, input_dev->keybit);
 	input_set_capability(input_dev, EV_KEY, KEY_ON_WATER);
-	for (i = DOU_TAP; i <= S_GESTURE; i++) {
+	for (i = UP_VEE; i <= S_GESTURE; i++) {
 		set_bit(246 + i, input_dev->keybit);
 	}
 #endif
@@ -3577,8 +3577,8 @@ static int syna_dev_probe(struct platform_device *pdev)
 	tcm->helper_enabled = false;
 #endif
 #ifdef ENABLE_WAKEUP_GESTURE
-	tcm->lpwg_enabled = false;
-	tcm->gesture_type = 0x0000; /* Disable All Gesture */
+	tcm->lpwg_enabled = true;
+	tcm->gesture_type = 0x3FFF; /* Enable all gestures */
 	tcm->touch_and_hold = 0;
 	syna_dev_update_lpwg_status(tcm);
 #else
