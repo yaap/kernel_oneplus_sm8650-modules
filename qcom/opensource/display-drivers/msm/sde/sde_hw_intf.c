@@ -941,6 +941,7 @@ static int sde_hw_intf_get_vsync_info(struct sde_hw_intf *intf,
 	struct sde_hw_blk_reg_map *c = &intf->hw;
 	u32 val;
 
+	return 0;
 	if (!intf || !info)
 		return -EINVAL;
 

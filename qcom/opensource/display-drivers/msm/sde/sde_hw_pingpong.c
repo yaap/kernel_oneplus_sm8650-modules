@@ -406,6 +406,7 @@ static int sde_hw_pp_get_vsync_info(struct sde_hw_pingpong *pp,
 	struct sde_hw_blk_reg_map *c;
 	u32 val;
 
+	return 0;
 	if (!pp || !info)
 		return -EINVAL;
 	c = &pp->hw;
