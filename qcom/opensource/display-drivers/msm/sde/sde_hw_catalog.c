@@ -5450,7 +5450,6 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		set_bit(SDE_FEATURE_FP16, sde_cfg->features);
 		set_bit(SDE_MDP_PERIPH_TOP_0_REMOVED, &sde_cfg->mdp[0].features);
 		set_bit(SDE_FEATURE_DEMURA, sde_cfg->features);
-		set_bit(SDE_FEATURE_UBWC_STATS, sde_cfg->features);
 		set_bit(SDE_FEATURE_HW_VSYNC_TS, sde_cfg->features);
 		set_bit(SDE_FEATURE_AVR_STEP, sde_cfg->features);
 		set_bit(SDE_FEATURE_VBIF_CLK_SPLIT, sde_cfg->features);
