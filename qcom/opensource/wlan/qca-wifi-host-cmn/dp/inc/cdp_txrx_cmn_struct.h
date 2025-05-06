@@ -1980,6 +1980,7 @@ typedef void (*data_stall_detect_cb)(struct data_stall_event_info *);
  * @CDP_TXRX_STATS_30: Host Pdev config params info
  * @CDP_TXRX_STATS_31: Host DP Interrupt Stats
  * @CDP_TXRX_STATS_HTT_MAX:
+ * @CDP_TXRX_SOC_STATS:
  * @CDP_TXRX_MAX_STATS:
  */
 enum cdp_stats {
@@ -2016,6 +2017,7 @@ enum cdp_stats {
 	CDP_TXRX_STATS_30,
 	CDP_TXRX_STATS_31,
 	CDP_TXRX_STATS_HTT_MAX = 256,
+	CDP_TXRX_SOC_STATS = 264,
 	CDP_TXRX_MAX_STATS = 265,
 };
 
