@@ -850,9 +850,9 @@ int cam_sensor_read_uniqueid(struct cam_sensor_ctrl_t *s_ctrl, void *arg)
 	struct cam_oem_reg_setting *regsettings = vzalloc(cmd->size);
 	char uniqueid[MAX_UNIQUE_ID_LENGTH] = {'\0'};
 	int read_length = 0;
-	if (!s_ctrl || !cmd)
+	if (!s_ctrl || cmd == NULL || regsettings == NULL)
 	{
-		CAM_ERR(CAM_SENSOR, "cam_sensor_read_uniqueid s_ctrl or arg is null ");
+		CAM_ERR(CAM_SENSOR, "cam_sensor_read_uniqueid s_ctrl or arg or regsettings is null ");
 		return -1;
 	}
 
@@ -880,12 +880,7 @@ int cam_sensor_read_uniqueid(struct cam_sensor_ctrl_t *s_ctrl, void *arg)
 			rc = camera_io_dev_read(
 				&(s_ctrl->io_master_info), regsettings[i].reg_addr, &regsettings[i].reg_data,
 				regsettings[i].addr_type, regsettings[i].data_type, false);
-				if(regsettings[i].reg_data < 16){
-					sprintf(uniqueid,"%s0",uniqueid);
-					sprintf(uniqueid,"%s%x",uniqueid,regsettings[i].reg_data);
-				}else{
-					sprintf(uniqueid,"%s%x",uniqueid,regsettings[i].reg_data);
-				}
+				sprintf(uniqueid,"%s%02x",uniqueid,regsettings[i].reg_data);
 		CAM_ERR(CAM_SENSOR, "reg_data %x reg_addr %x read_length %d uniqueid %s", regsettings[i].reg_data,regsettings[i].reg_addr,read_length,uniqueid);
 		}
 		else
