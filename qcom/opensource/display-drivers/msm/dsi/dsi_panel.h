@@ -503,10 +503,10 @@ struct dsi_panel {
 	u32 last_refresh_rate;
 	u32 work_frame;
 	bool bl_ic_ktz8866_used;
-	bool is_secondary;
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 #if defined(CONFIG_PXLW_IRIS)
+	bool is_secondary;
 	int hbm_mode;
 	u32 qsync_mode;
 #endif
