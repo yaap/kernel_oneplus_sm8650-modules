@@ -1059,7 +1059,7 @@ static void rotator_thread_priority_worker(struct kthread_work *work)
 	struct task_struct *task = current->group_leader;
 
 	param.sched_priority = 5;
-	ret = sched_setscheduler(task, SCHED_FIFO, &param);
+	ret = sched_setscheduler(task, SCHED_RR, &param);
 	if (ret)
 		SDEROT_ERR(
 			"pid:%d name:%s priority update failed %d\n",
@@ -1520,7 +1520,7 @@ static void sde_rotator_commit_handler(struct kthread_work *work)
 		return;
 	}
 
-	ret = sched_setscheduler(entry->fenceq->rot_thread, SCHED_FIFO, &param);
+	ret = sched_setscheduler(entry->fenceq->rot_thread, SCHED_RR, &param);
 	if (ret) {
 		SDEROT_WARN("Fail to set kthread priority for fenceq: %d\n",
 				ret);
