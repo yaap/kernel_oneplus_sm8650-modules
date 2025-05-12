@@ -1824,11 +1824,6 @@ int oplus_adfr_status_reset(void *dsi_panel)
 
 		if (oplus_adfr_high_precision_sa_mode_is_enabled(p_oplus_adfr_params)) {
 			p_oplus_adfr_params->sa_high_precision_fps = refresh_rate;
-			ADFR_INFO("sa status reset: auto_mode:%u,fakeframe:%u,sa_min_fps:%u,sa_high_precision_fps:%u\n",
-					p_oplus_adfr_params->auto_mode, p_oplus_adfr_params->fakeframe, p_oplus_adfr_params->sa_min_fps, p_oplus_adfr_params->sa_high_precision_fps);
-		} else {
-			ADFR_INFO("sa status reset: auto_mode:%u,fakeframe:%u,sa_min_fps:%u\n",
-					p_oplus_adfr_params->auto_mode, p_oplus_adfr_params->fakeframe, p_oplus_adfr_params->sa_min_fps);
 		}
 
 		OPLUS_ADFR_TRACE_INT("oplus_adfr_auto_mode", p_oplus_adfr_params->auto_mode);
