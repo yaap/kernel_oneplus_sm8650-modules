@@ -11950,14 +11950,14 @@ static ssize_t oplus_chg_wls_proc_tx_read(struct file *file, char __user *buf,
 
 	switch (data.intval) {
 	case OPLUS_CHG_WLS_TRX_STATUS_ENABLE:
-		snprintf(page, 10, "%s\n", "enable");
+		snprintf(page, 10, "1\n");
 		break;
 	case OPLUS_CHG_WLS_TRX_STATUS_CHARGING:
-		snprintf(page, 10, "%s\n", "charging");
+		snprintf(page, 10, "charging\n");
 		break;
 	case OPLUS_CHG_WLS_TRX_STATUS_DISENABLE:
 	default:
-		snprintf(page, 10, "%s\n", "disable");
+		snprintf(page, 10, "0\n");
 		break;
 	}
 
