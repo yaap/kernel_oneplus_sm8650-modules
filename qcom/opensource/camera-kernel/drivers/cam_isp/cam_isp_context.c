@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -1109,8 +1109,11 @@ static inline void __cam_isp_ctx_move_req_to_free_list(
 	CAM_DBG(CAM_ISP,
 		"Free req id: %lld, ctx_idx: %u, link: 0x%x",
 		req->request_id, ctx->ctx_id, ctx->link_hdl);
-	cam_mem_put_kref(kmd_cmd_buff_info->handle);
-
+	if (req->packet) {
+		cam_mem_put_kref(kmd_cmd_buff_info->handle);
+		cam_common_mem_free(req->packet);
+		req->packet = NULL;
+	}
 	list_add_tail(&req->list, &ctx->free_req_list);
 }
 
@@ -1127,6 +1130,7 @@ static int __cam_isp_ctx_enqueue_init_request(
 	struct cam_isp_prepare_hw_update_data *hw_update_data;
 	struct cam_isp_fcg_config_info        *fcg_info_old;
 	struct cam_isp_fcg_config_info        *fcg_info_new;
+	struct cam_kmd_buf_info *kmd_buff_old = NULL;
 
 	spin_lock_bh(&ctx->lock);
 	if (list_empty(&ctx->pending_req_list)) {
@@ -1178,6 +1182,14 @@ static int __cam_isp_ctx_enqueue_init_request(
 				req_isp_new->cfg,
 				sizeof(req_isp_new->cfg[0]) *
 				req_isp_new->num_cfg);
+
+			if (req_old->packet) {
+				kmd_buff_old = &(req_isp_old->hw_update_data.kmd_cmd_buff_info);
+				cam_mem_put_kref(kmd_buff_old->handle);
+				cam_common_mem_free(req_old->packet);
+				req_old->packet = req->packet;
+				req->packet = NULL;
+			}
 
 			memcpy(&req_old->pf_data, &req->pf_data,
 				sizeof(struct cam_hw_mgr_pf_request_info));
@@ -1236,7 +1248,7 @@ static int __cam_isp_ctx_enqueue_init_request(
 			req_old->request_id = req->request_id;
 			list_splice_init(&req->buf_tracker, &req_old->buf_tracker);
 
-			__cam_isp_ctx_move_req_to_free_list(ctx, req);
+			list_add_tail(&req->list, &ctx->free_req_list);
 		}
 	} else {
 		CAM_WARN(CAM_ISP,
@@ -3430,7 +3442,6 @@ static int __cam_isp_ctx_sof_in_activated_state(
 static int __cam_isp_ctx_reg_upd_in_sof(struct cam_isp_context *ctx_isp,
 	void *evt_data)
 {
-	int rc = 0;
 	struct cam_ctx_request *req = NULL;
 	struct cam_isp_ctx_req *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
@@ -3463,7 +3474,7 @@ static int __cam_isp_ctx_reg_upd_in_sof(struct cam_isp_context *ctx_isp,
 			req->request_id);
 	}
 end:
-	return rc;
+	return 0;
 }
 
 static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
@@ -6975,6 +6986,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_hw_cmd_args           hw_cmd_args;
 	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
 	uint32_t                         packet_opcode = 0;
+	struct cam_kmd_buf_info *kmd_buff = NULL;
 
 	CAM_DBG(CAM_ISP, "get free request object......ctx_idx: %u, link: 0x%x",
 		ctx->ctx_id, ctx->link_hdl);
@@ -6997,7 +7009,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 
 	remain_len = cam_context_parse_config_cmd(ctx, cmd, &packet);
-	if (IS_ERR(packet)) {
+	if (IS_ERR_OR_NULL(packet)) {
 		rc = PTR_ERR(packet);
 		goto free_req;
 	}
@@ -7013,7 +7025,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	if (rc) {
 		CAM_ERR(CAM_ISP, "HW command failed, ctx_idx: %u, link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
-		goto free_req;
+		goto free_packet;
 	}
 
 	packet_opcode = isp_hw_cmd_args.u.packet_op_code;
@@ -7023,7 +7035,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			"request %lld has been flushed, reject packet, ctx_idx: %u, link: 0x%x",
 			packet->header.request_id, ctx->ctx_id, ctx->link_hdl);
 		rc = -EBADR;
-		goto free_req;
+		goto free_packet;
 	} else if ((packet_opcode == CAM_ISP_PACKET_INIT_DEV)
 		&& (packet->header.request_id <= ctx->last_flush_req)
 		&& ctx->last_flush_req && packet->header.request_id) {
@@ -7031,7 +7043,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 			"last flushed req is %lld, config dev(init) for req %lld, ctx_idx: %u, link: 0x%x",
 			ctx->last_flush_req, packet->header.request_id, ctx->ctx_id, ctx->link_hdl);
 		rc = -EBADR;
-		goto free_req;
+		goto free_packet;
 	}
 
 	cfg.packet = packet;
@@ -7077,6 +7089,7 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	req->pf_data.packet_handle = cmd->packet_handle;
 	req->pf_data.packet_offset = cmd->offset;
 	req->pf_data.req = req;
+	req->packet = packet;
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
 		rc = cam_sync_get_obj_ref(req_isp->fence_map_out[i].sync_id);
@@ -7178,6 +7191,11 @@ put_ref:
 	}
 free_req_and_buf_tracker_list:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
+	kmd_buff = &(req_isp->hw_update_data.kmd_cmd_buff_info);
+	cam_mem_put_kref(kmd_buff->handle);
+free_packet:
+	cam_common_mem_free(packet);
+	req->packet = NULL;
 free_req:
 	spin_lock_bh(&ctx->lock);
 	__cam_isp_ctx_move_req_to_free_list(ctx, req);
@@ -8290,6 +8308,10 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 			rc = cam_isp_ctx_dump_req(req_isp, 0, 0, NULL, false);
 
 		trace_cam_context_state("ISP", ctx);
+		if (req->packet) {
+			cam_common_mem_free(req->packet);
+			req->packet = NULL;
+		}
 		list_del_init(&req->list);
 		list_add(&req->list, &ctx->pending_req_list);
 		goto end;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_CONTEXT_H_
@@ -69,6 +69,7 @@ enum cam_context_state {
  * @buf_tracker:           List of buffers we want to keep ref counts on
  *                         used by the HW block for a particular req
  * @pf_data                page fault debug data
+ * @packet                 pointer to packet
  *
  */
 struct cam_ctx_request {
@@ -89,6 +90,7 @@ struct cam_ctx_request {
 	struct cam_context            *ctx;
 	struct list_head               buf_tracker;
 	struct cam_hw_mgr_pf_request_info  pf_data;
+	void                           *packet;
 };
 
 /**

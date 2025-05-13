@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -4347,17 +4347,6 @@ static int cam_vfe_bus_get_res_for_mid(
 		}
 	}
 
-	for (i = 0; i < num_mid; i++) {
-		out_data = (struct cam_vfe_bus_ver3_vfe_out_data   *)
-			bus_priv->vfe_out[i].res_priv;
-		get_res->out_res_id = bus_priv->vfe_out[port_mid[i]].res_id;
-		if (out_data->pid_mask & (1 << get_res->pid)) {
-			get_res->out_res_id = bus_priv->vfe_out[port_mid[i]].res_id;
-			pid_found = true;
-			goto end;
-		}
-	}
-
 	if (!num_mid) {
 		CAM_ERR(CAM_ISP,
 			"VFE:%u mid:%d does not match with any out resource",
@@ -4366,10 +4355,26 @@ static int cam_vfe_bus_get_res_for_mid(
 		return -EINVAL;
 	}
 
-end:
-	CAM_INFO(CAM_ISP, "VFE:%u match mid :%d  out resource:0x%x found, is pid found %d",
-		bus_priv->common_data.core_index, get_res->mid, bus_priv->vfe_out[i].res_id,
-		 pid_found);
+	for (i = 0; i < num_mid; i++) {
+		out_data = (struct cam_vfe_bus_ver3_vfe_out_data *)
+			bus_priv->vfe_out[port_mid[i]].res_priv;
+		get_res->out_res_id = bus_priv->vfe_out[port_mid[i]].res_id;
+		if (out_data->pid_mask & (BIT(get_res->pid))) {
+			get_res->out_res_id = bus_priv->vfe_out[port_mid[i]].res_id;
+			pid_found = true;
+			CAM_INFO(CAM_ISP, "VFE:%u match mid:%d out_res:0x%x found, is pid found:%d",
+				bus_priv->common_data.core_index, get_res->mid,
+				bus_priv->vfe_out[port_mid[i]].res_id, pid_found);
+			break;
+		}
+	}
+
+	if (!pid_found) {
+		CAM_ERR(CAM_ISP, "VFE:%u pid:%d not found pid_found:%d mid:%d",
+			bus_priv->common_data.core_index, get_res->pid, pid_found, get_res->mid);
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
