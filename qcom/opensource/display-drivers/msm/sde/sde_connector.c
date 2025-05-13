@@ -2067,17 +2067,6 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 	case CONNECTOR_PROP_DYN_TRANSFER_TIME:
 		_sde_connector_set_prop_dyn_transfer_time(c_conn, val);
 		break;
-#ifdef OPLUS_FEATURE_DISPLAY_ADFR
-	case CONNECTOR_PROP_ADFR_MIN_FPS:
-		oplus_adfr_property_update(c_conn, c_state, idx, val);
-		break;
-#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
-
-#ifdef OPLUS_FEATURE_DISPLAY_HIGH_PRECISION
-	case CONNECTOR_PROP_HIGH_PRECISION_FPS:
-		msm_property_set_dirty(&c_conn->property_info, &c_state->property_state, idx);
-		break;
-#endif /* OPLUS_FEATURE_DISPLAY_HIGH_PRECISION */
 	case CONNECTOR_PROP_LP:
 		/* suspend case: clear stale MISR */
 		if (val == SDE_MODE_DPMS_OFF) {
@@ -2132,7 +2121,12 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 		oplus_ofp_property_update(c_conn, c_state, idx, val);
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	oplus_adfr_property_update(c_conn, c_state, idx, val);
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+#ifdef OPLUS_FEATURE_DISPLAY_HIGH_PRECISION
+	msm_property_set_dirty(&c_conn->property_info, &c_state->property_state, idx);
+#endif /* OPLUS_FEATURE_DISPLAY_HIGH_PRECISION */
 	/* check for custom property handling */
 	if (!rc && c_conn->ops.set_property) {
 		rc = c_conn->ops.set_property(connector,
