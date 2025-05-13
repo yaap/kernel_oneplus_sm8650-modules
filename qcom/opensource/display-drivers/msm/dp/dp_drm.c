@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -391,7 +391,7 @@ int dp_connector_set_colorspace(struct drm_connector *connector,
 
 int dp_connector_post_init(struct drm_connector *connector, void *display)
 {
-	int rc;
+	int rc = 0;
 	struct dp_display *dp_display = display;
 	struct sde_connector *sde_conn;
 
@@ -401,13 +401,17 @@ int dp_connector_post_init(struct drm_connector *connector, void *display)
 	dp_display->base_connector = connector;
 	dp_display->bridge->connector = connector;
 
+	sde_conn = to_sde_connector(connector);
+
+	if (sde_conn->capabilities & BIT(8))
+		goto end;
+
 	if (dp_display->post_init) {
 		rc = dp_display->post_init(dp_display);
 		if (rc)
 			goto end;
 	}
 
-	sde_conn = to_sde_connector(connector);
 	dp_display->bridge->dp_panel = sde_conn->drv_panel;
 
 	rc = dp_mst_init(dp_display);

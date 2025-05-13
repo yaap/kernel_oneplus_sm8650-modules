@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -291,7 +291,7 @@ static int dsi_panel_trigger_esd_attack_sub(int reset_gpio)
 		return -EINVAL;
 	}
 
-	gpio_set_value(reset_gpio, 0);
+	gpio_set_value_cansleep(reset_gpio, 0);
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
 	DSI_INFO("GPIO pulled low to simulate ESD\n");
@@ -380,7 +380,7 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	}
 
 	for (i = 0; i < r_config->count; i++) {
-		gpio_set_value(r_config->reset_gpio,
+		gpio_set_value_cansleep(r_config->reset_gpio,
 			       r_config->sequence[i].level);
 
 
@@ -574,10 +574,10 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 error_disable_gpio:
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
-		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+		gpio_set_value_cansleep(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->bl_config.en_gpio))
-		gpio_set_value(panel->bl_config.en_gpio, 0);
+		gpio_set_value_cansleep(panel->bl_config.en_gpio, 0);
 
 error_disable_pinctrl:
 	(void)dsi_panel_set_pinctrl_state(panel, false);
@@ -636,7 +636,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		usleep_range(2*1000, (2*1000)+100);
 #endif /* OPLUS_FEATURE_DISPLAY */
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
-		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+		gpio_set_value_cansleep(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on) {
@@ -647,23 +647,23 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 			DSI_INFO("[%s][TP] is_pd_with_guesture is %d, shutdown_flag = %d, panel_esd_check_failed = %d\n",
 				__func__, is_pd_with_guesture, shutdown_flag, panel_esd_check_failed);
 			if ((is_pd_with_guesture == true) && (0 == shutdown_flag) && (0 == panel_esd_check_failed )) {
-				gpio_set_value(panel->reset_config.reset_gpio, 1);
+				gpio_set_value_cansleep(panel->reset_config.reset_gpio, 1);
 				DSI_INFO("[%s][TP] set lcd reset to high for TP when gesture is enable\n", __func__);
 			} else {
-				gpio_set_value(panel->reset_config.reset_gpio, 0);
+				gpio_set_value_cansleep(panel->reset_config.reset_gpio, 0);
 				DSI_INFO("[%s][TP] set lcd reset to low for TP when gesture is disable\n", __func__);
 				tp_irq = gpio_to_irq(463);
 				disable_irq_nosync(tp_irq);
 			}
 		} else {
 			/* for other projects */
-			gpio_set_value(panel->reset_config.reset_gpio, 0);
+			gpio_set_value_cansleep(panel->reset_config.reset_gpio, 0);
 		}
 /*#endif OPLUS_FEATURE_TP_BASIC*/
 	}
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
-		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
+		gpio_set_value_cansleep(panel->reset_config.lcd_mode_sel_gpio, 0);
 
 #ifdef OPLUS_FEATURE_DISPLAY
 	oplus_panel_gpio_off(panel);
@@ -6237,7 +6237,7 @@ int dsi_panel_pre_disable(struct dsi_panel *panel)
 	mutex_lock(&panel->panel_lock);
 
 	if (gpio_is_valid(panel->bl_config.en_gpio))
-		gpio_set_value(panel->bl_config.en_gpio, 0);
+		gpio_set_value_cansleep(panel->bl_config.en_gpio, 0);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_OFF);
 	if (rc) {
