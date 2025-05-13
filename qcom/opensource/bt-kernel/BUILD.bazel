@@ -23,3 +23,7 @@ define_neo61()
 load(":target.bzl", "define_volcano")
 
 define_volcano()
+
+load(":target.bzl", "define_seraph")
+
+define_seraph()

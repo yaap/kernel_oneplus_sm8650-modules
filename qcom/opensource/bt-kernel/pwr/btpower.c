@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -196,6 +196,8 @@ static struct vreg_data bt_vregs_info_wcn6450[] = {
 		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-pa",	   3300000, 3300000, 0, false, true,
 		{BT_VDD_PA_LDO, BT_VDD_PA_LDO_CURRENT}},
+	{NULL, "qcom,bt-vdd-pa-5g",	   3300000, 3300000, 0, false, true,
+		{BT_VDD_PA_LDO, BT_VDD_PA_LDO_CURRENT}},
 };
 
 // Regulator structure for kiwi BT SoC series
@@ -316,6 +318,12 @@ static struct pwr_data bt_vreg_info_peach = {
 	//.bt_num_vregs = ARRAY_SIZE(platform_vregs_info),
 };
 
+static struct pwr_data vreg_info_wcn786x = {
+	.compatible = "qcom,wcn786x",
+	.platform_vregs = bt_vregs_info_peach,
+	.platform_num_vregs = ARRAY_SIZE(bt_vregs_info_peach),
+};
+
 static const struct of_device_id bt_power_match_table[] = {
 	{	.compatible = "qcom,qca6174", .data = &bt_vreg_info_qca6174},
 	{	.compatible = "qcom,wcn3990", .data = &bt_vreg_info_wcn399x},
@@ -325,9 +333,10 @@ static const struct of_device_id bt_power_match_table[] = {
 	{	.compatible = "qcom,kiwi-no-share-ant-power",
 			.data = &bt_vreg_info_kiwi_no_share_ant_power},
 	{	.compatible = "qcom,wcn6750-bt", .data = &bt_vreg_info_wcn6750},
-	{       .compatible = "qcom,wcn6450-bt", .data = &bt_vreg_info_wcn6450},
+	{   .compatible = "qcom,wcn6450-bt", .data = &bt_vreg_info_wcn6450},
 	{	.compatible = "qcom,bt-qca-converged", .data = &bt_vreg_info_converged},
 	{	.compatible = "qcom,peach-bt", .data = &bt_vreg_info_peach},
+	{	.compatible = "qcom,wcn786x", .data = &vreg_info_wcn786x},
 	{},
 };
 
@@ -925,7 +934,7 @@ static int bt_regulators_pwr(int pwr_state)
 	bt_num_vregs =  pwr_data->bt_num_vregs;
 
 	if (!bt_num_vregs) {
-		pr_warn("%s: not avilable to %s\n",
+		pr_warn("%s: not available to %s\n",
 			__func__, ConvertRegisterModeToString(pwr_state));
 		return 0;
 	}
@@ -1026,7 +1035,7 @@ static int uwb_regulators_pwr(int pwr_state)
 	uwb_num_vregs =  pwr_data->uwb_num_vregs;
 
 	if (!uwb_num_vregs) {
-		pr_warn("%s: not avilable to %s\n",
+		pr_warn("%s: not available to %s\n",
 			__func__, ConvertRegisterModeToString(pwr_state));
 		return 0;
 	}
@@ -1639,7 +1648,9 @@ static int bt_power_probe(struct platform_device *pdev)
 	pwr_data->pdev = pdev;
 
 	pwr_data->is_ganges_dt = of_property_read_bool(pdev->dev.of_node,
-							"qcom,peach-bt");
+							"qcom,peach-bt") ||
+							of_property_read_bool(pdev->dev.of_node,
+							"qcom,wcn786x");
 
 	pr_info("%s: is_ganges_dt = %d\n", __func__, pwr_data->is_ganges_dt);
 

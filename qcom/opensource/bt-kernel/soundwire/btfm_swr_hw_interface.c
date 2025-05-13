@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -137,8 +137,11 @@ static void btfm_swr_dai_shutdown(void *dai, int id)
 	case BTAUDIO_RX:
 		port_type = BT_AUDIO_RX1;
 		break;
-	case BTAUDIO_A2DP_SINK_TX:
+	case BTAUDIO_TX2:
 		port_type = BT_AUDIO_TX2;
+		break;
+	case BTAUDIO_RX2:
+		port_type = BT_AUDIO_RX2;
 		break;
 	case BTFM_NUM_CODEC_DAIS:
 	default:
@@ -220,8 +223,11 @@ static int btfm_swr_dai_prepare(void *dai, uint32_t sampling_rate, uint32_t dire
 	case BTAUDIO_RX:
 		port_type = BT_AUDIO_RX1;
 		break;
-	case BTAUDIO_A2DP_SINK_TX:
+	case BTAUDIO_TX2:
 		port_type = BT_AUDIO_TX2;
+		break;
+	case BTAUDIO_RX2:
+		port_type = BT_AUDIO_RX2;
 		break;
 	case BTFM_NUM_CODEC_DAIS:
 	default:
@@ -269,11 +275,12 @@ static int btfm_swr_dai_get_channel_map(void *dai,
 	switch (id) {
 	case FMAUDIO_TX:
 	case BTAUDIO_TX:
-	case BTAUDIO_A2DP_SINK_TX:
+	case BTAUDIO_TX2:
 		*tx_num = btfmswr->num_channels;
 		*tx_slot = btfmswr->num_channels == 2 ? TWO_CHANNEL_MASK : ONE_CHANNEL_MASK;
 		break;
 	case BTAUDIO_RX:
+	case BTAUDIO_RX2:
 		*rx_num = btfmswr->num_channels;
 		*rx_slot = btfmswr->num_channels == 2 ? TWO_CHANNEL_MASK : ONE_CHANNEL_MASK;
 		break;
@@ -292,7 +299,7 @@ int btfm_swr_dai_get_configs(void *dai, void *config, uint8_t id)
 	struct btfmswr *btfmswr = dev_get_drvdata(hwep_info->dev);
 	struct hwep_dma_configurations *hwep_config;
 
-	BTFMSWR_DBG("");
+	BTFMSWR_INFO("DAI id %u", id);
 	hwep_config = (struct hwep_dma_configurations *)config;
 
 	hwep_config->stream_id = id;
@@ -304,7 +311,14 @@ int btfm_swr_dai_get_configs(void *dai, void *config, uint8_t id)
 	hwep_config->active_channel_mask = (btfmswr->num_channels == 2 ?
 					   TWO_CHANNEL_MASK : ONE_CHANNEL_MASK);
 	hwep_config->lpaif = LPAIF_AUD;
-	hwep_config->inf_index = 1;
+
+	if (id == BTAUDIO_RX2 || id == BTAUDIO_TX2) {
+		BTFMSWR_INFO("using interface index 2 for DAI id %u", id);
+		hwep_config->inf_index = 2;
+	} else {
+		BTFMSWR_INFO("using interface index 1 for DAI id %u", id);
+		hwep_config->inf_index = 1;
+	}
 	return 1;
 }
 
@@ -372,13 +386,14 @@ static struct hwep_dai_driver btfmswr_dai_driver[] = {
 		},
 		.dai_ops = &btfmswr_hw_dai_ops,
 	},
-	{	/* Bluetooth A2DP sink: bt -> lpass */
-		.dai_name = "btfm_a2dp_sink_swr_tx",
-		.id = BTAUDIO_A2DP_SINK_TX,
+	{	/* Bluetooth A2DP sink, HFP client: bt -> lpass */
+		.dai_name = "btaudio_tx2",
+		.id = BTAUDIO_TX2,
 		.capture = {
-			.stream_name = "A2DP sink TX Capture",
+			.stream_name = "BT Audio SWR Tx2 Capture",
 			/* 8/16/44.1/48/88.2/96/192 Khz */
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000
+				| SNDRV_PCM_RATE_8000_192000
 				| SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000
 				| SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000
 				| SNDRV_PCM_RATE_192000,
@@ -389,7 +404,26 @@ static struct hwep_dai_driver btfmswr_dai_driver[] = {
 			.channels_max = 1,
 		},
 		.dai_ops = &btfmswr_hw_dai_ops,
-	}
+	},
+	{	/* Bluetooth audio downlink2: lpass -> bt */
+		.dai_name = "btaudio_rx2",
+		.id = BTAUDIO_RX2,
+		.playback = {
+			.stream_name = "BT Audio SWR Rx2 Playback",
+			/* 8/16/44.1/48/88.2/96 Khz */
+			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000
+				| SNDRV_PCM_RATE_8000_192000
+				| SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000
+				| SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000
+				| SNDRV_PCM_RATE_192000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE, /* 16 bits */
+			.rate_max = 192000,
+			.rate_min = 8000,
+			.channels_min = 1,
+			.channels_max = 1,
+		},
+		.dai_ops = &btfmswr_hw_dai_ops,
+	},
 };
 
 static struct hwep_comp_drv btfmswr_hw_driver = {
@@ -420,7 +454,7 @@ int btfm_swr_register_hw_ep(struct btfmswr *btfm_swr)
 	hwep_info->drv = &btfmswr_hw_driver;
 	hwep_info->dai_drv = btfmswr_dai_driver;
 	hwep_info->num_dai = ARRAY_SIZE(btfmswr_dai_driver);
-	hwep_info->num_dai = 4;
+	BTFMSWR_INFO("num_dai is: %lu", ARRAY_SIZE(btfmswr_dai_driver));
 	hwep_info->num_mixer_ctrl = ARRAY_SIZE(status_controls);
 	hwep_info->mixer_ctrl = status_controls;
 	/* Register to hardware endpoint */

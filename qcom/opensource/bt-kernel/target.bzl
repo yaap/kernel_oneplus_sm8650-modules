@@ -26,12 +26,10 @@ def define_blair():
         modules = [
             "btpower",
             "bt_fm_slim",
-            "radio-i2c-rtc6226-qca",
         ],
         config_options = [
             "CONFIG_MSM_BT_POWER",
             "CONFIG_BTFM_SLIM",
-            "CONFIG_I2C_RTC6226_QCA",
             "CONFIG_BT_HW_SECURE_DISABLE",
         ]
     )
@@ -42,12 +40,10 @@ def define_pitti():
 	modules = [
 	    "btpower",
 	    "bt_fm_slim",
-	    "radio-i2c-rtc6226-qca",
 	],
 	config_options = [
 	    "CONFIG_MSM_BT_POWER",
 	    "CONFIG_BTFM_SLIM",
-	    "CONFIG_I2C_RTC6226_QCA",
 	    "CONFIG_BT_HW_SECURE_DISABLE",
 	]
    )
@@ -58,12 +54,10 @@ def define_niobe():
 	modules = [
 	    "btpower",
 	    "bt_fm_slim",
-	    "radio-i2c-rtc6226-qca",
 	],
 	config_options = [
 	    "CONFIG_MSM_BT_POWER",
 	    "CONFIG_BTFM_SLIM",
-	    "CONFIG_I2C_RTC6226_QCA",
 	    "CONFIG_BT_HW_SECURE_DISABLE",
 	]
    )
@@ -74,12 +68,10 @@ def define_anorak61():
 	modules = [
 	    "btpower",
 	    "bt_fm_slim",
-	    "radio-i2c-rtc6226-qca",
 	],
 	config_options = [
 	    "CONFIG_MSM_BT_POWER",
 	    "CONFIG_BTFM_SLIM",
-	    "CONFIG_I2C_RTC6226_QCA",
 	    "CONFIG_BT_HW_SECURE_DISABLE",
 	]
    )
@@ -112,6 +104,24 @@ def define_volcano():
 	    "CONFIG_BTFM_CODEC",
 	    "CONFIG_BTFM_SLIM",
 	    "CONFIG_I2C_RTC6226_QCA",
+	    "CONFIG_BTFM_SWR",
+	    "CONFIG_BT_HW_SECURE_DISABLE",
+	]
+   )
+
+def define_seraph():
+    define_bt_modules(
+	target = "seraph",
+	modules = [
+	    "btpower",
+	    "btfmcodec",
+	    "bt_fm_slim",
+	    "bt_fm_swr",
+	],
+	config_options = [
+	    "CONFIG_MSM_BT_POWER",
+	    "CONFIG_BTFM_CODEC",
+	    "CONFIG_BTFM_SLIM",
 	    "CONFIG_BTFM_SWR",
 	    "CONFIG_BT_HW_SECURE_DISABLE",
 	]
