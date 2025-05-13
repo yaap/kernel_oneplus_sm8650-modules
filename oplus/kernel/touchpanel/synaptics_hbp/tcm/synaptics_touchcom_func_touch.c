@@ -637,15 +637,15 @@ int syna_tcm_parse_touch_report(struct tcm_dev *tcm_dev,
 				}
 			}
 			if (touch_data->gesture_id == TOUCH_HOLD_DOWN) {
-				tcm->fp_pressed = 1;
+				atomic_set(&tcm->fp_pressed, 1);
 				sysfs_notify(&tcm->pdev->dev.kobj, NULL, "fp_pressed");
 			}
 			if (touch_data->gesture_id == STAP_DETECT) {
 				if (syna_tcm_check_double_tap()) {
-					tcm->double_tap_pressed = 1;
+					atomic_set(&tcm->double_tap_pressed, 1);
 					sysfs_notify(&tcm->pdev->dev.kobj, NULL, "double_tap_pressed");
 				} else {
-					tcm->single_tap_pressed = 1;
+					atomic_set(&tcm->single_tap_pressed, 1);
 					sysfs_notify(&tcm->pdev->dev.kobj, NULL, "single_tap_pressed");
 				}
 			}

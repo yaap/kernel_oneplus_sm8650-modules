@@ -3666,6 +3666,11 @@ static int syna_dev_probe(struct platform_device *pdev)
 		return 0;
 	}
 
+	//set custom atomic adds
+	atomic_set(&tcm->single_tap_pressed, 0);
+	atomic_set(&tcm->double_tap_pressed, 0);
+	atomic_set(&tcm->fp_pressed, 0);
+
 #ifdef HAS_SYSFS_INTERFACE
 	/* create the device file and register to char device classes */
 	retval = syna_cdev_create_sysfs(tcm, pdev);

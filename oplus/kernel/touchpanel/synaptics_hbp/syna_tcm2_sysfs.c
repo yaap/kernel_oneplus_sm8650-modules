@@ -898,8 +898,11 @@ static ssize_t syna_sysfs_fp_pressed_show(struct device *device,
 	uint8_t ret = 0;
 	struct syna_tcm *tcm = dev_get_drvdata(device);
 
-	ret = scnprintf(buf, PAGE_SIZE, "%i\n", tcm->fp_pressed);
-	tcm->fp_pressed = 0;
+	if (!tcm)
+		return -ENODEV;
+
+	ret = scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&tcm->fp_pressed));
+	atomic_set(&tcm->fp_pressed, 0);
 	return ret;
 }
 
@@ -911,8 +914,11 @@ static ssize_t syna_sysfs_double_tap_pressed_show(struct device *device,
 	uint8_t ret = 0;
 	struct syna_tcm *tcm = dev_get_drvdata(device);
 
-	ret = scnprintf(buf, PAGE_SIZE, "%i\n", tcm->double_tap_pressed);
-	tcm->double_tap_pressed = 0;
+	if (!tcm)
+		return -ENODEV;
+
+	ret = scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&tcm->double_tap_pressed));
+	atomic_set(&tcm->double_tap_pressed, 0);
 	return ret;
 }
 
@@ -924,8 +930,11 @@ static ssize_t syna_sysfs_single_tap_pressed_show(struct device *device,
 	uint8_t ret = 0;
 	struct syna_tcm *tcm = dev_get_drvdata(device);
 
-	ret = scnprintf(buf, PAGE_SIZE, "%i\n", tcm->single_tap_pressed);
-	tcm->single_tap_pressed = 0;
+	if (!tcm)
+		return -ENODEV;
+
+	ret = scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&tcm->single_tap_pressed));
+	atomic_set(&tcm->single_tap_pressed, 0);
 	return ret;
 }
 
