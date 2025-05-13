@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/string.h>
@@ -503,6 +504,9 @@ int ipa_rmnet_ctl_xmit(struct sk_buff *skb)
 			flags);
 		return 0;
 	}
+
+	if (atomic_read(&ipa3_ctx->is_suspend_mode_enabled))
+		IPAERR("User %s sent data in suspend mode.\n", current->comm);
 
 	/* rmnet_ctl is calling from atomic context */
 	ret = ipa_pm_activate(rmnet_ctl_ipa3_ctx->rmnet_ctl_pm_hdl);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -1257,6 +1258,7 @@ int ipa_pm_handle_suspend(u32 pipe_bitmask, u32 pipe_arr_idx)
 	bool client_notified[IPA_PM_MAX_CLIENTS] = { false };
 	u32 pipe_add;
 	u32 max_pipes;
+	enum ipa_client_type type;
 
 	if (ipa_pm_ctx == NULL) {
 		IPA_PM_ERR("PM_ctx is null\n");
@@ -1273,6 +1275,9 @@ int ipa_pm_handle_suspend(u32 pipe_bitmask, u32 pipe_arr_idx)
 	mutex_lock(&ipa_pm_ctx->client_mutex);
 	for (i = 0; i < IPA_EP_PER_REG && (i + pipe_add) < max_pipes; i++) {
 		if (pipe_bitmask & (1 << i)) {
+			type = ipa3_get_client_by_pipe(i + pipe_add);
+			IPA_PM_ERR("Client %s woke up the system\n",
+					ipa_clients_strings[type]);
 			client = ipa_pm_ctx->clients_by_pipe[i + pipe_add];
 			if (client && !client_notified[client->hdl]) {
 				if (client->callback) {

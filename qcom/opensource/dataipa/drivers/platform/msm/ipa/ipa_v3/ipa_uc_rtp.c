@@ -830,6 +830,7 @@ int ipa3_smmu_unmap_buff(uint64_t bitstream_buffer_fd, uint64_t meta_buff_fd, in
 	}
 
 	IPADBG("smmu unmap done\n");
+	dma_buf_put(dbuff);
 	kfree(map_table);
 	return 0;
 }
@@ -988,6 +989,8 @@ int ipa3_send_bitstream_buff_info(struct bitstream_buffers *data)
 			tmp.bs_info[index].meta_buff_addr = map_table->sgt[1]->sgl->dma_address
 				+ data->bs_info[index].meta_buff_offset;
 		}
+
+		dma_buf_put(dmab);
 	}
 
 	return ipa3_uc_send_add_bitstream_buffers_cmd(&tmp);

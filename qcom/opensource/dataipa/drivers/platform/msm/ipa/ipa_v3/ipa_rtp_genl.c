@@ -116,8 +116,6 @@ static enum ipa_client_type ipa3_get_rtp_dst_pipe(u32 stream_id)
 static int ipa3_rtp_del_flt_rule(u32 stream_id)
 {
 	int rc = 0;
-	int ipa_ep_idx;
-	struct ipa3_ep_context *ep;
 	struct ipa_ioc_del_flt_rule *rtp_del_flt_rule = NULL;
 
 	rtp_del_flt_rule = kzalloc(sizeof(*rtp_del_flt_rule) +
@@ -128,23 +126,20 @@ static int ipa3_rtp_del_flt_rule(u32 stream_id)
 		return rc;
 	}
 
-	ipa_ep_idx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
-	ep = &ipa3_ctx->ep[ipa_ep_idx];
-
 	/* check whether filter rule hdl is deleted or not */
-	if (ep->rtp_flt4_rule_hdls[stream_id] != -1) {
+	if (ipa3_ctx->rtp_flt4_rule_hdls[stream_id] != -1) {
 		IPADBG("Deleting rtp filter rules of stream_id: %u\n", stream_id);
 		rtp_del_flt_rule->commit = 1;
 		rtp_del_flt_rule->ip = 0;
 		rtp_del_flt_rule->num_hdls = 1;
-		rtp_del_flt_rule->hdl[0].hdl = ep->rtp_flt4_rule_hdls[stream_id];
+		rtp_del_flt_rule->hdl[0].hdl = ipa3_ctx->rtp_flt4_rule_hdls[stream_id];
 		if (ipa3_del_flt_rule(rtp_del_flt_rule) || rtp_del_flt_rule->hdl[0].status) {
 			IPAERR("failed to del rtp_flt_rule\n");
 			kfree(rtp_del_flt_rule);
 			rc = -EPERM;
 			return rc;
 		}
-		ep->rtp_flt4_rule_hdls[stream_id] = -1;
+		ipa3_ctx->rtp_flt4_rule_hdls[stream_id] = -1;
 	}
 
 	kfree(rtp_del_flt_rule);
@@ -335,8 +330,6 @@ int ipa3_install_rtp_hdr_proc_rt_flt_rules(struct traffic_tuple_info *tuple_info
 	IPADBG("rtp rt tbl idx %d\n", ipa3_ctx->rtp_rt4_tbl_idxs[stream_id]);
 	IPADBG("rtp rt tbl hdl %d\n", ipa3_ctx->rtp_rt4_tbl_hdls[stream_id]);
 
-	IPADBG("adding rtp flt rules for %d\n", ipa_ep_idx);
-
 	rtp_flt_rule = kzalloc(sizeof(*rtp_flt_rule) +
 		1 * sizeof(struct ipa_flt_rule_add), GFP_KERNEL);
 	if (!rtp_flt_rule) {
@@ -348,6 +341,8 @@ int ipa3_install_rtp_hdr_proc_rt_flt_rules(struct traffic_tuple_info *tuple_info
 	memset(rtp_flt_rule, 0, sizeof(*rtp_flt_rule));
 	ipa_ep_idx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
 	ep = &ipa3_ctx->ep[ipa_ep_idx];
+
+	IPADBG("adding rtp flt rules for %d\n", ipa_ep_idx);
 
 	rtp_flt_rule->commit = 1;
 	rtp_flt_rule->ip = tuple_info->ip_type;
@@ -382,8 +377,8 @@ int ipa3_install_rtp_hdr_proc_rt_flt_rules(struct traffic_tuple_info *tuple_info
 		goto free_rtp_flt_rule;
 	}
 
-	ep->rtp_flt4_rule_hdls[stream_id] = rtp_flt_rule->rules[0].flt_rule_hdl;
-	IPADBG("rtp flt rule hdl is %u\n", ep->rtp_flt4_rule_hdls[stream_id]);
+	ipa3_ctx->rtp_flt4_rule_hdls[stream_id] = rtp_flt_rule->rules[0].flt_rule_hdl;
+	IPADBG("rtp flt rule hdl is %u\n", ipa3_ctx->rtp_flt4_rule_hdls[stream_id]);
 
 free_rtp_flt_rule:
 	kfree(rtp_flt_rule);

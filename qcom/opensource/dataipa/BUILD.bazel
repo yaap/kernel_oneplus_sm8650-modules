@@ -24,6 +24,11 @@ define_modules("volcano", "gki")
 define_modules("niobe", "consolidate")
 
 define_modules("niobe", "gki")
+
+define_modules("seraph", "consolidate")
+
+define_modules("seraph", "gki")
+
 package(
     default_visibility = [
         "//visibility:public",
