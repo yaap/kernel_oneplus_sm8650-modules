@@ -9,7 +9,7 @@ _default_module_enablement_list = [
     "wlan_firmware_service",
 ]
 
-_cnss2_enabled_target = ["seraph", "neo-la", "anorak", "niobe", "pineapple", "sun", "sdxkova"]
+_cnss2_enabled_target = ["seraph", "neo-la", "anorak", "niobe", "pineapple", "sun", "sdxkova", "sa510m"]
 _icnss2_enabled_target = ["blair", "pineapple", "monaco", "pitti", "volcano"]
 
 def _get_module_list(target, variant):
@@ -88,6 +88,11 @@ def _define_modules_for_target_variant(target, variant):
     if target in _icnss2_enabled_target:
         icnss2_enabled = 1
 
+    if target != "sa510m":
+        kernel_header = "//msm-kernel:all_headers"
+    else:
+        kernel_header = "//msm-kernel:all_headers_arm"
+
     print("tv=", tv)
     if cnss2_enabled:
         module = "cnss2"
@@ -98,10 +103,10 @@ def _define_modules_for_target_variant(target, variant):
             ":{}_cnss_prealloc".format(tv),
             ":{}_wlan_firmware_service".format(tv),
             ":{}_cnss_plat_ipc_qmi_svc".format(tv),
-            "//msm-kernel:all_headers",
+            kernel_header,
             ":wlan-platform-headers",
         ]
-        if target != "anorak" and target != "neo-la" and target != "seraph" and target != "sdxkova":
+        if target != "anorak" and target != "neo-la" and target != "seraph" and target != "sdxkova" and target != "sa510m":
             deps.append("//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv))
 
         ddk_module(
@@ -193,7 +198,7 @@ def _define_modules_for_target_variant(target, variant):
                 ":{}_cnss_utils".format(tv),
                 ":{}_cnss_prealloc".format(tv),
                 ":{}_wlan_firmware_service".format(tv),
-                "//msm-kernel:all_headers",
+                kernel_header,
                 ":wlan-platform-headers",
             ],
         )
@@ -210,7 +215,7 @@ def _define_modules_for_target_variant(target, variant):
         out = "cnss_nl.ko",
         kernel_build = "//msm-kernel:{}".format(tv),
         deps = [
-            "//msm-kernel:all_headers",
+            kernel_header,
             ":wlan-platform-headers",
         ],
     )
@@ -230,23 +235,23 @@ def _define_modules_for_target_variant(target, variant):
         out = "cnss_prealloc.ko",
         kernel_build = "//msm-kernel:{}".format(tv),
         deps = [
-            "//msm-kernel:all_headers",
+            kernel_header,
             ":wlan-platform-headers",
         ],
     )
 
     module = "cnss_utils"
     cnss_utils_dep_list = [
-        "//msm-kernel:all_headers",
+        kernel_header,
         ":wlan-platform-headers",
     ]
     if target == "sun":
         cnss_utils_dep_list = cnss_utils_dep_list + ["//vendor/qcom/opensource/data-kernel/drivers/smem-mailbox:{}_smem_mailbox".format(tv),]
-    #if target == "sdxkova":
-    #    tgt = "target-aarch64_cortex-a53_musl"
-    #    board = "sdx85"
-    #    pkg_ver = "1.0"
-    #    cnss_utils_dep_list = cnss_utils_dep_list + ["//build_dir/{}/linux-{}/smem-mailbox-{}:{}_smem_mailbox".format(tgt, board, pkg_ver, tv),]
+    if target == "sdxkova":
+        tgt = "target-aarch64_cortex-a53_musl"
+        board = "sdx85"
+        pkg_ver = "1.0"
+        cnss_utils_dep_list = cnss_utils_dep_list + ["//build_dir/{}/linux-{}/smem-mailbox-{}:{}_smem_mailbox".format(tgt, board, pkg_ver, tv),]
     _define_platform_config_rule(module, target, variant)
     defconfig = ":{}/{}_defconfig_generate_{}".format(module, tv, variant)
     ddk_module(
@@ -276,7 +281,7 @@ def _define_modules_for_target_variant(target, variant):
         defconfig = defconfig,
         out = "wlan_firmware_service.ko",
         kernel_build = "//msm-kernel:{}".format(tv),
-        deps = ["//msm-kernel:all_headers"],
+        deps = [kernel_header],
     )
 
     module = "cnss_utils"
@@ -293,7 +298,7 @@ def _define_modules_for_target_variant(target, variant):
             defconfig = defconfig,
             out = "cnss_plat_ipc_qmi_svc.ko",
             kernel_build = "//msm-kernel:{}".format(tv),
-            deps = ["//msm-kernel:all_headers"],
+            deps = [kernel_header],
         )
     tv = "{}_{}".format(target, variant)
     copy_to_dist_dir(

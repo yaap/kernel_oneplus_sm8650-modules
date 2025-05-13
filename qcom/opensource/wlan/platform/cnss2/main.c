@@ -3210,6 +3210,26 @@ static void cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
 }
 #endif
 
+#if IS_ENABLED(CONFIG_CNSS2_DISABLE_SSR_RAMDUMP)
+static bool cnss_dump_enabled(void)
+{
+	return false;
+}
+#else
+#if IS_ENABLED(CONFIG_QCOM_RAMDUMP)
+static bool cnss_dump_enabled(void)
+{
+	return dump_enabled();
+}
+#else
+/* Saving dump to file system is always needed in this case. */
+static bool cnss_dump_enabled(void)
+{
+	return true;
+}
+#endif /* IS_ENABLED(CONFIG_QCOM_RAMDUMP) */
+#endif /* IS_ENABLED(CONFIG_CNSS2_DISABLE_SSR_RAMDUMP) */
+
 #if IS_ENABLED(CONFIG_QCOM_RAMDUMP)
 int cnss_do_ramdump(struct cnss_plat_data *plat_priv)
 {
@@ -3217,7 +3237,7 @@ int cnss_do_ramdump(struct cnss_plat_data *plat_priv)
 	struct qcom_dump_segment segment;
 	struct list_head head;
 
-	if (!dump_enabled()) {
+	if (!cnss_dump_enabled()) {
 		cnss_pr_info("Dump collection is not enabled\n");
 		return 0;
 	}
@@ -3273,7 +3293,6 @@ do {									\
  */
 #define qcom_dump_segment cnss_qcom_dump_segment
 #define qcom_elf_dump cnss_qcom_elf_dump
-#define dump_enabled cnss_dump_enabled
 
 struct cnss_qcom_dump_segment {
 	struct list_head node;
@@ -3414,12 +3433,6 @@ static int cnss_qcom_elf_dump(struct list_head *segs, struct device *dev,
 
 	return cnss_qcom_devcd_dump(dev, data, data_size, GFP_KERNEL);
 }
-
-/* Saving dump to file system is always needed in this case. */
-static bool cnss_dump_enabled(void)
-{
-	return true;
-}
 #endif /* CONFIG_QCOM_RAMDUMP */
 
 int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
@@ -3432,7 +3445,7 @@ int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
 	struct list_head head;
 	int i, ret = 0;
 
-	if (!dump_enabled()) {
+	if (!cnss_dump_enabled()) {
 		cnss_pr_info("Dump collection is not enabled\n");
 		return ret;
 	}
@@ -3633,7 +3646,7 @@ int cnss_do_host_ramdump(struct cnss_plat_data *plat_priv,
 	int ret = 0;
 	enum cnss_host_dump_type j;
 
-	if (!dump_enabled()) {
+	if (!cnss_dump_enabled()) {
 		cnss_pr_info("Dump collection is not enabled\n");
 		return ret;
 	}

@@ -3242,12 +3242,16 @@ int cnss_pci_call_driver_modem_status(struct cnss_pci_data *pci_priv,
 				      int modem_current_status)
 {
 	struct cnss_wlan_driver *driver_ops;
+	struct cnss_plat_data *plat_priv;
 
 	if (!pci_priv)
 		return -ENODEV;
 
+	plat_priv = pci_priv->plat_priv;
+
 	driver_ops = pci_priv->driver_ops;
-	if (!driver_ops || !driver_ops->modem_status)
+	if (test_bit(CNSS_DRIVER_UNLOADING, &plat_priv->driver_state) ||
+	    !driver_ops || !driver_ops->modem_status)
 		return -EINVAL;
 
 	driver_ops->modem_status(pci_priv->pci_dev, modem_current_status);
@@ -3259,12 +3263,16 @@ int cnss_pci_update_status(struct cnss_pci_data *pci_priv,
 			   enum cnss_driver_status status)
 {
 	struct cnss_wlan_driver *driver_ops;
+	struct cnss_plat_data *plat_priv;
 
 	if (!pci_priv)
 		return -ENODEV;
 
+	plat_priv = pci_priv->plat_priv;
+
 	driver_ops = pci_priv->driver_ops;
-	if (!driver_ops || !driver_ops->update_status)
+	if (test_bit(CNSS_DRIVER_UNLOADING, &plat_priv->driver_state) ||
+	    !driver_ops || !driver_ops->update_status)
 		return -EINVAL;
 
 	cnss_pr_dbg("Update driver status: %d\n", status);
@@ -6228,6 +6236,13 @@ int cnss_pci_recover_link_down(struct cnss_pci_data *pci_priv)
 		return ret;
 	}
 
+	/*
+	 * If link down happen with pcie enumeration done but wlan driver
+	 * un-initialized, MHI is not yet started, RDDM could be skipped.
+	 */
+	if (!test_bit(CNSS_MHI_INIT, &pci_priv->mhi_state))
+		return 0;
+
 retry:
 	/*
 	 * After PCIe link resumes, 20 to 400 ms delay is observerved
@@ -6553,6 +6568,11 @@ void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic)
 
 	if (test_bit(CNSS_MHI_RDDM_DONE, &pci_priv->mhi_state)) {
 		cnss_pr_dbg("RAM dump is already collected, skip\n");
+		return;
+	}
+
+	if (!test_bit(CNSS_MHI_INIT, &pci_priv->mhi_state)) {
+		cnss_pr_dbg("MHI is not initialized, skip\n");
 		return;
 	}
 

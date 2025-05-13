@@ -151,6 +151,12 @@ config CNSS_HW_SECURE_SMEM
 	  If enabled, CNSS platform driver will use SMEM APIs intead of SCM
 	  APIs to check peripheral secure state of HW.
 
+config CNSS2_DISABLE_SSR_RAMDUMP
+	bool "Disable SSR RAMDUMP Collection"
+	depends on CNSS2
+	help
+	  If enabled, host/fw ramdump will be collected upon SSR.
+
 config CNSS2_SSR_DRIVER_DUMP
 	bool "Enable Host SSR DRIVER DUMP Collection"
 	depends on CNSS2

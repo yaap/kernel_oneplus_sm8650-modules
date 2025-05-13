@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2020, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MAIN_H__
@@ -533,6 +533,7 @@ struct icnss_priv {
 	struct kobject *icnss_kobject;
 	struct rproc *rproc;
 	atomic_t is_shutdown;
+	atomic_t is_idle_shutdown;
 	u32 qdss_mem_seg_len;
 	struct icnss_fw_mem qdss_mem[QMI_WLFW_MAX_NUM_MEM_SEG_V01];
 	void *get_info_cb_ctx;
@@ -604,6 +605,7 @@ struct icnss_priv {
 	enum icnss_phy_qam_cap phy_qam_cap;
 	bool rproc_fw_download;
 	struct wlchip_serial_id_v01 serial_id;
+	u64 fw_caps;
 };
 
 #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH

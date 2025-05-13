@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2020, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss2: " fmt
@@ -209,6 +209,37 @@ static void icnss_pm_relax(struct icnss_priv *priv)
 	pm_relax(&priv->pdev->dev);
 	priv->stats.pm_relax++;
 }
+
+/**
+ * icnss_get_fw_cap - Check whether FW supports specific capability or not
+ * @dev: Device
+ * @fw_cap: FW Capability which needs to be checked
+ *
+ * Return: TRUE if supported, FALSE on failure or if not supported
+ */
+bool icnss_get_fw_cap(struct device *dev, enum icnss_fw_caps fw_cap)
+{
+	struct icnss_priv *priv = dev_get_drvdata(dev);
+	bool is_supported = false;
+
+	if (!priv || !priv->fw_caps)
+		return is_supported;
+
+	switch (fw_cap) {
+	case ICNSS_FW_CAP_CE_CMN_CFG_SUPPORT:
+		is_supported = !!(priv->fw_caps &
+				  QMI_WLFW_CE_CMN_CFG_SUPPORT_V01);
+		break;
+	default:
+		icnss_pr_err("Invalid FW Capability: 0x%x\n", fw_cap);
+	}
+
+	icnss_pr_dbg("FW Capability 0x%x is %s\n", fw_cap,
+		     is_supported ? "supported" : "not supported");
+
+	return is_supported;
+}
+EXPORT_SYMBOL(icnss_get_fw_cap);
 
 char *icnss_driver_event_to_str(enum icnss_driver_event_type type)
 {
@@ -2401,7 +2432,8 @@ static void icnss_update_state_send_modem_shutdown(struct icnss_priv *priv,
 			atomic_set(&priv->is_shutdown, false);
 			if (!test_bit(ICNSS_PD_RESTART, &priv->state) &&
 				!test_bit(ICNSS_SHUTDOWN_DONE, &priv->state) &&
-				!test_bit(ICNSS_BLOCK_SHUTDOWN, &priv->state)) {
+				!test_bit(ICNSS_BLOCK_SHUTDOWN, &priv->state) &&
+				!atomic_read(&priv->is_idle_shutdown)) {
 				clear_bit(ICNSS_FW_READY, &priv->state);
 				icnss_driver_event_post(priv,
 					  ICNSS_DRIVER_EVENT_UNREGISTER_DRIVER,
@@ -2669,6 +2701,8 @@ static int icnss_wpss_ssr_register_notifier(struct icnss_priv *priv)
 	}
 
 	set_bit(ICNSS_SSR_REGISTERED, &priv->state);
+
+	atomic_set(&priv->is_idle_shutdown, false);
 
 	return ret;
 }
@@ -4215,20 +4249,29 @@ EXPORT_SYMBOL(icnss_trigger_recovery);
 int icnss_idle_shutdown(struct device *dev)
 {
 	struct icnss_priv *priv = dev_get_drvdata(dev);
+	int ret = 0;
 
 	if (!priv) {
 		icnss_pr_err("Invalid drvdata: dev %pK", dev);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
+
+	atomic_set(&priv->is_idle_shutdown, true);
 
 	if (priv->is_ssr || test_bit(ICNSS_PDR, &priv->state) ||
-	    test_bit(ICNSS_REJUVENATE, &priv->state)) {
-		icnss_pr_err("SSR/PDR is already in-progress during idle shutdown\n");
-		return -EBUSY;
+	    test_bit(ICNSS_REJUVENATE, &priv->state) || atomic_read(&priv->is_shutdown)) {
+		icnss_pr_err("SSR/PDR/Shutdown is already in-progress during idle shutdown\n");
+		atomic_set(&priv->is_idle_shutdown, false);
+		ret = -EBUSY;
+		goto out;
 	}
 
-	return icnss_driver_event_post(priv, ICNSS_DRIVER_EVENT_IDLE_SHUTDOWN,
+	ret = icnss_driver_event_post(priv, ICNSS_DRIVER_EVENT_IDLE_SHUTDOWN,
 					ICNSS_EVENT_SYNC_UNINTERRUPTIBLE, NULL);
+	atomic_set(&priv->is_idle_shutdown, false);
+out:
+	return ret;
 }
 EXPORT_SYMBOL(icnss_idle_shutdown);
 
