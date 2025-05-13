@@ -6,7 +6,7 @@ load("//msm-kernel:target_variants.bzl", "get_all_la_variants", "get_all_le_vari
 def define_blair(t, v, lt=None):
     print(t)
     define_target_modules(
-        target = "blair",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -55,7 +55,7 @@ def define_blair(t, v, lt=None):
 
 def define_niobe(t, v, lt=None):
     define_target_modules(
-        target = "niobe",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -113,7 +113,7 @@ def define_niobe(t, v, lt=None):
 def define_pineapple(t, v, lt=None):
     print(t)
     define_target_modules(
-        target = "pineapple",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -175,7 +175,7 @@ def define_pineapple(t, v, lt=None):
 
 def define_kalama(t, v, lt=None):
     define_target_modules(
-        target = "kalama",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -231,7 +231,7 @@ def define_kalama(t, v, lt=None):
 def define_pitti(t, v, lt=None):
     print(t)
     define_target_modules(
-        target = "pitti",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -285,7 +285,7 @@ def define_pitti(t, v, lt=None):
 def define_volcano(t, v, lt=None):
     print(t)
     define_target_modules(
-        target = "volcano",
+        target = t,
         variant = v,
         registry = audio_modules,
         modules = [
@@ -310,6 +310,7 @@ def define_volcano(t, v, lt=None):
             "swr_haptics_dlkm",
             "stub_dlkm",
             "hdmi_dlkm",
+            "lpass_bt_swr_dlkm",
             "lpass_cdc_dlkm",
             "lpass_cdc_wsa_macro_dlkm",
             "lpass_cdc_wsa2_macro_dlkm",

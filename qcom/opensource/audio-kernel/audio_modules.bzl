@@ -277,6 +277,12 @@ audio_modules.register(
     srcs = ["msm_hdmi_codec_rx.c"],
     deps = ["//vendor/qcom/opensource/mm-drivers/msm_ext_display:%b_msm_ext_display"]
 )
+audio_modules.register(
+    name = "lpass_bt_swr_dlkm",
+    path = ASOC_CODECS_PATH,
+    config_option = "CONFIG_LPASS_BT_SWR",
+    srcs = ["lpass-bt-swr.c"]
+)
 # >>>> ASOC/CODECS/LPASS-CDC MODULES <<<<
 audio_modules.register(
     name = "lpass_cdc_dlkm",

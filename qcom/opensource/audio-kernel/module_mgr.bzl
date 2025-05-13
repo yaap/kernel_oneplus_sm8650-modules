@@ -51,9 +51,15 @@ def _combine_target_module_options(enabled_modules, config_options):
 def _define_target_modules(target, variant, registry, modules, product = None, config_options = [],lunch_target=None):
 
     if lunch_target != None:
-        kernel_build = "{}_{}_{}".format(target, variant, lunch_target)
+        if product != None:
+           kernel_build = "{}_{}_{}_{}".format(target, variant, product, lunch_target)
+        else:
+           kernel_build = "{}_{}_{}".format(target, variant, lunch_target)
     else:
-        kernel_build = "{}_{}".format(target, variant)
+        if product != None:
+           kernel_build = "{}_{}_{}".format(target, variant, product)
+        else:
+           kernel_build = "{}_{}".format(target, variant)
 
     dist_target_name = "{}_audio_dist".format(kernel_build)
     data = [":{}_audio".format(kernel_build)]
@@ -123,10 +129,21 @@ def create_module_registry(hdrs = []):
         get = module_map.get,
     )
 
-def define_target_modules(target, variant, registry, modules, config_options = [], lunch_target=None, products = []):
-            _define_target_modules(target = target,
-                                   variant = variant,
-                                   registry = registry,
-                                   modules = modules,
-                                   config_options = config_options,
-                                   lunch_target = lunch_target)
+def define_target_modules(target, variant, registry, modules, config_options = [], products = [], lunch_target=None):
+        if products:
+             for product in products:
+                 _define_target_modules(target = target,
+                                        variant = variant,
+                                        registry = registry,
+                                        modules = modules,
+                                        product = product,
+                                        config_options = config_options,
+                                        lunch_target = lunch_target)
+        else:
+             _define_target_modules(target = target,
+                                    variant = variant,
+                                    registry = registry,
+                                    modules = modules,
+                                    config_options = config_options,
+                                    lunch_target = lunch_target)
+

@@ -2769,7 +2769,7 @@ static void lpass_cdc_rx_macro_hphdelay_lutbypass(struct snd_soc_component *comp
 static int lpass_cdc_rx_macro_enable_interp_clk(struct snd_soc_component *component,
 				      int event, int interp_idx)
 {
-	u16 main_reg = 0, dsm_reg = 0, rx_cfg2_reg = 0;
+	u16 main_reg = 0, dsm_reg = 0;
 	struct device *rx_dev = NULL;
 	struct lpass_cdc_rx_macro_priv *rx_priv = NULL;
 
@@ -2787,8 +2787,6 @@ static int lpass_cdc_rx_macro_enable_interp_clk(struct snd_soc_component *compon
 			(interp_idx * LPASS_CDC_RX_MACRO_RX_PATH_OFFSET);
 	if (interp_idx == INTERP_AUX)
 		dsm_reg = LPASS_CDC_RX_RX2_RX_PATH_DSM_CTL;
-	rx_cfg2_reg = LPASS_CDC_RX_RX0_RX_PATH_CFG2 +
-			(interp_idx * LPASS_CDC_RX_MACRO_RX_PATH_OFFSET);
 
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		if (rx_priv->main_clk_users[interp_idx] == 0) {
@@ -2800,8 +2798,6 @@ static int lpass_cdc_rx_macro_enable_interp_clk(struct snd_soc_component *compon
 			/* Clk Enable */
 			snd_soc_component_update_bits(component, main_reg,
 					0x20, 0x20);
-			snd_soc_component_update_bits(component, rx_cfg2_reg,
-					0x03, 0x03);
 			lpass_cdc_rx_macro_idle_detect_control(component, rx_priv,
 					interp_idx, event);
 			if (rx_priv->hph_hd2_mode)
@@ -2865,8 +2861,6 @@ static int lpass_cdc_rx_macro_enable_interp_clk(struct snd_soc_component *compon
 			/* Reset rate to 48K*/
 			snd_soc_component_update_bits(component, main_reg,
 						0x0F, 0x04);
-			snd_soc_component_update_bits(component, rx_cfg2_reg,
-						0x03, 0x00);
 			lpass_cdc_rx_macro_config_classh(component, rx_priv,
 						interp_idx, event);
 			lpass_cdc_rx_macro_config_compander(component, rx_priv,
@@ -4551,6 +4545,9 @@ static const struct lpass_cdc_rx_macro_reg_mask_val
 	{LPASS_CDC_RX_RX0_RX_PATH_CFG3, 0x03, 0x02},
 	{LPASS_CDC_RX_RX1_RX_PATH_CFG3, 0x03, 0x02},
 	{LPASS_CDC_RX_RX2_RX_PATH_CFG3, 0x03, 0x02},
+	{LPASS_CDC_RX_RX0_RX_PATH_CFG2, 0x03, 0x00},
+	{LPASS_CDC_RX_RX1_RX_PATH_CFG2, 0x03, 0x00},
+	{LPASS_CDC_RX_RX2_RX_PATH_CFG2, 0x03, 0x00},
 };
 
 #ifdef CONFIG_BOLERO_VER_2P1

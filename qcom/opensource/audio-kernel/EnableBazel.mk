@@ -39,6 +39,7 @@ LOCAL_MODULE_KO_DIRS += asoc/codecs/wcd939x/wcd939x_dlkm.ko
 LOCAL_MODULE_KO_DIRS += asoc/codecs/wcd939x/wcd939x_slave_dlkm.ko
 LOCAL_MODULE_KO_DIRS += asoc/codecs/wcd9378/wcd9378_dlkm.ko
 LOCAL_MODULE_KO_DIRS += asoc/codecs/wcd9378/wcd9378_slave_dlkm.ko
+LOCAL_MODULE_KO_DIRS += asoc/codecs/lpass_bt_swr_dlkm.ko
 LOCAL_MODULE_KO_DIRS += asoc/codecs/hdmi_dlkm.ko
 endif
 
