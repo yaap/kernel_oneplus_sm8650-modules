@@ -1728,7 +1728,6 @@ int oplus_adfr_sa_handle(void *sde_encoder_virt)
 			ADFR_ERR("failed to update auto mode, rc=%d\n", rc);
 		}
 		p_oplus_adfr_params->auto_mode_updated = false;
-		ADFR_DEBUG("oplus_adfr_auto_mode_updated:%d\n", p_oplus_adfr_params->auto_mode_updated);
 		OPLUS_ADFR_TRACE_INT("oplus_adfr_auto_mode_updated", p_oplus_adfr_params->auto_mode_updated);
 	}
 
@@ -1739,7 +1738,6 @@ int oplus_adfr_sa_handle(void *sde_encoder_virt)
 			ADFR_ERR("failed to update fakeframe status, rc=%d\n", rc);
 		}
 		p_oplus_adfr_params->fakeframe_updated = false;
-		ADFR_DEBUG("oplus_adfr_fakeframe_updated:%d\n", p_oplus_adfr_params->fakeframe_updated);
 		OPLUS_ADFR_TRACE_INT("oplus_adfr_fakeframe_updated", p_oplus_adfr_params->fakeframe_updated);
 	}
 
@@ -1757,7 +1755,6 @@ int oplus_adfr_sa_handle(void *sde_encoder_virt)
 				}
 			}
 			p_oplus_adfr_params->sa_min_fps_updated = false;
-			ADFR_DEBUG("oplus_adfr_sa_min_fps_updated:%d\n", p_oplus_adfr_params->sa_min_fps_updated);
 			OPLUS_ADFR_TRACE_INT("oplus_adfr_sa_min_fps_updated", p_oplus_adfr_params->sa_min_fps_updated);
 		}
 	} else
@@ -1773,7 +1770,6 @@ int oplus_adfr_sa_handle(void *sde_encoder_virt)
 				}
 			}
 			p_oplus_adfr_params->sa_min_fps_updated = false;
-			ADFR_DEBUG("oplus_adfr_sa_min_fps_updated:%d\n", p_oplus_adfr_params->sa_min_fps_updated);
 			OPLUS_ADFR_TRACE_INT("oplus_adfr_sa_min_fps_updated", p_oplus_adfr_params->sa_min_fps_updated);
 		}
 	}
@@ -2121,7 +2117,6 @@ int oplus_adfr_fakeframe_status_update(void *dsi_panel, bool force_disable)
 			if (refresh_rate == 120 || refresh_rate == 90) {
 				if (p_oplus_adfr_params->sw_fps == 60) {
 					p_oplus_adfr_params->fakeframe = OPLUS_ADFR_FAKEFRAME_OFF;
-					ADFR_INFO("sw fps is %u, no need to send fakeframe\n", p_oplus_adfr_params->sw_fps);
 				} else {
 					p_oplus_adfr_params->fakeframe = OPLUS_ADFR_FAKEFRAME_ON;
 				}
@@ -2131,8 +2126,6 @@ int oplus_adfr_fakeframe_status_update(void *dsi_panel, bool force_disable)
 		}
 	}
 
-	ADFR_INFO("h_active:%u,refresh_rate:%u,h_skew:%u,sw_fps:%u,fakeframe:%u\n", panel->cur_mode->timing.h_active, refresh_rate,
-				h_skew, p_oplus_adfr_params->sw_fps, p_oplus_adfr_params->fakeframe);
 	OPLUS_ADFR_TRACE_INT("oplus_adfr_fakeframe", p_oplus_adfr_params->fakeframe);
 
 	OPLUS_ADFR_TRACE_END("oplus_adfr_fakeframe_status_update");
