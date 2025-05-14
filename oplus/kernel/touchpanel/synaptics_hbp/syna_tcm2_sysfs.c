@@ -940,6 +940,51 @@ static ssize_t syna_sysfs_single_tap_pressed_show(struct device *device,
 
 static DEVICE_ATTR(single_tap_pressed, S_IRUGO, syna_sysfs_single_tap_pressed_show, NULL);
 
+static ssize_t syna_sysfs_high_rate_show(struct device *device,
+                struct device_attribute *attribute, char *buf)
+{
+        struct syna_tcm *tcm = dev_get_drvdata(device);
+        unsigned short config = 0;
+        int retval;
+
+        if (!tcm || !tcm->tcm_dev)
+                return -ENODEV;
+
+        retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0xE6, &config, 0);
+        if (retval < 0)
+                return scnprintf(buf, PAGE_SIZE, "0\n");
+
+        return scnprintf(buf, PAGE_SIZE, "%d\n", (config > 1) ? 0 : 1);
+}
+
+static ssize_t syna_sysfs_high_rate_write(struct device *device,
+                struct device_attribute *attribute, const char *buf, size_t count)
+{
+        struct syna_tcm *tcm = dev_get_drvdata(device);
+        int retval;
+        unsigned long val;
+
+        if (!tcm || !tcm->tcm_dev)
+                return -ENODEV;
+
+        if (kstrtoul(buf, 10, &val))
+                return -EINVAL;
+
+        if (val == 1)
+                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 1, RESP_IN_ATTN);
+        else if (val == 0)
+                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 2, RESP_IN_ATTN);
+        else
+                return -EINVAL;
+
+        if (retval < 0)
+                return retval;
+
+        return count;
+}
+
+static DEVICE_ATTR(high_rate, S_IRUGO | S_IWUSR, syna_sysfs_high_rate_show, syna_sysfs_high_rate_write);
+
 /**
  * fingerprint_trigger()
  *
@@ -1060,6 +1105,9 @@ int syna_sysfs_create_dir(struct syna_tcm *tcm,
 		return -12;
 
 	if (device_create_file(&pdev->dev, &dev_attr_fp_pressed))
+		return -12;
+
+	if (device_create_file(&pdev->dev, &dev_attr_high_rate))
 		return -12;
 
 #ifdef HAS_TESTING_FEATURE
