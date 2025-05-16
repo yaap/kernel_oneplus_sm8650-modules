@@ -1001,113 +1001,69 @@ bool oplus_adfr_h_skew_is_different(void *dsi_display, void *dsi_display_mode_0,
 	return rc;
 }
 
-/* handle CONNECTOR_PROP_ADFR_MIN_FPS property value */
 int oplus_adfr_property_update(void *sde_connector, void *sde_connector_state, int prop_id, uint64_t prop_val)
 {
-	unsigned int handled = 0;
 	struct sde_connector *c_conn = sde_connector;
 	struct sde_connector_state *c_state = sde_connector_state;
-	struct dsi_display *display = NULL;
-	struct oplus_adfr_params *p_oplus_adfr_params = NULL;
+	unsigned int handled = BIT(0);
+	struct dsi_display *display;
+	struct oplus_adfr_params *p_oplus_adfr_params;
+	int refresh_rate;
+	unsigned int sa_min_fps_value;
+	unsigned int calculated_fps;
 
-	ADFR_DEBUG("start\n");
-
-	if (!c_conn || !c_state) {
-		ADFR_ERR("invalid input params\n");
-		return -EINVAL;
-	}
-
-	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
-		ADFR_DEBUG("not in dsi mode, should not update adfr properties\n");
-		return 0;
+	if (!c_conn || !c_state || c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
+		if (!c_conn || !c_state)
+			ADFR_ERR("invalid input params\n");
+		else
+			ADFR_DEBUG("not in dsi mode\n");
+		return (!c_conn || !c_state) ? -EINVAL : 0;
 	}
 
 	display = c_conn->display;
-	if (!display || !display->panel) {
-		ADFR_ERR("invalid display params\n");
+	if (!display || !display->panel || !display->panel->cur_mode) {
+		if (!display)
+			ADFR_ERR("invalid display params\n");
+		else
+			ADFR_ERR("invalid cur_mode param\n");
 		return -EINVAL;
 	}
 
 #if defined(CONFIG_PXLW_IRIS)
-	if (iris_is_chip_supported() && (!strcmp(display->display_type, "secondary"))) {
-		ADFR_INFO("no need to update properties for iris chip\n");
+	if (iris_is_chip_supported() && !strcmp(display->display_type, "secondary")) {
+		ADFR_INFO("skip iris secondary\n");
 		return 0;
 	}
 #endif /* CONFIG_PXLW_IRIS */
 
 	p_oplus_adfr_params = oplus_adfr_get_params(display->panel);
-	if (!p_oplus_adfr_params) {
-		ADFR_ERR("invalid p_oplus_adfr_params param\n");
-		return -EINVAL;
+	if (!p_oplus_adfr_params || !oplus_adfr_is_supported(p_oplus_adfr_params)) {
+		ADFR_DEBUG("adfr is unsupported or invalid params\n");
+		return p_oplus_adfr_params ? 0 : -EINVAL;
 	}
 
-	if (!oplus_adfr_is_supported(p_oplus_adfr_params)) {
-		ADFR_DEBUG("adfr is not supported\n");
-		return 0;
+	refresh_rate = display->panel->cur_mode->timing.refresh_rate;
+	sa_min_fps_value = OPLUS_ADFR_SA_MIN_FPS_VALUE(prop_val);
+	calculated_fps = sa_min_fps_value;
+
+	if (refresh_rate == 144) {
+		calculated_fps = 144 / (120 / sa_min_fps_value);
 	}
 
-	if (!display->panel->cur_mode) {
-		ADFR_ERR("invalid cur_mode param\n");
-		return -EINVAL;
-	}
-
-	OPLUS_ADFR_TRACE_BEGIN("oplus_adfr_property_update");
-
-	/* minfps maybe disappear after state change, so handle it early */
-
-	handled = BIT(0);
-
-	/* min fps value is sw fps if auto idle is set */
-	if (display->panel->cur_mode->timing.refresh_rate == 144) {
-		p_oplus_adfr_params->sw_fps = 144 / (120 / OPLUS_ADFR_SA_MIN_FPS_VALUE(prop_val));
-	} else {
-		p_oplus_adfr_params->sw_fps = OPLUS_ADFR_SA_MIN_FPS_VALUE(prop_val);
-	}
-	/* fakeframe need to be updated */
-	p_oplus_adfr_params->fakeframe_updated = true;
-	handled |= BIT(2);
+	p_oplus_adfr_params->sw_fps = calculated_fps;
+	p_oplus_adfr_params->sa_min_fps = calculated_fps;
 	p_oplus_adfr_params->auto_mode = OPLUS_ADFR_AUTO_MODE_VALUE(prop_val);
-	/* filter repeat auto mode setting */
+	p_oplus_adfr_params->fakeframe_updated = true;
 	p_oplus_adfr_params->auto_mode_updated = true;
-	/* when auto mode changes, write the corresponding min fps again */
 	p_oplus_adfr_params->sa_min_fps_updated = true;
-	handled |= BIT(3);
 
+	handled |= BIT(2) | BIT(3);
 	if (p_oplus_adfr_params->fakeframe) {
-		/* no need to get fakeframe value as fakeframe is control by kerenl driver */
 		handled |= BIT(4);
 	}
-
-	if (display->panel->cur_mode->timing.refresh_rate == 144) {
-		/*
-		 in 144hz timing, sf is still use 120hz computational formula to calculate minfps value,
-		 and minfps only takes 7 bits so that the max value is 127,
-		 so it should be converted back to 144hz minfps value in kernel
-		*/
-		p_oplus_adfr_params->sa_min_fps = 144 / (120 / OPLUS_ADFR_SA_MIN_FPS_VALUE(prop_val));
-		p_oplus_adfr_params->sa_min_fps_updated = true;
-		handled |= BIT(5);
-	} else {
-		p_oplus_adfr_params->sa_min_fps = OPLUS_ADFR_SA_MIN_FPS_VALUE(prop_val);
-		p_oplus_adfr_params->sa_min_fps_updated = true;
-		handled |= BIT(5);
-	}
-
-	/* latest setting */
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_auto_mode", p_oplus_adfr_params->auto_mode);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_auto_mode_updated", p_oplus_adfr_params->auto_mode_updated);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_fakeframe", p_oplus_adfr_params->fakeframe);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_fakeframe_updated", p_oplus_adfr_params->fakeframe_updated);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_sa_min_fps", p_oplus_adfr_params->sa_min_fps);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_sa_min_fps_updated", p_oplus_adfr_params->sa_min_fps_updated);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_sw_fps", p_oplus_adfr_params->sw_fps);
-	OPLUS_ADFR_TRACE_INT("oplus_adfr_handled", handled);
+	handled |= BIT(5);
 
 	msm_property_set_dirty(&c_conn->property_info, &c_state->property_state, prop_id);
-
-	OPLUS_ADFR_TRACE_END("oplus_adfr_property_update");
-
-	ADFR_DEBUG("end\n");
 
 	return handled;
 }
