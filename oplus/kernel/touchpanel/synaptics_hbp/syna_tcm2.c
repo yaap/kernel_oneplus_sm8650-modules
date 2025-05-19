@@ -2313,8 +2313,12 @@ static void syna_speedup_resume(struct work_struct *work)
 
 	syna_send_signal(tcm, SIG_DISPLAY_ON);
 
-	/* We want to restore touch rate to previous value */
+	/* We want to restore touch rate and glove mode to previous value */
 	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, tcm->touch_rate, RESP_IN_ATTN);
+	if (retval < 0)
+		LOGE("Failed to restore touch rate\n");
+
+	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0x0D, tcm->glove_mode, RESP_IN_ATTN);
 	if (retval < 0)
 		LOGE("Failed to restore touch rate\n");
 exit:
@@ -2348,10 +2352,14 @@ static int syna_dev_suspend(struct device *dev)
 	struct fp_underscreen_info fp_info;
 	unsigned short config = 0;
 
-	/* We want to remember high touch polling rate state */
+	/* We want to remember high touch polling rate and glove mode state */
 	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0xE6, &config, 0);
 	if (retval >= 0)
 		tcm->touch_rate = config;
+
+	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0x0D, &config, 0);
+	if (retval >= 0)
+		tcm->glove_mode = config;
 
 	/* exit directly if device is already in suspend state */
 	if (tcm->pwr_state != PWR_ON)
