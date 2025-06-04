@@ -3517,6 +3517,7 @@ void ipa3_tag_destroy_imm(void *user1, int user2);
 void ipa3_uc_rg10_write_reg(enum ipahal_reg_name reg, u32 n, u32 val);
 
 int ipa3_wigig_init_i(void);
+int ipa3_wigig_deinit_i(void);
 
 /* Hardware stats */
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * ​​​​Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.​
  */
 
 #ifndef _IPA_H_
@@ -420,6 +420,7 @@ struct ipa_ep_cfg_deaggr {
 	bool packet_offset_valid;
 	u32 packet_offset_location;
 	bool ignore_min_pkt_err;
+	bool mbim_or_ncm_flag;
 	u32 max_packet_len;
 };
 

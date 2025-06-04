@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.​
  */
 
 #ifndef _IPAHAL_REG_I_H_
@@ -246,6 +246,10 @@ int ipahal_reg_init(enum ipa_hw_type ipa_hw_type);
 /* IPA_ENDP_INIT_DEAGGR_n register */
 #define IPA_ENDP_INIT_DEAGGR_n_MAX_PACKET_LEN_BMSK 0xFFFF0000
 #define IPA_ENDP_INIT_DEAGGR_n_MAX_PACKET_LEN_SHFT 0x10
+
+#define IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_BMSK 0x8000
+#define IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_SHFT 0xf
+
 #define IPA_ENDP_INIT_DEAGGR_n_IGNORE_MIN_PKT_ERR_BMSK 0x4000
 #define IPA_ENDP_INIT_DEAGGR_n_IGNORE_MIN_PKT_ERR_SHFT 0xe
 #define IPA_ENDP_INIT_DEAGGR_n_PACKET_OFFSET_LOCATION_BMSK 0x3F00

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "ipa_i.h"
@@ -82,6 +84,17 @@ int ipa3_wigig_init_i(void)
 	IPADBG("\n");
 
 	ipa3_uc_register_ready_cb(&uc_loaded_notifier);
+
+	IPADBG("exit\n");
+
+	return 0;
+}
+
+int ipa3_wigig_deinit_i(void)
+{
+	IPADBG("\n");
+
+	ipa3_uc_unregister_ready_cb(&uc_loaded_notifier);
 
 	IPADBG("exit\n");
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <net/ip.h>
@@ -8381,7 +8381,7 @@ void ipa_init_ep_flt_bitmap(void)
 	hw_idx = ipa3_ctx->hw_type_index;
 	bitmap = 0;
 	if (ipa3_ctx->ep_flt_bitmap) {
-		WARN_ON(1);
+		IPADBG("EP Filter bitmap is already initialized\n");
 		return;
 	}
 

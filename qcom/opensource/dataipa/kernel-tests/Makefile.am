@@ -24,6 +24,8 @@ ipa_kernel_tests_SOURCES =\
 		TLPAggregationTests.cpp \
 		MBIMAggregationTestFixtureConf11.cpp \
 		MBIMAggregationTests.cpp \
+		NCMAggregationTestFixture.cpp\
+		NCMAggregationTests.cpp\
 		Logger.cpp \
 		RoutingDriverWrapper.cpp \
 		RoutingTests.cpp \

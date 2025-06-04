@@ -32,6 +32,8 @@ cc_binary {
         "main.cpp",
         "MBIMAggregationTestFixtureConf11.cpp",
         "MBIMAggregationTests.cpp",
+        "NCMAggregationTestFixture.cpp",
+        "NCMAggregationTests.cpp",
         "NatTest.cpp",
         "Pipe.cpp",
         "PipeTestFixture.cpp",

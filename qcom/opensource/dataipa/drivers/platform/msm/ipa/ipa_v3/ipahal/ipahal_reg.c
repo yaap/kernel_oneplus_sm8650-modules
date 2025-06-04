@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.​
  */
 
 #include <linux/init.h>
@@ -2084,6 +2084,10 @@ static void ipareg_construct_endp_init_deaggr_n(
 		IPA_ENDP_INIT_DEAGGR_n_PACKET_OFFSET_LOCATION_SHFT,
 		IPA_ENDP_INIT_DEAGGR_n_PACKET_OFFSET_LOCATION_BMSK);
 
+	IPA_SETFIELD_IN_REG(*val, ep_deaggr->mbim_or_ncm_flag,
+		IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_SHFT,
+		IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_BMSK);
+
 	IPA_SETFIELD_IN_REG(*val, ep_deaggr->max_packet_len,
 		IPA_ENDP_INIT_DEAGGR_n_MAX_PACKET_LEN_SHFT,
 		IPA_ENDP_INIT_DEAGGR_n_MAX_PACKET_LEN_BMSK);
@@ -2114,6 +2118,12 @@ static void ipareg_construct_endp_init_deaggr_n_v4_5(
 	IPA_SETFIELD_IN_REG(*val, ep_deaggr->ignore_min_pkt_err,
 		IPA_ENDP_INIT_DEAGGR_n_IGNORE_MIN_PKT_ERR_SHFT,
 		IPA_ENDP_INIT_DEAGGR_n_IGNORE_MIN_PKT_ERR_BMSK);
+
+	IPA_SETFIELD_IN_REG(*val, ep_deaggr->mbim_or_ncm_flag,
+		IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_SHFT,
+		IPA_ENDP_INIT_DEAGGR_n_MBIM_OR_NCM_FLAG_BMSK);
+	IPAHAL_ERR("mbim_or_ncm_flag is set to  %d\n",
+			ep_deaggr->mbim_or_ncm_flag);
 
 	IPA_SETFIELD_IN_REG(*val, ep_deaggr->max_packet_len,
 		IPA_ENDP_INIT_DEAGGR_n_MAX_PACKET_LEN_SHFT,

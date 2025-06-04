@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: BSD-3-Clause-Clear */
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
  *
@@ -25,6 +26,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *
+ * ​​​​​Changes from Qualcomm Technologies, Inc. are provided under the following license:
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef __TESTS_UTILS__H__
@@ -196,6 +201,27 @@ bool LoadDefaultPacket(
 		enum ipv6_ext_hdr_type extHdrType,
 		uint8_t *pBuffer,
 		size_t &nMaxSize);
+
+/*
+ *	brief:
+ *	Function loads a default Ethernet Packet
+
+ *	param [in] eIP - Type of Packet to load (IPA_IP_v4 / IPA_IP_v6)
+ *	param [in] pBuffer - pointer to the destination buffer
+ *	param [in,out] nMaxSize - The size of the buffer.
+ *	Upon function return,
+ *	the total number of bytes copied will be stored in this parameter.
+ *	return boolean indicating whether the
+ *	operation completed successfully or not.
+
+ *	details:
+ *	Function loads a default Ethernet packet into pBuffer.
+ */
+bool LoadEtherPacket(
+		enum ipa_ip_type eIP,
+		uint8_t *pBuffer,
+		size_t& nMaxSize);
+
 /**
 	@brief
 	Function Sends a Packet, Receive a packet
@@ -668,6 +694,7 @@ struct ipa_ep_cfg_deaggr {
 	bool packet_offset_valid;
 	uint32_t packet_offset_location;
 	bool ignore_min_pkt_err;
+	bool mbim_or_ncm_flag;
 	uint32_t max_packet_len;
 };
 
