@@ -1957,10 +1957,10 @@ hw_dump:
 			&jpeg_dump_args, sizeof(jpeg_dump_args));
 	}
 
-	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 	CAM_DBG(CAM_JPEG, "Offset before %u after %u",
 		dump_args->offset, jpeg_dump_args.offset);
 	dump_args->offset = jpeg_dump_args.offset;
+	mutex_unlock(&hw_mgr->hw_mgr_mutex);
 	cam_mem_put_cpu_buf(dump_args->buf_handle);
 	return rc;
 }

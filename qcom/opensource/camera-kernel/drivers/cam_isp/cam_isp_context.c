@@ -2703,16 +2703,33 @@ static int __cam_isp_ctx_handle_buf_done(
 }
 
 static void __cam_isp_ctx_buf_done_match_req(
+	struct cam_isp_context *ctx_isp,
 	struct cam_ctx_request *req,
 	struct cam_isp_hw_done_event_data *done,
 	bool *irq_delay_detected)
 {
-	int i;
+	int rc = 0;
+	int i, j, k;
 	uint32_t match_count = 0;
 	struct cam_isp_ctx_req *req_isp;
 	uint32_t cmp_addr = 0;
+	struct cam_isp_context_comp_record *comp_grp = NULL;
+	struct cam_hw_cmd_args hw_cmd_args;
+	struct cam_isp_hw_cmd_args isp_hw_cmd_args;
+	struct cam_context *ctx = ctx_isp->base;
 
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+
+	if (done->hw_type == CAM_ISP_HW_TYPE_SFE)
+		comp_grp = &ctx_isp->sfe_bus_comp_grp[done->comp_group_id];
+	else
+		comp_grp = &ctx_isp->vfe_bus_comp_grp[done->comp_group_id];
+
+	CAM_DBG(CAM_ISP, "Done Comp Group: %d Res %s last_consumed_addr:0x%x",
+		done->comp_group_id,
+		__cam_isp_resource_handle_id_to_type(
+			ctx_isp->isp_device_type, done->resource_handle),
+		done->last_consumed_addr);
 
 	for (i = 0; i < req_isp->num_fence_map_out; i++) {
 		cmp_addr = cam_smmu_is_expanded_memory() ? CAM_36BIT_INTF_GET_IOVA_BASE(
@@ -2722,7 +2739,75 @@ static void __cam_isp_ctx_buf_done_match_req(
 			 req_isp->fence_map_out[i].resource_handle) &&
 			(done->last_consumed_addr == cmp_addr)) {
 			match_count++;
+			CAM_DBG(CAM_ISP, "Consumed addr compare success for res:%s ",
+				__cam_isp_resource_handle_id_to_type(
+					ctx_isp->isp_device_type, done->resource_handle));
 			break;
+		}
+
+	}
+
+	if (i == req_isp->num_fence_map_out) {
+		for (j = 0; j < comp_grp->num_res; j++) {
+			/* If the res is same with original res, we don't need to read again  */
+			if (comp_grp->res_id[j] == done->resource_handle)
+				continue;
+
+			/* Check if the res in the requested list */
+			for (k = 0; k < req_isp->num_fence_map_out; k++)
+				if (comp_grp->res_id[j] ==
+					req_isp->fence_map_out[k].resource_handle)
+					break;
+
+			/* If res_id[j] isn't in requested list, then try next res in the group */
+			if (k == req_isp->num_fence_map_out) {
+				if (j != comp_grp->num_res - 1)
+					continue;
+				else {
+					CAM_ERR(CAM_ISP,
+						"not in this group and exit ctx %u link: 0x%x",
+						ctx->ctx_id, ctx->link_hdl);
+					break;
+				}
+			}
+
+			/*
+			 * Find out the res from the requested list,
+			 * then we can get last consumed address from this port.
+			 */
+			done->resource_handle = comp_grp->res_id[j];
+			done->last_consumed_addr = 0;
+
+			hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+			hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+			isp_hw_cmd_args.cmd_type =
+				CAM_ISP_HW_MGR_GET_LAST_CONSUMED_ADDR;
+			isp_hw_cmd_args.cmd_data = done;
+			hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+			rc = ctx->hw_mgr_intf->hw_cmd(
+				ctx->hw_mgr_intf->hw_mgr_priv,
+				&hw_cmd_args);
+			if (rc) {
+				CAM_ERR(CAM_ISP, "HW command failed, ctx %u, link: 0x%x",
+					ctx->ctx_id, ctx->link_hdl);
+			}
+
+			cmp_addr = cam_smmu_is_expanded_memory() ?
+				CAM_36BIT_INTF_GET_IOVA_BASE(
+				req_isp->fence_map_out[k].image_buf_addr[0]) :
+				req_isp->fence_map_out[k].image_buf_addr[0];
+			CAM_DBG(CAM_ISP,
+				"Get res %s comp_grp_rec_idx:%d fence_map_idx:%d last_consumed_addr:0x%x, cmp_addr:0x%x",
+				__cam_isp_resource_handle_id_to_type(
+					ctx_isp->isp_device_type, done->resource_handle), j, k,
+				done->last_consumed_addr, cmp_addr);
+			if (done->last_consumed_addr == cmp_addr) {
+				CAM_DBG(CAM_ISP, "Consumed addr compare success for res:%s ",
+					__cam_isp_resource_handle_id_to_type(
+				ctx_isp->isp_device_type, done->resource_handle));
+				match_count++;
+				break;
+			}
 		}
 	}
 
@@ -2732,8 +2817,11 @@ static void __cam_isp_ctx_buf_done_match_req(
 		*irq_delay_detected = false;
 
 	CAM_DBG(CAM_ISP,
-		"buf done num handles %d match count %d for next req:%lld",
-		done->resource_handle, match_count, req->request_id);
+		"buf done num handles %d [%s] match count %d for next req: %lld ctx: %u, link: 0x%x",
+		done->resource_handle,
+		__cam_isp_resource_handle_id_to_type(
+				ctx_isp->isp_device_type, done->resource_handle),
+		match_count, req->request_id, ctx->ctx_id, ctx->link_hdl);
 	CAM_DBG(CAM_ISP,
 		"irq_delay_detected %d", *irq_delay_detected);
 }
@@ -2921,8 +3009,8 @@ static int __cam_isp_ctx_handle_buf_done_verify_addr(
 			struct cam_ctx_request, list);
 
 		if (next_req->request_id != req->request_id)
-			__cam_isp_ctx_buf_done_match_req(next_req, done,
-				&irq_delay_detected);
+			__cam_isp_ctx_buf_done_match_req(
+					ctx_isp, next_req, done, &irq_delay_detected);
 		else
 			CAM_WARN(CAM_ISP,
 				"Req %lld only active request, spurious buf_done rxd, ctx: %u link: 0x%x",
