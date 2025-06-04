@@ -1,5 +1,8 @@
 load("//msm-kernel:target_variants.bzl", "get_all_variants")
-load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+load("//build/kernel/kleaf:kernel.bzl",
+     "ddk_module",
+     "kernel_module_group",
+)
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 load(":bt_modules.bzl", "bt_modules")
 
@@ -55,7 +58,10 @@ def define_target_variant_modules(target, variant, modules, config_options = [])
         config_options: decides which kernel modules to build
     """
     kernel_build = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
+    kernel_build_label = select({
+                "//build/kernel/kleaf:microxr_kernel_build_true": "//:target_kernel_build",
+                "//build/kernel/kleaf:microxr_kernel_build_false": "//msm-kernel:{}".format(kernel_build)
+    })
     modules = [bt_modules.get(module_name) for module_name in modules]
     options = _get_build_options(modules, config_options)
     formatter = lambda s : s.replace("%b", kernel_build)
@@ -77,6 +83,12 @@ def define_target_variant_modules(target, variant, modules, config_options = [])
         )
 
         all_modules.append(rule_name)
+
+    kernel_module_group(
+        name = "{}_modules".format(kernel_build),
+        srcs = all_modules,
+        visibility = ["//visibility:public"],
+    )
 
     copy_to_dist_dir(
         name = "{}_bt-kernel_dist".format(kernel_build),
