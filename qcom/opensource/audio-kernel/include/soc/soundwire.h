@@ -275,6 +275,7 @@ struct swr_device {
 	bool paging_support;
 	struct irq_domain *slave_irq;
 	bool slave_irq_pending;
+	bool clk_scale_initialized;
 	u8 scp1_val; /*used for v1.2 or class devices*/
 	u8 scp2_val; /*used for v1.2 or class devices*/
 };
