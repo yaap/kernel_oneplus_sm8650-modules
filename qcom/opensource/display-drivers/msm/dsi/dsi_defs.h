@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, 2025, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -314,6 +314,7 @@ enum dsi_dyn_clk_feature_type {
  * @DSI_CMD_SET_POST_TIMING_SWITCH:        Post timing switch
  * @DSI_CMD_SET_QSYNC_ON                   Enable qsync mode
  * @DSI_CMD_SET_QSYNC_OFF                  Disable qsync mode
+ * @DSI_CMD_SET_CALIBRATION_DATA           Panel calibration data
  * @DSI_CMD_SET_MAX
  */
 enum dsi_cmd_set_type {
@@ -534,6 +535,7 @@ enum dsi_cmd_set_type {
 	DSI_CMD_GAMMA_COMPENSATION_PAGE1,
 	DSI_CMD_GAMMA_COMPENSATION,
 #endif /* OPLUS_FEATURE_DISPLAY */
+	DSI_CMD_SET_CALIBRATION_DATA,
 	DSI_CMD_SET_MAX
 };
 

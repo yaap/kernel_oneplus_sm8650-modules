@@ -5825,6 +5825,22 @@ int dsi_display_cont_splash_config(void *dsi_display)
 
 	display->is_cont_splash_enabled = true;
 
+	/*
+	 * Vote on panel regulator is added to make sure panel regulators are ON
+	 * for cont-splash enabled usecase in case of hibernate exit.
+	 */
+	if (display->is_hibernate_splash_enabled) {
+		display->is_hibernate_exit = true;
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, true);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+					display->panel->name, rc);
+
+	}
+
+	if (!display->is_hibernate_splash_enabled)
+		display->is_hibernate_splash_enabled = true;
+
 	/* Update splash status for clock manager */
 	dsi_display_clk_mngr_update_splash_status(display->clk_mngr,
 				display->is_cont_splash_enabled);
@@ -8948,6 +8964,12 @@ int dsi_display_prepare(struct dsi_display *display)
 	/* Set up ctrl isr before enabling core clk */
 	if (!display->trusted_vm_env)
 		dsi_display_ctrl_isr_configure(display, true);
+
+	/* Unset DMS flag in case of hibernate exit */
+	if (display->is_hibernate_exit) {
+		mode->dsi_mode_flags &= ~DSI_MODE_FLAG_DMS;
+		display->is_hibernate_exit = false;
+	}
 
 	if (mode->dsi_mode_flags & DSI_MODE_FLAG_DMS) {
 		if (display->is_cont_splash_enabled &&

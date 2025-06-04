@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -149,6 +149,8 @@ struct dsi_display_ext_bridge {
  * @list:             List pointer.
  * @is_active:        Is display active.
  * @is_cont_splash_enabled:  Is continuous splash enabled
+ * @is_hibernate_splash_enabled: Is hibernation splash enabled.
+ * @is_hibernate_exit: Is hibernate exit.
  * @sw_te_using_wd:   Is software te enabled
  * @display_lock:     Mutex for dsi_display interface.
  * @disp_te_gpio:     GPIO for panel TE interrupt.
@@ -214,6 +216,8 @@ struct dsi_display {
 	const char *display_type;
 	struct list_head list;
 	bool is_cont_splash_enabled;
+	bool is_hibernate_splash_enabled;
+	bool is_hibernate_exit;
 	bool sw_te_using_wd;
 	struct mutex display_lock;
 	int disp_te_gpio;

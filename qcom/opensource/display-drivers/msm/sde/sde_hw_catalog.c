@@ -217,6 +217,7 @@ enum sde_prop {
 	DIM_LAYER,
 	SMART_DMA_REV,
 	IDLE_PC,
+	ENABLE_HIBERNATION,
 	WAKEUP_WITH_TOUCH,
 	DEST_SCALER,
 	SMART_PANEL_ALIGN_MODE,
@@ -625,6 +626,8 @@ static struct sde_prop_type sde_prop[] = {
 	{DIM_LAYER, "qcom,sde-has-dim-layer", false, PROP_TYPE_BOOL},
 	{SMART_DMA_REV, "qcom,sde-smart-dma-rev", false, PROP_TYPE_STRING},
 	{IDLE_PC, "qcom,sde-has-idle-pc", false, PROP_TYPE_BOOL},
+	{ENABLE_HIBERNATION, "qcom,sde-enable-hibernation", false,
+			PROP_TYPE_BOOL},
 	{WAKEUP_WITH_TOUCH, "qcom,sde-wakeup-with-touch", false,
 			PROP_TYPE_BOOL},
 	{DEST_SCALER, "qcom,sde-has-dest-scaler", false, PROP_TYPE_BOOL},
@@ -4212,6 +4215,8 @@ static void _sde_top_parse_dt_helper(struct sde_mdss_cfg *cfg,
 		set_bit(SDE_FEATURE_DIM_LAYER, cfg->features);
 	if (PROP_VALUE_ACCESS(props->values, IDLE_PC, 0))
 		set_bit(SDE_FEATURE_IDLE_PC, cfg->features);
+	if (PROP_VALUE_ACCESS(props->values, ENABLE_HIBERNATION, 0))
+		set_bit(SDE_FEATURE_ENABLE_HIBERNATION, cfg->features);
 	if (PROP_VALUE_ACCESS(props->values, WAKEUP_WITH_TOUCH, 0))
 		set_bit(SDE_FEATURE_TOUCH_WAKEUP, cfg->features);
 	cfg->pipe_order_type = PROP_VALUE_ACCESS(props->values,

@@ -786,6 +786,7 @@ enum sde_ppb_size_option {
  * @SDE_FEATURE_DEDICATED_CWB  Dedicated-CWB supported
  * @SDE_FEATURE_DUAL_DEDICATED_CWB   Dual Dedicated-CWB supported
  * @SDE_FEATURE_WB_ROTATION    Support for image rotation through WB block
+ * @SDE_FEATURE_ENABLE_HIBERNATION         Hibernation is supported
  * @SDE_FEATURE_3D_MERGE_RESET 3D merge reset supported
  * @SDE_FEATURE_DECIMATION     Decimation supported
  * @SDE_FEATURE_COMBINED_ALPHA Combined Alpha supported
@@ -834,6 +835,7 @@ enum sde_mdss_features {
 	SDE_FEATURE_DUAL_DEDICATED_CWB,
 	SDE_FEATURE_WB_ROTATION,
 	SDE_FEATURE_IDLE_PC,
+	SDE_FEATURE_ENABLE_HIBERNATION,
 	SDE_FEATURE_3D_MERGE_RESET,
 	SDE_FEATURE_DECIMATION,
 	SDE_FEATURE_COMBINED_ALPHA,

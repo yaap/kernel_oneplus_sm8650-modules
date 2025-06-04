@@ -76,7 +76,10 @@ def display_module_entry(hdrs = []):
 def define_target_variant_modules(target, variant, registry, modules, config_options = [], lunch_target=None):
 
     kernel_build_hdr = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build_hdr)
+    kernel_build_label = select({
+        "//build/kernel/kleaf:microxr_kernel_build_true": "//:target_kernel_build",
+        "//build/kernel/kleaf:microxr_kernel_build_false": "//msm-kernel:{}".format(kernel_build_hdr)
+    })
 
     if lunch_target != None:
         kernel_build = "{}_{}_{}".format(target, variant, lunch_target)
@@ -94,7 +97,6 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
     for module in modules:
         rule_name = "{}_{}".format(kernel_build, module.name)
         module_srcs = _get_kernel_build_module_srcs(module, options, formatter)
-        print(rule_name)
         if not module_srcs:
             continue
 

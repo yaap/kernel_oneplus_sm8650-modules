@@ -171,6 +171,5 @@ def define_display_target():
             define_neo_la(t, v)
 
     for (lt, t, v) in get_all_lunch_target_base_target_variants():
-        print(lt)
         if lt == "volcano":
             define_volcano(t, v, lt)
