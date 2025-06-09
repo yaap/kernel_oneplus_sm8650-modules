@@ -860,32 +860,13 @@ void iris_pre_switch(struct dsi_panel *panel,
 	if (panel == NULL || new_timing == NULL)
 		return;
 
-	SDE_ATRACE_BEGIN(__func__);
 	if (chip_type == CHIP_IRIS8 && iris_is_pt_mode(panel) &&
 			_iris_support_timing_switch())
 		iris_pre_switch_i8();
 
 	switch_case = _iris_generate_switch_case(panel, new_timing);
 
-	IRIS_LOGI("%s(), timing@%u, %ux%u@%uHz, cmd list: %u, case: %s",
-			__func__,
-			new_tm_index,
-			new_timing->h_active,
-			new_timing->v_active,
-			new_timing->refresh_rate,
-			cmd_list_index,
-			switch_case_name[switch_case]);
-	IRIS_LOGI_IF(iris_is_pt_mode(panel),
-			"%s(), FRC: %s, DUAL: %s",
-			__func__,
-			iris_get_cfg()->frc_enabled ? "true" : "false",
-			iris_get_cfg()->dual_enabled ? "true" : "false");
-
 	cur_tm_index = new_tm_index;
-	SDE_ATRACE_END(__func__);
-
-	IRIS_LOGI_IF(LOG_VERBOSE_INFO,
-			"%s(), exit.", __func__);
 }
 
 static void _iris_switch_proc(struct dsi_mode_info *new_timing)
