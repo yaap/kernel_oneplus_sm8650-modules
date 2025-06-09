@@ -1287,45 +1287,6 @@ static ssize_t oplus_display_set_hbm_max_debug(struct kobject *obj,
 	return count;
 }
 
-static void oplus_display_print_cmd_desc(const struct dsi_panel_cmd_set *cmd_sets)
-{
-	int i, j, len;
-	char buf[PANEL_TX_MAX_BUF];
-	struct dsi_cmd_desc *cmds;
-	struct mipi_dsi_msg msg;
-	char *tx_buf = NULL;
-
-	for (i = 0; i < cmd_sets->count; i++) {
-		len = 0;
-		cmds = &(cmd_sets->cmds[i]);
-		msg = cmds->msg;
-		tx_buf = (char*)msg.tx_buf;
-		memset(buf, 0, sizeof(buf));
-
-		if (msg.tx_len >= (PANEL_TX_MAX_BUF / 2)) {
-			LCD_ERR("%s Skip current cmds[%d], invalid msg.tx_len=%d\n",
-					DISPLAY_TOOL_CMD_KEYWORD, i, msg.tx_len);
-			break;
-		}
-
-		/* Packet Info */
-		len += snprintf(buf, sizeof(buf) - len, "%02X ", msg.type);
-		len += snprintf(buf + len, sizeof(buf) - len, "%02X ", 0x00);
-		len += snprintf(buf + len, sizeof(buf) - len, "%02X ", msg.channel);
-		len += snprintf(buf + len, sizeof(buf) - len, "%02X ", msg.flags);
-		len += snprintf(buf + len, sizeof(buf) - len, "%02X ", cmds->post_wait_ms);
-		len += snprintf(buf + len, sizeof(buf) - len, "%02X %02X",
-				msg.tx_len >> 8, msg.tx_len & 0xFF);
-
-		/* Packet Payload */
-		for (j = 0 ; j < msg.tx_len ; j++) {
-			len += snprintf(buf + len, sizeof(buf) - len, " %02X", tx_buf[j]);
-		}
-
-		LCD_ERR("%s%s\n", DISPLAY_TOOL_CMD_KEYWORD, buf);
-	}
-}
-
 static ssize_t oplus_display_get_dsi_command(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
@@ -1384,7 +1345,6 @@ static int oplus_display_dump_dsi_command(struct dsi_display *display)
 		LCD_ERR("%s%s: %s\n", DISPLAY_TOOL_CMD_KEYWORD, cmd_name,
 				cmd_sets[i].state == DSI_CMD_SET_STATE_LP ?
 				"dsi_lp_mode" : "dsi_hs_mode");
-		oplus_display_print_cmd_desc(&cmd_sets[i]);
 	}
 
 	return 0;
