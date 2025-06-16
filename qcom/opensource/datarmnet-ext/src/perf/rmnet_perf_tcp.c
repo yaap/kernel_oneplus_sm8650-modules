@@ -148,7 +148,7 @@ static bool rmnet_perf_quickack_hash_clean(bool force)
 		if (force || rmnet_perf_quickack_node_expired(node, ts)) {
 			node->dead = true;
 			hash_del_rcu(&node->hash);
-			call_rcu(&node->rcu, rmnet_perf_quickack_node_free);
+			call_rcu_hurry(&node->rcu, rmnet_perf_quickack_node_free);
 			rmnet_perf_quickack_stats_update(RMNET_PERF_QUICKACK_STAT_NODE_DEL);
 			rmnet_perf_quickack_hash_size--;
 		}
