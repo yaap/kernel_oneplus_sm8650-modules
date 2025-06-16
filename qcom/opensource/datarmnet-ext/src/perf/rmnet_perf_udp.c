@@ -136,7 +136,7 @@ static bool rmnet_perf_udp_track_hash_clean(bool force)
 		if (force || rmnet_perf_udp_track_node_expired(node, ts)) {
 			node->dead = 1;
 			hash_del_rcu(&node->hash);
-			call_rcu(&node->rcu, rmnet_perf_udp_track_node_free);
+			call_rcu_hurry(&node->rcu, rmnet_perf_udp_track_node_free);
 			rmnet_perf_udp_track_stats_update(RMNET_PERF_UDP_TRACK_STAT_NODE_DEL);
 			rmnet_perf_udp_track_hash_size--;
 		}
