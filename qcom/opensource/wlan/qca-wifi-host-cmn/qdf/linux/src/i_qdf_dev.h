@@ -43,7 +43,7 @@ struct qdf_dev;
 #define __qdf_for_each_cpu(cpu, maskp) \
 for_each_cpu(cpu, maskp)
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 #define __qdf_for_each_cpu_not(cpu, maskp) \
 for_each_cpu_andnot(cpu, cpu_possible_mask, maskp)
 #else
