@@ -227,9 +227,6 @@ static void rmnet_ll_ipa3_debugfs_init(void)
 fail:
 	rmnet_ll_ipa3_debugfs_remove();
 }
-#else /* CONFIG_DEBUG_FS */
-static void rmnet_ll_ipa3_debugfs_init(void){}
-static void rmnet_ll_ipa3_debugfs_remove(void){}
 #endif /* CONFIG_DEBUG_FS */
 
 int ipa3_rmnet_ll_init(void)
@@ -272,7 +269,9 @@ int ipa3_rmnet_ll_init(void)
 	spin_lock_init(&rmnet_ll_ipa3_ctx->tx_lock);
 	rmnet_ll_ipa3_ctx->pipe_state = IPA_RMNET_LL_PIPE_NOT_READY;
 	rmnet_ll_ipa3_ctx->free_credit_thrshld = IPA_RMNET_LL_FREE_CREDIT_THRSHLD;
+#ifdef CONFIG_DEBUG_FS
 	rmnet_ll_ipa3_debugfs_init();
+#endif
 	return 0;
 }
 

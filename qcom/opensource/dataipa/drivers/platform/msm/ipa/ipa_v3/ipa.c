@@ -8308,7 +8308,9 @@ static int ipa3_post_init(const struct ipa3_plat_drv_res *resource_p,
 	/* 1st ipa3_panic_notifier*/
 	ipa3_register_panic_hdlr();
 
+#ifdef CONFIG_DEBUG_FS
 	ipa3_debugfs_init();
+#endif
 
 	result = ipa_mpm_init();
 	if (result)
@@ -12322,7 +12324,9 @@ static void ipa3_deepsleep_suspend(void)
 	ipa3_ctx->ipa_initialization_complete = false;
 	ipa3_unregister_panic_hdlr();
 	ipa3_wigig_deinit_i();
+#ifdef CONFIG_DEBUG_FS
 	ipa3_debugfs_remove();
+#endif
 	/*Unloading IPA FW to allow FW load in resume*/
 	ipa3_pil_unload_ipa_fws();
 	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
