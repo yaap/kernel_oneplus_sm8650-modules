@@ -11,7 +11,7 @@ oplus_hbp_core-y += hbp_spi.o
 oplus_hbp_core-y += hbp_sysfs.o
 oplus_hbp_core-y += hbp_exception.o
 
-CFLAGS_hbp_core.o := -I$(src)
+ccflags-y += -I$(srctree)/$(src)
 
 obj-m += oplus_hbp_core.o
 
