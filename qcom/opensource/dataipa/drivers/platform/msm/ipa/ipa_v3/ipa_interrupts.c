@@ -634,7 +634,8 @@ int ipa3_interrupts_init(u32 ipa_irq, u32 ee, struct device *ipa_dev)
 		cpumask_set_cpu(1, &cpu_mask);
 
 		/* Set affinity hint for interrupt */
-		irq_set_affinity_hint(ipa_irq, &cpu_mask);
+		if (!IS_ENABLED(CONFIG_IRQ_SBALANCE))
+			irq_set_affinity_hint(ipa_irq, &cpu_mask);
 
 		res = request_irq(ipa_irq, (irq_handler_t) ipa3_isr,
 					IRQF_TRIGGER_RISING, "ipa", ipa_dev);
