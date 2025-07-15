@@ -9,9 +9,6 @@
 #include "cam_common_util.h"
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 #include <linux/sched/types.h>
-struct sched_param {
-	int sched_priority;
-};
 #endif
 
 #define WORKQ_ACQUIRE_LOCK(workq, flags) {\
