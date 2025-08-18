@@ -8,6 +8,8 @@
 ** Author : Display
 ******************************************************************/
 
+#include <linux/kobject.h>
+#include <linux/sysfs.h>
 #include "oplus_display_private_api.h"
 #include "oplus_dc_diming.h"
 #include "dsi_defs.h"
@@ -654,3 +656,64 @@ int oplus_get_panel_brightness(void)
 	return display->panel->bl_config.bl_level;
 }
 EXPORT_SYMBOL(oplus_get_panel_brightness);
+
+static ssize_t dc_dim_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", oplus_dimlayer_bl_enable_v2);
+}
+
+static ssize_t dc_dim_store(struct kobject *kobj, struct kobj_attribute *attr,
+				 const char *buf, size_t count)
+{
+	int ret;
+	unsigned int val;
+
+	ret = kstrtouint(buf, 10, &val);
+	if (ret)
+		return ret;
+
+	if (val != 0 && val != 1)
+		return -EINVAL;
+
+	ret = oplus_display_panel_set_dimlayer_enable(&val);
+
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static struct kobj_attribute dc_dim_enable_attr =
+	__ATTR(dc_dim_enable, 0664,
+		dc_dim_show, dc_dim_store);
+
+static struct attribute *dc_dim_attrs[] = {
+	&dc_dim_enable_attr.attr,
+	NULL,
+};
+
+static struct attribute_group dc_dim_attr_group = {
+	.attrs = dc_dim_attrs,
+};
+
+static struct kobject *dc_dim_kobj;
+
+int __init oplus_dc_dim_sysfs_init(void)
+{
+	int ret;
+
+	dc_dim_kobj = kobject_create_and_add("oplus_dc_dim", kernel_kobj);
+	if (!dc_dim_kobj)
+		return -ENOMEM;
+
+	ret = sysfs_create_group(dc_dim_kobj, &dc_dim_attr_group);
+	if (ret)
+		kobject_put(dc_dim_kobj);
+
+	return ret;
+}
+
+void __exit oplus_dc_dim_sysfs_exit(void)
+{
+    kobject_put(dc_dim_kobj);
+}

@@ -1426,6 +1426,11 @@ static inline void __exit msm_hdmi_unregister(void)
 }
 #endif /* CONFIG_DRM_MSM_HDMI */
 
+#ifdef OPLUS_FEATURE_DISPLAY
+int __init oplus_dc_dim_sysfs_init(void);
+void __exit oplus_dc_dim_sysfs_exit(void);
+#endif
+
 struct msm_edp;
 #if IS_ENABLED(CONFIG_DRM_MSM_EDP)
 void __init msm_edp_register(void);

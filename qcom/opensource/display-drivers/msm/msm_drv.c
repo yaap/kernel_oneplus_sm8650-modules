@@ -2447,6 +2447,7 @@ static int __init msm_drm_register(void)
 	msm_hdmi_register();
 #ifdef OPLUS_FEATURE_DISPLAY
 	bl_ic_ktz8866_init();
+	oplus_dc_dim_sysfs_init();
 #endif
 	return 0;
 }
@@ -2467,6 +2468,7 @@ static void __exit msm_drm_unregister(void)
 	sde_rsc_unregister();
 #ifdef OPLUS_FEATURE_DISPLAY
 	bl_ic_ktz8866_exit();
+	oplus_dc_dim_sysfs_exit();
 #endif
 	platform_driver_unregister(&msm_platform_driver);
 }
