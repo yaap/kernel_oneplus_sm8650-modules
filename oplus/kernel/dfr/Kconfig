@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2018-2022 Oplus. All rights reserved.
+
+#ifdef OPLUS_FEATURE_PMIC_MONITOR
+source "drivers/soc/oplus/dfr/qcom/qcom_pmic_monitor/Kconfig"
+#endif /* OPLUS_FEATURE_PMIC_MONITOR */
+
+#ifdef OPLUS_FEATURE_QCOM_PMICWD
+source "drivers/soc/oplus/dfr/qcom/qcom_pmicwd/Kconfig"
+#endif /* OPLUS_FEATURE_QCOM_PMICWD */
+
+#ifdef OPLUS_FEATURE_DUMP_REASON
+source "drivers/soc/oplus/dfr/qcom/dump_device_info/Kconfig"
+#endif /* OPLUS_FEATURE_DUMP_REASON */
+
+#ifdef OPLUS_FEATURE_DUMP_REASON
+source "drivers/soc/oplus/dfr/qcom/dump_reason/Kconfig"
+#endif /* OPLUS_FEATURE_DUMP_REASON */
+
+#ifdef OPLUS_FEATURE_KEYEVENT_HANDLER
+source "drivers/soc/oplus/dfr/common/keyevent_handler/Kconfig"
+#endif /* OPLUS_FEATURE_KEYEVENT_HANDLER */
