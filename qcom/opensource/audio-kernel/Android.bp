@@ -33,11 +33,3 @@ genrule {
         "--headers_install $(location headers_install.sh)",
     out: audio_headers_out,
 }
-
-cc_library_headers {
-    name: "qti_audio_kernel_uapi",
-    generated_headers: ["qti_generate_audio_kernel_headers"],
-    export_generated_headers: ["qti_generate_audio_kernel_headers"],
-    vendor: true,
-    recovery_available: true
-}
