@@ -399,7 +399,8 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		val = -1 * level;
 	} else {
 		val = __secure_tz_update_entry3(level, priv->bin.total_time,
-			priv->bin.busy_time, context_count, priv);
+			(priv->bin.busy_time << 1) + (priv->bin.busy_time >> 1),
+			context_count, priv);
 	}
 
 	priv->bin.total_time = 0;
