@@ -3364,6 +3364,9 @@ INCS +=		$(COAP_WMI_INC)
 
 ccflags-y += $(INCS)
 
+# Utilize MLGO inliner for output size
+ldflags-y += -mllvm -enable-ml-inliner=release
+
 ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h
 ccflags-y += -include $(WLAN_ROOT)/../../dataipa/config/dataipa_vendor.h
 
