@@ -157,6 +157,28 @@ static inline struct gpio_chip *oplus_gpio_to_chip(unsigned gpio)
 #define SUPER_EDNURANCE_MODE_VOLT_COUNT_DEFAULT 100
 #define SUPER_EDNURANCE_MODE_VOLT_SOC_1_DEFAULT 3110
 
+#define FULL_CURR_LIMIT_TABLE_MAX 2
+#define FULL_CURR_LIMIT_CURVE_MAX 3
+
+enum fcl_table_type {
+	FCL_EXTERN_GAUGE,
+	FCL_PLATFORM_GAUGE,
+	FCL_GAUGE_MAX,
+};
+
+static struct fcl_table gauge_fcl_table[FCL_TABLE_MAX][FCL_CURVE_MAX] = {
+	{
+		{0, 500, 800},
+		{20, 200, 800},
+		{60, 0, 800}
+	},
+	{
+		{0, 500, 800},
+		{20, 200, 800},
+		{40, 0, 800}
+	}
+};
+
 int enable_charger_log = 2;
 int charger_abnormal_log = 0;
 int tbatt_pwroff_enable = 1;
@@ -4055,6 +4077,68 @@ void oplus_chg_test_gpio_info_init(struct oplus_chg_chip *chip)
 }
 #endif /* CONFIG_OPLUS_CHG_TEST_KIT */
 
+bool oplus_chg_get_fcl_curr(int hw_vth, int sw_vth, int vbat, int *curr_dec, int *min_curr, bool *hw)
+{
+	int i;
+	int volt_diff;
+	struct oplus_chg_chip *chip = g_charger_chip;
+
+	if (!chip || !curr_dec || !min_curr || !hw)
+		return false;
+
+	for (i = 0; i < chip->fcl.nums; i++) {
+		if (i == 0)
+			volt_diff = hw_vth - vbat;
+		else
+			volt_diff = sw_vth - vbat;
+
+		if (chip->fcl.limits[i].volt_diff > volt_diff) {
+			*curr_dec = chip->fcl.limits[i].curr_dec;
+			*min_curr = chip->fcl.limits[i].min_curr;
+			chg_info("i=%d[%d, %d, %d][%d, %d]\n", i, hw_vth, sw_vth, vbat, *curr_dec, *min_curr);
+			if (i == 0)
+				*hw = true;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int oplus_chg_get_vb_offset(void)
+{
+	struct oplus_chg_chip *chip = g_charger_chip;
+
+	if (!chip)
+		return 0;
+
+	return chip->fcl_offset;
+}
+
+
+static int oplus_chg_fcl_curves_init(struct oplus_chg_chip *chip)
+{
+	int rc;
+	struct device_node *node = chip->dev->of_node;
+
+	if (!chip)
+		return -ENODEV;
+
+	rc = of_property_read_u32(node, "oplus,vb_offset", &chip->fcl_offset);
+	rc = of_property_read_u32(node, "oplus,fcl_index", &chip->fcl.index);
+	if (rc)
+		chip->fcl.index = FCL_EXTERN_GAUGE;
+
+	if (chip->fcl.index >= FCL_GAUGE_MAX)
+		chip->fcl.index = FCL_EXTERN_GAUGE;
+
+	memmove(chip->fcl.limits, gauge_fcl_table[chip->fcl.index], sizeof(gauge_fcl_table[FCL_EXTERN_GAUGE]));
+	chip->fcl.nums = ARRAY_SIZE(gauge_fcl_table[FCL_EXTERN_GAUGE]);
+
+	chg_info("chip->fcl.index=%d, chip->fcl_offset=%d", chip->fcl.index, chip->fcl_offset);
+	return 0;
+}
+
 int oplus_chg_init(struct oplus_chg_chip *chip)
 {
 	int rc = 0;
@@ -4070,6 +4154,7 @@ int oplus_chg_init(struct oplus_chg_chip *chip)
 		dev_err(chip->dev, "charger operations cannot be NULL\n");
 		return -1;
 	}
+	oplus_chg_fcl_curves_init(chip);
 	oplus_chg_track_init(chip);
 	oplus_chg_variables_init(chip);
 	oplus_get_smooth_soc_switch(chip);
@@ -6254,6 +6339,8 @@ int oplus_chg_parse_charger_dt(struct oplus_chg_chip *chip)
 
 	chip->plc_support = of_property_read_bool(node, "oplus,plc_support");
 
+	chip->usb_aicl_enhance = of_property_read_bool(node, "oplus,usb_aicl_enhance");
+	chg_err("usb_aicl_enhance %s\n", chip->usb_aicl_enhance == true ? "ture" : "false");
 	return 0;
 }
 EXPORT_SYMBOL(oplus_chg_parse_charger_dt);
@@ -8508,6 +8595,7 @@ void oplus_chg_variables_reset(struct oplus_chg_chip *chip, bool in)
 	chip->stop_voter = 0x00;
 	chip->charging_state = CHARGING_STATUS_CCCV;
 	chip->pre_chg_up_limit_mmi_val = 0;
+	chip->usb_aicl_enable_flag = false;
 #ifndef SELL_MODE
 	if (chip->mmi_fastchg == 0) {
 		chip->mmi_chg = 0;
@@ -8730,6 +8818,7 @@ static void oplus_chg_variables_init(struct oplus_chg_chip *chip)
 	chip->usbtemp_cool_down = 0;
 	chip->em_mode = false;
 	chip->detect_detach_unexpeactly = 0;
+	chip->usb_aicl_enable_flag = false;
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 	chip->usb_online = false;
 	chip->otg_online = false;
@@ -9407,6 +9496,7 @@ bool oplus_check_afi_update_condition(void)
 }
 
 #define RETRY_COUNTS 60
+#define USB_AICL_ENHANCE_CURR 500
 static void oplus_chg_get_battery_data(struct oplus_chg_chip *chip)
 {
 	static int ui_soc_cp_flag = 0;
@@ -9585,6 +9675,12 @@ static void oplus_chg_get_battery_data(struct oplus_chg_chip *chip)
 		chip->ibus = chip->chg_ops->get_charger_current();
 	} else {
 		chip->ibus = -1;
+	}
+
+	if (chip->usb_aicl_enhance && chip->charger_exist && chip->charging_state == CHARGING_STATUS_FULL &&
+		chip->charger_type == POWER_SUPPLY_TYPE_USB_CDP && chip->usb_aicl_enable_flag == false) {
+		chip->usb_aicl_enable_flag = true;
+		chip->chg_ops->input_current_write(USB_AICL_ENHANCE_CURR);
 	}
 
 	if (!chip->is_gauge_ready && chip->soc >= 0 && chip->soc <= OPLUS_FULL_SOC)

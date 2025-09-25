@@ -2919,7 +2919,7 @@ int sipa_i2c_probe(
 {
 	sipa_dev_t *si_pa = NULL;
 	struct device_node	*sipa_of_node = NULL;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115)) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115))
 	char *sipa_fw_name = "sipa.bin";
 #else
 	char *sipa_fw_name = "../../../../odm/firmware/sipa.bin";
@@ -3483,7 +3483,7 @@ static int sipa_probe(struct platform_device *pdev)
 	int ret = 0;
 	sipa_dev_t *si_pa = NULL;
 	char work_name[20];
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115)) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115))
 	char *sipa_fw_name = "sipa.bin";
 #else
 	char *sipa_fw_name = "../../odm/firmware/sipa.bin";
