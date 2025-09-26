@@ -1214,6 +1214,7 @@ int sde_kms_vm_trusted_prepare_commit(struct sde_kms *sde_kms,
 	return 0;
 }
 
+extern int kp_active_mode(void);
 static void sde_kms_prepare_commit(struct msm_kms *kms,
 		struct drm_atomic_state *state)
 {
@@ -1246,8 +1247,18 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 		goto end;
 	}
 
-	cpu_boost_kick(6);
-	qcom_dcvs_bus_boost_kick(6);
+	switch (kp_active_mode()) {
+	case 1:
+		break;
+	case 3:
+		cpu_boost_kick(8);
+		qcom_dcvs_bus_boost_kick(8);
+		break;
+	default:
+		cpu_boost_kick(6);
+		qcom_dcvs_bus_boost_kick(6);
+		break;
+       }
 
 	if (sde_kms->first_kickoff) {
 		sde_power_scale_reg_bus(&priv->phandle, VOTE_INDEX_HIGH, false);
