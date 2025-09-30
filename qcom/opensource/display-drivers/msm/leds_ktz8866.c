@@ -23,6 +23,7 @@
 #include <linux/backlight.h>
 #include "oplus_display_interface.h"
 #include "leds_ktz8866.h"
+#include "oplus_dsi_support.h"
 
 #define KTZ8866_I2C_M_NAME  			"ktz8866-master"
 #define KTZ8866_I2C_S_NAME  			"ktz8866-salve"
@@ -39,6 +40,7 @@ static struct i2c_client *g_i2c_s_client = NULL;
 static int ktz8866_hw_en_gpio_num = -1;
 static int ktz8866_bais_enp_gpio_num = -1;
 static int ktz8866_bais_enn_gpio_num = -1;
+extern bool caihong_panel_flag;
 static DEFINE_MUTEX(read_lock);
 
 /*****************************************************************************
@@ -145,7 +147,7 @@ static int bl_ic_ktz8866_enable(bool enable)
 		if (!bl_ic_ktz8866_enabled) {
 			/* config i2c0 and i2c3 */
 			/* BL_CFG1；OVP=34.0V，线性调光，PWM Disabled */
-			ktz8866_ic_write_byte_dual(0x02, 0XD2);//caba 0ff 0x7A cabc on 0x7B
+			ktz8866_ic_write_byte_dual(0x02, 0XD3);//caba 0ff 0x7A cabc on 0x7B
 			/* Current ramp 256ms pwm_hyst 10lsb */
 			//ktz8866_ic_write_byte_dual(0x03, 0XCD);
 			/* BL_OPTION2；电感4.7uH，BL_CURRENT_LIMIT 2.5A */
@@ -173,6 +175,7 @@ int bl_ic_ktz8866_set_brightness(int bl_lvl)//for set bringhtness
 {
 	unsigned int mapping_value = 0;
 	static bool ktz8866_set_bl_flag = false;
+	static int pre_lvl = 0;
 
 	if (bl_lvl < 0) {
 		pr_err("[LCD]%d %s set backlight invalid value=%d, not to set\n", __LINE__, __func__, bl_lvl);
@@ -184,14 +187,18 @@ int bl_ic_ktz8866_set_brightness(int bl_lvl)//for set bringhtness
 	} else {
 		mapping_value = backlight_map[bl_lvl];
 	}
-	pr_err("[LCD]%s:set backlight lvl= %d, mapping value = %d\n", __func__, bl_lvl, mapping_value);
+
+	if((bl_lvl == 0 && pre_lvl!= 0) ||
+			(bl_lvl != 0 && pre_lvl == 0)) {
+		pr_info("[LCD]%s:set backlight lvl= %d, mapping value = %d\n", __func__, bl_lvl, mapping_value);
+	}
 
 	if (bl_lvl > 0) {
 		bl_ic_ktz8866_enable(true); /* BL enabled and Current sink 1/2/3/4/5 enabled */
 		ktz8866_ic_write_byte_dual(0x04, mapping_value & 0x07); /* lsb */
 		ktz8866_ic_write_byte_dual(0x05, (mapping_value >> 3) & 0xFF); /* msb */
 		if (!ktz8866_set_bl_flag) {
-			mdelay(15);
+			mdelay(20);
 			ktz8866_ic_write_byte_dual(0x08, 0x4F);
 			ktz8866_set_bl_flag = true;
 		}
@@ -203,6 +210,9 @@ int bl_ic_ktz8866_set_brightness(int bl_lvl)//for set bringhtness
 		bl_ic_ktz8866_enable(false); /* BL disabled and Current sink 1/2/3/4/5 disabled */
 		ktz8866_set_bl_flag = false;
 	}
+
+	pre_lvl = bl_lvl;
+
 	return 0;
 }
 
@@ -237,7 +247,7 @@ int bl_ic_ktz8866_set_lcd_bias_by_gpio(bool enable)
 			}
 		}
 		/* ktz8866 bias config master only */
-		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x02, 0xD2);//set ovp 34.0v pwm enable
+		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x02, 0xD3);//set ovp 34.0v pwm enable
 		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x11, 0x37);//4.7uH
 		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x15, 0xF8);//30.0mA 900nit limit
 	} else {
@@ -336,6 +346,18 @@ static int ktz8866_i2c_master_probe(struct i2c_client *client, const struct i2c_
 			pr_err("[LCD]%s:get %s num=%d SUCC!\n", __func__, KTZ8866_BAIS_ENN_GPIO_NAME, ktz8866_bais_enn_gpio_num);
 		}
 	}
+
+	/* Factory Mode No Need Ktz8866, Gpio89/90/91 Should Keep Low */
+	if (oplus_is_factory_boot() && !caihong_panel_flag) {
+		bl_ic_ktz8866_hw_en(false);
+		bl_ic_ktz8866_set_lcd_bias_by_gpio(false);
+	}
+	/* oplus_is_silence_reboot no need ktz8866 backlight */
+	if (oplus_is_silence_reboot()) {
+		bl_ic_ktz8866_set_brightness(0);
+		pr_info("Diable ktz8866 backlight as SAU boot");
+	}
+
 	pr_err("[LCD]%s:get g_i2c_m_client SUCC!\n", __func__);
 
 	return 0;
