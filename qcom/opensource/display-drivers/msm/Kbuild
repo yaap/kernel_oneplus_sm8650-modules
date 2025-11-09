@@ -98,6 +98,10 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 
+ifeq ($(CAIHONG_DISPLAY_DRIVER),y)
+ccflags-y += -DCAIHONG_DISPLAY_DRIVER
+endif
+
 ccflags-y += $(LINUX_INC)
 
 ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)

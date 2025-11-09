@@ -286,7 +286,14 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 
 	panel = dsi_display->panel;
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+	/* DSI Command mode panel need panel_lock when send cmd */
+	if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE) {
+		mutex_lock(&panel->panel_lock);
+	}
+#else
 	mutex_lock(&panel->panel_lock);
+#endif
 	if (!dsi_panel_initialized(panel)) {
 		rc = -EINVAL;
 		goto error;
@@ -334,7 +341,14 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		DSI_ERR("unable to set backlight\n");
 
 error:
+#ifdef CAIHONG_DISPLAY_DRIVER
+	/* DSI Command mode panel need panel_lock when send cmd */
+	if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE) {
+		mutex_unlock(&panel->panel_lock);
+	}
+#else
 	mutex_unlock(&panel->panel_lock);
+#endif
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	oplus_adfr_sa_mode_restore(dsi_display);
@@ -1242,7 +1256,14 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION */
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+	/* DSI Command mode panel need panel_lock when send cmd */
+	if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE) {
+		dsi_panel_acquire_panel_lock(panel);
+	}
+#else
 	dsi_panel_acquire_panel_lock(panel);
+#endif
 
 	if (!panel->panel_initialized) {
 		DSI_DEBUG("Panel not initialized\n");
@@ -1334,7 +1355,14 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 
 	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle, DSI_ALL_CLKS, DSI_CLK_OFF);
 release_panel_lock:
+#ifdef CAIHONG_DISPLAY_DRIVER
+	/* DSI Command mode panel need panel_lock when send cmd */
+	if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE) {
+		dsi_panel_release_panel_lock(panel);
+	}
+#else
 	dsi_panel_release_panel_lock(panel);
+#endif
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, rc);
 
 	return rc;
@@ -4811,7 +4839,7 @@ static bool dsi_display_is_seamless_dfps_possible(
 		DSI_DEBUG("timing.h_front_porch differs %d %d\n",
 				cur->timing.h_front_porch,
 				tgt->timing.h_front_porch);
-		if (dfps_type != DSI_DFPS_IMMEDIATE_HFP)
+		if ((dfps_type != DSI_DFPS_IMMEDIATE_HFP) && (dfps_type != DSI_DFPS_IMMEDIATE_HV_P))
 			return false;
 	}
 
@@ -4849,7 +4877,7 @@ static bool dsi_display_is_seamless_dfps_possible(
 		DSI_DEBUG("timing.v_front_porch differs %d %d\n",
 				cur->timing.v_front_porch,
 				tgt->timing.v_front_porch);
-		if (dfps_type != DSI_DFPS_IMMEDIATE_VFP)
+		if ((dfps_type != DSI_DFPS_IMMEDIATE_VFP) && (dfps_type != DSI_DFPS_IMMEDIATE_HV_P))
 			return false;
 	}
 
@@ -5414,7 +5442,7 @@ static int dsi_display_dfps_calc_front_porch(
  */
 static int dsi_display_get_dfps_timing(struct dsi_display *display,
 			struct dsi_display_mode *adj_mode,
-				u32 curr_refresh_rate)
+				u32 curr_refresh_rate, int i)
 {
 	struct dsi_dfps_capabilities dfps_caps;
 	struct dsi_display_mode per_ctrl_mode;
@@ -5484,6 +5512,29 @@ static int dsi_display_get_dfps_timing(struct dsi_display *display,
 			adj_mode->timing.h_front_porch *= display->ctrl_count;
 		break;
 
+	case DSI_DFPS_IMMEDIATE_HV_P:
+		if (i < 0)
+			break;
+
+		if (!dfps_caps.dfps_hfp_list) {
+			DSI_ERR("dfps_caps.dfps_hfp_list is null ptr!");
+			break;
+        }
+
+		adj_mode->timing.h_front_porch = dfps_caps.dfps_hfp_list[i] *= display->ctrl_count;
+		adj_mode->timing.h_back_porch = dfps_caps.dfps_hbp_list[i] *= display->ctrl_count;
+		adj_mode->timing.h_sync_width = dfps_caps.dfps_hpw_list[i] *= display->ctrl_count;
+		adj_mode->timing.v_back_porch = dfps_caps.dfps_vbp_list[i];
+		adj_mode->timing.v_front_porch = dfps_caps.dfps_vfp_list[i];
+		adj_mode->timing.v_sync_width = dfps_caps.dfps_vpw_list[i];
+
+		SDE_EVT32(SDE_EVTLOG_FUNC_CASE3, DSI_DFPS_IMMEDIATE_HV_P,
+			curr_refresh_rate, timing->refresh_rate);
+		SDE_EVT32(adj_mode->timing.h_front_porch, adj_mode->timing.h_back_porch,
+			adj_mode->timing.h_sync_width, adj_mode->timing.v_back_porch,
+			adj_mode->timing.v_front_porch, adj_mode->timing.v_sync_width);
+		break;
+
 	default:
 		DSI_ERR("Unsupported DFPS mode %d\n", dfps_caps.type);
 		rc = -ENOTSUPP;
@@ -5503,7 +5554,7 @@ static bool dsi_display_validate_mode_seamless(struct dsi_display *display,
 	}
 
 	/* Currently the only seamless transition is dynamic fps */
-	rc = dsi_display_get_dfps_timing(display, adj_mode, 0);
+	rc = dsi_display_get_dfps_timing(display, adj_mode, 0, -1);
 	if (rc) {
 		DSI_DEBUG("Dynamic FPS not supported for seamless\n");
 	} else {
@@ -7845,7 +7896,7 @@ int dsi_display_get_modes_helper(struct dsi_display *display,
 			}
 
 			dsi_display_get_dfps_timing(display, sub_mode,
-					curr_refresh_rate);
+					curr_refresh_rate, i);
 
 			/* Avoid override for first sub mode in POMS enabled video mode usecase */
 			if ((i != start) && support_cmd_mode && support_video_mode)
@@ -9197,6 +9248,34 @@ exit:
 	return rc;
 }
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+static int dsi_display_send_pre_commit_cmd(struct dsi_display *display, struct msm_display_conn_params *params)
+{
+	u32 idx;
+	int rc = 0;
+	if (!params || !display) {
+		DSI_ERR("Invalid params\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&display->display_lock);
+
+	for (idx = 0; idx < sizeof(params->cmd_bit_mask) * 8; idx++) {
+		if (params->cmd_bit_mask & BIT(idx)) {
+			rc = dsi_panel_send_cmd(display->panel, params, idx);
+			SDE_EVT32(idx, rc);
+			if (rc) {
+				DSI_ERR("fail cmd idx:%d rc:%d\n", idx, rc);
+				goto exit;
+			}
+		}
+	}
+exit:
+	mutex_unlock(&display->display_lock);
+	return rc;
+}
+#endif /* CAIHONG_DISPLAY_DRIVER */
+
 static int dsi_display_set_roi(struct dsi_display *display,
 		struct msm_roi_list *rois)
 {
@@ -9376,6 +9455,11 @@ int dsi_display_pre_commit(void *display,
 		pr_err("Invalid params\n");
 		return -EINVAL;
 	}
+
+#ifdef CAIHONG_DISPLAY_DRIVER
+	if (params->cmd_bit_mask)
+		dsi_display_send_pre_commit_cmd(display, params);
+#endif /* CAIHONG_DISPLAY_DRIVER */
 
 	if (params->qsync_update) {
 		enable = (params->qsync_mode > 0) ? true : false;

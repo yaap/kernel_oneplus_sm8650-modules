@@ -1014,10 +1014,16 @@ struct msm_display_kickoff_params {
  * struct - msm_display_conn_params - info of dpu display features
  * @qsync_mode: Qsync mode, where 0: disabled 1: continuous mode 2: oneshot
  * @qsync_update: Qsync settings were changed/updated
+ * cmd_bit_mask: bit mask for command
+ * peripheral_flush: true if peripheral flush is supported
  */
 struct msm_display_conn_params {
 	uint32_t qsync_mode;
 	bool qsync_update;
+#ifdef CAIHONG_DISPLAY_DRIVER
+	uint64_t cmd_bit_mask;
+	bool peripheral_flush;
+#endif /* CAIHONG_DISPLAY_DRIVER */
 };
 
 /**

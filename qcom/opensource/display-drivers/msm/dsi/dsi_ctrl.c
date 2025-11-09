@@ -73,6 +73,10 @@
 #endif /* OPLUS_TRACKPOINT_REPORT */
 #endif /* OPLUS_FEATURE_DISPLAY */
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+extern bool c_do_peripheral_flush;
+#endif
+
 struct dsi_ctrl_list_item {
 	struct dsi_ctrl *ctrl;
 	struct list_head list;

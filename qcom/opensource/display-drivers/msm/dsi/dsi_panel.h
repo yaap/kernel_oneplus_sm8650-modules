@@ -156,6 +156,12 @@ struct dsi_dfps_capabilities {
 	u32 *dfps_list;
 	u32 dfps_list_len;
 	bool dfps_support;
+	u32 *dfps_hfp_list;
+	u32 *dfps_hbp_list;
+	u32 *dfps_hpw_list;
+	u32 *dfps_vbp_list;
+	u32 *dfps_vfp_list;
+	u32 *dfps_vpw_list;
 };
 
 struct dsi_qsync_capabilities {
@@ -486,6 +492,9 @@ struct dsi_panel {
 
 	struct dsi_panel_ops panel_ops;
 	struct dsi_panel_calib_data calib_data;
+#ifdef CAIHONG_DISPLAY_DRIVER
+	bool peripheral_flush_ongoing;
+#endif /* CAIHONG_DISPLAY_DRIVER */
 #ifdef OPLUS_FEATURE_DISPLAY
 	bool need_power_on_backlight;
 	struct oplus_brightness_alpha *dc_ba_seq;
@@ -663,4 +672,9 @@ void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
 int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 		enum dsi_cmd_set_type type, bool do_peripheral_flush);
 #endif /* OPLUS_FEATURE_DISPLAY */
+
+#ifdef CAIHONG_DISPLAY_DRIVER
+int dsi_panel_send_cmd(struct dsi_panel *panel,
+		struct msm_display_conn_params *params, enum dsi_cmd_set_type type);
+#endif /* CAIHONG_DISPLAY_DRIVER */
 #endif /* _DSI_PANEL_H_ */

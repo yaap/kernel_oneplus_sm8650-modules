@@ -6277,6 +6277,38 @@ void sde_encoder_helper_hw_fence_sw_override(struct sde_encoder_phys *phys_enc,
 	ctl->ops.hw_fence_trigger_sw_override(ctl);
 }
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+int sde_encoder_update_periph_flush(struct drm_encoder *drm_enc)
+{
+	struct sde_encoder_virt *sde_enc;
+	struct sde_encoder_phys *phys;
+	int i;
+	struct sde_hw_ctl *ctl;
+
+	if (!drm_enc) {
+		SDE_ERROR("invalid encoder\n");
+		return -EINVAL;
+	}
+	sde_enc = to_sde_encoder_virt(drm_enc);
+
+	for (i = 0; i < sde_enc->num_phys_encs; i++) {
+		phys = sde_enc->phys_encs[i];
+
+		if (!test_bit(SDE_INTF_PERIPHERAL_FLUSH, &phys->hw_intf->cap->features))
+			return -ENOTSUPP;
+
+		if (phys && phys->hw_ctl) {
+			ctl = phys->hw_ctl;
+			ctl->ops.update_bitmask(ctl, SDE_HW_FLUSH_PERIPH,
+				phys->hw_intf->idx, 1);
+			SDE_EVT32(phys->hw_intf->idx);
+		}
+	}
+
+	return 0;
+}
+#endif /* CAIHONG_DISPLAY_DRIVER */
+
 int sde_encoder_prepare_commit(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc;

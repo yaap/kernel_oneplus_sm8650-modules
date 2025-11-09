@@ -2000,6 +2000,30 @@ static int dsi_panel_parse_dyn_clk_caps(struct dsi_panel *panel)
 	return 0;
 }
 
+static void dsi_panel_parse_dfps_porches(struct dsi_parser_utils *utils,
+	u32 **dfps_porch_list, const char *porch_type, u32 dfps_list_len) {
+	int rc = 0;
+
+	*dfps_porch_list = kcalloc(dfps_list_len, sizeof(u32), GFP_KERNEL);
+	if (!*dfps_porch_list) {
+		rc = -ENOMEM;
+		DSI_ERR("[%s] dfps porch list parse failed, rc = %d\n", porch_type, rc);
+	}
+
+	rc = utils->read_u32_array(utils->data, porch_type,
+			*dfps_porch_list, dfps_list_len);
+	if (rc) {
+		rc = -EINVAL;
+		DSI_ERR("[%s] dfps porch list parse failed, rc = %d\n", porch_type, rc);
+	}
+
+	DSI_INFO("[%s]: ", porch_type);
+	for (int i = 0; i < dfps_list_len; ++i)
+	{
+		DSI_INFO("[%d] ", (*dfps_porch_list)[i]);
+	}
+}
+
 static int dsi_panel_parse_dfps_caps(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -2033,6 +2057,8 @@ static int dsi_panel_parse_dfps_caps(struct dsi_panel *panel)
 		dfps_caps->type = DSI_DFPS_IMMEDIATE_HFP;
 	} else if (!strcmp(type, "dfps_immediate_porch_mode_vfp")) {
 		dfps_caps->type = DSI_DFPS_IMMEDIATE_VFP;
+	} else if (!strcmp(type, "dfps_immediate_porch_mode_both_hv_porch")) {
+		dfps_caps->type = DSI_DFPS_IMMEDIATE_HV_P;
 	} else {
 		DSI_ERR("[%s] dfps type is not recognized\n", name);
 		rc = -EINVAL;
@@ -2063,6 +2089,22 @@ static int dsi_panel_parse_dfps_caps(struct dsi_panel *panel)
 		rc = -EINVAL;
 		goto error;
 	}
+
+	if (dfps_caps->type == DSI_DFPS_IMMEDIATE_HV_P) {
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_hfp_list, "qcom,dsi-dfps-hfp-list",
+			dfps_caps->dfps_list_len);
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_hbp_list, "qcom,dsi-dfps-hbp-list",
+			dfps_caps->dfps_list_len);
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_hpw_list, "qcom,dsi-dfps-hpw-list",
+			dfps_caps->dfps_list_len);
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_vbp_list, "qcom,dsi-dfps-vbp-list",
+			dfps_caps->dfps_list_len);
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_vfp_list, "qcom,dsi-dfps-vfp-list",
+			dfps_caps->dfps_list_len);
+		dsi_panel_parse_dfps_porches(utils, &dfps_caps->dfps_vpw_list, "qcom,dsi-dfps-vpw-list",
+			dfps_caps->dfps_list_len);
+	}
+
 	dfps_caps->dfps_support = true;
 
 	/* calculate max and min fps */
@@ -2276,6 +2318,9 @@ static int dsi_panel_parse_panel_mode(struct dsi_panel *panel)
 
 	panel->panel_ack_disabled = utils->read_bool(utils->data,
 					"qcom,panel-ack-disabled");
+#ifdef CAIHONG_DISPLAY_DRIVER
+	panel->peripheral_flush_ongoing = false;
+#endif /* CAIHONG_DISPLAY_DRIVER */ 
 error:
 	return rc;
 }
@@ -2355,6 +2400,15 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+#ifdef CAIHONG_DISPLAY_DRIVER
+	"qcom,mdss-dsi-fps-switch-120-command",
+	"qcom,mdss-dsi-fps-switch-90-command",
+	"qcom,mdss-dsi-fps-switch-60-command",
+	"qcom,mdss-dsi-fps-switch-50-command",
+	"qcom,mdss-dsi-fps-switch-48-command",
+	"qcom,mdss-dsi-fps-switch-30-command",
+	"qcom,mdss-dsi-fps-switch-144-command",
+#endif /* CAIHONG_DISPLAY_DRIVER */
 	"qcom,mdss-dsi-calibration-commands",
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	"qcom,mdss-dsi-adfr-auto-on-command",
@@ -2576,6 +2630,15 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+#ifdef CAIHONG_DISPLAY_DRIVER
+	"qcom,mdss-dsi-fps-switch-120-command-state",
+	"qcom,mdss-dsi-fps-switch-90-command-state",
+	"qcom,mdss-dsi-fps-switch-60-command-state",
+	"qcom,mdss-dsi-fps-switch-50-command-state",
+	"qcom,mdss-dsi-fps-switch-48-command-state",
+	"qcom,mdss-dsi-fps-switch-30-command-state",
+	"qcom,mdss-dsi-fps-switch-144-command-state",
+#endif /* CAIHONG_DISPLAY_DRIVER */
 	"qcom,mdss-dsi-calibration-commands-state",
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	"qcom,mdss-dsi-adfr-auto-on-command-state",
@@ -5536,7 +5599,16 @@ int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 		return -EINVAL;
 	}
 
-	mutex_lock(&panel->panel_lock);
+#ifdef CAIHONG_DISPLAY_DRIVER
+	if (panel->peripheral_flush_ongoing) {
+		panel->peripheral_flush_ongoing = false;
+		SDE_EVT32(SDE_EVTLOG_FUNC_CASE2);
+	} else {
+		mutex_lock(&panel->panel_lock);
+	}
+#else
+    mutex_lock(&panel->panel_lock);
+#endif
 
 	config->panel_mode = panel->panel_mode;
 	memcpy(&config->common_config, &panel->host_config,
@@ -5980,6 +6052,41 @@ int dsi_panel_send_qsync_off_dcs(struct dsi_panel *panel,
 	return rc;
 }
 
+#ifdef CAIHONG_DISPLAY_DRIVER
+int dsi_panel_send_cmd(struct dsi_panel *panel,
+		struct msm_display_conn_params *params, enum dsi_cmd_set_type type)
+{
+	int rc = 0;
+	bool peripheral_flush = false;
+
+	if (!panel) {
+		DSI_ERR("invalid params\n");
+		return -EINVAL;
+	}
+
+	DSI_DEBUG("Send command %x\n", type);
+	mutex_lock(&panel->panel_lock);
+
+	if (params && params->peripheral_flush)
+		peripheral_flush = true;
+
+	rc = dsi_panel_tx_cmd_set(panel, type, peripheral_flush);
+	SDE_EVT32(peripheral_flush, type, rc);
+	if (rc)
+		DSI_ERR("[%s] failed to send cmd type %x rc=%d\n",
+		       panel->name, type, rc);
+
+	if (peripheral_flush) {
+		panel->peripheral_flush_ongoing = true;
+		SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
+	} else {
+		mutex_unlock(&panel->panel_lock);
+	}
+
+	return rc;
+}
+#endif /* CAIHONG_DISPLAY_DRIVER */
+
 int dsi_panel_send_roi_dcs(struct dsi_panel *panel, int ctrl_idx,
 		struct dsi_rect *roi)
 {
@@ -6257,6 +6364,42 @@ int dsi_panel_enable(struct dsi_panel *panel)
 			goto error;
 		}
 	}
+
+#ifdef CAIHONG_DISPLAY_DRIVER
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC")
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		switch (panel->cur_mode->timing.refresh_rate) {
+			case 30:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_30, false);
+				break;
+			case 48:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_48, false);
+				break;
+			case 50:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_50, false);
+				break;
+			case 60:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_60, false);
+				break;
+			case 90:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_90, false);
+				break;
+			case 120:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_120, false);
+				break;
+			case 144:
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_FPS_SWITCH_144, false);
+				break;
+			default:
+				DSI_ERR("[%s] not support to send switch refresh_rate=%d cmds, rc=%d\n",
+					panel->name, panel->cur_mode->timing.refresh_rate, rc);
+		}
+		if (rc) {
+			DSI_ERR("[%s] failed to send switch refresh_rate=%d cmds, rc=%d\n",
+				panel->name, panel->cur_mode->timing.refresh_rate, rc);
+		}
+	}
+#endif /* CAIHONG_DISPLAY_DRIVER */
 	panel->panel_initialized = true;
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR

@@ -1289,6 +1289,10 @@ int sde_connector_prepare_commit(struct drm_connector *connector)
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;
 	struct msm_display_conn_params params;
+#ifdef CAIHONG_DISPLAY_DRIVER
+	struct drm_encoder *drm_enc;
+	struct dsi_display *display;
+#endif /* CAIHONG_DISPLAY_DRIVER */
 	int rc;
 
 	if (!connector) {
@@ -1298,6 +1302,9 @@ int sde_connector_prepare_commit(struct drm_connector *connector)
 
 	c_conn = to_sde_connector(connector);
 	c_state = to_sde_connector_state(connector->state);
+#ifdef CAIHONG_DISPLAY_DRIVER
+	drm_enc = c_conn->encoder;
+#endif /* CAIHONG_DISPLAY_DRIVER */
 	if (!c_conn->display) {
 		SDE_ERROR("invalid connector display\n");
 		return -EINVAL;
@@ -1312,6 +1319,42 @@ int sde_connector_prepare_commit(struct drm_connector *connector)
 		params.qsync_mode = c_conn->qsync_mode;
 		params.qsync_update = true;
 	}
+
+#ifdef CAIHONG_DISPLAY_DRIVER
+	display = (struct dsi_display *)c_conn->display;
+
+	if (msm_is_mode_seamless_vrr(&c_state->msm_mode)) {
+		rc = sde_encoder_update_periph_flush(drm_enc);
+
+/* Send the needed fps switch command based on frame rate changes
+ For example:
+*/
+		if (c_state->mode_info.frame_rate == 120)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_120);
+
+		if (c_state->mode_info.frame_rate == 90)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_90);
+
+		if(c_state->mode_info.frame_rate == 60)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_60);
+
+		if(c_state->mode_info.frame_rate == 50)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_50);
+
+		if(c_state->mode_info.frame_rate == 48)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_48);
+
+		if(c_state->mode_info.frame_rate == 30)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_30);
+
+		if(c_state->mode_info.frame_rate == 144)
+			params.cmd_bit_mask = BIT(DSI_CMD_SET_FPS_SWITCH_144);
+
+		if (!rc)
+			params.peripheral_flush = true;
+		SDE_EVT32(params.peripheral_flush, params.cmd_bit_mask);
+	}
+#endif /* CAIHONG_DISPLAY_DRIVER */
 
 	rc = c_conn->ops.prepare_commit(c_conn->display, &params);
 
