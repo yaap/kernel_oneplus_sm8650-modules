@@ -310,7 +310,7 @@ static void sc8547_track_i2c_err_load_trigger_work(struct work_struct *work)
 	if (!chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	kfree(chip->i2c_err_load_trigger);
 	chip->i2c_err_load_trigger = NULL;
 	chip->i2c_err_uploading = false;
@@ -426,7 +426,7 @@ static void sc8547_track_cp_err_load_trigger_work(struct work_struct *work)
 	if (!chip->cp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 	kfree(chip->cp_err_load_trigger);
 	chip->cp_err_load_trigger = NULL;
 	chip->cp_err_uploading = false;
@@ -1069,6 +1069,8 @@ static irqreturn_t sc8547a_charger_interrupt(int irq, void *dev_id)
 		ret = sc8547_protect_interrupt_handler(chip);
 		break;
 	case CP_WORKMODE_UFCS:
+		if (!chip_protocol)
+			return IRQ_HANDLED;
 		kthread_queue_work(chip_protocol->wq, &chip_protocol->rcv_work);
 		break;
 	default:
@@ -1299,9 +1301,12 @@ static int sc8547_hw_setting(struct oplus_voocphy_manager *chip, int reason)
 
 static ssize_t sc8547_show_registers(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct oplus_voocphy_manager *chip = dev_get_drvdata(dev);
+	struct oplus_sc8547a_ufcs *chip = sc8547a_ufcs;
 	u8 addr, val, tmpbuf[300];
 	int len = 0, idx = 0, ret = 0;
+
+	if (!chip)
+		return 0;
 
 	idx = snprintf(buf, PAGE_SIZE, "%s:\n", "sc8547");
 	for (addr = 0x0; addr <= 0x3C; addr++) {
@@ -1320,10 +1325,13 @@ static ssize_t sc8547_show_registers(struct device *dev, struct device_attribute
 
 static ssize_t sc8547_store_register(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct oplus_voocphy_manager *chip = dev_get_drvdata(dev);
+	struct oplus_sc8547a_ufcs *chip = sc8547a_ufcs;
 	int ret;
 	unsigned int reg;
 	unsigned int val;
+
+	if (!chip)
+		return 0;
 
 	ret = sscanf(buf, "%x %x", &reg, &val);
 	if (ret == 2 && reg <= 0x3C)

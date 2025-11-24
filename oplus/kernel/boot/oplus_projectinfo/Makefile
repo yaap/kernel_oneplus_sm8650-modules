@@ -9,8 +9,14 @@ ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 oplus_bsp_boot_projectinfo-objs 	+= qcom/oplus_project.o
 else
 oplus_bsp_boot_projectinfo-objs 	+= mtk/oplus_project.o
-
 endif
+
+ccflags-y += -DOPLUS_VND_BUILD_PLATFORM="\"$(OPLUS_VND_BUILD_PLATFORM)\""
+ccflags-y += -DOPLUS_VND_BUILD_CHIPSET_COMPANY="\"$(OPLUS_VND_BUILD_CHIPSET_COMPANY)\""
+$(info "MACRO DOPLUS_VND_BUILD_PLATFORM=$(OPLUS_VND_BUILD_PLATFORM)")
+$(info "MACRO DOPLUS_VND_BUILD_CHIPSET_COMPANY=$(OPLUS_VND_BUILD_CHIPSET_COMPANY)")
+
+
 obj-$(CONFIG_OPLUS_FEATURE_OPROJECT) += oplus_bsp_boot_projectinfo.o
 ifeq ($(CONFIG_MTK_SECURITY_SW_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_inc

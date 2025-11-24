@@ -73,23 +73,51 @@ static void ssc_interactive_set_dc_mode(uint16_t dc_mode)
 	ssc_interactive_set_fifo(LCM_DC_MODE_TYPE, dc_mode);
 }
 
-static void ssc_interactive_set_blank_mode(uint16_t blank_mode)
+static void ssc_interactive_set_blank_mode(enum panel_event_notifier_tag panel_tag, uint16_t blank_mode)
 {
+	uint16_t brightness = 0;
 	struct ssc_interactive *ssc_cxt = g_ssc_cxt;
-	uint16_t brigtness = 0;
+
+	if (!ssc_cxt) {
+		pr_err("invalid ssc_cxt\n");
+		return;
+	}
 
 	spin_lock(&ssc_cxt->rw_lock);
-	if (blank_mode == ssc_cxt->a_info.blank_mode) {
-		/*pr_info("dc_mode=%d is the same\n", dc_mode);*/
+	if (((panel_tag == PANEL_EVENT_NOTIFICATION_PRIMARY) && (blank_mode == ssc_cxt->a_info.primary_blank_mode))
+		|| ((panel_tag == PANEL_EVENT_NOTIFICATION_SECONDARY) && (blank_mode == ssc_cxt->a_info.secondary_blank_mode))
+		|| (panel_tag < PANEL_EVENT_NOTIFICATION_PRIMARY)
+		|| (panel_tag > PANEL_EVENT_NOTIFICATION_SECONDARY)) {
+		pr_debug("panel_tag:%d,blank_mode:%u\n", panel_tag, blank_mode);
 		spin_unlock(&ssc_cxt->rw_lock);
 		return;
 	}
-	ssc_cxt->a_info.blank_mode = blank_mode;
-	brigtness = ssc_cxt->last_primary_bri;
+
+	if (panel_tag == PANEL_EVENT_NOTIFICATION_PRIMARY) {
+		ssc_cxt->a_info.primary_blank_mode = blank_mode;
+	} else {
+		ssc_cxt->a_info.secondary_blank_mode = blank_mode;
+	}
+	if (ssc_cxt->a_info.primary_blank_mode == 1) {
+		brightness = ssc_cxt->last_primary_bri;
+	} else if (ssc_cxt->a_info.secondary_blank_mode == 1) {
+		brightness = ssc_cxt->last_second_bri;
+	} else if (panel_tag == PANEL_EVENT_NOTIFICATION_PRIMARY) {
+		brightness = ssc_cxt->last_primary_bri;
+	} else {
+		brightness = ssc_cxt->last_second_bri;
+	}
+	pr_info("panel_tag:%d,blank_mode:%d,primary_blank_mode:%u,secondary_blank_mode:%u,last_primary_bri:%u,last_second_bri:%u,resend brightness:%d\n",
+			(int)panel_tag, (int)blank_mode, ssc_cxt->a_info.primary_blank_mode, ssc_cxt->a_info.secondary_blank_mode,
+				ssc_cxt->last_primary_bri, ssc_cxt->last_second_bri, brightness);
 	spin_unlock(&ssc_cxt->rw_lock);
-	pr_info("set blank_mode=%d, re-send last bri=%d\n", (int)blank_mode, (int)brigtness);
-	ssc_interactive_set_fifo(LCM_BLANK_MODE_TYPE, blank_mode);
-	ssc_interactive_set_fifo(LCM_BRIGHTNESS_TYPE, brigtness);
+
+	if (g_ssc_cxt->is_fold_dev && (PANEL_EVENT_NOTIFICATION_SECONDARY == panel_tag)) {
+		ssc_interactive_set_fifo(LCM_BLANK_MODE_TYPE_SEC, blank_mode);
+	} else {
+		ssc_interactive_set_fifo(LCM_BLANK_MODE_TYPE, blank_mode);
+	}
+	ssc_interactive_set_fifo(LCM_BRIGHTNESS_TYPE, brightness);
 }
 
 static void ssc_interactive_set_pwm_turbo_mode(int on)
@@ -214,6 +242,7 @@ static void ssc_interactive_set_brightness(enum panel_event_notifier_tag panel_t
 	/* Fold feature for secondary screen brightness level */
 	else if (g_ssc_cxt->is_fold_dev &&
 			PANEL_EVENT_NOTIFICATION_SECONDARY == panel_tag) {
+		ssc_cxt->last_second_bri = brigtness;
 		if (!ssc_cxt->brl_info.secd_brl_num) {
 			pr_err("brl dts info not configured yet or secd_brl_num(%d) is invalid\n",
 				ssc_cxt->brl_info.secd_brl_num);
@@ -558,7 +587,7 @@ static void lcdinfo_callback(enum panel_event_notifier_tag panel_tag,
 		}
 #endif
 		if (g_ssc_cxt->report_blank_mode) {
-			ssc_interactive_set_blank_mode(SCREEN_ON);
+			ssc_interactive_set_blank_mode(panel_tag, SCREEN_ON);
 		}
 		break;
 	case DRM_PANEL_EVENT_BLANK:
@@ -568,7 +597,7 @@ static void lcdinfo_callback(enum panel_event_notifier_tag panel_tag,
 		}
 #endif
 		if (g_ssc_cxt->report_blank_mode) {
-			ssc_interactive_set_blank_mode(SCREEN_OFF);
+			ssc_interactive_set_blank_mode(panel_tag, SCREEN_OFF);
 		}
 		break;
 	default:

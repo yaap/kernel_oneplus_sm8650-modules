@@ -67,3 +67,7 @@ config OPLUS_CHARGER_OPTIGA
 	help
 	  Say Y to include support
 
+config OPLUS_MT6835_CHARGER
+        bool "MTK6835 support"
+        help
+          Say Y here to declare MTK6835 support

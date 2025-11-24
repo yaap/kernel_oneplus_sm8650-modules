@@ -1842,7 +1842,7 @@ static ssize_t mtk_chg_set_cv_write(struct file *file,
 static const struct proc_ops mtk_chg_set_cv_fops = {
 	.proc_open = mtk_chg_set_cv_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_set_cv_write,
 };
@@ -1906,7 +1906,7 @@ static ssize_t mtk_chg_current_cmd_write(struct file *file,
 static const struct proc_ops mtk_chg_current_cmd_fops = {
 	.proc_open = mtk_chg_current_cmd_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_current_cmd_write,
 };
@@ -1960,7 +1960,7 @@ static ssize_t mtk_chg_en_power_path_write(struct file *file,
 static const struct proc_ops mtk_chg_en_power_path_fops = {
 	.proc_open = mtk_chg_en_power_path_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_en_power_path_write,
 };
@@ -2024,7 +2024,7 @@ static ssize_t mtk_chg_en_safety_timer_write(struct file *file,
 static const struct proc_ops mtk_chg_en_safety_timer_fops = {
 	.proc_open = mtk_chg_en_safety_timer_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_en_safety_timer_write,
 };

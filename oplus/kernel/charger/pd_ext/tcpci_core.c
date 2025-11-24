@@ -799,6 +799,7 @@ static int __init tcpc_class_init(void)
 	return 0;
 }
 
+
 static void __exit tcpc_class_exit(void)
 {
 	class_destroy(tcpc_class);

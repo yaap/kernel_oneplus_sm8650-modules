@@ -701,7 +701,7 @@ static int fts_start_scan(struct chip_data_ft3518 *ts_data)
 }
 
 static int fts_get_rawdata(struct chip_data_ft3518 *ts_data, int *raw,
-			   bool is_diff)
+			   bool is_diff, int data_type)
 {
 	int ret = 0;
 	int i = 0;
@@ -712,9 +712,16 @@ static int fts_get_rawdata(struct chip_data_ft3518 *ts_data, int *raw,
 	u8 raw_addr = 0;
 	u8 regval = 0;
 	u8 *buf = NULL;
-	u8 retval = 0;
 
 	TPD_INFO("%s:call", __func__);
+	if (data_type == FTS_MUTUAL_DELTA) {
+		byte_num = ts_data->hw_res->tx_num * ts_data->hw_res->rx_num * 2;
+	} else {
+		byte_num = (ts_data->hw_res->tx_num + ts_data->hw_res->rx_num) * 2;
+	}
+	TPD_INFO("%s:melo, byte_num = %d \n", __func__, byte_num);
+
+
 	/*kzalloc buffer*/
 	buf = kzalloc(byte_num, GFP_KERNEL);
 
@@ -738,29 +745,35 @@ static int fts_get_rawdata(struct chip_data_ft3518 *ts_data, int *raw,
 			TPD_INFO("%s:write 0x01 to reg0x06 fail", __func__);
 			goto reg_restore;
 		}
-		retval = touch_i2c_read_byte(ts_data->client, FACTORY_REG_DATA_SELECT);
-		if (retval != 0x01) {
-			TPD_INFO("%s:read reg0x06 != 0x01, maybe write fail", __func__);
+	}
+
+	if (!is_diff) {
+		ret = fts_start_scan(ts_data);
+		if (ret < 0) {
+			TPD_INFO("%s:scan a frame fail", __func__);
 			goto reg_restore;
 		}
+		msleep(20);
 	}
 
-	ret = fts_start_scan(ts_data);
-
-	if (ret < 0) {
-		TPD_INFO("%s:scan a frame fail", __func__);
-		goto reg_restore;
+	if (data_type == FTS_MUTUAL_DELTA) {
+		TPD_INFO("%s:Melo, FTS_MUTUAL_DELTA", __func__);
+		ret = touch_i2c_write_byte(ts_data->client, FACTORY_REG_LINE_ADDR, FTS_MUTUAL_DELTA);
+	} else if (data_type == FTS_SELF_DELTA) {
+		TPD_INFO("%s:Melo, FTS_SELF_DELTA", __func__);
+		ret = touch_i2c_write_byte(ts_data->client, FACTORY_REG_LINE_ADDR, FTS_SELF_DELTA);
+	} else if (data_type == FTS_SELF_DELTA_WP) {
+		TPD_INFO("%s:Melo, FTS_SELF_DELTA_WP", __func__);
+		ret = touch_i2c_write_byte(ts_data->client, FACTORY_REG_LINE_ADDR, FTS_SELF_DELTA_WP);
 	}
-
-	ret = touch_i2c_write_byte(ts_data->client, FACTORY_REG_LINE_ADDR, 0xAA);
-
 	if (ret < 0) {
 		TPD_INFO("%s:write 0xAA to reg0x01 fail", __func__);
 		goto reg_restore;
 	}
+	msleep(20);
 
 	raw_addr = FACTORY_REG_RAWDATA_ADDR_MC_SC;
-	ret = touch_i2c_read_block(ts_data->client, raw_addr, MAX_PACKET_SIZE, buf);
+	ret = touch_i2c_read(ts_data->client, &raw_addr, 1, buf, MAX_PACKET_SIZE);
 	size = byte_num - MAX_PACKET_SIZE;
 	offset = MAX_PACKET_SIZE;
 
@@ -870,7 +883,7 @@ static void fts_key_trigger_delta_read(void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_MUTUAL_DELTA);
 	if (ret < 0) {
 		if (s) {
 			seq_printf(s, "get diff data fail\n");
@@ -947,16 +960,17 @@ static void fts_self_delta_read(struct seq_file *s, void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_SELF_DELTA);
 	if (ret < 0) {
 		seq_printf(s, "get self delta data fail\n");
 		goto raw_fail;
 	}
 
 	seq_printf(s, "self data delta \n");
+	seq_printf(s, "[rx_num] ");
 	for (i = 0; i < tx_num + rx_num; i++) {
-		if (i % DATA_LEN_EACH_RAW == 0)
-			seq_printf(s, "\n");
+		if (i == rx_num - 1)
+			seq_printf(s, "\n[tx_num] ");
 		seq_printf(s, " %5d",  raw[i]);
 	}
 	seq_printf(s, "\n");
@@ -966,16 +980,17 @@ static void fts_self_delta_read(struct seq_file *s, void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_SELF_DELTA_WP);
 	if (ret < 0) {
-		seq_printf(s, "get self delta data fail\n");
+		seq_printf(s, "get self delta data waterproof fail\n");
 		goto raw_fail;
 	}
 
 	seq_printf(s, "self data delta waterproof\n");
+	seq_printf(s, "[rx_num] ");
 	for (i = 0; i < tx_num + rx_num; i++) {
-		if (i % DATA_LEN_EACH_RAW == 0)
-			seq_printf(s, "\n");
+		if (i == rx_num - 1)
+			seq_printf(s, "\n[tx_num] ");
 		seq_printf(s, " %5d",  raw[i]);
 	}
 	seq_printf(s, "\n");
@@ -1013,7 +1028,7 @@ static void fts_self_delta_read_another(struct seq_file *s, void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_SELF_DELTA);
 	if (ret < 0) {
 		TPD_INFO("get self delta data fail\n");
 		goto raw_fail;
@@ -1041,7 +1056,7 @@ static void fts_self_delta_read_another(struct seq_file *s, void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_SELF_DELTA_WP);
 	if (ret < 0) {
 		TPD_INFO("get self delta data fail\n");
 		goto raw_fail;
@@ -1097,13 +1112,13 @@ static void fts_delta_read(struct seq_file *s, void *chip_data)
 		TPD_INFO("%s, write 0x01 to reg 0xee failed \n", __func__);
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, true);
-
+	ret = fts_get_rawdata(ts_data, raw, true, FTS_MUTUAL_DELTA);
 	if (ret < 0) {
 		seq_printf(s, "get diff data fail\n");
 		goto raw_fail;
 	}
 
+	seq_printf(s, "mutual diff data:");
 	for (i = 0; i < tx_num; i++) {
 		seq_printf(s, "\n[%2d]", i + 1);
 
@@ -1139,8 +1154,7 @@ static void fts_baseline_read(struct seq_file *s, void *chip_data)
 		goto raw_fail;
 	}
 
-	ret = fts_get_rawdata(ts_data, raw, false);
-
+	ret = fts_get_rawdata(ts_data, raw, false, FTS_MUTUAL_DELTA);
 	if (ret < 0) {
 		seq_printf(s, "get raw data fail\n");
 		goto raw_fail;
@@ -1148,7 +1162,6 @@ static void fts_baseline_read(struct seq_file *s, void *chip_data)
 
 	for (i = 0; i < tx_num; i++) {
 		seq_printf(s, "\n[%2d]", i + 1);
-
 		for (j = 0; j < rx_num; j++) {
 			seq_printf(s, " %5d,", raw[i * rx_num + j]);
 		}
@@ -1191,7 +1204,7 @@ static void fts_delta_snr_read(struct seq_file *s, void *chip_data, uint32_t cou
 			TPD_INFO("%s, write 0x81 to reg 0xee failed\n", __func__);
 		}
 
-		ret = fts_get_rawdata(ts_data, raw, true);
+		ret = fts_get_rawdata(ts_data, raw, true, FTS_MUTUAL_DELTA);
 		if (ret < 0) {
 			seq_printf(s, "get diff data fail\n");
 			goto raw_fail;
@@ -2457,6 +2470,20 @@ static int fts_diaphragm_touch_lv_set(void *chip_data, int level)
 	return 0;
 }
 
+static int fts_fp_unlock_status_write(void *chip_data, u8 value)
+{
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	int ret = 0;
+
+	TPD_INFO("fts fp_unlock_status write %u", value);
+	if (value) {
+		ret = touch_i2c_write_byte(ts_data->client, FTS_REG_FP_UNLOCK_STATE, 0x01);
+	} else {
+		ret = touch_i2c_write_byte(ts_data->client, FTS_REG_FP_UNLOCK_STATE, 0);
+	}
+	return ret;
+}
+
 static void fts_get_water_mode(void *chip_data)
 {
 	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
@@ -2732,6 +2759,7 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.set_gesture_state          = fts_set_gesture_state,
 	.send_temperature           = fts_send_temperature,
 	.diaphragm_touch_lv_set     = fts_diaphragm_touch_lv_set,
+	.fp_unlock_status_write     = fts_fp_unlock_status_write,
 	.get_glove_mode             = fts_get_glove_mode,
 	.get_water_mode             = fts_get_water_mode,
 	.force_water_mode           = fts_force_water_mode,

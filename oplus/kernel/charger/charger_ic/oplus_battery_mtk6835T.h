@@ -23,6 +23,11 @@
 
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
+
+#if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
+#include "../oplus_chg_symbol.h"
+#endif
+
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 #ifdef CONFIG_OPLUS_PD_EXT_SUPPORT

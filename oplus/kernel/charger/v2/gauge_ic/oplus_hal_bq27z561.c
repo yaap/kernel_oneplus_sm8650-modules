@@ -211,8 +211,6 @@ static int bq27z561_sealed(struct chip_bq27z561 *chip)
 static int bq27z561_i2c_deep_int(struct chip_bq27z561 *chip)
 {
 	int rc = 0;
-	u8 seal_cmd_1[2] = { 0x14, 0x04 };
-	u8 seal_cmd_2[2] = { 0x72, 0x36 };
 	int retry = 5;
 
 	if (!chip)
@@ -222,16 +220,20 @@ static int bq27z561_i2c_deep_int(struct chip_bq27z561 *chip)
 		/* need to delay 2s before write 0x0414, delay 1s before write 0x3672
 		 * make sure unseal Success rate
 		 */
-		usleep_range(2000000, 2000000);
-		bq27z561_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 2, seal_cmd_1);
+		mutex_lock(&chip->chip_mutex);
+		i2c_smbus_write_word_data(chip->client, BQ28Z610_REG_CNTL1, BQ28Z610_UNSEAL_SUBCMD1);
 		usleep_range(1000000, 1000000);
-		bq27z561_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 2, seal_cmd_2);
+		i2c_smbus_write_word_data(chip->client, BQ28Z610_REG_CNTL1, BQ28Z610_UNSEAL_SUBCMD2);
+		mutex_unlock(&chip->chip_mutex);
 
 		rc = bq27z561_sealed(chip);
-		if (rc == 1)
+		if (rc == 1) {
 			retry = 0;
-		else
+		} else {
 			retry--;
+			usleep_range(2000000, 2000000);
+			chg_info("bq27z561_unseal retry:%d, rc:%d\n", retry, rc);
+		}
 	} while (retry > 0);
 	chg_info("bq27z561_unseal flag [%d]\n", rc);
 
@@ -1010,7 +1012,7 @@ static bool get_smem_sha256_batt_info(struct chip_bq27z561 *chip,
 #endif
 }
 
-static void bq27z561_get_info(struct chip_bq27z561 *chip, u8 *info, int len)
+static int bq27z561_get_info(struct chip_bq27z561 *chip, u8 *info, int len)
 {
 	int i;
 	int j;
@@ -1046,7 +1048,7 @@ static void bq27z561_get_info(struct chip_bq27z561 *chip, u8 *info, int len)
 		ret = bq27z561_read_i2c(chip, standard[i].addr, &data);
 		if (ret < 0)
 			continue;
-		index += snprintf(info + index, len - index,
+		index += scnprintf(info + index, len - index,
 			  "0x%02x=%02x,%02x|", standard[i].addr, (data & 0xff), ((data >> 8) & 0xff));
 	}
 
@@ -1075,18 +1077,20 @@ try:
 			}
 			if (!try_count)
 				continue;
-			index += snprintf(info + index, len - index, "0x%04x=", extend[i].addr);
+			index += scnprintf(info + index, len - index, "0x%04x=", extend[i].addr);
 			for (j = 0; j < extend[i].len - 1; j++)
-				index += snprintf(info + index, len - index, "%02x,", extend_data[j + 2]);
-			index += snprintf(info + index, len - index, "%02x", extend_data[j + 2]);
+				index += scnprintf(info + index, len - index, "%02x,", extend_data[j + 2]);
+			index += scnprintf(info + index, len - index, "%02x", extend_data[j + 2]);
 			if (i < ARRAY_SIZE(extend) - 1)
 				usleep_range(2000, 2000);
 		} else {
 			mutex_unlock(&chip->bq27z561_alt_manufacturer_access);
 		}
 		if (i  <  ARRAY_SIZE(extend) - 1)
-			index += snprintf(info + index, len - index, "|");
+			index += scnprintf(info + index, len - index, "|");
 	}
+
+	return index;
 }
 
 static int oplus_bq27z561_get_reg_info(struct oplus_chg_ic_dev *ic_dev, u8 *info, int len)
@@ -1102,9 +1106,7 @@ static int oplus_bq27z561_get_reg_info(struct oplus_chg_ic_dev *ic_dev, u8 *info
 	if (!chip || atomic_read(&chip->suspended) || atomic_read(&chip->locked))
 		return -ENODEV;
 
-	bq27z561_get_info(chip, info, len);
-
-	return 0;
+	return bq27z561_get_info(chip, info, len);
 }
 
 static void oplus_bq27z561_calib_args_to_check_args(
@@ -1307,7 +1309,11 @@ RETRY:
 		}
 		/* replace checksum byte by end of string '\0' */
 		batt_sn[OPLUS_BATT_SERIAL_NUM_SIZE - 1] = '\0';
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+		strscpy(chip->battinfo.batt_serial_num, (char*)batt_sn, OPLUS_BATT_SERIAL_NUM_SIZE);
+#else
 		strlcpy(chip->battinfo.batt_serial_num, (char*)batt_sn, OPLUS_BATT_SERIAL_NUM_SIZE);
+#endif
 		chg_info("chip->battinfo.batt_serial_num %s", chip->battinfo.batt_serial_num);
 	} else {
 		chg_err("get sn failed");
@@ -1654,7 +1660,11 @@ static int oplus_get_battinfo_sn(struct oplus_chg_ic_dev *ic_dev, char buf[], in
 		return -EINVAL;
 
 	chg_info("BattSN(%s):%s", ic_dev->name, chip->battinfo.batt_serial_num);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	bsnlen = strscpy(buf, chip->battinfo.batt_serial_num, OPLUS_BATT_SERIAL_NUM_SIZE);
+#else
 	bsnlen = strlcpy(buf, chip->battinfo.batt_serial_num, OPLUS_BATT_SERIAL_NUM_SIZE);
+#endif
 
 	return bsnlen;
 }
@@ -1904,6 +1914,41 @@ static int oplus_get_manu_date(struct oplus_chg_ic_dev *ic_dev, char buf[], int 
 				(chip->battinfo.manu_date >> 5) & 0xF, chip->battinfo.manu_date & 0x1F);
 
 	return date_len;
+}
+
+static int oplus_get_dec_fg_type(struct oplus_chg_ic_dev *ic_dev, int *fg_type)
+{
+	struct chip_bq27z561 *chip;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+
+	if (!chip || !fg_type)
+		return -EINVAL;
+
+	*fg_type = DEC_CV_PACK_SINGLE;
+
+	return 0;
+}
+
+static int oplus_bq27z561_get_dec_cv_soh(struct oplus_chg_ic_dev *ic_dev, int *dec_soh)
+{
+	struct chip_bq27z561 *chip;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip || !dec_soh)
+		return -EINVAL;
+
+	*dec_soh = chip->cc_pre;
+
+	return 0;
 }
 
 static void oplus_get_manu_battinfo_work(struct work_struct *work)
@@ -3629,6 +3674,14 @@ static void *oplus_chg_get_func(
 	case OPLUS_IC_FUNC_GAUGE_GET_MANU_DATE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_MANU_DATE,
 					      oplus_get_manu_date);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE,
+					   oplus_get_dec_fg_type);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH,
+					   oplus_bq27z561_get_dec_cv_soh);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);

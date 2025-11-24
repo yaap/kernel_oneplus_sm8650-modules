@@ -201,6 +201,10 @@ struct nvt_autotest_offset {
 	int32_t *pen_ring_x_noise_data_n;
 	int32_t *pen_ring_y_noise_data_p;
 	int32_t *pen_ring_y_noise_data_n;
+	int32_t pen_tip_x_noise_data_p2p;
+	int32_t pen_tip_y_noise_data_p2p;
+	int32_t pen_ring_x_noise_data_p2p;
+	int32_t pen_ring_y_noise_data_p2p;
 };
 
 struct nvt_auto_test_operations {

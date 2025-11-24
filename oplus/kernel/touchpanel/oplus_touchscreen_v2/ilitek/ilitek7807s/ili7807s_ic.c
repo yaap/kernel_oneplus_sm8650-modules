@@ -316,6 +316,75 @@ int ili_ic_code_reset(bool mcu)
 	return ret;
 }
 
+void ili_get_dma1_config(struct ilitek_dma_config *dma)
+{
+	/* dma1 src1 address */
+	if (ili_ice_mode_read(0x072104, &dma->src_addr, 4) < 0)
+		ILI_ERR("read dma1 src1 address failed\n");
+	/* dma1 src1 format */
+	if (ili_ice_mode_read(0x072108, &dma->src_fmt, 4) < 0)
+		ILI_ERR("read dma1 src1 format failed\n");
+	/* dma1 dest address */
+	if (ili_ice_mode_read(0x072114, &dma->dest_addr, 4) < 0)
+		ILI_ERR("read dma1 src1 format failed\n");
+	/* dma1 dest format */
+	if (ili_ice_mode_read(0x072118, &dma->dest_fmt, 4) < 0)
+		ILI_ERR("read dma1 dest format failed\n");
+	/* Block size */
+	if (ili_ice_mode_read(0x07211C, &dma->block_size, 4) < 0)
+		ILI_ERR("read block size (%d) failed\n", dma->block_size);
+	ILI_DBG("dma.src_addr=0x%x, dma.src_fmt=0x%x, dma.dest_addr=0x%x, dma.dest_fmt=0x%x, dma.block_size=0x%x\n"
+		, dma->src_addr, dma->src_fmt, dma->dest_addr, dma->dest_fmt, dma->block_size);
+	/* DMA Control Switch */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == ILI_V) {
+		if (ili_ice_mode_read(0x0722B8, &dma->dmaControlSwitch, 1) < 0)
+			ILI_ERR("read dma control switch (%d) failed\n", dma->dmaControlSwitch);
+		ILI_DBG("dma.dma_control_switch=0x%x\n", dma->dmaControlSwitch);
+		if (ili_ice_mode_write(0x0722B8, dma->dmaControlSwitch & 0xFD, 1) < 0)
+			ILI_ERR("Write dma control switch (%d) failed\n", dma->dmaControlSwitch & 0xFD);
+		ILI_DBG("dma.dma_control_switch=0x%x\n", dma->dmaControlSwitch & 0xFD);
+	}
+}
+
+void ili_set_dma1_config(struct ilitek_dma_config *dma)
+{
+	ILI_DBG("dma.src_addr=0x%x, dma.src_fmt=0x%x, dma.dest_addr=0x%x, dma.dest_fmt=0x%x, dma.block_size=0x%x\n"
+		, dma->src_addr, dma->src_fmt, dma->dest_addr, dma->dest_fmt, dma->block_size);
+	/* dma1 src1 address */
+	if (ili_ice_mode_write(0x072104, dma->src_addr, 4) < 0)
+		ILI_ERR("Write dma1 src1 address failed\n");
+	/* dma1 src1 format */
+	if (ili_ice_mode_write(0x072108, dma->src_fmt, 4) < 0)
+		ILI_ERR("Write dma1 src1 format failed\n");
+	/* dma1 dest address */
+	if (ili_ice_mode_write(0x072114, dma->dest_addr, 4) < 0)
+		ILI_ERR("Write dma1 src1 format failed\n");
+	/* dma1 dest format */
+	if (ili_ice_mode_write(0x072118, dma->dest_fmt, 4) < 0)
+		ILI_ERR("Write dma1 dest format failed\n");
+	/* Block size*/
+	if (ili_ice_mode_write(0x07211C, dma->block_size, 4) < 0)
+		ILI_ERR("Write block size (%d) failed\n", dma->block_size);
+	/* Disable CRC calc settings */
+	if (ili_ice_mode_write(0x041014, 0x0, 4) < 0)
+		ILI_ERR("Write dma CRC calc settings failed\n");
+	/* Dma1 stop */
+	if (ili_ice_mode_write(0x072100, 0x02040000, 4) < 0)
+		ILI_ERR("Write dma1 stop failed\n");
+	/* clr int */
+	if (ili_ice_mode_write(0x048006, 0x2, 1) < 0)
+		ILI_ERR("Write clr int failed\n");
+	/* Dma1 start */
+	if (ili_ice_mode_write(0x072100, 0x01040000, 4) < 0)
+		ILI_ERR("Write dma1 start failed\n");
+	/* DMA Control Switch */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == ILI_V) {
+		if (ili_ice_mode_write(0x0722B8, dma->dmaControlSwitch, 1) < 0)
+			ILI_ERR("Write dma control switch (%d) failed\n", dma->dmaControlSwitch);
+		ILI_DBG("dma.dma_control_switch=0x%x\n", dma->dmaControlSwitch);
+	}
+}
+
 int ili_ic_whole_reset(bool mcu)
 {
 	int ret = 0;

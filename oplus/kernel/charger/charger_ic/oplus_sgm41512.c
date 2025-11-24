@@ -2319,6 +2319,7 @@ static void sgm41512_init_work_handler(struct work_struct *work)
 }
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static enum power_supply_usb_type sgm41512_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_UNKNOWN,
 	POWER_SUPPLY_USB_TYPE_SDP,
@@ -2329,6 +2330,7 @@ static enum power_supply_usb_type sgm41512_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
 	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
 };
+#endif
 
 static enum power_supply_property sgm41512_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -2388,8 +2390,19 @@ static char *sgm41512_charger_supplied_to[] = {
 
 static const struct power_supply_desc sgm41512_charger_desc = {
 	.type			= POWER_SUPPLY_TYPE_USB,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.usb_types      = sgm41512_charger_usb_types,
 	.num_usb_types  = ARRAY_SIZE(sgm41512_charger_usb_types),
+#else
+	.usb_types      = BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN) |
+				  BIT(POWER_SUPPLY_USB_TYPE_SDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_DCP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_CDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_C) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD_DRP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID),
+#endif
 	.properties 	= sgm41512_charger_properties,
 	.num_properties 	= ARRAY_SIZE(sgm41512_charger_properties),
 	.get_property		= sgm41512_charger_get_property,
@@ -2505,9 +2518,12 @@ static struct charger_ops sgm41512_charger_ops = {
 #define INIT_WORK_NORMAL_DELAY 8000
 #define INIT_WORK_OTHER_DELAY 1000
 
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static int sgm41512_charger_probe(struct i2c_client *client)
+#else
 static int sgm41512_charger_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
+#endif
 {
 	struct chip_sgm41512 *chip = NULL;
 	int ret = 0;

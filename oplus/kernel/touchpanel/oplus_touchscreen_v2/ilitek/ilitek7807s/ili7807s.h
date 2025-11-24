@@ -72,7 +72,7 @@
 #include "../ilitek_common.h"
 #include <soc/oplus/system/oplus_project.h>
 
-#define DRIVER_VERSION                  "3.0.4.0.230913"
+#define DRIVER_VERSION                  "3.0.4.0.250514"
 
 /* Options */
 #define TR_BUF_SIZE                 (2*K)  /* Buffer size of touch report */
@@ -188,6 +188,8 @@ extern bool ili_debug_en;
 #define SPI_BUF_SIZE                MAX_HEX_FILE_SIZE
 #define INFO_HEX_ST_ADDR            0x4F
 #define INFO_MP_HEX_ADDR            0x1F
+
+#define DEFINED_MODE_NUM		    3
 
 /* Dummy Registers */
 #define WDT_DUMMY_BASED_ADDR        0x5101C
@@ -421,7 +423,7 @@ enum TP_FW_BLOCK_NUM {
 	TAG = 7,
 	PARA_BACKUP = 8,
 	RESERVE_BLOCK3 = 9,
-	RESERVE_BLOCK4 = 10,
+	PEN = 10,
 	RESERVE_BLOCK5 = 11,
 	RESERVE_BLOCK6 = 12,
 	RESERVE_BLOCK7 = 13,
@@ -430,9 +432,23 @@ enum TP_FW_BLOCK_NUM {
 	RESERVE_BLOCK10 = 16
 };
 
+/* Tag Info 0xB1 */
+enum TP_FW_B1_BLOCK_NUM {
+	CUSTOMER = 1,
+	MPDATA = 2,
+	TRIMCODE = 3,
+};
+
+enum TP_FW_BLOCK_MODES_NEED_UPGRADE {
+	NEED_UPGRADE_AP = 0,
+	NEED_UPGRADE_MP = 1,
+	NEED_UPGRADE_GESTURE = 2,
+};
+
 enum TP_FW_BLOCK_TAG {
 	BLOCK_TAG_AF = 0xAF,
-	BLOCK_TAG_B0 = 0xB0
+	BLOCK_TAG_B0 = 0xB0,
+	BLOCK_TAG_B2 = 0xB2
 };
 
 enum TP_RECORD_DATA {
@@ -588,6 +604,15 @@ struct open_test_para {
 	int cbk_step;
 	int cint;
 	int accuracy;
+};
+
+struct ilitek_dma_config {
+	u32 src_addr;
+	u32 src_fmt;
+	u32 dest_addr;
+	u32 dest_fmt;
+	u32 block_size;
+	u32 dmaControlSwitch;
 };
 
 struct shor_test_para {
@@ -1034,6 +1059,8 @@ extern void ili_gesture_fail_reason(bool enable);
 extern int ili_get_tp_recore_ctrl(int data);
 extern int ili_get_tp_recore_data(u16 *out_buf, u32 out_len);
 extern void ili_demo_debug_info_mode(u8 *buf, size_t rlen);
+extern void ili_get_dma1_config(struct ilitek_dma_config *dma);
+extern void ili_set_dma1_config(struct ilitek_dma_config *dma);
 
 static inline void ili_kfree(void **mem)
 {

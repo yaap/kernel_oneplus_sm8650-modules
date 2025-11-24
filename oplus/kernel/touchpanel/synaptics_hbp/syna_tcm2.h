@@ -313,6 +313,7 @@ typedef enum debug_level {
 enum fingerprint_err_type {
 	FOD_ENABLE_NO_ERROR = 0,
 	/* reserved 1-6 */
+	FINGERPRINT_OUT_MOVE_IN = 6,
 	FINGERPRINT_AREA_NOT_MATCH = 7,
 	ANOTHER_FINGER_ON_NON_FP_ZONE = 8,
 	FINGERPRINT_DOWN_BEFORE_FP_ENABLE = 9,
@@ -691,6 +692,7 @@ struct syna_tcm {
 
 	/* flags */
 	int probe_done;
+	int is_update_log;
 	int pwr_state;
 	int sub_pwr_state;
 	bool slept_in_early_suspend;
@@ -765,6 +767,7 @@ struct syna_tcm {
 	bool exception_upload_support;
 	struct exception_data    exception_data;            /*exception_data monitor data*/
 
+	bool fingerprint_not_report_in_suspend;
 	/* fifo to pass the data to userspace */
 	unsigned int fifo_remaining_frame;
 	struct list_head frame_fifo_queue;

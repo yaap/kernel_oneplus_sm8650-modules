@@ -1065,6 +1065,7 @@ static ssize_t ilitek_node_change_list_read(struct file *filp,
 			"============= Change list ==============\n");
 	len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "[Drive version] = %s\n",
 			DRIVER_VERSION);
+	len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "add B2 TAG\n");
 	/* len += snprintf(g_user_buf + len, USER_STR_BUFF - len, "[Patch] 202001-0001\n");*/
 	len += snprintf(g_user_buf + len, USER_STR_BUFF - len,
 			"========================================\n");

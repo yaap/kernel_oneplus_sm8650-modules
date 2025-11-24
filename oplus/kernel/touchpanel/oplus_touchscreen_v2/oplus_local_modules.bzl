@@ -33,7 +33,7 @@ def define_oplus_local_modules():
         ],
         includes = ["."],
 #        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
-	conditional_defines = {
+        conditional_defines = {
             "mtk":  ["CONFIG_TOUCHPANEL_MTK_PLATFORM","CONFIG_TOUCHPANEL_MULTI_NOFLASH"],
         },
     )
@@ -52,7 +52,7 @@ def define_oplus_local_modules():
         ],
         includes = ["."],
 #        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
-	conditional_defines = {
+        conditional_defines = {
             "mtk":  ["CONFIG_TOUCHPANEL_MTK_PLATFORM","CONFIG_TOUCHPANEL_MULTI_NOFLASH"],
         },
     )
@@ -111,6 +111,36 @@ def define_oplus_local_modules():
         srcs = native.glob([
             "**/*.h",
             "Novatek/NT36532_noflash/nvt_drivers_nt36532_noflash.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_novatek_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_nt36536_noflash",
+        srcs = native.glob([
+            "**/*.h",
+            "Novatek/NT36536_noflash/nvt_drivers_nt36536_noflash.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_novatek_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_nt36532c",
+        srcs = native.glob([
+            "**/*.h",
+            "Novatek/NT36532C/nvt_drivers_nt36532c.c",
         ]),
         ko_deps = [
             "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
@@ -230,6 +260,22 @@ def define_oplus_local_modules():
             "**/*.h",
             "Focal/ft3518/ft3518_driver.c",
             "Focal/ft3518/ft3518_test.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_focal_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_ft3419u",
+        srcs = native.glob([
+            "**/*.h",
+            "Focal/ft3419u/ft3419u_driver.c",
+            "Focal/ft3419u/ft3419u_test.c",
         ]),
         ko_deps = [
             "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
@@ -390,17 +436,20 @@ def define_oplus_local_modules():
             "oplus_bsp_tp_nt36672c_noflash",
             "oplus_bsp_tp_nt36528_noflash",
             "oplus_bsp_tp_nt36532_noflash",
+            "oplus_bsp_tp_nt36532c",
+            "oplus_bsp_tp_nt36536_noflash",
             "oplus_bsp_tp_focal_common",
             "oplus_bsp_tp_ft3681",
             "oplus_bsp_tp_ft3658u_spi",
             "oplus_bsp_tp_ft3518",
+            "oplus_bsp_tp_ft3419u",
             "oplus_bsp_tp_ft8057p",
             "oplus_bsp_tp_goodix_comnon",
             "oplus_bsp_tp_gt9966",
-	    "oplus_bsp_tp_gt9916",
-	    "oplus_bsp_tp_ilitek_common",
-	    "oplus_bsp_tp_ilitek7807s",
-	    "oplus_bsp_tp_custom",
+            "oplus_bsp_tp_gt9916",
+            "oplus_bsp_tp_ilitek_common",
+            "oplus_bsp_tp_ilitek7807s",
+            "oplus_bsp_tp_custom",
             "oplus_bsp_tp_common",
         ],
     )

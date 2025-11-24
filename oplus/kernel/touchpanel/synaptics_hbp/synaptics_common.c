@@ -294,10 +294,15 @@ full_out:
 	return error_count;
 }
 
+static int raw_cap_data_restriction(int val, int raw_cap_restriction)
+{
+	return val * raw_cap_restriction / 100;
+}
+
 int syna_full_rawcap_test(struct seq_file *s, void *chip_data,
 				 struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info)
 {
-	uint16_t u_data16 = 0;
+	uint16_t u_data16 = 0, r_u_data16 = 0;
 	int i = 0, ret = 0, index = 0, byte_cnt = 2;
 	int error_count = 0;
 	struct syna_tcm *tcm = (struct syna_tcm *)chip_data;
@@ -360,13 +365,15 @@ int syna_full_rawcap_test(struct seq_file *s, void *chip_data,
 		store_to_file(syna_testdata->fp, syna_testdata->length,
 			      syna_testdata->pos, "%04d, ", u_data16);
 
-		if ((u_data16 < p_mutual_n[index]) || (u_data16 > p_mutual_p[index])) {
-			TPD_INFO("full rawcap test failed at node[%d]=%d [%d %d].\n", index, u_data16,
+		r_u_data16 = raw_cap_data_restriction(u_data16, syna_testdata->raw_cap_restriction);
+
+		if ((r_u_data16 < p_mutual_n[index]) || (r_u_data16 > p_mutual_p[index])) {
+			TPD_INFO("full rawcap test failed at node[%d]=%d restriction[%d] [%d %d].\n", index, u_data16, r_u_data16,
 				 p_mutual_n[index], p_mutual_p[index]);
 
 			if (!error_count) {
-				seq_printf(s, "full rawcap test failed at node[%d]=%d [%d %d].\n", index,
-					   u_data16, p_mutual_n[index], p_mutual_p[index]);
+				seq_printf(s, "full rawcap test failed at node[%d]=%d restriction[%d] [%d %d].\n", index,
+					   u_data16, r_u_data16, p_mutual_n[index], p_mutual_p[index]);
 			}
 
 			error_count++;
@@ -1026,6 +1033,43 @@ int syna_hybrid_rawcap_test_ad(struct seq_file *s, void *chip_data,
 	return error_count;
 }
 
+int syna_rst_test(struct seq_file *s, void *chip_data,
+				   struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info)
+{
+	int i = 0;
+	int count = 2;
+	int error_count = 0;
+	unsigned char code = 0;
+	struct syna_tcm *tcm = (struct syna_tcm *)chip_data;
+	struct tcm_message_data_blob *tcm_msg = NULL;
+
+	TPD_INFO("%s start.\n", __func__);
+
+	if (tcm->tcm_dev == NULL) {
+		TPD_INFO("%s tcm_dev is NULL\n", __func__);
+		error_count++;
+		goto exit;
+	}
+
+	tcm_msg = &tcm->tcm_dev->msg_data;
+
+	for (i = 0; i < count; i++) {
+		if (tcm->hw_if->ops_hw_reset) {
+			tcm->hw_if->ops_hw_reset(tcm->hw_if);
+			code = tcm_msg->status_report_code;
+
+			TPD_INFO("%s event code:0x%x\n", __func__, code);
+			if (code != REPORT_IDENTIFY)
+				error_count++;
+		} else {
+			TPD_INFO("%s no hardware reset \n", __func__);
+			error_count++;
+		}
+	}
+exit:
+	return error_count;
+}
+
 int synaptics_auto_test(struct seq_file *s,  struct device *dev)
 {
 	int ret = 0;
@@ -1126,6 +1170,8 @@ int synaptics_auto_test(struct seq_file *s,  struct device *dev)
 	/*syna_testdata.tp_fw     = FW_IMAGE_NAME;*/
 	syna_testdata.fw        =  tcm->com_test_data.limit_fw;
 	syna_testdata.test_item = test_head->test_item;
+	syna_testdata.raw_cap_restriction = tcm->com_test_data.raw_cap_restriction;
+
 	sscanf(tcm->tcm_dev->app_info.customer_config_id, "%llu", &syna_testdata.tp_fw);
 
 	/* TPD_INFO("%s, : send display off signal\n", __func__);
@@ -1338,6 +1384,17 @@ int synaptics_auto_test(struct seq_file *s,  struct device *dev)
 
 		if (ret > 0) {
 			TPD_INFO("synaptics_capacity_test failed! ret is %d\n", ret);
+			error_count++;
+		}
+	}
+
+	if (!syna_test_ops->test12) {
+		TPD_INFO("item: %d not support\n", TYPE_TEST12);
+	} else {
+		ret = syna_test_ops->test12(s, tcm, &syna_testdata, NULL);
+
+		if (ret > 0) {
+			TPD_INFO("synaptics_rsttest failed! ret is %d\n", ret);
 			error_count++;
 		}
 	}

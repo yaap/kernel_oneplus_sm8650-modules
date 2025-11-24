@@ -13,6 +13,8 @@
 #define NFG8011B_SUBCMD_DA_STATUS2	0X0072
 #define NFG8011B_SUBCMD_IT_STATUS1	0X0073
 #define NFG8011B_DATAFLASHBLOCK		0x3E
+#define NFG8011B_FORCE_TO_0		0xC3
+#define NFG8011B_FW_VERSION		0x02
 #define NFG8011B_REG_CIS_ALERT_LEVEL	0x72
 #define NFG8011B_SUBCMD_CHEMID		0X0006
 #define NFG8011B_SUBCMD_GAUGE_STATUS	0X0056
@@ -26,6 +28,8 @@
 #define NFG8011B_SUBCMD_ISC_INFO_ADDR	0x0093
 #define NFG8011B_SUBCMD_IPM_ADDR	    0x007C
 #define NFG8011B_SUBCMD_ALG_ADDR_1 0x007D
+#define NFG8011B_SUBCMD_ISC_LAST_TEN_ADDR 0x0090
+#define NFG8011B_SUBCMD_SOH2_ADDR	0x009D
 
 #define NFG8011B_SUBCMD_MANU_INFO_ADDR		0x0070
 #define NFG8011B_SUBCMD_MANU_DATE_ADDR		0x004D
@@ -66,8 +70,11 @@
 #define NFG8011B_CHEMISTRY_ID_ADDR		0x40
 #define NFG8011B_CHEMISTRY_ID_SIZE		8
 
+#define NFG801B_REG_RSOC_CENTI			0x1E
+
 #ifdef CONFIG_OPLUS_GAUGE_NFG8011B
 bool nfg8011b_sha256_hmac_authenticate(struct chip_bq27541 *chip);
+int nfg8011b_get_car_c_parameters(struct chip_bq27541 *chip, int *car_c_ptr);
 int nfg8011b_get_qmax_parameters(struct chip_bq27541 *chip, int *cell_qmax);
 int nfg8011b_get_dod0_parameters(struct chip_bq27541 *chip, int *cell_dod);
 int nfg8011b_get_calib_time(struct chip_bq27541 *chip, int *dod_time, int *qmax_time);
@@ -83,6 +90,8 @@ int nfg8011b_set_sili_ic_alg_cfg(struct chip_bq27541 *chip, int config);
 int nfg8011b_set_sili_ic_alg_term_volt(struct chip_bq27541 *chip, int sys_term_vol);
 int nfg8011b_get_sili_lifetime_status(struct chip_bq27541 *chip, struct oplus_gauge_lifetime *lifetime_status);
 int nfg8011b_get_sili_lifetime_info(struct chip_bq27541 *chip, u8 *buf, int len);
+int nfg8011b_set_battery_full(struct chip_bq27541 *chip, bool full);
+int nfg8011b_set_soc_froce_to_0_threshold(struct chip_bq27541 *chip, u16 voltage_mv, u16 time_sec);
 int nfg8011b_get_sili_alg_application_info(struct chip_bq27541 *chip, u8 *buf, int len);
 int nfg8011b_get_sili_chemistry_info(struct chip_bq27541 *chip, u8 *info, int len);
 int nfg8011b_get_last_cc(struct chip_bq27541 *chip, int *cc);
@@ -90,10 +99,16 @@ int nfg8011b_set_last_cc(struct chip_bq27541 *chip, int cc);
 int nfg8011b_read_block(struct chip_bq27541 *chip, int addr, u8 *buf, int len, int offset, bool do_checksum);
 int nfg8011b_write_block(struct chip_bq27541 *chip, int addr, u8 *buf, int len, int offset, bool do_checksum);
 void nfg8011b_effect_term_volt_init(struct chip_bq27541 *chip);
+int nfg8011b_soc_centi_init(struct chip_bq27541 *chip);
 #else
 bool nfg8011b_sha256_hmac_authenticate(struct chip_bq27541 *chip)
 {
 	return false;
+}
+
+int nfg8011b_get_car_c_parameters(struct chip_bq27541 *chip, int *car_c_ptr)
+{
+	return 0;
 }
 
 int nfg8011b_get_qmax_parameters(struct chip_bq27541 *chip, int *cell_qmax)
@@ -171,6 +186,16 @@ int nfg8011b_get_sili_lifetime_info(struct chip_bq27541 *chip, u8 *buf, int len)
 	return 0;
 }
 
+int nfg8011b_set_battery_full(struct chip_bq27541 *chip, bool full)
+{
+	return 0;
+}
+
+int nfg8011b_set_soc_froce_to_0_threshold(struct chip_bq27541 *chip, u16 voltage_mv, u16 time_sec)
+{
+	return 0;
+}
+
 int nfg8011b_get_sili_alg_application_info(struct chip_bq27541 *chip, u8 *buf, int len)
 {
 	return 0;
@@ -203,6 +228,11 @@ int nfg8011b_write_block(struct chip_bq27541 *chip, int addr, u8 *buf, int len, 
 
 void nfg8011b_effect_term_volt_init(struct chip_bq27541 *chip)
 {
+}
+
+int nfg8011b_soc_centi_init(struct chip_bq27541 *chip)
+{
+	return 0;
 }
 #endif
 

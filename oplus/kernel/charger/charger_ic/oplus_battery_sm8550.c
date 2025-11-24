@@ -12712,7 +12712,7 @@ static const struct proc_ops proc_debug_reg_ops =
 	.proc_read = proc_debug_reg_read,
 	.proc_write  = proc_debug_reg_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 #ifdef WLS_QI_DEBUG
@@ -12770,7 +12770,7 @@ static const struct proc_ops proc_icl_ops =
 	.proc_read = proc_icl_read,
 	.proc_write  = proc_icl_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 static ssize_t proc_fcc_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
@@ -12827,7 +12827,7 @@ static const struct proc_ops proc_fcc_ops =
 	.proc_read = proc_fcc_read,
 	.proc_write  = proc_fcc_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif /*WLS_QI_DEBUG*/
 #endif
@@ -13208,7 +13208,7 @@ static void oplus_chg_track_icl_err_load_trigger_work(
 	if (!bcdev->icl_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->icl_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->icl_err_load_trigger);
 	mutex_lock(&bcdev->track_icl_err_lock);
 	kfree(bcdev->icl_err_load_trigger);
 	bcdev->icl_err_load_trigger = NULL;
@@ -13226,7 +13226,7 @@ static void oplus_chg_track_adsp_err_load_trigger_work(
 	if (!bcdev->adsp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->adsp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->adsp_err_load_trigger);
 	mutex_lock(&bcdev->track_adsp_err_lock);
 	kfree(bcdev->adsp_err_load_trigger);
 	bcdev->adsp_err_load_trigger = NULL;

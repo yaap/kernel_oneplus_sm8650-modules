@@ -26,7 +26,7 @@
 #include <oplus_chg_ic.h>
 #include <oplus_hal_vooc.h>
 #include <oplus_mms_gauge.h>
-
+#include <oplus_chg_monitor.h>
 
 struct oplus_virtual_vphy_gpio {
 	int switch_ctrl_gpio;
@@ -65,6 +65,7 @@ struct oplus_virtual_vphy_ic {
 	enum oplus_chg_vooc_switch_mode switch_mode;
 
 	struct work_struct data_handler_work;
+	struct delayed_work upload_device_id_work;
 
 	bool use_dpdm_switch_ic;
 };
@@ -74,6 +75,50 @@ static struct oplus_chg_ic_virq oplus_vphy_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_ERR },
 	{ .virq_id = OPLUS_IC_VIRQ_VOOC_DATA },
 };
+
+static void oplus_vphy_upload_device_id_subscribe_error_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_vphy_ic *chip = prv_data;
+
+	/* delay 50ms upload for error topic init stop publish finish */
+	schedule_delayed_work(&chip->upload_device_id_work, msecs_to_jiffies(50));
+}
+
+static void oplus_vphy_upload_device_id_work(struct work_struct *work)
+{
+	int rc;
+	struct mms_msg *msg;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_virtual_vphy_ic *chip = container_of(dwork,
+		struct oplus_virtual_vphy_ic, upload_device_id_work);
+	struct oplus_mms *err_topic = oplus_mms_get_by_name("error");
+
+	if (!err_topic)
+		return;
+
+	if (!chip->vphy)
+		return;
+
+	msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM,
+		MSG_PRIO_MEDIUM, ERR_ITEM_DEVICE_ID, "vooc_ic=%s", chip->vphy->name);
+	if (msg == NULL) {
+		chg_err("alloc device id msg error\n");
+		return;
+	}
+
+	rc = oplus_mms_publish_msg_sync(err_topic, msg);
+	if (rc < 0) {
+		chg_err("publish device id msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+}
+
+static void oplus_vphy_upload_device_id(struct oplus_virtual_vphy_ic *chip)
+{
+	oplus_mms_wait_topic("error",
+		oplus_vphy_upload_device_id_subscribe_error_topic, chip);
+}
 
 static void oplus_vphy_err_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
 {
@@ -175,6 +220,7 @@ static int oplus_chg_vphy_init(struct oplus_chg_ic_dev *ic_dev)
 
 init_done:
 	oplus_vphy_virq_register(va);
+	oplus_vphy_upload_device_id(va);
 	return rc;
 }
 
@@ -1078,6 +1124,7 @@ static int oplus_virtual_vphy_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, chip);
 
 	INIT_WORK(&chip->data_handler_work, oplus_vphy_data_handler_work);
+	INIT_DELAYED_WORK(&chip->upload_device_id_work, oplus_vphy_upload_device_id_work);
 
 	chip->use_dpdm_switch_ic = of_property_read_bool(node, "oplus,dpdm_switch_ic");
 	if (chip->use_dpdm_switch_ic)
@@ -1143,12 +1190,21 @@ child_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_vphy_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_vphy_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_vphy_ic *chip = platform_get_drvdata(pdev);
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_vphy_exit(chip->ic_dev);
@@ -1165,7 +1221,9 @@ static int oplus_virtual_vphy_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_vphy_match[] = {

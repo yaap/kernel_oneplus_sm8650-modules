@@ -66,6 +66,9 @@ struct auto_testdata {
 	uint64_t test_item;
 	char *test_list_log;
 	int list_write_count;
+
+	/*raw cap test max min test*/
+	int raw_cap_restriction;
 };
 
 struct auto_test_item_header {

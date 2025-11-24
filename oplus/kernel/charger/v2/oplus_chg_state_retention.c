@@ -830,21 +830,31 @@ static int oplus_chg_state_retention_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_retention_charge_remove(struct platform_device *pdev)
+#else
 static int oplus_retention_charge_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_retention_charge *chip = platform_get_drvdata(pdev);
 
 #ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 	if (get_eng_version() == FACTORY) {
 		chg_info("FACTORY MODE not support retention_chg.\n");
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return 0;
+#else
+		return;
+#endif
 	}
 #endif
 	if (!IS_ERR_OR_NULL(chip->wired_subs))
 		oplus_mms_unsubscribe(chip->wired_subs);
 	devm_kfree(&pdev->dev, chip);
 	kfree(retention);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_retention_charge_match[] = {

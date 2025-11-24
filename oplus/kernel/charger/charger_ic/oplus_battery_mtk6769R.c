@@ -4975,6 +4975,12 @@ struct oplus_chg_operations  oplus_chg_default_ops = {
 	.get_platform_gauge_curve = oplus_chg_choose_gauge_curve,
 };
 
+static void oplus_check_chg_plugin(struct oplus_chg_chip *chip)
+{
+	if(chip && chip->chg_ops && chip->chg_ops->check_chg_plugin)
+		chip->chg_ops->check_chg_plugin();
+}
+
 static int oplus_charger_probe(struct platform_device *pdev)
 {
 	struct charger_manager *info = NULL;
@@ -5245,6 +5251,8 @@ static int oplus_charger_probe(struct platform_device *pdev)
 		ret = device_create_file(&oplus_chip->batt_psy->dev, &dev_attr_StopCharging_Test);/*stop charging*/
 		ret = device_create_file(&oplus_chip->batt_psy->dev, &dev_attr_StartCharging_Test);
 	}
+
+	oplus_check_chg_plugin(oplus_chip);
 
 	return 0;
 }

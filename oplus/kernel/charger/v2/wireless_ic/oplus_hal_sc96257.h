@@ -18,6 +18,12 @@
 #define FIRMWARE_LENGTH			(32 * 1024)
 
 #define FW_VERSION_OFFSET		8
+#define INVALID_FW_VERSION0		0x0
+#define INVALID_FW_VERSION1		0xFFFFFFFF
+
+#define FW_CHECKSUM_UNKNOWN		0
+#define FW_CHECKSUM_OK			1
+#define FW_CHECKSUM_FAIL		-1
 
 #define SRAM_BASE_ADDRESS		0x1000
 
@@ -166,6 +172,7 @@ enum {
 #define AP_CMD_RX_VOUT_DISABLE		BIT(16)
 #define AP_CMD_RX_RPP_8BIT		BIT(17)
 #define AP_CMD_RX_RPP_16BIT		BIT(18)
+#define AP_CMD_RX_FOD_ENABLE		BIT(20)
 /*tx only*/
 #define AP_CMD_TX_FRQ_SHIFT		BIT(8)
 #define AP_CMD_TX_ENABLE		BIT(9)
@@ -246,6 +253,7 @@ enum {
 #define WP_IRQ_RX_V2X_OVP		BIT(27)
 #define WP_IRQ_RX_V2X_VV_UVP		BIT(28)
 #define WP_IRQ_RX_V2X_VV_OVP		BIT(29)
+#define WP_IRQ_RX_EPP_ID_SUCCESS	BIT(30)
 /*tx only*/
 #define WP_IRQ_TX_DET_RX		BIT(14)
 #define WP_IRQ_TX_EPT			BIT(15)
@@ -258,8 +266,10 @@ enum {
 #define WP_IRQ_TX_SS_PKT		BIT(22)
 #define WP_IRQ_TX_ID_PKT		BIT(23)
 #define WP_IRQ_TX_CFG_PKT		BIT(24)
+#define WP_IRQ_TX_POCP			BIT(25)
 #define WP_IRQ_TX_READY			BIT(26)
 #define WP_IRQ_TX_AC_PRESENT		BIT(27)
+#define WP_IRQ_TX_VAC_PRESENT		BIT(28)
 
 /**************ept reason*************/
 enum ept_reason_e {
@@ -319,5 +329,7 @@ enum ept_reason_e {
 #define SC96257_TX_STATUS_READY		WP_IRQ_TX_READY
 #define SC96257_TX_STATUS_DIGITALPING	WP_IRQ_TX_PING
 #define SC96257_TX_STATUS_TRANSFER	WP_IRQ_TX_PT
+
+#define SC96257_FOD_PARM_LEN_MAX	32
 
 #endif /* __OPLUS_HAL_SC96257_H__ */

@@ -128,10 +128,6 @@ bool __attribute__((weak)) oplus_get_wired_chg_present(void)
 {
 	return false;
 }
-void __attribute__((weak)) oplus_get_gauge_chip_is_null_pfunc(bool (*pfunc)(void))
-{
-	return;
-}
 
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 
@@ -189,6 +185,8 @@ EXPORT_SYMBOL(oplus_is_ptcrb_version);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 extern void oplus_vooc_get_fastchg_started_pfunc(bool (*pfunc)(void));
 extern void oplus_vooc_get_fastchg_ing_pfunc(bool (*pfunc)(void));
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 extern void oplus_get_gauge_chip_is_null_pfunc(bool (*pfunc)(void));
 #endif
 
@@ -3179,6 +3177,8 @@ static int __init discrete_charger_init(void)
 	&& LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	oplus_vooc_get_fastchg_started_pfunc(&oplus_vooc_get_fastchg_started);
 	oplus_vooc_get_fastchg_ing_pfunc(&oplus_vooc_get_fastchg_ing);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 	oplus_get_gauge_chip_is_null_pfunc(&oplus_gauge_check_chip_is_null);
 #endif
 	oplus_optiga_driver_init();

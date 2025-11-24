@@ -26,14 +26,27 @@
 #include "../v1/oplus_charger.h"
 #endif
 
-#if IS_ENABLED(CONFIG_DEVICE_MODULES_PINCTRL_MTK_V2) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#if IS_ENABLED(CONFIG_PINCTRL_MTK_V2) || IS_ENABLED(CONFIG_DEVICE_MODULES_PINCTRL_MTK_V2)
+#include <dt-bindings/pinctrl/mt65xx.h>
+#endif
+
+#if IS_ENABLED(CONFIG_DEVICE_MODULES_PINCTRL_MTK_V2) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include "pinctrl-mtk-common-v2.h"
+#elif IS_ENABLED(CONFIG_DEVICE_MODULES_PINCTRL_MTK_V2) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#ifdef CONFIG_OPLUS_CHG_DDK_BUILD
+#else
 #include "../../../pinctrl/mediatek/pinctrl-paris.h"
+#endif
 #elif IS_ENABLED(CONFIG_PINCTRL_MTK_V2)
 #include "pinctrl-mtk-common-v2.h"
 #endif
 
 #if IS_ENABLED(CONFIG_PINCTRL_MSM)
+#ifdef CONFIG_OPLUS_CHARGER_DDK_BUILD
+#include "pinctrl-msm.h"
+#else
 #include "../../pinctrl/qcom/pinctrl-msm.h"
+#endif
 #endif
 
 #define STRING_BUF_SIZE		4096
@@ -540,6 +553,8 @@ bool test_kit_mtk_gpio_check(void *info, char *buf, size_t len, size_t *use_size
 				gdesc->gdev->chip->label,
 				strlen(pinctrl_name))) {
 			hw = gpiochip_get_data(gdesc->gdev->chip);
+			pr_err("[GPIO-CHECK]: dev.name=%s,parent.name=%s\n",
+					hw->dev->kobj.name, hw->dev->parent->kobj.name);
 			if (!strcmp(hw->dev->parent->kobj.name, "soc") ||
 			    !strcmp(hw->dev->parent->kobj.name, "platform")) {
 				if (hw->soc->bias_get_combo &&
@@ -565,6 +580,7 @@ bool test_kit_mtk_gpio_check(void *info, char *buf, size_t len, size_t *use_size
 	} while (1);
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[offset];
+	pr_err("[GPIO-CHECK]:mtk_pin_desc number=%u,name=%s\n", desc->number, desc->name);
 
 	ret = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DO, &val);
 	if (ret || !!val != gpio_info->is_high) {
@@ -624,7 +640,7 @@ bool test_kit_mtk_gpio_check(void *info, char *buf, size_t len, size_t *use_size
 			"null");
 			pass = false;
 		} else if (!gpio_info->pull) {
-			if (val_pullen) {
+			if (val_pullen != MTK_DISABLE && val_pullen != MTK_PUPD_SET_R1R0_00) {
 				*use_size += snprintf(buf + *use_size, len - *use_size,
 					"[%s][gpio%u][pull error]:expected:%s, actually:%s\n",
 					gpio_info->name, offset,
@@ -1013,7 +1029,11 @@ static ssize_t test_kit_dev_write(struct file *filp, const char __user *buf,
 
 static const struct file_operations test_kit_dev_fops = {
 	.owner		= THIS_MODULE,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	.llseek		= noop_llseek,
+#else
 	.llseek		= no_llseek,
+#endif
 	.write		= test_kit_dev_write,
 	.read		= test_kit_dev_read,
 	.open		= test_kit_dev_open,

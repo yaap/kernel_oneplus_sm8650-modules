@@ -213,4 +213,5 @@ extern void rt_cache_clrlasterror(struct rt_regmap_device *rd);
 extern int rt_regmap_add_debugfs(struct rt_regmap_device *rd, const char *name,
 				 umode_t mode, void *data,
 				 const struct file_operations *fops);
+
 #endif /* LINUX_MISC_RT_REGMAP_H */

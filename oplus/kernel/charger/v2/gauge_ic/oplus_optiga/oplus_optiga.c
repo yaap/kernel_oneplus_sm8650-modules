@@ -29,7 +29,12 @@
 #include "Platform/board.h"
 #include "ECC/Optiga_Ecc.h"
 #include "SWI/Optiga_Nvm.h"
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 #include "../../oplus_gauge.h"
+#else
+#include "oplus_gauge.h"
+#include <linux/pinctrl/consumer.h>
+#endif
 #include <linux/gpio/consumer.h>
 #include <oplus_chg_module.h>
 

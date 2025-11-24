@@ -89,6 +89,7 @@
 #define TX_INT_RX_ATTACH	(0x01 << 9)
 #define TX_INT_RX_REMOVED	(0x01 << 10)
 #define TX_INT_Q_CALI	(0x01 << 12)
+#define TX_INT_MIS_LOC	(0x01 << 13)
 
 /*tx command*/
 #define ENTER_DEEP_LOW_POWER_MODE	(0x01 << 0)
@@ -138,11 +139,11 @@
 #define CPS_LOG_DEBG	2
 #define CPS_LOG_FULL	3
 
-#define ENABLE_CPS_LOG CPS_LOG_ERR
+extern int wls_pen_log_level;
 
 #define cps_wls_log(num, fmt, ...) \
 	do { \
-		if (ENABLE_CPS_LOG >= (int)num) \
+		if (wls_pen_log_level >= (int)num) \
 			printk(KERN_ERR "[cps8601]:" pr_fmt(fmt), ##__VA_ARGS__); \
 	} while (0)
 

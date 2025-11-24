@@ -19,11 +19,17 @@
 #define PD_PDO_VOL(pdo)			((pdo) * 50)
 #define PD_PDO_CURR_MAX(pdo)		((pdo) * 10)
 
+#define OPLUS_CHG_TRACK_SCENE_PPS_ERR	"pps_err"
+
 enum pps_topic_item {
 	PPS_ITEM_ONLINE,
 	PPS_ITEM_CHARGING,
 	PPS_ITEM_OPLUS_ADAPTER,
 	PPS_ITEM_ONLINE_KEEP,
+	PPS_ITEM_CPA_POWER,
+	PPS_ITEM_ADAPTER_POWER,
+	PPS_ITEM_PPS_ADAPTER_INFO,
+	PPS_ITEM_ADAPTER_MAX_POWER,
 };
 
 typedef enum
@@ -97,9 +103,18 @@ enum pps_power_type {
 	OPLUS_PPS_POWER_MAX = 0xFFFF,
 };
 
+enum pps_user_err_type {
+	PPS_ERR_BTB_OVER = 1,
+	PPS_ERR_TFG_OVER,
+	PPS_ERR_IBAT_OVER,
+	PPS_ERR_REQUEST_VOLT_OVER,
+	PPS_ERR_MAX,
+};
+
 int oplus_pps_current_to_level(struct oplus_mms *mms, int ibus_curr);
 int oplus_pps_get_charging_power_watt(struct oplus_mms *mms);
 int oplus_pps_get_adapter_power_mw(struct oplus_mms *mms);
 int oplus_pps_get_curve_ibus(struct oplus_mms *mms);
 int oplus_pps_level_to_current(struct oplus_mms *mms, int level);
+int oplus_chg_get_pdo_info(struct oplus_mms *mms, u32* pdo);
 #endif /* __OPLUS_CHG_PPS_H__ */

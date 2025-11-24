@@ -21,6 +21,7 @@ enum cpa_topic_item {
 	CPA_ITEM_CHG_TYPE,
 	CPA_ITEM_ALLOW,
 	CPA_ITEM_TIMEOUT,
+	CPA_ITEM_POWER,
 };
 
 struct protocol_map {
@@ -46,4 +47,5 @@ int oplus_cpa_request_lock(struct oplus_mms *topic, const char *name);
 int oplus_cpa_request_unlock(struct oplus_mms *topic, const char *name);
 int oplus_cpa_protocol_disable(struct oplus_mms *topic, enum oplus_chg_protocol_type type);
 int oplus_cpa_protocol_enable(struct oplus_mms *topic, enum oplus_chg_protocol_type type);
+int oplus_cpa_get_actual_used_power(struct oplus_mms *topic);
 #endif /* __OPLUS_CHG_CPA_H__ */

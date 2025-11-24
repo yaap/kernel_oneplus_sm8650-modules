@@ -10,6 +10,10 @@
 #include <linux/thermal.h>
 #include "goodix_brl_core.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+#include <soc/oplus/fpga_notify.h>
+#endif
+
 #define GOODIX_BUS_RETRY_TIMES  3
 
 #define SPI_TRANS_PREFIX_LEN    1
@@ -69,6 +73,10 @@ typedef struct __attribute__((packed)) {
 	u16 checksum;
 } test_result_t;
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+struct chip_data_brl *g_chip_info = NULL;
+#endif
+
 static int cal_cha_to_cha_res(int v1, int v2)
 {
 	return (v1 / v2 - 1) * 70 + 59;
@@ -87,6 +95,43 @@ static int cal_cha_to_gnd_res(int v)
 static int  goodix_reset(void *chip_data);
 static void goodix_state_verify(struct chip_data_brl *chip_info);
 static void goodix_check_bit_set(struct chip_data_brl *chip_info, unsigned int bit, bool enable);
+static int goodix_enable_gesture(struct chip_data_brl *chip_info, bool enable);
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+static int oplus_gt9916_fpga_state_change(struct notifier_block *nb, unsigned long ev, void *v);
+
+static struct notifier_block oplus_hall_fpga_state_notifier_block = {
+	.notifier_call = oplus_gt9916_fpga_state_change,
+};
+
+#define FPGA_RESET_PASS 2
+static int oplus_gt9916_fpga_state_change(struct notifier_block *nb, unsigned long event, void *v)
+{
+	int ret = 0;
+
+	if (g_chip_info == NULL) {
+		TPD_INFO("%s:GT_brlD g_chip_info == NULL\n", __func__);
+		goto OUT;
+	}
+
+	if (g_chip_info->ts == NULL) {
+		TPD_INFO("%s:GT_brlD g_chip_info->ts == NULL\n", __func__);
+		goto OUT;
+	}
+
+	if (event == FPGA_RESET_PASS) {
+		if (g_chip_info->ts->is_suspended && g_chip_info->ts->gesture_enable) {
+			TPD_INFO("%s:GT_brlD restrat gesture\n", __func__);
+			ret = goodix_enable_gesture(g_chip_info, true);
+		}
+		tp_healthinfo_report(g_chip_info->monitor_data, HEALTH_REPORT, "sec_fpga_pri_reset_pass");
+	} else {
+		tp_healthinfo_report(g_chip_info->monitor_data, HEALTH_REPORT, "sec_fpga_pri_reset_start");
+	}
+OUT:
+	return 0;
+}
+#endif
 
 void start_time(struct chip_data_brl *chip_info, choice_one_hrtimer choice_one_hrtimer) {
 	switch (choice_one_hrtimer) {
@@ -520,7 +565,6 @@ static int goodix_enable_gesture(struct chip_data_brl *chip_info, bool enable)
 {
 	struct goodix_ts_cmd tmp_cmd;
 	int ret = RESULT_ERR;
-	TPD_INFO("GT_brlD:%s, gesture enable=%d\n", __func__, enable);
 
 	if (enable) {
 		if (chip_info->gesture_type  == 0 &&
@@ -528,21 +572,28 @@ static int goodix_enable_gesture(struct chip_data_brl *chip_info, bool enable)
 			TPD_INFO("GT_brlD:%s, [WARNING!!]invilid gesture,not enable\n", __func__);
 			goto OUT;
 		}
-		goodix_enter_sleep(chip_info, false);
+		if (!chip_info->gesture_enable) {
+			goodix_enter_sleep(chip_info, false);
+		} else {
+			TPD_INFO("GT_brlD:%s, aleady in gesture,no need reset :%d\n", __func__, chip_info->gesture_enable);
+		}
+
 		tmp_cmd.len = GTP_CMD_GESTURE_LEN;
 		tmp_cmd.cmd = GOODIX_GESTURE_CMD_ENABLE;
 		tmp_cmd.data[0] = chip_info->gesture_type  & GOODIX_CLEAR_BYTE;
 		tmp_cmd.data[1] = chip_info->gesture_type1 & GOODIX_CLEAR_BYTE;
 		/* temporary set v ^ < > */
 		tmp_cmd.data[0] = chip_info->gesture_type  | GOODIX_FORCE_SET_BIT;
-		TPD_INFO("GT_brlD:%s->gesture:type0[%2x]type1[%2x]\n",
-			__func__, chip_info->gesture_type, chip_info->gesture_type1);
 	} else {
 		tmp_cmd.len = GTP_CMD_SPECIAL_LEN;
 		tmp_cmd.cmd = GOODIX_GESTURE_CMD_DISABE;
 	}
 
 	chip_info->gesture_enable = !!enable;
+
+	TPD_INFO("GT_brlD:%s->gesture:enable:%d [data0:%2x data1:%2x]\n",
+		__func__, chip_info->gesture_enable, tmp_cmd.data[0], tmp_cmd.data[1]);
+
 	ret = brl_send_cmd(chip_info, &tmp_cmd);
 OUT:
 	return ret;
@@ -766,6 +817,7 @@ static int get_now_temp(struct chip_data_brl *chip_info)
 	struct touchpanel_data *ts = spi_get_drvdata(chip_info->s_client);
 	int result = -40000;
 	int rc = 0;
+	int temperature_debounce = 0;
 
 #ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
 	if (atomic_read(&ts->trusted_touch_enabled) == 1) {
@@ -780,16 +832,28 @@ static int get_now_temp(struct chip_data_brl *chip_info)
 	}
 
 	if (ts->temperature_detect_shellback_support) {
-		ts->oplus_shell_themal = thermal_zone_get_zone_by_name("shell_back");
-		if(IS_ERR(ts->oplus_shell_themal)) {
-			TPD_INFO("GT_brlD:%s:ERR!ts->oplus_shell_themal\n", __func__);
-			goto OUT_ERR;
-		}
-		rc = thermal_zone_get_temp(ts->oplus_shell_themal, &result);
-		if (rc < 0) {
-			TPD_INFO("GT_brlD:%s:ERR!can't get skin temp for shellback, rc=%d\n", __func__, rc);
-			goto OUT_ERR;
-		}
+		do {
+			ts->oplus_shell_themal = thermal_zone_get_zone_by_name("shell_back");
+			if(IS_ERR(ts->oplus_shell_themal)) {
+				TPD_INFO("GT_brlD:%s:ERR!ts->oplus_shell_themal\n", __func__);
+				goto OUT_ERR;
+			}
+			rc = thermal_zone_get_temp(ts->oplus_shell_themal, &result);
+			if (rc < 0) {
+				TPD_INFO("GT_brlD:%s:ERR!can't get skin temp for shellback, rc=%d\n", __func__, rc);
+				goto OUT_ERR;
+			}
+			if (result != TEMPERATURE_SPECIAL) {
+				TPD_INFO("GT_brlD:%s :temperature valid, not check again:%d\n", __func__, temperature_debounce);
+				break;
+			} else if (result == TEMPERATURE_SPECIAL) {
+				TPD_INFO("GT_brlD:%s :special temp:%d .not send\n", __func__, TEMPERATURE_SPECIAL);
+				tp_healthinfo_report(chip_info->monitor_data, HEALTH_REPORT, "temperature_special_0");
+				goto OUT_ERR;
+			}
+			temperature_debounce++;
+			msleep(4);
+		} while (temperature_debounce >= TEMPERATURE_CNT);
 	} else {
 		if (!ts->skin_therm_chan) {
 			TPD_INFO("GT_brlD:%s:ERR!ts->skin_therm_chan\n", __func__);
@@ -810,6 +874,41 @@ OUT_ERR:
 	return RESULT_ERR;
 }
 #endif
+
+static void goodix_freq_hop_trigger(void *chip_data)
+{
+	int ret = 0;
+	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+
+	if (!chip_info) {
+		TPD_INFO("GT_brlD:%s invalid chip_info\n", __func__);
+		return;
+	}
+
+	switch (chip_info->ts->freq_hop_info.freq_hop_freq) {
+	case 0:
+		ret = goodix_reset(chip_info);
+		break;
+	case 1:
+		ret = goodix_send_cmd_simple(chip_info, GTP_FREQ_REG, GTP_FREQ_CMD_0);
+		break;
+	case 2:
+		ret = goodix_send_cmd_simple(chip_info, GTP_FREQ_REG, GTP_FREQ_CMD_1);
+		break;
+	case 3:
+		ret = goodix_send_cmd_simple(chip_info, GTP_FREQ_REG, GTP_FREQ_CMD_2);
+		break;
+	case 4:
+		ret = goodix_send_cmd_simple(chip_info, GTP_FREQ_REG, GTP_FREQ_CMD_3);
+		break;
+	case 5:
+		ret = goodix_send_cmd_simple(chip_info, GTP_FREQ_REG, GTP_FREQ_CMD_4);
+		break;
+	default:
+		TPD_INFO("GT_brlD:%s invalid cnt\n", __func__);
+		break;
+	}
+}
 
 static int goodix_reset(void *chip_data)
 {
@@ -836,6 +935,7 @@ static int goodix_reset(void *chip_data)
 		get_now_temp(chip_info);
 #endif
 	}
+
 
 	return 0;
 }
@@ -2447,13 +2547,26 @@ static void goodix_read_differ(struct chip_data_brl * chip_info)
 	s16 *diff_buf;
 	u32 mutual_diffdata_addr;
 	u32 self_diffdata_addr;
+	u8 data_ready_buf;
+	u8 clear_buf;
 
 	tx_num = chip_info->hw_res->tx_num;
 	rx_num = chip_info->hw_res->rx_num;
-	mutual_diffdata_addr = chip_info->ic_info.misc.mutual_diffdata_addr;
-	self_diffdata_addr = chip_info->ic_info.misc.self_diffdata_addr;
+	mutual_diffdata_addr = GTP_DEBUG_DATA_ADDR;                          /* chip_info->ic_info.misc.mutual_diffdata_addr; */
+	self_diffdata_addr   = GTP_DEBUG_DATA_ADDR +  (tx_num*rx_num*2+16);  /* chip_info->ic_info.misc.self_diffdata_addr; */
 	rw_buf = chip_info->diff_rw_buf;
 	diff_buf = chip_info->diff_buf;
+	data_ready_buf = 0;
+	clear_buf = 0;
+
+	ret = goodix_reg_read(chip_info, GTP_WAIT_DATA_ADDR, &data_ready_buf, 1);
+	if(ret < 0) {
+		TPD_INFO("%s: read fw data error", __func__);
+	}
+
+	if (data_ready_buf != GTP_DEBUG_DATA_CHECK) {
+		return;
+	}
 
 	if (rw_buf == NULL || diff_buf == NULL) {
 		TPD_INFO("%s:diff buf is NULL", __func__);
@@ -2485,6 +2598,15 @@ static void goodix_read_differ(struct chip_data_brl * chip_info)
 	for (i = 0; i < (chip_info->diff_size - tx_num*rx_num); ++i) {
 		diff_buf[i] = rw_buf[i*2] + (rw_buf[i*2+1] << 8);
 	}
+
+
+	ret = goodix_reg_write(chip_info, GTP_WAIT_DATA_ADDR, &clear_buf , 1);  /* clear data sync */
+	if (ret < 0) {
+		TPD_INFO("%s: clear data sync", __func__);
+		return;
+	}
+
+	chip_info->diff_sync_check = true;
 }
 
 static u32 goodix_u32_trigger_reason(void *chip_data,
@@ -2522,6 +2644,7 @@ static u32 goodix_u32_trigger_reason(void *chip_data,
 
 	/*tp data record*/
 	if (chip_info->enable_differ_mode) {
+		chip_info->diff_sync_check = false;
 		goodix_read_differ(chip_info);
 	}
 
@@ -2596,6 +2719,13 @@ static u32 goodix_u32_trigger_reason(void *chip_data,
 		if (chip_info->ts->palm_to_sleep_enable) {
 			TPD_DEBUG("GT_brlD:%s:detect palm,now to sleep\n", __func__);
 			result_event = IRQ_PALM;
+			goto exit;
+		}
+	}
+
+	if (chip_info->ts != NULL) {
+		if ((chip_info->ts->fp_grip_enable & FP_GRIP_ENABLE) && is_suspended) {
+			result_event = IRQ_GESTURE;
 			goto exit;
 		}
 	}
@@ -2755,11 +2885,15 @@ static int goodix_get_touch_points(void *chip_data,
 	int true_num;
 	int touch_map = 0;
 	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(chip_info->s_client);
+	struct touchpanel_snr *snr = ts->snr;
+
 	u8 touch_num = 0;
 	u8 *coor_data = NULL;
 	u8 *ew_data = NULL;
 	s32 id = 0;
 	int ret = 0;
+	int i = 0;
 
 	touch_num = chip_info->touch_data[POINT_NUM_OFFSET] & 0x0F;
 
@@ -2771,6 +2905,12 @@ static int goodix_get_touch_points(void *chip_data,
 	if (touch_num > MAX_POINT_NUM) {
 		TPD_INFO("GT_brlD:%s:ERR!! touch_num OVER LIMIT->%d\n", __func__, touch_num);
 		goto END_TOUCH;
+	}
+
+	if (chip_info->snr_read_support) {
+		for (i = 0; i < max_num; i++) {
+			snr[i].point_status = 0;
+		}
 	}
 
 	if (touch_num == ALL_TOUCH_UP || chip_info->abnormal_grip_coor == true) { /*Up event*/
@@ -2832,14 +2972,29 @@ static int goodix_get_touch_points(void *chip_data,
 			points[id].tx_press, points[id].rx_press,
 			points[id].tx_er, points[id].rx_er);
 
+		if (chip_info->snr_read_support) {
+			if (snr[id].doing && points[id].x && points[id].y) {
+				snr[id].point_status = 1;
+				snr[id].x = points[id].x;
+				snr[id].y = points[id].y;
+				snr[id].width_major = points[id].width_major;
+				/* snr[id].channel_x = snr[id].x / PITCH_X_WIDTH; */
+				/* snr[id].channel_y = snr[id].y / PITCH_Y_WIDTH; */
+				snr[id].channel_x = snr[id].x * chip_info->hw_res->tx_num / chip_info->max_x;
+				snr[id].channel_y = snr[id].y * chip_info->hw_res->rx_num / chip_info->max_y;
+				TPD_DEBUG("snr%d: [%d %d, %d] {%d %d}\n",
+					id, snr[id].x, snr[id].y, snr[id].width_major,
+					snr[id].channel_x, snr[id].channel_y);
+			}
+		}
+
 		ew_data   += BYTES_PER_EDGE;
 		coor_data += BYTES_PER_POINT;
 		touch_map |= 0x01 << id;
 	}
 
 END_TOUCH:
-	if (chip_info->enable_differ_mode) {
-		TPD_INFO("GT:%s:print differ data\n", __func__);
+	if (chip_info->enable_differ_mode && chip_info->diff_sync_check == true) {
 		goodix_print_differ(chip_info->diff_buf, chip_info->diff_size, chip_info->hw_res->tx_num, chip_info->hw_res->rx_num);
 	}
 	return touch_map;
@@ -2918,6 +3073,18 @@ static int goodix_get_gesture_info(void *chip_data, struct gesture_info *gesture
 	break;
 	case GOODIX_W_GESTURE:
 		gesture->gesture_type = W_GESTURE;
+	break;
+	case GOODIX_COMPLEX_SMALL_AREA:
+		tp_healthinfo_report(chip_info->monitor_data, HEALTH_REPORT, "fp_grip_small_area_cnt");
+		gesture->gesture_type = FP_GESTURE_HOLD;
+	break;
+	case GOODIX_SIMPLE_AREA:
+		tp_healthinfo_report(chip_info->monitor_data, HEALTH_REPORT, "fp_grip_big_area_cnt");
+		gesture->gesture_type = FP_GESTURE_HOLD;
+	break;
+	case GOODIX_RELEASE_HOLD:
+		tp_healthinfo_report(chip_info->monitor_data, HEALTH_REPORT, "fp_grip_release_cnt");
+		gesture->gesture_type = FP_GESTURE_RELEASE;
 	break;
 	default:
 		TPD_INFO("GT_brlD:%s: unknown gesture type[0x%x]\n", __func__, gesture_type);
@@ -3368,31 +3535,47 @@ static void goodix_enable_gesture_mask(void *chip_data, uint32_t enable)
 static void goodix_set_gesture_state(void *chip_data, int state)
 {
 	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+	if (chip_info->ts == NULL) {
+		TPD_INFO("GT_brlD:%s:chip_info->ts == NULL!!\n", __func__);
+		return;
+	}
 
 	TPD_DEBUG("GT_brlD:%s:start change state[0x%x] support type[0x%x]\n",
 		__func__, state, chip_info->support_gesture_type);
 
-	state = state & chip_info->support_gesture_type;
+	if (chip_info->ts->fp_grip_support) {
+		if (state & (1 << FP_GESTURE_HOLD)) {
+			TPD_INFO("GT_brlD:%s:%s finger hold\n", __func__, (state & 1) > 0 ? "enable" : "disable");
+			if (!(state & 0x01)) {
+				state = 0;
+			}
+			SET_GESTURE_BIT(state, FP_GESTURE_HOLD, chip_info->gesture_type1, GTP_DATA1_FP_GESTURE_HOLD_BIT6);
+			goto OUT;
+		}
+	} else {
+		state = state & chip_info->support_gesture_type;
+	}
 
-	TPD_DEBUG("GT_brlD:%s:  end change state[0x%x] gesture type[0x%x]\n",
-		__func__, state, chip_info->gesture_type);
+	TPD_DEBUG("GT_brlD:%s:  end change state[0x%x] gesture type[0x%x] type1[0x%x]\n",
+		__func__, state, chip_info->gesture_type, chip_info->gesture_type1);
 
-	SET_GESTURE_BIT(state, DOU_TAP,        chip_info->gesture_type,  GTP_DATA0_GESTURE_DOU_TAP);
-	/* all directions v , need change later*/
-	SET_GESTURE_BIT(state, UP_VEE,         chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
+	SET_GESTURE_BIT(state, DOU_TAP,         chip_info->gesture_type,  GTP_DATA0_GESTURE_DOU_TAP);
+	/* all directions v , need change later */
+	SET_GESTURE_BIT(state, UP_VEE,          chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
 	/*
-	SET_GESTURE_BIT(state, DOWN_VEE,       chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
-	SET_GESTURE_BIT(state, LEFT_VEE,       chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
-	SET_GESTURE_BIT(state, RIGHT_VEE,      chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE); */
-	SET_GESTURE_BIT(state, CIRCLE_GESTURE, chip_info->gesture_type,  GTP_DATA0_GESTURE_CIRCLE);
-	SET_GESTURE_BIT(state, M_GESTRUE,      chip_info->gesture_type,  GTP_DATA0_GESTURE_M);
-	SET_GESTURE_BIT(state, W_GESTURE,      chip_info->gesture_type,  GTP_DATA0_GESTURE_W);
+	SET_GESTURE_BIT(state, DOWN_VEE,        chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
+	SET_GESTURE_BIT(state, LEFT_VEE,        chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
+	SET_GESTURE_BIT(state, RIGHT_VEE,       chip_info->gesture_type,  GTP_DATA0_GESTURE_VEE);
+	*/
+	SET_GESTURE_BIT(state, CIRCLE_GESTURE,  chip_info->gesture_type,  GTP_DATA0_GESTURE_CIRCLE);
+	SET_GESTURE_BIT(state, M_GESTRUE,       chip_info->gesture_type,  GTP_DATA0_GESTURE_M);
+	SET_GESTURE_BIT(state, W_GESTURE,       chip_info->gesture_type,  GTP_DATA0_GESTURE_W);
 	/* data1 cmd need set */
-	SET_GESTURE_BIT(state, DOU_SWIP,       chip_info->gesture_type1, GTP_DATA1_GESTURE_DOUSWIP)
-	SET_GESTURE_BIT(state, SINGLE_TAP,     chip_info->gesture_type1, GTP_DATA1_GESTURE_SINGLE);
+	SET_GESTURE_BIT(state, DOU_SWIP,        chip_info->gesture_type1, GTP_DATA1_GESTURE_DOUSWIP)
+	SET_GESTURE_BIT(state, SINGLE_TAP,      chip_info->gesture_type1, GTP_DATA1_GESTURE_SINGLE);
 
-	TPD_INFO("GT_brlD:%s: gesture_type :0x%x\n", __func__, chip_info->gesture_type);
-	TPD_INFO("GT_brlD:%s: gesture_type1:0x%x\n", __func__, chip_info->gesture_type1);
+OUT:
+	TPD_INFO("GT_brlD:%s:gesture [type:0x%x type1:0x%x]\n", __func__, chip_info->gesture_type, chip_info->gesture_type1);
 }
 
 static void goodix_screenon_fingerprint_info(void *chip_data,
@@ -3462,9 +3645,33 @@ static void goodix_register_info_read(void *chip_data,
 
 static void goodix_set_touch_direction(void *chip_data, uint8_t dir)
 {
-	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+	struct chip_data_brl *chip_info = NULL;
+	int retval = 0;
+
+	if (chip_data == NULL) {
+		TPD_INFO("GT_brlD: chip_data is NULL.\n");
+		return;
+	}
+
+	chip_info = (struct chip_data_brl *)chip_data;
+
+	if (chip_info->ts == NULL) {
+		TPD_INFO("GT_brlD: ts is NULL.\n");
+		return;
+	}
 
 	chip_info->touch_direction = dir;
+
+	if (chip_info->ts->edge_pull_out_support) {
+		if (chip_info->touch_direction == VERTICAL_SCREEN ||
+			chip_info->touch_direction == LANDSCAPE_SCREEN_90 ||
+			chip_info->touch_direction == LANDSCAPE_SCREEN_270) {
+			TPD_INFO("GT_brlD: set direction is %d\n", chip_info->touch_direction);
+			retval = goodix_send_cmd_simple(chip_info, GTM_CMD_EDGE_LIMIT_LANDSCAPE, chip_info->touch_direction);
+		} else {
+			TPD_INFO("GT_brlD: invalid direction!! \n");
+		}
+	}
 }
 
 static uint8_t goodix_get_touch_direction(void *chip_data)
@@ -3677,29 +3884,55 @@ OUT:
 	return 0;
 }
 
+/*ascii 9916*/
+#define ASCII_9 0x39
+#define ASCII_9 0x39
+#define ASCII_1 0x31
+#define ASCII_6 0x36
+/*ascii gesture->gest*/
+#define ASCII_G 0x47
+#define ASCII_E 0x45
+#define ASCII_S 0x53
+#define ASCII_T 0x54
 static int goodix_communicate_test(void *chip_data)
 {
 	int ret = 0;
 	u8 buf[sizeof(struct goodix_fw_version)] = {0};
-	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+	struct chip_data_brl *chip_info = NULL;
+	if (chip_data == NULL) {
+		TPD_INFO("chip_data == NULL\n");
+		goto CHECK_FAIL;
+	}
+
+	chip_info = (struct chip_data_brl *)chip_data;
+
 	ret = goodix_reg_read(chip_info, FW_VERSION_INFO_ADDR, buf, sizeof(buf));
 	if (ret) {
 		TPD_INFO("GT_brlD:goodix_communicate_test failed, ret = %d.\n", ret);
-		ret = -1;
+		goto CHECK_FAIL;
 	}
+
 	if (checksum_cmp(buf, sizeof(buf), CHECKSUM_MODE_U8_LE)) {
 		TPD_INFO("GT_brlD:checksum_cmp failed.\n");
-		ret = -1;
+		goto CHECK_FAIL;
 	}
-	if ((buf[10] == 0x39) && (buf[11] == 0x39) &&
-			(buf[12] == 0x31) &&(buf[13] == 0x36)) {
-		ret = 0;
-	} else {
-		TPD_INFO("vid [0x%x][0x%x][0x%x]][0x%x]] is not match.\n",
+
+	if ((buf[10] == ASCII_9) && (buf[11] == ASCII_9) &&
+		(buf[12] == ASCII_1) &&(buf[13] == ASCII_6)) {
+		goto CHECK_PASS;
+	}
+
+	if ((buf[10] == ASCII_G) && (buf[11] == ASCII_E) &&
+		(buf[12] == ASCII_S) &&(buf[13] == ASCII_T)) {
+		goto CHECK_PASS;
+	}
+
+	TPD_INFO("GT_brlD: vid [0x%x][0x%x][0x%x]][0x%x]] is not match.\n",
 				buf[10], buf[11], buf[12], buf[13]);
-		ret = -1;
-	}
-	return ret;
+CHECK_FAIL:
+	return -1;
+CHECK_PASS:
+	return 0;
 }
 
 struct oplus_touchpanel_operations goodix_ops = {
@@ -3734,6 +3967,7 @@ struct oplus_touchpanel_operations goodix_ops = {
 	.pen_uplink_msg              = goodix_pen_uplink_data,
 	.pen_downlink_msg            = goodix_pen_downlink_data,
 	.communicate_test            = goodix_communicate_test,
+	.freq_hop_trigger            = goodix_freq_hop_trigger,
 };
 /********* End of implementation of oplus_touchpanel_operations callbacks**********************/
 static void gt_brld_data_reset(struct chip_data_brl *chip_info,
@@ -3891,6 +4125,55 @@ RETURN:
 	return ret;
 }
 
+static void gt_brld_debug_get_snr(struct chip_data_brl *chip_info, s16 *data)
+{
+	int ret = RESULT_ERR;
+	u8 *kernel_buf = NULL;
+	u32 addr = 0;
+	int tx_num = 0;
+	int rx_num = 0;
+	u8 clear_state = 0;
+	int index = 0;
+	int i = 0;
+	int j = 0;
+
+	chip_info->rawdiff_mode = ON;
+	rx_num = chip_info->hw_res->rx_num;
+	tx_num = chip_info->hw_res->tx_num;
+
+	kernel_buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (kernel_buf == NULL) {
+		TPD_INFO("GT_brlD:%s kmalloc error\n", __func__);
+		return;
+	}
+
+	mutex_lock(&chip_info->debug_lock);
+	memset(kernel_buf, GTP_PAGE_CLEAR, PAGE_SIZE);
+	addr = GTP_DEBUG_DATA_ADDR;
+
+	ret = gt_brld_data_pretreatment(chip_info, addr, clear_state, kernel_buf, GTP_DIFFDATA);
+	if (ret < 0) {
+		TPD_INFO("GT_brlD:pretreatment failed, quit!\n");
+		goto read_data_exit;
+	}
+
+	ret = goodix_reg_read(chip_info, addr, kernel_buf, tx_num * rx_num * 2);
+	usleep_range(5000, 5100);
+
+	for (i = 0; i < rx_num; i++) {
+		for (j = 0; j < tx_num; j++) {
+			data[index++] = kernel_buf[j * rx_num * 2 + i * 2] +
+				  (kernel_buf[j * rx_num * 2 + i * 2 + 1] << 8);
+		}
+	}
+read_data_exit:
+	kfree(kernel_buf);
+	mutex_unlock(&chip_info->debug_lock);
+	gt_brld_data_reset(chip_info, addr, clear_state, GTP_DIFFDATA);
+	chip_info->rawdiff_mode = OFF;
+	return;
+}
+
 /******** Start of implementation of debug_info_proc_operations callbacks*********************/
 static void gt_brld_debug_info_read(struct seq_file *s,
 				   void *chip_data, debug_type debug_type)
@@ -3955,6 +4238,74 @@ static void gt_brld_delta_read(struct seq_file *s, void *chip_data)
 	gt_brld_debug_info_read(s, chip_data, GTP_BASEDATA);
 }
 
+static void gt_brld_delta_snr_read(struct seq_file *s, void *chip_data, uint32_t count)
+{
+	int i = 0;
+	int j = 0;
+	int diff_data = 0;
+	struct chip_data_brl *chip_info = (struct chip_data_brl *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(chip_info->s_client);
+	struct touchpanel_snr *snr = ts->snr;
+	int tx_num = chip_info->hw_res->tx_num;
+	int rx_num = chip_info->hw_res->rx_num;
+
+	if (!chip_info->snr_read_support) {
+		seq_printf(s, "snr read not support! \n");
+		return;
+	}
+	if (!snr[0].doing) {
+		seq_printf(s, "snr doing zero! \n");
+		return;
+	}
+
+	if (count) {
+		chip_info->rawdata = kzalloc(tx_num * rx_num * sizeof(s16), GFP_KERNEL);
+		if (chip_info->rawdata == NULL) {
+			TPD_INFO("%s: kmalloc error\n", __func__);
+			return;
+		}
+		memset(chip_info->rawdata, 0, tx_num * rx_num * sizeof(s16));
+	} else {
+		seq_printf(s, "count is zero! \n");
+		return;
+	}
+
+	for (i = 0; i < count; i++) {
+		msleep(5);
+		gt_brld_debug_get_snr(chip_info, chip_info->rawdata);
+		for (j = 0; j < 10; j++) {
+			if (snr[j].point_status) {
+				diff_data = chip_info->rawdata[snr[j].channel_x + snr[j].channel_y * tx_num];
+				if (i && (snr[j].max != 0 || snr[j].min != 0)) {
+					snr[j].max = diff_data > snr[j].max ? diff_data : snr[j].max;
+					snr[j].min = diff_data < snr[j].min ? diff_data : snr[j].min;
+				} else {
+					snr[j].max = diff_data;
+					snr[j].min = diff_data;
+				}
+				snr[j].sum += diff_data;
+				TPD_INFO("%s:snr%d report sum %d += %d. now max=%d, min=%d \n", __func__, j, snr[j].sum, diff_data, snr[j].max, snr[j].min);
+			}
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		if (snr[i].point_status) {
+			snr[i].noise = snr[i].max - snr[i].min;
+			seq_printf(s, "%d|%d|", snr[i].channel_x, snr[i].channel_y);
+			seq_printf(s, "%d|", snr[i].max);
+			seq_printf(s, "%d|", snr[i].min);
+			seq_printf(s, "%d|", snr[i].sum / count);
+			seq_printf(s, "%d\n", snr[i].noise);
+			SNR_RESET(snr[i]);
+			TPD_DETAIL("snr-cover [%d %d] %d %d %d\n", snr[i].channel_x, snr[i].channel_y, snr[i].max, snr[i].min, snr[i].sum);
+		}
+	}
+	kfree(chip_info->rawdata);
+	chip_info->rawdata = NULL;
+	return;
+}
+
 static void goodix_baseline_read(struct seq_file *s, void *chip_data)
 {
 	gt_brld_debug_info_read(s, chip_data, GTP_RAWDATA);
@@ -3990,8 +4341,10 @@ out:
 static void goodix_tp_data_record_write(void *chip_data, int32_t count)
 {
 	struct chip_data_brl *chip_info;
+	struct goodix_ts_cmd temp_cmd;
 	int rx_num, tx_num;
 	u32 diff_size;
+	int ret = 0;
 
 	chip_info = (struct chip_data_brl *)chip_data;
 	tx_num = chip_info->hw_res->tx_num;
@@ -4014,11 +4367,29 @@ static void goodix_tp_data_record_write(void *chip_data, int32_t count)
 		memset(chip_info->diff_buf, 0, diff_size*sizeof(s16));
 		memset(chip_info->diff_rw_buf, 0, diff_size*2);
 		chip_info->diff_size = diff_size;
+
+		temp_cmd.cmd     = 0x90;
+		temp_cmd.data[0] = 0x82;
+		temp_cmd.len     = 5;
+		ret = brl_send_cmd(chip_info, &temp_cmd);
+		if (ret < 0) {
+			TPD_INFO("GT_brlD:%s switch noisedata mode failed\n", __func__);
+			goto diff_mode_off;
+		}
+
 		chip_info->enable_differ_mode = !!count;
 		goto exit;
 	}
 	else {
 		chip_info->enable_differ_mode = false;
+
+		temp_cmd.cmd     = 0x90;
+		temp_cmd.data[0] = 0x00;
+		temp_cmd.len     = 5;
+		ret = brl_send_cmd(chip_info, &temp_cmd);
+		if (ret < 0) {
+			TPD_INFO("GT_brlD:%s switch noisedata mode failed\n", __func__);
+		}
 		goto diff_mode_off;
 	}
 
@@ -4039,7 +4410,8 @@ static struct debug_info_proc_operations debug_info_proc_ops = {
 	.delta_read                = gt_brld_delta_read,
 	.baseline_read             = goodix_baseline_read,
 	.main_register_read        = goodix_main_register_read,
-	.tp_data_record_write	 = goodix_tp_data_record_write,
+	.tp_data_record_write      = goodix_tp_data_record_write,
+	.delta_snr_read            = gt_brld_delta_snr_read,
 };
 /********* End of implementation of debug_info_proc_operations callbacks**********************/
 
@@ -4372,6 +4744,60 @@ exit:
 	return ret;
 }
 
+static int brl_rst_test(struct seq_file *s,
+                                void *chip_data,
+                            struct auto_testdata *goodix_testdata,
+                                struct test_item_info *p_test_item_info)
+{
+	struct chip_data_brl *cd = (struct chip_data_brl *)chip_data;
+	struct goodix_ts_test *ts_test = cd->brl_test;
+	int i, ret = 0;
+	u8 val = 0;
+	u8 val2 = 0;
+	int count = 2;
+
+	TPD_INFO("GT:%s IN\n", __func__);
+
+	ts_test->is_item_support[TYPE_TEST7] = 1;
+
+	for (i = 0; i < count; i++) {
+		ret = goodix_reg_read(cd, GOODIX_RST_TEST_REG, &val, 1);
+		if (ret < 0) {
+			TPD_INFO("GT:%s: Read _REG failed\n", __func__);
+			goto exit;
+		}
+
+		goodix_reset(cd);
+
+		ret = goodix_reg_read(cd, GOODIX_RST_TEST_REG, &val2, 1);
+		if (ret < 0) {
+			TPD_INFO("GT:%s: Read _REG failed\n", __func__);
+			goto exit;
+		}
+		TPD_INFO("test %d: reset test: val = %d, val2 = %d", i, val, val2);
+	}
+
+
+	if (val2 != (val + 1)) {
+		if ((val == 0xFF) && (!(val & val2)))
+			goto exit;
+
+		TPD_INFO("check reg to test rst failed.\n");
+		ret = -1;
+	}
+
+exit:
+	if (!ret) {
+		ts_test->test_result[TYPE_TEST7] = GTP_TEST_OK;
+	} else {
+		ts_test->test_result[TYPE_TEST7] = GTP_TEST_NG;
+		return RESULT_ERR;
+	}
+
+
+	return 0;
+}
+
 static int brl_noisedata_test(struct seq_file *s,
 				void *chip_data,
 			    struct auto_testdata *goodix_testdata,
@@ -4457,6 +4883,11 @@ static int brl_noisedata_test(struct seq_file *s,
 	return 0;
 }
 
+static int raw_cap_data_restriction(int val, int raw_cap_restriction)
+{
+	return val * raw_cap_restriction / 100;
+}
+
 static int brl_capacitance_test(struct seq_file *s,
 				void *chip_data,
 			    struct auto_testdata *goodix_testdata,
@@ -4533,10 +4964,12 @@ static int brl_capacitance_test(struct seq_file *s,
 	goodix_rotate_abcd2cbad(tx, rx, ts_test->rawdata.data);
 
 	for (i = 0; i < ts_test->rawdata.size; i++) {
-		val = ts_test->rawdata.data[i];
+		val = raw_cap_data_restriction(ts_test->rawdata.data[i], goodix_testdata->raw_cap_restriction);
 		if (val > max_limit[i] || val < min_limit[i]) {
-			TPD_INFO("GT_brlD:rawdata[%d] out of threshold[%d,%d]\n", val, min_limit[i], max_limit[i]);
-			seq_printf(s, "rawdata[%d] out of threshold[%d,%d]\n", val, min_limit[i], max_limit[i]);
+			TPD_INFO("GT_brlD:rawdata[%d] restriction[%d] out of threshold[%d,%d]\n",
+				ts_test->rawdata.data[i], val, min_limit[i], max_limit[i]);
+			seq_printf(s, "rawdata[%d] restriction[%d] out of threshold[%d,%d]\n",
+				ts_test->rawdata.data[i], val, min_limit[i], max_limit[i]);
 			err_cnt++;
 		}
 	}
@@ -5253,7 +5686,7 @@ static void brl_put_test_result(struct seq_file *s, void *chip_data,
 				tp_test_write(p_testdata->fp, p_testdata->length, data_buf, strlen(data_buf),
 					      p_testdata->pos);
 
-				if (!((i + 1) % p_testdata->rx_num) && (i != 0)) {
+				if (!((i + 1) % p_testdata->tx_num) && (i != 0)) {
 					snprintf(data_buf, 64, "\n");
 					tp_test_write(p_testdata->fp, p_testdata->length, data_buf, strlen(data_buf),
 						      p_testdata->pos);
@@ -5427,6 +5860,7 @@ static struct goodix_auto_test_operations goodix_test_ops = {
 	.test4 = brl_self_rawcapacitance,
 	.test5 = brl_shortcircut_test,
 	.test6 = brl_clk_test,
+	.test7 = brl_rst_test,
 	.auto_test_endoperation = brl_auto_test_endoperation,
 };
 
@@ -5744,8 +6178,19 @@ static int goodix_gt9916_ts_probe(struct spi_device *spi)
 	chip_info->resolution_ratio = \
 		chip_info->ts->resolution_info.max_x / chip_info->ts->resolution_info.LCD_WIDTH;
 
-	TPD_INFO("GT_brlD:%s,probe normal end\n", __func__);
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	if (chip_info-ts->fpga_spi_agg_support) {
+		g_chip_info = chip_info;
+		TPD_INFO("GT_brlD:%s, fpga_spi_agg_support exist\n", __func__);
+		ret = fpga_register_notifier(&oplus_hall_fpga_state_notifier_block);
+		if (ret != 0) {
+			TPD_INFO("GT_brlD:%s, fpga_register_notifier failed!\n", __func__);
+		}
+	}
+#endif
+
 	chip_info->probe_complete = true;
+	TPD_INFO("GT_brlD:%s,probe normal end\n", __func__);
 	return 0;
 
 err_edge_data_alloc:

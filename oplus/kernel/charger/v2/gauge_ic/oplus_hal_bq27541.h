@@ -297,6 +297,13 @@
 #define BQ28Z610_BATTINFO_NO_CHECKSUM		0x00
 #define BQ28Z610_BATT_SN_RETRY_MAX		3
 
+#define BQ28Z610_VCT_NAME_CMD			0x46F8
+#define BQ28Z610_VCT_SIZE			4
+#define BQ28Z610_VCT_MASK			0xFF
+#define BQ28Z610_VCT_CHECK_SIZE			2
+#define BQ28Z610_VCT_SHIFT			8
+#define BQ28Z610_VCT_CHECK_ADDR			0x60
+
 #define ZY0602_BATT_SN_EN_ADDR			0x3F
 #define ZY0602_BATT_SN_READ_ADDR		0x40
 #define ZY0602_BATT_SN_READ_BUF_LEN		32
@@ -390,6 +397,17 @@ typedef enum {
 	UNKNOWN_GAUGE_TYPE,
 } SCC_GAUGE_TYPE;
 
+enum gauge_not_allow_op_type {
+	SUSPEND = 1,
+	FPGA_ERR,
+	SHUTDOWN,
+};
+
+enum rst_type {
+	FPGA_RST = 1,
+	I2C_RST,
+};
+
 #define BCC_PARMS_COUNT		19
 #define BCC_PARMS_COUNT_LEN	69
 #define ZY0602_KEY_INDEX	0X02
@@ -424,6 +442,7 @@ struct cmd_address {
 	u8 reg_mli;
 	u8 reg_ap;
 	u8 reg_soc;
+	u8 reg_soc_centi;
 	u8 reg_inttemp;
 	u8 reg_soh;
 	u8 reg_fc; /* add gauge reg print log start */
@@ -558,6 +577,7 @@ struct chip_bq27541 {
 	atomic_t locked;
 
 	int soc_pre;
+	int soc_centi_pre;
 	int temp_pre;
 	int batt_vol_pre;
 	int current_pre;
@@ -587,10 +607,11 @@ struct chip_bq27541 {
 	int qmax_1_pre;
 	int qmax_2_pre;
 	int qmax_passed_q_pre;
+	int car_c_pre;
 	int device_type;
 	int device_type_for_vooc;
 	struct cmd_address cmd_addr;
-	atomic_t suspended;
+	unsigned long operate_allow;
 	int batt_cell_1_vol;
 	int batt_cell_2_vol;
 	int batt_cell_max_vol;
@@ -604,7 +625,6 @@ struct chip_bq27541 {
 
 	bool modify_soc_smooth;
 	bool modify_soc_calibration;
-	bool remove_iterm_taper;
 
 	bool battery_full_param; /* only for wite battery full param in guage dirver probe on 7250 platform */
 	int sha1_key_index;
@@ -679,7 +699,7 @@ struct chip_bq27541 {
 	int id_gpio;
 	int id_match_status;
 	int id_value;
-	bool fpga_test_support;
+	bool fpga_support;
 #if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
 	struct test_feature *battery_id_gpio_test;
 	struct test_feature *fpga_fg_test;
@@ -688,9 +708,19 @@ struct chip_bq27541 {
 	struct delayed_work get_manu_battinfo_work;
 	int deep_dischg_count_pre;
 	int deep_term_volt_pre;
+	int vct_pre;
 	bool dsg_enable;
 	u8 chem_id[CHEM_ID_LENGTH + 1];
 	int last_cc_pre;
+	struct work_struct fgpa_reset_start_work;
+	struct work_struct fgpa_reset_end_work;
+	struct work_struct i2c_reset_end_work;
+	struct delayed_work fgpa_i2c_timeout_work;
+	struct work_struct fgpa_track_work;
+	int fpga_rst_time;
+	int i2c_err_time;
+	atomic_t i2c_err_timeout_flag;
+	unsigned long rst_ing;
 	int gauge_type;
 	int bq28z610_seal_flag;
 };
@@ -714,5 +744,6 @@ int bq27541_read_i2c(struct chip_bq27541 *chip, int cmd, int *returnData);
 int bq27541_read_i2c_block(struct chip_bq27541 *chip, u8 cmd, u8 length, u8 *returnData);
 int bq27541_write_i2c_block(struct chip_bq27541 *chip, u8 cmd, u8 length, u8 *writeData);
 int bq27541_i2c_txsubcmd_onebyte(struct chip_bq27541 *chip, u8 cmd, u8 writeData);
+bool is_return_pre_value(struct chip_bq27541 *chip);
 
 #endif /* __OPLUS_BQ27541_H__ */

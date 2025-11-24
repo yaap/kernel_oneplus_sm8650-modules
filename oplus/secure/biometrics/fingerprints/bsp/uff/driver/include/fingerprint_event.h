@@ -47,7 +47,8 @@ enum fingerprint_event_module {
     E_FP_LCD    = 1,
     E_FP_HAL    = 2,
     E_FP_SENSOR = 3,
-    E_TP_AIFILM = 4
+    E_TP_AIFILM = 4,
+    E_FP_TP_GRIP = 5
 };
 
 struct fingerprint_message_t {

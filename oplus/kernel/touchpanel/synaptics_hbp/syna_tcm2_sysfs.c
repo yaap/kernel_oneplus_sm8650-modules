@@ -935,11 +935,13 @@ static ssize_t syna_sysfs_fingerprint_trigger_store(struct kobject *kobj,
 			tcm->is_fp_down = true;
 			touch_call_notifier_fp(tcm, &tcm->fp_info);
 			LOGE("screen on fingerprint down : (%d, %d)\n", tcm->fp_info.x, tcm->fp_info.y);
+			tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_on_fp_down");
 		} else {
 			tcm->fp_info.touch_state = 0;
 			tcm->is_fp_down = false;
 			touch_call_notifier_fp(tcm, &tcm->fp_info);
 			LOGE("screen on fingerprint up : (%d, %d)\n", tcm->fp_info.x, tcm->fp_info.y);
+			tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_on_fp_up");
 		}
 	} else {
 		LOGE("invalid content: '%s', length = %zd\n", buf, count);
@@ -3734,8 +3736,6 @@ void syna_cdev_remove_sysfs(struct syna_tcm *tcm)
 	syna_sysfs_remove_dir(tcm);
 
 	syna_pal_mem_set(tcm->report_to_queue, 0, REPORT_TYPES);
-	syna_cdev_clean_queue(tcm);
-	syna_pal_mutex_free(&g_fifo_queue_mutex);
 
 	tcm->char_dev_ref_count = 0;
 	tcm->proc_pid = 0;
@@ -3747,13 +3747,6 @@ void syna_cdev_remove_sysfs(struct syna_tcm *tcm)
 		unregister_chrdev_region(tcm->char_dev_num, 1);
 	}
 
-	syna_tcm_buf_release(&g_cdev_cbuf);
-
-	syna_pal_mutex_free(&tcm->extif_mutex);
-
-	tcm->device_class = NULL;
-
-	tcm->device = NULL;
 	g_sysfs_has_remove = 1;
 }
 

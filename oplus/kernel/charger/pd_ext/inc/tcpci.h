@@ -25,6 +25,7 @@
 #include <linux/err.h>
 #include <linux/cpu.h>
 #include <linux/delay.h>
+#include <linux/version.h>
 
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
 #include <linux/usb/class-dual-role.h>
@@ -140,7 +141,9 @@ int tcpci_notify_cable_type(struct tcpc_device *tcpc);
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
 
 int tcpci_notify_fod_status(struct tcpc_device *tcpc);
+
 int tcpci_notify_typec_otp(struct tcpc_device *tcpc);
+
 int tcpci_set_cc_hidet(struct tcpc_device *tcpc, bool en);
 int tcpci_notify_wd0_state(struct tcpc_device *tcpc, bool wd0_state);
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -148,6 +151,7 @@ int tcpci_notify_wd0_state(struct tcpc_device *tcpc, bool wd0_state);
 int tcpci_notify_chrdet_state(struct tcpc_device *tcpc, bool uvlo_state);
 int tcpci_notify_bc12_complete_state(struct tcpc_device *tcpc, bool bc12_complete_state);
 int tcpci_notify_hvdcp_detect_dn(struct tcpc_device *tcpc, bool hvdcp_detect_dn);
+int tcpci_notify_sourcecap_done(struct tcpc_device *tcpc, struct power_caps *info);
 #endif
 int tcpci_notify_plug_out(struct tcpc_device *tcpc);
 

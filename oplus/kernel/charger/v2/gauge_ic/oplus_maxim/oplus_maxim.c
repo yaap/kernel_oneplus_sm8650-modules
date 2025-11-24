@@ -65,6 +65,7 @@ struct oplus_maxim_gauge_chip {
 	unsigned char sn_num[BATT_NUM_MAX][BATT_SN_NUM_LEN];
 	int batt_info_num;
 	struct delayed_work maxim_err_track_work;
+	bool support_maxim_in_kernel;
 };
 
 static const char *oplus_maxim_get_cmdline(void)
@@ -129,6 +130,9 @@ static int oplus_maxim_parse_dt(struct oplus_maxim_gauge_chip *chip)
 	chip->maxim_in_kernel_init_ok = false;
 	chip->support_maxim_in_lk = of_property_read_bool(node, "support_encryption_in_lk");
 	chg_info("support_maxim_in_lk: %d\n", chip->support_maxim_in_lk);
+
+	chip->support_maxim_in_kernel = of_property_read_bool(node, "support_encryption_in_kernel");
+	chg_info("support_maxim_in_kernel: %d\n", chip->support_maxim_in_kernel);
 
 	chip->pinctrl = devm_pinctrl_get(chip->dev);
 	if (IS_ERR_OR_NULL(chip->pinctrl)) {
@@ -244,6 +248,12 @@ static int oplus_maxim_parse_dt(struct oplus_maxim_gauge_chip *chip)
 	chip->gpio_info.maxim_romid_crc_support = of_property_read_bool(node, "oplus,maxim_romid_crc_support");
 	chg_info("maxim_romid_crc_support %d\n", chip->gpio_info.maxim_romid_crc_support);
 
+	rc = of_property_read_u32(node, "maxim_trl_ndelay", &chip->gpio_info.maxim_trl_ndelay);
+	if (rc) {
+		chip->gpio_info.maxim_trl_ndelay = 0;
+	}
+	chg_info("maxim_trl_ndelay %d\n", chip->gpio_info.maxim_trl_ndelay);
+
 	chip->maxim_in_kernel_init_ok = true;
 	chg_info("maxim_in_kernel_init_ok: %d\n", chip->maxim_in_kernel_init_ok);
 
@@ -296,6 +306,29 @@ static int oplus_maxim_guage_exit(struct oplus_chg_ic_dev *ic_dev)
 	return 0;
 }
 
+static DEFINE_MUTEX(init_mutex);
+static struct oplus_maxim_gauge_chip *maxim_chip;
+static int onewire_init_gpio_info(struct oplus_maxim_gauge_chip *maxim_chip)
+{
+	int ret;
+	mutex_lock(&init_mutex);
+
+	maxim_chip->gpio_info.gpio_cfg_out_reg = devm_ioremap(maxim_chip->dev,
+			maxim_chip->gpio_info.onewire_gpio_cfg_addr_out, 0x4);
+	maxim_chip->gpio_info.gpio_cfg_in_reg = devm_ioremap(maxim_chip->dev,
+			maxim_chip->gpio_info.onewire_gpio_cfg_addr_in, 0x4);
+	maxim_chip->gpio_info.gpio_out_high_reg = devm_ioremap(maxim_chip->dev,
+			maxim_chip->gpio_info.onewire_gpio_level_addr_high, 0x4);
+	maxim_chip->gpio_info.gpio_out_low_reg = devm_ioremap(maxim_chip->dev,
+			maxim_chip->gpio_info.onewire_gpio_level_addr_low, 0x4);
+	maxim_chip->gpio_info.gpio_in_reg = devm_ioremap(maxim_chip->dev,
+			maxim_chip->gpio_info.onewire_gpio_in_addr, 0x4);
+
+	ret = onewire_init(&maxim_chip->gpio_info);
+	mutex_unlock(&init_mutex);
+	return ret;
+}
+
 static int oplus_maxim_guage_get_batt_auth(struct oplus_chg_ic_dev *ic_dev, bool *pass)
 {
 	struct oplus_maxim_gauge_chip *chip;
@@ -315,17 +348,178 @@ static int oplus_maxim_guage_get_batt_auth(struct oplus_chg_ic_dev *ic_dev, bool
 	if (chip->authenticate_result == false && chip->maxim_in_kernel_init_ok) {
 		onewire_set_gpio_config_out();
 		flag = authenticate_ds28e30(chip->sn_num, chip->batt_info_num, 0);
-		if (flag== true) {
+		if (flag == true) {
 			chg_info("%s: re Authenticated flag %d succ\n", __func__, flag);
 			chip->authenticate_result = true;
 		}
 		onewire_set_gpio_config_in();
 	}
 	*pass = chip->authenticate_result;
-	chg_info("%s auth = %d\n", __func__, *pass);
-
+	chg_err("%s auth = %d\n", __func__, *pass);
 
 	return 0;
+}
+
+#define OPLUS_MAXIM_MAX_SOH_RETRY		5
+static int oplus_maxim_guage_set_batt_histsoh_data(struct oplus_chg_ic_dev *ic_dev, const int *buf)
+{
+	struct oplus_maxim_gauge_chip *chip;
+	bool flag = true;
+	int i;
+	int ret;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	if (buf == NULL) {
+		chg_err("oplus_chg_ic_dev buf is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("maxim chip is NULL");
+		return -ENODEV;
+	}
+
+	if (chip->authenticate_result == true && chip->maxim_in_kernel_init_ok &&
+		chip->support_maxim_in_kernel == true) {
+		ret = onewire_init_gpio_info(maxim_chip);
+		if (ret < 0) {
+			chg_err("onewire_init failed, ret=%d\n", ret);
+			return -ENODEV;
+		}
+
+		for (i = 0; i < OPLUS_MAXIM_MAX_SOH_RETRY; i++) {
+			flag = set_historic_soh_data_ds28e30(buf);
+			if (flag == true) {
+				chg_info(": re set_historic_soh_data_ds28e30 flag %d succ\n", flag);
+				break;
+			}
+		}
+		onewire_set_gpio_config_in();
+	}
+
+	return 0;
+}
+
+static int oplus_maxim_guage_get_batt_histsoh_data(struct oplus_chg_ic_dev *ic_dev, int *buf, int len)
+{
+	struct oplus_maxim_gauge_chip *chip;
+	bool flag;
+	int i;
+	int ret;
+
+	if (ic_dev == NULL || buf == NULL) {
+		chg_err(" oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err(" maxim chip is NULL");
+		return -ENODEV;
+	}
+
+	if (chip->authenticate_result == true && chip->maxim_in_kernel_init_ok &&
+		chip->support_maxim_in_kernel == true) {
+		ret = onewire_init_gpio_info(maxim_chip);
+		if (ret < 0) {
+			chg_err(" onewire_init failed, ret=%d\n", ret);
+			return -ENODEV;
+		}
+
+		for (i = 0; i < OPLUS_MAXIM_MAX_SOH_RETRY; i++) {
+			flag = get_historic_soh_data_ds28e30(buf, len);
+			if (flag == true) {
+				chg_info(": re get_historic_soh_data_ds28e30 flag %d succ\n", flag);
+				break;
+			}
+		}
+		onewire_set_gpio_config_in();
+	}
+
+	return 0;
+}
+
+static int oplus_maxim_guage_get_batt_sn(struct oplus_chg_ic_dev *ic_dev, char *buf, int len)
+{
+	struct oplus_maxim_gauge_chip *chip;
+	bool flag;
+	int i;
+	int ret;
+
+	if (ic_dev == NULL || buf == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("maxim chip is NULL");
+		return -ENODEV;
+	}
+
+	if (chip->authenticate_result == true && chip->support_maxim_in_kernel == true &&
+		chip->maxim_in_kernel_init_ok) {
+		ret = onewire_init_gpio_info(maxim_chip);
+		if (ret < 0) {
+			chg_err(" onewire_init failed, ret=%d\n", ret);
+			return -ENODEV;
+		}
+
+		for (i = 0; i < OPLUS_MAXIM_MAX_SOH_RETRY; i++) {
+			flag = get_sn_ds28e30(buf);
+			if (flag == true) {
+				chg_info(": re get_sn_ds28e30 flag %d succ\n", flag);
+				break;
+			}
+		}
+		onewire_set_gpio_config_in();
+	}
+	chg_info(" get_batt_sn = %s\n", buf);
+
+	return 0;
+}
+
+#define MAX_RETRY_CNT 3
+static int oplus_maxim_gauge_get_battinfo_sn(struct oplus_chg_ic_dev *ic_dev, char buf[], int len)
+{
+	struct oplus_maxim_gauge_chip *chip;
+	int sn_len = 0;
+	int rc;
+	int retry_cnt = MAX_RETRY_CNT;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+
+	if (buf == NULL || len < MAXIM_BATT_SN_LEN)
+		return -EINVAL;
+
+	if (!chip->maxim_in_kernel_init_ok)
+		return -ENODEV;
+
+	rc = onewire_init_gpio_info(chip);
+	if (rc < 0) {
+		chg_err("onewire_init_gpio_info failed\n");
+		return -ENODEV;
+	}
+
+	while (!get_batt_sn_ds28e30(buf, &sn_len) && retry_cnt > 0)
+		retry_cnt--;
+
+	if (retry_cnt == 0) {
+		chg_err("get battery sn failed\n");
+		return -EINVAL;
+	}
+
+	onewire_set_gpio_config_in();
+
+	return sn_len;
 }
 
 static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
@@ -352,6 +546,30 @@ static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(
 			OPLUS_IC_FUNC_GAUGE_GET_BATT_AUTH,
 			oplus_maxim_guage_get_batt_auth);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_HMAC:
+		func = OPLUS_CHG_IC_FUNC_CHECK(
+			OPLUS_IC_FUNC_GAUGE_GET_BATT_HMAC,
+			oplus_maxim_guage_get_batt_auth);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(
+			OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA,
+			oplus_maxim_guage_set_batt_histsoh_data);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(
+			OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA,
+			oplus_maxim_guage_get_batt_histsoh_data);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN:
+		func = OPLUS_CHG_IC_FUNC_CHECK(
+			OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN,
+			oplus_maxim_guage_get_batt_sn);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_SN:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_BATT_SN,
+			oplus_maxim_gauge_get_battinfo_sn);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -390,7 +608,6 @@ static void oplus_chg_maxim_err_track_work(struct work_struct *work)
 	}
 }
 
-
 static int oplus_maxim_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -399,7 +616,6 @@ static int oplus_maxim_probe(struct platform_device *pdev)
 	enum oplus_chg_ic_type ic_type;
 	int ic_index;
 	struct oplus_chg_ic_cfg ic_cfg = { 0 };
-	struct oplus_maxim_gauge_chip *maxim_chip;
 
 	chg_info("%s: entery\n", __func__);
 	maxim_chip = devm_kzalloc(&pdev->dev, sizeof(struct oplus_maxim_gauge_chip), GFP_KERNEL);
@@ -415,6 +631,10 @@ static int oplus_maxim_probe(struct platform_device *pdev)
 	maxim_chip->boot_lk_auth_result = false;
 	maxim_chip->boot_kernel_auth_result = false;
 	flag = oplus_maxim_check_auth_msg();
+
+	chg_info("oplus_maxim_probe support_maxim_in_lk=%d,support_in_kernel=%d,oplus_maxim_check_auth_msg=%d\n",
+		maxim_chip->support_maxim_in_lk, maxim_chip->support_maxim_in_kernel, flag);
+
 	if (maxim_chip->support_maxim_in_lk && flag) {
 		chg_info("%s get lk auth success .\n", __func__);
 		ret = true;
@@ -428,19 +648,8 @@ static int oplus_maxim_probe(struct platform_device *pdev)
 			chg_err("%s: not support kernel auth\n", __func__);
 			return 0;
 		}
-		maxim_chip->gpio_info.gpio_cfg_out_reg = devm_ioremap(&pdev->dev,
-					maxim_chip->gpio_info.onewire_gpio_cfg_addr_out, 0x4);
-		maxim_chip->gpio_info.gpio_cfg_in_reg = devm_ioremap(&pdev->dev,
-					maxim_chip->gpio_info.onewire_gpio_cfg_addr_in, 0x4);
-		maxim_chip->gpio_info.gpio_out_high_reg = devm_ioremap(&pdev->dev,
-					maxim_chip->gpio_info.onewire_gpio_level_addr_high, 0x4);
-		maxim_chip->gpio_info.gpio_out_low_reg = devm_ioremap(&pdev->dev,
-					maxim_chip->gpio_info.onewire_gpio_level_addr_low, 0x4);
-		maxim_chip->gpio_info.gpio_in_reg = devm_ioremap(&pdev->dev,
-					maxim_chip->gpio_info.onewire_gpio_in_addr, 0x4);
 
-		chg_info("check kernel auth.\n");
-		ret = onewire_init(&maxim_chip->gpio_info);
+		ret = onewire_init_gpio_info(maxim_chip);
 		if (ret < 0) {
 			chg_err("onewire_init failed, ret=%d\n", ret);
 			maxim_chip->maxim_in_kernel_init_ok = false;

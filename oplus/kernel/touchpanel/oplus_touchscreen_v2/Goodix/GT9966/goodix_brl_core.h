@@ -1,5 +1,5 @@
 /**************************************************************
- * Copyright (c)  2008- 2030  Oplus Mobile communication Corp.ltd.
+ * Copyright (c)  2008- 2030  oplus Mobile communication Corp.ltd.
  * File       : goodix_drivers_gt9886.h
  * Description: header file for Goodix GT9886 driver
  * Version   : 1.0
@@ -35,6 +35,7 @@
 #define GOODIX_READ_VERSION_RETRY   5
 #define FW_VERSION_INFO_ADDR        0x10014
 #define GOODIX_NORMAL_PID           "9966"
+#define GOODIX_RST_TEST_REG         0x10030
 
 
 #define GOODIX_DRIVER_VERSION			"v1.0.3"
@@ -51,6 +52,8 @@
 #define MAX_GT_IRQ_DATA_LENGTH      90       /*irq data(points,key,checksum) size read from irq*/
 #define MAX_GT_EDGE_DATA_LENGTH     50       /*irq edge data read from irq*/
 
+#define MAX_VOLUME_CNT 5
+#define VOLUME_ERR_BIT 0x20
 #define MAX_GESTURE_POINT_NUM       128      /*max point number of black gesture*/
 
 /* gesture type */
@@ -155,6 +158,7 @@
 #define GTP_SET_CMD_DATA0_OFFSET    4
 
 /* test addr */
+#define DATA_MUTUAL_DIFFDATA_ADDR   0x10426
 #define DATA_SYNC_ALGOLIB_ADDR      0x1036c
 #define DATA_DEGBU_FW_TX_OFFECT     10
 #define BYTES_PER_EDGE                      4
@@ -202,6 +206,13 @@
 #define GTP_CMD_GESTURE_DEBUG           0
 #define GTP_CMD_GAME_MODE               0xC2
 #define GTP_CMD_GESTURE_MASK            0
+
+#define GTP_FREQ_REG                    0x9c
+#define GTP_FREQ_CMD_0                  0x00
+#define GTP_FREQ_CMD_1                  0x01
+#define GTP_FREQ_CMD_2                  0x02
+#define GTP_FREQ_CMD_3                  0x03
+#define GTP_FREQ_CMD_4                  0x04
 
 #define GTP_CMD_SIXTY_CMD               0xC5
 
@@ -316,7 +327,7 @@ static char *test_item_name[MAX_TEST_ITEMS] = {
 	"SELF_RAWDATA_TEST",
 	"SHORT_TEST",
 	"",
-	"",
+	"RST_TEST",
 	"",
 	""
 };
@@ -361,7 +372,7 @@ enum PANEL_TYPE {
 	SAMSUNG_PANEL,
 };
 
-#define GOODIX_CHECK_HRTIMER_NS        150000000
+#define GOODIX_CHECK_HRTIMER_NS        300000000
 #define GOODIX_CHECK_HRTIMER_S         0
 #define GOODIX_PALM_IN_PEN_HRTIMER_S   5
 /* pen control cmd */
@@ -550,6 +561,9 @@ struct goodix_ic_info {
 	struct goodix_ic_info_misc misc;
 };
 #pragma pack()
+
+#define TEMPERATURE_CNT 3
+#define TEMPERATURE_SPECIAL 0
 
 #define MAX_CMD_DATA_LEN 10
 #define MAX_CMD_BUF_LEN  16
@@ -885,6 +899,9 @@ struct chip_data_brl {
 	u8 *diff_rw_buf;
 	s16 *diff_buf;
 	u32 diff_size;
+	unsigned int                       high_volume_invalid_touch_cnt;
+	s16                                *rawdata;
+	bool                               diff_sync_check;
 };
 
 /****************************End of struct declare***************************/

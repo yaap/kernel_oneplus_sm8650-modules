@@ -536,7 +536,7 @@ static void p9415_track_i2c_err_load_trigger_work(
 	if (!chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	if (chip->i2c_err_load_trigger) {
 		kfree(chip->i2c_err_load_trigger);
 		chip->i2c_err_load_trigger = NULL;
@@ -644,7 +644,7 @@ static void p9415_track_rx_err_load_trigger_work(
 	if (!chip->rx_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->rx_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->rx_err_load_trigger);
 	if (chip->rx_err_load_trigger) {
 		kfree(chip->rx_err_load_trigger);
 		chip->rx_err_load_trigger = NULL;
@@ -751,7 +751,7 @@ static void p9415_track_tx_err_load_trigger_work(
 	if (!chip->tx_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->tx_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->tx_err_load_trigger);
 	if (chip->tx_err_load_trigger) {
 		kfree(chip->tx_err_load_trigger);
 		chip->tx_err_load_trigger = NULL;
@@ -852,7 +852,7 @@ static void p9415_track_update_err_load_trigger_work(
 	if (!chip->update_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->update_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->update_err_load_trigger);
 	if (chip->update_err_load_trigger) {
 		kfree(chip->update_err_load_trigger);
 		chip->update_err_load_trigger = NULL;

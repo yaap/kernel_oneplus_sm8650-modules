@@ -30,6 +30,7 @@
 #include <oplus_chg_ic.h>
 #include <oplus_hal_vooc.h>
 #include <oplus_mms_gauge.h>
+#include <oplus_chg_monitor.h>
 
 #define LEVEL_SHIFT_PHY_IC_NUM_MAX 3
 
@@ -43,10 +44,15 @@ struct oplus_virtual_level_shift_ic {
 	struct oplus_virtual_level_shift_child *child_list;
 	int child_num;
 	int node_child_num;
+	struct oplus_mms *error_topic;
+	struct mms_subscribe *error_subs;
+	int fpga_reset_status;
+	int i2c_reset_status;
 };
 
 static struct oplus_chg_ic_virq oplus_level_shift_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_ERR },
+	{ .virq_id = OPLUS_IC_VIRQ_FPGA_RST },
 };
 
 static void oplus_level_shift_err_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
@@ -55,6 +61,14 @@ static void oplus_level_shift_err_handler(struct oplus_chg_ic_dev *ic_dev, void 
 
 	oplus_chg_ic_move_err_msg(chip->ic_dev, ic_dev);
 	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
+}
+
+static void oplus_level_shift_fpga_rst_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
+{
+	struct oplus_virtual_level_shift_ic *chip = virq_data;
+
+	oplus_chg_ic_move_err_msg(chip->ic_dev, ic_dev);
+	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_FPGA_RST);
 }
 
 static int oplus_level_shift_virq_register(struct oplus_virtual_level_shift_ic *chip)
@@ -68,6 +82,13 @@ static int oplus_level_shift_virq_register(struct oplus_virtual_level_shift_ic *
 			oplus_level_shift_err_handler, chip);
 		if (rc < 0)
 			chg_err("register OPLUS_IC_VIRQ_ERR error, rc=%d",
+				rc);
+
+		rc = oplus_chg_ic_virq_register(
+			chip->child_list[i].ic_dev, OPLUS_IC_VIRQ_FPGA_RST,
+			oplus_level_shift_fpga_rst_handler, chip);
+		if (rc < 0)
+			chg_err("register OPLUS_IC_VIRQ_FPGA_RST error, rc=%d",
 				rc);
 	}
 
@@ -112,8 +133,10 @@ static int oplus_chg_level_shift_init(struct oplus_chg_ic_dev *ic_dev)
 			if (phy_ic_num == chip->child_num)
 				goto init_done;
 		} else {
+			retry = true;
 			chg_err("switch ic(=%s) init error, rc=%d\n",
 				temp_ic_dev->name, rc);
+			break;
 		}
 		if (i < LEVEL_SHIFT_PHY_IC_NUM_MAX)
 			dev_initialized[i] = true;
@@ -148,6 +171,7 @@ static int oplus_chg_level_shift_exit(struct oplus_chg_ic_dev *ic_dev)
 	ic_dev->online = false;
 	for (i = 0; i < chip->child_num; i++) {
 		oplus_chg_ic_virq_release(chip->child_list[i].ic_dev, OPLUS_IC_VIRQ_ERR, chip);
+		oplus_chg_ic_virq_release(chip->child_list[i].ic_dev, OPLUS_IC_VIRQ_FPGA_RST, chip);
 		oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_EXIT);
 	}
 
@@ -169,6 +193,30 @@ static int oplus_chg_level_shift_reg_dump(struct oplus_chg_ic_dev *ic_dev)
 		oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_REG_DUMP);
 
 	return 0;
+}
+
+static int oplus_chg_ls_fpga_rst(struct oplus_chg_ic_dev *ic_dev, int type)
+{
+	struct oplus_virtual_level_shift_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip)
+		return -ENODEV;
+	for (i = 0; i < chip->child_num; i++) {
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_BAL_HW_INIT, type);
+		if (rc < 0)
+			chg_err("child ic[%d] OPLUS_IC_FUNC_GAUGE_FPGA_RST error, rc=%d\n", i, rc);
+	}
+
+	return rc;
 }
 
 static int oplus_chg_level_shift_set_conver_enable(struct oplus_chg_ic_dev *ic_dev, bool enable)
@@ -310,6 +358,69 @@ static int oplus_level_shift_child_init(struct oplus_virtual_level_shift_ic *chi
 	return 0;
 }
 
+static void oplus_virtual_ls_error_subs_callback(struct mms_subscribe *subs,
+					   enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_virtual_level_shift_ic *chip = subs->priv_data;
+	union mms_msg_data data = { 0 };
+
+	if (!chip)
+		return;
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case ERR_ITEM_FPGA_RESET:
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data,
+						false);
+			chip->fpga_reset_status = data.intval;
+			chg_err("ERR_ITEM_FPGA_RESET, reset_status=%d\n", chip->fpga_reset_status);
+			if (chip->fpga_reset_status == FPGA_RESET_START)
+				oplus_chg_ls_fpga_rst(chip->ic_dev, FPGA_RESET_START);
+			else if (chip->fpga_reset_status == FPGA_RESET_END)
+				oplus_chg_ls_fpga_rst(chip->ic_dev, FPGA_RESET_END);
+			break;
+		case ERR_ITEM_I2C_RESET:
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_I2C_RESET, &data,
+						false);
+			chip->i2c_reset_status = data.intval;
+			chg_err("ERR_ITEM_I2C_RESET, reset_status=%d\n", chip->i2c_reset_status);
+			if (chip->i2c_reset_status == GUAGE_I2C_RST_START)
+				oplus_chg_ls_fpga_rst(chip->ic_dev, GUAGE_I2C_RST_START);
+			else if (chip->i2c_reset_status == GUAGE_I2C_RST_END)
+				oplus_chg_ls_fpga_rst(chip->ic_dev, GUAGE_I2C_RST_END);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_virtual_ls_subscribe_error_topic(struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_level_shift_ic *chip = prv_data;
+	union mms_msg_data data = { 0 };
+
+	chip->error_topic = topic;
+	chip->error_subs =
+		oplus_mms_subscribe(chip->error_topic, chip,
+				    oplus_virtual_ls_error_subs_callback, "virtual_ls");
+	if (IS_ERR_OR_NULL(chip->error_subs)) {
+		chg_err("subscribe error topic error, rc=%ld\n",
+			PTR_ERR(chip->error_subs));
+		return;
+	}
+	oplus_mms_subs_move_to_top(chip->error_subs);
+
+	oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data, true);
+	chip->fpga_reset_status = data.intval;
+	if (chip->fpga_reset_status == FPGA_RESET_END)
+		oplus_chg_ls_fpga_rst(chip->ic_dev, FPGA_RESET_END);
+}
+
 static int oplus_virtual_level_shift_probe(struct platform_device *pdev)
 {
 	struct oplus_virtual_level_shift_ic *chip;
@@ -364,6 +475,7 @@ static int oplus_virtual_level_shift_probe(struct platform_device *pdev)
 		goto reg_ic_err;
 	}
 
+	oplus_mms_wait_topic("error", oplus_virtual_ls_subscribe_error_topic, chip);
 	chg_err("probe success\n");
 	return 0;
 
@@ -377,12 +489,21 @@ child_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_level_shift_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_level_shift_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_level_shift_ic *chip = platform_get_drvdata(pdev);
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_level_shift_exit(chip->ic_dev);
@@ -391,7 +512,9 @@ static int oplus_virtual_level_shift_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static void oplus_virtual_level_shift_shutdown(struct platform_device *pdev)

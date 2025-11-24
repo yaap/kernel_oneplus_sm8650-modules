@@ -489,7 +489,7 @@ static void track_mos_err_load_trigger_work(
 			parallel_mos_trigger_work);
 
 	if (chip->mos_err_load_trigger) {
-		oplus_chg_track_upload_trigger_data(*(chip->mos_err_load_trigger));
+		oplus_chg_track_upload_trigger_data(chip->mos_err_load_trigger);
 		kfree(chip->mos_err_load_trigger);
 		chip->mos_err_load_trigger = NULL;
 	}

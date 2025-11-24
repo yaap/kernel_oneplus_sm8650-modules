@@ -14,7 +14,6 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/acpi.h>
-#include <asm/unaligned.h>
 #include <linux/uaccess.h>
 #include <linux/interrupt.h>
 #include <linux/of_gpio.h>
@@ -26,6 +25,11 @@
 #include <linux/version.h>
 #include "oplus_bq27541.h"
 #include "oplus_nfg1000a.h"
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
+#include <asm/unaligned.h>
+#endif
 
 int nfg1000a_get_calib_time(struct chip_bq27541 *chip, int *dod_time, int *qmax_time)
 {

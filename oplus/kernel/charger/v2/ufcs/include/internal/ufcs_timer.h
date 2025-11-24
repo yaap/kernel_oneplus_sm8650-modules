@@ -36,7 +36,7 @@ enum ufcs_timer {
 #define T_RETRY_US			500
 #define T_RECEIVER_RESPONSE_MS		40
 
-#define T_ACK_RECEIVE_NO_RESEND_MS	50
+#define T_ACK_RECEIVE_NO_RESEND_MS	100
 
 /* customize */
 #define T_HANDSHAKE_TIMEOUT_MS		300

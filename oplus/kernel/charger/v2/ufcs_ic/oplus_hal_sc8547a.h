@@ -93,6 +93,10 @@
 #define SC8547A_ADDR_TXRX_BUFFER_CTRL (0xEA)
 #define SC8547A_CMD_CLR_TX_RX (0xC0)
 
+#define SC8547A_UFCS_OPTION2_CTRL (0xEB)
+#define SC8547A_ACK_RX_TIMEOUT_MASK (0xC0)
+#define SC8547A_10MS_AND_RX_FRAME_TIME (0x80)
+
 #define SC8547A_DEVICE_ID 0x67
 
 /*********************command buffer**************/
@@ -213,4 +217,8 @@
 #define ERROR_INFO_NUM 16
 #define ERROR_INFO_LEN 4
 #define VALID_ERROR_INFO_BITS 0x7fff
+
+#define SC8547A_INT_FLAG_REG		0x0f
+#define SC8547A_IBUS_OCP_FLAG_MASK	BIT(3)
+#define SC8547A_IBUS_UCP_FLAG_MASK	BIT(2)
 #endif /*_OPLUS_SC8547A_H_*/

@@ -429,10 +429,16 @@ static int oplus_imp_check_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_imp_check_remove(struct platform_device *pdev)
+#else
 static int oplus_imp_check_remove(struct platform_device *pdev)
+#endif
 {
 	oplus_imp_uint_unregister(&pdev->dev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_imp_check_match[] = {

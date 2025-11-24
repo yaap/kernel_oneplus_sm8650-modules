@@ -7,6 +7,8 @@
 #include <net/genetlink.h>
 #include <linux/version.h>
 #include <soc/oplus/dft/olc.h>
+#include <linux/irqflags.h>
+#include <linux/preempt.h>
 
 int olc_proc_debug_init(void);
 int olc_proc_debug_done(void);
@@ -285,6 +287,7 @@ static int flow_control_check(int exp_id)
     int ret = -1;
     struct exception_node *node = NULL;
     int found = 0;
+    gfp_t flags;
 
     // FIXME: need to free node sometimes
     flow_control.last_event = jiffies;
@@ -311,7 +314,15 @@ static int flow_control_check(int exp_id)
     if (!found)
     {
         ret = (enabled == 1)?0:-1;
-        node = kmalloc(sizeof(struct exception_node), GFP_KERNEL);
+        if (in_atomic() || irqs_disabled() || in_interrupt())
+        {
+            flags = GFP_ATOMIC;
+        }
+        else
+        {
+            flags = GFP_KERNEL;
+        }
+        node = kmalloc(sizeof(struct exception_node), flags);
         if (node == NULL)
         {
             pr_err("[olc] kmalloc exception:%d node failed.\n", exp_id);
@@ -351,9 +362,18 @@ static int olc_netlink_send_msg(u8 cmd, int attrType, void *data, size_t len)
     struct sk_buff *msg = NULL;
     void *msg_head = NULL;
     size_t size;
+    gfp_t flags;
 
+    if (in_atomic() || irqs_disabled() || in_interrupt())
+    {
+        flags = GFP_ATOMIC;
+    }
+    else
+    {
+        flags = GFP_KERNEL;
+    }
     size = nla_total_size(len);
-    msg = genlmsg_new(size, GFP_KERNEL);
+    msg = genlmsg_new(size, flags);
     if (msg == NULL)
     {
         pr_err("[olc] genlmsg_new failed. \n");

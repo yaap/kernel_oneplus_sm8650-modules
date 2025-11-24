@@ -771,7 +771,7 @@ static const struct proc_ops oplus_voocphy_batt_fake_temp_fops = {
 	.proc_open = oplus_voocphy_batt_fake_temp_open,
 	.proc_write = oplus_voocphy_batt_fake_temp_write,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -819,7 +819,7 @@ static const struct proc_ops oplus_voocphy_batt_fake_soc_fops = {
 	.proc_open = oplus_voocphy_batt_fake_soc_open,
 	.proc_write = oplus_voocphy_batt_fake_soc_write,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -864,7 +864,7 @@ static const struct proc_ops oplus_voocphy_loglevel_fops = {
 	.proc_open = oplus_voocphy_loglevel_open,
 	.proc_write = oplus_voocphy_loglevel_write,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 

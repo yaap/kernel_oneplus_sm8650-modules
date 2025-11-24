@@ -172,6 +172,7 @@ enum {
 	TYPE_TEST4                   = 0x04,
 	TYPE_TEST5                   = 0x05,
 	TYPE_TEST6					 = 0x06,
+	TYPE_TEST7                   = 0x07,
 	TYPE_MAX                     = 0xFF,
 };
 
@@ -193,6 +194,9 @@ struct goodix_auto_test_operations {
 		     struct auto_testdata *goodix_testdata,
 		     struct test_item_info *p_test_item_info);
 	int (*test6)(struct seq_file *s, void *chip_data,
+		     struct auto_testdata *goodix_testdata,
+		     struct test_item_info *p_test_item_info);
+	int (*test7)(struct seq_file *s, void *chip_data,
 		     struct auto_testdata *goodix_testdata,
 		     struct test_item_info *p_test_item_info);
 	int (*auto_test_preoperation)(struct seq_file *s, void *chip_data,

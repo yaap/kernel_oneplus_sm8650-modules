@@ -1270,9 +1270,10 @@ alloc_err:
 }
 
 
-
-
-
+static int raw_cap_data_restriction(int val, int raw_cap_restriction)
+{
+	return val * raw_cap_restriction / 100;
+}
 
 int ft3683g_rawdata_autotest(struct seq_file *s, void *chip_data,
                             struct auto_testdata *focal_testdata, struct test_item_info *p_test_item_info)
@@ -1288,6 +1289,7 @@ int ft3683g_rawdata_autotest(struct seq_file *s, void *chip_data,
 	int tx_num = ts_data->hw_res->tx_num;
 	int rx_num = ts_data->hw_res->rx_num;
 	int node_num = tx_num * rx_num;
+	int rawdata = 0;
 
 	FTS_TEST_FUNC_ENTER();
 	FTS_TEST_SAVE_INFO("\n============ Test Item: Rawdata Test\n");
@@ -1384,14 +1386,15 @@ int ft3683g_rawdata_autotest(struct seq_file *s, void *chip_data,
 		if (0 == ts_data->node_valid[i]) {
 			continue;
 		}
-
-		if ((ts_data->rawdata[i] < ts_data->fts_autotest_offset->fts_raw_data_N[i])
-		    || (ts_data->rawdata[i] > ts_data->fts_autotest_offset->fts_raw_data_P[i])) {
-			TPD_INFO("raw data ERR [%d]: [%d] > [%d] > [%d] \n", i,
-			         ts_data->fts_autotest_offset->fts_raw_data_P[i], ts_data->rawdata[i],
+		rawdata = ts_data->rawdata[i];
+		rawdata = raw_cap_data_restriction(rawdata, focal_testdata->raw_cap_restriction);
+		if ((rawdata < ts_data->fts_autotest_offset->fts_raw_data_N[i])
+		    || (rawdata > ts_data->fts_autotest_offset->fts_raw_data_P[i])) {
+			TPD_INFO("raw data ERR [%d] restriction[%d]: [%d] > [%d] > [%d] \n", i,
+			         ts_data->fts_autotest_offset->fts_raw_data_P[i], ts_data->rawdata[i], rawdata,
 			         ts_data->fts_autotest_offset->fts_raw_data_N[i]);
-			FTS_TEST_SAVE_ERR("test fail,node(%4d,%4d)=%5d,range=(%5d,%5d)\n",
-			                  i / rx_num + 1, i % rx_num + 1, ts_data->rawdata[i],
+			FTS_TEST_SAVE_ERR("test fail,node(%4d,%4d)=%5d,restriction[%d], range=(%5d,%5d)\n",
+			                  i / rx_num + 1, i % rx_num + 1, ts_data->rawdata[i], rawdata,
 			                  ts_data->fts_autotest_offset->fts_raw_data_N[i],
 			                  ts_data->fts_autotest_offset->fts_raw_data_P[i]);
 			result = false;
@@ -1970,6 +1973,80 @@ test_err:
 	} else {
 		FTS_TEST_SAVE_ERR("------Short Test NG\n");
 		ret = TEST_RESULT_ABNORMAL;
+	}
+
+	FTS_TEST_FUNC_EXIT();
+	return ret;
+}
+
+int ft3683g_rst_autotest(struct seq_file *s, void *chip_data,
+                                  struct auto_testdata *focal_testdata, struct test_item_info *p_test_item_info)
+{
+	int ret = 0;
+	u8 val = 0;
+	u8 val2 = 0;
+	u8 val3 = 0;
+	struct chip_data_ft3683g *ts_data = (struct chip_data_ft3683g *)chip_data;
+
+	FTS_TEST_FUNC_ENTER();
+	FTS_TEST_SAVE_INFO("\n============ Test Item: Reset Test\n");
+
+	enter_work_mode();
+
+	ret = fts_test_read_reg(FACTORY_FTS_RESET_TEST, &val);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("one: read report_rate error, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	val2 = val - 1;
+	ret = fts_test_write_reg(FACTORY_FTS_RESET_TEST, val2);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("one: set report_rate fail, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	ft3683g_rstpin_reset((void*)ts_data);
+	ret = fts_test_read_reg(FACTORY_FTS_RESET_TEST, &val3);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("one: read report_rate error, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	TPD_INFO("one: reset test: val = %d, val3 = %d", val, val3);
+
+	ret = fts_test_read_reg(FACTORY_FTS_RESET_TEST, &val);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("two: read report_rate error, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	val2 = val - 1;
+	ret = fts_test_write_reg(FACTORY_FTS_RESET_TEST, val2);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("two: set report_rate fail, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	ft3683g_rstpin_reset((void*)ts_data);
+	ret = fts_test_read_reg(FACTORY_FTS_RESET_TEST, &val3);
+	if (ret < 0) {
+		FTS_TEST_SAVE_ERR("two: read report_rate error, ret=%d\n", ret);
+		goto test_err;
+	}
+
+	TPD_INFO("two: reset test: val = %d, val3 = %d", val, val3);
+
+	if (val3 != val) {
+		FTS_TEST_SAVE_ERR("check reg to test rst failed.\n");
+		ret = -1;
+	}
+
+test_err:
+	if (!ret) {
+		FTS_TEST_SAVE_INFO("------Reset Test PASS\n");
+	} else {
+		FTS_TEST_SAVE_INFO("------Reset Test NG\n");
 	}
 
 	FTS_TEST_FUNC_EXIT();

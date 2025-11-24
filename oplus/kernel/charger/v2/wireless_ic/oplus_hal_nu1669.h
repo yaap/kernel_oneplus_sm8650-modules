@@ -115,7 +115,7 @@
 #define MTP_UNLOCK_GOOD			0x02
 #define MTP_UNLOCK_TIMES		10
 #define MTP_BUSY_POS			7
-#define MTP_BUSY_WAIT			12
+#define MTP_BUSY_WAIT			120
 
 /************* 1. AP Write Data to NU1669 **************
  * 1. AP write data length to gen-rw-reg0
@@ -175,8 +175,10 @@
 #define NU1669_VOUT_PRESENT_LDO_OFF	BIT(16)
 #define NU1669_LDO_OPP			BIT(17)
 #define NU1669_VOUT_SC			BIT(18)
-#define NU1669_CHIP_SLEEP		BIT(19)
+#define NU1669_EPP_TX_MANU_ID		BIT(19)
 #define NU1669_V2X_UCP			BIT(20)
+
+#define NU1669_EPP_NEGO_FAIL		BIT(29)
 
 #define NU1669_TX_STATUS_MASK		(BIT(21) | BIT(22) | BIT(23))
 #define NU1669_TX_STATUS_TRANSFER	BIT(21)

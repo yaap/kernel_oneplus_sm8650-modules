@@ -304,6 +304,13 @@ void unlock_votable(struct votable *votable)
 	mutex_unlock(&votable->vote_lock);
 }
 
+const char *votable_name(struct votable *votable)
+{
+	if (votable == NULL)
+		return NULL;
+	return votable->name;
+}
+
 /**
  * is_override_vote_enabled() -
  * is_override_vote_enabled_locked() -

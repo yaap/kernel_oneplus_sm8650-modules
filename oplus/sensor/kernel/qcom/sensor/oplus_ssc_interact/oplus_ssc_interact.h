@@ -42,6 +42,7 @@ enum {
 	LCM_HBM_LONG_INTE_TYPE,
 	LCM_HBM_SHORT_INTE_TYPE,
 	LCM_BLANK_MODE_TYPE,
+	LCM_BLANK_MODE_TYPE_SEC,
 	LCM_SCREENSHOT_INFO_TYPE = 0x10,
 	MAX_INFO_TYPE,
 };
@@ -61,7 +62,8 @@ enum {
 struct als_info{
 	uint16_t brightness;
 	uint16_t dc_mode;
-	uint16_t blank_mode;
+	uint16_t primary_blank_mode;
+	uint16_t secondary_blank_mode;
 };
 
 #if IS_ENABLED(CONFIG_OPLUS_SENSOR_USE_SCREENSHOT_INFO)
@@ -114,6 +116,7 @@ struct ssc_interactive{
 	bool pwm_turbo_on;
 	int hbm_on;
 	uint16_t last_primary_bri;
+	uint16_t last_second_bri;
 #if IS_ENABLED(CONFIG_OPLUS_SENSOR_DRM_PANEL_ADFR_MIN_FPS)
 	uint16_t last_freq;
 #endif

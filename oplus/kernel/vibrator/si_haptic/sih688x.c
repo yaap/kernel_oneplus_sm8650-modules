@@ -1717,6 +1717,16 @@ static void sih688x_get_detect_f0(sih_haptic_t *sih_haptic)
 	hp_info("%s: f0:%d\n", __func__, sih_haptic->detect.detect_f0);
 }
 
+static void sih688x_f0_parameters_config(sih_haptic_t *sih_haptic)
+{
+	int i;
+
+	for(i = 0; i < sih_haptic->detect.f0_reg_nums; i++) {
+		haptic_regmap_write(sih_haptic->regmapp.regmapping, sih_haptic->detect.f0_reg_addr[i],
+			SIH_I2C_OPERA_BYTE_ONE, (uint8_t *)&sih_haptic->detect.f0_reg_val[i]);
+	}
+}
+
 static void sih688x_get_tracking_f0(sih_haptic_t *sih_haptic)
 {
 	uint8_t cnt = SIH_WAIT_FOR_STANDBY_MAX_TRY;
@@ -1736,6 +1746,8 @@ static void sih688x_get_tracking_f0(sih_haptic_t *sih_haptic)
 	sih_haptic->detect.tracking_f0 = sih_f0_pre_value;
 	/* load tracking f0 config */
 	sih_load_reg_config(sih_haptic, REG_FUNC_CONT);
+	if (sih_haptic->detect.f0_reg_nums != 0)
+		sih688x_f0_parameters_config(sih_haptic);
 	sih688x_upload_f0(sih_haptic, SIH_WRITE_ZERO);
 	sih688x_f0_tracking(sih_haptic, false);
 	/* play go */
@@ -1884,6 +1896,24 @@ static void sih688x_init(sih_haptic_t *sih_haptic)
 	sih688x_get_lra_resistance(sih_haptic);
 }
 
+static int sih688x_set_f0_para_config(sih_haptic_t *sih_haptic, uint8_t *f0_addr_regs, uint8_t *f0_addr_val,
+				int f0_reg_nums)
+{
+	int i;
+
+	if (f0_addr_regs == NULL || f0_addr_val == NULL)
+		return -1;
+
+	for (i = 0; i < f0_reg_nums; i++) {
+		hp_info("%s: reg_addr = 0x%02x, reg_val = 0x%02x\n",
+			__func__, f0_addr_regs[i], f0_addr_val[i]);
+		sih_haptic->detect.f0_reg_addr[i] = f0_addr_regs[i];
+		sih_haptic->detect.f0_reg_val[i] = f0_addr_val[i];
+	}
+	sih_haptic->detect.f0_reg_nums = f0_reg_nums;
+	return 0;
+}
+
 haptic_func_t sih_688x_func_list = {
 	.probe = sih688x_probe,
 	.init = sih688x_init,
@@ -1946,4 +1976,5 @@ haptic_func_t sih_688x_func_list = {
 	.read_detect_fifo = sih688x_read_detect_fifo,
 	.get_cont_para = sih688x_get_cont_para,
 	.set_cont_para = sih688x_set_cont_para,
+	.set_f0_para_config = sih688x_set_f0_para_config,
 };

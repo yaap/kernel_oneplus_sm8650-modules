@@ -1067,6 +1067,7 @@ static int fts_auto_test_read_func(struct seq_file *s, void *v)
 	focal_testdata.fd_support = ts->face_detect_support;
 	focal_testdata.fingerprint_underscreen_support =
 		ts->fingerprint_underscreen_support;
+	focal_testdata.raw_cap_restriction = ts->com_test_data.raw_cap_restriction;
 
 	syna_ops->auto_test(s, ts->chip_data, &focal_testdata);
 
@@ -1499,6 +1500,17 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 		}
 		support_item++;
 	}
+
+	if (!fts_test_ops->test12) {
+		TPD_INFO("test%d not support\n", TYPE_TEST12);
+	} else {
+		ret = fts_test_ops->test12(s, ts->chip_data, NULL, NULL);
+		if (ret < 0) {
+			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST12, ret);
+			error_count++;
+		}
+	}
+
 	if (!fts_test_ops->auto_test_endoperation) {
 		TPD_INFO("not support fts_test_ops->auto_test_preoperation callback\n");
 
@@ -1728,6 +1740,8 @@ int focal_auto_test(struct seq_file *s,  struct touchpanel_data *ts)
 	int error_count = 0;
 	int ret = 0;
 
+	focal_testdata.raw_cap_restriction = ts->com_test_data.raw_cap_restriction;
+
 	ret = focal_read_limit_fw(s, ts, &focal_testdata);
 
 	if (ret) {
@@ -1766,6 +1780,9 @@ int focal_black_screen_test(struct black_gesture_test *p,
 	int ret = 0;
 	/*size_t pos = 0;*/
 	int error_count = 0;
+
+	focal_testdata.raw_cap_restriction = ts->com_test_data.raw_cap_restriction;
+
 	/*struct auto_testdata *p_focal_testdata = &focal_testdata;*/
 	ret = focal_read_black_limit_fw(NULL, p, ts, &focal_testdata);
 

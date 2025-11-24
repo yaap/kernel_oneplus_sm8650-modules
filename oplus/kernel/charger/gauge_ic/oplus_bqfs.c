@@ -6,7 +6,11 @@
 #define pr_fmt(fmt) "[bq27426] %s(%d): " fmt, __func__, __LINE__
 
 #include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
 #include <asm/unaligned.h>
+#endif
 #include <linux/acpi.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -229,7 +233,7 @@ static bool bqfs_fg_fw_update_cmd(struct chip_bq27541 *chip, const bqfs_cmd_t *c
 		mdelay(cmd->data.delay);
 		return true;
 	default:
-		chg_err("Unsupported command at line %d\n", cmd->line_num);
+		chg_err("Unsupported command at line\n");
 		return false;
 	}
 }
@@ -573,7 +577,7 @@ static void oplus_bqfs_track_upgrade_err_load_trigger_work(struct work_struct *w
 	if (!chip->bqfs_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->bqfs_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->bqfs_err_load_trigger);
 
 	kfree(chip->bqfs_err_load_trigger);
 	chip->bqfs_err_load_trigger = NULL;

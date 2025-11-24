@@ -19,8 +19,9 @@
 #include "mtk_disp_notify.h"
 #endif
 
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include "kernelFwUpdate.h"
-
+#endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #include <oplus_chg_ic.h>
@@ -136,7 +137,6 @@ enum pd_adapter_event {
 	MTK_PD_CONNECT_PE_READY_SNK_PD30,
 	MTK_PD_CONNECT_PE_READY_SNK_APDO,
 	MTK_PD_CONNECT_TYPEC_ONLY_SNK,
-	MTK_TYPEC_CC_HI_STATUS,
 };
 
 enum adapter_protocol_state {
@@ -364,6 +364,12 @@ struct oplus_custom_gpio_pinctrl {
 };
 #endif
 
+enum oplus_sub_btb_adc_index {
+	OPLUS_SUB_BTB_VALD_MIN_ADC,
+	OPLUS_SUB_BTB_VALD_MAX_ADC,
+	OPLUS_SUB_BTB_MAX,
+};
+
 struct mtk_charger {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct oplus_chg_ic_dev *ic_dev;
@@ -378,6 +384,10 @@ struct mtk_charger {
 	struct mms_subscribe *wls_subs;
 	bool wls_online;
 	bool wls_charging_disable;
+	struct oplus_mms *wired_topic;
+	struct mms_subscribe *wired_subs;
+	bool wired_online;
+	bool wired_charging_disable;
 #endif
 
 	struct platform_device *pdev;
@@ -526,6 +536,7 @@ struct mtk_charger {
 
 	/*charger IC charging status*/
 	bool is_charging;
+	bool usb_aicl_enhance;
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct iio_channel	*subboard_temp_chan;
@@ -542,6 +553,9 @@ struct mtk_charger {
 #ifdef CONFIG_THERMAL
 	struct thermal_zone_device *master_cp_temp_tzd;
 	struct thermal_zone_device *slave_cp_temp_tzd;
+	struct thermal_zone_device *subboard_temp_tzd;
+	struct thermal_zone_device *bat_btb_temp_tzd;
+	struct thermal_zone_device *bat_sub_btb_temp_tzd;
 #endif
 
 	int ccdetect_gpio;
@@ -569,6 +583,7 @@ struct mtk_charger {
 	struct delayed_work hvdcp_detect_work;
 	struct delayed_work detach_clean_work;
 	struct delayed_work wls_chg_check_work;
+	struct delayed_work wired_chg_check_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
 	bool hvdcp_disable;
@@ -581,10 +596,12 @@ struct mtk_charger {
 	int wls_boost_vol_start_mv;
 	int wls_boost_vol_max_mv;
 
+	int sub_btb_valid_adc[OPLUS_SUB_BTB_MAX];
 	int pd_chg_volt;
 	struct delayed_work sourcecap_done_work;
 	struct delayed_work charger_suspend_recovery_work;
-	struct delayed_work	publish_close_cp_item_work;
+	struct delayed_work publish_close_cp_item_work;
+	struct delayed_work svid_check_work;
 	pd_msg_data pdo[PPS_PDO_MAX];
 	int cap_nr;
 #endif
@@ -639,7 +656,6 @@ extern void _wake_up_charger(struct mtk_charger *info);
 
 /* functions for other */
 extern int mtk_chg_enable_vbus_ovp(bool enable);
-extern int oplus_chg_set_dischg_enable(bool en);
 
 
 #ifdef OPLUS_FEATURE_CHG_BASIC

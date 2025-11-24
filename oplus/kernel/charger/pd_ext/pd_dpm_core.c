@@ -376,6 +376,11 @@ static bool dpm_build_request_info(
 	for (i = 0; i < src_cap->nr; i++)
 		DPM_INFO("SrcCap%d: 0x%08x\n", i+1, src_cap->pdos[i]);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (src_cap->pdos[0])
+		tcpci_notify_sourcecap_done(tcpc, (struct power_caps *)src_cap);
+#endif
+
 #ifdef CONFIG_USB_PD_REV30_PPS_SINK
 	if ((charging_policy & DPM_CHARGING_POLICY_MASK)
 		== DPM_CHARGING_POLICY_PPS) {
@@ -703,14 +708,22 @@ void pd_dpm_snk_standby_power(struct pd_port *pd_port)
 		/* Case8 Decreasing the Voltage and the Current*/
 		ma = standby_curr;
 		type = TCP_VBUS_CTRL_STANDBY_DOWN;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	} else if (pd_port->request_i == -1 || pd_port->request_i_new < pd_port->request_i) {
+		/* Case6 Decreasing the Current, t1 i = new */
+		ma = standby_curr;
+		type = TCP_VBUS_CTRL_STANDBY;
+	}
+#else
 	} else if (pd_port->request_i_new < pd_port->request_i) {
 		/* Case6 Decreasing the Current, t1 i = new */
 		ma = pd_port->request_i_new;
 		type = TCP_VBUS_CTRL_STANDBY;
 	}
+#endif
 
 	if (ma >= 0)
-		tcpci_sink_vbus(pd_port->tcpc, type, pd_port->request_v_new, ma);
+		tcpci_sink_vbus(pd_port->tcpc, type, pd_port->request_v_new, 0);
 #else
 #ifdef CONFIG_USB_PD_SNK_GOTOMIN
 	tcpci_sink_vbus(pd_port->tcpc, TCP_VBUS_CTRL_REQUEST,

@@ -26,7 +26,7 @@
 
 #define SC6607_AICL_POINT_VOL_9V 		7600
 #define SC6607_DUAL_AICL_POINT_VOL_9V		8500
-#define SC6607_AICL_POINT_VOL_5V_HIGH1          4350
+#define SC6607_AICL_POINT_VOL_5V_HIGH1          4300
 #define SC6607_AICL_POINT_VOL_5V_HIGH		4250
 #define SC6607_AICL_POINT_VOL_5V_MID		4150
 #define SC6607_AICL_POINT_VOL_5V_LOW		4100
@@ -525,6 +525,8 @@ enum {
 #define SC6607_HK_VBUS_OVP_MASK		BIT(1)
 #define SC6607_HK_VAC_OVP_MASK		BIT(0)
 
+#define SC6607_HK_VBUS_OVP_DATA		0x02
+
 /* Register 0Fh */
 #define SC6607_HK_CTRL3		0x07
 
@@ -824,6 +826,7 @@ struct sc6607_platform_data {
 	u32 cc_pull_down_idrive;
 	u32 continuous_time;
 	u32 bmc_width[4];
+	u32 batfet_rst_en;
 };
 
 struct sc6607_alert_handler {

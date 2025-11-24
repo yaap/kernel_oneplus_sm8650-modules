@@ -46,6 +46,7 @@ static int goodix_read_limit_fw(struct seq_file *s, struct touchpanel_data *ts,
 	p_goodix_testdata->fw = fw;
 	p_goodix_testdata->test_item = test_head->test_item;
 	p_goodix_testdata->pos = &ts->com_test_data.result_cur_len;
+	p_goodix_testdata->raw_cap_restriction = ts->com_test_data.raw_cap_restriction;
 	return 0;
 }
 
@@ -164,6 +165,16 @@ static int goodix_test_item(struct seq_file *s, struct touchpanel_data *ts,
 		ret = gd_test_ops->test6(s, ts->chip_data, NULL, NULL);
 		if (ret < 0) {
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST6, ret);
+			error_count++;
+		}
+	}
+
+	if (!gd_test_ops->test7) {
+		TPD_INFO("test%d not support\n", TYPE_TEST7);
+	} else {
+		ret = gd_test_ops->test7(s, ts->chip_data, NULL, NULL);
+		if (ret < 0) {
+			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST7, ret);
 			error_count++;
 		}
 	}

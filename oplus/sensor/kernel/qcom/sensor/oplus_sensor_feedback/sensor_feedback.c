@@ -27,6 +27,10 @@
 #if defined(CONFIG_OPLUS_FEATURE_FEEDBACK) || defined(CONFIG_OPLUS_FEATURE_FEEDBACK_MODULE)
 #include <soc/oplus/system/kernel_fb.h>
 #endif
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_TRACE_SENSOR)
+#include <soc/oplus/system/oplus_trace_sensor.h>
+static bool enable_report = false;
+#endif
 
 #define ALIGN4(s) ((sizeof(s) + 3)&(~0x3))
 
@@ -68,11 +72,21 @@ struct msm_rpmh_master_data {
 	enum master_pid pid;
 };
 
-#define SENSOR_DEVICE_TYPE      "10002"
-#define SENSOR_POWER_TYPE       "10003"
+#ifndef SENSOR_DEVICE_TYPE
+#define SENSOR_DEVICE_TYPE	  "10002"
+#endif
+#ifndef SENSOR_POWER_TYPE
+#define SENSOR_POWER_TYPE	   "10003"
+#endif
+#ifndef SENSOR_STABILITY_TYPE
 #define SENSOR_STABILITY_TYPE   "10004"
-#define SENSOR_PFMC_TYPE        "10005"
-#define SENSOR_MEMORY_TYPE      "10006"
+#endif
+#ifndef SENSOR_PFMC_TYPE
+#define SENSOR_PFMC_TYPE		"10005"
+#endif
+#ifndef SENSOR_MEMORY_TYPE
+#define SENSOR_MEMORY_TYPE	  "10006"
+#endif
 
 #define SENSOR_DEBUG_DEVICE_TYPE      "20002"
 #define SENSOR_DEBUG_POWER_TYPE       "20003"
@@ -192,6 +206,7 @@ struct sensor_fb_conf g_fb_conf[] = {
 
 	{FOLD_DEVICE_FOLDE_COUNT_ID, "device_fold_count", SENSOR_DEVICE_TYPE},
 	{FOLD_DEVICE_USE_HALL_ANGLE_COUNT_ID, "device_use_hall_angle_count", SENSOR_DEVICE_TYPE},
+	{HINGE_DETECT_INTERVAL_TIME_ID, "device_hinge_detect_interval_time_id", SENSOR_DEVICE_TYPE},
 
 	{FREE_FALL_TRIGGER_ID, "device_free_fall", SENSOR_DEVICE_TYPE},
 
@@ -942,6 +957,14 @@ static int parse_shr_info(struct sensor_fb_cxt *sensor_fb_cxt)
 #if defined(CONFIG_OPLUS_FEATURE_FEEDBACK) || defined(CONFIG_OPLUS_FEATURE_FEEDBACK_MODULE)
 		oplus_kevent_fb(FB_SENSOR, g_fb_conf[index].fb_event_id, payload);
 		pr_info("send oplus kevent fb\n");
+#endif
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_TRACE_SENSOR)
+
+		if (enable_report) {
+			oplus_trace_sensor_fault_report(g_fb_conf[index].event_id,
+					g_fb_conf[index].fb_event_id, g_fb_conf[index].fb_field,
+					sensor_fb_cxt->fb_smem.event[count].count);
+		}
 #endif
 	}
 

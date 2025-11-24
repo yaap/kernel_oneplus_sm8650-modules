@@ -25,8 +25,6 @@
 #include "oplus_wireless_pen_glink.h"
 
 #ifndef CONFIG_OPLUS_CHARGER_MTK
-#include <linux/soc/qcom/pmic_glink.h>
-
 struct wireless_pen_glink {
 	struct device *dev;
 	struct pmic_glink_client *client;
@@ -228,8 +226,7 @@ void wireless_pen_glink_exit(void)
 {
 	platform_driver_unregister(&wireless_pen_glink_driver);
 }
-#else /*ifdef CONFIG_OPLUS_CHARGER_MTK*/
-
+#else /*ifndef CONFIG_OPLUS_CHARGER_MTK*/
 void wireless_pen_glink_init(void)
 {
 }

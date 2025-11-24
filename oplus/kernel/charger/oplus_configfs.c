@@ -417,9 +417,11 @@ static ssize_t battery_fcc_show(struct device *dev, struct device_attribute *att
 }
 static DEVICE_ATTR_RO(battery_fcc);
 
+#define BATT_RM_LEN 10
 static ssize_t battery_rm_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct oplus_chg_chip *chip = NULL;
+	int batt_rm;
 
 	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
 	if (!chip) {
@@ -427,7 +429,8 @@ static ssize_t battery_rm_show(struct device *dev, struct device_attribute *attr
 		return -EINVAL;
 	}
 
-	return sprintf(buf, "%d\n", chip->batt_rm);
+	batt_rm = chip->batt_rm < 0 ? 0 : chip->batt_rm;
+	return scnprintf(buf, BATT_RM_LEN, "%d\n", batt_rm);
 }
 static DEVICE_ATTR_RO(battery_rm);
 
@@ -2716,7 +2719,7 @@ static ssize_t max_w_power_show(struct device *dev, struct device_attribute *att
 	if (is_wls_ocm_available(chip))
 		max_wls_power = oplus_chg_wls_get_max_wireless_power(&chip->wls_ocm->dev);
 
-	return sprintf(buf, "%d\n", max_wls_power);
+	return sprintf(buf, "%d\n", max_wls_power < 0 ? 0 : max_wls_power);
 }
 static DEVICE_ATTR_RO(max_w_power);
 
@@ -2815,7 +2818,7 @@ static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr
 	if (is_comm_ocm_available(chip))
 		ret = oplus_chg_comm_send_mutual_cmd(chip->comm_ocm, buf);
 	else
-		ret = oplus_chg_send_mutual_cmd(buf);
+		ret = oplus_charger_send_mutual_cmd(chip, buf);
 
 	return ret;
 }
@@ -2833,7 +2836,7 @@ static ssize_t mutual_cmd_store(struct device *dev, struct device_attribute *att
 	if (is_comm_ocm_available(chip))
 		oplus_chg_comm_response_mutual_cmd(chip->comm_ocm, buf, count);
 	else
-		oplus_chg_response_mutual_cmd(buf, count);
+		oplus_charger_response_mutual_cmd(chip, buf, count);
 
 	return count;
 }
@@ -3090,7 +3093,7 @@ static ssize_t ui_power_show(struct device *dev,
 	int adapter_power = 0;
 	int project_power = 0;
 	int ui_power = 0;
-	static int last_ui_power = -1;
+	static int last_ui_power = 0;
 	int pps_or_ufcs_power = 0;
 	bool ufcs_online = false;
 	bool pps_online = false;
@@ -3103,7 +3106,7 @@ static ssize_t ui_power_show(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (((last_ui_power != -1) && oplus_quirks_keep_connect_status() == 1) ||
+	if (((last_ui_power != 0) && oplus_quirks_keep_connect_status() == 1) ||
 		(chip->plc_support &&
 		(chip->curr_plc_status == PLC_STATUS_ENABLE || chip->plc_status == PLC_STATUS_WAIT)))
 		return sprintf(buf, "%u\n", last_ui_power);

@@ -9612,7 +9612,7 @@ static const struct proc_ops proc_debug_reg_ops =
 	.proc_read = proc_debug_reg_read,
 	.proc_write  = proc_debug_reg_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 static int init_debug_reg_proc(struct oplus_chg_chip *da)

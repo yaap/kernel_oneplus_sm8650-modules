@@ -74,9 +74,9 @@
 #endif
 
 #define TP_ALL_GESTURE_SUPPORT \
-	(ts->black_gesture_support || ts->fingerprint_underscreen_support)
+	(ts->black_gesture_support || ts->fingerprint_underscreen_support || ts->fp_grip_support)
 #define TP_ALL_GESTURE_ENABLE  \
-	((ts->gesture_enable & 0x01) == 1 || ts->fp_enable)
+	((ts->gesture_enable & 0x01) == 1 || ts->fp_enable || (ts->fp_grip_enable & FP_GRIP_ENABLE))
 
 /******* many panel index match start *******/
 #if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
@@ -303,9 +303,9 @@ void operate_mode_switch(struct touchpanel_data *ts)
 				TP_INFO(ts->tp_index, "%s : incell_aod_flag = %d", __func__, ts->incell_aod_flag);
 				if (ts->incell_aod_flag) {
 					TP_INFO(ts->tp_index, "TP in mode aod start\n");
+					ts->is_suspended = 1;
 					ts->incell_aod_flag = false;
 					mode_switch_health(ts,  MODE_INCELL_AOD, true);
-					ts->is_suspended = 1;
 				} else {
 					TP_INFO(ts->tp_index, "TP out mode aod start\n");
 					mode_switch_health(ts,  MODE_INCELL_AOD, false);
@@ -344,6 +344,14 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			ts->ts_ops->enable_kernel_grip(ts->chip_data, ts->grip_info);
 		}
 
+		if(ts->ts_ops->set_high_frame_rate && ts->high_frame_rate_support) {
+			ts->ts_ops->set_high_frame_rate(ts->chip_data, ts->high_frame_value, ts->high_frame_rate_time);
+		}
+
+		if(ts->ts_ops->mode_switch) {
+			ts->ts_ops->mode_switch(ts->chip_data, MODE_GAME, ts->noise_level > 0);
+		}
+
 		if (ts->smooth_level_array_support && ts->ts_ops->smooth_lv_set) {
 			ts->ts_ops->smooth_lv_set(ts->chip_data, ts->smooth_level_used_array[ts->smooth_level_chosen]);
 		}
@@ -369,6 +377,15 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			mode_switch_health(ts, MODE_UNDERWATER, ts->disable_touch_event);
 			TP_INFO(ts->tp_index, "%s:ODE_UNDERWATER success: disable_touch_event = %d\n", __func__, ts->disable_touch_event);
 		}
+
+		if (ts->tp_scene_para_switch_support && ts->ts_ops->pen_sensitive_lv_set) {
+			ts->ts_ops->pen_sensitive_lv_set(ts->chip_data, ts->scene_info.pen_sensitive_level);
+		}
+
+		if (ts->lcd_trigger_load_tp_fw_support && ts->tp_data_record_support && ts->debug_info_ops->tp_data_record_write) {
+			ts->debug_info_ops->tp_data_record_write(ts->chip_data, ts->tp_data_record_enable);
+		}
+
 		mode_switch_health(ts, MODE_NORMAL, true);
 	}
 }
@@ -442,6 +459,17 @@ void switch_headset_work(struct work_struct *work)
 	}
 
 	mutex_unlock(&ts->mutex);
+}
+
+void touch_call_fp_grip(struct touchpanel_data *ts, int state)
+{
+	struct touch_fp_grip_info event_data;
+	if (!ts) {
+		return;
+	}
+	event_data.value = state;
+	touchpanel_event_call_notifier(EVENT_ACTION_FOR_FP_GIRP, (void *)&event_data);
+	TP_INFO(ts->tp_index, "transfer girp of fp pass state:%d\n", event_data.value);
 }
 
 static void touch_call_notifier_fp(struct touchpanel_data *ts, struct fp_underscreen_info *fp_info)
@@ -542,14 +570,18 @@ static inline void tp_touch_down(struct touchpanel_data *ts, struct point_info p
 		/*smart_gesture_support*/
 		if (ts->last_touch_major > SMART_GESTURE_THRESHOLD) {
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, ts->last_touch_major);
-
 		} else {
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, SMART_GESTURE_LOW_VALUE);
 		}
 
 		/*pressure_report_support*/
-		input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
-				 ts->last_touch_major);   /*add for fixing gripview tap no function issue*/
+		if (ts->touchz_to_pressure_support) {
+			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
+					points.z);
+		} else {
+			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
+					ts->last_touch_major);   /*add for fixing gripview tap no function issue*/
+		}
 	}
 
 	if (!CHK_BIT(ts->irq_slot, (1 << id))) {
@@ -739,6 +771,8 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 		gesture_info_temp.gesture_type == SINGLE_TAP ? "single tap" :
 		gesture_info_temp.gesture_type == HEART ? "heart" :
 		gesture_info_temp.gesture_type == PENDETECT ? "(pen detect)" :
+		gesture_info_temp.gesture_type == FP_GESTURE_HOLD ? "fp_gesture_hold" :
+		gesture_info_temp.gesture_type == FP_GESTURE_RELEASE ? "fp_gesture_release" :
 		gesture_info_temp.gesture_type == S_GESTURE ? "(S)" : "unknown");
 
 	if (ts->health_monitor_support) {
@@ -802,6 +836,18 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 		ts->fp_info.y = gesture_info_temp.Point_start.y;
 		TP_INFO(ts->tp_index, "screen off up : (%d, %d)\n", ts->fp_info.x, ts->fp_info.y);
 		touch_call_notifier_fp(ts, &ts->fp_info);
+	}
+
+	if (ts->fp_grip_support) {
+		if (gesture_info_temp.gesture_type == FP_GESTURE_HOLD) {
+			ts->fp_grip_hold = true;
+			TP_INFO(ts->tp_index, "FP_GESTURE_HOLD:%d\n", ts->fp_grip_hold);
+			touch_call_fp_grip(ts, 1);
+		} else if (gesture_info_temp.gesture_type == FP_GESTURE_RELEASE) {
+			ts->fp_grip_hold = false;
+			TP_INFO(ts->tp_index, "FP_GESTURE_RELEASE:%d\n", ts->fp_grip_hold);
+			touch_call_fp_grip(ts, 0);
+		}
 	}
 }
 
@@ -1542,7 +1588,8 @@ static void tp_fw_update_work(struct work_struct *work)
 			if (ts->exception_upload_support) {
 				tp_exception_report(&ts->exception_data, EXCEP_FW_UPDATE, "FW_Request_Failed", sizeof("FW_Request_Failed"));
 			}
-
+			ts->is_update_log = 1;
+			fw_update_result = FW_UPDATE_ERROR;
 			goto EXIT;
 		}
 	}
@@ -1584,6 +1631,11 @@ EXIT:
 		if (ts->exception_upload_support) {
 			tp_exception_report(&ts->exception_data, EXCEP_FW_UPDATE, "FW_Update_Failed", sizeof("FW_Update_Failed"));
 		}
+		/*if probe_status is not exit, olc will update log*/
+		ts->is_update_log = 1;
+	} else {
+		/*if probe_status is not exit, olc will update log*/
+		ts->is_update_log = 0;
 	}
 
 	ts->force_update = 0;
@@ -1620,6 +1672,22 @@ static bool monitor_irq_bus_ready(struct touchpanel_data *ts)
 		return true;
 	}
 	return true;
+}
+
+/**
+ * @brief Set the input timestamp in top half interrupt object
+ * @param irq
+ * @param dev_id
+ * @return irqreturn_t
+ */
+static irqreturn_t set_input_timestamp_in_top_irq(int irq, void *dev_id)
+{
+	struct touchpanel_data *ts = (struct touchpanel_data *)dev_id;
+
+	if (ts->input_dev && ts->input_timestamp_in_top_irq_support) {
+		input_set_timestamp(ts->input_dev, ktime_get());
+	}
+	return IRQ_WAKE_THREAD;
 }
 
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id)
@@ -2220,6 +2288,11 @@ static void init_panel_config(struct device *dev, struct touchpanel_data *ts)
 	ts->disable_suspend_irq_handler = of_property_read_bool(chip_np, "disable_suspend_irq_handler_support");
 	ts->tp_data_record_support = of_property_read_bool(chip_np, "tp_data_record_support");
 
+	/* glove_mode_v2_support */
+	if (!ts->glove_mode_v2_support) {
+		ts->glove_mode_v2_support = of_property_read_bool(chip_np, "glove_mode_v2_support");
+	}
+
 	/* interrupt mode*/
 	ts->int_mode = BANNABLE;
 	rc = of_property_read_u32(chip_np, "touchpanel,int-mode", &val);
@@ -2293,6 +2366,7 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->fw_update_app_support   = of_property_read_bool(np,
 				      "fw_update_app_support");
 	ts->game_switch_support     = of_property_read_bool(np, "game_switch_support");
+	ts->game_enable_in_tddi_support     = of_property_read_bool(np, "game_enable_in_tddi_support");
 	ts->glove_mode_support      = of_property_read_bool(np, "glove_mode_support");
 	ts->glove_mode_v2_support      = of_property_read_bool(np, "glove_mode_v2_support");
 	ts->leather_cover_mode_support      = of_property_read_bool(np, "leather_cover_mode_support");
@@ -2308,6 +2382,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 					      "fingerprint_underscreen_support");
 	ts->fingerprint_not_report_in_suspend = of_property_read_bool(np,
 					      "fingerprint_not_report_in_suspend");
+	ts->fingerprint_error_report_support = of_property_read_bool(np,
+					      "fingerprint_error_report_support");
 	ts->suspend_gesture_cfg   = of_property_read_bool(np, "suspend_gesture_cfg");
 	ts->auto_test_force_pass_support = of_property_read_bool(np,
 					   "auto_test_force_pass_support");
@@ -2331,7 +2407,9 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->auto_test_need_cal_support = of_property_read_bool(np, "auto_test_need_cal_support");
 	ts->snr_read_support = of_property_read_bool(np, "snr_read_support");
 	ts->major_rate_limit_support = of_property_read_bool(np, "major_rate_limit_support");
+	ts->touchz_to_pressure_support = of_property_read_bool(np, "touchz_to_pressure_support");
 	ts->palm_to_sleep_support = of_property_read_bool(np, "palm_to_sleep_support");
+	ts->input_timestamp_in_top_irq_support = of_property_read_bool(np, "input_timestamp_in_top_irq_support");
 	ts->waterproof_support = of_property_read_bool(np, "waterproof_support");
 	if (ts->waterproof_support) {
 		ts->waterproof = 1;
@@ -2342,8 +2420,11 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->fp_disable_after_resume = of_property_read_bool(np, "fp_disable_after_resume");
 	ts->edge_pull_out_support = of_property_read_bool(np, "edge_pull_out_support");
 	ts->diaphragm_touch_support = of_property_read_bool(np, "diaphragm_touch_support");
+	ts->fp_grip_support = of_property_read_bool(np, "fp_grip_support");
 	ts->disable_touch_event_support = of_property_read_bool(np, "disable_touch_event_support");
 	ts->lpwg_fw_support = of_property_read_bool(np, "lpwg_fw_support");
+	ts->tp_scene_para_switch_support = of_property_read_bool(np, "tp_scene_para_switch_support");
+	ts->fp_unlock_status_support = of_property_read_bool(np, "fp_unlock_status_support");
 
 #ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
 	ts->trusted_touch_support = of_property_read_bool(np, "trusted_touch_support");
@@ -2374,8 +2455,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->pen_support = of_property_read_bool(np, "pen_support");
 	ts->pen_support_opp = of_property_read_bool(np, "pen_support_opp");
 	ts->bus_ready_check_support = of_property_read_bool(np, "bus_ready_check_support");
-	ts->aiunit_game_info_support = of_property_read_bool(np, "aiunit_game_info_support");
 	TP_INFO(ts->tp_index, "bus_ready_check_support is %d\n", ts->bus_ready_check_support);
+	ts->aiunit_game_info_support = of_property_read_bool(np, "aiunit_game_info_support");
 
 	ts->tp_lcd_suspend_in_lp_support = of_property_read_bool(np, "tp_lcd_suspend_in_lp_support");
 	TP_INFO(ts->tp_index, "tp_lcd_suspend_in_lp_support is %d\n", ts->tp_lcd_suspend_in_lp_support);
@@ -3500,16 +3581,17 @@ int tp_register_irq_func(struct touchpanel_data *ts)
 		}
 
 		snprintf(ts->irq_name, sizeof(ts->irq_name), "touch-%02d", ts->tp_index);
-		TP_INFO(ts->tp_index, "%s register flag is %d\n", __func__, ts->irq_flags);
-		ret = devm_request_threaded_irq(ts->dev, ts->irq, NULL,
+
+		TP_INFO(ts->tp_index, "%s registerFlag:%d and topIrq:%d\n", __func__, ts->irq_flags, ts->input_timestamp_in_top_irq_support);
+		ret = devm_request_threaded_irq(ts->dev,
+						ts->irq,
+						set_input_timestamp_in_top_irq,
 						tp_irq_thread_fn,
 						ts->irq_flags | IRQF_ONESHOT,
 						ts->irq_name, ts);
-
 		if (ret < 0) {
 			TP_INFO(ts->tp_index, "%s request_threaded_irq ret is %d\n", __func__, ret);
 		}
-
 	} else {
 		TP_INFO(ts->tp_index, "%s:no valid irq\n", __func__);
 		ret = -1;
@@ -3728,6 +3810,8 @@ static void tp_get_temperature_work(struct work_struct *work)
 				get_temperature_work);
 	int result = -40000;
 	int rc;
+	int temperature_debounce = 0;
+	int temperature_cnt = 3;
 
 #ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
 	if (atomic_read(&ts->trusted_touch_enabled) == 1) {
@@ -3737,14 +3821,24 @@ static void tp_get_temperature_work(struct work_struct *work)
 #endif
 
 	if (ts->temperature_detect_shellback_support) {
-		rc = pre_get_shellback(ts);
-		if (rc < 0) {
-			TP_INFO(ts->tp_index, "%s can't pre_get_shellback\n", __func__);
-			goto End;
-		}
-		rc = thermal_zone_get_temp(ts->oplus_shell_themal, &result);
-		if (rc < 0)
-			TP_INFO(ts->tp_index, "%s can't thermal_zone_get_temp, rc=%d\n", __func__, rc);
+		do {
+			rc = pre_get_shellback(ts);
+			if (rc < 0) {
+				TP_INFO(ts->tp_index, "%s can't pre_get_shellback\n", __func__);
+				goto End;
+			}
+			rc = thermal_zone_get_temp(ts->oplus_shell_themal, &result);
+			if (rc < 0)
+				TP_INFO(ts->tp_index, "%s can't thermal_zone_get_temp, rc=%d\n", __func__, rc);
+
+			if (result != 0) {
+				TP_DEBUG(ts->tp_index, "%s temperature valid, not check again:%d temp:%d\n",
+					__func__, temperature_debounce, result);
+				break;
+			}
+			temperature_debounce++;
+			msleep(4);
+		} while (temperature_debounce >= temperature_cnt);
 	} else {
 		if (!ts->skin_therm_chan)
 			return;
@@ -3927,6 +4021,9 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	touchpanel_trusted_touch_init(ts);
 #endif
 	/*wake_lock_init(&ts->wakelock, WAKE_LOCK_SUSPEND, "tp_wakelock");*/
+	ts->is_update_log = 0;
+	init_probe_status_proc(ts);
+
 	/*step5 : power init*/
 	if(strcmp(ts->touch_environment, "tvm") != 0) {
 		ret = tp_power_init(ts);
@@ -4700,6 +4797,12 @@ static void tp_suspend_direct(struct touchpanel_data *ts)
 		goto EXIT;
 	}
 
+	if (ts->fp_grip_support && (ts->fp_grip_enable & FP_GRIP_ENABLE)) {
+		TP_INFO(ts->tp_index, "%s, enable fp grip\n", __func__);
+		mode_switch_health(ts, MODE_GESTURE, true);
+		goto EXIT;
+	}
+
 	/*step9:switch mode to sleep*/
 	ret = mode_switch_health(ts, MODE_SLEEP, true);
 
@@ -4719,6 +4822,8 @@ EXIT:
 	if (ts->en_touch_event_helper) {
 		post_message(ts->msg_list, 0, TYPE_SUSPEND, NULL);
 	}
+
+	ts->is_hall_near_resume = false;
 
 	TP_INFO(ts->tp_index, "%s: end.\n", __func__);
 	mutex_unlock(&ts->mutex);
@@ -4899,10 +5004,6 @@ static void speedup_resume(struct work_struct *work)
 		ts->fp_enable = 0;
 	}
 
-	if (ts->incell_aod_gesture_support) {
-		ts->is_suspended = 0;
-	}
-
 	operate_mode_switch(ts);
 
 	if (ts->esd_handle_support) {
@@ -4924,6 +5025,15 @@ EXIT:
 	if (ts->health_monitor_support) {
 		tp_healthinfo_report(&ts->monitor_data, HEALTH_RESUME, &start_time);
 	}
+
+	if (ts->fp_grip_support && true == ts->fp_grip_hold) {
+		TP_INFO(ts->tp_index, "finger hold after resume!! need release\n");
+		ts->fp_grip_hold = false;
+		touch_call_fp_grip(ts, 0);
+		tp_healthinfo_report(&ts->monitor_data, HEALTH_REPORT, "finger_hold_in_resume");
+	}
+
+	ts->is_hall_near_resume = ts->hall_status;
 
 	/*step7:Unlock  && exit*/
 	TP_INFO(ts->tp_index, "%s: end!\n", __func__);

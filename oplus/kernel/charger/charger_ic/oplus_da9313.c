@@ -712,14 +712,14 @@ static const struct proc_ops proc_work_mode_ops =
     .proc_read = proc_work_mode_read,
     .proc_write  = proc_work_mode_write,
     .proc_open  = simple_open,
-    .proc_lseek = seq_lseek,
+    .proc_lseek = noop_llseek,
 };
 static const struct proc_ops proc_set_reg_ops =
 {
     .proc_read = proc_set_reg_read,
     .proc_write = proc_set_reg_write,
     .proc_open  = simple_open,
-    .proc_lseek = seq_lseek,
+    .proc_lseek = noop_llseek,
 };
 #endif
 

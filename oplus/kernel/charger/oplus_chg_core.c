@@ -23,6 +23,7 @@
 #include <linux/property.h>
 #include "oplus_chg_module.h"
 #include "oplus_chg_core.h"
+#include "oplus_charger.h"
 
 ATOMIC_NOTIFIER_HEAD(oplus_chg_event_notifier);
 EXPORT_SYMBOL_GPL(oplus_chg_event_notifier);
@@ -36,32 +37,6 @@ static DEFINE_MUTEX(mod_list_lock);
 static LIST_HEAD(mod_list);
 
 #define OPLUS_CHG_DEFERRED_REGISTER_TIME msecs_to_jiffies(10)
-
-#ifdef MODULE
-__attribute__((weak)) size_t __oplus_chg_module_start;
-__attribute__((weak)) size_t __oplus_chg_module_end;
-
-static int oplus_chg_get_module_num(void)
-{
-	size_t addr_size = (size_t)&__oplus_chg_module_end -
-			   (size_t)&__oplus_chg_module_start;
-
-	if (addr_size == 0)
-		return 0;
-	if (addr_size % sizeof(struct oplus_chg_module) != 0) {
-		pr_err("oplus chg module address is error, please check oplus_chg_module.lds\n");
-		return 0;
-	}
-
-	return (addr_size / sizeof(struct oplus_chg_module));
-}
-
-static struct oplus_chg_module *oplus_chg_find_first_module(void)
-{
-	size_t start_addr = (size_t)&__oplus_chg_module_start;
-	return (struct oplus_chg_module *)READ_ONCE_NOCHECK(start_addr);
-}
-#endif /* MODULE */
 
 static void oplus_chg_mod_changed_work(struct work_struct *work)
 {
@@ -542,13 +517,40 @@ void *oplus_chg_mod_get_drvdata(struct oplus_chg_mod *ocm)
 }
 EXPORT_SYMBOL_GPL(oplus_chg_mod_get_drvdata);
 
-static int __init oplus_chg_class_init(void)
-{
 #ifdef MODULE
-	int rc;
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+
+__attribute__((weak)) size_t __oplus_chg_module_start;
+__attribute__((weak)) size_t __oplus_chg_module_end;
+
+static int oplus_chg_get_module_num(void)
+{
+	size_t addr_size = (size_t)&__oplus_chg_module_end -
+			   (size_t)&__oplus_chg_module_start;
+
+	if (addr_size == 0)
+		return 0;
+	if (addr_size % sizeof(struct oplus_chg_module) != 0) {
+		pr_err("oplus chg module address is error, please check oplus_chg_module.lds\n");
+		return 0;
+	}
+
+	return (addr_size / sizeof(struct oplus_chg_module));
+}
+
+static struct oplus_chg_module *oplus_chg_find_first_module(void)
+{
+	size_t start_addr = (size_t)&__oplus_chg_module_start;
+	return (struct oplus_chg_module *)READ_ONCE_NOCHECK(start_addr);
+}
+
+static int __init oplus_chg_modules_init(void)
+{
 	int module_num, i;
 	struct oplus_chg_module *first_module;
 	struct oplus_chg_module *oplus_module;
+	int rc;
 
 #if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
 	struct device_node *node;
@@ -569,7 +571,7 @@ static int __init oplus_chg_class_init(void)
 	first_module = oplus_chg_find_first_module();
 	for (i = 0; i < module_num; i++) {
 		oplus_module = &first_module[i];
-		if ((oplus_module->magic == OPLUS_CHG_MODEL_MAGIC) &&
+		if ((oplus_module->magic == OPLUS_CHG_MODULE_MAGIC) &&
 		    (oplus_module->chg_module_init != NULL)) {
 			pr_info("%s init\n", oplus_module->name);
 			rc = oplus_module->chg_module_init();
@@ -582,46 +584,236 @@ static int __init oplus_chg_class_init(void)
 	}
 
 end:
-#endif /* MODULE */
-
 	return 0;
 
-#ifdef MODULE
 module_init_err:
 	for (i = i - 1; i >= 0; i--) {
 		oplus_module = &first_module[i];
-		if ((oplus_module->magic == OPLUS_CHG_MODEL_MAGIC) &&
+		if ((oplus_module->magic == OPLUS_CHG_MODULE_MAGIC) &&
 		    (oplus_module->chg_module_exit != NULL))
 			oplus_module->chg_module_exit();
 	}
 	return rc;
+}
+
+static void __exit oplus_chg_modules_exit(void)
+{
+	int module_num, i;
+	struct oplus_chg_module *first_module;
+	struct oplus_chg_module *oplus_module;
+
+	module_num = oplus_chg_get_module_num();
+	if (module_num == 0)
+		return;
+
+	first_module = oplus_chg_find_first_module();
+	for (i = module_num - 1; i >= 0; i--) {
+		oplus_module = &first_module[i];
+		if ((oplus_module->magic == OPLUS_CHG_MODULE_MAGIC) &&
+		    (oplus_module->chg_module_exit != NULL))
+			oplus_module->chg_module_exit();
+	}
+}
+
+#else /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)) */
+
+oplus_chg_module_register_null(oplus_chg_normal);
+oplus_chg_module_core_register_null(oplus_chg_core);
+oplus_chg_module_early_register_null(oplus_chg_early);
+oplus_chg_module_late_register_null(oplus_chg_late);
+
+static size_t oplus_chg_get_flag_module(uint32_t magic)
+{
+	switch (magic) {
+	case OPLUS_CHG_MODULE_NORMAL_MAGIC:
+		return (size_t)&oplus_chg_normal_module;
+	case OPLUS_CHG_MODULE_CORE_MAGIC:
+		return (size_t)&oplus_chg_core_module;
+	case OPLUS_CHG_MODULE_EARLY_MAGIC:
+		return (size_t)&oplus_chg_early_module;
+	case OPLUS_CHG_MODULE_LATE_MAGIC:
+		return (size_t)&oplus_chg_late_module;
+	default:
+		return 0;
+	}
+}
+
+static size_t oplus_chg_find_first_module(uint32_t magic)
+{
+	struct oplus_chg_module *tmp;
+	size_t start_addr, next_addr;
+
+	start_addr = oplus_chg_get_flag_module(magic);
+	if (start_addr == 0)
+		return 0;
+	tmp = (struct oplus_chg_module *)READ_ONCE_NOCHECK(start_addr);
+	if (tmp->magic != magic) {
+		chg_err("%s: magic error\n", tmp->name);
+		return 0;
+	}
+
+	do {
+		next_addr = start_addr - sizeof(struct oplus_chg_module);
+		tmp = (struct oplus_chg_module *)READ_ONCE_NOCHECK(next_addr);
+		if (tmp->magic != magic)
+			return start_addr;
+		start_addr = next_addr;
+	} while (true);
+
+	return 0;
+}
+
+static size_t oplus_chg_find_last_module(uint32_t magic)
+{
+	struct oplus_chg_module *tmp;
+	size_t start_addr, next_addr;
+
+	start_addr = oplus_chg_get_flag_module(magic);
+	if (start_addr == 0)
+		return 0;
+	tmp = (struct oplus_chg_module *)READ_ONCE_NOCHECK(start_addr);
+	if (tmp->magic != magic) {
+		chg_err("%s: magic error\n", tmp->name);
+		return 0;
+	}
+
+	do {
+		next_addr = start_addr + sizeof(struct oplus_chg_module);
+		tmp = (struct oplus_chg_module *)READ_ONCE_NOCHECK(next_addr);
+		if (tmp->magic != magic)
+			return start_addr;
+		start_addr = next_addr;
+	} while (true);
+
+	return 0;
+}
+
+static int oplus_chg_section_modules_init(uint32_t magic)
+{
+	int i = 0;
+	struct oplus_chg_module *module;
+	size_t start_addr, tmp;
+	int rc;
+
+	start_addr = oplus_chg_find_first_module(magic);
+	if (start_addr == 0)
+		return 0;
+
+	do {
+		tmp = start_addr + i * sizeof(struct oplus_chg_module);
+		module = (struct oplus_chg_module *)READ_ONCE_NOCHECK(tmp);
+		if (module->magic != magic)
+			return 0;
+		if (module->chg_module_init == NULL) {
+			i++;
+			continue;
+		}
+		chg_info("%s init\n", module->name);
+		rc = module->chg_module_init();
+		if (rc < 0) {
+			chg_err("%s init error, rc=%d\n", module->name, rc);
+			goto module_init_err;
+		}
+		i++;
+	} while (true);
+
+	return 0;
+
+module_init_err:
+	for (i = i - 1; i >= 0; i--) {
+		tmp = start_addr + i * sizeof(struct oplus_chg_module);
+		module = (struct oplus_chg_module *)READ_ONCE_NOCHECK(tmp);
+		if (module->chg_module_exit == NULL)
+			continue;
+		module->chg_module_exit();
+	}
+	return rc;
+}
+
+static void oplus_chg_section_modules_exit(uint32_t magic)
+{
+	int i = 0;
+	struct oplus_chg_module *module;
+	size_t start_addr, tmp;
+
+	start_addr = oplus_chg_find_last_module(magic);
+	if (start_addr == 0)
+		return;
+
+	do {
+		tmp = start_addr - i * sizeof(struct oplus_chg_module);
+		module = (struct oplus_chg_module *)READ_ONCE_NOCHECK(tmp);
+		if (module->magic != magic)
+			return;
+		i++;
+		if (module->chg_module_exit == NULL)
+			continue;
+		module->chg_module_exit();
+	} while (true);
+}
+
+static int __init oplus_chg_modules_init(void)
+{
+	int rc;
+
+	rc = oplus_chg_section_modules_init(OPLUS_CHG_MODULE_CORE_MAGIC);
+	if (rc < 0)
+		return rc;
+	rc = oplus_chg_section_modules_init(OPLUS_CHG_MODULE_EARLY_MAGIC);
+	if (rc < 0)
+		goto early_init_err;
+	rc = oplus_chg_section_modules_init(OPLUS_CHG_MODULE_NORMAL_MAGIC);
+	if (rc < 0)
+		goto normal_init_err;
+	rc = oplus_chg_section_modules_init(OPLUS_CHG_MODULE_LATE_MAGIC);
+	if (rc < 0)
+		goto late_init_err;
+
+	return 0;
+
+late_init_err:
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_NORMAL_MAGIC);
+normal_init_err:
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_EARLY_MAGIC);
+early_init_err:
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_CORE_MAGIC);
+	return rc;
+}
+
+static void __exit oplus_chg_modules_exit(void)
+{
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_LATE_MAGIC);
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_NORMAL_MAGIC);
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_EARLY_MAGIC);
+	oplus_chg_section_modules_exit(OPLUS_CHG_MODULE_CORE_MAGIC);
+}
+
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)) */
+
+#endif /* MODULE */
+
+static int __init oplus_chg_class_init(void)
+{
+#ifdef MODULE
+	return oplus_chg_modules_init();
+#else /* MODULE */
+	return 0;
 #endif /* MODULE */
 }
 
 static void __exit oplus_chg_class_exit(void)
 {
 #ifdef MODULE
-	int module_num, i;
-	struct oplus_chg_module *first_module;
-	struct oplus_chg_module *oplus_module;
-
 #if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
 	struct device_node *node;
 
 	node = of_find_node_by_path("/soc/oplus_chg_core");
-	if (node != NULL &&
-	    of_property_read_bool(node, "oplus,chg_framework_v2"))
+	if (node == NULL)
+		return;
+	if (!of_property_read_bool(node, "oplus,chg_framework_v2"))
 		return;
 #endif /* CONFIG_OPLUS_CHG_V2 */
-
-	module_num = oplus_chg_get_module_num();
-	first_module = oplus_chg_find_first_module();
-	for (i = module_num - 1; i >= 0; i--) {
-		oplus_module = &first_module[i];
-		if ((oplus_module->magic == OPLUS_CHG_MODEL_MAGIC) &&
-		    (oplus_module->chg_module_exit != NULL))
-			oplus_module->chg_module_exit();
-	}
+	oplus_chg_modules_exit();
 #endif /* MODULE */
 }
 

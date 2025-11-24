@@ -41,7 +41,7 @@
 
 #define RT1711H_DRV_VERSION	"2.0.6_G"
 
-#define RT1711H_IRQ_WAKE_TIME	(500) /* ms */
+#define RT1711H_IRQ_WAKE_TIME	(1000) /* ms */
 
 
 #define RICHTEK_1711_VID	0x29cf
@@ -270,7 +270,12 @@ static int rt1711_block_read(struct i2c_client *i2c,
 	struct rt1711_chip *chip = i2c_get_clientdata(i2c);
 	int ret = 0;
 #ifdef CONFIG_RT_REGMAP
-	ret = rt_regmap_block_read(chip->m_dev, reg, len, dst);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (chip->chip_pid == CPS8851_PID)
+		ret = rt1711_read_device(chip->client, reg, len, dst);
+	else
+#endif
+		ret = rt_regmap_block_read(chip->m_dev, reg, len, dst);
 #else
 	ret = rt1711_read_device(chip->client, reg, len, dst);
 #endif /* #ifdef CONFIG_RT_REGMAP */
@@ -285,6 +290,11 @@ static int rt1711_block_write(struct i2c_client *i2c,
 	struct rt1711_chip *chip = i2c_get_clientdata(i2c);
 	int ret = 0;
 #ifdef CONFIG_RT_REGMAP
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (chip->chip_pid == CPS8851_PID)
+		ret = rt1711_write_device(chip->client, reg, len, src);
+	else
+#endif
 	ret = rt_regmap_block_write(chip->m_dev, reg, len, src);
 #else
 	ret = rt1711_write_device(chip->client, reg, len, src);
@@ -1260,14 +1270,6 @@ static int rt1711_get_message(struct tcpc_device *tcpc, uint32_t *payload,
 	*frame_type = buf[1];
 	*msg_head = le16_to_cpu(*(uint16_t *)&buf[2]);
 
-	if (chip->chip_id == HUSB311_DID) {
-		if(*msg_head == 0x0) {
-			tcpci_init(tcpc, true);
-			pr_err("%s: msg_head=0x%x\n", __func__, *msg_head);
-			return -1;
-		}
-	}
-
 	/* TCPC 1.0 ==> no need to subtract the size of msg_head */
 	if (cnt > 3) {
 		cnt -= 3; /* MSG_HDR */
@@ -1546,8 +1548,7 @@ static int rt1711_tcpcdev_init(struct rt1711_chip *chip, struct device *dev)
 	chip->tcpc->tcpc_flags = TCPC_FLAGS_LPM_WAKEUP_WATCHDOG |
 			TCPC_FLAGS_VCONN_SAFE5V_ONLY;
 
-	if ((chip->chip_id > RT1711H_DID_B) || (chip->chip_pid == HUSB311_PID) ||
-	    (chip->chip_id == CPS8851_DID))
+	if ((chip->chip_id > RT1711H_DID_B) || (chip->chip_id == CPS8851_DID))
 		chip->tcpc->tcpc_flags |= TCPC_FLAGS_CHECK_RA_DETACH;
 
 #ifdef CONFIG_USB_PD_RETRY_CRC_DISCARD
@@ -1556,7 +1557,7 @@ static int rt1711_tcpcdev_init(struct rt1711_chip *chip, struct device *dev)
 #endif  /* CONFIG_USB_PD_RETRY_CRC_DISCARD */
 
 #ifdef CONFIG_USB_PD_REV30
-	if ((chip->chip_id >= RT1715_DID_D) || ( chip->chip_vid == SOUTHCHIP_PD_VID) || (chip->chip_id == HUSB311_DID))
+	if ((chip->chip_id >= RT1715_DID_D) || ( chip->chip_vid == SOUTHCHIP_PD_VID))
 		chip->tcpc->tcpc_flags |= TCPC_FLAGS_PD_REV30;
 
 	if (chip->tcpc->tcpc_flags & TCPC_FLAGS_PD_REV30)
@@ -1657,7 +1658,14 @@ static inline int rt1711h_check_revision(struct i2c_client *client)
 	ret = rt1711_write_device(client, RT1711H_REG_SWRESET, 1, &data);
 	if (ret < 0)
 		return ret;
-
+#ifdef CONFIG_TCPC_LOW_POWER_MODE
+	if (pid == HUSB311_PID) {
+		msleep(5);
+		data = 0x00;
+		rt1711_write_device(client, RT1711H_REG_BMC_CTRL, 1, &data);
+		pr_info("%s set low pwr mode\n", __func__);
+	}
+#endif	/* CONFIG_TCPC_LOW_POWER_MODE */
 	usleep_range(1000, 2000);
 
 	ret = rt1711_read_device(client, TCPC_V10_REG_DID, 2, &did);
@@ -1806,7 +1814,7 @@ static int rt1711_i2c_probe(struct i2c_client *client,
 	u16 chip_pid, chip_vid;
 	bool use_dt = client->dev.of_node;
 #ifdef CONFIG_TCPC_LOW_POWER_MODE
-	//u8 data;
+	u8 data;
 #endif	/* CONFIG_TCPC_LOW_POWER_MODE */
 
 	pr_info("%s (%s)\n", __func__, RT1711H_DRV_VERSION);
@@ -1879,7 +1887,13 @@ static int rt1711_i2c_probe(struct i2c_client *client,
 		pr_err("rt1711 init alert fail\n");
 		goto err_irq_init;
 	}
-
+#ifdef CONFIG_TCPC_LOW_POWER_MODE
+	if (chip->chip_id == HUSB311_DID) {
+		data = 0x00;
+		rt1711_write_device(client, RT1711H_REG_BMC_CTRL, 1, &data);
+		pr_info("%s set low pwr mode\n", __func__);
+	}
+#endif	/* CONFIG_TCPC_LOW_POWER_MODE */
 	pr_info("%s probe OK!\n", __func__);
 	return 0;
 
@@ -1942,6 +1956,14 @@ static void rt1711_shutdown(struct i2c_client *client)
 	if (chip != NULL) {
 		if (chip->irq)
 			disable_irq(chip->irq);
+		if (chip->chip_id == HUSB311_DID) {
+			i2c_smbus_write_byte_data(
+				client, RT1711H_REG_BMC_CTRL, 0x00);
+		}
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (chip->chip_pid == CPS8851_PID)
+			mdelay(25);
+#endif
 		tcpm_shutdown(chip->tcpc);
 	} else {
 		i2c_smbus_write_byte_data(
@@ -2062,4 +2084,3 @@ MODULE_VERSION(RT1711H_DRV_VERSION);
  * 2.0.1_G
  * First released PD3.0 Driver
  */
-

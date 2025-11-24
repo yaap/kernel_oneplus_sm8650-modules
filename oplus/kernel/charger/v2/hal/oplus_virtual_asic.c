@@ -35,7 +35,7 @@
 #include <oplus_chg_vooc.h>
 
 /*Add for audio switch */
-#include "oplus_chg_audio_switch.c"
+#include "oplus_chg_audio_switch.h"
 
 struct oplus_virtual_asic_gpio {
 	int switch_ctrl_gpio;
@@ -1844,12 +1844,21 @@ child_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_asic_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_asic_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_asic_ic *chip = platform_get_drvdata(pdev);
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_va_exit(chip->ic_dev);
@@ -1872,7 +1881,9 @@ static int oplus_virtual_asic_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_asic_match[] = {

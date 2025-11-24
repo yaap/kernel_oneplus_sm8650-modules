@@ -26,62 +26,26 @@
 #include <linux/debugfs.h>
 #include <linux/module.h>
 #include <linux/version.h>
+#include <linux/nmi.h>
+#include <linux/sched/debug.h>
 
 #include "qcom_pmicwd.h"
 
-#define QPNP_PON_WD_RST_S1_TIMER(pon)		((pon)->base + 0x54)
-#define QPNP_PON_WD_RST_S2_TIMER(pon)		((pon)->base + 0x55)
-#define QPNP_PON_WD_RST_S2_CTL(pon)			((pon)->base + 0x56)
-#define QPNP_PON_WD_RST_S2_CTL2(pon)		((pon)->base + 0x57)
-#define QPNP_PON_WD_RESET_PET(pon)  		((pon)->base + 0x58)
-#define QPNP_PON_RT_STS(pon)				((pon)->base + 0x10)
-
-#define QPNP_PON_GEN3_INT_SET_TYPE(pon)       ((pon)->base + 0x11)
-#define QPNP_PON_GEN3_INT_POLARITY_HIGH(pon)       ((pon)->base + 0x12)
-#define QPNP_PON_GEN3_INT_POLARITY_LOW(pon)       ((pon)->base + 0x13)
-#define QPNP_PON_GEN3_INT_LATCHED_CLR(pon)       ((pon)->base + 0x14)
-#define QPNP_PON_GEN3_INT_EN_SET(pon)       ((pon)->base + 0x15)
-#define QPNP_PON_GEN3_INT_EN_CLR(pon)       ((pon)->base + 0x16)
-#define QPNP_PON_GEN3_WD_RST_S1_TIMER(pon)       ((pon)->base + 0x4c)
-#define QPNP_PON_GEN3_WD_RST_S2_TIMER(pon)       ((pon)->base + 0x4d)
-#define QPNP_PON_GEN3_WD_RST_S2_CTL(pon)         ((pon)->base + 0x4e)
-#define QPNP_PON_GEN3_WD_RST_S2_CTL2(pon)        ((pon)->base + 0x4f)
-#define QPNP_PON_GEN3_WD_RESET_PET(pon)          ((pon)->base + 0x50)
-#define PMIC_WD_INT_BIT_MASK		BIT(3)
-
-#define QPNP_PON_S2_CNTL_TYPE_MASK		(0xF)
-#define QPNP_PON_WD_S2_TIMER_MASK		(0x7F)
-#define QPNP_PON_WD_S1_TIMER_MASK		(0x7F)
-#define QPNP_PON_WD_RESET_PET_MASK		BIT(0)
-
-#define PMIC_WD_DEFAULT_TIMEOUT 254
-#define PMIC_WD_DEFAULT_ENABLE 1
-
 extern struct qpnp_pon *sys_reset_dev;
 struct pmicwd_desc *pmicwd;
+static bool hang_detect_enable;
+static int pmicwd_enhance;
+/* pmicwd debug start */
+static bool pmicwd_test_flag;
 
-#define PON_GEN3_PBS                            0x08
-#define PON_GEN3_HLOS                           0x09
-#define QPNP_PON_WD_EN                          BIT(7)
-
-static int raise_wdt_issue(void) {
-	pr_info("%s wdt issue begin!\n", __func__);
-	preempt_disable();
-	local_irq_disable();
-	while(1);
-}
-
-
-static bool is_pon_gen3(struct qpnp_pon *pon)
-{
+static bool is_pon_gen3(struct qpnp_pon *pon) {
         return pon->subtype == PON_GEN3_PBS ||
                 pon->subtype == PON_GEN3_HLOS;
 }
 
-static int oplus_qpnp_pon_wd_config(bool enable)
-{
-        if (!sys_reset_dev)
-                return -EPROBE_DEFER;
+static int oplus_qpnp_pon_wd_config(bool enable) {
+	if (!sys_reset_dev)
+		return -EPROBE_DEFER;
 
 	if (is_pon_gen3(sys_reset_dev)) {
 		return dup_qpnp_pon_masked_write(sys_reset_dev,
@@ -143,27 +107,25 @@ static int oplus_pon_pbs_int_cfg(void) {
 					QPNP_PON_GEN3_INT_EN_CLR(pmicwd->pon), rc);
 		}
 	} else {
-		//gen2 pmic do nothing
+		/* gen2 pmic do nothing */
 	}
 
 	return rc;
 }
 
-static int qpnp_pon_wd_timer(unsigned char timer, enum pon_power_off_type reset_type)
-{
+static int qpnp_pon_wd_timer(unsigned char timer, enum pon_power_off_type reset_type) {
 	int rc = 0;
-	u8 s1_timer,s2_timer;
+	u8 s1_timer, s2_timer;
 
 	ASSERT(pmicwd);
 
-	if(timer > 127)
-	{
+	if(timer > 127) {
 		s2_timer = 127;
 		if(timer - 127 > 127)
 			s1_timer = 127;
 		else
 			s1_timer = timer - 127;
-	}else{
+	} else {
 		s2_timer = timer&0xff;
 		s1_timer = 0;
 	}
@@ -214,8 +176,7 @@ static int qpnp_pon_wd_timer(unsigned char timer, enum pon_power_off_type reset_
 	return rc;
 }
 
-int qpnp_pon_wd_pet(struct qpnp_pon *pon)
-{
+int qpnp_pon_wd_pet(struct qpnp_pon *pon) {
 	int rc = 0;
 
 	ASSERT(pon);
@@ -239,9 +200,31 @@ int qpnp_pon_wd_pet(struct qpnp_pon *pon)
 	return rc;
 }
 
-static int pmicwd_kthread(void *arg)
-{
+static void show_target_stack(const char *target_comm) {
+	struct task_struct *g = NULL;
+	struct task_struct *p = NULL;
+
+	rcu_read_lock();
+	for_each_process_thread(g, p) {
+		/*
+		* reset the NMI-timeout, listing all files on a slow
+		* console might take a lot of time:
+		* Also, reset softlockup watchdogs on all CPUs, because
+		* another CPU might be blocked waiting for us to process
+		* an IPI.
+		*/
+		touch_nmi_watchdog();
+		if(!strncmp(p->comm, target_comm, TASK_COMM_LEN)) {
+			sched_show_task(p);
+			break;
+		}
+	}
+	rcu_read_unlock();
+}
+
+static int pmicwd_kthread(void *arg) {
 	struct sched_param param = {.sched_priority = MAX_RT_PRIO-1};
+	signed long pet_time = msecs_to_jiffies((((pmicwd->pmicwd_state >> 8) & 0xff) * 1000) / 2);
 
 	sched_setscheduler(current, SCHED_FIFO, &param);
 
@@ -249,26 +232,30 @@ static int pmicwd_kthread(void *arg)
 	qpnp_pon_wd_pet(pmicwd->pon);
 
 	while (!kthread_should_stop()) {
-		schedule_timeout_interruptible(msecs_to_jiffies((((pmicwd->pmicwd_state >> 8)&0xff)*1000)/2));
+		schedule_timeout_interruptible(pet_time);
 		PWD_INFO("pmicwd_kthread PET wd suspend state %d\n", pmicwd->suspend_state);
 		qpnp_pon_wd_pet(pmicwd->pon);
 
 		/* For detect the suspend resume block issue
 		 * add at least 128 seconds ~ 256 seconds during resume suspend
 		 */
-		if ((pmicwd->suspend_state & 0x0F) >= 1) {
-			panic("suspend resume state %d\n", pmicwd->suspend_state);
-		} else if (pmicwd->suspend_state & 0xF0) {
-			pmicwd->suspend_state++;
+		if (!pmicwd_enhance) {
+			if ((pmicwd->suspend_state & 0x0F) >= 1) {
+				panic("suspend resume state %u\n", pmicwd->suspend_state);
+			} else if (pmicwd->suspend_state & 0xF0) {
+				pmicwd->suspend_state++;
+			}
+		} else if (hang_detect_enable && (jiffies  - pmicwd->state_update_time) > pet_time) {
+			show_target_stack("autosuspend");
+			panic("suspend resume state %u\n", pmicwd->suspend_state);
 		}
-
 	}
 	oplus_qpnp_pon_wd_config(0);
 	return 0;
 }
-static ssize_t pmicwd_proc_read(struct file *file, char __user *buf,
-		size_t count,loff_t *off)
-{
+
+static ssize_t pmicwd_config_proc_read(struct file *file, char __user *buf,
+		size_t count, loff_t *off) {
 	unsigned int val;
 	char page[128] = {0};
 	int len = 0;
@@ -279,9 +266,9 @@ static ssize_t pmicwd_proc_read(struct file *file, char __user *buf,
 	} else {
 		regmap_read(pmicwd->pon->regmap, QPNP_PON_WD_RST_S2_CTL2(pmicwd->pon), &val);
 	}
-	PWD_INFO("pmicwd_proc_read:%x wd=%x\n", pmicwd->pmicwd_state, val);
-	//|reserver|rst type|timeout|enable|
-	len = snprintf(&page[len],128 - len,"enable = %d timeout = %d rstype = %d\n",
+	PWD_INFO("pmicwd_config_proc_read:%x wd=%x\n", pmicwd->pmicwd_state, val);
+	/* |reserver|rst type|timeout|enable| */
+	len = snprintf(&page[len], 128 - len, "enable = %d timeout = %d rstype = %d\n",
 					pmicwd->pmicwd_state & 0xff,
 					(pmicwd->pmicwd_state >> 8) & 0xff,
 					(pmicwd->pmicwd_state >> 16) & 0xff);
@@ -292,22 +279,15 @@ static ssize_t pmicwd_proc_read(struct file *file, char __user *buf,
 	else
 	   len = 0;
 
-	if(copy_to_user(buf,page,(len < count ? len : count))){
+	if(copy_to_user(buf, page, (len < count ? len : count))) {
 	   return -EFAULT;
 	}
 	*off += len < count ? len : count;
 	return (len < count ? len : count);
-
 }
 
-#define BUFF_SIZE 64
-#define MAX_SYMBOL_LEN 64
-
-static char symbol[MAX_SYMBOL_LEN]={"DISABLE"};
-
-static ssize_t pmicwd_proc_write(struct file *file, const char __user *buf,
-		size_t count,loff_t *off)
-{
+static ssize_t pmicwd_config_proc_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *off) {
 	int tmp_rstypt = 0;
 	int tmp_timeout = 0;
 	int tmp_enable = 0;
@@ -334,15 +314,6 @@ static ssize_t pmicwd_proc_write(struct file *file, const char __user *buf,
 	}
 
 	buffer[count] = '\0';
-	/*simulate abnormal PMIC into dump */
-	snprintf(symbol, sizeof(symbol), "%s", buffer);
-	symbol[count-1] = 0;
-	if(!strcmp(symbol, "ENABLE_SUSPEND")||!strcmp(symbol, "ENABLE_RESUME")) {
-		return count;
-	}
-	if(!strcmp(symbol, "ENABLE_WDT")) {
-		raise_wdt_issue();
-	}
 
 	/* validate the length of each of the 3 parts */
 	start = buffer;
@@ -355,14 +326,14 @@ static ssize_t pmicwd_proc_write(struct file *file, const char __user *buf,
 	}
 
 	ret = sscanf(buffer, "%d %d %d", &tmp_enable, &tmp_timeout, &tmp_rstypt);
-	if(ret <= 0){
+	if(ret <= 0) {
 		PWD_ERR("%s: input error\n", __func__);
 		return count;
 	}
-	if(tmp_timeout < 60 || tmp_timeout > 255){
+	if(tmp_timeout < 60 || tmp_timeout > 255) {
 		tmp_timeout = PMIC_WD_DEFAULT_TIMEOUT;
 	}
-	if(tmp_rstypt >= PON_POWER_OFF_MAX_TYPE || tmp_rstypt <= PON_POWER_OFF_RESERVED){
+	if(tmp_rstypt >= PON_POWER_OFF_MAX_TYPE || tmp_rstypt <= PON_POWER_OFF_RESERVED) {
 		if (get_eng_version() == AGING || get_eng_version() == HIGH_TEMP_AGING || get_eng_version() == FACTORY) {
 			tmp_rstypt = PON_POWER_OFF_WARM_RESET;
 		} else {
@@ -384,14 +355,14 @@ static ssize_t pmicwd_proc_write(struct file *file, const char __user *buf,
 		pmicwd->wd_task = NULL;
 	}
 
-	qpnp_pon_wd_timer(tmp_timeout,tmp_rstypt);
+	qpnp_pon_wd_timer(tmp_timeout, tmp_rstypt);
 	pmicwd->pmicwd_state = new_state;
-	if(tmp_enable){
+	if(tmp_enable) {
 		pmicwd->wd_task = kthread_create(pmicwd_kthread, pmicwd->pon, "pmicwd");
 		if(pmicwd->wd_task) {
 			oplus_qpnp_pon_wd_config(1);
 			wake_up_process(pmicwd->wd_task);
-		}else{
+		} else {
 			oplus_qpnp_pon_wd_config(0);
 			pmicwd->pmicwd_state &= ~0xff;
 		}
@@ -401,8 +372,7 @@ static ssize_t pmicwd_proc_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-void set_pmicWd_state(int enable)
-{
+void set_pmicWd_state(int enable) {
 	unsigned int new_state;
 
 	ASSERT(pmicwd);
@@ -423,12 +393,12 @@ void set_pmicWd_state(int enable)
 	}
 	pmicwd->pmicwd_state = new_state;
 
-	if(enable){
+	if(enable) {
 		pmicwd->wd_task = kthread_create(pmicwd_kthread, NULL, "pmicwd");
 		if(pmicwd->wd_task) {
 			oplus_qpnp_pon_wd_config(1);
 			wake_up_process(pmicwd->wd_task);
-		}else{
+		} else {
 			oplus_qpnp_pon_wd_config(0);
 			pmicwd->pmicwd_state &= ~0xff;
 		}
@@ -438,50 +408,9 @@ void set_pmicWd_state(int enable)
 }
 EXPORT_SYMBOL(set_pmicWd_state);
 
-/*
- * This function is register as callback function to get notifications
- * from the PM module on the system suspend state.
- */
-static int pmicWd_pm_notifier(struct notifier_block *nb,
-				  unsigned long event, void *unused)
-{
-	switch (event) {
-	case PM_SUSPEND_PREPARE:
-		pmicwd->suspend_state = 0x80;
-		if(!strcmp(symbol, "ENABLE_SUSPEND")) {
-			pr_info("%s the phone will enter into dump\n", __func__);
-			while(1);
-		}
-		PWD_INFO("pmicwd start suspend\n");
-		break;
-
-	case PM_POST_SUSPEND:
-		pmicwd->suspend_state = 0;
-		PWD_INFO("pmicwd finish resume\n");
-		break;
-	}
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block pmicWd_pm_nb = {
-	.notifier_call = pmicWd_pm_notifier,
-	.priority = INT_MAX,
-};
-
-static struct proc_ops pmicwd_proc_pops = {
-	.proc_read = pmicwd_proc_read,
-	.proc_write = pmicwd_proc_write,
-	.proc_lseek = default_llseek,
-};
-
-/* pmicwd debug start */
-static bool pmicwd_test_flag = false;
-
-static struct proc_ops pmicwd_config_pops = {
-	.proc_open = simple_open,
-	.proc_read = pmicwd_proc_read,
-	.proc_write = pmicwd_proc_write,
+static struct proc_ops pmicwd_config_proc_pops = {
+	.proc_read = pmicwd_config_proc_read,
+	.proc_write = pmicwd_config_proc_write,
 	.proc_lseek = default_llseek,
 };
 
@@ -561,66 +490,80 @@ static struct proc_ops pmicwd_test_pops = {
 	.proc_lseek = default_llseek,
 };
 
-static void pmicwd_debug_init(void)
-{
-	proc_create("pmicwd_config", 0666, NULL, &pmicwd_config_pops);
-	proc_create("pmicwd_test", 0666, NULL, &pmicwd_test_pops);
+static ssize_t pmicwd_enhance_proc_read(struct file *file, char __user *buf,
+		size_t count, loff_t *off) {
+	char enable[8];
+	int len = snprintf(enable, sizeof(enable), "%d\n", pmicwd_enhance);
+
+	return simple_read_from_buffer(buf, count, off, enable, len);
 }
-/* pmicwd debug end */
 
-void pmicwd_init(struct platform_device *pdev)
-{
-	u32 pon_rt_sts = 0;
-	int rc;
+static ssize_t pmicwd_enhance_proc_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *off) {
+	char enable[8];
 
-	/* try to get dts info */
-	pmicwd->wd_task = NULL;
-	pmicwd->suspend_state = 0;
-	pmicwd->pmicwd_state = of_property_read_bool(pdev->dev.of_node, "qcom,pmicwd");
-	PWD_INFO("pon pmicwd_state = 0x%x\n", pmicwd->pmicwd_state);
+	if (count > 2)
+		return -EINVAL;
 
-	if(pmicwd->pmicwd_state) {
-		oplus_pon_pbs_int_cfg();
-		if (get_eng_version() == AGING || get_eng_version() == HIGH_TEMP_AGING || get_eng_version() == FACTORY) {
-			pmicwd->pmicwd_state = PMIC_WD_DEFAULT_ENABLE | (PMIC_WD_DEFAULT_TIMEOUT << 8) |
-				(PON_POWER_OFF_WARM_RESET << 16);
-		} else {
-			pmicwd->pmicwd_state = PMIC_WD_DEFAULT_ENABLE | (PMIC_WD_DEFAULT_TIMEOUT << 8) |
-				(PON_POWER_OFF_HARD_RESET << 16);
-		}
-		proc_create("pmicWd", 0666, NULL, &pmicwd_proc_pops);
-		mutex_init(&pmicwd->wd_task_mutex);
-		#if PMIC_WD_DEFAULT_ENABLE
-		pmicwd->wd_task = kthread_create(pmicwd_kthread, NULL, "pmicwd");
-		if(pmicwd->wd_task) {
-			if (get_eng_version() == AGING  || get_eng_version() == HIGH_TEMP_AGING || get_eng_version() == FACTORY) {
-				qpnp_pon_wd_timer(PMIC_WD_DEFAULT_TIMEOUT, PON_POWER_OFF_WARM_RESET);
-			} else {
-				qpnp_pon_wd_timer(PMIC_WD_DEFAULT_TIMEOUT, PON_POWER_OFF_HARD_RESET);
-			}
-			oplus_qpnp_pon_wd_config(1);
-			wake_up_process(pmicwd->wd_task);
-		}else{
-			pmicwd->pmicwd_state &= ~0xff;
-		}
-		#endif
+	if (copy_from_user(enable, buf, count))
+        return -EFAULT;
 
-		rc = register_pm_notifier(&pmicWd_pm_nb);
-		if (rc) {
-			PWD_ERR("%s: pmicWd power state notif error %d\n", __func__, rc);
-		}
+	enable[count] = '\0';
+
+	if (sscanf(enable, "%d", &pmicwd_enhance) != 1) {
+		PWD_ERR("invalid pmicwd_enhance value %s\n", enable);
+        return -EINVAL;
 	}
 
-	regmap_read(pmicwd->pon->regmap, QPNP_PON_RT_STS(pmicwd->pon), &pon_rt_sts);
-	PWD_INFO("probe keycode = 116, key_st = 0x%x\n", pon_rt_sts);
-
-	pmicwd_debug_init();
-
-	return;
+	return count;
 }
 
-static int  setalarm(unsigned long time,bool enable)
-{
+static struct proc_ops pmicwd_enhance_pops = {
+	.proc_open = simple_open,
+	.proc_read = pmicwd_enhance_proc_read,
+	.proc_write = pmicwd_enhance_proc_write,
+	.proc_lseek = default_llseek,
+};
+
+/*
+ * This function is register as callback function to get notifications
+ * from the PM module on the system suspend state.
+ */
+static int pmicWd_pm_notifier(struct notifier_block *nb,
+				  unsigned long event, void *unused) {
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		if (pmicwd_enhance) {
+			pmicwd->suspend_state = PM_SUSPEND_PRE;
+			pmicwd->state_update_time = jiffies;
+			hang_detect_enable = true;
+		} else {
+			pmicwd->suspend_state = 0x80;
+		}
+		PWD_INFO("pmicwd start suspend\n");
+		pmicwd_return_injected(PMICWD_INJECT_SUSPEND_PRE);
+		break;
+	case PM_POST_SUSPEND:
+		pmicwd_return_injected(PMICWD_INJECT_SUSPEND_POST);
+		if (pmicwd_enhance) {
+			pmicwd->suspend_state = PM_SUSPEND_POST;
+			hang_detect_enable = false;
+		} else {
+			pmicwd->suspend_state = 0;
+		}
+		PWD_INFO("pmicwd finish resume\n");
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block pmicWd_pm_nb = {
+	.notifier_call = pmicWd_pm_notifier,
+	.priority = INT_MAX,
+};
+
+static int setalarm(unsigned long time, bool enable) {
 	static struct rtc_device *rtc;
 	static struct rtc_wkalrm alm;
 	static struct rtc_wkalrm org_alm;
@@ -629,7 +572,7 @@ static int  setalarm(unsigned long time,bool enable)
 	int rc = -1;
 	static bool store_alm_success = false;
 
-	if(!rtc){
+	if(!rtc) {
 		rtc = rtc_class_open("rtc0");
 	}
 
@@ -638,7 +581,7 @@ static int  setalarm(unsigned long time,bool enable)
 		return rc;
 	}
 
-	if(enable){
+	if(enable) {
 		rc = rtc_read_alarm(rtc, &org_alm);
 		if (rc < 0) {
 			PWD_ERR("setalarm read alarm fail %d\n", rc);
@@ -653,7 +596,7 @@ static int  setalarm(unsigned long time,bool enable)
 		}
 
 		now = rtc_tm_to_time64(&alm.time);
-		memset(&alm, 0, sizeof alm);
+		memset(&alm, 0, sizeof(alm));
 		rtc_time64_to_tm(now + time, &alm.time);
 		alm.enabled = true;
 		rc = rtc_set_alarm(rtc, &alm);
@@ -681,49 +624,134 @@ static int  setalarm(unsigned long time,bool enable)
 	}
 	return 0;
 }
-static int pmicwd_suspend(struct device *dev)
-{
+
+static int pmicwd_suspend_prepare(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_SUSPEND_PRE;
+		pmicwd->state_update_time = jiffies;
+	}
+	PWD_DEBUG("suspend_prepare enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_SUSPEND_PRE);
+
+	return 0;
+}
+
+static int pmicwd_suspend(struct device *dev) {
 	unsigned long time = 0;
 
 	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
 
-	if(!(pmicwd->pmicwd_state & 0xff)) {
-		PWD_ERR("pmicwd_suspend disable wd\n");
-		return 0;
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_SUSPEND;
+		pmicwd->state_update_time = jiffies;
+	} else {
+		pmicwd->suspend_state = 0;
 	}
-	pmicwd->suspend_state = 0;
-	time = (pmicwd->pmicwd_state >> 8)&0xff;
+
+	time = (pmicwd->pmicwd_state >> 8) & 0xff;
+	qpnp_pon_wd_pet(pmicwd->pon);
+	setalarm(time - 30, true);
+
 	PWD_INFO("pmicwd_suspend enter && enable pet alarm\n");
-	qpnp_pon_wd_pet(pmicwd->pon);
-	setalarm(time - 30,true);
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_SUSPEND);
+
 	return 0;
 }
 
-static int pmicwd_resume(struct device *dev)
-{
+static int pmicwd_suspend_late(struct device *dev) {
 	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
 
-	if(!(pmicwd->pmicwd_state & 0xff)) {
-		PWD_INFO("pmicwd_resume fail && keep pet alarm on\n");
-		return 0;
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_SUSPEND_LATE;
+		pmicwd->state_update_time = jiffies;
 	}
-
-	pmicwd->suspend_state = 0x70;
-	PWD_INFO("pmicwd_resume enter && disable pet alarm\n");
-	//disable alarm
-	setalarm(0,false);
-	qpnp_pon_wd_pet(pmicwd->pon);
-
-	if(!strcmp(symbol, "ENABLE_RESUME")) {
-		pr_info("%s the phone will enter into dump\n\n", __func__);
-		while(1);
-	}
+	PWD_DEBUG("suspend_late enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_SUSPEND_LATE);
 
 	return 0;
 }
 
-static int pmicwd_poweroff(struct device *dev)
-{
+static int pmicwd_suspend_noirq(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_SUSPEND_NOIRQ;
+		pmicwd->state_update_time = jiffies;
+	}
+	PWD_DEBUG("suspend_noirq enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_SUSPEND_NOIRQ);
+
+	return 0;
+}
+
+static int pmicwd_resume_noirq(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_RESUME_NOIRQ;
+		pmicwd->state_update_time = jiffies;
+	}
+	PWD_DEBUG("resume_noirq enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_RESUME_NOIRQ);
+
+	return 0;
+}
+
+int pmicwd_resume_early(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_RESUME_EARLY;
+		pmicwd->state_update_time = jiffies;
+	}
+	PWD_DEBUG("resume_early enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_RESUME_EARLY);
+
+	return 0;
+}
+
+static int pmicwd_resume(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_RESUME;
+		pmicwd->state_update_time = jiffies;
+	} else {
+		pmicwd->suspend_state = 0x70;
+	}
+
+	/* disable alarm */
+	setalarm(0, false);
+	qpnp_pon_wd_pet(pmicwd->pon);
+
+	PWD_INFO("pmicwd_resume enter && disable pet alarm\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_RESUME);
+
+	return 0;
+}
+
+static void pmicwd_resume_complete(struct device *dev) {
+	ASSERT(pmicwd);
+	PMICWD_STATE_CHECK_VOID(__func__, pmicwd);
+
+	if (pmicwd_enhance) {
+		pmicwd->suspend_state = PM_DEVICE_COMPLETE;
+		pmicwd->state_update_time = jiffies;
+	}
+	PWD_DEBUG("resume_complete enter\n");
+	pmicwd_return_injected(PMICWD_INJECT_DEVICE_RESUME_COMPLETE);
+}
+
+static int pmicwd_poweroff(struct device *dev) {
 	PWD_INFO("pmicwd_poweroff && close wd\n");
 	ASSERT(pmicwd);
 	qpnp_pon_wd_pet(pmicwd->pon);
@@ -732,13 +760,91 @@ static int pmicwd_poweroff(struct device *dev)
 }
 
 static const struct dev_pm_ops pmicwd_pm_ops = {
+	.prepare = pmicwd_suspend_prepare,
 	.suspend = pmicwd_suspend,
+	.suspend_late = pmicwd_suspend_late,
+	.suspend_noirq = pmicwd_suspend_noirq,
+	.resume_noirq = pmicwd_resume_noirq,
+	.resume_early = pmicwd_resume_early,
 	.resume = pmicwd_resume,
 	.poweroff = pmicwd_poweroff,
+	.complete = pmicwd_resume_complete,
 };
 
-static int pmicwd_probe(struct platform_device *pdev)
-{
+void pmicwd_init(struct platform_device *pdev) {
+	u32 pon_rt_sts = 0;
+	int rc;
+	struct proc_dir_entry *proc_entry;
+
+	/* try to get dts info */
+	pmicwd->wd_task = NULL;
+	pmicwd->suspend_state = 0;
+	pmicwd->pmicwd_state = of_property_read_bool(pdev->dev.of_node, "qcom,pmicwd");
+	PWD_INFO("pon pmicwd_state = 0x%x\n", pmicwd->pmicwd_state);
+
+	if(pmicwd->pmicwd_state) {
+		oplus_pon_pbs_int_cfg();
+		if (get_eng_version() == AGING || get_eng_version() == HIGH_TEMP_AGING || get_eng_version() == FACTORY) {
+			pmicwd->pmicwd_state = PMIC_WD_DEFAULT_ENABLE | (PMIC_WD_DEFAULT_TIMEOUT << 8) |
+				(PON_POWER_OFF_WARM_RESET << 16);
+		} else {
+			pmicwd->pmicwd_state = PMIC_WD_DEFAULT_ENABLE | (PMIC_WD_DEFAULT_TIMEOUT << 8) |
+				(PON_POWER_OFF_HARD_RESET << 16);
+		}
+
+		proc_entry = proc_create("pmicwd_config", 0666, NULL, &pmicwd_config_proc_pops);
+		if (!proc_entry) {
+			PWD_ERR("Failed to create pmicwd_config\n");
+			return;
+		}
+
+		proc_entry = proc_create("pmicwd_enhance", 0666, NULL, &pmicwd_enhance_pops);
+		if (!proc_entry) {
+			PWD_ERR("Failed to create pmicwd_enhance\n");
+			return;
+		}
+
+		proc_entry = proc_create("pmicwd_test", 0666, NULL, &pmicwd_test_pops);
+		if (!proc_entry) {
+			PWD_ERR("Failed to create pmicwd_test\n");
+			return;
+		}
+
+		mutex_init(&pmicwd->wd_task_mutex);
+		#if PMIC_WD_DEFAULT_ENABLE
+		pmicwd->wd_task = kthread_create(pmicwd_kthread, NULL, "pmicwd");
+		if(pmicwd->wd_task) {
+			if (get_eng_version() == AGING  || get_eng_version() == HIGH_TEMP_AGING || get_eng_version() == FACTORY) {
+				qpnp_pon_wd_timer(PMIC_WD_DEFAULT_TIMEOUT, PON_POWER_OFF_WARM_RESET);
+			} else {
+				qpnp_pon_wd_timer(PMIC_WD_DEFAULT_TIMEOUT, PON_POWER_OFF_HARD_RESET);
+			}
+			oplus_qpnp_pon_wd_config(1);
+			wake_up_process(pmicwd->wd_task);
+		} else {
+			pmicwd->pmicwd_state &= ~0xff;
+		}
+		#endif
+
+		rc = register_pm_notifier(&pmicWd_pm_nb);
+		if (rc) {
+			PWD_ERR("%s: pmicwd power state notif error %d\n", __func__, rc);
+		}
+	}
+
+	regmap_read(pmicwd->pon->regmap, QPNP_PON_RT_STS(pmicwd->pon), &pon_rt_sts);
+	PWD_INFO("probe keycode = 116, key_st = 0x%x\n", pon_rt_sts);
+
+	pmicwd_err_inject_init(pdev);
+
+	hang_detect_enable = false;
+	pmicwd_enhance = 1;
+	pmicwd_test_flag = false;
+
+	return;
+}
+
+static int pmicwd_probe(struct platform_device *pdev) {
 	PWD_ERR("pmicwd_probe enter\n");
 
 	if (!sys_reset_dev) {
@@ -753,6 +859,8 @@ static int pmicwd_probe(struct platform_device *pdev)
 	}
 	pmicwd->pon = sys_reset_dev;
 
+	platform_set_drvdata(pdev, pmicwd);
+
 	kpdpwr_init();
 
 	pmicwd_init(pdev);
@@ -760,9 +868,16 @@ static int pmicwd_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pmicwd_remove(struct platform_device *pdev)
-{
+static int pmicwd_remove(struct platform_device *pdev) {
 	if (pmicwd) {
+		if(pmicwd->pmicwd_state) {
+			remove_proc_entry("pmicwd_config", NULL);
+			remove_proc_entry("pmicwd_enhance", NULL);
+			remove_proc_entry("pmicwd_test", NULL);
+			remove_proc_entry("pmicwd_inject", NULL);
+			remove_proc_entry("kpdpwr", NULL);
+		}
+		platform_set_drvdata(pdev, NULL);
 		kfree(pmicwd);
 		pmicwd = NULL;
 	}

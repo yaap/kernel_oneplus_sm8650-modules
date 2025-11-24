@@ -969,7 +969,7 @@ static int oplus_dual_chan_get_track_info(struct oplus_dual_chan_chip *chip,
 		chip->sub_batt_soc = 0;
 	}
 
-	return snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+	return scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 			"main_sub_soc %d %d,"
 			"main_sub_volt %d %d,"
 			"main_sub_curr %d %d,"
@@ -1020,17 +1020,17 @@ static void oplus_chg_dual_chan_track_work(struct work_struct *work)
 		chg_info("dual chan track trigger: %d\n", chip->track_err_type);
 		switch(chip->track_err_type) {
 		case DUAL_CHAN_EXIT_ERR:
-			index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+			index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 					  "$$reason@@%s$$status@@", "dual_chan_exit_err");
 			break;
 		case DUAL_CHAN_ENTER_ERR:
-			index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+			index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 					  "$$reason@@%s$$status@@", "dual_chan_enter_err");
 			break;
 		default:
 			break;
 		}
-		index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+		index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 				  "curr:%d led:%d vbat_status:%d "
 			          "temp_status:%d buck_status:%d ",
 			          bat_curr,
@@ -1197,14 +1197,20 @@ static int oplus_dual_chan_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_dual_chan_remove(struct platform_device *pdev)
+#else
 static int oplus_dual_chan_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_dual_chan_chip *chip = platform_get_drvdata(pdev);
 
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_dual_chan_match[] = {

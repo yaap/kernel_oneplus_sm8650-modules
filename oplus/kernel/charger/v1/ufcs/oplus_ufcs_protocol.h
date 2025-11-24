@@ -148,6 +148,7 @@ struct receive_error {
 	bool msg_trans_fail;
 	bool ack_rcv_timeout;
 	bool data_rdy;
+	bool ack_int_read_delay;
 };
 
 struct communication_error {

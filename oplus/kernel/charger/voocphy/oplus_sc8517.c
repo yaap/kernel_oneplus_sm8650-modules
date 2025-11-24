@@ -315,7 +315,7 @@ static void sc8517_track_i2c_err_load_trigger_work(struct work_struct *work)
 			i2c_err_load_trigger_work);
 
 	if (chip->i2c_err_load_trigger) {
-		oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+		oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 		kfree(chip->i2c_err_load_trigger);
 		chip->i2c_err_load_trigger = NULL;
 	}
@@ -334,6 +334,7 @@ static int sc8517_dump_reg_info(struct oplus_voocphy_manager *chip,
 			  "REG_09~REG_0E:[0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x]",
 			  chip->int_column_pre[0], chip->int_column_pre[1], chip->int_column_pre[2],
 			  chip->int_column_pre[3], chip->int_column_pre[4], chip->int_column_pre[5]);
+
 	return index;
 }
 
@@ -427,7 +428,7 @@ static void sc8517_track_cp_err_load_trigger_work(
 			cp_err_load_trigger_work);
 
 	if (chip->cp_err_load_trigger) {
-		oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+		oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 		kfree(chip->cp_err_load_trigger);
 		chip->cp_err_load_trigger = NULL;
 	}

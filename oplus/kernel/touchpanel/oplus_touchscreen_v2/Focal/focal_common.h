@@ -44,7 +44,10 @@ struct focal_testdata {
 	bool fd_support;
 	bool fingerprint_underscreen_support;
 	uint64_t test_item;
+	/*raw cap test max min test*/
+	int raw_cap_restriction;
 };
+
 /*test item*/
 enum {
 	TYPE_ERROR                                  = 0x00,
@@ -88,6 +91,7 @@ enum {
 	TYPE_TEST9                   = 0x09,
 	TYPE_TEST10                   = 0x0A,
 	TYPE_TEST11                   = 0x0B,
+	TYPE_TEST12                   = 0x0C,
 	TYPE_TEST16                   = 0x10,
 	TYPE_TEST17                   = 0x11,
 	TYPE_TEST18                   = 0x12,
@@ -133,6 +137,9 @@ struct focal_auto_test_operations {
 	             struct auto_testdata *focal_testdata,
 	             struct test_item_info *p_test_item_info);
 	int (*test11)(struct seq_file *s, void *chip_data,
+	             struct auto_testdata *focal_testdata,
+	             struct test_item_info *p_test_item_info);
+	int (*test12)(struct seq_file *s, void *chip_data,
 	             struct auto_testdata *focal_testdata,
 	             struct test_item_info *p_test_item_info);
 	int (*test16)(struct seq_file *s, void *chip_data,

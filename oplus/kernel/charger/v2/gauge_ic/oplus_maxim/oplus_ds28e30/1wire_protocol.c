@@ -190,6 +190,9 @@ unsigned char read_bit(void)
 	} else {
 		ONE_WIRE_OUT_LOW;
 		ONE_WIRE_OUT_LOW;
+		if (g_onewire_data->maxim_trl_ndelay != 0) {
+			delay_ns(g_onewire_data->maxim_trl_ndelay);
+		}
 		ONE_WIRE_CONFIG_IN;
 		delay_ns(500);	/* wait 500 ns */
 		value = readl_relaxed(g_onewire_data->gpio_in_reg);
@@ -276,6 +279,7 @@ int onewire_init(struct onewire_gpio_data *onewire_data)
 	g_onewire_data->write_begin_low_level_time = onewire_data->write_begin_low_level_time;
 	g_onewire_data->write_relese_ic_time = onewire_data->write_relese_ic_time;
 	g_onewire_data->maxim_romid_crc_support = onewire_data->maxim_romid_crc_support;
+	g_onewire_data->maxim_trl_ndelay = onewire_data->maxim_trl_ndelay;
 	ONE_WIRE_CONFIG_OUT;
 	ONE_WIRE_OUT_HIGH;
 	delay_ms(10);

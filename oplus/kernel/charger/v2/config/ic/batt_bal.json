@@ -290,8 +290,30 @@
                     }
                 }
             }
+        },
+        {
+            "lable": "OPLUS_IC_FUNC_BAL_HW_INIT",
+            "desc": {
+                "zh": "复位通知"
+            },
+            "auto_debug_code": true,
+            "parameter_list": ["int"],
+            "parameter_desc": [
+                {
+                    "range": "0-*",
+                    "type": "in",
+                    "desc": {
+                        "zh": "复位的参数，表示具体执行复位准备还是马上复位等具体流程"
+                    }
+                }
+            ],
+            "vict": {
+                "read": false,
+                "write": false,
+                "overwrite": false
+            }
         }
     ],
 
-    "version": "V1.0:9:f1eaf2a8091582566897bac47f6812aea2ad2d3bfecd065b6417d37a6e68b9de"
+    "version": "V1.2:10:b751e5ce3c156d84671030812b988298fa29d9d44eb444d37a11a6def75645b5"
 }

@@ -17,7 +17,11 @@
 #include <linux/kobject.h>
 #include <linux/platform_device.h>
 #include <asm/atomic.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
 #include <asm/unaligned.h>
+#endif
 #include <linux/module.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 #ifndef CONFIG_OPLUS_CHARGER_MTK6779R
@@ -64,6 +68,7 @@
 #endif
 #include <linux/gfp.h>
 #include <linux/iio/consumer.h>
+#include <linux/string.h>
 
 #ifdef OPLUS_SHA1_HMAC
 #include <linux/random.h>
@@ -4725,7 +4730,11 @@ retry:
 		}
 		/* replace checksum byte by end of string '\0' */
 		batt_sn[OPLUS_BATT_SERIAL_NUM_SIZE - 1] = '\0';
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+		strscpy(chip->battinfo.bat_serial_num, (char*)batt_sn, OPLUS_BATT_SERIAL_NUM_SIZE);
+#else
 		strlcpy(chip->battinfo.bat_serial_num, (char*)batt_sn, OPLUS_BATT_SERIAL_NUM_SIZE);
+#endif
 	} else {
 		chg_err("get sn failed\n");
 	}
@@ -4738,7 +4747,11 @@ int oplus_bq27541_get_battinfo_sn(char buf[], int len)
 	int bsnlen = 0;
 
 	chg_info("BattSN:%s\n", chip->battinfo.bat_serial_num);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	bsnlen = strscpy(buf, chip->battinfo.bat_serial_num, OPLUS_BATT_SERIAL_NUM_SIZE);
+#else
 	bsnlen = strlcpy(buf, chip->battinfo.bat_serial_num, OPLUS_BATT_SERIAL_NUM_SIZE);
+#endif
 
 	return bsnlen;
 }
@@ -5183,6 +5196,31 @@ static int bq27541_set_wlchg_started_status(bool wlchg_started_status)
 	return 0;
 }
 
+static int bq27541_get_dec_fg_type(void)
+{
+	int type = DEC_CV_FG_UNKNOWN;
+	if (!gauge_ic) {
+		return DEC_CV_FG_UNKNOWN;
+	}
+
+	if (gauge_ic->batt_bq28z610 || gauge_ic->batt_zy0603)
+		type = PACK_DOUBLE_SERIES;
+	else if (gauge_ic->device_type == DEVICE_ZY0602)
+		type = PACK_DOUBLE_PARALLE;
+	else if (gauge_ic->device_type == DEVICE_BQ27411)
+		type = PACK_SOH;
+	else if (gauge_ic->batt_bq27z561 || gauge_ic->batt_nfg1000a || gauge_ic->device_type == DEVICE_BQ27541)
+		type = PACK_SINGLE;
+	else if (gauge_ic->device_type == DEVICE_BQ27426)
+		type = MB_TI;
+	else
+		type = DEC_CV_FG_UNKNOWN;
+
+	chg_info(" %d\n", type);
+
+	return type;
+}
+
 static struct oplus_gauge_operations bq27541_gauge_ops = {
 	.get_battery_mvolts = bq27541_get_battery_mvolts,
 	.get_battery_fc = bq27541_get_battery_fc,
@@ -5246,6 +5284,7 @@ static struct oplus_gauge_operations bq27541_gauge_ops = {
 	.get_bqfs_status = bqfs_get_init_status,
 	.bqfs_fw_check = bqfs_fw_check,
 	.bqfs_data_check = bqfs_data_check,
+	.get_dec_fg_type = bq27541_get_dec_fg_type,
 	.get_batt_manu_date = bq27541_get_batt_manu_date,
 	.get_batt_first_usage_date = bq27541_get_batt_first_usage_date,
 	.set_batt_first_usage_date = bq27541_set_batt_first_usage_date,
@@ -5741,7 +5780,7 @@ static void bq27541_parse_dt(struct chip_bq27541 *chip)
 	if (rc < 0) {
 		chip->cp_abnormal_qmax_min = OPLUS_CP_ABNORMAL_QMAX_MIN;
 	}
-	chg_info("bq27426_abnormal=[%d, %d, %d, %d, %d, %d, %d, %d]\n", chip->gauge_abnormal_vbatt_max, chip->gauge_abnormal_vbatt_min,
+	chg_err("bq27426_abnormal=[%d,%d,%d,%d,%d,%d,%d,%d]\n", chip->gauge_abnormal_vbatt_max, chip->gauge_abnormal_vbatt_min,
 	chip->cp_abnormal_fcc_max, chip->cp_abnormal_fcc_min, chip->cp_abnormal_soh_max, chip->cp_abnormal_soh_min,
 	chip->cp_abnormal_qmax_max, chip->cp_abnormal_qmax_min);
 }
@@ -8813,7 +8852,7 @@ static void bq27541_track_mode_load_trigger_work(
 	if (!chip->track_mode.load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->track_mode.load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->track_mode.load_trigger);
 	kfree(chip->track_mode.load_trigger);
 	chip->track_mode.load_trigger = NULL;
 	chip->track_mode.uploading = false;

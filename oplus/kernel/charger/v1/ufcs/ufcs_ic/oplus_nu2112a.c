@@ -314,10 +314,10 @@ static void nu2112a_track_i2c_err_load_trigger_work(struct work_struct *work)
 	struct oplus_voocphy_manager *chip =
 		container_of(dwork, struct oplus_voocphy_manager, i2c_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip || !chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	if (chip->i2c_err_load_trigger) {
 		kfree(chip->i2c_err_load_trigger);
 		chip->i2c_err_load_trigger = NULL;
@@ -429,10 +429,10 @@ static void nu2112a_track_cp_err_load_trigger_work(struct work_struct *work)
 	struct oplus_voocphy_manager *chip =
 		container_of(dwork, struct oplus_voocphy_manager, cp_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip || !chip->cp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 	if (chip->cp_err_load_trigger) {
 		kfree(chip->cp_err_load_trigger);
 		chip->cp_err_load_trigger = NULL;
@@ -1303,7 +1303,11 @@ static DEVICE_ATTR(registers, 0660, nu2112a_show_registers, nu2112a_store_regist
 
 static void nu2112a_create_device_node(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_registers);
+	int ret = 0;
+	ret = device_create_file(dev, &dev_attr_registers);
+
+	if (ret != 0)
+		chg_err("create device node failed, ret = %d.", ret);
 }
 
 static int nu2112a_gpio_init(struct oplus_voocphy_manager *chip)

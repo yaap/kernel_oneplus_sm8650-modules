@@ -367,7 +367,6 @@ struct chip_bq27z561 {
 
 	bool modify_soc_smooth;
 	bool modify_soc_calibration;
-	bool remove_iterm_taper;
 	bool batt_bq27z561;
 
 	bool battery_full_param; /* only for wite battery full param in guage dirver probe on 7250 platform */

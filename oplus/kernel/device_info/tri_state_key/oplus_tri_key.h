@@ -236,6 +236,10 @@ struct extcon_dev_data {
 	bool        is_suspended;
 	bool        turn_upside_down_support;
 	bool        new_posupdate_support;
+	bool        deformation_interference_support;
+	int         deformation_interference[4];
+	int         deformation_interference_x[6];
+	int         deformation_interference_y[6];
 	/* framebuffer callbacks notifier */
 #if IS_ENABLED(CONFIG_DRM_OPLUS_PANEL_NOTIFY)
 	struct drm_panel *active_panel;

@@ -7,6 +7,7 @@
 #include <linux/version.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
 #define CLOSE_PD  1
 #define CLOSE_PD_CONDITION 2
@@ -126,18 +127,51 @@ static void parse_physical_sensor_common_dts(struct sensor_hw* hw, struct device
 
 }
 
+static int get_gpio_value(struct device_node *ch_node, int *gpio_value)
+{
+	int gpio_num = of_get_named_gpio(ch_node, "id-gpio", 0);
+
+	if (!gpio_is_valid(gpio_num)) {
+		pr_err("id-gpio is not valid\n");
+		return -EINVAL;
+	}
+
+	*gpio_value = gpio_get_value(gpio_num);
+	pr_info("%s, id gpio value is %d", __func__, *gpio_value);
+	return 0;
+}
+
 static void parse_magnetic_sensor_dts(struct sensor_hw* hw, struct device_node *ch_node)
 {
 	int value = 0;
 	int rc = 0;
 	int di = 0;
+	int gpio_value = 0;
+	int err = 0;
+	int distinguish_nfc = 0;
 	int soft_default_para[18] = {10000, 0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 0, 0, 0, 0, 0, 10000, 0};
 	/*set default defaut mag */
 	memcpy((void *)&hw->feature.parameter[0], (void *)&soft_default_para[0], sizeof(soft_default_para));
 	rc = of_property_read_u32(ch_node, "parameter-number", &value);
 	if (!rc && value > 0 && value < PARAMETER_NUM) {
-		rc = of_property_read_u32_array(ch_node,
+		rc = of_property_read_u32(ch_node, "is-need-distinguish-nfc", &distinguish_nfc);
+		if (!rc && distinguish_nfc == 1) {
+			err = get_gpio_value(ch_node, &gpio_value);
+			if (err) {
+				pr_err("%s error: get_gpio_value failed", __func__);
+				return;
+			}
+			if (gpio_value == 0) {
+				rc = of_property_read_u32_array(ch_node,
+					"soft-mag-parameter-nfc", &hw->feature.parameter[0], value);
+			} else {
+				rc = of_property_read_u32_array(ch_node,
+					"soft-mag-parameter-no-nfc", &hw->feature.parameter[0], value);
+			}
+		} else if (rc) {
+			rc = of_property_read_u32_array(ch_node,
 				"soft-mag-parameter", &hw->feature.parameter[0], value);
+		}
 		for (di = 0; di < value; di++) {
 			SENSOR_DEVINFO_DEBUG("soft magnetic parameter[%d] : %d\n", di,
 				hw->feature.parameter[di]);
@@ -145,7 +179,7 @@ static void parse_magnetic_sensor_dts(struct sensor_hw* hw, struct device_node *
 		return;
 	} else if (rc) {
 		int prj_id = 0;
-		int prj_dir[8];
+		int prj_dir[10];
 		struct device_node *node = ch_node;
 		struct device_node *ch_node_mag = NULL;
 		prj_id = get_project();
@@ -212,7 +246,7 @@ static void parse_proximity_sensor_dts(struct sensor_hw* hw, struct device_node 
 		"force_cali_limit",
 		"cali_jitter_limit",
 		"cal_offset_margin",
-                "is_ps_dri",
+		"is_ps_dri",
 	};
 	rc = of_property_read_u32(ch_node, "ps-type", &value);
 
@@ -322,7 +356,8 @@ static void parse_light_sensor_dts(struct sensor_hw* hw, struct device_node *ch_
 		"k61",
 		"k62",
 		"k63",
-		"lcd_name"
+		"lcd_name",
+		"coef_f"
 	};
 	for (di = 0; di < ARRAY_SIZE(als_feature); di++) {
 		rc = of_property_read_u32(ch_node, als_feature[di], &value);
@@ -787,6 +822,48 @@ static void parse_oplus_measurement_sensor_dts(struct sensor_algorithm *algo, st
 		algo->parameter[0], algo->parameter[1]);
 }
 
+static void parse_camera_protect_sensor_dts(struct sensor_algorithm *algo, struct device_node *ch_node)
+{
+	int rc = 0;
+	int value = 0;
+	rc = of_property_read_u32(ch_node, "layout_offset_x", &value);
+	if (!rc) {
+		algo->parameter[0] = value;
+	}
+
+	rc = of_property_read_u32(ch_node, "layout_offset_y", &value);
+	if (!rc) {
+		algo->parameter[1] = value;
+	}
+
+	rc = of_property_read_u32(ch_node, "init_pin", &value);
+	if (!rc) {
+		algo->parameter[2] = value;
+	}
+
+	rc = of_property_read_u32(ch_node, "is_chip_pin", &value);
+	if (!rc) {
+		algo->parameter[3] = value;
+	}
+
+	rc = of_property_read_u32(ch_node, "sup_gyro", &value);
+	if (!rc) {
+		algo->parameter[4] = value;
+	}
+
+	rc = of_property_read_u32(ch_node, "sup_amd", &value);
+	if (!rc) {
+		algo->parameter[5] = value;
+	}
+	SENSOR_DEVINFO_DEBUG("layout_offset_x: %d, layout_offset_y: %d, init_pin: %d, is_chip_pin: %d\n",
+		algo->parameter[0], algo->parameter[1], algo->parameter[2], algo->parameter[3]);
+
+	SENSOR_DEVINFO_DEBUG("sup_gyro: %d, sup_amd: %d\n",
+		algo->parameter[4], algo->parameter[5]);
+	pr_err("sup_gyro: %d, sup_amd: %d\n",
+		algo->parameter[4], algo->parameter[5]);
+}
+
 static void parse_each_virtual_sensor_dts(struct sensor_algorithm *algo, struct device_node * ch_node)
 {
 	if (0 == strncmp(ch_node->name, "pickup", 6)) {
@@ -799,6 +876,8 @@ static void parse_each_virtual_sensor_dts(struct sensor_algorithm *algo, struct 
 		parse_mag_fusion_sensor_dts(algo, ch_node);
 	} else if (0 == strncmp(ch_node->name, "oplus_measurement", 17)) {
 		parse_oplus_measurement_sensor_dts(algo, ch_node);
+	} else if (0 == strncmp(ch_node->name, "camera_protect", 10)) {
+		parse_camera_protect_sensor_dts(algo, ch_node);
 	} else {
 		/* do nothing */
 	}

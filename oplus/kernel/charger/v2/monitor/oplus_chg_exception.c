@@ -3,6 +3,8 @@
  * Copyright (C) 2018-2023 Oplus. All rights reserved.
  */
 
+#define pr_fmt(fmt) "[OLC]([%s][%d]): " fmt, __func__, __LINE__
+
 #include <linux/err.h>
 #include <linux/string.h>
 #include <linux/sysfs.h>
@@ -25,6 +27,8 @@ enum olc_notify_type {
 	OLC_NOTIFY_TYPE_CHARGING_BREAK,
 	OLC_NOTIFY_TYPE_DEVICE_ABNORMAL,
 	OLC_NOTIFY_TYPE_SOFTWARE_ABNORMAL,
+	OLC_NOTIFY_TYPE_UPLOAD_LOG,
+	OLC_NOTIFY_TYPE_CRASH,
 };
 
 struct chg_exception_table {
@@ -114,6 +118,10 @@ static int chg_olc_battery_log_raise_exception(void)
 #define LOG_CHARGER             (0x1L << 42)
 #endif  /*add for olc project compatible*/
 
+#ifndef LOG_SOCCP
+#define LOG_SOCCP               (0x1L << 50)
+#endif  /*add for olc project compatible*/
+
 static int chg_olc_raise_exception(unsigned int excep_chgye, void *summary, unsigned int summary_size)
 {
 	struct exception_info *exp_info = NULL;
@@ -138,7 +146,10 @@ static int chg_olc_raise_exception(unsigned int excep_chgye, void *summary, unsi
 	exp_info->exceptionId = (CHG_RESERVED_ID << 20) | (CHG_MODULE_ID << 12) | excep_chgye;
 	exp_info->exceptionType = EXCEPTION_KERNEL;
 	exp_info->level = 0;
-	exp_info->atomicLogs = LOG_KERNEL | LOG_MAIN;
+	if (excep_chgye == EXCEP_CRASH_DEFAULT)
+		exp_info->atomicLogs = LOG_SOCCP | LOG_KERNEL;
+	else
+		exp_info->atomicLogs = LOG_KERNEL | LOG_MAIN;
 
 	len = sizeof(CHG_LOG_PATH);
 	len = len > sizeof(exp_info->logParams) ? sizeof(exp_info->logParams) : len;
@@ -208,11 +219,13 @@ static struct chg_exception_table olc_table[] = {
 	{ TRACK_NOTIFY_TYPE_CHARGING_BREAK, OLC_NOTIFY_TYPE_CHARGING_BREAK },
 	{ TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL, OLC_NOTIFY_TYPE_DEVICE_ABNORMAL },
 	{ TRACK_NOTIFY_TYPE_SOFTWARE_ABNORMAL, OLC_NOTIFY_TYPE_SOFTWARE_ABNORMAL },
+	{ TRACK_NOTIFY_TYPE_UPLOAD_LOG, OLC_NOTIFY_TYPE_UPLOAD_LOG },
+	{ TRACK_NOTIFY_TYPE_CRASH, OLC_NOTIFY_TYPE_CRASH },
 };
 
 #define TRACK_LOCAL_T_NS_TO_S_THD		1000000000
 #define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD	(1 * 3600)
-#define MAX_UPLOAD_COUNT	3
+#define MAX_UPLOAD_COUNT			3
 static int olc_track_get_local_time_s(void)
 {
 	int local_time_s;
@@ -284,6 +297,14 @@ static int oplus_chg_olc_get_excep_reason(int type_reason, int flag_reason, int 
 		flag_base_value = TRACK_NOTIFY_FLAG_SOFTWARE_ABNORMAL_FIRST;
 		olc_base_value = EXCEP_SOFTWARE_ABNORMAL_DEFAULT;
 		break;
+	case TRACK_NOTIFY_TYPE_UPLOAD_LOG:
+		flag_base_value = TRACK_NOTIFY_FLAG_UPLOAD_LOG_FIRST;
+		olc_base_value = EXCEP_UPLOAD_LOG_DEFAULT;
+		break;
+	case TRACK_NOTIFY_TYPE_CRASH:
+		flag_base_value = TRACK_NOTIFY_FLAG_CRASH_FIRST;
+		olc_base_value = EXCEP_CRASH_DEFAULT;
+		break;
 	default:
 		break;
 	}
@@ -322,20 +343,22 @@ int chg_exception_report(void *chg_exception_data, int type_reason, int flag_rea
 		return ret;
 	}
 
-	exception_data->excep[flag_reason].num++;
 	exception_data->excep[flag_reason].curr_time = olc_track_get_local_time_s();
-	if (exception_data->excep[flag_reason].num == 1) {
-		exception_data->excep[flag_reason].pre_upload_time = olc_track_get_local_time_s();
-	}
 	if (exception_data->excep[flag_reason].curr_time -
 		exception_data->excep[flag_reason].pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
-		exception_data->excep[flag_reason].num = 1;
-	if (exception_data->excep[flag_reason].num > MAX_UPLOAD_COUNT) {
+		exception_data->excep[flag_reason].num = 0;
+	if (exception_data->excep[flag_reason].num >= MAX_UPLOAD_COUNT) {
 		chg_err("not allow upload olc max times\n");
 		return ret;
 	}
 
 	ret = chg_olc_raise_exception(excep_chgye, summary, summary_size);
+	if (ret < 0)
+		return ret;
+
+	exception_data->excep[flag_reason].num++;
+	if (exception_data->excep[flag_reason].num == 1)
+		exception_data->excep[flag_reason].pre_upload_time = olc_track_get_local_time_s();
 
 	return ret;
 }

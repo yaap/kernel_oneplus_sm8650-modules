@@ -301,6 +301,7 @@ enum dynamic_config_id {
 	DC_SET_DIFFER_READ = 0xF3,
 	DC_GESTURE_MASK = 0xFE,
 	DC_LOW_TEMP_ENABLE = 0xFD,
+	DC_GLOVE_MODE_ENABLED = 0x0D,
 };
 
 enum command {

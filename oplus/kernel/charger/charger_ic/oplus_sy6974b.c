@@ -1257,6 +1257,7 @@ int sy6974b_disable_charging(void)
 		return 0;
 	}
 
+	chip->charger_current_pre = -1;
 	if (!g_oplus_chip || !g_oplus_chip->otg_online)
 		sy6974b_otg_disable();
 	rc = sy6974b_config_interface(chip, REG01_SY6974B_ADDRESS,

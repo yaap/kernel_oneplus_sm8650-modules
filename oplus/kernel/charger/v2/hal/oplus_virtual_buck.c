@@ -28,6 +28,7 @@
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <linux/nvmem-consumer.h>
+#include <oplus_chg_monitor.h>
 
 #include "test-kit.h"
 
@@ -73,6 +74,7 @@ struct oplus_virtual_buck_ic {
 	enum oplus_chg_ic_connect_type connect_type;
 	int child_num;
 	struct oplus_virtual_buck_child *child_list;
+	struct delayed_work upload_device_id_work;
 
 	/* parallel charge */
 	int main_charger;
@@ -93,6 +95,12 @@ struct oplus_virtual_buck_ic {
 	struct test_feature *uart_gpio_test;
 	struct test_feature *typec_port_test;
 #endif
+	struct oplus_mms *error_topic;
+	struct mms_subscribe *error_subs;
+	struct work_struct buck_fpga_rst_work;
+	struct work_struct buck_i2c_rst_work;
+	int fpga_reset_status;
+	int i2c_reset_status;
 };
 
 #if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
@@ -267,6 +275,9 @@ static inline bool func_is_support(struct oplus_virtual_buck_child *ic,
 	switch (func_id) {
 	case OPLUS_IC_FUNC_INIT:
 	case OPLUS_IC_FUNC_EXIT:
+	/*case OPLUS_IC_FUNC_BUCK_GET_BYB_STATUS:
+	case OPLUS_IC_FUNC_BUCK_GET_BYB_VOUT:
+	case OPLUS_IC_FUNC_BUCK_SET_BYB_VOUT:*/
 		return true; /* must support */
 	default:
 		break;
@@ -276,6 +287,132 @@ static inline bool func_is_support(struct oplus_virtual_buck_child *ic,
 		return oplus_chg_ic_func_check_support_by_table(ic->funcs, ic->func_num, func_id);
 	else
 		return false;
+}
+
+#define BYB_INFO_LEN	1024
+#define CHILD_BYB_INFO_LEN	256
+static int oplus_chg_vb_get_byb_status_info(struct oplus_chg_ic_dev *ic_dev, char *buf)
+{
+	struct oplus_virtual_buck_ic *chip;
+	int i;
+	int index = 0;
+	int rc = 0;
+	int len = BYB_INFO_LEN;
+	char child_buff[CHILD_BYB_INFO_LEN] = {0};
+
+	if (buf == NULL) {
+		chg_err("buf is NULL\n");
+		return false;
+	}
+
+	if (ic_dev == NULL) {
+		chg_err("feature ic_dev is NULL\n");
+		index += scnprintf(buf + index, len - index, "ic_dev_is_NULL");
+		return false;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("feature chip is NULL\n");
+		index += scnprintf(buf + index, len - index, "chip_is_NULL");
+		return false;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_BUCK_GET_BYB_STATUS)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_GET_BYB_STATUS, child_buff);
+		if (rc < 0) {
+			chg_err("child ic[%d] get byb status error, rc=%d\n", i, rc);
+			continue;
+		}
+		index += scnprintf(buf + index, len - index, "%s", child_buff);
+	}
+
+	index += scnprintf(buf + index, len - index, "\n");
+	chg_info("get_byb_status:%d %s", index, buf);
+	return index;
+}
+
+static int oplus_chg_vb_get_byb_vout_info(struct oplus_chg_ic_dev *ic_dev, char *buf)
+{
+	struct oplus_virtual_buck_ic *chip;
+	int i;
+	int index = 0;
+	int rc = 0;
+	int len = BYB_INFO_LEN;
+	char child_buff[CHILD_BYB_INFO_LEN] = {0};
+
+	if (buf == NULL) {
+		chg_err("buf is NULL\n");
+		return false;
+	}
+
+	if (ic_dev == NULL) {
+		chg_err("feature ic_dev is NULL\n");
+		index += scnprintf(buf + index, len - index, "ic_dev_is_NULL");
+		return false;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("feature chip is NULL\n");
+		index += scnprintf(buf + index, len - index, "chip_is_NULL");
+		return false;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_BUCK_GET_BYB_VOUT)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_GET_BYB_VOUT, child_buff);
+		if (rc < 0) {
+			chg_err("child ic[%d] get byb status error, rc=%d\n", i, rc);
+			continue;
+		}
+		index += scnprintf(buf + index, len - index, "%s", child_buff);
+	}
+
+	index += scnprintf(buf + index, len - index, "\n");
+	chg_info("get_byb_vout:%d,%s", index, buf);
+	return index;
+}
+
+static int oplus_chg_vb_set_byb_vout_info(struct oplus_chg_ic_dev *ic_dev, int vout)
+{
+	struct oplus_virtual_buck_ic *chip;
+	int i;
+	int index = 0;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("feature ic_dev is NULL\n");
+		return false;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("feature chip is NULL\n");
+		return false;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_BUCK_SET_BYB_VOUT)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_SET_BYB_VOUT, vout);
+		if (rc < 0) {
+			chg_err("child ic[%d] get byb status error, rc=%d\n", i, rc);
+			continue;
+		}
+	}
+
+	chg_info("set_byb_vout is %d,%d\n", index, vout);
+	return index;
 }
 
 static inline bool virq_is_support(struct oplus_virtual_buck_child *ic,
@@ -500,6 +637,10 @@ static int oplus_vc_ship_gpio_init(struct oplus_virtual_buck_ic *chip)
 	int rc;
 
 	chip->misc_gpio.pinctrl = devm_pinctrl_get(chip->dev);
+	if (IS_ERR_OR_NULL(chip->misc_gpio.pinctrl)) {
+		chg_err("get pinctrl fail\n");
+		return -EPROBE_DEFER;
+	}
 
 	chip->misc_gpio.ship_active = pinctrl_lookup_state(chip->misc_gpio.pinctrl, "ship_active");
 	if (IS_ERR_OR_NULL(chip->misc_gpio.ship_active)) {
@@ -523,6 +664,12 @@ static int oplus_vc_ship_gpio_init(struct oplus_virtual_buck_ic *chip)
 static int oplus_vc_ccdetect_gpio_init(struct oplus_virtual_buck_ic *chip)
 {
 	int rc;
+
+	chip->misc_gpio.pinctrl = devm_pinctrl_get(chip->dev);
+	if (IS_ERR_OR_NULL(chip->misc_gpio.pinctrl)) {
+		chg_err("get pinctrl fail\n");
+		return -EPROBE_DEFER;
+	}
 
 	chip->misc_gpio.ccdetect_active = pinctrl_lookup_state(
 		chip->misc_gpio.pinctrl, "ccdetect_active");
@@ -617,6 +764,56 @@ static int oplus_vc_ccdetect_irq_register(struct oplus_virtual_buck_ic *chip)
 	}
 
 	return rc;
+}
+
+static void oplus_vc_upload_device_id_subscribe_error_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_buck_ic *chip = prv_data;
+
+	/* delay 50ms upload for error topic init stop publish finish */
+	schedule_delayed_work(&chip->upload_device_id_work, msecs_to_jiffies(50));
+}
+
+static void oplus_vc_upload_device_id_work(struct work_struct *work)
+{
+	int i;
+	int rc;
+	struct mms_msg *msg;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_virtual_buck_ic *chip = container_of(dwork,
+		struct oplus_virtual_buck_ic, upload_device_id_work);
+	struct oplus_mms *err_topic = oplus_mms_get_by_name("error");
+
+	if (!err_topic)
+		return;
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_BUCK_INPUT_PRESENT))
+			continue;
+
+		if (chip->child_list[i].ic_dev) {
+			msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM, ERR_ITEM_DEVICE_ID,
+				"buck_ic=%s", chip->child_list[i].ic_dev->name);
+			if (msg == NULL) {
+				chg_err("alloc device id msg error\n");
+				return;
+			}
+
+			rc = oplus_mms_publish_msg_sync(err_topic, msg);
+			if (rc < 0) {
+				chg_err("publish device id msg error, rc=%d\n", rc);
+				kfree(msg);
+			}
+			break;
+		}
+	}
+}
+
+static void oplus_vc_upload_device_id(struct oplus_virtual_buck_ic *chip)
+{
+	oplus_mms_wait_topic("error",
+		oplus_vc_upload_device_id_subscribe_error_topic, chip);
 }
 
 static int oplus_vc_input_pg_gpio_init(struct oplus_virtual_buck_ic *chip)
@@ -946,6 +1143,7 @@ read_property_err:
 	for (; i >=0; i--)
 		chip->child_list[i].ic_dev = NULL;
 	devm_kfree(chip->dev, chip->child_list);
+	chip->child_list = NULL;
 	return rc;
 }
 
@@ -1013,6 +1211,7 @@ static int oplus_chg_vb_init(struct oplus_chg_ic_dev *ic_dev)
 		if (rc < 0)
 			goto child_init_err;
 	}
+	oplus_vc_upload_device_id(chip);
 	ic_dev->online = true;
 
 	return 0;
@@ -2191,6 +2390,7 @@ static int oplus_chg_vb_set_pd_config(struct oplus_chg_ic_dev *ic_dev, u32 pdo)
 	struct oplus_virtual_buck_ic *vb;
 	int i;
 	int rc = 0;
+	int status = -ENOTSUPP;
 
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
@@ -2207,13 +2407,17 @@ static int oplus_chg_vb_set_pd_config(struct oplus_chg_ic_dev *ic_dev, u32 pdo)
 			vb->child_list[i].ic_dev,
 			OPLUS_IC_FUNC_BUCK_SET_PD_CONFIG,
 			pdo);
-		if (rc < 0)
+		if (rc < 0) {
 			chg_err("child ic[%d] set pdo(=0x%08x) error, rc=%d\n", i, pdo, rc);
-		else
-			return 0;
+			return rc;
+		} else {
+			status = 0;
+		}
 	}
-
-	return rc;
+	if (status == -ENOTSUPP && rc == -ENOTSUPP)
+		return rc;
+	else
+		return 0;
 }
 
 static int oplus_chg_vb_wls_boost_enable(struct oplus_chg_ic_dev *ic_dev, bool en)
@@ -4125,6 +4329,219 @@ static int oplus_chg_vb_get_byb_id_match_info(struct oplus_chg_ic_dev *ic_dev, i
 	return rc;
 }
 
+static int oplus_chg_vb_fpga_rst(struct oplus_chg_ic_dev *ic_dev, int type)
+{
+	struct oplus_virtual_buck_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip || !chip->child_list) {
+		chg_err("chip or chip->child_list is NULL");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_BUCK_FPGA_RST)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("unsupport, i=%d rc=%d\n", i, rc);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_BUCK_FPGA_RST, type);
+		if (rc < 0)
+			chg_err("child ic[%d] OPLUS_IC_FUNC_BUCK_FPGA_RST error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vb_get_usb_aicl_enhance(struct oplus_chg_ic_dev *ic_dev, bool *enable)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!vb || !vb->child_list) {
+		chg_err("chip or chip->child_list is NULL");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_GET_USB_AICL_ENHANCE)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_BUCK_GET_USB_AICL_ENHANCE,
+				       enable);
+		if (rc < 0) {
+			chg_err("child ic[%d] can't get otg enable status, rc=%d\n", i, rc);
+			return rc;
+		}
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vb_get_lpd_info(struct oplus_chg_ic_dev *ic_dev, u32 *buffer, u32 flag)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL || buffer == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_GET_LPD_INFO)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(
+			vb->child_list[i].ic_dev,
+			OPLUS_IC_FUNC_BUCK_GET_LPD_INFO,
+			buffer, flag);
+		if (rc < 0)
+			chg_err("child ic[%d] get lpd info error, rc=%d\n", i, rc);
+		else
+			return 0;
+	}
+
+	return rc;
+}
+
+int oplus_chg_vb_set_flash_mode(struct oplus_chg_ic_dev *ic_dev, bool flash_mode)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_SET_FLASH_MODE)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(
+			vb->child_list[i].ic_dev,
+			OPLUS_IC_FUNC_BUCK_SET_FLASH_MODE,
+			flash_mode);
+		if (rc < 0)
+			chg_err("child ic[%d] set flash mode error, rc=%d\n", i, rc);
+		else
+			return 0;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vb_set_chg_path(struct oplus_chg_ic_dev *ic_dev, int path)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_SET_CHG_PATH)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_SET_CHG_PATH, path);
+		if (rc < 0) {
+			chg_err("child ic[%d] set chg path error, rc=%d\n", i, rc);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vb_get_chg_path_status(struct oplus_chg_ic_dev *ic_dev, int *status)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	*status = 0;
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_GET_CHG_PATH_STATUS)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_GET_CHG_PATH_STATUS, status);
+		if (rc < 0)
+			chg_err("child ic[%d] get chg path status error, rc=%d\n", i, rc);
+		else
+			return 0;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vb_iterm_check(struct oplus_chg_ic_dev *ic_dev, bool check)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_ITEM_CHECK)) {
+			chg_err("for serial connection, all ICs must support this function\n");
+			return -EINVAL;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_ITEM_CHECK, check);
+		if (rc < 0) {
+			chg_err("child ic[%d] iterm check %d error, rc=%d\n", i, check, rc);
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
 static void *oplus_chg_vb_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg_ic_func func_id)
 {
 	void *func = NULL;
@@ -4387,6 +4804,33 @@ static void *oplus_chg_vb_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_c
 	case OPLUS_IC_FUNC_BUCK_GET_BYBID_MATCH_INFO:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_BYBID_MATCH_INFO, oplus_chg_vb_get_byb_id_match_info);
 		break;
+	case OPLUS_IC_FUNC_BUCK_GET_BYB_STATUS:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_BYB_STATUS, oplus_chg_vb_get_byb_status_info);
+		break;
+	case OPLUS_IC_FUNC_BUCK_GET_BYB_VOUT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_BYB_VOUT, oplus_chg_vb_get_byb_vout_info);
+		break;
+	case OPLUS_IC_FUNC_BUCK_SET_BYB_VOUT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_BYB_VOUT, oplus_chg_vb_set_byb_vout_info);
+		break;
+	case OPLUS_IC_FUNC_BUCK_GET_USB_AICL_ENHANCE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_USB_AICL_ENHANCE, oplus_chg_vb_get_usb_aicl_enhance);
+		break;
+	case OPLUS_IC_FUNC_BUCK_GET_LPD_INFO:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_LPD_INFO, oplus_chg_vb_get_lpd_info);
+		break;
+	case OPLUS_IC_FUNC_BUCK_SET_FLASH_MODE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_FLASH_MODE, oplus_chg_vb_set_flash_mode);
+		break;
+	case OPLUS_IC_FUNC_BUCK_SET_CHG_PATH:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_CHG_PATH, oplus_chg_vb_set_chg_path);
+		break;
+	case OPLUS_IC_FUNC_BUCK_GET_CHG_PATH_STATUS:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_CHG_PATH_STATUS, oplus_chg_vb_get_chg_path_status);
+		break;
+	case OPLUS_IC_FUNC_BUCK_ITEM_CHECK:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_ITEM_CHECK, oplus_chg_vb_iterm_check);
+		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
 		func = NULL;
@@ -4495,6 +4939,13 @@ static void oplus_vb_data_role_changed_handler(struct oplus_chg_ic_dev *ic_dev,
 				  OPLUS_IC_VIRQ_DATA_ROLE_CHANGED);
 }
 
+static void oplus_vb_pd_completed_notify_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
+{
+	struct oplus_virtual_buck_ic *chip = virq_data;
+
+	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_PD_COMPLETED);
+}
+
 static void oplus_vb_typec_state_notify_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
 {
 	struct oplus_virtual_buck_ic *chip = virq_data;
@@ -4516,6 +4967,7 @@ struct oplus_chg_ic_virq oplus_vb_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_BC12_COMPLETED },
 	{ .virq_id = OPLUS_IC_VIRQ_DATA_ROLE_CHANGED },
 	{ .virq_id = OPLUS_IC_VIRQ_TYPEC_STATE},
+	{ .virq_id = OPLUS_IC_VIRQ_PD_COMPLETED},
 };
 
 static int oplus_vb_virq_register(struct oplus_virtual_buck_ic *chip)
@@ -4605,10 +5057,90 @@ static int oplus_vb_virq_register(struct oplus_virtual_buck_ic *chip)
 			if (rc < 0)
 				chg_err("register OPLUS_IC_VIRQ_TYPEC_STATE error, rc=%d", rc);
 		}
+		if (virq_is_support(&chip->child_list[i], OPLUS_IC_VIRQ_PD_COMPLETED)) {
+			rc = oplus_chg_ic_virq_register(chip->child_list[i].ic_dev,
+				OPLUS_IC_VIRQ_PD_COMPLETED, oplus_vb_pd_completed_notify_handler, chip);
+			if (rc < 0)
+				chg_err("register OPLUS_IC_VIRQ_PD_COMPLETED error, rc=%d", rc);
+		}
 	}
 	chg_info("vb_virq register success\n");
 
 	return 0;
+}
+
+static void oplus_buck_fpga_rst_work(struct work_struct *work)
+{
+	struct oplus_virtual_buck_ic *chip = container_of(
+		work, struct oplus_virtual_buck_ic, buck_fpga_rst_work);
+
+	oplus_chg_vb_fpga_rst(chip->ic_dev, chip->fpga_reset_status);
+}
+
+static void oplus_buck_i2c_rst_work(struct work_struct *work)
+{
+	struct oplus_virtual_buck_ic *chip = container_of(
+		work, struct oplus_virtual_buck_ic, buck_i2c_rst_work);
+
+	oplus_chg_vb_fpga_rst(chip->ic_dev, chip->i2c_reset_status);
+}
+
+static void oplus_virtual_buck_error_subs_callback(struct mms_subscribe *subs,
+					   enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_virtual_buck_ic *chip = subs->priv_data;
+	union mms_msg_data data = { 0 };
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case ERR_ITEM_FPGA_RESET:
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data,
+						false);
+			chip->fpga_reset_status = data.intval;
+			chg_err("ERR_ITEM_FPGA_RESET, reset_status=%d\n", chip->fpga_reset_status);
+			schedule_work(&chip->buck_fpga_rst_work);
+			break;
+		case ERR_ITEM_I2C_RESET:
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_I2C_RESET, &data,
+						false);
+			chip->i2c_reset_status = data.intval;
+			chg_err("ERR_ITEM_I2C_RESET, reset_status=%d\n", chip->i2c_reset_status);
+			schedule_work(&chip->buck_i2c_rst_work);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_virtual_buck_subscribe_error_topic(struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_buck_ic *chip = prv_data;
+	union mms_msg_data data = { 0 };
+
+	chip->error_topic = topic;
+	chip->error_subs =
+		oplus_mms_subscribe(chip->error_topic, chip,
+				    oplus_virtual_buck_error_subs_callback, "%s", chip->ic_dev->manu_name);
+	if (IS_ERR_OR_NULL(chip->error_subs)) {
+		chg_err("subscribe error topic error, rc=%ld\n",
+			PTR_ERR(chip->error_subs));
+		return;
+	}
+
+	oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data, true);
+	chip->fpga_reset_status = data.intval;
+	if (chip->fpga_reset_status == FPGA_RESET_START || chip->fpga_reset_status == FPGA_RESET_END)
+		schedule_work(&chip->buck_fpga_rst_work);
+
+	oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_I2C_RESET, &data, true);
+	chip->i2c_reset_status = data.intval;
+	if (chip->i2c_reset_status == GUAGE_I2C_RST_START || chip->i2c_reset_status == GUAGE_I2C_RST_END)
+		schedule_work(&chip->buck_i2c_rst_work);
 }
 
 static int oplus_virtual_buck_probe(struct platform_device *pdev)
@@ -4629,6 +5161,9 @@ static int oplus_virtual_buck_probe(struct platform_device *pdev)
 
 	chip->dev = &pdev->dev;
 	platform_set_drvdata(pdev, chip);
+	INIT_WORK(&chip->buck_fpga_rst_work, oplus_buck_fpga_rst_work);
+	INIT_WORK(&chip->buck_i2c_rst_work, oplus_buck_i2c_rst_work);
+	INIT_DELAYED_WORK(&chip->upload_device_id_work, oplus_vc_upload_device_id_work);
 
 	chip->misc_gpio.is_dischg_gpio_request = false;
 	rc = oplus_vc_usbtemp_adc_init(chip);
@@ -4658,7 +5193,6 @@ static int oplus_virtual_buck_probe(struct platform_device *pdev)
 		chg_err("can't get ic index, rc=%d\n", rc);
 		goto reg_ic_err;
 	}
-
 	if (of_find_property(node, "nvmem-cells", NULL)) {
 		chip->soc_backup_nvmem = devm_nvmem_cell_get(chip->dev,
 						"oplus_soc_backup");
@@ -4691,6 +5225,7 @@ static int oplus_virtual_buck_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
 	oplus_virtual_buck_test_kit_init(chip);
 #endif
+	oplus_mms_wait_topic("error", oplus_virtual_buck_subscribe_error_topic, chip);
 
 	chg_err("probe success\n");
 	return 0;
@@ -4715,12 +5250,21 @@ iio_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_buck_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_buck_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_buck_ic *chip = platform_get_drvdata(pdev);
 
-	if(chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_vb_exit(chip->ic_dev);
@@ -4741,7 +5285,9 @@ static int oplus_virtual_buck_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_buck_match[] = {

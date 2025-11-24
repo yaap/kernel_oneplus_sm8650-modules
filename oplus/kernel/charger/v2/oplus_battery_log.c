@@ -8,6 +8,9 @@
  */
 #define pr_fmt(fmt) "[BATTERY_LOG]([%s][%d]): " fmt, __func__, __LINE__
 
+#include <linux/of.h>
+#include <linux/platform_device.h>
+
 #include <oplus_battery_log.h>
 #include <oplus_chg.h>
 #include <oplus_chg_module.h>
@@ -21,6 +24,7 @@ static const char * const g_battery_log_device_id_table[] = {
 	[BATTERY_LOG_DEVICE_ID_COMM_INFO] = "comm_info",
 	[BATTERY_LOG_DEVICE_ID_VOOC] = "vooc",
 	[BATTERY_LOG_DEVICE_ID_BUCK_IC] = "buck_ic",
+	[BATTERY_LOG_DEVICE_ID_BS] = "bs_info"
 	/*[BATTERY_LOG_DEVICE_ID_BQ27541] = "bq27541",*/
 };
 
@@ -197,19 +201,30 @@ static int oplus_battery_log_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_battery_log_remove(struct platform_device *pdev)
+#else
 static int oplus_battery_log_remove(struct platform_device *pdev)
+#endif
 {
 	struct battery_log_dev *l_dev = g_battery_log_dev;
 
-	if (!l_dev)
-		return -ENOMEM;
+	if (!l_dev) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	mutex_destroy(&l_dev->log_lock);
 	mutex_destroy(&l_dev->devid_lock);
 	devm_kfree(&pdev->dev, l_dev);
 	g_battery_log_dev = NULL;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_battery_log_match[] = {

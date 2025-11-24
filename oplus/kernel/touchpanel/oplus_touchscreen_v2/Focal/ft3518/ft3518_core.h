@@ -70,6 +70,7 @@
 #define FTS_REG_GLOVE_MODE_SWITCH               0xC0
 #define FTS_REG_GLOVE_MODE_STATE                0x01
 #define FTS_REG_TEMPERATURE                     0x97
+#define FTS_REG_FP_UNLOCK_STATE                 0xCE
 
 #define FTS_MAX_POINTS_SUPPORT                  10
 #define FTS_MAX_ID                              0x0A
@@ -128,7 +129,10 @@
 
 
 #define TEST_RETVAL_00                          0x00
-#define TEST_RETVAL_AA                          0xAA
+/*#define TEST_RETVAL_AA                        0xAA*/
+#define FTS_MUTUAL_DELTA                        0xAA  /*mutual delta*/
+#define FTS_SELF_DELTA                          0xAB  /*self delta normal*/
+#define FTS_SELF_DELTA_WP                       0xAC  /*self delta waterproof*/
 
 #define FTS_EVENT_FOD                           0x26
 

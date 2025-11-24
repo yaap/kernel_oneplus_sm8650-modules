@@ -902,6 +902,105 @@ bool configure_ds28e30_parameters(void)
 	return flag;
 }
 
+#define HISTSOH_DATA_SIZE 16
+#define HISTSOH_PAGE_SIZE 32
+#define BATT_SN_SIZE 25
+bool set_historic_soh_data_ds28e30(const int *set_soh_data)
+{
+	int flag;
+	int i;
+	u8 set_data[HISTSOH_PAGE_SIZE] = {0};
+
+	if (set_soh_data == NULL) {
+		chg_err("set_soh_data == NULL failed\n");
+		return false;
+	}
+
+	chg_info("write pack historic_soh_data eeprom 2 is:");
+	for (i = 0; i < HISTSOH_DATA_SIZE; i++) {
+		chg_info("%d,", set_soh_data[i]);
+		set_data[i] = (u8)(set_soh_data[i] & 0x00FF);
+	}
+
+	flag = ds28e30_cmd_write_memory(PG_USER_EEPROM_2, set_data);
+	if (flag != 1) {
+		chg_err("write pack historic_soh_data eeprom 2 failed\n");
+		return false;
+	}
+	return true;
+}
+
+bool get_historic_soh_data_ds28e30(int *output_str, int len)
+{
+	bool flag;
+	int i;
+	u8 get_data[HISTSOH_PAGE_SIZE];
+
+	len = len / sizeof(int);
+	if (output_str == NULL || len > HISTSOH_PAGE_SIZE) {
+		chg_err("NULL pointer detected or len %d > 32\n", len);
+		return false;
+	}
+
+	/* read page data for digital signature */
+	flag = ds28e30_cmd_read_memory(PG_USER_EEPROM_2, get_data);
+	if (flag != true) {
+		chg_err("read historic_soh_data PG_USER_EEPROM_2 failed\n");
+		return false;
+	}
+
+	chg_info("read pack historic_soh_data PG_USER_EEPROM_2 is:%d", len);
+	for (i = 0; i < len && i < HISTSOH_PAGE_SIZE; i++) {
+		output_str[i] = (int)get_data[i];
+		chg_info("%d,", output_str[i]);
+	}
+
+	return true;
+}
+
+bool get_sn_ds28e30(char *get_sn)
+{
+	bool flag;
+
+	if (get_sn == NULL) {
+		chg_err("get_sn == NULL failed\n");
+		return false;
+	}
+	/* read page data for digital signature */
+	flag = ds28e30_cmd_read_memory(PG_USER_EEPROM_0, pagedata[PG_USER_EEPROM_0]);
+	if (flag != true) {
+		chg_err("read 2 digital signature PG_USER_EEPROM_0 failed\n");
+		return false;
+	}
+
+	strncpy((char *)get_sn, pagedata[PG_USER_EEPROM_0], BATT_SN_SIZE);
+	get_sn[BATT_SN_SIZE] = '\0';
+	chg_info("read pack sn eeprom 0 is %s\n", pagedata[PG_USER_EEPROM_0]);
+	return true;
+}
+
+int get_batt_sn_ds28e30(char *batt_sn, int *sn_len)
+{
+	unsigned char flag;
+
+	if (batt_sn == NULL || sn_len == NULL) {
+		chg_err("batt_sn or sn_len is null");
+		return false;
+	}
+
+	if (pagedata_read_status[PG_USER_EEPROM_0] == false) {
+		flag = ds28e30_cmd_read_memory(PG_USER_EEPROM_0, pagedata[PG_USER_EEPROM_0]);   /* read sn/page 0 data from the given PageNumber 0 */
+		if (flag != true) {
+			chg_err("read sn/page 0 failed\n");
+			return false;
+		}
+		pagedata_read_status[PG_USER_EEPROM_0] = true;
+	}
+	memmove(batt_sn, pagedata[PG_USER_EEPROM_0], MAXIM_BATT_SN_LEN);
+	*sn_len = MAXIM_BATT_SN_LEN;
+	return true;
+}
+
 /*
  Authenticate both device certificate and digital signautre
  @param[in] PageNumber

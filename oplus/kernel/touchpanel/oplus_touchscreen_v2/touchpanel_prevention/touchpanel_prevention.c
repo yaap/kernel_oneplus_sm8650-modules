@@ -182,6 +182,125 @@ static void assign_filtered_data(struct kernel_grip_info *grip_info,
 	}
 }
 
+/* for grip 4.3 edge complement point start */
+static int get_max_makeup_frame_num(struct kernel_grip_info *grip_info,
+                                 uint8_t index, struct point_info *point)
+{
+	int touch_frame = 0;
+	int touch_time = 0;
+	int max_frame_num = 5;
+	int frame_time_interval = 8;
+	int tmp_interval = 8;
+
+	if (!grip_info || (index >= TOUCH_MAX_NUM)) {
+	    TPD_INFO("null or index too large:%d.\n", index);
+	    return max_frame_num;
+	}
+
+	grip_info->uniform_make_up_point_up_time_interval = frame_time_interval;
+	touch_frame = grip_info->frame_cnt[index];
+	touch_time = grip_info->uniform_make_up_point_last_down_time[index] - grip_info->first_point[index].time_ms;
+	max_frame_num = grip_info->uniform_make_up_point_num / 2;
+
+	if(touch_time > 0 && touch_frame > 1) {
+	    tmp_interval = touch_time / (touch_frame - 1);
+	    if (tmp_interval >= MIN_FRAME_TIME_INTERVAL && tmp_interval <= MAX_FRAME_TIME_INTERVAL) {
+	        frame_time_interval = tmp_interval;
+	    }
+	    grip_info->uniform_make_up_point_up_time_interval = frame_time_interval;
+	    max_frame_num = grip_info->uniform_max_make_up_time / frame_time_interval;
+	}
+	if (max_frame_num < 2) {
+	    max_frame_num = 2;
+	}
+	TPD_DETAIL("id:%d, touch frame:%d time:%d (%d,%d) .\n", index, touch_frame, touch_time, frame_time_interval, max_frame_num);
+	return max_frame_num;
+}
+
+static void get_make_up_point_num(struct kernel_grip_info *grip_info,
+                                 uint8_t index, struct point_info *point)
+{
+	if (abs(grip_info->uniform_make_up_x_shift_leftover[index]) > abs(grip_info->uniform_make_up_y_shift_leftover[index])) {
+		if (grip_info->uniform_make_up_point_x_move_speed[index] == 0) {
+			grip_info->uniform_make_up_point_num_status[index] = 2;
+		} else if (abs(grip_info->uniform_make_up_x_shift_leftover[index]) >
+				    abs(grip_info->uniform_make_up_point_x_move_speed[index]) * grip_info->uniform_make_up_last_point_percent_limit / 10) {
+			grip_info->uniform_make_up_point_num_status[index] =
+				abs(grip_info->uniform_make_up_x_shift_leftover[index]) / abs(grip_info->uniform_make_up_point_x_move_speed[index]) + 1;
+		} else {
+			grip_info->uniform_make_up_point_num_status[index] = 0;
+		}
+	} else {
+		if (grip_info->uniform_make_up_point_y_move_speed[index] == 0) {
+			grip_info->uniform_make_up_point_num_status[index] = 2;
+		} else if (abs(grip_info->uniform_make_up_y_shift_leftover[index]) >
+				    abs(grip_info->uniform_make_up_point_y_move_speed[index]) * grip_info->uniform_make_up_last_point_percent_limit / 10) {
+			grip_info->uniform_make_up_point_num_status[index] =
+				abs(grip_info->uniform_make_up_y_shift_leftover[index]) / abs(grip_info->uniform_make_up_point_y_move_speed[index]) + 1;
+		} else {
+			grip_info->uniform_make_up_point_num_status[index] = 0;
+		}
+	}
+}
+
+static void get_makeup_point_xy(struct kernel_grip_info *grip_info,
+                                 uint8_t index, struct point_info *point)
+{
+	int32_t speed_x = grip_info->uniform_make_up_point_x_move_speed[index];
+	int32_t speed_y = grip_info->uniform_make_up_point_y_move_speed[index];
+	int32_t input_x = grip_info->uniform_make_up_last_input_point_x[index];
+	int32_t input_y = grip_info->uniform_make_up_last_input_point_y[index];
+	int32_t last_output_x = grip_info->uniform_last_make_up_prevent_out_x[index];
+	int32_t last_output_y = grip_info->uniform_last_make_up_prevent_out_y[index];
+	int32_t tmpx = abs(input_x - last_output_x);
+	int32_t tmpy = abs(input_y - last_output_y);
+	u16 speed_jitter = grip_info->uniform_make_up_last_point_percent_limit + 10;
+
+	if (((speed_x * speed_x + speed_y * speed_y) * speed_jitter / 10) > (tmpx * tmpx + tmpy * tmpy)) {
+		grip_info->uniform_make_up_x_shift_leftover[index] = 0;
+		grip_info->uniform_make_up_y_shift_leftover[index] = 0;
+		grip_info->uniform_make_up_point_num_status[index] = 0;
+		point->x = input_x;
+		point->y = input_y;
+		return;
+	}
+
+	grip_info->uniform_make_up_x_shift_leftover[index] -=
+		grip_info->uniform_make_up_x_shift_leftover[index] / grip_info->uniform_make_up_point_num_status[index];
+	grip_info->uniform_make_up_y_shift_leftover[index] -=
+		grip_info->uniform_make_up_y_shift_leftover[index] / grip_info->uniform_make_up_point_num_status[index];
+	grip_info->uniform_make_up_point_num_status[index]--;
+
+	if (grip_info->uniform_make_up_last_input_point_x[index] < grip_info->uniform_make_up_x_shift_leftover[index]) {
+		point->x = 0;
+	} else if (grip_info->uniform_make_up_last_input_point_x[index] >= grip_info->max_x + grip_info->uniform_make_up_x_shift_leftover[index]) {
+		point->x = grip_info->max_x - 1;
+	} else {
+		point->x = grip_info->uniform_make_up_last_input_point_x[index] - grip_info->uniform_make_up_x_shift_leftover[index];
+	}
+	if (grip_info->uniform_make_up_last_input_point_y[index] < grip_info->uniform_make_up_y_shift_leftover[index]) {
+		point->y = 0;
+	} else if (grip_info->uniform_make_up_last_input_point_y[index] >= grip_info->max_y + grip_info->uniform_make_up_y_shift_leftover[index]) {
+		point->y = grip_info->max_y - 1;
+	} else {
+		point->y = grip_info->uniform_make_up_last_input_point_y[index] - grip_info->uniform_make_up_y_shift_leftover[index];
+	}
+}
+
+static void uniform_makeup_xy_shift_initial(struct kernel_grip_info *grip_info,
+                                 uint8_t index, struct point_info *point)
+{
+	grip_info->uniform_make_up_x_shift_initial[index] = grip_info->uniform_make_up_last_input_point_x[index] - grip_info->first_point[index].x;
+	grip_info->uniform_make_up_y_shift_initial[index] = grip_info->uniform_make_up_last_input_point_y[index] - grip_info->first_point[index].y;
+	grip_info->uniform_make_up_x_shift_leftover[index] = grip_info->uniform_make_up_x_shift_initial[index];
+	grip_info->uniform_make_up_y_shift_leftover[index] = grip_info->uniform_make_up_y_shift_initial[index];
+	point->x = grip_info->first_point[index].x;
+	point->y = grip_info->first_point[index].y;
+	grip_info->uniform_last_make_up_prevent_out_x[index] = point->x;
+	grip_info->uniform_last_make_up_prevent_out_y[index] = point->y;
+}
+/* for grip 4.3 edge complement point end */
+
 /*judge if this area should skip judge*/
 static bool skip_handle_judge(struct kernel_grip_info *grip_info,
 			      struct point_info *cur_p)
@@ -572,6 +691,19 @@ void grip_status_reset(struct kernel_grip_info *grip_info, uint8_t index)
 	grip_info->max_rx_matched_cnt[index] = 0;
 	grip_info->max_rx_stable_time[index] = 0;
 	grip_info->dynamic_finger_hold_state[index] = 0;
+
+	grip_info->uniform_make_up_last_input_point_x[index] = 0;
+	grip_info->uniform_make_up_last_input_point_y[index] = 0;
+	grip_info->uniform_make_up_x_shift_initial[index] = 0;
+	grip_info->uniform_make_up_y_shift_initial[index] = 0;
+	grip_info->uniform_make_up_x_shift_leftover[index] = 0;
+	grip_info->uniform_make_up_y_shift_leftover[index] = 0;
+	grip_info->uniform_last_make_up_prevent_out_x[index] = 0;
+	grip_info->uniform_last_make_up_prevent_out_y[index] = 0;
+	grip_info->uniform_make_up_point_num_status[index] = 0;
+	grip_info->uniform_make_up_point_x_move_speed[index] = 0;
+	grip_info->uniform_make_up_point_y_move_speed[index] = 0;
+
 	TP_DETAIL(grip_info->tp_index, "reset id :%d.\n", index);
 }
 
@@ -601,6 +733,8 @@ static  inline void touch_report_work(struct work_struct *work, unsigned int i)
 	uint16_t fiter_cnt = 0, index_exp = 0;
 	int in = 0, ret = 0, point_x = 0, point_y = 0;
 	struct grip_point_info *latest_point = NULL;
+	int m_id = 0;
+	uint16_t time_interval = 0;
 
 	if (i >= TOUCH_MAX_NUM) {
 		TPD_INFO("%s: i %d is too big\n", __func__,  i);
@@ -615,15 +749,29 @@ static  inline void touch_report_work(struct work_struct *work, unsigned int i)
 	}
 
 	ts = grip_info->p_ts;
-
 	if (!ts) {
 		GRIP_TP_INFO("ts is null.\n");
 		return;
 	}
 
+	if (ts->grip_info->is_curved_screen_v4_3) {
+		time_interval = ts->grip_info->uniform_make_up_point_up_time_interval * 1000;
+	}
+
 	mutex_lock(&ts->report_mutex);
 
-	ret = kfifo_get(&ts->grip_info->up_fifo, &up_id);
+	if (ts->grip_info->is_curved_screen_v4_3 && ts->grip_info->uniform_make_up_point_v2_support) {
+		for (m_id = 0; m_id < TOUCH_MAX_NUM; m_id++) {
+			if (ts->grip_info->uniform_make_up_point_upid_status & (1 << m_id)) {
+				up_id = m_id;
+				ts->grip_info->uniform_make_up_point_upid_status &= (~(1 << m_id));
+				break;
+			}
+		}
+		ret = 1;
+	} else {
+		ret = kfifo_get(&ts->grip_info->up_fifo, &up_id);
+	}
 
 	if (!ret) {
 		GRIP_TP_INFO("upfifo is empty.\n");
@@ -635,7 +783,53 @@ static  inline void touch_report_work(struct work_struct *work, unsigned int i)
 		goto OUT;
 	}
 
-	if ((ts->grip_info->is_curved_screen || ts->grip_info->is_curved_screen_V2) && ts->grip_info->sync_up_makeup[up_id]) {
+	if (ts->grip_info->uniform_make_up_point_v2_support &&
+	    ts->grip_info->is_curved_screen_v4_3 &&
+		ts->grip_info->uniform_make_up_point_num_status[up_id] > 0) {
+		fiter_cnt = ts->grip_info->uniform_make_up_point_num_status[up_id];
+		TPD_DETAIL("fiter_cnt:%d up_id:%d. \n", fiter_cnt, up_id);
+		for (in = fiter_cnt; in > 0; in--) {
+			if (!ts->grip_info->grip_hold_status[up_id]) {
+				TPD_INFO("id:%d is alreay up in report.\n", up_id);
+				goto OUT;
+			}
+
+			ts->grip_info->uniform_make_up_x_shift_leftover[up_id] -= ts->grip_info->uniform_make_up_x_shift_leftover[up_id] / in;
+			ts->grip_info->uniform_make_up_y_shift_leftover[up_id] -= ts->grip_info->uniform_make_up_y_shift_leftover[up_id] / in;
+			ts->grip_info->uniform_make_up_point_num_status[up_id]--;
+
+			if (ts->grip_info->uniform_make_up_last_input_point_x[up_id] < ts->grip_info->uniform_make_up_x_shift_leftover[up_id]) {
+				point_x = 0;
+			} else if (ts->grip_info->uniform_make_up_last_input_point_x[up_id] >= grip_info->max_x + ts->grip_info->uniform_make_up_x_shift_leftover[up_id]) {
+				point_x = grip_info->max_x - 1;
+			} else {
+				point_x = ts->grip_info->uniform_make_up_last_input_point_x[up_id] - ts->grip_info->uniform_make_up_x_shift_leftover[up_id];
+			}
+			if (ts->grip_info->uniform_make_up_last_input_point_y[up_id] < ts->grip_info->uniform_make_up_y_shift_leftover[up_id]) {
+				point_y = 0;
+			} else if (ts->grip_info->uniform_make_up_last_input_point_y[up_id] >= grip_info->max_y + ts->grip_info->uniform_make_up_y_shift_leftover[up_id]) {
+				point_y = grip_info->max_y - 1;
+			} else {
+				point_y = ts->grip_info->uniform_make_up_last_input_point_y[up_id] - ts->grip_info->uniform_make_up_y_shift_leftover[up_id];
+			}
+
+			input_mt_slot(ts->input_dev, up_id);
+			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 1);
+			input_report_key(ts->input_dev, BTN_TOUCH, 1);
+			input_report_key(ts->input_dev, BTN_TOOL_FINGER, 1);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, point_x);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, point_y);
+			input_sync(ts->input_dev);
+
+			mutex_unlock(&ts->report_mutex);
+			TPD_DETAIL("id:%d, up status makeup point:(%d, %d) point num:%d. shift_leftover:(%d,%d) lastpoint:(%d,%d) \n", up_id, point_x, point_y, \
+				grip_info->uniform_make_up_point_num_status[up_id],
+				ts->grip_info->uniform_make_up_x_shift_leftover[up_id], ts->grip_info->uniform_make_up_y_shift_leftover[up_id], \
+				ts->grip_info->uniform_make_up_last_input_point_x[up_id], ts->grip_info->uniform_make_up_last_input_point_y[up_id]);
+			usleep_range(time_interval, time_interval + 1);
+			mutex_lock(&ts->report_mutex);
+		}
+	} else if ((ts->grip_info->is_curved_screen || ts->grip_info->is_curved_screen_V2) && ts->grip_info->sync_up_makeup[up_id]) {
 		fiter_cnt = ts->grip_info->coord_filter_cnt;
 		latest_point = ts->grip_info->latest_points[up_id];
 		index_exp = acquire_matched_point(latest_point, ts->grip_info->coord_buf[(up_id + 1) * fiter_cnt - 1]);
@@ -1445,9 +1639,14 @@ static void start_makeup_timer(struct kernel_grip_info *grip_info, uint8_t index
 		GRIP_TP_INFO("large get id(%d) and cancel timer.\n", up_id);
 	}
 
-	kfifo_put(&grip_info->up_fifo, index);   //put the up id into up fifo
 	grip_info->grip_hold_status[index] = 1;
-	hrtimer_start(&grip_info->grip_up_timer[index], ktime_set(0, grip_info->report_updelay_ms * 1000000UL), HRTIMER_MODE_REL);
+
+	if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+		hrtimer_start(&grip_info->grip_up_timer[index], ktime_set(0, grip_info->uniform_make_up_point_up_time_interval * 1000000UL), HRTIMER_MODE_REL);
+	} else {
+		kfifo_put(&grip_info->up_fifo, index);   /* put the up id into up fifo */
+		hrtimer_start(&grip_info->grip_up_timer[index], ktime_set(0, grip_info->report_updelay_ms * 1000000UL), HRTIMER_MODE_REL);
+	}
 }
 
 static void mask_potential_mistouch(struct kernel_grip_info *grip_info, struct point_info *points, int id)
@@ -1576,6 +1775,108 @@ static bool research_point_landed(struct kernel_grip_info *grip_info, uint32_t r
 
 	return ret;
 }
+
+static void get_point_degree_check_thd(struct kernel_grip_info *grip_info, struct point_info *points, int index,
+						uint16_t *edge_min_channel, uint16_t *corner_percent_thd, uint16_t *trx_corner_percent_thd) {
+	uint8_t pos = grip_info->points_pos[index];
+	s64 delta_time_ms = grip_info->uniform_make_up_point_last_down_time[index] - grip_info->first_point[index].time_ms;
+
+	if ((POS_VERTICAL_LEFT_CORNER == pos) || (POS_VERTICAL_RIGHT_CORNER == pos) ||
+		(POS_HORIZON_B_LEFT_CORNER == pos) || (POS_HORIZON_B_RIGHT_CORNER == pos) ||
+		(POS_HORIZON_T_LEFT_CORNER == pos) || (POS_HORIZON_T_RIGHT_CORNER == pos)) {
+			if (grip_info->is_curved_screen_v4_5 && grip_info->soon_meet_point_edge_degree_check_support \
+					&& grip_info->soon_meet_level[index] > grip_info->soon_meet_min_level_thd) {
+				*edge_min_channel = grip_info->soon_meet_bottom_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->soon_meet_bottom_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->soon_meet_bottom_trx_corner_point_edge_percent_thd;
+			} else if (grip_info->is_curved_screen_v4_5 && grip_info->center_down_point_edge_degree_check_support \
+					&& grip_info->points_center_down[index] == STATUS_CENTER_DOWN) {
+				*edge_min_channel = grip_info->center_down_bottom_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->center_down_bottom_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->center_down_bottom_trx_corner_point_edge_percent_thd;
+			} else if (grip_info->is_curved_screen_v4_5 && grip_info->long_press_point_edge_degree_check_support \
+					&& delta_time_ms > grip_info->long_press_time_thd) {
+				*edge_min_channel = grip_info->long_press_bottom_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->long_press_bottom_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->long_press_bottom_trx_corner_point_edge_percent_thd;
+			} else {
+				*edge_min_channel = grip_info->corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->bottom_trx_corner_point_edge_percent_thd;
+				if (grip_info->bottom_corner_point_edge_percent_thd > (*trx_corner_percent_thd) * (*trx_corner_percent_thd)) {
+					*corner_percent_thd = grip_info->bottom_corner_point_edge_percent_thd;
+				}
+			}
+	} else {
+			if (grip_info->is_curved_screen_v4_5 && grip_info->soon_meet_point_edge_degree_check_support \
+					&& grip_info->soon_meet_level[index] > grip_info->soon_meet_min_level_thd) {
+				*edge_min_channel = grip_info->soon_meet_top_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->soon_meet_top_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->soon_meet_top_trx_corner_point_edge_percent_thd;
+			} else if (grip_info->is_curved_screen_v4_5 && grip_info->center_down_point_edge_degree_check_support \
+					&& grip_info->points_center_down[index] == STATUS_CENTER_DOWN) {
+				*edge_min_channel = grip_info->center_down_top_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->center_down_top_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->center_down_top_trx_corner_point_edge_percent_thd;
+			} else if (grip_info->is_curved_screen_v4_5 && grip_info->long_press_point_edge_degree_check_support \
+					&& delta_time_ms > grip_info->long_press_time_thd) {
+				*edge_min_channel = grip_info->long_press_top_corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->long_press_top_corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->long_press_top_trx_corner_point_edge_percent_thd;
+			} else {
+				*edge_min_channel = grip_info->corner_point_edge_min_channel_thd;
+				*corner_percent_thd = grip_info->corner_point_edge_percent_thd;
+				*trx_corner_percent_thd = grip_info->top_trx_corner_point_edge_percent_thd;
+			}
+	}
+}
+
+/* for v4.3 start */
+static bool point_edge_degree_check(struct kernel_grip_info *grip_info, struct point_info *points, int index)
+{
+	struct point_info cur_p = points[index];
+	uint16_t single_tx_pix = grip_info->max_x / grip_info->tx_num;
+	uint16_t single_rx_pix = grip_info->max_y / grip_info->rx_num;
+	uint16_t tmp_x = 0;
+	uint16_t tmp_y = 0;
+	uint16_t tmp_x_percent = 0;
+	uint16_t tmp_y_percent = 0;
+	uint16_t edge_min_channel = 0;
+	uint16_t corner_percent_thd = 0;
+	uint16_t trx_corner_percent_thd = 0;
+	uint16_t x_coupling_result = 0;
+	uint16_t y_coupling_result = 0;
+
+	x_coupling_result = cur_p.rx_press * cur_p.rx_er;
+	y_coupling_result = cur_p.tx_press * cur_p.tx_er;
+
+	get_point_degree_check_thd(grip_info, points, index, &edge_min_channel, &corner_percent_thd, &trx_corner_percent_thd);
+
+	if (grip_info->point_edge_degree_check_support && cur_p.rx_press > edge_min_channel && cur_p.tx_press > edge_min_channel) {
+		tmp_x = cur_p.x > grip_info->max_x / 2 ? grip_info->max_x - cur_p.x : cur_p.x;
+		tmp_y = cur_p.y > grip_info->max_y / 2 ? grip_info->max_y - cur_p.y : cur_p.y;
+
+		tmp_x_percent = 100 * tmp_x / (cur_p.tx_press * single_tx_pix);
+		tmp_y_percent = 100 * tmp_y / (cur_p.rx_press * single_rx_pix);
+
+		if (((tmp_x_percent * tmp_x_percent + tmp_y_percent * tmp_y_percent < corner_percent_thd) ||
+			(tmp_x_percent < trx_corner_percent_thd && tmp_y_percent < trx_corner_percent_thd)) &&
+			(x_coupling_result > grip_info->corner_point_trx_radio_thd ||
+			y_coupling_result > grip_info->corner_point_trx_radio_thd)) {
+			TPD_DETAIL("%s: id(%d) percent:%d,%d coupling_result:(%d,%d) (thd:%d,%d,%d) point edge degree check matched.\n", __func__, index, \
+				tmp_x_percent,
+				tmp_y_percent,
+				x_coupling_result,
+				y_coupling_result,
+				trx_corner_percent_thd,
+				corner_percent_thd,
+				grip_info->corner_point_trx_radio_thd);
+			return true;
+        }
+	}
+	return false;
+}
+/* for v4.3 end */
 
 static bool research_point_landed_ver_v4(struct kernel_grip_info *grip_info, uint32_t research_pos_bits, struct point_info *points, int id)
 {
@@ -1965,6 +2266,14 @@ static uint8_t corner_shape_matched(struct kernel_grip_info *grip_info, struct p
 	uint16_t trx_sum_value = 0, x_width = grip_info->single_channel_x_len, y_width = grip_info->single_channel_y_len;
 	uint16_t trx_thd = grip_info->trx_reject_thd, rx_thd = grip_info->rx_reject_thd, tx_thd = grip_info->tx_reject_thd;
 
+	if (grip_info->point_corner_er_min_limit_support && grip_info->is_curved_screen_v4_3) {
+		if (cur_p.tx_er < grip_info->point_corner_tx_er_min_limit_thd && cur_p.rx_er < grip_info->point_corner_rx_er_min_limit_thd) {
+			TPD_DETAIL("%s: id(%d) tx_er:%d,rx_er:%d thd:(%d,%d) point er is too small exit.\n", __func__, index, \
+				cur_p.tx_er, cur_p.rx_er, grip_info->point_corner_tx_er_min_limit_thd, grip_info->point_corner_rx_er_min_limit_thd);
+			return ret;
+		}
+	}
+
 	if (STATUS_CENTER_DOWN == grip_info->points_center_down[index]) {
 		rx_thd = grip_info->rx_strict_reject_thd;
 		tx_thd = grip_info->tx_strict_reject_thd;
@@ -1974,6 +2283,12 @@ static uint8_t corner_shape_matched(struct kernel_grip_info *grip_info, struct p
 	trx_sum_value = cur_p.rx_press + cur_p.tx_press;
 	if (cur_p.rx_press > rx_thd || cur_p.tx_press > tx_thd || trx_sum_value > trx_thd) {
 		return CORNER_SHAPE_LARGE;
+	}
+
+	if (grip_info->is_curved_screen_v4_3) {
+		if (point_edge_degree_check(grip_info, points, index)) {
+			return CORNER_SHAPE_RATIO;
+		}
 	}
 
 	if (POS_VERTICAL_LEFT_CORNER == pos || POS_VERTICAL_RIGHT_CORNER == pos) {
@@ -2607,6 +2922,12 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 	s64 delta_time_ms = ktime_to_ms(ktime_get()) - grip_info->first_point[index].time_ms;
 	uint16_t long_stable_coupling_thd = grip_info->current_data.long_stable_coupling_thd, short_stable_coupling_thd = grip_info->short_stable_coupling_thd;
 	uint16_t x_coupling_result = 0, y_coupling_result = 0, startx_coupling_result = 0, starty_coupling_result = 0, secondx_coupling_result = 0, secondy_coupling_result = 0;
+	int16_t tx_er_jitter_thd = 0;
+	int16_t rx_er_jitter_thd = 0;
+	int16_t tx_er_jitter = 0;
+	int16_t rx_er_jitter = 0;
+	int16_t tx_press_jitter = 0;
+	int16_t rx_press_jitter = 0;
 
 	//caculate current coupling result
 	x_coupling_result = cur_p.rx_press * cur_p.rx_er;
@@ -2680,6 +3001,15 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 				return judge_status;
 			}
 		}
+
+		if (grip_info->is_curved_screen_v4_3) {
+			if (point_edge_degree_check(grip_info, points, index)) {
+				judge_status = JUDGE_LARGE_OK;
+				grip_info->large_finger_status[index] = TYPE_PALM_SHORT_SIZE;
+				return judge_status;
+			}
+		}
+
 		//judge whether we should exit the reject status
 		if (large_exit_matched(grip_info, points, index)) {
 			judge_status = JUDGE_LARGE_TIMEOUT;
@@ -2688,11 +3018,31 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 		}
 
 		//judge the stable status
-		if (x_coupling_result == grip_info->last_frame_point[index].rx_er * grip_info->last_frame_point[index].rx_press) {
-			grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         //record point stable time
+		if (grip_info->point_stability_judgment_check_support && grip_info->is_curved_screen_v4_3) {
+			rx_er_jitter_thd = (grip_info->point_stability_er_jitter_thd > grip_info->point_stability_er_jitter_percent_thd * cur_p.rx_er / 100) ? \
+					grip_info->point_stability_er_jitter_thd : grip_info->point_stability_er_jitter_percent_thd * cur_p.rx_er / 100;
+			rx_er_jitter = abs(grip_info->point_stability_rx_er_jitter_status[index] + cur_p.rx_er - grip_info->last_frame_point[index].rx_er);
+			rx_press_jitter = abs(grip_info->point_stability_rx_press_jitter_status[index] + cur_p.rx_press - grip_info->last_frame_point[index].rx_press);
+
+			grip_info->point_stability_rx_er_jitter_status[index] += cur_p.rx_er - grip_info->last_frame_point[index].rx_er;
+			grip_info->point_stability_rx_press_jitter_status[index] += cur_p.rx_press - grip_info->last_frame_point[index].rx_press;
+			if (1 != grip_info->frame_cnt[index] && rx_er_jitter < rx_er_jitter_thd && rx_press_jitter < grip_info->point_stability_press_jitter_thd) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+				grip_info->point_stability_rx_er_jitter_status[index] = 0;
+				grip_info->point_stability_tx_er_jitter_status[index] = 0;
+				grip_info->point_stability_rx_press_jitter_status[index] = 0;
+				grip_info->point_stability_tx_press_jitter_status[index] = 0;
+			}
 		} else {
-			grip_info->fsr_stable_time[index] = 0;
+			if (x_coupling_result == grip_info->last_frame_point[index].rx_er * grip_info->last_frame_point[index].rx_press) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+			}
 		}
+
 		if (grip_info->fsr_stable_time[index] > grip_info->fsr_stable_time_thd) {
 			if (STATUS_CENTER_DOWN == grip_info->points_center_down[index]) {
 				long_stable_coupling_thd = grip_info->long_strict_stable_coupling_thd;
@@ -2704,16 +3054,31 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 				return judge_status;
 			}
 
-			if ((abs(startx_coupling_result - secondx_coupling_result) < grip_info->current_data.long_hold_maxfsr_gap) &&
-			    (startx_coupling_result > grip_info->current_data.long_start_coupling_thd) &&
-			    (startx_coupling_result - x_coupling_result > grip_info->current_data.long_hold_changed_thd)) {
-				judge_status = JUDGE_LARGE_OK;
-				grip_info->large_finger_status[index] = TYPE_LONG_FINGER_HOLD;
-				GRIP_TP_INFO("%s: id(%d) judge finger hold long tight.\n", __func__, index);
+			if (grip_info->is_curved_screen_v4_3) {
+				if ((((abs(startx_coupling_result - secondx_coupling_result) < grip_info->current_data.long_hold_maxfsr_gap) &&
+				    (startx_coupling_result > grip_info->current_data.long_start_coupling_thd)) ||
+					(secondx_coupling_result > grip_info->current_data.long_start_coupling_thd)) &&
+				    (startx_coupling_result - x_coupling_result > grip_info->current_data.long_hold_changed_thd)) {
+					judge_status = JUDGE_LARGE_OK;
+					grip_info->large_finger_status[index] = TYPE_LONG_FINGER_HOLD;
+					GRIP_TP_INFO("%s: id(%d) judge finger hold long tight.\n", __func__, index);
+				} else {
+					judge_status = JUDGE_LARGE_TIMEOUT;
+					GRIP_TP_INFO("%s: id(%d) judge long press under detect time.\n", __func__, index);
+				}
 			} else {
-				judge_status = JUDGE_LARGE_TIMEOUT;
-				GRIP_TP_INFO("%s: id(%d) judge long press under detect time.\n", __func__, index);
+				if ((abs(startx_coupling_result - secondx_coupling_result) < grip_info->current_data.long_hold_maxfsr_gap) &&
+				    (startx_coupling_result > grip_info->current_data.long_start_coupling_thd) &&
+				    (startx_coupling_result - x_coupling_result > grip_info->current_data.long_hold_changed_thd)) {
+					judge_status = JUDGE_LARGE_OK;
+					grip_info->large_finger_status[index] = TYPE_LONG_FINGER_HOLD;
+					GRIP_TP_INFO("%s: id(%d) judge finger hold long tight.\n", __func__, index);
+				} else {
+					judge_status = JUDGE_LARGE_TIMEOUT;
+					GRIP_TP_INFO("%s: id(%d) judge long press under detect time.\n", __func__, index);
+				}
 			}
+
 			return judge_status;
 		}
 		record_point_info(grip_info, TYPE_LAST_POINT, index, points[index]);
@@ -2743,6 +3108,14 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 			return judge_status;
 		}
 
+		if (grip_info->is_curved_screen_v4_3) {
+			if (point_edge_degree_check(grip_info, points, index)) {
+				judge_status = JUDGE_LARGE_OK;
+				grip_info->large_finger_status[index] = TYPE_PALM_SHORT_SIZE;
+				return judge_status;
+			}
+		}
+
 		//judge whether we should exit the reject status
 		if (large_exit_matched(grip_info, points, index)) {
 			judge_status = JUDGE_LARGE_TIMEOUT;
@@ -2751,11 +3124,32 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 		}
 
 		//judge the stable status
-		if (y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) {
-			grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         //record point stable time
+
+		if (grip_info->point_stability_judgment_check_support && grip_info->is_curved_screen_v4_3) {
+			tx_er_jitter_thd = (grip_info->point_stability_er_jitter_thd > grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100) ? \
+				grip_info->point_stability_er_jitter_thd : grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100;
+			tx_er_jitter = abs(grip_info->point_stability_tx_er_jitter_status[index] + cur_p.tx_er - grip_info->last_frame_point[index].tx_er);
+			tx_press_jitter = abs(grip_info->point_stability_tx_press_jitter_status[index] + cur_p.tx_press - grip_info->last_frame_point[index].tx_press);
+
+			grip_info->point_stability_tx_er_jitter_status[index] += cur_p.tx_er - grip_info->last_frame_point[index].tx_er;
+			grip_info->point_stability_tx_press_jitter_status[index] += cur_p.tx_press - grip_info->last_frame_point[index].tx_press;
+			if (1 != grip_info->frame_cnt[index] && tx_er_jitter < tx_er_jitter_thd && tx_press_jitter < grip_info->point_stability_press_jitter_thd) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+				grip_info->point_stability_rx_er_jitter_status[index] = 0;
+				grip_info->point_stability_tx_er_jitter_status[index] = 0;
+				grip_info->point_stability_rx_press_jitter_status[index] = 0;
+				grip_info->point_stability_tx_press_jitter_status[index] = 0;
+			}
 		} else {
-			grip_info->fsr_stable_time[index] = 0;
+			if (y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+			}
 		}
+
 		if (grip_info->fsr_stable_time[index] > grip_info->fsr_stable_time_thd) {
 			if (STATUS_CENTER_DOWN == grip_info->points_center_down[index]) {
 				short_stable_coupling_thd = grip_info->short_strict_stable_coupling_thd;
@@ -2859,20 +3253,50 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 		}
 
 		//judge the stable status
-		if ((y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) &&
-		    (x_coupling_result == grip_info->last_frame_point[index].rx_er * grip_info->last_frame_point[index].rx_press)) {
-			grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         //record point stable time
-			if (grip_info->fsr_stable_time[index] > grip_info->fsr_stable_time_thd) {
-				if ((starty_coupling_result <= grip_info->yfsr_corner_exit_thd) && (startx_coupling_result <= grip_info->xfsr_corner_exit_thd) &&
-				    (y_coupling_result <= grip_info->yfsr_corner_exit_thd) && (x_coupling_result <= grip_info->xfsr_corner_exit_thd)) {                    //free long press
-					judge_status = JUDGE_LARGE_TIMEOUT;
-					GRIP_TP_INFO("%s: id(%d) judge stable touch.\n", __func__, index);
-					return judge_status;
-				}
+
+		if (grip_info->point_stability_judgment_check_support && grip_info->is_curved_screen_v4_3) {
+			rx_er_jitter_thd = (grip_info->point_stability_er_jitter_thd > grip_info->point_stability_er_jitter_percent_thd * cur_p.rx_er / 100) ? \
+				grip_info->point_stability_er_jitter_thd : grip_info->point_stability_er_jitter_percent_thd * cur_p.rx_er / 100;
+			rx_er_jitter = abs(grip_info->point_stability_rx_er_jitter_status[index] + cur_p.rx_er - grip_info->last_frame_point[index].rx_er);
+			rx_press_jitter = abs(grip_info->point_stability_rx_press_jitter_status[index] + cur_p.rx_press - grip_info->last_frame_point[index].rx_press);
+
+			grip_info->point_stability_rx_er_jitter_status[index] += cur_p.rx_er - grip_info->last_frame_point[index].rx_er;
+			grip_info->point_stability_rx_press_jitter_status[index] += cur_p.rx_press - grip_info->last_frame_point[index].rx_press;
+
+			tx_er_jitter_thd = (grip_info->point_stability_er_jitter_thd > grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100) ? \
+				grip_info->point_stability_er_jitter_thd : grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100;
+			tx_er_jitter = abs(grip_info->point_stability_tx_er_jitter_status[index] + cur_p.tx_er - grip_info->last_frame_point[index].tx_er);
+			tx_press_jitter = abs(grip_info->point_stability_tx_press_jitter_status[index] + cur_p.tx_press - grip_info->last_frame_point[index].tx_press);
+
+			grip_info->point_stability_tx_er_jitter_status[index] += cur_p.tx_er - grip_info->last_frame_point[index].tx_er;
+			grip_info->point_stability_tx_press_jitter_status[index] += cur_p.tx_press - grip_info->last_frame_point[index].tx_press;
+			if (1 != grip_info->frame_cnt[index] && rx_er_jitter < rx_er_jitter_thd && rx_press_jitter < grip_info->point_stability_press_jitter_thd \
+				&& tx_er_jitter < tx_er_jitter_thd && tx_press_jitter < grip_info->point_stability_press_jitter_thd) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+				grip_info->point_stability_rx_er_jitter_status[index] = 0;
+				grip_info->point_stability_tx_er_jitter_status[index] = 0;
+				grip_info->point_stability_rx_press_jitter_status[index] = 0;
+				grip_info->point_stability_tx_press_jitter_status[index] = 0;
 			}
 		} else {
-			grip_info->fsr_stable_time[index] = 0;
+			if ((y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) &&
+				(x_coupling_result == grip_info->last_frame_point[index].rx_er * grip_info->last_frame_point[index].rx_press)) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+				if (grip_info->fsr_stable_time[index] > grip_info->fsr_stable_time_thd) {
+					if ((starty_coupling_result <= grip_info->yfsr_corner_exit_thd) && (startx_coupling_result <= grip_info->xfsr_corner_exit_thd) &&
+						(y_coupling_result <= grip_info->yfsr_corner_exit_thd) && (x_coupling_result <= grip_info->xfsr_corner_exit_thd)) {                    /*free long press*/
+						judge_status = JUDGE_LARGE_TIMEOUT;
+						TPD_INFO("%s: id(%d) judge stable touch.\n", __func__, index);
+						return judge_status;
+					}
+				}
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+			}
 		}
+
 		record_point_info(grip_info, TYPE_LAST_POINT, index, points[index]);
 
 		//judge timeout, share the final result when stable
@@ -2922,6 +3346,14 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 			GRIP_TP_INFO("%s: id(%d) reject top corner long press.\n", __func__, index);
 			return judge_status;
 		}
+
+		if (grip_info->is_curved_screen_v4_3) {
+			if (point_edge_degree_check(grip_info, points, index)) {
+				judge_status = JUDGE_LARGE_OK;
+				grip_info->large_finger_status[index] = TYPE_TOP_LONG_PRESS;
+				return judge_status;
+			}
+		}
 	} else if ((grip_info->is_curved_screen_v4 && POS_VERTICAL_MIDDLE_TOP == pos) ||
 		(grip_info->is_curved_screen_v4 && POS_VERTICAL_MIDDLE_BOTTOM == pos)) {
 		/*judge the shape of short side*/
@@ -2947,11 +3379,32 @@ static enum large_judge_status large_shape_judged_V2(struct kernel_grip_info *gr
 			return judge_status;
 	    }
 		/*judge the stable status*/
-		if (y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) {
-			grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+
+		if (grip_info->point_stability_judgment_check_support && grip_info->is_curved_screen_v4_3) {
+			tx_er_jitter_thd = (grip_info->point_stability_er_jitter_thd > grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100) ? \
+				grip_info->point_stability_er_jitter_thd : grip_info->point_stability_er_jitter_percent_thd * cur_p.tx_er / 100;
+			tx_er_jitter = abs(grip_info->point_stability_tx_er_jitter_status[index] + cur_p.tx_er - grip_info->last_frame_point[index].tx_er);
+			tx_press_jitter = abs(grip_info->point_stability_tx_press_jitter_status[index] + cur_p.tx_press - grip_info->last_frame_point[index].tx_press);
+
+			grip_info->point_stability_tx_er_jitter_status[index] += cur_p.tx_er - grip_info->last_frame_point[index].tx_er;
+			grip_info->point_stability_tx_press_jitter_status[index] += cur_p.tx_press - grip_info->last_frame_point[index].tx_press;
+			if (1 != grip_info->frame_cnt[index] && tx_er_jitter < tx_er_jitter_thd && tx_press_jitter < grip_info->point_stability_press_jitter_thd) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+				grip_info->point_stability_rx_er_jitter_status[index] = 0;
+				grip_info->point_stability_tx_er_jitter_status[index] = 0;
+				grip_info->point_stability_rx_press_jitter_status[index] = 0;
+				grip_info->point_stability_tx_press_jitter_status[index] = 0;
+			}
 		} else {
-			grip_info->fsr_stable_time[index] = 0;
+			if (y_coupling_result == grip_info->last_frame_point[index].tx_er * grip_info->last_frame_point[index].tx_press) {
+				grip_info->fsr_stable_time[index] += ktime_to_ms(ktime_get()) - grip_info->last_frame_point[index].time_ms;         /*record point stable time*/
+			} else {
+				grip_info->fsr_stable_time[index] = 0;
+			}
 		}
+
 		if (grip_info->fsr_stable_time[index] > grip_info->fsr_stable_time_thd) {
 			if (STATUS_CENTER_DOWN == grip_info->points_center_down[index]) {
 				short_stable_coupling_thd = grip_info->short_strict_stable_coupling_thd;
@@ -3077,8 +3530,15 @@ static bool touchup_judged_V2(struct kernel_grip_info *grip_info, int index)
 
 	startx_coupling_result = grip_info->first_point[index].rx_press * grip_info->first_point[index].rx_er;
 	starty_coupling_result = grip_info->first_point[index].tx_press * grip_info->first_point[index].tx_er;
-	secondx_coupling_result = grip_info->second_point[index].rx_press * grip_info->second_point[index].rx_er;
-	secondy_coupling_result = grip_info->second_point[index].tx_press * grip_info->second_point[index].tx_er;
+
+	if (grip_info->one_frame_down_check_support && grip_info->is_curved_screen_v4_3 && grip_info->frame_cnt[index] == 1) {
+		secondx_coupling_result = startx_coupling_result;
+		secondy_coupling_result = starty_coupling_result;
+	} else {
+		secondx_coupling_result = grip_info->second_point[index].rx_press * grip_info->second_point[index].rx_er;
+		secondy_coupling_result = grip_info->second_point[index].tx_press * grip_info->second_point[index].tx_er;
+	}
+
 	if ((POS_LONG_LEFT == pos) || (POS_LONG_RIGHT == pos)) {
 		if ((STATUS_CENTER_DOWN == grip_info->points_center_down[index]) && !grip_info->point_unmoved[index]) {
 			long_start_coupling_thd = grip_info->long_strict_start_coupling_thd;
@@ -3153,15 +3613,48 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 	uint16_t fiter_cnt = grip_info->coord_filter_cnt;
 	enum large_judge_status judge_state = JUDGE_LARGE_CONTINUE;
 
+	uint16_t uniform_max_make_up_frame = 5;
+
 	for (m_index = 0; m_index < TOUCH_MAX_NUM; m_index++) {
 		if (((obj_attention & TOUCH_BIT_CHECK) >> m_index) & 0x01) {      //finger down
 			grip_info->frame_cnt[m_index]++;                              //count down frames
+			grip_info->uniform_make_up_point_last_down_time[m_index] = ktime_to_ms(ktime_get());
+			if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+				if (grip_info->frame_cnt[m_index] >= 2) {
+					grip_info->uniform_make_up_point_x_move_speed[m_index] = points[m_index].x - grip_info->uniform_make_up_last_input_point_x[m_index];
+					grip_info->uniform_make_up_point_y_move_speed[m_index] = points[m_index].y - grip_info->uniform_make_up_last_input_point_y[m_index];
+				}
+				grip_info->uniform_make_up_last_input_point_x[m_index] = points[m_index].x;
+				grip_info->uniform_make_up_last_input_point_y[m_index] = points[m_index].y;
+			}
 
 			if (grip_info->large_out_status[m_index]) {
 				if (MAKEUP_REAL_POINT != grip_info->makeup_cnt[m_index]) {
 					record_point_info(grip_info, TYPE_LATEST_POINT, m_index, points[m_index]);              //record latest different points
 				}
-				if (grip_info->makeup_cnt[m_index] > 0) {                                                   //means we need to continue to make up to the real point
+				if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+					if (grip_info->uniform_make_up_point_num_status[m_index] > 0) {
+						get_makeup_point_xy(grip_info, m_index, &points[m_index]);
+						 /* means that the point is not the first make up point */
+						if (grip_info->uniform_make_up_point_num != (grip_info->uniform_make_up_point_num_status[m_index]) + 1) {
+							grip_info->uniform_make_up_point_x_move_speed[m_index] = points[m_index].x - grip_info->uniform_last_make_up_prevent_out_x[m_index];
+							grip_info->uniform_make_up_point_y_move_speed[m_index] = points[m_index].y - grip_info->uniform_last_make_up_prevent_out_y[m_index];
+							TPD_DETAIL("id:%d makeup point speed:(%d,%d) point_in:(%d,%d) out:(%d,%d).make_up_prevent_out:(%d,%d)\n",
+							    m_index,
+								grip_info->uniform_make_up_point_x_move_speed[m_index], grip_info->uniform_make_up_point_y_move_speed[m_index], \
+                                grip_info->uniform_make_up_last_input_point_x[m_index], grip_info->uniform_make_up_last_input_point_y[m_index], \
+                                points[m_index].x,
+								points[m_index].y,
+								grip_info->uniform_last_make_up_prevent_out_x[m_index], grip_info->uniform_last_make_up_prevent_out_y[m_index]);
+						}
+						grip_info->uniform_last_make_up_prevent_out_x[m_index] = points[m_index].x;
+						grip_info->uniform_last_make_up_prevent_out_y[m_index] = points[m_index].y;
+						TPD_DETAIL("id:%d down status makeup point:(%d, %d) point num:%d.\n",
+						    m_index,
+							points[m_index].x, points[m_index].y,
+							grip_info->uniform_make_up_point_num_status[m_index]);
+					}
+				} else if (grip_info->makeup_cnt[m_index] > 0) { /* means we need to continue to make up to the real point */
 					if (grip_info->makeup_cnt[m_index] <= fiter_cnt) {
 						tmp_point = points[m_index];
 						assign_filtered_data(grip_info, m_index, &points[m_index]);
@@ -3185,6 +3678,16 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 
 				grip_info->points_pos[m_index] = large_judge_pos(grip_info, m_index);                               //judge the position of each id
 				grip_info->points_center_down[m_index] = judge_center_down(grip_info, points, m_index);             //judge whether we have center point down already
+				TPD_INFO("id:%d pos:%d center_down:%d (x:%u y:%u)(tp:%u rp:%u te:%u re:%u) \n",
+					m_index,
+					grip_info->points_pos[m_index],
+					grip_info->points_center_down[m_index],
+					points[m_index].x,
+					points[m_index].y,
+					points[m_index].tx_press,
+					points[m_index].rx_press,
+					points[m_index].tx_er,
+					points[m_index].rx_er);
 			} else if (2 == grip_info->frame_cnt[m_index]) {                                  //record second frame point info
 				record_point_info(grip_info, TYPE_SECOND_POINT, m_index, points[m_index]);
 			}
@@ -3200,12 +3703,21 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 				grip_info->large_out_status[m_index] = true;           //set large outside flag
 
 				if (!grip_info->point_unmoved[m_index]) {    //means once in large judge area
-					tmp_point = points[m_index];
-					assign_filtered_data(grip_info, m_index, &points[m_index]);
-					add_filter_data_tail(grip_info, m_index, tmp_point);
-					grip_info->makeup_cnt[m_index]++;
-					GRIP_TP_INFO("id:%d makeup m:%d times.(%d %d)(%d %d %d %d)\n", m_index, grip_info->makeup_cnt[m_index], points[m_index].x, points[m_index].y,
-						 points[m_index].tx_press, points[m_index].rx_press, points[m_index].tx_er, points[m_index].rx_er);
+					if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+						uniform_makeup_xy_shift_initial(grip_info, m_index, &points[m_index]);
+						grip_info->uniform_make_up_point_num_status[m_index] = grip_info->uniform_make_up_point_num;
+						TPD_DETAIL("id:%d exit status makeup point:(%d, %d) point num:%d.\n",
+							m_index,
+							points[m_index].x, points[m_index].y,
+							grip_info->uniform_make_up_point_num_status[m_index]);
+					} else {
+						tmp_point = points[m_index];
+						assign_filtered_data(grip_info, m_index, &points[m_index]);
+						add_filter_data_tail(grip_info, m_index, tmp_point);
+						grip_info->makeup_cnt[m_index]++;
+						GRIP_TP_INFO("id:%d makeup m:%d times.(%d %d)(%d %d %d %d)\n", m_index, grip_info->makeup_cnt[m_index], points[m_index].x, points[m_index].y,
+							 points[m_index].tx_press, points[m_index].rx_press, points[m_index].tx_er, points[m_index].rx_er);
+					}
 				}
 			} else if (TYPE_REJECT_DONE == grip_info->large_reject[m_index]) {
 				obj_final = obj_final & (~(1 << m_index));                //if already reject, just mask it
@@ -3223,12 +3735,24 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 				} else if (JUDGE_LARGE_TIMEOUT == judge_state) {
 					grip_info->large_out_status[m_index] = true;       //set outside flag
 					if (!grip_info->point_unmoved[m_index]) {
-						tmp_point = points[m_index];
-						assign_filtered_data(grip_info, m_index, &points[m_index]);  //makeup points
-						add_filter_data_tail(grip_info, m_index, tmp_point);
-						grip_info->makeup_cnt[m_index]++;
-						GRIP_TP_INFO("id:%d makeup n:%d times.(%d %d)(%d %d %d %d)\n", m_index, grip_info->makeup_cnt[m_index], points[m_index].x, points[m_index].y,
-							 points[m_index].tx_press, points[m_index].rx_press, points[m_index].tx_er, points[m_index].rx_er);
+						if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+							uniform_makeup_xy_shift_initial(grip_info, m_index, &points[m_index]);
+							grip_info->uniform_make_up_point_num_status[m_index] = grip_info->uniform_make_up_point_num;
+							TPD_DETAIL("id:%d exit status makeup point:(%d, %d) point num:%d.\n",
+							    m_index,
+								points[m_index].x, points[m_index].y,
+								grip_info->uniform_make_up_point_num_status[m_index]);
+						} else {
+							tmp_point = points[m_index];
+							assign_filtered_data(grip_info, m_index, &points[m_index]);  /* makeup points */
+							add_filter_data_tail(grip_info, m_index, tmp_point);
+							grip_info->makeup_cnt[m_index]++;
+							GRIP_TP_INFO("id:%d makeup n:%d times.(%d %d)(%d %d %d %d)\n",
+							    m_index,
+								grip_info->makeup_cnt[m_index],
+								points[m_index].x, points[m_index].y,
+							    points[m_index].tx_press, points[m_index].rx_press, points[m_index].tx_er, points[m_index].rx_er);
+						}
 					}
 				} else {
 					obj_final = obj_final & (~(1 << m_index));            //reject for continue detect
@@ -3240,8 +3764,39 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 				TP_DETAIL(grip_info->tp_index, "up id(%d) status: %d, %d, %d, %d.\n", m_index, grip_info->points_pos[m_index],
 					grip_info->points_center_down[m_index], grip_info->large_out_status[m_index], grip_info->large_reject[m_index]);
 			}
+
 			if (grip_info->large_out_status[m_index]) {       //already exit the grip status
-				if (grip_info->makeup_cnt[m_index] > 0 && MAKEUP_REAL_POINT != grip_info->makeup_cnt[m_index]) {
+				TPD_DETAIL("large_out_status : grip_info->uniform_make_up_point_num_status[%d]:%d\n",
+				m_index, grip_info->uniform_make_up_point_num_status[m_index]);
+				if (grip_info->uniform_make_up_point_v2_support &&
+				    grip_info->is_curved_screen_v4_3 &&
+				    grip_info->uniform_make_up_point_num_status[m_index] > 0) {
+					get_make_up_point_num(grip_info, m_index, &points[m_index]);
+					if (grip_info->uniform_make_up_point_num_status[m_index] > 0) {
+						points[m_index].status = 1;
+						obj_final = obj_final | (1 << m_index);
+						TPD_INFO("id:%d uniform_point_num:%d shift_leftover:%d,%d move_speed:%d,%d. \n",
+						    m_index,
+							grip_info->uniform_make_up_point_num_status[m_index],
+							grip_info->uniform_make_up_x_shift_leftover[m_index], grip_info->uniform_make_up_y_shift_leftover[m_index],
+							grip_info->uniform_make_up_point_x_move_speed[m_index], grip_info->uniform_make_up_point_y_move_speed[m_index]);
+
+						uniform_max_make_up_frame = get_max_makeup_frame_num(grip_info, m_index, &points[m_index]);
+						if (grip_info->uniform_make_up_point_num_status[m_index] > uniform_max_make_up_frame) {
+							grip_info->uniform_make_up_point_num_status[m_index] = uniform_max_make_up_frame;
+						}
+
+						get_makeup_point_xy(grip_info, m_index, &points[m_index]);
+						grip_info->uniform_make_up_point_upid_status |= (1 << m_index);
+						TPD_DETAIL("id:%d, first up status makeup point:(%d, %d) point num:%d.\n",
+						    m_index,
+							points[m_index].x, points[m_index].y,
+							grip_info->uniform_make_up_point_num_status[m_index]);
+						start_makeup_timer(grip_info, m_index);
+						grip_info->uniform_last_make_up_prevent_out_x[m_index] = points[m_index].x;
+						grip_info->uniform_last_make_up_prevent_out_y[m_index] = points[m_index].y;
+					}
+				} else if (grip_info->makeup_cnt[m_index] > 0 && MAKEUP_REAL_POINT != grip_info->makeup_cnt[m_index]) {
 					points[m_index].status = 1;
 					obj_final = obj_final | (1 << m_index);
 					if (grip_info->edge_swipe_makeup_optimization_support && grip_info->makeup_cnt[m_index] == 1) {
@@ -3268,13 +3823,39 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 				if (exit_status) {
 					points[m_index].status = 1;
 					obj_final = obj_final | (1 << m_index);
-					points[m_index].x = grip_info->coord_buf[m_index * fiter_cnt].x;
-					points[m_index].y = grip_info->coord_buf[m_index * fiter_cnt].y;
-					GRIP_TP_INFO("makeup start point:%d(%d, %d) into fifo.\n", m_index, points[m_index].x, points[m_index].y);
-
 					grip_info->large_out_status[m_index] = true;
-					grip_info->sync_up_makeup[m_index] = true;
-					start_makeup_timer(grip_info, m_index);
+
+					if (grip_info->uniform_make_up_point_v2_support && grip_info->is_curved_screen_v4_3) {
+						uniform_makeup_xy_shift_initial(grip_info, m_index, &points[m_index]);
+						grip_info->uniform_make_up_point_upid_status |= (1 << m_index);
+
+						get_make_up_point_num(grip_info, m_index, &points[m_index]);
+						if (grip_info->uniform_make_up_point_num_status[m_index] < 2) {
+							grip_info->uniform_make_up_point_num_status[m_index] = 2;
+						}
+						uniform_max_make_up_frame = get_max_makeup_frame_num(grip_info, m_index, &points[m_index]);
+						if (grip_info->uniform_make_up_point_num_status[m_index] > uniform_max_make_up_frame) {
+							grip_info->uniform_make_up_point_num_status[m_index] = uniform_max_make_up_frame;
+						}
+						TPD_INFO("id:%d uniform_point_num:%d shift_leftover:%d,%d move_speed:%d,%d. \n",
+						    m_index,
+							grip_info->uniform_make_up_point_num_status[m_index], grip_info->uniform_make_up_x_shift_leftover[m_index],
+							grip_info->uniform_make_up_y_shift_leftover[m_index], grip_info->uniform_make_up_point_x_move_speed[m_index],
+							grip_info->uniform_make_up_point_y_move_speed[m_index]);
+						get_makeup_point_xy(grip_info, m_index, &points[m_index]);
+						grip_info->uniform_make_up_point_upid_status |= (1 << m_index);
+						start_makeup_timer(grip_info, m_index);
+						TPD_DETAIL("id:%d, first up status makeup point:(%d, %d) point num:%d.\n",
+						    m_index,
+							points[m_index].x, points[m_index].y,
+							grip_info->uniform_make_up_point_num_status[m_index]);
+					} else {
+						points[m_index].x = grip_info->coord_buf[m_index * fiter_cnt].x;
+						points[m_index].y = grip_info->coord_buf[m_index * fiter_cnt].y;
+						GRIP_TP_INFO("makeup start point:%d(%d, %d) into fifo.\n", m_index, points[m_index].x, points[m_index].y);
+						grip_info->sync_up_makeup[m_index] = true;
+						start_makeup_timer(grip_info, m_index);
+					}
 				} else {
 					GRIP_TP_INFO("reject id:%d for accidental touch.\n", m_index);
 				}
@@ -3306,6 +3887,10 @@ static int curved_large_handle_V2(struct kernel_grip_info *grip_info, int obj_at
 			grip_info->max_rx_matched_cnt[m_index] = 0;
 			grip_info->max_rx_stable_time[m_index] = 0;
 			grip_info->dynamic_finger_hold_state[m_index] = 0;
+			grip_info->point_stability_tx_press_jitter_status[m_index] = 0;
+			grip_info->point_stability_tx_er_jitter_status[m_index] = 0;
+			grip_info->point_stability_rx_press_jitter_status[m_index] = 0;
+			grip_info->point_stability_rx_er_jitter_status[m_index] = 0;
 		}
 	}
 
@@ -3512,6 +4097,59 @@ static const struct key_addr key_addr_arrays[] = {
 	{"long_hold_changed_thd_recli",		(u64)&(((struct kernel_grip_info *)0)->reclining_data.long_hold_changed_thd)},
 	{"long_hold_maxfsr_gap_recli",		(u64)&(((struct kernel_grip_info *)0)->reclining_data.long_hold_maxfsr_gap)},
 	/*add for curved_screen_v4.2  recling mode end*/
+	/*add for curved_screen_v4.3  begin*/
+	{"is_curved_screen_v4_3",	(u64)&(((struct kernel_grip_info *)0)->is_curved_screen_v4_3)},
+	{"corner_major_minor_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_major_minor_percent_thd)},
+	{"corner_major_max_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_major_max_thd)},
+	{"corner_angle_max_range_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_angle_max_range_thd)},
+	{"point_edge_degree_check_support",	(u64)&(((struct kernel_grip_info *)0)->point_edge_degree_check_support)},
+	{"corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_point_edge_percent_thd)},
+	{"corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_point_edge_min_channel_thd)},
+	{"top_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->top_trx_corner_point_edge_percent_thd)},
+	{"bottom_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->bottom_trx_corner_point_edge_percent_thd)},
+	{"corner_point_trx_radio_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_point_trx_radio_thd)},
+	{"corner_point_check_frame_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_point_check_frame_thd)},
+	{"corner_point_peakdelta_stable_thd",	(u64)&(((struct kernel_grip_info *)0)->corner_point_peakdelta_stable_thd)},
+	{"point_stability_judgment_check_support",	(u64)&(((struct kernel_grip_info *)0)->point_stability_judgment_check_support)},
+	{"point_stability_press_jitter_thd",	(u64)&(((struct kernel_grip_info *)0)->point_stability_press_jitter_thd)},
+	{"point_stability_er_jitter_thd",	(u64)&(((struct kernel_grip_info *)0)->point_stability_er_jitter_thd)},
+	{"point_stability_er_jitter_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->point_stability_er_jitter_percent_thd)},
+	{"point_corner_er_min_limit_support",	(u64)&(((struct kernel_grip_info *)0)->point_corner_er_min_limit_support)},
+	{"point_corner_tx_er_min_limit_thd",	(u64)&(((struct kernel_grip_info *)0)->point_corner_tx_er_min_limit_thd)},
+	{"point_corner_rx_er_min_limit_thd",	(u64)&(((struct kernel_grip_info *)0)->point_corner_rx_er_min_limit_thd)},
+	{"one_frame_down_check_support",	(u64)&(((struct kernel_grip_info *)0)->one_frame_down_check_support)},
+	{"uniform_make_up_point_v2_support",	(u64)&(((struct kernel_grip_info *)0)->uniform_make_up_point_v2_support)},
+	{"uniform_make_up_point_num",	(u64)&(((struct kernel_grip_info *)0)->uniform_make_up_point_num)},
+	{"uniform_make_up_exit_point_num",	(u64)&(((struct kernel_grip_info *)0)->uniform_make_up_exit_point_num)},
+	{"uniform_max_make_up_time",	(u64)&(((struct kernel_grip_info *)0)->uniform_max_make_up_time)},
+	{"uniform_make_up_last_point_percent_limit",	(u64)&(((struct kernel_grip_info *)0)->uniform_make_up_last_point_percent_limit)},
+	/*add for curved_screen_v4.3  end*/
+	/*add for curved_screen_v4.5  begin*/
+	{"is_curved_screen_v4_5",	(u64)&(((struct kernel_grip_info *)0)->is_curved_screen_v4_5)},
+	{"long_press_top_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_top_corner_point_edge_percent_thd)},
+	{"long_press_bottom_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_bottom_corner_point_edge_percent_thd)},
+	{"long_press_top_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_top_corner_point_edge_min_channel_thd)},
+	{"long_press_bottom_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_bottom_corner_point_edge_min_channel_thd)},
+	{"long_press_top_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_top_trx_corner_point_edge_percent_thd)},
+	{"long_press_bottom_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_bottom_trx_corner_point_edge_percent_thd)},
+	{"long_press_time_thd",	(u64)&(((struct kernel_grip_info *)0)->long_press_time_thd)},
+	{"long_press_point_edge_degree_check_support",	(u64)&(((struct kernel_grip_info *)0)->long_press_point_edge_degree_check_support)},
+	{"center_down_top_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_top_corner_point_edge_percent_thd)},
+	{"center_down_bottom_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_bottom_corner_point_edge_percent_thd)},
+	{"center_down_top_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_top_corner_point_edge_min_channel_thd)},
+	{"center_down_bottom_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_bottom_corner_point_edge_min_channel_thd)},
+	{"center_down_top_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_top_trx_corner_point_edge_percent_thd)},
+	{"center_down_bottom_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->center_down_bottom_trx_corner_point_edge_percent_thd)},
+	{"center_down_point_edge_degree_check_support",	(u64)&(((struct kernel_grip_info *)0)->center_down_point_edge_degree_check_support)},
+	{"soon_meet_top_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_top_corner_point_edge_percent_thd)},
+	{"soon_meet_bottom_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_bottom_corner_point_edge_percent_thd)},
+	{"soon_meet_top_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_top_corner_point_edge_min_channel_thd)},
+	{"soon_meet_bottom_corner_point_edge_min_channel_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_bottom_corner_point_edge_min_channel_thd)},
+	{"soon_meet_top_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_top_trx_corner_point_edge_percent_thd)},
+	{"soon_meet_bottom_trx_corner_point_edge_percent_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_bottom_trx_corner_point_edge_percent_thd)},
+	{"soon_meet_min_level_thd",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_min_level_thd)},
+	{"soon_meet_point_edge_degree_check_support",	(u64)&(((struct kernel_grip_info *)0)->soon_meet_point_edge_degree_check_support)},
+	/*add for curved_screen_v4.5  end*/
 };
 
 #define KEY_ADDR_NUMS sizeof(key_addr_arrays)/sizeof(struct key_addr)
@@ -4720,6 +5358,197 @@ void kernel_grip_reset(struct kernel_grip_info *grip_info)
 	return;
 }
 
+static int kernel_grip_init_v4_5(struct kernel_grip_info *grip_info, struct device *dev)
+{
+	int ret = 0;
+	int temp_array[10] = {0};
+	struct reclining_mode_data *reclining_data = NULL;
+	struct reclining_mode_data *normal_data = NULL;
+
+	if (grip_info == NULL) {
+		return -1;
+	}
+
+	reclining_data = &grip_info->reclining_data;
+	normal_data = &grip_info->normal_data;
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,long_press_corner_point_edge_percent_thd", temp_array, 8);
+	if (ret) {
+		grip_info->long_press_top_corner_point_edge_percent_thd = 1600;
+		grip_info->long_press_bottom_corner_point_edge_percent_thd = 2000;
+		grip_info->long_press_top_corner_point_edge_min_channel_thd = 1;
+		grip_info->long_press_bottom_corner_point_edge_min_channel_thd = 1;
+		grip_info->long_press_top_trx_corner_point_edge_percent_thd = 33;
+		grip_info->long_press_bottom_trx_corner_point_edge_percent_thd = 35;
+		grip_info->long_press_time_thd = 200;
+		grip_info->long_press_point_edge_degree_check_support = 0;
+		TPD_INFO("V4.5 corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->long_press_top_corner_point_edge_percent_thd = temp_array[0];
+		grip_info->long_press_bottom_corner_point_edge_percent_thd = temp_array[1];
+		grip_info->long_press_top_corner_point_edge_min_channel_thd = temp_array[2];
+		grip_info->long_press_bottom_corner_point_edge_min_channel_thd = temp_array[3];
+		grip_info->long_press_top_trx_corner_point_edge_percent_thd = temp_array[4];
+		grip_info->long_press_bottom_trx_corner_point_edge_percent_thd = temp_array[5];
+		grip_info->long_press_time_thd = temp_array[6];
+		grip_info->long_press_point_edge_degree_check_support = temp_array[7];
+		TPD_INFO("V4.5 corner_point_edge_percent_thd[%d][%d][%d][%d][%d][%d][%d][%d]\n", temp_array[0], temp_array[1],
+				temp_array[2], temp_array[3], temp_array[4], temp_array[5], temp_array[6], temp_array[7]);
+	}
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,center_down_corner_point_edge_percent_thd", temp_array, 8);
+	if (ret) {
+		grip_info->center_down_top_corner_point_edge_percent_thd = 1600;
+		grip_info->center_down_bottom_corner_point_edge_percent_thd = 2000;
+		grip_info->center_down_top_corner_point_edge_min_channel_thd = 1;
+		grip_info->center_down_bottom_corner_point_edge_min_channel_thd = 1;
+		grip_info->center_down_top_trx_corner_point_edge_percent_thd = 33;
+		grip_info->center_down_bottom_trx_corner_point_edge_percent_thd = 35;
+		grip_info->center_down_point_edge_degree_check_support = 0;
+		TPD_INFO("V4.5 corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->center_down_top_corner_point_edge_percent_thd = temp_array[0];
+		grip_info->center_down_bottom_corner_point_edge_percent_thd = temp_array[1];
+		grip_info->center_down_top_corner_point_edge_min_channel_thd = temp_array[2];
+		grip_info->center_down_bottom_corner_point_edge_min_channel_thd = temp_array[3];
+		grip_info->center_down_top_trx_corner_point_edge_percent_thd = temp_array[4];
+		grip_info->center_down_bottom_trx_corner_point_edge_percent_thd = temp_array[5];
+		grip_info->center_down_point_edge_degree_check_support = temp_array[7];
+		TPD_INFO("V4.5 corner_point_edge_percent_thd[%d][%d][%d][%d][%d][%d][%d]\n", temp_array[0], temp_array[1],
+				temp_array[2], temp_array[3], temp_array[4], temp_array[5], temp_array[7]);
+	}
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,soon_meet_corner_point_edge_percent_thd", temp_array, 8);
+	if (ret) {
+		grip_info->soon_meet_top_corner_point_edge_percent_thd = 1600;
+		grip_info->soon_meet_bottom_corner_point_edge_percent_thd = 2000;
+		grip_info->soon_meet_top_corner_point_edge_min_channel_thd = 1;
+		grip_info->soon_meet_bottom_corner_point_edge_min_channel_thd = 1;
+		grip_info->soon_meet_top_trx_corner_point_edge_percent_thd = 33;
+		grip_info->soon_meet_bottom_trx_corner_point_edge_percent_thd = 35;
+		grip_info->soon_meet_min_level_thd = 3;
+		grip_info->soon_meet_point_edge_degree_check_support = 0;
+		TPD_INFO("V4.5 corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->soon_meet_top_corner_point_edge_percent_thd = temp_array[0];
+		grip_info->soon_meet_bottom_corner_point_edge_percent_thd = temp_array[1];
+		grip_info->soon_meet_top_corner_point_edge_min_channel_thd = temp_array[2];
+		grip_info->soon_meet_bottom_corner_point_edge_min_channel_thd = temp_array[3];
+		grip_info->soon_meet_top_trx_corner_point_edge_percent_thd = temp_array[4];
+		grip_info->soon_meet_bottom_trx_corner_point_edge_percent_thd = temp_array[5];
+		grip_info->soon_meet_min_level_thd = temp_array[6];
+		grip_info->soon_meet_point_edge_degree_check_support = temp_array[7];
+		TPD_INFO("V4.5 corner_point_edge_percent_thd[%d][%d][%d][%d][%d][%d][%d][%d]\n", temp_array[0], temp_array[1],
+				temp_array[2], temp_array[3], temp_array[4], temp_array[5], temp_array[6], temp_array[7]);
+	}
+	return 0;
+}
+
+static int kernel_grip_init_v4_3(struct kernel_grip_info *grip_info, struct device *dev)
+{
+	int ret = 0;
+	int temp_array[10] = {0};
+	int m_index = 0;
+	struct reclining_mode_data *reclining_data = NULL;
+	struct reclining_mode_data *normal_data = NULL;
+
+	if (grip_info == NULL) {
+		return -1;
+	}
+
+	reclining_data = &grip_info->reclining_data;
+	normal_data = &grip_info->normal_data;
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,corner_point_edge_percent_thd", temp_array, 5);
+	if (ret) {
+		grip_info->corner_point_edge_percent_thd = 1600;
+		grip_info->corner_point_edge_min_channel_thd = 1;
+		grip_info->top_trx_corner_point_edge_percent_thd = 33;
+		grip_info->bottom_trx_corner_point_edge_percent_thd = 35;
+		grip_info->point_edge_degree_check_support = 0;
+		TPD_INFO("V4.3 corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->corner_point_edge_percent_thd = temp_array[0];
+		grip_info->corner_point_edge_min_channel_thd = temp_array[1];
+		grip_info->top_trx_corner_point_edge_percent_thd = temp_array[2];
+		grip_info->bottom_trx_corner_point_edge_percent_thd = temp_array[3];
+		grip_info->point_edge_degree_check_support = temp_array[4];
+		TPD_INFO("V4.3 corner_point_edge_percent_thd[%d][%d][%d][%d][%d]\n", temp_array[0], temp_array[1],
+				temp_array[2], temp_array[3], temp_array[4]);
+	}
+
+	ret = of_property_read_u32_array(dev->of_node,  (char *)"prevention,corner_point_edge_percent_thd2", temp_array, 5);
+	if (ret) {
+		grip_info->corner_point_trx_radio_thd = 30;
+		grip_info->corner_point_check_frame_thd = 3;
+		grip_info->corner_point_peakdelta_stable_thd = 20;
+		grip_info->bottom_corner_point_edge_percent_thd = 1300;
+		TPD_INFO("corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->corner_point_trx_radio_thd = temp_array[0];
+		grip_info->corner_point_check_frame_thd = temp_array[1];
+		grip_info->corner_point_peakdelta_stable_thd = temp_array[2];
+		grip_info->bottom_corner_point_edge_percent_thd = temp_array[3];
+	}
+
+	ret = of_property_read_u32_array(dev->of_node,  (char *)"prevention,point_stability_judgment_check", temp_array, 5);
+	if (ret) {
+		grip_info->point_stability_press_jitter_thd = 2;
+		grip_info->point_stability_er_jitter_thd = 2;
+		grip_info->point_stability_er_jitter_percent_thd = 10;
+		grip_info->point_stability_judgment_check_support = 0;
+		TPD_INFO("corner_point_edge_percent_thd using default.\n");
+	} else {
+		grip_info->point_stability_press_jitter_thd = temp_array[0];
+		grip_info->point_stability_er_jitter_thd = temp_array[1];
+		grip_info->point_stability_er_jitter_percent_thd = temp_array[2];
+		grip_info->point_stability_judgment_check_support = temp_array[4];
+	}
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,point_corner_er_min_limit_check", temp_array, 5);
+	if (ret) {
+		grip_info->point_corner_tx_er_min_limit_thd = 3;
+		grip_info->point_corner_rx_er_min_limit_thd = 3;
+		grip_info->point_corner_er_min_limit_support = 0;
+		TPD_INFO("point_corner_er_min_limit_check using default.\n");
+	} else {
+		grip_info->point_corner_tx_er_min_limit_thd = temp_array[0];
+		grip_info->point_corner_rx_er_min_limit_thd = temp_array[1];
+		grip_info->point_corner_er_min_limit_support = temp_array[4];
+	}
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,one_frame_down_check_support", temp_array, 1);
+	if (ret) {
+		grip_info->one_frame_down_check_support = 0;
+		TPD_INFO("one_frame_down_check_support using default.\n");
+	} else {
+		grip_info->one_frame_down_check_support = temp_array[0];
+	}
+
+	ret = of_property_read_u32_array(dev->of_node, (char *)"prevention,uniform_make_up_point_v2", temp_array, 1);
+	if (ret) {
+		grip_info->uniform_make_up_point_num = 10;
+		grip_info->uniform_make_up_exit_point_num = 2;
+		grip_info->uniform_max_make_up_time = 45;
+		grip_info->uniform_make_up_last_point_percent_limit = 5;
+		grip_info->uniform_make_up_point_v2_support = 0;
+		TPD_INFO("point_corner_er_min_limit_check using default.\n");
+	} else {
+		grip_info->uniform_make_up_point_num = temp_array[0];
+		grip_info->uniform_make_up_exit_point_num = temp_array[1];
+		grip_info->uniform_max_make_up_time = temp_array[2];
+		grip_info->uniform_make_up_last_point_percent_limit = temp_array[3];
+		grip_info->uniform_make_up_point_v2_support = temp_array[4];
+	}
+
+	for (m_index = 0; m_index < TOUCH_MAX_NUM; m_index++) {
+		grip_info->uniform_make_up_point_num_status[m_index] = 0;
+	}
+	grip_info->uniform_make_up_point_upid_status = 0;
+
+	return 0;
+}
+
 static int kernel_grip_init_v4(struct kernel_grip_info *grip_info, struct device *dev)
 {
 	int ret = 0;
@@ -5013,14 +5842,20 @@ static int kernel_grip_init_V2(struct kernel_grip_info *grip_info, struct device
 		grip_info->max_y = temp_array[1];
 	}
 
+	grip_info->tx_rx_num_exchange_support = of_property_read_bool(dev->of_node, "tx_rx_num_exchange_support");
 	ret = of_property_read_u32_array(dev->of_node, "touchpanel,tx-rx-num", temp_array, 2);
 	if (ret) {
 		grip_info->tx_num = 0;
 		grip_info->rx_num = 0;
 		GRIP_TP_INFO("panel tx rx not set.\n");
 	} else {
-		grip_info->tx_num = temp_array[0];
-		grip_info->rx_num = temp_array[1];
+		if (grip_info->tx_rx_num_exchange_support) {
+			grip_info->tx_num = temp_array[1];
+			grip_info->rx_num = temp_array[0];
+		} else {
+			grip_info->tx_num = temp_array[0];
+			grip_info->rx_num = temp_array[1];
+		}
 	}
 
 	ret = of_property_read_u32_array(dev->of_node, "prevention,grip_disable_level", temp_array, 1);
@@ -5293,8 +6128,34 @@ static int kernel_grip_init_V2(struct kernel_grip_info *grip_info, struct device
 	    if (ret < 0) {
 	    	return 0;
 	    }
-	    return 0;
 	}
+
+	/* add for v4.3 */
+	grip_info->is_curved_screen_v4_3 = of_property_read_bool(dev->of_node, "prevention,curved_screen_v4_3");
+	if (grip_info->is_curved_screen_v4_3) {
+		GRIP_TP_INFO("this is is_curved_screen_v4_3.\n");
+		ret = kernel_grip_init_v4_3(grip_info, dev);
+		if (ret < 0) {
+			GRIP_TP_INFO("fail to probe is_curved_screen_v4_3\n");
+			return 0;
+		}
+	} else {
+		GRIP_TP_INFO("this is is_curved_screen_v4_3 is %d \n", grip_info->is_curved_screen_v4_3);
+	}
+
+	/* add for v4.5 */
+	grip_info->is_curved_screen_v4_5 = of_property_read_bool(dev->of_node, "prevention,curved_screen_v4_5");
+	if (grip_info->is_curved_screen_v4_5) {
+		GRIP_TP_INFO("this is is_curved_screen_v4_5.\n");
+		ret = kernel_grip_init_v4_5(grip_info, dev);
+		if (ret < 0) {
+			GRIP_TP_INFO("fail to probe is_curved_screen_v4_5\n");
+			return 0;
+		}
+	} else {
+		GRIP_TP_INFO("this is is_curved_screen_v4_5 is %d \n", grip_info->is_curved_screen_v4_5);
+	}
+
 	return 0;
 }
 

@@ -303,7 +303,7 @@ static void sc8571_track_i2c_err_load_trigger_work(
 	if (!chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	kfree(chip->i2c_err_load_trigger);
 	chip->i2c_err_load_trigger = NULL;
 	chip->i2c_err_uploading = false;
@@ -430,7 +430,7 @@ static void sc8571_track_cp_err_load_trigger_work(
 	if (!chip->cp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 	kfree(chip->cp_err_load_trigger);
 	chip->cp_err_load_trigger = NULL;
 	chip->cp_err_uploading = false;

@@ -46,10 +46,12 @@
 #include <oplus_mms_gauge.h>
 #include <oplus_impedance_check.h>
 #include <oplus_chg_monitor.h>
+#include <oplus_chg_voter.h>
 #include "../voocphy/oplus_voocphy.h"
 
 #include "../voocphy/phy/oplus_sc8547.h"
 #include "oplus_hal_sc8547a.h"
+#include <oplus_chg_vooc.h>
 
 #define DEFUALT_VBUS_LOW 100
 #define DEFUALT_VBUS_HIGH 200
@@ -72,6 +74,7 @@ struct sc8547a_device {
 
 	struct oplus_mms *err_topic;
 	struct mms_subscribe *err_subs;
+	struct votable *disable_votable;
 
 	struct mutex i2c_rw_lock;
 	struct mutex chip_lock;
@@ -81,7 +84,8 @@ struct sc8547a_device {
 
 	int ovp_reg;
 	int ocp_reg;
-
+	u8 vbus_ovp_reg;
+	u8 vooc_vbus_ovp_reg;
 	bool ufcs_enable;
 	bool voocphy_enable;
 
@@ -93,8 +97,12 @@ struct sc8547a_device {
 	bool use_ufcs_phy;
 	bool use_vooc_phy;
 	bool vac_support;
+	bool work_start;
+	bool boot_online;
 
 	struct work_struct ufcs_regdump_work;
+	struct work_struct cp_regdump_work;
+	struct work_struct ic_offline_work;
 	u8 ufcs_reg_dump[SC8547A_FLAG_NUM];
 };
 
@@ -104,78 +112,55 @@ static enum oplus_cp_work_mode g_cp_support_work_mode[] = {
 };
 
 static int sc8547_voocphy_get_chg_enable(struct oplus_voocphy_manager *chip, u8 *data);
+static int sc8547a_voocphy_set_sstimeout_ucp_enable(struct oplus_voocphy_manager *chip, bool enable);
 
-#ifndef I2C_ERR_MAX
-#define I2C_ERR_MAX 2
-#endif
-
-#define ERR_MSG_BUF	PAGE_SIZE
-__printf(3, 4)
-static int sc8547a_publish_ic_err_msg(struct sc8547a_device *chip, int sub_type, const char *format, ...)
+static int oplus_chg_get_vooc_charging(void)
 {
-	struct mms_msg *topic_msg;
-	va_list args;
-	char *buf;
+	int vooc_charging_status = 0;
+	struct oplus_mms *vooc_topic;
+	union mms_msg_data data = { 0 };
 	int rc;
 
-	buf = kzalloc(ERR_MSG_BUF, GFP_KERNEL);
-	if (buf == NULL)
-		return -ENOMEM;
+	vooc_topic = oplus_mms_get_by_name("vooc");
+	if (!vooc_topic)
+		return 0;
 
-	va_start(args, format);
-	vsnprintf(buf, ERR_MSG_BUF, format, args);
-	va_end(args);
+	rc = oplus_mms_get_item_data(vooc_topic, VOOC_ITEM_VOOC_CHARGING, &data, true);
+	if (!rc)
+		vooc_charging_status = data.intval;
 
-	topic_msg =
-		oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_HIGH, ERR_ITEM_IC,
-					"[%s]-[%d]-[%d]:%s", "cp-sc8547a",
-					OPLUS_IC_ERR_UFCS, sub_type,
-					buf);
-	kfree(buf);
-	if (topic_msg == NULL) {
-		chg_err("alloc topic msg error\n");
-		return -ENOMEM;
-	}
-
-	rc = oplus_mms_publish_msg(chip->err_topic, topic_msg);
-	if (rc < 0) {
-		chg_err("publish error topic msg error, rc=%d\n", rc);
-		kfree(topic_msg);
-	}
-
-	return rc;
+	return vooc_charging_status;
 }
+
+#define ERR_MSG_BUF	PAGE_SIZE
 
 static void sc8547_i2c_error(struct oplus_voocphy_manager *voocphy, bool happen, bool read)
 {
 	struct sc8547a_device *chip;
+	if (!voocphy) {
+		chg_err("voocphy is null exit\n");
+		return;
+	}
 
-	int report_flag = 0;
-	if (!voocphy)
-		return;
 	chip = voocphy->priv_data;
-	if (!chip || chip->error_reported)
-		return;
 
 	if (happen) {
-		voocphy->voocphy_iic_err = true;
-		voocphy->voocphy_iic_err_num++;
-		if (voocphy->voocphy_iic_err_num >= I2C_ERR_NUM) {
-			report_flag |= MAIN_I2C_ERROR;
-			if (chip->err_topic != NULL)
-				sc8547a_publish_ic_err_msg(
-					chip, read ? UFCS_ERR_READ : UFCS_ERR_WRITE,
-					"%s error", read ? "read" : "write");
-#ifdef OPLUS_CHG_UNDEF /* TODO */
-			oplus_chg_sc8547_error(report_flag, NULL, 0);
-#endif
-			chip->error_reported = true;
+		if (chip->error_reported)
+			return;
+		if (atomic_read(&chip->i2c_err_count) < I2C_ERR_NUM) {
+			atomic_inc(&chip->i2c_err_count);
+			return;
 		}
+		chip->error_reported = true;
+		vote(chip->disable_votable, IIC_VOTER, true, 1, false);
+		oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+					   CP_ERR_I2C, "%s error",
+					   read ? "read" : "write");
+		oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
 	} else {
-		voocphy->voocphy_iic_err_num = 0;
-#ifdef OPLUS_CHG_UNDEF /* TODO */
-		oplus_chg_sc8547_error(0, NULL, 0);
-#endif
+		vote(chip->disable_votable, IIC_VOTER, false, 0, false);
+		chip->error_reported = false;
+		atomic_set(&chip->i2c_err_count, 0);
 	}
 }
 
@@ -480,17 +465,21 @@ static int sc8547a_write_bit_mask(struct sc8547a_device *chip, u8 reg,
 	u8 temp = 0;
 	int rc = 0;
 
-	rc = sc8547a_read_byte(chip, reg, &temp);
-	if (rc < 0)
-		return rc;
+	mutex_lock(&chip->i2c_rw_lock);
+	rc = __sc8547_read_byte(chip->client, reg, &temp);
+	if (rc < 0) {
+		chg_err("read failed: reg=%02X, rc=%d\n", reg, rc);
+		goto out;
+	}
 
 	temp = (data & mask) | (temp & (~mask));
 
-	rc = sc8547a_write_byte(chip, reg, temp);
+	rc = __sc8547_write_byte(chip->client, reg, temp);
 	if (rc < 0)
-		return rc;
-
-	return 0;
+		chg_err("write failed: reg=%02X, rc=%d\n", reg, rc);
+out:
+	mutex_unlock(&chip->i2c_rw_lock);
+	return rc;
 }
 
 static int sc8547_voocphy_set_predata(struct oplus_voocphy_manager *chip, u16 val)
@@ -615,6 +604,7 @@ static void sc8547_voocphy_update_data(struct oplus_voocphy_manager *chip)
 			data_block[1]) *
 		       SC8547_VAC_ADC_LSB;
 
+	chip->master_cp_ichg = chip->cp_ichg;
 	chg_info("cp_ichg = %d cp_vbus = %d, cp_vsys = %d cp_vbat = %d cp_vac = "
 		"%d int_flag = %d",
 		chip->cp_ichg, chip->cp_vbus, chip->cp_vsys, chip->cp_vbat,
@@ -632,6 +622,9 @@ static int sc8547_voocphy_get_cp_ichg(struct oplus_voocphy_manager *chip)
 
 	if (cp_enable == 0)
 		return 0;
+
+	if (oplus_chg_get_vooc_charging())
+		return chip->master_cp_ichg;
 	/*parse data_block for improving time of interrupt*/
 	ret = i2c_smbus_read_i2c_block_data(chip->client, SC8547_REG_13, 2,
 					    data_block);
@@ -676,6 +669,8 @@ static int sc8547_voocphy_get_cp_vbat(struct oplus_voocphy_manager *chip)
 	u8 data_block[2] = { 0 };
 	s32 ret = 0;
 
+	if (oplus_chg_get_vooc_charging())
+		return chip->cp_vbat;
 	/*parse data_block for improving time of interrupt*/
 	ret = i2c_smbus_read_i2c_block_data(chip->client, SC8547_REG_1B, 2,
 					    data_block);
@@ -712,6 +707,8 @@ static int sc8547_voocphy_get_cp_vbus(struct oplus_voocphy_manager *chip)
 	u8 data_block[2] = { 0 };
 	s32 ret = 0;
 
+	if (oplus_chg_get_vooc_charging())
+		return chip->cp_vbus;
 	/* parse data_block for improving time of interrupt */
 	ret = i2c_smbus_read_i2c_block_data(chip->client, SC8547_REG_15, 2,
 					    data_block);
@@ -895,7 +892,6 @@ static int sc8547_voocphy_set_chg_enable(struct oplus_voocphy_manager *chip,
 		chg_err("Failed\n");
 		return -1;
 	}
-
 	if (enable) {
 		if (ic_sc8547a)
 			return sc8547_write_byte(chip->client, SC8547_REG_07, 0x80);
@@ -1039,7 +1035,7 @@ static int sc8547_voocphy_reset_voocphy(struct oplus_voocphy_manager *chip)
 	reg_data = 0x20 | (chip->ovp_reg & 0x1f);
 	sc8547_write_byte(chip->client, SC8547_REG_00, reg_data);
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01); /*VAC_OVP:12*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50);
+	sc8547_write_byte(chip->client, SC8547_REG_04, dev->vbus_ovp_reg);
 	if (ic_sc8547a)
 		reg_data = 0x10 | (chip->ocp_reg & 0xf);
 	else
@@ -1070,6 +1066,8 @@ static int sc8547_voocphy_reset_voocphy(struct oplus_voocphy_manager *chip)
 	sc8547_write_byte(chip->client, SC8547_REG_10, 0x02);
 	if (ic_sc8547a)
 		sc8547_write_byte(chip->client, SC8547A_ADDR_OTG_EN, 0x04);
+
+	sc8547a_voocphy_set_sstimeout_ucp_enable(chip, true);
 	dev->voocphy_enable = false;
 	chg_err("oplus_vooc_reset_voocphy done");
 
@@ -1110,7 +1108,7 @@ static int sc8547_init_device(struct sc8547a_device *chip)
 
 	sc8547_write_byte(chip->client, SC8547_REG_11, 0x0); /* ADC_CTRL:disable */
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x1); /*VAC_OVP:12*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50); /* VBUS_OVP:10 2:1 or 1:1V */
+	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /* VBUS_OVP:10 2:1 or 1:1V */
 	reg_data = 0x20 | (chip->ovp_reg & 0x1f);
 	sc8547_write_byte(chip->client, SC8547_REG_00, reg_data); /* VBAT_OVP:4.65V */
 	if (ic_sc8547a)
@@ -1167,11 +1165,11 @@ static int sc8547_voocphy_init_vooc(struct oplus_voocphy_manager *voocphy)
 	return 0;
 }
 
-static int sc8547_svooc_hw_setting(struct sc8547a_device *chip)
+static int sc8547_svooc_hw_setting(struct sc8547a_device *chip, bool wdt_cfg)
 {
 	u8 reg_data;
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01); /*VAC_OVP:12v*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50); /*VBUS_OVP:10v*/
+	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /*VBUS_OVP:10v*/
 	if (ic_sc8547a)
 		reg_data = 0x10 | (chip->ocp_reg & 0xf);
 	else
@@ -1179,7 +1177,10 @@ static int sc8547_svooc_hw_setting(struct sc8547a_device *chip)
 
 	sc8547_write_byte(chip->client, SC8547_REG_05,
 			  reg_data); /*IBUS_OCP_UCP:3.6A*/
-	sc8547_write_byte(chip->client, SC8547_REG_09, 0x13); /*WD:1000ms*/
+	if (wdt_cfg)
+		sc8547_write_byte(chip->client, SC8547_REG_09, 0x13); /* WD:1000ms */
+	else
+		sc8547_update_bits(chip->client, SC8547_REG_09, 0x90, 0x10); /* 2:1, IBUS_UCP_RISE_MASK */
 	sc8547_write_byte(chip->client, SC8547_REG_11,
 			  0x80); /*ADC_CTRL:ADC_EN*/
 	sc8547_write_byte(chip->client, SC8547_REG_0D, 0x70);
@@ -1187,28 +1188,33 @@ static int sc8547_svooc_hw_setting(struct sc8547a_device *chip)
 
 	sc8547_write_byte(chip->client, SC8547_REG_33, 0xd1); /*Loose_det=1*/
 	sc8547_write_byte(chip->client, SC8547_REG_3A, 0x60);
+	sc8547a_voocphy_set_sstimeout_ucp_enable(chip->voocphy, false);
 	return 0;
 }
 
-static int sc8547_vooc_hw_setting(struct sc8547a_device *chip)
+static int sc8547_vooc_hw_setting(struct sc8547a_device *chip, bool wdt_cfg)
 {
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x07); /*VAC_OVP:6.5*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50); /*VBUS_OVP:*/
+	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vooc_vbus_ovp_reg); /*VBUS_OVP:*/
 	if (ic_sc8547a)
 		sc8547_write_byte(chip->client, SC8547_REG_05, 0x1c); /*IBUS_OCP_UCP:*/
 	else
 		sc8547_write_byte(chip->client, SC8547_REG_05, 0x2c);
-	sc8547_write_byte(chip->client, SC8547_REG_09, 0x93); /*WD:1000ms*/
+	if (wdt_cfg)
+		sc8547_write_byte(chip->client, SC8547_REG_09, 0x93); /* WD:1000ms */
+	else
+		sc8547_update_bits(chip->client, SC8547_REG_09, 0x90, 0x90); /* 1:1, IBUS_UCP_RISE_MASK */
 	sc8547_write_byte(chip->client, SC8547_REG_11, 0x80); /*ADC_CTRL:*/
 	sc8547_write_byte(chip->client, SC8547_REG_33, 0xd1); /*Loose_det*/
 	sc8547_write_byte(chip->client, SC8547_REG_3A, 0x60);
+	sc8547a_voocphy_set_sstimeout_ucp_enable(chip->voocphy, false);
 	return 0;
 }
 
 static int sc8547_5v2a_hw_setting(struct sc8547a_device *chip)
 {
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01); /*VAC_OVP:12V*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50); /*VBUS_OVP:*/
+	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /*VBUS_OVP:*/
 	sc8547_write_byte(chip->client, SC8547_REG_07, 0x0);
 	sc8547_write_byte(chip->client, SC8547_REG_09, 0x10); /*WD:DISABLE*/
 
@@ -1221,7 +1227,7 @@ static int sc8547_pdqc_hw_setting(struct sc8547a_device *chip)
 {
 	sc8547_write_byte(chip->client, SC8547_REG_00, 0x2E); /*VAC_OV:*/
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01); /*VAC_OVP:12V*/
-	sc8547_write_byte(chip->client, SC8547_REG_04, 0x50); /*VBUS_OVP*/
+	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /*VBUS_OVP*/
 	if (ic_sc8547a)
 		sc8547_write_byte(chip->client, SC8547_REG_07, 0x0);
 	else
@@ -1255,11 +1261,11 @@ static int sc8547_voocphy_hw_setting(struct oplus_voocphy_manager *voocphy, int 
 		chg_info("SETTING_REASON_RESET OR PROBE\n");
 		break;
 	case SETTING_REASON_SVOOC:
-		sc8547_svooc_hw_setting(chip);
+		sc8547_svooc_hw_setting(chip, true);
 		chg_info("SETTING_REASON_SVOOC\n");
 		break;
 	case SETTING_REASON_VOOC:
-		sc8547_vooc_hw_setting(chip);
+		sc8547_vooc_hw_setting(chip, true);
 		chg_info("SETTING_REASON_VOOC\n");
 		break;
 	case SETTING_REASON_5V2A:
@@ -1293,6 +1299,47 @@ static void sc8547_dual_chan_buck_set_ucp(struct oplus_voocphy_manager *chip, in
 		chg_info("set 05 reg = 0x%x\n", value);
 		sc8547_write_byte(chip->client, SC8547_REG_05, value);
 	}
+}
+
+static int sc8547a_voocphy_set_sstimeout_ucp_enable(struct oplus_voocphy_manager *voocphy, bool enable)
+{
+	int ret;
+	struct sc8547a_device *chip;
+	u8 reg_data;
+
+	if (!voocphy) {
+		chg_err("voocphy is null exit\n");
+		return -EINVAL;
+	}
+	if (!voocphy->fcl_support)
+		return -EINVAL;
+
+	chip = voocphy->priv_data;
+	if (chip == NULL) {
+		chg_err("sc8547a chip is NULL\n");
+		return -ENODEV;
+	}
+
+	ret = sc8547_read_byte(chip->client, SC8547_REG_05, &reg_data);
+	if ((enable && !(reg_data >> SC8547_IBUS_UCP_DIS_SHIFT)) ||
+                (!enable && (reg_data >> SC8547_IBUS_UCP_DIS_SHIFT)))
+		return 0;
+
+	if (enable && (reg_data >> SC8547_IBUS_UCP_DIS_SHIFT)) {
+		ret = sc8547_update_bits(chip->client, SC8547_REG_05,
+			SC8547_IBUS_UCP_DIS_MASK, (SC8547_IBUS_UCP_ENABLE << SC8547_IBUS_UCP_DIS_SHIFT));
+		ret |= sc8547_update_bits(chip->client, SC8547_REG_08,
+			SC8547_SS_TIMEOUT_SET_MASK, (SC8547_SS_TIMEOUT_81920MS << SC8547_SS_TIMEOUT_SET_SHIFT));
+	} else {
+		ret = sc8547_update_bits(chip->client, SC8547_REG_05,
+			SC8547_IBUS_UCP_DIS_MASK, (SC8547_IBUS_UCP_DISABLE << SC8547_IBUS_UCP_DIS_SHIFT));
+		ret |= sc8547_update_bits(chip->client, SC8547_REG_08,
+			SC8547_SS_TIMEOUT_SET_MASK, (SC8547_SS_TIMEOUT_DISABLE << SC8547_SS_TIMEOUT_SET_SHIFT));
+	}
+
+	chg_info("%s set ucp and sstimeout %s\n", chip->dev->of_node->name, enable ? "enable" : "disable");
+
+	return ret;
 }
 
 static void sc8547_hardware_init(struct sc8547a_device *chip)
@@ -1581,6 +1628,9 @@ static int sc8547a_ufcs_enable(struct ufcs_dev *ufcs)
 		}
 	}
 	chip->ufcs_enable = true;
+	/* ack timeout to 10ms + rx_FRAME_TIME */
+	sc8547_update_bits(chip->client, SC8547A_UFCS_OPTION2_CTRL,
+		                   SC8547A_ACK_RX_TIMEOUT_MASK, SC8547A_10MS_AND_RX_FRAME_TIME);
 
 	rc = sc8547_write_byte(chip->client, SC8547_REG_09, SC8547_WATCHDOG_1S); /* WD:1000ms */
 	if (rc < 0) {
@@ -1684,6 +1734,7 @@ static struct oplus_voocphy_operations oplus_sc8547_ops = {
 	.dump_voocphy_reg = sc8547_voocphy_dump_reg_in_err_issue,
 	.check_cp_int_happened = sc8547_voocphy_check_cp_int_happened,
 	.dual_chan_buck_set_ucp = sc8547_dual_chan_buck_set_ucp,
+	.set_sstimeout_ucp_enable = sc8547a_voocphy_set_sstimeout_ucp_enable,
 };
 
 static struct ufcs_dev_ops ufcs_ops = {
@@ -1736,6 +1787,17 @@ static void sc8547a_check_fault_into(struct sc8547a_device *chip)
 		return;
 	}
 	chg_info("0x0e=0x%02x, 0x0f=0x%02x\n", buf[0], buf[1]);
+
+	if (!chip->work_start)
+		return;
+
+	if (buf[1] & SC8547A_IBUS_OCP_FLAG_MASK) {
+		chg_err("ibus ocp\n");
+		vote(chip->disable_votable, OCP_VOTER, chip->work_start, 1, false);
+		oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+					   CP_ERR_HW_OCP, "hw_ocp");
+		oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+	}
 }
 
 static irqreturn_t sc8547_interrupt_handler(int irq, void *dev_id)
@@ -1829,7 +1891,6 @@ static int sc8547_irq_register(struct sc8547a_device *chip)
 				voocphy->irq, ret);
 			return ret;
 		}
-		enable_irq_wake(voocphy->irq);
 		chg_debug("request irq ok\n");
 	}
 
@@ -1893,6 +1954,39 @@ static void sc8547a_ufcs_regdump_work(struct work_struct *work)
 		chg_err("publish error topic msg error, rc=%d\n", rc);
 		kfree(topic_msg);
 	}
+}
+
+#define SC8547A_CP_STATUS_REG_MAX	4
+static u8 g_sc8547a_cp_status_reg[SC8547A_CP_STATUS_REG_MAX] = {
+	0x06, 0x09, 0x0e, 0x0f
+};
+
+static void sc8547a_cp_regdump_work(struct work_struct *work)
+{
+	struct sc8547a_device *chip =
+		container_of(work, struct sc8547a_device, cp_regdump_work);
+	char *buf;
+	int i;
+	size_t index = 0;
+	u8 data;
+
+	buf = kzalloc(ERR_MSG_BUF, GFP_KERNEL);
+	if (buf == NULL)
+		return;
+
+	for (i = 0; i < SC8547A_CP_STATUS_REG_MAX; i++) {
+		data = 0;
+		sc8547a_read_data(chip, g_sc8547a_cp_status_reg[i], &data, 1);
+		index += snprintf(buf + index, ERR_MSG_BUF, "0x%02x=%02x,",
+			g_sc8547a_cp_status_reg[i], data);
+	}
+	if (index > 0)
+		buf[index - 1] = 0;
+
+	oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+		CP_ERR_REG_INFO, "%s", buf);
+	oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+	kfree(buf);
 }
 
 static void sc8547a_err_subs_callback(struct mms_subscribe *subs,
@@ -1959,24 +2053,40 @@ static bool sc8547a_check_work_mode_support(enum oplus_cp_work_mode mode)
 
 static int sc8547a_cp_init(struct oplus_chg_ic_dev *ic_dev)
 {
+	struct sc8547a_device *chip;
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
-	ic_dev->online = true;
-	oplus_chg_ic_virq_trigger(ic_dev, OPLUS_IC_VIRQ_ONLINE);
+
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
+
+	chg_info("%s init\n", ic_dev->manu_name);
+
+	vote(chip->disable_votable, OCP_VOTER, false, 0, false);
+	vote(chip->disable_votable, UCP_VOTER, false, 0, false);
+	vote(chip->disable_votable, IIC_VOTER, false, 0, false);
+	vote(chip->disable_votable, PARENT_VOTER, false, 0, false);
+	chip->error_reported = false;
+	atomic_set(&chip->i2c_err_count, 0);
 
 	return 0;
 }
 
 static int sc8547a_cp_exit(struct oplus_chg_ic_dev *ic_dev)
 {
+	struct sc8547a_device *chip;
+
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
-	ic_dev->online = false;
-	oplus_chg_ic_virq_trigger(ic_dev, OPLUS_IC_VIRQ_OFFLINE);
+
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
+
+	chg_info("%s exit\n", ic_dev->manu_name);
+	vote(chip->disable_votable, PARENT_VOTER, true, 1, false);
+	schedule_work(&chip->cp_regdump_work);
 
 	return 0;
 }
@@ -2115,6 +2225,7 @@ static int sc8547a_cp_hw_init(struct oplus_chg_ic_dev *ic_dev)
 		return 0;
 
 	sc8547_hardware_init(chip);
+	chip->work_start = false;
 	return 0;
 }
 
@@ -2135,9 +2246,9 @@ static int sc8547a_cp_set_work_mode(struct oplus_chg_ic_dev *ic_dev, enum oplus_
 	}
 
 	if (mode == CP_WORK_MODE_BYPASS)
-		rc = sc8547_vooc_hw_setting(chip);
+		rc = sc8547_vooc_hw_setting(chip, false);
 	else
-		rc = sc8547_svooc_hw_setting(chip);
+		rc = sc8547_svooc_hw_setting(chip, false);
 
 	if (rc < 0)
 		chg_err("set work mode to %d error\n", mode);
@@ -2344,6 +2455,22 @@ static int sc8547a_cp_set_work_start(struct oplus_chg_ic_dev *ic_dev, bool start
 	return 0;
 }
 
+static int sc8547a_cp_set_sstimeout_ucp_enable(struct oplus_chg_ic_dev *ic_dev, bool enable)
+{
+	struct sc8547a_device *chip;
+	int ret;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
+
+	ret = sc8547a_voocphy_set_sstimeout_ucp_enable(chip->voocphy, enable);
+
+	return ret;
+}
+
 static int sc8547a_cp_get_work_status(struct oplus_chg_ic_dev *ic_dev, bool *start)
 {
 	struct sc8547a_device *chip;
@@ -2378,6 +2505,25 @@ static int sc8547a_cp_adc_enable(struct oplus_chg_ic_dev *ic_dev, bool en)
 	chip = oplus_chg_ic_get_priv_data(ic_dev);
 
 	return sc8547_set_adc_enable(chip, en);
+
+	return 0;
+}
+
+static int sc8547a_cp_watchdog_reset(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct sc8547a_device *chip;
+	u8 data;
+	int rc;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
+
+	rc = sc8547_read_byte(chip->client, SC8547_REG_07, &data);
+	if (rc < 0)
+		return rc;
 
 	return 0;
 }
@@ -2481,8 +2627,15 @@ static void *sc8547a_cp_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg
 	case OPLUS_IC_FUNC_CP_SET_ADC_ENABLE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_SET_ADC_ENABLE, sc8547a_cp_adc_enable);
 		break;
+	case OPLUS_IC_FUNC_CP_WATCHDOG_RESET:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_WATCHDOG_RESET, sc8547a_cp_watchdog_reset);
+		break;
 	case OPLUS_IC_FUNC_CP_SET_UCP_DISABLE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_SET_UCP_DISABLE, sc8547a_cp_set_ucp_disable);
+		break;
+	case OPLUS_IC_FUNC_CP_SET_SSTIMEOUT_UCP_ENABLE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_SET_SSTIMEOUT_UCP_ENABLE,
+			sc8547a_cp_set_sstimeout_ucp_enable);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -2491,6 +2644,62 @@ static void *sc8547a_cp_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg
 	}
 
 	return func;
+}
+
+static void sc8547a_ic_offline_work(struct work_struct *work)
+{
+	struct sc8547a_device *chip =
+		container_of(work, struct sc8547a_device, ic_offline_work);
+
+	if (!chip->work_start)
+		return;
+	sc8547a_cp_set_work_start(chip->cp_ic, false);
+	sc8547a_cp_enable(chip->cp_ic, false);
+}
+
+static int sc8547a_disable_vote_callback(struct votable *votable, void *data,
+					 int disable, const char *client, bool step)
+{
+	struct sc8547a_device *chip = data;
+	bool online;
+
+	if (disable < 0)
+		online = true;
+	else
+		online = !disable;
+	chg_info("[%s]%s set sc8547a online to %s\n", votable_name(votable),
+		 client, online ? "true" : "false");
+
+	if (chip->cp_ic ==NULL)
+		return -ENODEV;
+	if (chip->cp_ic->online == online)
+		return 0;
+
+	chip->cp_ic->online = online;
+	if (online) {
+		oplus_chg_ic_virq_trigger(chip->cp_ic, OPLUS_IC_VIRQ_ONLINE);
+		/*
+		* The first online operation during the startup phase
+		* does not require reporting of exceptions
+		*/
+		if (likely(chip->boot_online)) {
+			oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+						   CP_ERR_ONLINE_CHANGE,
+						   "online");
+			oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+		} else {
+			chip->boot_online = true;
+		}
+	} else {
+		oplus_chg_ic_virq_trigger(chip->cp_ic, OPLUS_IC_VIRQ_OFFLINE);
+		schedule_work(&chip->ic_offline_work);
+		oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+					   CP_ERR_ONLINE_CHANGE,
+					   "offline");
+		oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+	}
+
+	return 0;
 }
 
 struct oplus_chg_ic_virq sc8547a_cp_virq_table[] = {
@@ -2628,6 +2837,7 @@ static int sc8547a_init_imp_node(struct sc8547a_device *chip, struct device_node
 	return 0;
 }
 
+#define CP_IC_VOTEABLE_NAME_MAX	128
 static int sc8547a_ic_register(struct sc8547a_device *chip)
 {
 	enum oplus_chg_ic_type ic_type;
@@ -2635,6 +2845,7 @@ static int sc8547a_ic_register(struct sc8547a_device *chip)
 	struct device_node *child;
 	struct oplus_chg_ic_dev *ic_dev = NULL;
 	struct oplus_chg_ic_cfg ic_cfg;
+	char votable_name[CP_IC_VOTEABLE_NAME_MAX] = { 0 };
 	int rc;
 
 	for_each_child_of_node(chip->dev->of_node, child) {
@@ -2657,6 +2868,19 @@ static int sc8547a_ic_register(struct sc8547a_device *chip)
 			ic_cfg.get_func = sc8547a_cp_get_func;
 			ic_cfg.virq_data = sc8547a_cp_virq_table;
 			ic_cfg.virq_num = ARRAY_SIZE(sc8547a_cp_virq_table);
+			if (chip->disable_votable != NULL)
+				break;
+
+			snprintf(votable_name, CP_IC_VOTEABLE_NAME_MAX - 1,
+				 "SC8547A_DISABLE:%d", ic_index);
+			chip->disable_votable = create_votable(votable_name,
+				VOTE_SET_ANY, sc8547a_disable_vote_callback, chip);
+			if (IS_ERR(chip->disable_votable)) {
+				rc = PTR_ERR(chip->disable_votable);
+				chg_err("creat disable_votable error, rc=%d\n", rc);
+				chip->disable_votable = NULL;
+				return rc;
+			}
 			break;
 		default:
 			chg_err("not support ic_type(=%d)\n", ic_type);
@@ -2701,6 +2925,16 @@ static int sc8547a_parse_dt(struct sc8547a_device *chip)
 		chip->ocp_reg = 0x8;
 	chg_err("ocp_reg=0x%2x\n", chip->ocp_reg);
 
+	rc = of_property_read_u8(node, "vbus_ovp_reg", &chip->vbus_ovp_reg);
+	if (rc)
+		chip->vbus_ovp_reg = 0x50; /* VBUS_OVP 10V */
+	chg_err("vbus_ovp_reg=0x%02x\n", chip->vbus_ovp_reg);
+
+	rc = of_property_read_u8(node, "vooc_vbus_ovp_reg", &chip->vooc_vbus_ovp_reg);
+	if (rc)
+		chip->vooc_vbus_ovp_reg = 0x50; /* VBUS_OVP 10V */
+	chg_err("vooc_vbus_ovp_reg=0x%02x\n", chip->vooc_vbus_ovp_reg);
+
 	return 0;
 }
 
@@ -2738,6 +2972,8 @@ static int sc8547a_driver_probe(struct i2c_client *client,
 	mutex_init(&chip->chip_lock);
 	i2c_set_clientdata(client, voocphy);
 	INIT_WORK(&chip->ufcs_regdump_work, sc8547a_ufcs_regdump_work);
+	INIT_WORK(&chip->cp_regdump_work, sc8547a_cp_regdump_work);
+	INIT_WORK(&chip->ic_offline_work, sc8547a_ic_offline_work);
 
 	rc = sc8547a_parse_dt(chip);
 	if (rc < 0)
@@ -2805,6 +3041,7 @@ skip_ufcs_reg:
 
 	chip->ufcs_enable = false;
 	chip->voocphy_enable = false;
+	vote(chip->disable_votable, DEF_VOTER, false, 0, false);
 
 	sc8547a_cp_init(chip->cp_ic);
 	oplus_mms_wait_topic("error", sc8547a_subscribe_error_topic, chip);
@@ -2814,6 +3051,7 @@ skip_ufcs_reg:
 	return 0;
 
 cp_reg_err:
+	destroy_votable(chip->disable_votable);
 	if (chip->input_imp_node != NULL)
 		oplus_imp_node_unregister(chip->dev, chip->input_imp_node);
 	if (chip->output_imp_node != NULL)

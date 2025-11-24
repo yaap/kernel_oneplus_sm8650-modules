@@ -8,7 +8,7 @@
 #include <linux/kconfig.h>
 
 #if IS_ENABLED(CONFIG_OPLUS_SM8350_CHARGER) || IS_ENABLED(CONFIG_OPLUS_SM8450_CHARGER)
-#if IS_ENABLED(CONFIG_OPLUS_ADSP_CHARGER)
+#if IS_ENABLED(CONFIG_OPLUS_ADSP_CHARGER) || IS_ENABLED(CONFIG_OPLUS_ADSP_SM8450_CHARGER)
 #define USE_ADSP
 #endif
 #endif
@@ -46,18 +46,29 @@
 #define chr_get_debug_level chr_get_debug_level_v1
 #define mtk_chg_enable_vbus_ovp mtk_chg_enable_vbus_ovp_v1
 #define mt_power_supply_type_check mt_power_supply_type_check_v1
+#if !IS_ENABLED(CONFIG_OPLUS_MT6789_CHARGER) && !IS_ENABLED(CONFIG_OPLUS_MT6835_CHARGER)
 #define mt_usb_connect mt_usb_connect_v1
 #define mt_usb_disconnect mt_usb_disconnect_v1
+#endif
 #define get_rtc_spare_oplus_fg_value get_rtc_spare_oplus_fg_value_v1
 #define set_rtc_spare_oplus_fg_value set_rtc_spare_oplus_fg_value_v1
 #define is_meta_mode is_meta_mode_v1
 #define oplus_tchg_01c_precision oplus_tchg_01c_precision_v1
 #define oplus_force_get_subboard_temp oplus_force_get_subboard_temp_v1
 #define oplus_get_hmac oplus_get_hmac_v1
+#if IS_ENABLED(CONFIG_OPLUS_MT6789_CHARGER) || IS_ENABLED(CONFIG_OPLUS_MT6835_CHARGER)
+#define oplus_chg_check_ui_soc_is_ready oplus_chg_check_ui_soc_is_ready_v1
+#define set_chr_enable_otg set_chr_enable_otg_v1
+#define oplus_chg_set_camera_on oplus_chg_set_camera_on_v1
+#endif
 
 #endif /* CONFIG_OPLUS_CHARGER_MTK && CONFIG_OPLUS_CHG_V2 */
 
 #endif /* CONFIG_OPLUS_CHG & CONFIG_OPLUS_CHG_V2 */
+
+#if IS_ENABLED(CONFIG_OPLUS_SM6115R_CHARGER)
+#define oplus_chg_set_camera_on oplus_chg_set_camera_on_v1
+#endif
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_FAULT_INJECT_CHG)
 #define oplus_gauge_get_batt_soc oplus_gauge_get_batt_soc_v1

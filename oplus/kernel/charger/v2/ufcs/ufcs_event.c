@@ -10,6 +10,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/errno.h>
+#include <linux/spinlock.h>
 
 #include "ufcs_core.h"
 #include "ufcs_event.h"
@@ -666,6 +667,8 @@ recv:
 		ufcs_err("msg buf size is 0\n");
 		goto done;
 	}
+	if (ufcs->ops->retrieve_flags)
+		ufcs->ops->retrieve_flags(ufcs);
 
 	if (ufcs_log_level >= LOG_LEVEL_DEBUG)
 		print_hex_dump(KERN_INFO, "UFCS[RECV BUF]: ", DUMP_PREFIX_OFFSET, 32, 1, buf, rc, false);
@@ -854,6 +857,7 @@ static int ufcs_process_vendor_msg_event(struct ufcs_class *class, struct ufcs_e
 int ufcs_push_event(struct ufcs_class *class, struct ufcs_event *event)
 {
 	bool event_pending = false;
+	unsigned long flags;
 
 	if (class == NULL) {
 		ufcs_err("class is NULL\n");
@@ -865,11 +869,11 @@ int ufcs_push_event(struct ufcs_class *class, struct ufcs_event *event)
 	}
 
 	ufcs_debug("push %s event\n", ufcs_get_event_name(event));
-	spin_lock(&class->event.event_list_lock);
+	spin_lock_irqsave(&class->event.event_list_lock, flags);
 	if (!list_empty(&class->event.event_list))
 		event_pending = true;
 	list_add_tail(&event->list, &class->event.event_list);
-	spin_unlock(&class->event.event_list_lock);
+	spin_unlock_irqrestore(&class->event.event_list_lock, flags);
 	if (event_pending)
 		ufcs_err("event pending\n");
 	complete(&class->event.ack);

@@ -2817,7 +2817,7 @@ static const struct file_operations charge_monitor_test_fops = {
 static const struct proc_ops charge_monitor_test_fops = {
 	.proc_write = charge_monitor_test_write,
 	.proc_read = charge_monitor_test_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 

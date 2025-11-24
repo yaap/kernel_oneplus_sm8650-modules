@@ -688,10 +688,12 @@ static int oplus_ufcs_protocol_rcv_msg(struct oplus_ufcs_protocol *chip)
 
 	if ((chip->state != STATE_IDLE) && (chip->state != STATE_WAIT_MSG)) {
 		chip->ack_received = 1;
-		if (rf->data_rdy)
+		if (rf->data_rdy) {
+			rf->ack_int_read_delay = true;
 			ufcs_err("ack interrupt read delayed! need to read msg!\n");
-		else
+		} else {
 			return 0;
+		}
 	}
 	chip->ops->ufcs_ic_rcv_msg(chip);
 
@@ -884,11 +886,13 @@ static int oplus_ufcs_protocol_wait_for_msg(callback func, void *buffer, int msg
 	rf = &chip->flag.rcv_error;
 	oplus_ufcs_protocol_set_state(STATE_WAIT_MSG);
 
-	if ((rf->sent_cmp) && (rf->data_rdy)) {
+	if (((rf->sent_cmp) && (rf->data_rdy)) || (rf->ack_int_read_delay)) {
+		rf->ack_int_read_delay = false;
 		oplus_ufcs_protocol_clr_flag_reg();
 		goto msg_parse;
 	}
 
+	rf->ack_int_read_delay = false;
 	reinit_completion(&chip->rcv_cmp);
 	rc = wait_for_completion_timeout(&chip->rcv_cmp, msecs_to_jiffies(msg_time));
 	if (!rc) {
@@ -2638,7 +2642,7 @@ static void oplus_ufcs_protocol_track_i2c_err_load_trigger_work(struct work_stru
 	if (!chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 
 	kfree(chip->i2c_err_load_trigger);
 	chip->i2c_err_load_trigger = NULL;
@@ -2743,7 +2747,7 @@ static void oplus_ufcs_protocol_track_cp_err_load_trigger_work(struct work_struc
 	if (!chip->cp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 
 	kfree(chip->cp_err_load_trigger);
 	chip->cp_err_load_trigger = NULL;
@@ -3003,7 +3007,12 @@ static int oplus_ufcs_protocol_driver_probe(struct platform_device *pdev)
 	}
 	chip_ufcs->dev = &pdev->dev;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	const char *pdev_name = dev_name(&pdev->dev);
+	chip_ic->wq = kthread_create_worker(0, "%s", pdev_name);
+#else
 	chip_ic->wq = kthread_create_worker(0, dev_name(&pdev->dev));
+#endif
 	if (IS_ERR(chip_ic->wq)) {
 		ufcs_err("create kthread worker failed!\n");
 		rc = -ENOMEM;
@@ -3033,17 +3042,26 @@ chip_ufcs_err:
 
 	return rc;
 }
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_ufcs_protocol_driver_remove(struct platform_device *pdev)
+#else
 static int oplus_ufcs_protocol_driver_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_ufcs_protocol *chip = platform_get_drvdata(pdev);
 
 	if (chip == NULL)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+		return;
+#else
 		return -ENODEV;
+#endif
 
 	kthread_destroy_worker(chip->wq);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_ufcs_protocol_match[] = {

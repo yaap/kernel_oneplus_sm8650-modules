@@ -11,7 +11,9 @@
 obj-y += NT36672C_noflash/
 obj-$(CONFIG_TOUCHPANEL_NOVA_NT36523_NOFLASH) += NT36523_noflash/
 obj-y += NT36532_noflash/
+obj-$(CONFIG_TOUCHPANEL_NOVA_NT36536_NOFLASH) += NT36536_noflash/
 obj-y += NT36528_noflash/
+obj-$(CONFIG_TOUCHPANEL_NOVA_NT36532_FLASH) += NT36532C/
 
 oplus_bsp_tp_novatek_common-y += novatek_common.o
 obj-m += oplus_bsp_tp_novatek_common.o

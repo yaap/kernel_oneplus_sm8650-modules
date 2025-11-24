@@ -29,7 +29,7 @@
 #include <oplus_chg_ic.h>
 
 /*Add for audio switch */
-#include "oplus_chg_audio_switch.c"
+#include "oplus_chg_audio_switch.h"
 
 #if IS_ENABLED(CONFIG_OPLUS_AUDIO_SWITCH_GLINK)
 int register_chg_glink_notifier(struct notifier_block *nb)
@@ -553,12 +553,21 @@ hw_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_dpdm_switch_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_dpdm_switch_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_dpdm_switch_ic *chip = platform_get_drvdata(pdev);
 
-	if(chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_dpdm_switch_exit(chip->ic_dev);
@@ -569,7 +578,9 @@ static int oplus_virtual_dpdm_switch_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_dpdm_switch_match[] = {

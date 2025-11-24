@@ -179,6 +179,21 @@ int oplus_chglib_gauge_vbatt(struct device *dev)
 	return data.intval;
 }
 
+int oplus_chglib_fcl_vbatt(struct device *dev)
+{
+	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
+	union mms_msg_data data = {0};
+
+	if (is_gauge_topic_available(chip))
+		oplus_mms_get_item_data(chip->gauge_topic,
+					GAUGE_ITEM_VOL_FCL, &data, true);
+	else
+		chg_err("gauge topic is NULL\n");
+
+	return data.intval;
+}
+
+
 int oplus_chglib_gauge_pre_vbatt(struct device *dev)
 {
 	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
@@ -377,9 +392,14 @@ bool oplus_chglib_is_switch_temp_range(void)
 	return enabled;
 }
 
-bool oplus_chglib_get_flash_led_status(void)
+bool oplus_chglib_get_flash_led_status(struct device *dev)
 {
-	return false;
+	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
+
+	if (chip == NULL)
+		return false;
+	else
+		return chip->flash_mode;
 }
 
 int oplus_chglib_get_battery_btb_temp_cal(void)
@@ -466,6 +486,94 @@ int oplus_chglib_push_break_code(struct device *dev, int code)
 	}
 
 	return rc;
+}
+
+int oplus_chglib_push_lcf_alarm_status(struct device *dev, int status)
+{
+	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
+	struct mms_msg *msg;
+	int rc;
+
+	if (!chip->batt_bal_topic)
+		return -ENODEV;
+
+	msg = oplus_mms_alloc_int_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM, BATT_BAL_ITEM_LCF_ALARM, status);
+	if (msg == NULL) {
+		chg_err("alloc lcf alarm status msg error\n");
+		return -ENOMEM;
+	}
+
+	rc = oplus_mms_publish_msg_sync(chip->batt_bal_topic, msg);
+	if (rc < 0) {
+		chg_err("publish lcf alarm status msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+
+	return rc;
+}
+
+int oplus_chglib_upload_fcl_info(struct device *dev, int batt_volt, int batt_curr, int batt_temp)
+{
+	int rc;
+	struct mms_msg *msg;
+	struct oplus_mms *err_topic = oplus_mms_get_by_name("error");
+
+	if (!err_topic)
+		return -ENODEV;
+
+	if (batt_volt)
+		msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM,
+			MSG_PRIO_MEDIUM, ERR_ITEM_FCL_INFO, "one_time_full==%d,%d,%d",
+			batt_volt, batt_curr, batt_temp);
+	else
+		msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM,
+			MSG_PRIO_MEDIUM, ERR_ITEM_FCL_INFO, "n_time_full=%d,%d,%d",
+			batt_volt, batt_curr, batt_temp);
+	if (msg == NULL) {
+		chg_err("alloc device id msg error\n");
+		return -ENOMEM;
+	}
+
+	rc = oplus_mms_publish_msg_sync(err_topic, msg);
+	if (rc < 0) {
+		chg_err("publish pcl info msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+
+	return rc;
+}
+
+bool oplus_chglib_check_dchg(struct device *dev, int adapter_type)
+{
+	bool dchg = false;
+	int connect_type;
+	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
+
+	if (is_gauge_topic_available(chip)) {
+		connect_type = is_support_parallel_battery(chip->gauge_topic);
+		switch (connect_type) {
+		case DEFAULT_CONNECT_TYPE:
+			if (adapter_type == ADAPTER_SVOOC && oplus_gauge_get_batt_num() == 1)
+				dchg = false;
+			else
+				dchg = true;
+			break;
+		case PARALLEL_CONNECT_TYPE:
+			if (adapter_type == ADAPTER_SVOOC)
+				dchg = false;
+			else
+				dchg = true;
+			break;
+		case SERIAL_CONNECT_TYPE:
+			dchg = true;
+			break;
+		default:
+			dchg = true;
+			break;
+		}
+	}
+
+	return dchg;
 }
 
 void oplus_chglib_creat_ic_err(struct device *dev, int type)
@@ -783,6 +891,11 @@ static void oplus_chglib_common_subs_callback(struct mms_subscribe *subs,
 				chip->eis_status = data.intval;
 			else
 				chip->eis_status = EIS_STATUS_DISABLE;
+			break;
+		case COMM_ITEM_FLASH_MODE:
+			oplus_mms_get_item_data(chip->common_topic, id, &data, false);
+			chip->flash_mode = data.intval;
+			chg_info("set flash mode to %s\n", chip->flash_mode ? "true" : "false");
 			break;
 		default:
 			break;

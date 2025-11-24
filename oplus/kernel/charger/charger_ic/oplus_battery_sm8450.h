@@ -577,9 +577,9 @@ struct battery_chg_dev {
 	struct oem_read_buffer_resp_msg  bcc_read_buffer_dump;
 	int otg_scheme;
 	bool pmic_is_pm7250b;
+	bool common_charge_icl_support;
 	int ffc_full_delta_iterm_ma;
 	int ffc_full_delta_iterm_ma_low;
-	bool common_charge_icl_support;
 	int otg_boost_src;
 	int otg_curr_limit_max;
 	int otg_curr_limit_high;

@@ -24,6 +24,7 @@ typedef enum {
 	EXCEP_GRIP,
 	EXCEP_IRQ,
 	EXCEP_BUS_READY,
+	EXCEP_BASELINE_ERR,
 } tp_excep_type;
 
 #define FP_EVENT_COST_TIME_OVER_10MS 10000

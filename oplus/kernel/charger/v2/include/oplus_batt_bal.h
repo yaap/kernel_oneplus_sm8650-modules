@@ -15,6 +15,14 @@ enum batt_bal_topic_item {
 	BATT_BAL_ITEM_CURR_LIMIT,
 	BATT_BAL_ITEM_ABNORMAL_STATE,
 	BATT_BAL_ITEM_STATUS,
+	BATT_BAL_ITEM_LCF_ALARM,
+};
+
+enum batt_bal_alarm_status {
+	BAL_ALARM_NONE,
+	BAL_ALARM_B2,
+	BAL_ALARM_B1,
+	BAL_ALARM_B1_AND_B2,
 };
 
 enum batt_bal_flow_dir {
@@ -29,6 +37,12 @@ enum batt_bal_abnormal_state {
 	BATT_BAL_VOL_ABNORMAL,
 	BATT_BAL_TEMP_ABNORMAL,
 	BATT_BAL_IC_ABNORMAL,
+};
+
+enum batt_bal_err_type {
+	VOL_GAP_BIG_IN_DISCHG = 1,
+	BAL_CURR_ACC_ERR,
+	VOL_GAP_WHEN_FULL,
 };
 
 int oplus_batt_bal_pmos_disable(struct oplus_mms *topic);

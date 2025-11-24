@@ -475,11 +475,15 @@ static int oplus_chg_track_upload_usbtemp_info(
 	int last_usb_temp_l, int last_usb_temp_r, int batt_current)
 {
 	int index = 0;
-	char power_info[OPLUS_CHG_TRACK_CURX_INFO_LEN] = {0};
+	char *power_info = (char*)kmalloc(OPLUS_CHG_TRACK_CURX_INFO_LEN, GFP_KERNEL);
+	if (power_info == NULL) {
+		chg_err("%s: power_info kmalloc fail\n", __func__);
+		return -ENOMEM;
+	}
 
 	memset(chip->usbtemp_load_trigger.crux_info,
 		0, sizeof(chip->usbtemp_load_trigger.crux_info));
-	oplus_chg_track_obtain_power_info(power_info, sizeof(power_info));
+	oplus_chg_track_obtain_power_info(power_info, OPLUS_CHG_TRACK_CURX_INFO_LEN);
 	if (condition == USBTEMP_TRIGGER_CONDITION_1) {
 		index += snprintf(&(chip->usbtemp_load_trigger.crux_info[index]),
 				OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
@@ -528,6 +532,7 @@ static int oplus_chg_track_upload_usbtemp_info(
 
 	index += snprintf(&(chip->usbtemp_load_trigger.crux_info[index]),
 			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", power_info);
+	kfree(power_info);
 
 	schedule_delayed_work(&chip->usbtemp_load_trigger_work, 0);
 	pr_info("%s\n", chip->usbtemp_load_trigger.crux_info);

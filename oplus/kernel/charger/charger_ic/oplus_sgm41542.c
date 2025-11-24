@@ -87,8 +87,6 @@ struct chip_sgm41542 {
 	int			reg_access;
 	int			before_suspend_icl;
 	int			before_unsuspend_icl;
-	int			charger_current_pre;
-	int			sw_aicl_count;
 	bool                    batfet_reset_disable;
 	bool			use_voocphy;
 	struct delayed_work	init_work;
@@ -103,6 +101,8 @@ struct chip_sgm41542 {
 	/*fix chgtype identify error*/
 	struct wakeup_source *keep_resume_ws;
 	wait_queue_head_t wait;
+	int			charger_current_pre;
+	int			sw_aicl_count;
 };
 
 static struct chip_sgm41542 *charger_ic = NULL;
@@ -2290,6 +2290,7 @@ static int sgm41542_wait_bc12_complete(void)
 
 	return vbus_stat;
 }
+
 #define OPLUS_BC12_RETRY_CNT 	1
 static void sgm41542_get_bc12(struct chip_sgm41542 *chip)
 {
@@ -2470,7 +2471,7 @@ static irqreturn_t sgm41542_irq_handler(int irq, void *data)
 	oplus_chg_track_check_wired_charging_break(curr_pg);
 	if (oplus_vooc_get_fastchg_started() == true
 			&& oplus_vooc_get_adapter_update_status() != 1) {
-		chg_err("oplus_vooc_get_fastchg_started = true!\n", __func__);
+		chg_err("oplus_vooc_get_fastchg_started = true!\n");
 		oplus_keep_resume_wakelock(chip, false);
 		return IRQ_HANDLED;
 	} else {
@@ -3039,6 +3040,7 @@ struct oplus_chg_operations  oplus_chg_sgm41542_ops = {
 	.check_cc_mode = sgm41542_oplus_check_cc_mode,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static enum power_supply_usb_type sgm41542_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_UNKNOWN,
 	POWER_SUPPLY_USB_TYPE_SDP,
@@ -3049,6 +3051,7 @@ static enum power_supply_usb_type sgm41542_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
 	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
 };
+#endif
 
 static enum power_supply_property sgm41542_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -3111,8 +3114,19 @@ static char *sgm41542_charger_supplied_to[] = {
 
 static const struct power_supply_desc sgm41542_charger_desc = {
 	.type			= POWER_SUPPLY_TYPE_USB,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.usb_types      = sgm41542_charger_usb_types,
 	.num_usb_types  = ARRAY_SIZE(sgm41542_charger_usb_types),
+#else
+	.usb_types      = BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN) |
+				  BIT(POWER_SUPPLY_USB_TYPE_SDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_DCP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_CDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_C) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD_DRP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID),
+#endif
 	.properties 	= sgm41542_charger_properties,
 	.num_properties 	= ARRAY_SIZE(sgm41542_charger_properties),
 	.get_property		= sgm41542_charger_get_property,
@@ -3215,8 +3229,12 @@ static bool oplus_match_sgm41515_cmdline_str(void)
 
 #define INIT_WORK_NORMAL_DELAY 8000
 #define INIT_WORK_OTHER_DELAY 1000
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static int sgm41542_charger_probe(struct i2c_client * client)
+#else
 static int sgm41542_charger_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
+#endif
 {
 	struct chip_sgm41542 *chip = NULL;
 	int ret = 0;
@@ -3355,7 +3373,11 @@ err_parse_dt:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void sgm41542_charger_remove(struct i2c_client * client)
+#else
 static int sgm41542_charger_remove(struct i2c_client *client)
+#endif
 {
 	struct chip_sgm41542 *chip = i2c_get_clientdata(client);
 
@@ -3363,7 +3385,9 @@ static int sgm41542_charger_remove(struct i2c_client *client)
 	mutex_destroy(&chip->i2c_lock);
 	cancel_delayed_work_sync(&chip->qc_detect_work);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))

@@ -32,7 +32,7 @@
 #define SEND_FASTCHG_ONGOING_NOTIFY_INTERVAL 2000 /* ms */
 #define BTBOVER_5V1A_CHARGE_STD	0x01
 #define VOOC_INIT_WAIT_TIME_MS 100
-#define VOOC_FAST_NOTIFY_ABSENT_DELAY_TIME_MS	150
+#define VOOC_FAST_NOTIFY_ABSENT_DELAY_TIME_MS	170
 
 struct oplus_voocphy_manager *g_voocphy_chip;
 static struct completion vooc_init_check_ack;

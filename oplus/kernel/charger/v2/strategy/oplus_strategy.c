@@ -237,6 +237,23 @@ int oplus_chg_strategy_get_metadata(struct oplus_chg_strategy *strategy, void *r
 	return strategy->desc->strategy_get_metadata(strategy, ret);
 }
 
+int oplus_chg_strategy_get_custom_data(struct oplus_chg_strategy *strategy, const char *type, void *ret)
+{
+	if (strategy == NULL) {
+		chg_err("strategy is NULL\n");
+		return -EINVAL;
+	}
+	if (ret == NULL) {
+		chg_err("ret is NULL\n");
+		return -EINVAL;
+	}
+
+	if (!strategy->desc || !strategy->desc->strategy_get_custom_data)
+		return -ENOTSUPP;
+
+	return strategy->desc->strategy_get_custom_data(strategy, type, ret);
+}
+
 int oplus_chg_strategy_register(struct oplus_chg_strategy_desc *desc)
 {
 	struct oplus_chg_strategy_desc *desc_temp;
@@ -311,6 +328,9 @@ extern int lcf_strategy_register(void);
 extern int puc2_strategy_register(void);
 extern int inr_strategy_register(void);
 extern int ddrc_strategy_register(void);
+extern int ddrc_v2_strategy_register(void);
+extern int bs_strategy_register(void);
+extern int pcc_strategy_register(void);
 
 static __init int oplus_chg_strategy_module_init(void)
 {
@@ -320,6 +340,9 @@ static __init int oplus_chg_strategy_module_init(void)
 	puc2_strategy_register();
 	inr_strategy_register();
 	ddrc_strategy_register();
+	ddrc_v2_strategy_register();
+	bs_strategy_register();
+	pcc_strategy_register();
 
 	return 0;
 }

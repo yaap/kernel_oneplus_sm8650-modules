@@ -76,6 +76,28 @@ typedef enum
     ONE_WIRE_BUS_PACKET_USER_GENERAL_ACK_CMD     = 0x3B, //用户通用指令应答
 }em_one_wire_bus_package_main_cmd_t;
 
+typedef enum
+{
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_SLEEP_CMD      = 0x02, //睡眠/唤醒通知
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_KB_ENABLE_CMD   = 0x03, //键盘禁用状态
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_NFC_ENABLE_CMD   = 0x06, //NFC开关指令
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_NFC_DATAS_CMD   = 0x07, //NFC数据
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_BATTERY_LEVEL_CMD   = 0x08, //电池电压及电量查询
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_CHARGER_LEVEL_CMD   = 0x09, //充电电压及电流查询
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_SN_CMD   = 0x0B, //键盘SN
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_TP_STATUS_CMD   = 0x0C, //TP禁用状态上报
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_BATTERY_STATUS_CMD   = 0x0E, //电池电量及状态上报
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_TP_DISABLE_CMD   = 0x11, //TP禁用状态下发
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_TP_OTA_STATUS_CMD   = 0x16, //TP升级状态上报
+    ONE_WIRE_BUS_PACKET_USER_GENERAL_TP_OTA_DFU_CMD   = 0x18, //TP升级搬运
+}em_one_wire_bus_package_general_cmd_sub_cmd_t;
+
+typedef enum
+{
+    ONE_WIRE_BUS_PACKET_USER_PASSTHROUGH_KBVER_CMD  = 0x08, //键盘版本号
+    ONE_WIRE_BUS_PACKET_USER_PASSTHROUGH_DFU_OTA_CMD    = 0x0a, //键盘版本号
+}em_one_wire_bus_package_passthrough_cmd_sub_cmd_t;
+
 #endif
 
 /* [] END OF FILE */

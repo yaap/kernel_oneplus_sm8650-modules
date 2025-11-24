@@ -104,6 +104,7 @@ void check_womid_bit(long w_diff_ns);
 
 #define EXPECTED_LENGTH	65
 
+#define MAXIM_BATT_SN_LEN 32
 #ifndef ds28e30
 
 /* Command Functions (no high level verification) */
@@ -127,6 +128,10 @@ int verify_ecdsa_certificate_device(u8 *sig_r, u8 *sig_s, u8 *pub_key_x, u8 *pub
 				   u8 *slave_romid, u8 *slave_manid, u8 *system_level_pub_key_x,
 				   u8 *system_level_pub_key_y);
 int authenticate_ds28e30(unsigned char sn_num[5][12], int batt_info_num, int page_number);
+bool set_historic_soh_data_ds28e30(const int *set_soh_data);
+bool get_historic_soh_data_ds28e30(int *get_soh_data, int len);
+bool get_sn_ds28e30(char *get_sn);
+int get_batt_sn_ds28e30(char *batt_sn, int *sn_len);
 int ds28e30_write_memory_page_with_ecw(int pg, u8 *new_data);
 
 /* Helper functions */

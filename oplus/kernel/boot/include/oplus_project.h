@@ -40,13 +40,27 @@ unsigned int get_prj(void);
 unsigned int is_project(int project);
 unsigned int get_Oplus_Boot_Mode(void);
 unsigned int get_PCB_Version(void);
+unsigned int get_RF_ID(void);
 unsigned int get_audio(void);
 unsigned int get_dtsiNo(void);
 unsigned char get_oplus_feature(OplusBoardFeatureMask feature_num);
+unsigned char get_brand_name(void);
 
 //cdt interface for P->R
 int32_t get_Modem_Version(void);
 int32_t get_Operator_Version(void);
+
+#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
+int get_midplat_version(void);
+int get_midplat_feature_info(OPLUS_MID_PLAT_FEATURE_T feature);
+unsigned int get_GKI_version(void);
+unsigned int get_kernel_major_version(void);
+unsigned int get_kernel_patch_version(void);
+unsigned int get_kernel_sub_version(void);
+unsigned int get_kernel_version_code(void);
+int get_vnd_platform(char *buf, int len);
+int get_vnd_chipset_brand(char *buf, int len);
+#endif
 
 //eng cdt data for P or Q or R
 bool is_confidential(void);

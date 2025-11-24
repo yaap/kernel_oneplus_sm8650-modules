@@ -109,7 +109,7 @@ int touch_pen_press_smooth(u16 press_val)
             if(cur_press_val > smooth_step) {
                 cur_press_val -= smooth_step;
             }
-            if (press_smooth_last_val < cur_press_val) {
+            if ((press_smooth_last_val != 0) && (press_smooth_last_val < cur_press_val)) {
                 cur_press_val = press_smooth_last_val;
             }
         } else {

@@ -570,6 +570,12 @@ static int sc2201_ufcs_enable(struct ufcs_dev *ufcs)
 	sc2201_write_bit_mask(chip, SC2201_ADDR_UFCS_RXTX_HARDRESET_TIME, SC2201_FLAG_RXTX_HARDRESET_TIME_MASK,
 		(SC2201_FLAG_RXTX_HARDRESET_TIME_VALUE << SC2201_FLAG_RXTX_HARDRESET_TIME_SHIFT));
 
+	/* Add for the issue of UFCS exit communication error: end one frame by frame length, dp falling edge is detected. */
+	sc2201_write_bit_mask(chip, SC2201_ADDR_UFCS_OPTION1, SC2201_FLAG_EN_LENGTH_END_MASK,
+		(SC2201_FLAG_EN_LENGTH_END_VALUE << SC2201_FLAG_EN_LENGTH_END_SHIFT));
+	sc2201_write_bit_mask(chip, SC2201_ADDR_UFCS_OPTION4, SC2201_FLAG_DIS_LENGTH_END_DLY_MASK,
+		(SC2201_FLAG_DIS_LENGTH_END_DLY_VALUE << SC2201_FLAG_DIS_LENGTH_END_DLY_SHIFT));
+
 	ufcs_clr_error_flag(chip->ufcs);
 
 	return 0;

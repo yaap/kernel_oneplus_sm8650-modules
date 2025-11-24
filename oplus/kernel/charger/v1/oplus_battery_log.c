@@ -205,19 +205,29 @@ static int oplus_battery_log_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_battery_log_remove(struct platform_device *pdev)
+#else
 static int oplus_battery_log_remove(struct platform_device *pdev)
+#endif
 {
 	struct battery_log_dev *l_dev = g_battery_log_dev;
 
 	if (!l_dev)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+		return;
+#else
 		return -ENOMEM;
+#endif
 
 	mutex_destroy(&l_dev->log_lock);
 	mutex_destroy(&l_dev->devid_lock);
 	devm_kfree(&pdev->dev, l_dev);
 	g_battery_log_dev = NULL;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_battery_log_match[] = {

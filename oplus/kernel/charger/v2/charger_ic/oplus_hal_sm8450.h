@@ -91,6 +91,7 @@
 #define BC_UFCS_HANDSHAKE_OK		0X71
 #define BC_UFCS_DISABLE_MOS		0X72
 #define BC_UFCS_PDO_READY		0X74
+#define PD_SOURCECAP_DONE		0X79
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -414,6 +415,19 @@ enum battery_property_id {
 	BATT_SET_USED_FLAG,
 	BATT_DEEP_DISCHG_LAST_CC,
 	BATT_GET_UFCS_RUNNING_STATE,
+	BATT_VOLT_MIN,
+	BATT_SET_CHG_PATH,
+	BATT_GET_CHG_PATH_STATUS,
+	BATT_GET_CAR_C,
+	BATT_SET_CAR_C_CLEAR,
+	BATT_GET_VCT,
+	BATT_SET_VCT,
+	BATT_SET_BATT_FULL,
+	BATT_SET_CUV_STATE,
+	BATT_GET_CUV_STATE,
+	BATT_ITERM_CHECK_STAT,
+	BATT_ITERM_TIMEOUT,
+	BATT_SET_TRUE_FCC,
 #endif
 	BATT_PROP_MAX,
 };
@@ -491,6 +505,8 @@ enum usb_property_id {
 	USB_GET_SRC_INFO_L,
 	USB_GET_SRC_INFO_H,
 	USB_SET_GET_SRC,
+	USB_SET_AICL_VOL,
+	USB_GET_AICL_VOL,
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 	USB_PROP_MAX,
 };
@@ -573,6 +589,8 @@ enum usb_property_id {
 	USB_GET_SRC_INFO_L,
 	USB_GET_SRC_INFO_H,
 	USB_SET_GET_SRC,
+	USB_SET_AICL_VOL,
+	USB_GET_AICL_VOL,
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 	USB_PROP_MAX,
 };
@@ -794,6 +812,7 @@ struct battery_chg_dev {
 	struct oplus_chg_ic_dev		*gauge_ic;
 	struct oplus_chg_ic_dev		*cp_ic;
 	struct oplus_chg_ic_dev		*misc_ic;
+	struct oplus_chg_ic_dev		*pps_ic;
 	struct oplus_mms		*vooc_topic;
 	struct oplus_mms		*cpa_topic;
 	struct oplus_chg_ic_dev		*ufcs_ic;
@@ -801,6 +820,7 @@ struct battery_chg_dev {
 	struct oplus_mms		*common_topic;
 	struct oplus_mms		*pps_topic;
 	struct oplus_mms		*ufcs_topic;
+	struct oplus_mms		*err_topic;
 	struct votable			*chg_disable_votable;
 #endif
 	struct class			battery_class;
@@ -819,10 +839,12 @@ struct battery_chg_dev {
 	int				g_icl_ma;
 	int				rerun_max;
 	atomic_t			state;
+	int				pd_chg_volt;
 	struct work_struct		subsys_up_work;
 	struct work_struct		usb_type_work;
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	int ccdetect_irq;
+	struct delayed_work	publish_close_cp_item_work;
 	struct delayed_work	suspend_check_work;
 	struct delayed_work	adsp_voocphy_status_work;
 	struct delayed_work	otg_init_work;
@@ -839,6 +861,8 @@ struct battery_chg_dev {
 	struct delayed_work	unsuspend_usb_work;
 	struct delayed_work	oem_lcm_en_check_work;
 	struct delayed_work	ctrl_lcm_frequency;
+	struct delayed_work	sourcecap_done_work;
+	struct delayed_work	sourcecap_suspend_recovery_work;
 	u32			oem_misc_ctl_data;
 	bool			oem_usb_online;
 	bool			oem_lcm_check;
@@ -858,15 +882,17 @@ struct battery_chg_dev {
 	bool				ufcs_power_ready;
 	bool				ufcs_handshake_ok;
 	bool				ufcs_pdo_ready;
+	bool				subboard_temp_not_convert;
 	struct delayed_work 	hvdcp_disable_work;
 	struct delayed_work 	pd_only_check_work;
+	pd_msg_data			pdo[PPS_PDO_MAX];
 	bool					voocphy_err_check;
+	bool			usb_aicl_enhance;
 #endif
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	int vchg_trig_irq;
 	struct delayed_work vchg_trig_work;
 	struct delayed_work vbus_collapse_rerun_icl_work;
-	struct delayed_work ibus_collapse_rerun_aicl_work;
 	struct delayed_work wait_wired_charge_on;
 	struct delayed_work wait_wired_charge_off;
 	struct delayed_work mcu_en_init_work;
@@ -897,6 +923,9 @@ struct battery_chg_dev {
 	struct mutex    bcc_read_buffer_lock;
 	struct completion    bcc_read_ack;
 	struct oem_read_buffer_resp_msg  bcc_read_buffer_dump;
+	struct oem_read_buffer_resp_msg  pps_read_buffer_dump;
+	struct mutex	pps_read_buffer_lock;
+	struct completion	 pps_read_ack;
 	struct mutex	ufcs_read_buffer_lock;
 	struct completion	 ufcs_read_ack;
 	struct oplus_ap_read_ufcs_resp_msg ufcs_read_buffer_dump;

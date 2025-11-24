@@ -182,6 +182,9 @@ struct syna_auto_test_operations {
 	int (*test11)(struct seq_file *s, void *chip_data,
 		      struct auto_testdata *syna_testdata,
 		      struct test_item_info *p_test_item_info);
+	int (*test12)(struct seq_file *s, void *chip_data,
+		      struct auto_testdata *syna_testdata,
+		      struct test_item_info *p_test_item_info);
 	int (*syna_auto_test_enable_irq)(void *chip_data, bool enable);
 	int (*syna_auto_test_preoperation)(struct seq_file *s, void *chip_data,
 					   struct auto_testdata *syna_testdata,
@@ -223,6 +226,8 @@ int syna_hybrid_absnoise_test(struct seq_file *s, void *chip_data,
 				     struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info);
 
 int syna_hybrid_rawcap_test_ad(struct seq_file *s, void *chip_data,
+				   struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info);
+int syna_rst_test(struct seq_file *s, void *chip_data,
 				   struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info);
 
 int synaptics_auto_test(struct seq_file *s,  struct device *dev);

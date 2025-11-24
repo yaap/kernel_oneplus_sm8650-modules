@@ -35,7 +35,9 @@
 #include "../voocphy/oplus_voocphy.h"
 #include "../oplus_chg_track.h"
 #include <charger_class.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 #include <mtk_pd.h>
+#endif
 #define _BQ25890H_
 #include "oplus_bq2589x_reg.h"
 #include <linux/time.h>
@@ -336,13 +338,15 @@ int bq2589x_enable_enlim(struct bq2589x *bq);
 int oplus_bq2589x_set_aicr(int current_ma);
 int oplus_bq2589x_set_ichg(int cur);
 static void bq2589x_enter_hz_work_handler(struct work_struct *work);
-static oplus_bq2589x_get_charger_subtype(void);
+static int oplus_bq2589x_get_charger_subtype(void);
 static bool bq2589x_is_dcp(struct bq2589x *bq);
 static bool bq2589x_is_hvdcp(struct bq2589x *bq);
 
 static const struct charger_properties bq2589x_chg_props = {
 	.alias_name = "bq2589x",
 };
+
+extern bool is_usb_rdy(void);
 
 void oplus_for_cdp(void)
 {
@@ -1349,7 +1353,6 @@ static int bq2589x_cfg_dpdm2hiz_mode(struct bq2589x *bq)
 
 static void oplus_chg_awake_init(struct bq2589x *bq)
 {
-	bq->suspend_ws = NULL;
 	if (!bq) {
 		pr_err("[%s]bq is null\n", __func__);
 		return;
@@ -1379,7 +1382,6 @@ static void oplus_chg_wakelock(struct bq2589x *bq, bool awake)
 
 static void oplus_keep_resume_awake_init(struct bq2589x *bq)
 {
-	bq->keep_resume_ws = NULL;
 	if (!bq) {
 		pr_err("[%s]bq is null\n", __func__);
 		return;
@@ -2355,7 +2357,7 @@ static bool oplus_usbtemp_condition(void) {
 }
 void oplus_chg_choose_gauge_curve(int index_curve)
 {
-	static last_curve_index = -1;
+	static int last_curve_index = -1;
 	int target_index_curve = -1;
 
 	if (index_curve == CHARGER_SUBTYPE_QC
@@ -2469,9 +2471,6 @@ void oplus_bq2589x_set_mivr_by_battery_vol(void)
 		mV = BATT_VOL_4V4;
 	}
 
-	if(mV < BATT_VOL_4V4)
-		mV = BATT_VOL_4V4;
-
 	bq2589x_set_input_volt_limit(g_bq, mV);
 }
 
@@ -2519,7 +2518,7 @@ int oplus_bq2589x_set_aicr(int current_ma)
 				aicl_point_temp = aicl_point = 4500;
 		}
 	} else {
-		if (chip->batt_volt > BATT_VOL_4V1)
+		if (chip && chip->batt_volt > BATT_VOL_4V1)
 			aicl_point_temp = aicl_point = 4550;
 		else
 			aicl_point_temp = aicl_point = 4500;
@@ -2597,6 +2596,7 @@ int oplus_bq2589x_set_aicr(int current_ma)
 	aicl_point_temp = aicl_point;
 	bq2589x_set_input_current_limit(g_bq, usb_icl[i]);
 	msleep(90);
+	chg_vol = mt6357_get_vbus_voltage();
 	if (chg_vol < aicl_point_temp) {
 		i =  i - 2; /* 1.5 */
 		goto aicl_pre_step;
@@ -2971,7 +2971,8 @@ int oplus_bq2589x_charger_suspend(void)
 		g_oplus_chip->slave_charger_enable = false;
 		g_oplus_chip->sub_chg_ops->charger_suspend();
 	}
-	bq2589x_en_hiz_mode(g_bq, TRUE);
+	if (g_bq)
+		bq2589x_en_hiz_mode(g_bq, TRUE);
 	printk("%s\n", __func__);
 	return 0;
 }
@@ -3527,7 +3528,7 @@ void oplus_chgic_rerun_bc12(void)
 	enum power_supply_type type = POWER_SUPPLY_TYPE_UNKNOWN;
 
 	if (!g_bq) {
-		chg_err("%s :g_bq is null!\n");
+		chg_err("g_bq is null!\n");
 		return;
 	}
 
@@ -3781,6 +3782,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static enum power_supply_usb_type bq2589x_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_UNKNOWN,
 	POWER_SUPPLY_USB_TYPE_SDP,
@@ -3791,6 +3793,7 @@ static enum power_supply_usb_type bq2589x_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
 	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
 };
+#endif
 
 static enum power_supply_property bq2589x_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -3853,8 +3856,19 @@ static char *bq2589x_charger_supplied_to[] = {
 
 static const struct power_supply_desc bq2589x_charger_desc = {
 	.type			= POWER_SUPPLY_TYPE_USB,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.usb_types      = bq2589x_charger_usb_types,
 	.num_usb_types  = ARRAY_SIZE(bq2589x_charger_usb_types),
+#else
+	.usb_types      = BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN) |
+				  BIT(POWER_SUPPLY_USB_TYPE_SDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_DCP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_CDP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_C) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD) |
+				  BIT(POWER_SUPPLY_USB_TYPE_PD_DRP) |
+				  BIT(POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID),
+#endif
 	.properties 	= bq2589x_charger_properties,
 	.num_properties 	= ARRAY_SIZE(bq2589x_charger_properties),
 	.get_property		= bq2589x_charger_get_property,
@@ -3877,8 +3891,12 @@ static int bq2589x_chg_init_psy(struct bq2589x *bq)
 	return IS_ERR(bq->psy) ? PTR_ERR(bq->psy) : 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static int bq2589x_charger_probe(struct i2c_client * client)
+#else
 static int bq2589x_charger_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
+#endif
 {
 	struct bq2589x *bq;
 	struct device_node *node = client->dev.of_node;
@@ -4078,8 +4096,11 @@ static int bq2589x_suspend(struct i2c_client *client, pm_message_t mesg)
 }
 #endif
 
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void bq2589x_charger_remove(struct i2c_client * client)
+#else
 static int bq2589x_charger_remove(struct i2c_client *client)
+#endif
 {
 	struct bq2589x *bq = i2c_get_clientdata(client);
 
@@ -4088,7 +4109,9 @@ static int bq2589x_charger_remove(struct i2c_client *client)
 
 	sysfs_remove_group(&bq->dev->kobj, &bq2589x_attr_group);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static void bq2589x_charger_shutdown(struct i2c_client *client)

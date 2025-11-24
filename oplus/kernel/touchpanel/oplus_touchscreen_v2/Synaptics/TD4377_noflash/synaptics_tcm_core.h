@@ -238,8 +238,8 @@ enum dynamic_config_id {
 	DC_FREQUENCE_HOPPING = 0xD2,
 	DC_SET_REPORT_FRE = 0x11,
 	DC_GLOVE_MODE_ENABLED = 0x0D,
+	DC_GLOVE_MODE_STATE = 0xF5,
 	DC_GESTURE_MASK   = 0xFE,
-	DC_LOW_TEMP_ENABLE = 0xFD,
 	DC_UNDER_WATER = 0xF6,
 };
 
@@ -340,13 +340,6 @@ enum flash_data {
 enum palm_mode {
 	PALM_TO_DEFAULT = 0,
 	PALM_TO_SLEEP   = 1,
-};
-
-enum diaphragm_mode {
-	DIAPHRAGM_DEFAULT_MODE = 0,
-	DIAPHRAGM_FILM_MODE = 1,
-	DIAPHRAGM_WATERPROO_MODE = 2,
-	DIAPHRAGM_FILM_WATERPROO_MODE = 3,
 };
 
 enum glove_mode {

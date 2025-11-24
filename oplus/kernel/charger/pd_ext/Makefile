@@ -11,6 +11,7 @@ subdir-ccflags-y += -I$(srctree)/drivers/mfd/
 obj-$(CONFIG_TCPC_RT1711H)		+= tcpc_rt1711h.o
 obj-$(CONFIG_TCPC_SGM7220)		+= tcpc_sgm7220.o
 obj-$(CONFIG_TCPC_AW35616)		+= tcpc_aw35616.o
+obj-$(CONFIG_TCPC_UPM7610)		+= tcpc_upm7610.o
 
 tcpc_class-objs := tcpci_core.o tcpci_typec.o tcpci_timer.o tcpm.o tcpci.o tcpci_alert.o
 
@@ -27,7 +28,6 @@ tcpc_class-objs += tcpci_event.o \
 		pd_policy_engine_dbg.o pd_policy_engine_com.o pd_dpm_alt_mode_dc.o
 endif
 obj-$(CONFIG_TCPC_CLASS) += tcpc_class.o tcpci_late_sync.o pd_dbg_info.o rt-regmap.o rt_pd_manager.o
-
 else
 ifeq ($(OPLUS_VND_ENV_SEPARATE_CHG_MUSE),yes)
 ccflags-y += -DOPLUS_CHG_SEPARATE_MUSE_TCPC
@@ -35,8 +35,6 @@ obj-$(CONFIG_TCPC_ET7303)		+= tcpc_et7303.o
 else
 obj-$(CONFIG_TCPC_RT1711H)		+= tcpc_rt1711h.o
 endif
-
-obj-$(CONFIG_TCPC_SGM7220)              += tcpc_sgm7220.o
 
 tcpc_class-y += tcpci_core.o tcpci_typec.o tcpci_timer.o tcpm.o tcpci.o tcpci_alert.o
 ifdef CONFIG_USB_POWER_DELIVERY

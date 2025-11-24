@@ -1029,16 +1029,16 @@ static int sc8517_track_upload_cp_err_info(struct oplus_voocphy_manager *chip,
 	upload_count++;
 	pre_upload_time = sc8517_track_get_local_time_s();
 
-	index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "$$device_id@@%s", "sc8517");
-	index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "$$err_scene@@%s",
+	index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "$$device_id@@%s", "sc8517");
+	index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "$$err_scene@@%s",
 			  OPLUS_CHG_TRACK_SCENE_BIDIRECT_CP_ERR);
 
 	oplus_chg_track_get_bidirect_cp_err_reason(err_type, err_reason, sizeof(err_reason));
-	index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+	index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 			  "$$err_reason@@%s", err_reason);
 
 	sc8517_get_int_reg_info(chip, dump_info, sizeof(dump_info));
-	index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+	index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 			  "$$reg_info@@%s", dump_info);
 
 	msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,

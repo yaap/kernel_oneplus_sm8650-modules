@@ -77,6 +77,8 @@ struct pm_qos_request aw_pm_qos_req_vb;
 #define PDE_DATA(inode) pde_data(inode)
 #endif
 
+static bool low_temp_low_soc_check(struct aw_haptic *aw_haptic);
+
 static void aw_pm_qos_enable(struct aw_haptic *aw_haptic, bool enabled)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
@@ -906,14 +908,14 @@ static char aw_rtp_name_162Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_344.bin"},
 	{"aw8697_reserved_345.bin"},
 	{"aw8697_reserved_346.bin"},
-	{"aw8697_reserved_347.bin"},
-	{"aw8697_reserved_348.bin"},
-	{"aw8697_reserved_349.bin"},
-	{"aw8697_reserved_350.bin"},
-	{"aw8697_reserved_351.bin"},
-	{"aw8697_reserved_352.bin"},
-	{"aw8697_reserved_353.bin"},
-	{"aw8697_reserved_354.bin"},
+	{"aw8697_chat_alert_347_162Hz.bin"},
+	{"aw8697_chat_in_348_162Hz.bin"},
+	{"aw8697_chat_out_349_162Hz.bin"},
+	{"aw8697_email_receive_350_162Hz.bin"},
+	{"aw8697_email_send_351_162Hz.bin"},
+	{"aw8697_city_lights_352_162Hz.bin"},
+	{"aw8697_firefly_353_162Hz.bin"},
+	{"aw8697_now_or_never_354_162Hz.bin"},
 	{"aw8697_reserved_355.bin"},
 	{"aw8697_reserved_356.bin"},
 	{"aw8697_reserved_357.bin"},
@@ -923,13 +925,13 @@ static char aw_rtp_name_162Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_361.bin"},
 	{"aw8697_reserved_362.bin"},
 	{"aw8697_programs_clean_RTP_363_162Hz.bin"},
-	{"aw8697_reserved_364.bin"},
+	{"aw8697_notification_clean_RTP_364_162Hz.bin"},
 	{"aw8697_Threestagekey_RTP_365_162Hz.bin"},
-	{"aw8697_reserved_366.bin"},
-	{"aw8697_reserved_367.bin"},
-	{"aw8697_reserved_368.bin"},
-	{"aw8697_reserved_369.bin"},
-	{"aw8697_reserved_370.bin"},
+	{"aw8697_waltz_channel_RTP_366_162Hz.bin"},
+	{"aw8697_cut_channel_RTP_367_162Hz.bin"},
+	{"aw8697_clock_channel_RTP_368_162Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_369_162Hz.bin"},
+	{"aw8697_short_channel_RTP_370_162Hz.bin"},
 
 	/* Add for OS14 Start */
 	{"aw8697_Nightsky_RTP_371_162Hz.bin"},
@@ -1356,14 +1358,14 @@ static char aw_rtp_name_166Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_344.bin"},
 	{"aw8697_reserved_345.bin"},
 	{"aw8697_reserved_346.bin"},
-	{"aw8697_reserved_347.bin"},
-	{"aw8697_reserved_348.bin"},
-	{"aw8697_reserved_349.bin"},
-	{"aw8697_reserved_350.bin"},
-	{"aw8697_reserved_351.bin"},
-	{"aw8697_reserved_352.bin"},
-	{"aw8697_reserved_353.bin"},
-	{"aw8697_reserved_354.bin"},
+	{"aw8697_chat_alert_347_166Hz.bin"},
+	{"aw8697_chat_in_348_166Hz.bin"},
+	{"aw8697_chat_out_349_166Hz.bin"},
+	{"aw8697_email_receive_350_166Hz.bin"},
+	{"aw8697_email_send_351_166Hz.bin"},
+	{"aw8697_city_lights_352_166Hz.bin"},
+	{"aw8697_firefly_353_166Hz.bin"},
+	{"aw8697_now_or_never_354_166Hz.bin"},
 	{"aw8697_reserved_355.bin"},
 	{"aw8697_reserved_356.bin"},
 	{"aw8697_reserved_357.bin"},
@@ -1373,13 +1375,13 @@ static char aw_rtp_name_166Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_361.bin"},
 	{"aw8697_reserved_362.bin"},
 	{"aw8697_programs_clean_RTP_363_166Hz.bin"},
-	{"aw8697_reserved_364.bin"},
+	{"aw8697_notification_clean_RTP_364_166Hz.bin"},
 	{"aw8697_Threestagekey_RTP_365_166Hz.bin"},
-	{"aw8697_reserved_366.bin"},
-	{"aw8697_reserved_367.bin"},
-	{"aw8697_reserved_368.bin"},
-	{"aw8697_reserved_369.bin"},
-	{"aw8697_reserved_370.bin"},
+	{"aw8697_waltz_channel_RTP_366_166Hz.bin"},
+	{"aw8697_cut_channel_RTP_367_166Hz.bin"},
+	{"aw8697_clock_channel_RTP_368_166Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_369_166Hz.bin"},
+	{"aw8697_short_channel_RTP_370_166Hz.bin"},
 
 	/* Add for OS14 Start */
 	{"aw8697_Nightsky_RTP_371_166Hz.bin"},
@@ -1804,14 +1806,14 @@ static char aw_rtp_name_174Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_344.bin"},
 	{"aw8697_reserved_345.bin"},
 	{"aw8697_reserved_346.bin"},
-	{"aw8697_reserved_347.bin"},
-	{"aw8697_reserved_348.bin"},
-	{"aw8697_reserved_349.bin"},
-	{"aw8697_reserved_350.bin"},
-	{"aw8697_reserved_351.bin"},
-	{"aw8697_reserved_352.bin"},
-	{"aw8697_reserved_353.bin"},
-	{"aw8697_reserved_354.bin"},
+	{"aw8697_chat_alert_347_174Hz.bin"},
+	{"aw8697_chat_in_348_174Hz.bin"},
+	{"aw8697_chat_out_349_174Hz.bin"},
+	{"aw8697_email_receive_350_174Hz.bin"},
+	{"aw8697_email_send_351_174Hz.bin"},
+	{"aw8697_city_lights_352_174Hz.bin"},
+	{"aw8697_firefly_353_174Hz.bin"},
+	{"aw8697_now_or_never_354_174Hz.bin"},
 	{"aw8697_reserved_355.bin"},
 	{"aw8697_reserved_356.bin"},
 	{"aw8697_reserved_357.bin"},
@@ -1821,13 +1823,13 @@ static char aw_rtp_name_174Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_361.bin"},
 	{"aw8697_reserved_362.bin"},
 	{"aw8697_programs_clean_RTP_363_174Hz.bin"},
-	{"aw8697_reserved_364.bin"},
+	{"aw8697_notification_clean_RTP_364_174Hz.bin"},
 	{"aw8697_Threestagekey_RTP_365_174Hz.bin"},
-	{"aw8697_reserved_366.bin"},
-	{"aw8697_reserved_367.bin"},
-	{"aw8697_reserved_368.bin"},
-	{"aw8697_reserved_369.bin"},
-	{"aw8697_reserved_370.bin"},
+	{"aw8697_waltz_channel_RTP_366_174Hz.bin"},
+	{"aw8697_cut_channel_RTP_367_174Hz.bin"},
+	{"aw8697_clock_channel_RTP_368_174Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_369_174Hz.bin"},
+	{"aw8697_short_channel_RTP_370_174Hz.bin"},
 
 	/* Add for OS14 Start */
 	{"aw8697_Nightsky_RTP_371_174Hz.bin"},
@@ -2254,14 +2256,14 @@ static char aw_rtp_name_178Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_344.bin"},
 	{"aw8697_reserved_345.bin"},
 	{"aw8697_reserved_346.bin"},
-	{"aw8697_reserved_347.bin"},
-	{"aw8697_reserved_348.bin"},
-	{"aw8697_reserved_349.bin"},
-	{"aw8697_reserved_350.bin"},
-	{"aw8697_reserved_351.bin"},
-	{"aw8697_reserved_352.bin"},
-	{"aw8697_reserved_353.bin"},
-	{"aw8697_reserved_354.bin"},
+	{"aw8697_chat_alert_347_178Hz.bin"},
+	{"aw8697_chat_in_348_178Hz.bin"},
+	{"aw8697_chat_out_349_178Hz.bin"},
+	{"aw8697_email_receive_350_178Hz.bin"},
+	{"aw8697_email_send_351_178Hz.bin"},
+	{"aw8697_city_lights_352_178Hz.bin"},
+	{"aw8697_firefly_353_178Hz.bin"},
+	{"aw8697_now_or_never_354_178Hz.bin"},
 	{"aw8697_reserved_355.bin"},
 	{"aw8697_reserved_356.bin"},
 	{"aw8697_reserved_357.bin"},
@@ -2271,13 +2273,13 @@ static char aw_rtp_name_178Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_361.bin"},
 	{"aw8697_reserved_362.bin"},
 	{"aw8697_programs_clean_RTP_363_178Hz.bin"},
-	{"aw8697_reserved_364.bin"},
+	{"aw8697_notification_clean_RTP_364_178Hz.bin"},
 	{"aw8697_Threestagekey_RTP_365_178Hz.bin"},
-	{"aw8697_reserved_366.bin"},
-	{"aw8697_reserved_367.bin"},
-	{"aw8697_reserved_368.bin"},
-	{"aw8697_reserved_369.bin"},
-	{"aw8697_reserved_370.bin"},
+	{"aw8697_waltz_channel_RTP_366_178Hz.bin"},
+	{"aw8697_cut_channel_RTP_367_178Hz.bin"},
+	{"aw8697_clock_channel_RTP_368_178Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_369_178Hz.bin"},
+	{"aw8697_short_channel_RTP_370_178Hz.bin"},
 
 	/* Add for OS14 Start */
 	{"aw8697_Nightsky_RTP_371_178Hz.bin"},
@@ -2705,14 +2707,14 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_344.bin"},
 	{"aw8697_reserved_345.bin"},
 	{"aw8697_reserved_346.bin"},
-	{"aw8697_reserved_347.bin"},
-	{"aw8697_reserved_348.bin"},
-	{"aw8697_reserved_349.bin"},
-	{"aw8697_reserved_350.bin"},
-	{"aw8697_reserved_351.bin"},
-	{"aw8697_reserved_352.bin"},
-	{"aw8697_reserved_353.bin"},
-	{"aw8697_reserved_354.bin"},
+	{"aw8697_chat_alert_347.bin"},
+	{"aw8697_chat_in_348.bin"},
+	{"aw8697_chat_out_349.bin"},
+	{"aw8697_email_receive_350.bin"},
+	{"aw8697_email_send_351.bin"},
+	{"aw8697_city_lights_352.bin"},
+	{"aw8697_firefly_353.bin"},
+	{"aw8697_now_or_never_354.bin"},
 	{"aw8697_reserved_355.bin"},
 	{"aw8697_reserved_356.bin"},
 	{"aw8697_reserved_357.bin"},
@@ -2722,13 +2724,13 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_361.bin"},
 	{"aw8697_reserved_362.bin"},
 	{"aw8697_programs_clean_RTP_363.bin"},
-	{"aw8697_reserved_364.bin"},
+	{"aw8697_notification_clean_RTP_364.bin"},
 	{"aw8697_Threestagekey_RTP_365.bin"},
-	{"aw8697_reserved_366.bin"},
-	{"aw8697_reserved_367.bin"},
-	{"aw8697_reserved_368.bin"},
-	{"aw8697_reserved_369.bin"},
-	{"aw8697_reserved_370.bin"},
+	{"aw8697_waltz_channel_RTP_366.bin"},
+	{"aw8697_cut_channel_RTP_367.bin"},
+	{"aw8697_clock_channel_RTP_368.bin"},
+	{"aw8697_long_sound_channel_RTP_369.bin"},
+	{"aw8697_short_channel_RTP_370.bin"},
 
 	/* Add for OS14 Start */
 	{"aw8697_Nightsky_RTP_371.bin"},
@@ -3839,6 +3841,36 @@ static int parse_dt(struct device *dev, struct aw_haptic *aw_haptic,
 		aw_haptic->info.cont_brk_gain = 0;
 	}
 	aw_dev_info("oplus,cont_brk_gain = %d\n", aw_haptic->info.cont_brk_gain);
+
+	if (of_property_read_u32(np, "oplus,vbat_low_soc", &aw_haptic->vbat_low_soc)) {
+		dev_info(dev, "vbat_low_soc not found");
+		aw_haptic->vbat_low_soc = 0;
+	}
+
+	dev_info(dev, "%s: vbat_low_soc=%d\n", __func__, aw_haptic->vbat_low_soc);
+
+	if (of_property_read_u32(np, "oplus,vbat_low_soc_cold", &aw_haptic->vbat_low_soc_cold)) {
+		dev_info(dev, "vbat_low_soc_cold not found");
+		aw_haptic->vbat_low_soc_cold = 0;
+	}
+
+	dev_info(dev, "%s: vbat_low_soc_cold=%d\n", __func__, aw_haptic->vbat_low_soc_cold);
+
+	if (of_property_read_s32(np, "oplus,vbat_low_temp", &aw_haptic->vbat_low_temp)) {
+		dev_info(dev, "vbat_low_temp not found");
+		aw_haptic->vbat_low_temp = 0;
+	}
+
+	dev_info(dev, "%s: vbat_low_temp=%d\n", __func__, aw_haptic->vbat_low_temp);
+
+
+	if (of_property_read_u32(np, "oplus,vbat_low_vmax_level", &aw_haptic->vbat_low_vmax_level)) {
+		dev_info(dev, "vbat_low_vmax_level not found");
+		aw_haptic->vbat_low_vmax_level = 0;
+	}
+
+	dev_info(dev, "%s: vbat_low_vmax_level=%d\n", __func__, aw_haptic->vbat_low_vmax_level);
+
 #endif
 	return 0;
 }
@@ -5937,6 +5969,59 @@ static int convert_level_to_vmax(struct aw_haptic *aw_haptic, int val)
 	return i;
 }
 
+#define DEFAULT_BATT_SOC 50
+
+static int read_batt_soc(int *val)
+{
+	static struct power_supply *batt_psy;
+	union power_supply_propval ret = {0,};
+	int rc = 0;
+
+	*val = DEFAULT_BATT_SOC;
+	if (!batt_psy)
+		batt_psy = power_supply_get_by_name("battery");
+
+	if (batt_psy) {
+		rc = power_supply_get_property(batt_psy,
+				POWER_SUPPLY_PROP_CAPACITY, &ret);
+		if (rc) {
+			aw_dev_err("battery soc read error:%d\n", rc);
+			return rc;
+		}
+		*val = ret.intval;
+	} else {
+		aw_dev_err("get battery psy failed\n");
+	}
+
+	return rc;
+}
+
+#define DEFAULT_BATT_TEMP 250
+static int read_batt_temp(int *val)
+{
+	static struct power_supply *batt_psy;
+	union power_supply_propval ret = {0,};
+	int rc = 0;
+
+	*val = DEFAULT_BATT_TEMP;
+	if (!batt_psy)
+		batt_psy = power_supply_get_by_name("battery");
+
+	if (batt_psy) {
+		rc = power_supply_get_property(batt_psy,
+				POWER_SUPPLY_PROP_TEMP, &ret);
+		if (rc) {
+			aw_dev_err("battery temp read error:%d\n", rc);
+			return rc;
+		}
+		*val = ret.intval;
+	} else {
+		aw_dev_err("get battery temp failed\n");
+	}
+
+	return rc;
+}
+
 static ssize_t vmax_store(struct device *dev, struct device_attribute *attr,
 			  const char *buf, size_t count)
 {
@@ -5968,6 +6053,12 @@ static ssize_t vmax_store(struct device *dev, struct device_attribute *attr,
 	if (aw_haptic->device_id == DEVICE_ID_0833) {
 		aw_haptic->vmax = aw_haptic->max_boost_vol;
 		aw_haptic->gain = 0x80;
+	}
+
+	if (low_temp_low_soc_check(aw_haptic)) {
+		if (val > aw_haptic->vbat_low_vmax_level) {
+			convert_level_to_vmax(aw_haptic, aw_haptic->vbat_low_vmax_level);
+		}
 	}
 
 	aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
@@ -6203,6 +6294,8 @@ static ssize_t rtp_store(struct device *dev, struct device_attribute *attr,
 		|| (val >=  OS12_NEW_RING_START && val <= OS12_NEW_RING_END)
 		|| (val >=  OPLUS_RING_START && val < OPLUS_RING_END)
 		|| (val >=  OS14_NEW_RING_START && val <= OS14_NEW_RING_END)
+		|| (val >=  OS15_ALARM_RING_START && val <= OS15_ALARM_RING_END)
+		|| (val >=  OS15_OPERATOR_RING_START && val <= OS15_OPERATOR_RING_END)
 		|| (val >=  ALCLOUDSCAPE_START && val <= ALCLOUDSCAPE_END)
 		|| (val >=  RINGTONE_NOTIF_ALARM_START && val <= RINGTONE_NOTIF_ALARM_END)
 		|| val == RINGTONES_SIMPLE_INDEX
@@ -8607,6 +8700,36 @@ static ssize_t aw_file_write(struct file *filp, const char *buff, size_t len,
 	return len;
 }
 
+static bool low_temp_low_soc_check(struct aw_haptic *aw_haptic)
+{
+	int rc = 0;
+	int batt_soc;
+	int batt_temp;
+
+	rc = read_batt_soc(&batt_soc);
+	if (rc) {
+		aw_dev_err("%s: read batt soc fail\n", __func__);
+	}
+	rc = read_batt_temp(&batt_temp);
+	if (rc) {
+		aw_dev_err("%s: read batt tmp fail\n", __func__);
+	}
+
+	if (((batt_temp >= aw_haptic->vbat_low_temp) && (batt_soc < aw_haptic->vbat_low_soc)) //tmp >-5 && soc < 5%
+		|| ((batt_temp < aw_haptic->vbat_low_temp) && (batt_soc < aw_haptic->vbat_low_soc_cold))) { //tmp <-5 && soc < 20%
+
+		if (aw_haptic->vbat_low_vmax_level != 0) {
+
+			aw_dev_info("%s: vbat low! batt_soc %d, batt_temp %d, vbat_low_temp %d, vbat_low_soc %d\n",
+			__func__, batt_soc, batt_temp, aw_haptic->vbat_low_temp, aw_haptic->vbat_low_soc);
+			aw_dev_info("%s: vbat_low_soc_cold %d, vbat_low_vmax_level %d\n",
+			__func__, aw_haptic->vbat_low_soc_cold, aw_haptic->vbat_low_vmax_level);
+			return true;
+		}
+	}
+	return false;
+}
+
 static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 				   unsigned long arg)
 {
@@ -8672,7 +8795,12 @@ static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 		aw_haptic->func->play_stop(aw_haptic);
 		aw_haptic->done_flag = false;
 		aw_haptic->haptic_rtp_mode = true;
-		aw_haptic->func->set_bst_vol(aw_haptic, aw_haptic->max_boost_vol);//boost 8.414V
+		if (low_temp_low_soc_check(aw_haptic)) {
+			convert_level_to_vmax(aw_haptic, aw_haptic->vbat_low_vmax_level);
+			aw_haptic->func->set_bst_vol(aw_haptic, aw_haptic->vmax);
+		} else {
+			aw_haptic->func->set_bst_vol(aw_haptic, aw_haptic->max_boost_vol);//boost 8.414V
+		}
 		aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
 		schedule_work(&aw_haptic->haptic_rtp_work);
 		break;

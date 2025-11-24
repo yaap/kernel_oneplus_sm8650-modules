@@ -391,6 +391,13 @@ unsigned char get_oplus_feature(OplusBoardFeatureMask feature_num)
 }
 EXPORT_SYMBOL(get_oplus_feature);
 
+unsigned char get_brand_name(void)
+{
+        char brand_name = 0;
+        brand_name = get_oplus_feature(BRAND_NAME_OCCUPIED_POSITION);
+        return brand_name;
+}
+EXPORT_SYMBOL(get_brand_name);
 
 #define SERIALNO_LEN 16
 void get_serialID(char *serialno)

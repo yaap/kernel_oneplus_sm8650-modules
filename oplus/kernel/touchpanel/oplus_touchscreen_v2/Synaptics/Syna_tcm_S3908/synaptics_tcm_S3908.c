@@ -41,7 +41,7 @@ static int syna_long_large_zone_handle_func(void *chip_data,
 static int syna_short_large_zone_handle_func(void *chip_data,
 		struct grip_zone_area *grip_zone,
 		bool enable);
-
+static int syna_tcm_reset(void *chip_data);
 static int syna_set_fw_grip_area(void *chip_data,
 				 struct grip_zone_area *grip_zone,
 				 bool enable);
@@ -2537,6 +2537,8 @@ static int syna_tcm_get_dynamic_config(struct syna_tcm_data *tcm_info,
 
 	if (retval < 0 || resp_length < 2) {
 		retval = -EINVAL;
+		syna_tcm_reset(tcm_info); /*ic state err, need to reset the IC*/
+		tp_healthinfo_report(tcm_info->monitor_data, HEALTH_REPORT, "ic state err rest");
 		TP_INFO(tcm_info->tp_index, "Failed to read dynamic config\n");
 		report = tp_kzalloc(30, GFP_KERNEL);
 		if (report) {
@@ -7103,24 +7105,24 @@ static int syna_glove_mode(void *chip_data, bool enable)
 
 	TP_INFO(tcm_info->tp_index, "%s: %s glove mode.\n", __func__, enable ? "Enter" : "Exit");
 
-	retval = syna_tcm_get_dynamic_config(tcm_info, DC_LOW_TEMP_ENABLE, &regval);
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_GLOVE_MODE_ENABLED, &regval);
 	if (retval < 0) {
 		TP_INFO(tcm_info->tp_index, "Failed to get glove mode config\n");
 		return retval;
 	}
 
 	if (enable)  {
-		regval = regval | 0x08;
+		regval = regval | 0x01;
 	} else {
-		regval = regval & 0xf7;
+		regval = regval & 0xfe;
 	}
-	retval = syna_tcm_set_dynamic_config(tcm_info, DC_LOW_TEMP_ENABLE, regval);
+	retval = syna_tcm_set_dynamic_config(tcm_info, DC_GLOVE_MODE_ENABLED, regval);
 	if (retval < 0) {
 		TP_INFO(tcm_info->tp_index, "Failed to set glove mode config\n");
 		return retval;
 	}
 
-	retval = syna_tcm_get_dynamic_config(tcm_info, DC_LOW_TEMP_ENABLE, &regval);
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_GLOVE_MODE_ENABLED, &regval);
 	if (retval < 0) {
 		TP_INFO(tcm_info->tp_index, "Failed to get glove mode config\n");
 		return retval;

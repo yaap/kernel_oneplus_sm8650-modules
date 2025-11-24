@@ -475,11 +475,8 @@ static void sy6970_track_i2c_err_load_trigger_work(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct sy6970 *chip = container_of(dwork, struct sy6970, i2c_err_load_trigger_work);
 
-	if (!chip)
-		return;
-
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
 	if (chip->i2c_err_load_trigger) {
+		oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 		kfree(chip->i2c_err_load_trigger);
 		chip->i2c_err_load_trigger = NULL;
 	}
@@ -554,11 +551,8 @@ static void sy6970_track_fault_err_load_trigger_work(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct sy6970 *chip = container_of(dwork, struct sy6970, fault_err_load_trigger_work);
 
-	if (!chip)
-		return;
-
-	oplus_chg_track_upload_trigger_data(*(chip->fault_err_load_trigger));
 	if (chip->fault_err_load_trigger) {
+		oplus_chg_track_upload_trigger_data(chip->fault_err_load_trigger);
 		kfree(chip->fault_err_load_trigger);
 		chip->fault_err_load_trigger = NULL;
 	}
@@ -2977,9 +2971,6 @@ void oplus_sy6970_set_mivr_by_battery_vol(void)
 		mV = HW_AICL_POINT_VOL_5V_PHASE1;
 	}
 
-	if (mV < SY6970_VINDPM_THRES_MIN) {
-		mV = SY6970_VINDPM_THRES_MIN;
-	}
 	sy6970_set_input_volt_limit(g_bq, mV);
 
 	return;

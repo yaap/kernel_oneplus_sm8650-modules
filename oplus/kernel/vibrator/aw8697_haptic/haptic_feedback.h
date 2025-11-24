@@ -106,6 +106,7 @@ enum haptic_fb_track_type {
 	HAPTIC_MEM_ALLOC_TRACK,
 	HAPTIC_SPMI_READ_TRACK_ERR,
 	HAPTIC_SPMI_WRITE_TRACK_ERR,
+	HAPTIC_UVLO_MODE_TRACK,
 	HAPTIC_TRACK_TYPE_MAX,
 };
 
@@ -145,6 +146,7 @@ struct haptic_mem_alloc_event_info {
 	uint32_t track_type;
 	uint32_t alloc_len;
 	char fun_name[MAX_FUN_NAME_LEN];
+	uint32_t uvlo_report_counts;
 };
 
 struct haptic_mem_alloc_track_event {
@@ -153,6 +155,19 @@ struct haptic_mem_alloc_track_event {
 	uint32_t que_rear;
 	struct haptic_fb_detail mem_detail;
 	struct delayed_work track_mem_alloc_err_load_trigger_work;
+};
+
+struct haptic_uvlo_mode_event_info {
+	uint32_t track_type;
+	uint32_t reg_value;
+	char fail_info[MAX_FAIL_INFO_LEN];
+	uint32_t uvlo_report_counts;
+};
+
+struct haptic_uvlo_mode_track_event {
+	struct haptic_uvlo_mode_event_info uvlo_mode_event;
+	struct haptic_fb_detail uvlo_mode_detail;
+	struct delayed_work track_uvlo_mode_load_trigger_work;
 };
 
 struct oplus_haptic_track {
@@ -173,6 +188,7 @@ struct oplus_haptic_track {
 	struct haptic_dev_track_event dev_track_event;
 	struct haptic_fre_cail_track_event fre_cail_track_event;
 	struct haptic_mem_alloc_track_event mem_alloc_track_event;
+	struct haptic_uvlo_mode_track_event uvlo_mode_track_event;
 };
 
 struct haptic_fb_info {
@@ -184,5 +200,6 @@ struct haptic_fb_info {
 int oplus_haptic_track_dev_err(uint32_t track_type, uint32_t reg_addr, uint32_t err_code);
 int oplus_haptic_track_fre_cail(uint32_t track_type, uint32_t cali_data, uint32_t result_flag, char* fail_info);
 int oplus_haptic_track_mem_alloc_err(uint32_t track_type, uint32_t alloc_len, const char *fun_name);
+int oplus_haptic_track_uvlo(uint32_t track_type, uint32_t reg_value, char *fail_info);
 
 #endif

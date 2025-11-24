@@ -6,7 +6,6 @@
 #define pr_fmt(fmt) "[sh366002] %s(%d): " fmt, __func__, __LINE__
 
 #include <linux/version.h>
-#include <asm/unaligned.h>
 #include <linux/acpi.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -28,6 +27,11 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
+#include <asm/unaligned.h>
+#endif
 #include <asm/div64.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <stdbool.h>
@@ -2254,7 +2258,7 @@ s32 fg_gauge_check_cell_model(struct chip_bq27541 *chip, char *profile_name) /* 
 	s32 maxValue, minValue;
 	u16 temp16;
 	u8 str[200];
-	u16 pBuf[15+1] = {0};
+	u16 pBuf[16] = {0};
 	u8 track_buf[64] = {0};
 	int len;
 
@@ -2368,7 +2372,7 @@ s32 fg_gauge_check_cell_model(struct chip_bq27541 *chip, char *profile_name) /* 
 		pr_err("model extreme singular! cnt=%u\r\n", k);
 	}
 
-	temp16 = pBuf[CELL_MODEL_COUNT];	/* sino change 20240112 */
+	temp16 = pBuf[CELL_MODEL_COUNT]; /* sino change 20240112 */
 	k = 0;
 	for (i = EXTREME_STARTGRID_1; i <= EXTREME_ENDGRID_1 - EXTREME_GAP_1 + 1; i++) {
 		maxValue = 0;
@@ -2381,7 +2385,7 @@ s32 fg_gauge_check_cell_model(struct chip_bq27541 *chip, char *profile_name) /* 
 
 		modelRatio = maxValue * EXTREME_RATIO / minValue;
 
-		if (temp16 == OVER_MAXRATIO_MAGICDATA) {	/* sino change 20240112 */
+		if (temp16 == OVER_MAXRATIO_MAGICDATA) { /* sino change 20240112 */
 			pr_err("fg_gauge_check_cell_model: Code in run OVER_MAXRATIO_MAGICDATA!");
 			if (i == EXTREME_STARTGRID_1 + 1) {
 				if(model[EXTREME_STARTGRID_1 + 2] > model[EXTREME_STARTGRID_1 + 1])
@@ -2422,7 +2426,7 @@ fg_gauge_check_cell_model_end:
 
 s32 fg_gauge_restore_cell_model(struct chip_bq27541 *chip, char *profile_name)
 {
-	u16 pBuf[15+1];
+	u16 pBuf[16];
 	u8 buf_read[BYTE_COUNT_CELL_MODEL];
 	u8 buf_write[LENGTH_CELLMODEL];
 	u8 str[STRLEN] = {0};
@@ -2693,7 +2697,7 @@ static void sh366002_track_fix_cadc_load_trigger_work(
 	if (!chip->load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->load_trigger);
 	kfree(chip->load_trigger);
 	chip->load_trigger = NULL;
 	chip->uploading = false;

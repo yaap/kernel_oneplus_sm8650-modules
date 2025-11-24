@@ -196,6 +196,7 @@ def define_oplus_local_modules():
             "**/*.h",
             "qcom/qcom_pmicwd/qcom_pmicwd.c",
             "qcom/qcom_pmicwd/qcom_pwkpwr.c",
+	    "qcom/qcom_pmicwd/qcom_pmicwd_inject.c",
         ]),
         includes = ["."],
     )
@@ -252,6 +253,16 @@ def define_oplus_local_modules():
         local_defines = ["CONFIG_OPLUS_MTK_WDT"],
     )
 
+    define_oplus_ddk_module(
+        name = "oplus_bsp_dfr_kp_freeze_detect",
+        srcs = native.glob([
+            "**/*.h",
+            "common/kp_freeze_detect/kp_freeze_detect.c",
+        ]),
+        includes = ["."],
+        local_defines = ["CONFIG_OPLUS_FEATURE_KP_FREEZE_DETECT"],
+    )
+
     ddk_copy_to_dist_dir(
         name = "oplus_bsp_dfr",
         module_list = [
@@ -269,6 +280,7 @@ def define_oplus_local_modules():
             "oplus_bsp_dfr_dump_device_info",
             "oplus_bsp_dfr_dump_reason",
             "oplus_bsp_dfr_pmic_watchdog",
+            "oplus_bsp_dfr_kp_freeze_detect",
             "oplus_inject",
             "oplus_inject_aw8692x",
             "oplus_bsp_dfr_ordump",

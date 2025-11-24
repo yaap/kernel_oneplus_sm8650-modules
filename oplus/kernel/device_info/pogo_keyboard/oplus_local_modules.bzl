@@ -12,6 +12,7 @@ def define_oplus_local_modules():
             "keyboard.c",
             "touchpad.c",
             "pogo_tty_io.c",
+            "pogo_ota.c",
         ]),
         includes = ["."],
         conditional_defines = {

@@ -8,5 +8,6 @@
 
 int init_touchpanel_proc(struct syna_tcm *tcm, struct platform_device *pdev);
 void remove_touchpanel_proc(struct syna_tcm *tcm);
+int init_probe_status_proc(struct syna_tcm *tcm);
 
 #endif /*_TOUCHPANEL_PROC_H_*/

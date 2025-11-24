@@ -30,6 +30,10 @@
 
 #include "oplus_monitor_internal.h"
 #include <oplus_chg_dual_chan.h>
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+#include <soc/oplus/fpga_notify.h>
+#include <oplus_i2c_rst_notify.h>
+#endif
 #include <oplus_chg_plc.h>
 
 __maybe_unused static bool is_fv_votable_available(struct oplus_monitor *chip)
@@ -200,7 +204,8 @@ static void oplus_monitor_update_charge_info(struct oplus_monitor *chip)
 			chip->wls_vout_mv = data.intval;
 			oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_WLS_TYPE, &data, true);
 			chip->wls_charge_type = data.intval;
-			chip->wls_pre_type = chip->wls_charge_type;
+			if (chip->wls_charge_type)
+				chip->wls_pre_type = chip->wls_charge_type;
 			oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_MAGCVR, &data, true);
 			chip->wls_magcvr_status = data.intval;
 		}
@@ -216,6 +221,27 @@ static void oplus_monitor_update_charge_info(struct oplus_monitor *chip)
 		chip->wls_vout_mv = 0;
 		chip->wls_charge_type = 0;
 		chip->wls_magcvr_status = MAGCVR_STATUS_FAR;
+	}
+	if (is_main_gauge_topic_available(chip)) {
+		oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_VOL_MAX, &data, false);
+		chip->main_vbat = data.intval;
+		oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_CURR, &data, false);
+		chip->main_ibat = data.intval;
+		oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_TEMP, &data, false);
+		chip->main_temp = data.intval;
+		oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_SOC, &data, false);
+		chip->main_soc = data.intval;
+	}
+	if (is_sub_gauge_topic_available(chip)) {
+		oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_VOL_MAX, &data, false);
+		chip->sub_vbat = data.intval;
+		chip->vbat_min_mv = data.intval;
+		oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_CURR, &data, false);
+		chip->sub_ibat = data.intval;
+		oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_TEMP, &data, false);
+		chip->sub_temp = data.intval;
+		oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_SOC, &data, false);
+		chip->sub_soc = data.intval;
 	}
 }
 
@@ -248,14 +274,17 @@ static bool oplus_monitor_all_topic_is_ready(struct oplus_monitor *chip)
 }
 
 #define DUMP_REG_LOG_CNT_30S	3
+#define MAX_SUB_BATT_INFO	32
 static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 {
 	struct oplus_monitor *chip = container_of(work, struct oplus_monitor,
 						  charge_info_update_work);
 	union mms_msg_data data = { 0 };
 	static int dump_count = 0;
-	static long update_reg_jiffies;
+	static int update_reg_soc = -EINVAL;
 	int rc;
+	char sub_batt_info[MAX_SUB_BATT_INFO] = {0};
+	int index = 0;
 
 	if (chip->wired_online || chip->wls_online)
 		oplus_mms_restore_publish(chip->err_topic);
@@ -275,19 +304,23 @@ static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 	 */
 	if (oplus_monitor_all_topic_is_ready(chip))
 		oplus_chg_track_comm_monitor(chip);
+	if (is_main_gauge_topic_available(chip) && is_sub_gauge_topic_available(chip))
+		index += snprintf(sub_batt_info + index, MAX_SUB_BATT_INFO - index,
+			"main_sub[%d %d %d %d]",
+			chip->main_ibat, chip->main_soc, chip->sub_ibat, chip->sub_soc);
 
 	printk(KERN_INFO "OPLUS_CHG[oplus_charge_info]: "
-		"BATTERY[%d %d %d %d %d %d %d %d %d %d %d 0x%x], "
+		"BATTERY[%d %d %d %d %d %d %d %d %d %d %d 0x%x %d], "
 		"CHARGE[%d %d %d %d], "
 		"WIRED[%d %d %d %d %d 0x%x %d %d %d %d %d], "
 		"WIRELESS[%d %d %d %d %d 0x%x %d %d %d], "
 		"VOOC[%d %d %d %d 0x%x], "
 		"UFCS[%d %d %d 0x%x], "
-		"COMMON[%d %d %d 0x%x %d %d %d %d %d %d]",
+		"COMMON[%d %d %d 0x%x %d %d %d %d %d %d] %s",
 		chip->batt_temp, chip->shell_temp, chip->vbat_mv,
 		chip->vbat_min_mv, chip->ibat_ma, chip->batt_soc, chip->ui_soc,
 		chip->smooth_soc, chip->batt_rm, chip->batt_fcc, chip->batt_exist,
-		chip->batt_err_code,
+		chip->batt_err_code, chip->gauge_car_c,
 		chip->fv_mv, chip->fcc_ma, chip->chg_disable, chip->chg_user_disable,
 		chip->wired_online, chip->wired_ibus_ma, chip->wired_vbus_mv,
 		chip->wired_icl_ma, chip->wired_charge_type, chip->wired_err_code,
@@ -302,17 +335,14 @@ static void oplus_monitor_charge_info_update_work(struct work_struct *work)
 		chip->ufcs_adapter_id,
 		chip->temp_region, chip->ffc_status, chip->cool_down,
 		chip->notify_code, chip->led_on, chip->deep_support, chip->delta_soc,
-		chip->batt_fcc_comp, chip->batt_soh_comp, chip->uisoc_keep_2_err);
+		chip->batt_fcc_comp, chip->batt_soh_comp, chip->uisoc_keep_2_err,
+		sub_batt_info);
 
-#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
-	if (get_eng_version() != PREVERSION || chip->wired_online || chip->wls_online) {
-#else
 	if (chip->wired_online || chip->wls_online) {
-#endif
-		update_reg_jiffies = jiffies;
+		update_reg_soc = chip->batt_soc;
 	} else {
-		if (time_is_before_eq_jiffies(update_reg_jiffies + (unsigned long)(300 * HZ))) {
-			update_reg_jiffies = jiffies;
+		if (update_reg_soc != chip->batt_soc) {
+			update_reg_soc = chip->batt_soc;
 			rc = oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_REG_INFO, &data, true);
 			if (rc == 0 && data.strval && strlen(data.strval))
 				printk(KERN_INFO "OPLUS_CHG [main_gauge_reg_info] %s\n", data.strval);
@@ -343,14 +373,15 @@ static int comm_info_dump_log_data(char *buffer, int size, void *dev_data)
 
 	snprintf(buffer, size, ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
 		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
-		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+		"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
+		"%d,%d,%d,%d",
 		chip->batt_temp, chip->shell_temp, chip->vbat_mv, chip->vbat_min_mv, chip->ibat_ma,
 		chip->batt_soc, chip->ui_soc, chip->wired_online, chip->wired_charge_type, chip->notify_code,
 		chip->wired_ibus_ma, chip->wired_vbus_mv, chip->smooth_soc, chip->led_on, chip->fv_mv,
 		chip->fcc_ma, chip->wired_icl_ma, chip->otg_switch_status, chip->cool_down, chip->bcc_current,
 		chip->normal_cool_down, chip->chg_cycle_status, chip->mmi_chg, chip->usb_status, chip->cc_detect,
 		chip->batt_full, chip->rechging, chip->pd_svooc, chip->batt_status, chip->batt_qmax,
-		chip->batt_soh, chip->gauge_car_c);
+		chip->batt_soh, chip->gauge_car_c, chip->batt_rm, chip->batt_fcc);
 
 	return 0;
 }
@@ -368,7 +399,7 @@ static int comm_info_get_log_head(char *buffer, int size, void *dev_data)
 		"wired_ibus_ma,wired_vbus_mv,smooth_soc,led_on,fv_mv,"
 		"fcc_ma,wired_icl_ma,otg_switch,cool_down,bcc_current,normal_cool_down,chg_cycle,"
 		"mmi_chg,usb_status,cc_detect,batt_full,rechging,pd_svooc,prop_status,batt_qmax,"
-		"batt_soh,gauge_car_c");
+		"batt_soh,gauge_car_c,batt_rm,batt_fcc");
 
 	return 0;
 }
@@ -444,9 +475,15 @@ static void oplus_monitor_gauge_subs_callback(struct mms_subscribe *subs,
 		oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_TEMP,
 					&data, false);
 		chip->batt_temp = data.intval;
-		oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MIN,
-					&data, false);
-		chip->vbat_min_mv = data.intval;
+		if (is_sub_gauge_topic_available(chip)) {
+			oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_VOL_MAX,
+						&data, false);
+			chip->vbat_min_mv = data.intval;
+		} else {
+			oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MIN,
+						&data, false);
+			chip->vbat_min_mv = data.intval;
+		}
 		oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_SOC,
 					&data, false);
 		chip->batt_soc = data.intval;
@@ -530,9 +567,15 @@ static void oplus_monitor_subscribe_gauge_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_TEMP, &data,
 				true);
 	chip->batt_temp = data.intval;
-	oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MIN, &data,
-				true);
-	chip->vbat_min_mv = data.intval;
+	if (is_sub_gauge_topic_available(chip)) {
+		oplus_mms_get_item_data(chip->sub_gauge_topic, GAUGE_ITEM_VOL_MAX,
+					&data, false);
+		chip->vbat_min_mv = data.intval;
+	} else {
+		oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MIN, &data,
+					true);
+		chip->vbat_min_mv = data.intval;
+	}
 	oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_SOC, &data,
 				true);
 	chip->batt_soc = data.intval;
@@ -587,6 +630,7 @@ static void oplus_monitor_retention_subs_callback(struct mms_subscribe *subs,
 				chip->total_disconnect_count > 0)
 				oplus_chg_track_upload_wired_retention_online_info(chip);
 			chip->pre_retention_state = chip->retention_state;
+			oplus_chg_track_update_break_ui_online();
 			break;
 		case RETENTION_ITEM_TOTAL_DISCONNECT_COUNT:
 			oplus_mms_get_item_data(chip->retention_topic, id, &data, false);
@@ -648,12 +692,36 @@ static void oplus_monitor_ufcs_subs_callback(struct mms_subscribe *subs,
 			if (rc < 0)
 				break;
 			chip->ufcs_adapter_id = (u32)data.intval;
+			if (chip->ufcs_adapter_id > 0)
+				chip->pre_ufcs_adapter_id = chip->ufcs_adapter_id;
 			break;
 		case UFCS_ITEM_OPLUS_ADAPTER:
 			rc = oplus_mms_get_item_data(chip->ufcs_topic, id, &data, false);
 			if (rc < 0)
 				break;
 			chip->ufcs_oplus_adapter = !!data.intval;
+			if (chip->ufcs_oplus_adapter > 0)
+				chip->pre_ufcs_oplus_adapter = chip->ufcs_oplus_adapter;
+			break;
+		case UFCS_ITEM_EMARK_POWER:
+			rc = oplus_mms_get_item_data(chip->ufcs_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			chip->ufcs_emark_power = data.intval;
+			if (chip->ufcs_emark_power > 0) {
+				chip->pre_ufcs_emark_power = chip->ufcs_emark_power;
+				oplus_chg_track_handle_wired_type_info(chip, TRACK_CHG_GET_THTS_TIME_TYPE);
+			}
+			break;
+		case UFCS_ITEM_ADAPTER_POWER:
+			rc = oplus_mms_get_item_data(chip->ufcs_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			chip->ufcs_adapter_power = data.intval;
+			if (chip->ufcs_adapter_power > 0) {
+				chip->pre_ufcs_adapter_power = chip->ufcs_adapter_power;
+				oplus_chg_track_handle_wired_type_info(chip, TRACK_CHG_GET_THTS_TIME_TYPE);
+			}
 			break;
 		default:
 			break;
@@ -685,15 +753,38 @@ static void oplus_monitor_subscribe_ufcs_topic(struct oplus_mms *topic,
 	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_ONLINE, &data, true);
 	if (rc >= 0)
 		chip->ufcs_online = !!data.intval;
+
 	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_CHARGING, &data, true);
 	if (rc >= 0)
 		chip->ufcs_charging = !!data.intval;
+
 	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_ADAPTER_ID, &data, true);
-	if (rc >= 0)
+	if (rc >= 0) {
 		chip->ufcs_adapter_id = (u32)data.intval;
+		chip->pre_ufcs_adapter_id = chip->ufcs_adapter_id;
+	}
+
 	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_OPLUS_ADAPTER, &data, true);
-	if (rc >= 0)
+	if (rc >= 0) {
 		chip->ufcs_oplus_adapter = !!data.intval;
+		chip->pre_ufcs_oplus_adapter = chip->ufcs_oplus_adapter;
+	}
+
+	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_EMARK_POWER, &data, true);
+	if (rc >= 0) {
+		chip->ufcs_emark_power = data.intval;
+		chip->pre_ufcs_emark_power = chip->ufcs_emark_power;
+	}
+
+	rc = oplus_mms_get_item_data(chip->ufcs_topic, UFCS_ITEM_ADAPTER_POWER, &data, true);
+	if (rc >= 0) {
+		chip->ufcs_adapter_power = data.intval;
+		chip->pre_ufcs_adapter_power = chip->ufcs_adapter_power;
+	}
+
+	if (chip->ufcs_emark_power > 0 || chip->ufcs_adapter_power > 0)
+		oplus_chg_track_handle_wired_type_info(chip, TRACK_CHG_GET_THTS_TIME_TYPE);
+
 }
 
 static void oplus_monitor_plc_subs_callback(struct mms_subscribe *subs,
@@ -782,6 +873,18 @@ static void oplus_monitor_wired_plugin_work(struct work_struct *work)
 		container_of(work, struct oplus_monitor, wired_plugin_work);
 	oplus_chg_track_check_wired_charging_break(chip->wired_online);
 	chip->oplus_liquid_intake_check_led_status = false;
+}
+
+static void oplus_monitor_wired_present_work(struct work_struct *work)
+{
+	bool wired_present = false;
+	union mms_msg_data data = { 0 };
+	struct oplus_monitor *chip =
+		container_of(work, struct oplus_monitor, wired_present_work);
+
+	oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_PRESENT, &data, false);
+	wired_present = !!data.intval;
+	oplus_chg_track_check_wired_mul_break_stat(wired_present);
 }
 
 #define TIMER_SIZE 10
@@ -1040,9 +1143,13 @@ static void oplus_monitor_wired_subs_callback(struct mms_subscribe *subs,
 			chip->notify_flag = 0;
 			if (!chip->wired_online)
 				oplus_chg_track_record_dual_chan_end(chip);
+			oplus_chg_track_update_break_ui_online();
 			schedule_work(&chip->charge_info_update_work);
 			schedule_work(&chip->wired_plugin_work);
 			schedule_delayed_work(&chip->dischg_profile_check_work, 0);
+			break;
+		case WIRED_ITEM_PRESENT:
+			schedule_work(&chip->wired_present_work);
 			break;
 		case WIRED_ITEM_ERR_CODE:
 			oplus_mms_get_item_data(chip->wired_topic, id, &data,
@@ -1083,6 +1190,10 @@ static void oplus_monitor_wired_subs_callback(struct mms_subscribe *subs,
 			break;
 		case WIRED_ITEM_ONLINE_STATUS_ERR:
 			oplus_chg_track_upload_wired_online_err_info(chip);
+			break;
+		case WIRED_ITEM_VBUS_VOL_TYPE:
+			oplus_mms_get_item_data(chip->wired_topic, id, &data, false);
+			chip->vbus_vol_type = data.intval;
 			break;
 		default:
 			break;
@@ -1131,6 +1242,8 @@ static void oplus_monitor_subscribe_wired_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->wired_topic, WIRED_TIME_ABNORMAL_ADAPTER, &data,
 				true);
 	chip->pd_svooc = !!data.intval;
+	oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_VBUS_VOL_TYPE, &data, true);
+	chip->vbus_vol_type = data.intval;
 }
 
 static void oplus_monitor_wls_subs_callback(struct mms_subscribe *subs,
@@ -1147,6 +1260,7 @@ static void oplus_monitor_wls_subs_callback(struct mms_subscribe *subs,
 			chip->wls_online = !!data.intval;
 			schedule_work(&chip->charge_info_update_work);
 			oplus_chg_track_check_wls_charging_break(!!data.intval);
+			oplus_chg_track_check_wls_mul_break_stat(!!data.intval);
 			schedule_delayed_work(&chip->dischg_profile_check_work, 0);
 			break;
 		default:
@@ -1222,6 +1336,113 @@ static void oplus_monitor_ffc_end_work(struct work_struct *work)
 		oplus_monitor_record_ffc_soc(chip, false);
 	}
 }
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+static void oplus_monitor_fgpa_reset_start_work(struct work_struct *work)
+{
+	struct oplus_monitor *chip = container_of(
+		work, struct oplus_monitor, fgpa_reset_start_work);
+	struct mms_msg *msg;
+	int rc;
+
+	chip->fpga_reset_status = FPGA_RESET_START;
+	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,
+				  ERR_ITEM_FPGA_RESET);
+	if (msg == NULL) {
+		chg_err("alloc msg error\n");
+		return;
+	}
+	rc = oplus_mms_publish_msg(chip->err_topic, msg);
+	if (rc < 0) {
+		chg_err("publish msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+}
+
+static void oplus_monitor_fgpa_reset_end_work(struct work_struct *work)
+{
+	struct oplus_monitor *chip = container_of(
+		work, struct oplus_monitor, fgpa_reset_end_work);
+	struct mms_msg *msg;
+	int rc;
+
+	chg_info(" %s \n", __func__);
+	chip->fpga_reset_status = FPGA_RESET_END;
+	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,
+				  ERR_ITEM_FPGA_RESET);
+	if (msg == NULL) {
+		chg_err("alloc msg error\n");
+		return;
+	}
+	rc = oplus_mms_publish_msg_sync(chip->err_topic, msg);
+	if (rc < 0) {
+		chg_err("publish msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+}
+
+static void oplus_monitor_gauge_i2c_rst_work(struct work_struct *work)
+{
+	struct oplus_monitor *chip = container_of(
+		work, struct oplus_monitor, gauge_i2c_reset_work);
+	struct mms_msg *msg;
+	int rc;
+
+	chg_info("i2c_reset_status:%d\n", chip->i2c_reset_status);
+	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,
+				  ERR_ITEM_I2C_RESET);
+	if (msg == NULL) {
+		chg_err("alloc msg error\n");
+		return;
+	}
+	rc = oplus_mms_publish_msg_sync(chip->err_topic, msg);
+	if (rc < 0) {
+		chg_err("publish msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+}
+
+static int oplus_monitor_fpga_state_change(struct notifier_block *nb, unsigned long ev, void *v)
+{
+	struct oplus_monitor *chip = container_of(nb, struct oplus_monitor, nb);
+
+	chg_err(" %s call, event is %lu.\n", __func__, ev);
+
+	if (!chip) {
+		chg_err("chip null\n ");
+		return 0;
+	}
+	if (ev == FPGA_RESET_END) {
+		cancel_work_sync(&chip->fgpa_reset_start_work);
+		schedule_work(&chip->fgpa_reset_end_work);
+	} else if (ev == FPGA_RESET_START) {
+		cancel_work_sync(&chip->fgpa_reset_end_work);
+		schedule_work(&chip->fgpa_reset_start_work);
+	}
+	return 0;
+}
+
+static int oplus_monitor_gauge_i2c_rst(struct notifier_block *nb, unsigned long ev, void *v)
+{
+	struct oplus_monitor *chip = container_of(nb, struct oplus_monitor, i2c_nb);
+
+	chg_err(" %s call, event is %lu.\n", __func__, ev);
+
+	if (!chip) {
+		chg_err("chip null\n ");
+		return 0;
+	}
+	if (ev == I2C_RST_END) {
+		chip->i2c_reset_status = GUAGE_I2C_RST_END;
+		schedule_work(&chip->gauge_i2c_reset_work);
+	} else if (ev == I2C_RST_START) {
+		chip->i2c_reset_status = GUAGE_I2C_RST_START;
+		schedule_work(&chip->gauge_i2c_reset_work);
+	}
+
+	return 0;
+}
+#endif
 
 static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 					 enum mms_msg_type type, u32 id, bool sync)
@@ -1374,6 +1595,11 @@ static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 			chip->rechg_soc_threshold =RECHG_SOC_TO_SOC(data.intval);
 			oplus_chg_track_upload_rechg_info(chip);
 			break;
+		case COMM_ITEM_BOOT_COMPLETED:
+			oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_BOOT_COMPLETED, &data, false);
+			if (!!data.intval)
+				oplus_chg_track_update_prechg_r_data(chip);
+			break;
 		default:
 			break;
 		}
@@ -1450,6 +1676,10 @@ static void oplus_monitor_subscribe_comm_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_RECHG_SOC_EN_STATUS, &data, false);
 	chip->rechg_soc_en = RECHG_SOC_TO_ENABLE(data.intval);
 	chip->rechg_soc_threshold = RECHG_SOC_TO_SOC(data.intval);
+
+	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_BOOT_COMPLETED, &data, true);
+	if (!!data.intval)
+		oplus_chg_track_update_prechg_r_data(chip);
 
 	schedule_delayed_work(&chip->dischg_profile_check_work, 0);
 }
@@ -1552,6 +1782,46 @@ static void oplus_monitor_subscribe_vooc_topic(struct oplus_mms *topic,
 				&data, true);
 	if (!!data.intval)
 		chip->chg_ctrl_by_vooc = true;
+}
+
+static int oplus_monitor_update_fpga_reset(struct oplus_mms *mms,
+				    union mms_msg_data *data)
+{
+	struct oplus_monitor *chip;
+
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(mms);
+
+	data->intval = chip->fpga_reset_status;
+
+	return 0;
+}
+
+static int oplus_monitor_update_i2c_reset(struct oplus_mms *mms,
+				union mms_msg_data *data)
+{
+	struct oplus_monitor *chip;
+
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(mms);
+
+	data->intval = chip->i2c_reset_status;
+
+	return 0;
 }
 
 static void oplus_monitor_update(struct oplus_mms *mms, bool publish)
@@ -1692,6 +1962,16 @@ static struct mms_item oplus_monitor_item[] = {
 	},
 	{
 		.desc = {
+			.item_id = ERR_ITEM_SUB_DEEP_DISCHG_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
 			.item_id = ERR_ITEM_CHG_INTO_LIQUID,
 			.str_data = true,
 			.up_thr_enable = false,
@@ -1722,6 +2002,36 @@ static struct mms_item oplus_monitor_item[] = {
 	},
 	{
 		.desc = {
+			.item_id = ERR_ITEM_BAL_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_FPGA_RESET,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = oplus_monitor_update_fpga_reset,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_I2C_RESET,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = oplus_monitor_update_i2c_reset,
+		}
+	},
+	{
+		.desc = {
 			.item_id = ERR_ITEM_CLOSE_CP,
 		}
 	},
@@ -1743,6 +2053,87 @@ static struct mms_item oplus_monitor_item[] = {
 			.down_thr_enable = false,
 			.dead_thr_enable = false,
 			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_DEC_CV_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_LPD,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_DEVICE_ID,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_ERR_PHY_CP_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_PPS,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_GAUGE_R_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_SOCCP_CRASH,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_FCL_INFO,
+			.str_data = true,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = ERR_ITEM_BS_INFO,
+			.str_data = true,
 		}
 	},
 
@@ -1844,6 +2235,7 @@ static int oplus_monitor_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->charge_info_update_work,
 		  oplus_monitor_charge_info_update_work);
 	INIT_WORK(&chip->wired_plugin_work, oplus_monitor_wired_plugin_work);
+	INIT_WORK(&chip->wired_present_work, oplus_monitor_wired_present_work);
 	INIT_WORK(&chip->ffc_step_change_work, oplus_monitor_ffc_step_change_work);
 	INIT_WORK(&chip->ffc_end_work, oplus_monitor_ffc_end_work);
 	INIT_DELAYED_WORK(&chip->water_inlet_detect_work, oplus_mms_water_inlet_detect_work);
@@ -1852,7 +2244,19 @@ static int oplus_monitor_probe(struct platform_device *pdev)
 			  oplus_chg_track_chg_into_liquid_trigger_timeout_work);
 	INIT_DELAYED_WORK(&chip->dischg_profile_update_work, oplus_chg_dischg_profile_update_work);
 	INIT_DELAYED_WORK(&chip->dischg_profile_check_work, oplus_chg_dischg_profile_check_work);
-
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	INIT_WORK(&chip->fgpa_reset_start_work, oplus_monitor_fgpa_reset_start_work);
+	INIT_WORK(&chip->fgpa_reset_end_work, oplus_monitor_fgpa_reset_end_work);
+	INIT_WORK(&chip->gauge_i2c_reset_work, oplus_monitor_gauge_i2c_rst_work);
+	chip->nb.notifier_call = oplus_monitor_fpga_state_change;
+	rc = fpga_register_notifier(&chip->nb);
+	if (rc != 0)
+		chg_err("%s : fpga_register_notifier failed!\n", __func__);
+	chip->i2c_nb.notifier_call = oplus_monitor_gauge_i2c_rst;
+	rc = i2c_rst_register_notifier(&chip->i2c_nb);
+	if (rc != 0)
+		chg_err("%s : i2c_rst_register_notifier failed!\n", __func__);
+#endif
 	oplus_mms_wait_topic("wired", oplus_monitor_subscribe_wired_topic, chip);
 	oplus_mms_wait_topic("wireless", oplus_monitor_subscribe_wls_topic, chip);
 	oplus_mms_wait_topic("vooc", oplus_monitor_subscribe_vooc_topic, chip);
@@ -1875,7 +2279,11 @@ topic_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_monitor_remove(struct platform_device *pdev)
+#else
 static int oplus_monitor_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_monitor *chip = platform_get_drvdata(pdev);
 
@@ -1897,7 +2305,9 @@ static int oplus_monitor_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	devm_kfree(&pdev->dev, chip);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static void oplus_monitor_shutdown(struct platform_device *pdev)

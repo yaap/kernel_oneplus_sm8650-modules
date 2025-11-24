@@ -35,8 +35,10 @@
 #include <oplus_chg.h>
 #include "../oplus_voocphy.h"
 #include "oplus_sc8547.h"
+#include <oplus_chg_voter.h>
 #define DEFAULT_OVP_REG_CONFIG	0x2E
 #define DEFAULT_OCP_REG_CONFIG	0x8
+#define ERR_MSG_BUF	PAGE_SIZE
 
 static struct oplus_voocphy_manager *oplus_voocphy_mg = NULL;
 static struct mutex i2c_rw_lock;
@@ -46,6 +48,8 @@ static int sc8547_slave_get_chg_enable(struct oplus_voocphy_manager *chip, u8 *d
 static bool ic_sc8547a = false;
 static int slave_ovp_reg = DEFAULT_OVP_REG_CONFIG;
 static int slave_ocp_reg = DEFAULT_OCP_REG_CONFIG;
+static u8 vbus_ovp_reg;
+static u8 vooc_vbus_ovp_reg;
 
 #define I2C_ERR_NUM 10
 #define SLAVE_I2C_ERROR (1 << 1)
@@ -61,31 +65,54 @@ struct sc8547a_slave_device {
 	struct oplus_voocphy_manager *voocphy;
 	struct oplus_chg_ic_dev *cp_ic;
 
+	struct votable *disable_votable;
+
 	enum oplus_cp_work_mode cp_work_mode;
 	bool rested;
+	bool work_start;
+	bool boot_online;
+	atomic_t i2c_err_count;
+
+	struct work_struct cp_regdump_work;
+	struct work_struct ic_offline_work;
 };
 
-static void sc8547_slave_i2c_error(bool happen)
+static void sc8547_slave_i2c_error(struct oplus_voocphy_manager *voocphy, bool happen, bool read)
 {
-	int report_flag = 0;
-	if (!oplus_voocphy_mg || error_reported)
+	struct sc8547a_slave_device *device;
+	struct oplus_voocphy_manager *chip;
+
+	if (!voocphy || !voocphy->slave_client) {
+		chg_err("voocphy_manager is null\n");
 		return;
+	}
+
+	chip = i2c_get_clientdata(voocphy->slave_client);
+
+	if (!chip) {
+		pr_err("chip is null exit\n");
+		return;
+	}
+
+	device = chip->priv_data;
 
 	if (happen) {
-		oplus_voocphy_mg->slave_voocphy_iic_err = 1;
-		oplus_voocphy_mg->slave_voocphy_iic_err_num++;
-		if (oplus_voocphy_mg->slave_voocphy_iic_err_num >= I2C_ERR_NUM){
-			report_flag |= SLAVE_I2C_ERROR;
-#ifdef OPLUS_CHG_UNDEF /* TODO */
-			oplus_chg_sc8547_error(report_flag, NULL, 0);
-#endif
-			error_reported = true;
+		if(error_reported)
+			return;
+		if (atomic_read(&device->i2c_err_count) < I2C_ERR_NUM) {
+			atomic_inc(&device->i2c_err_count);
+			return;
 		}
+		error_reported = true;
+		vote(device->disable_votable, IIC_VOTER, true, 1, false);
+		oplus_chg_ic_creat_err_msg(device->cp_ic, OPLUS_IC_ERR_CP,
+					   CP_ERR_I2C, "%s error",
+					   read ? "read" : "write");
+		oplus_chg_ic_err_trigger_and_clean(device->cp_ic);
 	} else {
-		oplus_voocphy_mg->slave_voocphy_iic_err_num = 0;
-#ifdef OPLUS_CHG_UNDEF /* TODO */
-		oplus_chg_sc8547_error(0, NULL, 0);
-#endif
+		vote(device->disable_votable, IIC_VOTER, false, 0, false);
+		error_reported = false;
+		atomic_set(&device->i2c_err_count, 0);
 	}
 }
 
@@ -94,14 +121,15 @@ static void sc8547_slave_i2c_error(bool happen)
 static int __sc8547_slave_read_byte(struct i2c_client *client, u8 reg, u8 *data)
 {
 	s32 ret;
+	struct oplus_voocphy_manager *chip = i2c_get_clientdata(client);
 
 	ret = i2c_smbus_read_byte_data(client, reg);
 	if (ret < 0) {
-		sc8547_slave_i2c_error(true);
+		sc8547_slave_i2c_error(chip, true, true);
 		pr_err("i2c read fail: can't read from reg 0x%02X\n", reg);
 		return ret;
 	}
-	sc8547_slave_i2c_error(false);
+	sc8547_slave_i2c_error(chip, false, true);
 	*data = (u8) ret;
 
 	return 0;
@@ -110,15 +138,16 @@ static int __sc8547_slave_read_byte(struct i2c_client *client, u8 reg, u8 *data)
 static int __sc8547_slave_write_byte(struct i2c_client *client, int reg, u8 val)
 {
 	s32 ret;
+	struct oplus_voocphy_manager *chip = i2c_get_clientdata(client);
 
 	ret = i2c_smbus_write_byte_data(client, reg, val);
 	if (ret < 0) {
-		sc8547_slave_i2c_error(true);
+		sc8547_slave_i2c_error(chip, true, false);
 		pr_err("i2c write fail: can't write 0x%02X to reg 0x%02X: %d\n",
 		       val, reg, ret);
 		return ret;
 	}
-	sc8547_slave_i2c_error(false);
+	sc8547_slave_i2c_error(chip, false, false);
 
 	return 0;
 }
@@ -182,10 +211,10 @@ static void sc8547_slave_update_data(struct oplus_voocphy_manager *chip)
 	/*parse data_block for improving time of interrupt*/
 	ret = i2c_smbus_read_i2c_block_data(chip->slave_client, SC8547_REG_13, 2, data_block);
 	if (ret < 0) {
-		sc8547_slave_i2c_error(true);
+		sc8547_slave_i2c_error(chip, true, true);
 		pr_err("sc8547_update_data slave read error \n");
 	} else {
-		sc8547_slave_i2c_error(false);
+		sc8547_slave_i2c_error(chip, false, true);
 	}
 	for (i=0; i<2; i++) {
 		pr_info("data_block[%d] = %u\n", i, data_block[i]);
@@ -393,7 +422,7 @@ static int sc8547_slave_init_device(struct oplus_voocphy_manager *chip)
 
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_11, 0x00); /* ADC_CTRL:disable */
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_02, 0x01);
-	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, 0x00); /* VBUS_OVP:10 2:1 or 1:1V */
+	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, vbus_ovp_reg); /* VBUS_OVP:10 2:1 or 1:1V */
 	reg_data = slave_ovp_reg & SC8547_BAT_OVP_MASK;
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_00, reg_data); /* VBAT_OVP:4.65V */
 	if (!ic_sc8547a)
@@ -425,7 +454,7 @@ static int sc8547_slave_reset_device(struct oplus_voocphy_manager *chip)
 		sc8547_slave_write_byte(chip->slave_client,
 					SC8547_REG_02, 0x01);
 	sc8547_slave_write_byte(chip->slave_client,
-				SC8547_REG_04, 0x00); /* VBUS_OVP:10 2:1 or 1:1V */
+				SC8547_REG_04, vbus_ovp_reg); /* VBUS_OVP:10 2:1 or 1:1V */
 	reg_data = slave_ovp_reg & SC8547_BAT_OVP_MASK;
 	sc8547_slave_write_byte(chip->slave_client,
 				SC8547_REG_00, reg_data); /* VBAT_OVP:4.65V */
@@ -480,7 +509,7 @@ static int sc8547_slave_svooc_hw_setting(struct oplus_voocphy_manager *chip)
 	u8 reg_data;
 
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_02, 0x01); /* VAC_OVP:12v */
-	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, 0x50); /* VBUS_OVP:10v */
+	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, vbus_ovp_reg);  /* VBUS_OVP:10v */
 	if (!ic_sc8547a)
 		reg_data = (SC8547_IBUS_UCP_FALL_DEGLITCH_SET_5MS << SC8547_IBUS_UCP_FALL_DEGLITCH_SET_SHIFT)
 				| (slave_ocp_reg & SC8547_IBUS_OCP_MASK);
@@ -505,7 +534,7 @@ static int sc8547_slave_vooc_hw_setting(struct oplus_voocphy_manager *chip)
 	u8 reg_data;
 
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_02, 0x01); /* VAC_OVP */
-	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, 0x50); /* ADC_CTRL */
+	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, vooc_vbus_ovp_reg); /* ADC_CTRL */
 	if (!ic_sc8547a)
 		reg_data = 0x2c;
 	else
@@ -526,7 +555,7 @@ static int sc8547_slave_vooc_hw_setting(struct oplus_voocphy_manager *chip)
 static int sc8547_slave_5v2a_hw_setting(struct oplus_voocphy_manager *chip)
 {
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_02, 0x01); /* VAC_OVP */
-	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, 0x00); /* VBUS_OVP */
+	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, vbus_ovp_reg); /* VBUS_OVP */
 	if (!ic_sc8547a)
 		sc8547_slave_write_byte(chip->slave_client, SC8547_REG_07, 0x05);
 	else
@@ -541,7 +570,7 @@ static int sc8547_slave_5v2a_hw_setting(struct oplus_voocphy_manager *chip)
 static int sc8547_slave_pdqc_hw_setting(struct oplus_voocphy_manager *chip)
 {
 	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_02, 0x01); /* VAC_OVP */
-	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, 0x50); /* VBUS_OVP */
+	sc8547_slave_write_byte(chip->slave_client, SC8547_REG_04, vbus_ovp_reg); /* VBUS_OVP */
 	if (!ic_sc8547a)
 		sc8547_slave_write_byte(chip->slave_client, SC8547_REG_07, 0x05);
 	else
@@ -657,24 +686,40 @@ static bool sc8547_slave_check_work_mode_support(enum oplus_cp_work_mode mode)
 
 static int sc8547_slave_cp_init(struct oplus_chg_ic_dev *ic_dev)
 {
+	struct sc8547a_slave_device *chip;
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
 	ic_dev->online = true;
 	oplus_chg_ic_virq_trigger(ic_dev, OPLUS_IC_VIRQ_ONLINE);
+
+	chg_info("%s init\n", ic_dev->manu_name);
+
+	vote(chip->disable_votable, OCP_VOTER, false, 0, false);
+	vote(chip->disable_votable, UCP_VOTER, false, 0, false);
+	vote(chip->disable_votable, IIC_VOTER, false, 0, false);
+	vote(chip->disable_votable, PARENT_VOTER, false, 0, false);
+	error_reported = false;
+	atomic_set(&chip->i2c_err_count, 0);
 
 	return 0;
 }
 
 static int sc8547_slave_cp_exit(struct oplus_chg_ic_dev *ic_dev)
 {
+	struct sc8547a_slave_device *chip;
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
 	ic_dev->online = false;
 	oplus_chg_ic_virq_trigger(ic_dev, OPLUS_IC_VIRQ_OFFLINE);
+	chg_info("%s exit\n", ic_dev->manu_name);
+	vote(chip->disable_votable, PARENT_VOTER, true, 1, false);
+	schedule_work(&chip->cp_regdump_work);
 
 	return 0;
 }
@@ -808,6 +853,7 @@ static int sc8547_slave_cp_hw_init(struct oplus_chg_ic_dev *ic_dev)
 		return 0;
 
 	sc8547_slave_hardware_init(chip->voocphy);
+	chip->work_start = false;
 	return 0;
 }
 
@@ -1046,6 +1092,25 @@ static int sc8547_slave_cp_adc_enable(struct oplus_chg_ic_dev *ic_dev, bool en)
 	return 0;
 }
 
+static int sc8547_slave_cp_watchdog_reset(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct sc8547a_slave_device *chip;
+	u8 data;
+	int rc;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_priv_data(ic_dev);
+
+	rc = sc8547_slave_read_byte(chip->slave_client, SC8547_REG_07, &data);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
 static void *sc8547_slave_cp_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg_ic_func func_id)
 {
 	void *func = NULL;
@@ -1112,6 +1177,9 @@ static void *sc8547_slave_cp_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplu
 	case OPLUS_IC_FUNC_CP_SET_ADC_ENABLE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_SET_ADC_ENABLE, sc8547_slave_cp_adc_enable);
 		break;
+	case OPLUS_IC_FUNC_CP_WATCHDOG_RESET:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_CP_WATCHDOG_RESET, sc8547_slave_cp_watchdog_reset);
+		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
 		func = NULL;
@@ -1121,12 +1189,58 @@ static void *sc8547_slave_cp_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplu
 	return func;
 }
 
+static int sc8547a_slave_disable_vote_callback(struct votable *votable, void *data,
+					 int disable, const char *client, bool step)
+{
+	struct sc8547a_slave_device *chip = data;
+	bool online;
+
+	if (disable < 0)
+		online = true;
+	else
+		online = !disable;
+	chg_info("[%s]%s set sc8547a online to %s\n", votable_name(votable),
+		 client, online ? "true" : "false");
+
+	if (chip->cp_ic ==NULL)
+		return -ENODEV;
+	if (chip->cp_ic->online == online)
+		return 0;
+
+	chip->cp_ic->online = online;
+	if (online) {
+		oplus_chg_ic_virq_trigger(chip->cp_ic, OPLUS_IC_VIRQ_ONLINE);
+		/*
+		* The first online operation during the startup phase
+		* does not require reporting of exceptions
+		*/
+		if (likely(chip->boot_online)) {
+			oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+						   CP_ERR_ONLINE_CHANGE,
+						   "online");
+			oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+		} else {
+			chip->boot_online = true;
+		}
+	} else {
+		oplus_chg_ic_virq_trigger(chip->cp_ic, OPLUS_IC_VIRQ_OFFLINE);
+		schedule_work(&chip->ic_offline_work);
+		oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+					   CP_ERR_ONLINE_CHANGE,
+					   "offline");
+		oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+	}
+
+	return 0;
+}
+
 struct oplus_chg_ic_virq sc8547_slave_cp_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_ERR },
 	{ .virq_id = OPLUS_IC_VIRQ_ONLINE },
 	{ .virq_id = OPLUS_IC_VIRQ_OFFLINE },
 };
 
+#define CP_IC_VOTEABLE_NAME_MAX		128
 static int sc8547_slave_ic_register(struct sc8547a_slave_device *device)
 {
 	enum oplus_chg_ic_type ic_type;
@@ -1134,6 +1248,7 @@ static int sc8547_slave_ic_register(struct sc8547a_slave_device *device)
 	struct device_node *child;
 	struct oplus_chg_ic_dev *ic_dev = NULL;
 	struct oplus_chg_ic_cfg ic_cfg;
+	char votable_name[CP_IC_VOTEABLE_NAME_MAX] = { 0 };
 	int rc;
 
 	for_each_child_of_node(device->slave_dev->of_node, child) {
@@ -1155,6 +1270,19 @@ static int sc8547_slave_ic_register(struct sc8547a_slave_device *device)
 			ic_cfg.get_func = sc8547_slave_cp_get_func;
 			ic_cfg.virq_data = sc8547_slave_cp_virq_table;
 			ic_cfg.virq_num = ARRAY_SIZE(sc8547_slave_cp_virq_table);
+			if (device->disable_votable != NULL)
+				break;
+
+			snprintf(votable_name, CP_IC_VOTEABLE_NAME_MAX - 1,
+				 "SC8547A_SLAVE_DISABLE:%d", ic_index);
+			device->disable_votable = create_votable(votable_name,
+				VOTE_SET_ANY, sc8547a_slave_disable_vote_callback, device);
+			if (IS_ERR(device->disable_votable)) {
+				rc = PTR_ERR(device->disable_votable);
+				chg_err("creat disable_votable error, rc=%d\n", rc);
+				device->disable_votable = NULL;
+				return rc;
+			}
 			break;
 		default:
 			chg_err("not support ic_type(=%d)\n", ic_type);
@@ -1284,6 +1412,17 @@ static int sc8547_slave_parse_dt(struct oplus_voocphy_manager *chip)
 	else
 		chg_err("slave_ocp_reg is %d\n", slave_ocp_reg);
 
+	rc = of_property_read_u8(node, "vbus_ovp_reg", &vbus_ovp_reg);
+	if (rc)
+		vbus_ovp_reg = 0x50; /* VBUS_OVP 10V */
+	chg_err("vbus_ovp_reg=0x%02x\n", vbus_ovp_reg);
+
+	rc = of_property_read_u8(node, "vooc_vbus_ovp_reg", &vooc_vbus_ovp_reg);
+	if (rc)
+		vooc_vbus_ovp_reg = 0x50; /* VBUS_OVP 10V */
+	chg_err("vooc_vbus_ovp_reg=0x%02x\n", vooc_vbus_ovp_reg);
+
+
 	return 0;
 }
 
@@ -1309,6 +1448,50 @@ static int sc8547_slave_charger_choose(struct oplus_voocphy_manager *chip)
 	}
 
 	return ret;
+}
+
+#define SC8547A_SLAVE_CP_STATUS_REG_MAX	4
+static u8 g_sc8547a_slave_cp_status_reg[SC8547A_SLAVE_CP_STATUS_REG_MAX] = {
+	0x06, 0x09, 0x0e, 0x0f
+};
+
+static void sc8547a_slave_cp_regdump_work(struct work_struct *work)
+{
+	struct sc8547a_slave_device *chip =
+		container_of(work, struct sc8547a_slave_device, cp_regdump_work);
+	char *buf;
+	int i;
+	size_t index = 0;
+	u8 data;
+
+	buf = kzalloc(ERR_MSG_BUF, GFP_KERNEL);
+	if (buf == NULL)
+		return;
+
+	for (i = 0; i < SC8547A_SLAVE_CP_STATUS_REG_MAX; i++) {
+		data = 0;
+		sc8547_slave_read_byte(chip->voocphy->slave_client, g_sc8547a_slave_cp_status_reg[i], &data);
+		index += snprintf(buf + index, ERR_MSG_BUF, "0x%02x=%02x,",
+			g_sc8547a_slave_cp_status_reg[i], data);
+	}
+	if (index > 0)
+		buf[index - 1] = 0;
+
+	oplus_chg_ic_creat_err_msg(chip->cp_ic, OPLUS_IC_ERR_CP,
+		CP_ERR_REG_INFO, "%s", buf);
+	oplus_chg_ic_err_trigger_and_clean(chip->cp_ic);
+	kfree(buf);
+}
+
+static void sc8547a_slave_ic_offline_work(struct work_struct *work)
+{
+	struct sc8547a_slave_device *chip =
+		container_of(work, struct sc8547a_slave_device, ic_offline_work);
+
+	if (!chip->work_start)
+		return;
+	sc8547_slave_cp_set_work_start(chip->cp_ic, false);
+	sc8547_slave_cp_enable(chip->cp_ic, false);
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
@@ -1367,17 +1550,21 @@ static int sc8547_slave_charger_probe(struct i2c_client *client,
 	oplus_voocphy_slave_init(chip);
 	oplus_voocphy_get_chip(&oplus_voocphy_mg);
 	rc = sc8547_slave_ic_register(device);
+	INIT_WORK(&device->cp_regdump_work, sc8547a_slave_cp_regdump_work);
+	INIT_WORK(&device->ic_offline_work, sc8547a_slave_ic_offline_work);
 	if (rc < 0) {
 		chg_err("slave cp ic register error\n");
 		rc = -ENOMEM;
 		goto chip_err;
 	}
+	vote(device->disable_votable, DEF_VOTER, false, 0, false);
 	sc8547_slave_cp_init(device->cp_ic);
 	pr_err("sc8547_slave_parse_dt successfully!\n");
 
 	return 0;
 
 chip_err:
+	destroy_votable(device->disable_votable);
 	i2c_set_clientdata(client, NULL);
 	devm_kfree(&client->dev, chip);
 device_err:

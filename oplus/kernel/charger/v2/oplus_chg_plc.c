@@ -3,6 +3,7 @@
  * Copyright (C) 2024-2024 Oplus. All rights reserved.
  */
 
+
 #define pr_fmt(fmt) "[PLC]([%s][%d]): " fmt, __func__, __LINE__
 
 #include <linux/module.h>
@@ -851,7 +852,7 @@ static void step_strategy_read_ibatt(struct oplus_plc_strategy_step *step)
 	if (step->data.ibus_index >= PLC_IBAT_AVG_NUM)
 		step->data.ibus_index = step->data.ibus_index % PLC_IBAT_AVG_NUM;
 	step->data.ibat_column[step->data.ibat_index] = data.intval;
-	step->data.ibat_index = (++step->data.ibat_index) % PLC_IBAT_AVG_NUM;
+	step->data.ibat_index = (step->data.ibat_index + 1) % PLC_IBAT_AVG_NUM;
 	step->data.ibat_cnts++;
 	if (!step->data.ibat_index)
 		step->data.plc_check = true;
@@ -860,7 +861,7 @@ static void step_strategy_read_ibatt(struct oplus_plc_strategy_step *step)
 
 	ibus_pmic = oplus_wired_get_ibus();
 	step->data.ibus_column[step->data.ibus_index] = ibus_pmic;
-	step->data.ibus_index = (++step->data.ibus_index) % PLC_IBAT_AVG_NUM;
+	step->data.ibus_index = (step->data.ibus_index + 1) % PLC_IBAT_AVG_NUM;
 	step->data.ibus_cnts++;
 }
 
@@ -2302,6 +2303,7 @@ static int oplus_chg_plc_probe(struct platform_device *pdev)
 	rc = oplus_plc_topic_init(chip);
 	if (rc < 0)
 		goto topic_reg_err;
+	spin_lock_init(&chip->protocol_list_lock);
 	chip->buck_opp = oplus_plc_register_protocol(chip->plc_topic,
 		&g_plc_protocol_desc, chip->dev->of_node, chip);
 	if (chip->buck_opp == NULL)
@@ -2313,7 +2315,6 @@ static int oplus_chg_plc_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->chg_mode_change_work, oplus_plc_chg_mode_change_work);
 	INIT_WORK(&chip->wired_online_work, oplus_plc_wired_online_work);
 	mutex_init(&chip->status_control_lock);
-	spin_lock_init(&chip->protocol_list_lock);
 
 	return 0;
 
@@ -2325,7 +2326,11 @@ vote_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_chg_plc_remove(struct platform_device *pdev)
+#else
 static int oplus_chg_plc_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_chg_plc *chip = platform_get_drvdata(pdev);
 
@@ -2346,7 +2351,9 @@ static int oplus_chg_plc_remove(struct platform_device *pdev)
 
 	devm_kfree(&pdev->dev, chip);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_chg_plc_match[] = {
@@ -2490,6 +2497,53 @@ static int oplus_plc_protocol_proc_init(struct oplus_plc_protocol *opp)
 	return 0;
 }
 
+static struct oplus_plc_protocol *oplus_plc_register_v1_ufcs_protocol(
+	struct oplus_chg_plc *chip,
+	struct oplus_plc_protocol_desc *desc,
+	void *data)
+{
+	struct oplus_plc_protocol *opp;
+
+	opp = devm_kzalloc(chip->dev,
+		sizeof(struct oplus_plc_protocol) +
+			sizeof(struct oplus_plc_strategy_group),
+		GFP_KERNEL);
+	if (opp == NULL) {
+		chg_err("alloc opp buf error\n");
+		return NULL;
+	}
+	opp->priv_data = data;
+	opp->desc = desc;
+	opp->plc = chip;
+	opp->strategy_num = 1;
+	oplus_plc_protocol_proc_init(opp);
+
+	opp->strategy_groups[0].name = "default";
+	opp->strategy_groups[0].strategy = step_strategy_alloc(opp, NULL, NULL);
+	if (opp->strategy_groups[0].strategy == NULL) {
+		chg_err("%s: strategy alloc error\n", opp->strategy_groups[0].name);
+		goto strategy_alloc_err;
+	}
+	opp->strategy = opp->strategy_groups[0].strategy;
+
+	opp->strategy->node = NULL;
+	opp->strategy->entry = NULL;
+	opp->strategy->opp = opp;
+	opp->strategy->desc = &g_strategy_desc[0];
+
+	spin_lock(&chip->protocol_list_lock);
+	list_add(&opp->list, &chip->protocol_list);
+	spin_unlock(&chip->protocol_list_lock);
+
+	return opp;
+
+strategy_alloc_err:
+	if (opp->entry != NULL)
+		proc_remove(opp->entry);
+	devm_kfree(chip->dev, opp);
+	return NULL;
+}
+
 struct oplus_plc_protocol *oplus_plc_register_protocol(
 	struct oplus_mms *topic,
 	struct oplus_plc_protocol_desc *desc,
@@ -2538,6 +2592,8 @@ struct oplus_plc_protocol *oplus_plc_register_protocol(
 	rc = of_property_count_elems_of_size(node, "oplus,plc_strategy-data",
 					     sizeof(u32));
 	if (rc < 0) {
+		if (strcmp(desc->name, "ufcs") == 0)
+			return oplus_plc_register_v1_ufcs_protocol(chip, desc, data);
 		chg_err("can't get \"oplus,plc_strategy-data\" number, rc=%d\n", rc);
 		return NULL;
 	}

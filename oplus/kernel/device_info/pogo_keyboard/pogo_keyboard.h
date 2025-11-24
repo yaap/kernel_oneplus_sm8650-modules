@@ -50,9 +50,6 @@
 #define TOUCHPAD_NAME "pogo_touchpad"
 #define KEYBOARD_CORE_NAME "tinno,pogo_keyboard"
 
-
-#define POGO_KEYBOARD_EVENT_MAX     64
-
 #define TOUCH_FINGER_MAX    5
 
 // #define CONFIG_TOUCH_SCREEN //macro to enable touch screen mode for keyboard touchpad, or else mouse mode by default.
@@ -163,6 +160,8 @@ static bool pogo_debug_en = false;
 #define MAX_POGOPIN_EVENT_ID_LEN    20
 #define MAX_POGOPIN_PAYLOAD_LEN     1024
 
+#define DFU_FW_INFO_LEN    64
+#define DFU_ONE_WRITY_LEN_MAX    128
 #define PROC_PAGE_LEN		50
 #define MAX_FW_NAME_LENGTH	60
 #define ONE_WRITY_LEN_MAX    52 // 128
@@ -170,8 +169,12 @@ static bool pogo_debug_en = false;
 #define FW_PROGRESS_2		2
 #define FW_PROGRESS_3		3
 #define FW_PROGRESS_5		5
+#define FW_PROGRESS_6		6
+#define FW_PROGRESS_20		20
 #define FW_PROGRESS_22		22
 #define FW_PROGRESS_25		25
+#define FW_PROGRESS_45		45
+#define FW_PROGRESS_46		46
 #define FW_PROGRESS_47		47
 #define FW_PROGRESS_48		48
 #define FW_PROGRESS_50		50
@@ -181,7 +184,8 @@ static bool pogo_debug_en = false;
 #define FW_PROGRESS_100        100
 #define FW_PERCENTAGE_100      100
 #define DEFAULT_KBVER_LEN      13
-#define KBVER_LEN_MAX      20
+#define KBVER_LEN_MAX      30//20
+#define TPVER_LEN       7
 #define KBLOG_LEN_MAX      106
 
 enum {
@@ -208,6 +212,8 @@ enum {
     KEYBOARD_REPORT_TOUCH_STATUS_EVENT,
     KEYBOARD_REPORT_KBVER_EVENT,
     KEYBOARD_REPORT_KBLOG_EVENT,
+    KEYBOARD_REPORT_NFC_STA,
+    POGO_KEYBOARD_EVENT_MAX, //add new event befor it
 };
 
 enum {
@@ -250,6 +256,14 @@ struct pogo_keyboard_event {
     unsigned char event;
 };
 
+struct pogo_uevent {
+    struct class *uevent_class;
+    struct device *uevent_dev;
+    char *class_name;
+    char *cdev_name;
+    char *dev_name;
+};
+
 struct pogo_keyboard_data {
     struct input_dev *input_pogo_keyboard;
     unsigned char old[8];
@@ -271,7 +285,12 @@ struct pogo_keyboard_data {
     struct touch_event event;
     unsigned int touchpad_x_max;
     unsigned int touchpad_y_max;
+    unsigned int touchpad_x_resolution;
+    unsigned int touchpad_y_resolution;
+    int prev_finger_count;
     bool touchpad_disable_state;
+    bool touchpad_gesture_state;
+    bool touchpad_gesture_ignore;
     bool keypad_pluginout_state;   //keyboard plugin/out status for factory test.
     struct input_dev *input_wakeup;
 
@@ -354,8 +373,8 @@ struct pogo_keyboard_data {
     struct delayed_work lcd_notify_reg_work;
 
     unsigned long long mac_addr;                //keyboard mac, report when plug in by keyboard
-    struct class *uevent_class;
-    struct device *uevent_dev;
+    struct pogo_uevent *pogo;
+    struct pogo_uevent *nfc;
 
     char *tty_name;
     char *keyboard_name;
@@ -389,19 +408,36 @@ struct pogo_keyboard_data {
     u32 kpdmcu_fw_cnt;
     unsigned char report_kbver[KBVER_LEN_MAX];
     u8 kbver_len;
-    struct mutex fw_lock;
     u8 kpd_fw_status;
     int fw_update_progress;
     bool kpdmcu_update_end;
     bool kpdmcu_fw_update_force;
     bool is_kpdmcu_need_fw_update;
+    bool pogopin_ota_dfu;
+    u32 dfu_fwinfo_start_addr;
+    unsigned char report_tpver[TPVER_LEN];
+
+    //for trx test
+    struct work_struct kpd_trx_test_work;
     u8 kblog_len;
     unsigned char report_kblog[KBLOG_LEN_MAX];
+    unsigned char nfc_status;
 };
 
+typedef struct {
+    uint8_t main_cmd;
+    uint8_t sub_cmd;
+    uint8_t *ack;
+    size_t ack_len;
+    void (*handler)(char *buf, struct pogo_keyboard_data *client);
+} CommandHandler;
 
 extern struct pogo_keyboard_data *pogo_keyboard_client;
 extern char TAG[60];
+
+int pogo_keyboard_write(void *buf, int len);
+int pogo_keyboard_read(void *buf, int *r_len);
+int pogo_keyboard_write_and_read(void *w_buf, int w_len, void *r_buf, int *r_len);
 
 void pogo_keyboard_show_buf(void *buf, int count);
 
@@ -415,9 +451,12 @@ void pogo_keyboard_led_report(int key_value);
 
 int touchpad_input_init(void);
 int touchpad_input_report(char *buf);
+void reset_tool_buttons(struct input_dev *input_dev);
 
 extern ssize_t pogo_tty_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos);
 
-
+//for ota
+extern void kpdmcu_fw_data_version_thread(struct work_struct *work);
+extern void kpdmcu_fw_update_thread(struct work_struct *work);
 
 #endif

@@ -44,13 +44,8 @@
 #include "../voocphy/oplus_voocphy.h"
 #include <linux/rtc.h>
 #include <linux/iio/consumer.h>
-#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
-#include "../pd_ext/inc/tcpci.h"
-#include "../pd_ext/inc/tcpm.h"
-#else
-#include <tcpci.h>
 #include <tcpm.h>
-#endif
+#include <tcpci.h>
 #endif
 #define CHARGER_NORMAL_TEMP_HIGH 370
 #define CHARGER_NORMAL_TEMP_HIGH_MINUS 350

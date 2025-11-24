@@ -23,9 +23,9 @@ static char deep_id_info[DUMP_INFO_LEN] = { 0 };
 
 
 #define DEEP_INFO_LEN 1023
-#define DDB_RANGE_MAX 10
-#define DDC_CURVE_MAX 10
-#define DDI_CURVE_MAX 10
+#define DDB_RANGE_MAX 20
+#define DDC_CURVE_MAX 20
+#define DDI_CURVE_MAX 20
 #define DDT_COEFF_SIZE (sizeof(struct ddt_coeff) / sizeof(u32))
 struct oplus_mms_gauge;
 
@@ -36,8 +36,9 @@ enum ddb_temp_region{
 	DDB_CURVE_TEMP_WARM,
 	DDB_CURVE_TEMP_INVALID = DDB_CURVE_TEMP_WARM
 };
+
 struct ddb_temp_range {
-	int range[DDB_CURVE_TEMP_WARM];
+	int *range;
 	int index_n;
 	int index_p;
 	int temp_type;
@@ -101,10 +102,12 @@ struct deep_dischg_sili_ic_alg_cfg {
 
 struct deep_dischg_limits {
 	int32_t uv_thr;
+	int32_t target_uv_thr;
 	int32_t count_thr;
 	int32_t count_cali;
 	int32_t soc;
 	int32_t term_voltage;
+	int32_t target_term_voltage;
 	int32_t ratio_shake;
 	int32_t sub_ratio_shake;
 	int32_t ratio_default;
@@ -156,6 +159,9 @@ struct deep_dischg_spec {
 	bool sili_ic_alg_support;
 	bool spare_power_enable;
 	bool spare_power_support;
+	bool ddrc_strategy_v2;
+	int ddrc_temp_num;
+	int ddrc_temp_switch;
 };
 
 struct oplus_virtual_gauge_child {
@@ -193,7 +199,9 @@ void oplus_mms_gauge_update_sili_ic_alg_term_volt(struct oplus_mms_gauge *chip, 
 int oplus_mms_gauge_update_sili_ic_alg_term_volt_data(struct oplus_mms *mms, union mms_msg_data *data);
 int oplus_mms_sub_gauge_update_sili_ic_alg_term_volt(struct oplus_mms *mms, union mms_msg_data *data);
 int oplus_gauge_shutdown_voltage_vote_callback(struct votable *votable, void *data, int volt, const char *client, bool step);
+int oplus_target_shutdown_voltage_vote_callback(struct votable *votable, void *data, int volt, const char *client, bool step);
 int oplus_gauge_term_voltage_vote_callback(struct votable *votable, void *data, int volt, const char *client, bool step);
+int oplus_target_term_voltage_vote_callback(struct votable *votable, void *data, int volt, const char *client, bool step);
 void oplus_mms_gauge_update_super_endurance_mode_status_work(struct work_struct *work);
 void oplus_gauge_deep_dischg_work(struct work_struct *work);
 void oplus_gauge_sub_deep_dischg_work(struct work_struct *work);
@@ -206,6 +214,10 @@ void oplus_mms_gauge_update_sili_ic_alg_cfg_work(struct work_struct *work);
 void oplus_mms_gauge_update_sili_spare_power_enable_work(struct work_struct *work);
 void oplus_mms_gauge_sili_spare_power_effect_check_work(struct work_struct *work);
 void oplus_mms_gauge_sili_term_volt_effect_check_work(struct work_struct *work);
+void oplus_gauge_nvram_stress_test_work(struct work_struct *work);
+void oplus_gauge_term_volt_stress_test_work(struct work_struct *work);
+void oplus_gauge_read_stress_test_work(struct work_struct *work);
+
 void oplus_mms_gauge_sili_init(struct oplus_mms_gauge *chip);
 int oplus_mms_gauge_sili_ic_alg_cfg_init(struct oplus_mms_gauge *chip);
 void oplus_mms_gauge_deep_dischg_init(struct oplus_mms_gauge *chip);
@@ -213,4 +225,5 @@ void oplus_gauge_deep_dischg_check(struct oplus_mms_gauge *chip);
 int oplus_mms_gauge_update_deep_ratio(struct oplus_mms *mms, union mms_msg_data *data);
 int oplus_mms_gauge_update_ratio_trange(struct oplus_mms *mms, union mms_msg_data *data);
 int oplus_mms_gauge_update_ratio_limit_curr(struct oplus_mms *mms, union mms_msg_data *data);
+int oplus_mms_gauge_set_deep_term_volt(struct oplus_mms *mms, int volt_mv);
 #endif /* __OPLUS_SILI_H__ */

@@ -23,12 +23,19 @@
 #include "dump_reason.h"
 #include <linux/slab.h>
 #include <linux/kernel.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 #define MAX_STACK_DEPTH 13
 #define MAX_SYMBOL_LEN	128
 #define MAX_PIDBUFFER_LEN	64
 #define IGNORE_STACK_DEPTH	3
 #define NULL_STACK_SIZE	3
+
+#define ADSP_MAGIC 0x70736461
+#define CDSP_MAGIC 0x70736463
+#define ADSP_CDSP_MAGIC 0x64736461
+#define CLOSE_MAGIC 0x0
 
 static char caller_function_name[KSYM_SYMBOL_LEN];
 static char pidbuffer[MAX_PIDBUFFER_LEN];
@@ -168,11 +175,106 @@ static struct notifier_block panic_block = {
 	.priority = INT_MAX - 1,
 };
 
+static void set_minidump_smem(int smem_value) {
+	struct minidump_status* smem_minidump_status = NULL;
+	size_t size = 0;
+
+	smem_minidump_status = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_MINIDUMP_INFO, &size);
+	if (IS_ERR_OR_NULL(smem_minidump_status)) {
+		pr_err("set_minidump_smem smem_minidump_status is error\n");
+		return;
+	}
+	smem_minidump_status -> minidump_mask = smem_value;
+	pr_debug("set_minidump_smem minidump_mask = %d\n", smem_minidump_status -> minidump_mask);
+}
+
+static char minidump_rus_info[64] = {0};
+static ssize_t minidump_rus_write(struct file *file, const char __user *buf, size_t count, loff_t *off) {
+	int write_num = 0;
+	if (count > 64) {
+		count = 64;
+	} else if (count <= 0) {
+		pr_err("%s: count value is wrong, the func will return\n", __func__);
+		return count;
+	}
+	if(copy_from_user(minidump_rus_info, buf, count)) {
+		pr_err("%s: read proc input error \n", __func__);
+		return -EINVAL;
+	}
+	minidump_rus_info[count - 1] = 0;
+	if (!strcmp(minidump_rus_info, "adsp")) {
+		write_num = ADSP_MAGIC;
+	} else if (!strcmp(minidump_rus_info, "cdsp")) {
+		write_num = CDSP_MAGIC;
+	} else if (!strcmp(minidump_rus_info, "adspcdsp")) {
+		write_num = ADSP_CDSP_MAGIC;
+	} else if (!strcmp(minidump_rus_info, "close_rus")) {
+		write_num = CLOSE_MAGIC;
+	}
+	set_minidump_smem(write_num);
+	return count;
+}
+
+static ssize_t minidump_rus_read(struct file *file, char __user *buf, size_t count, loff_t *off) {
+	char page[64] = {0};
+	int len = 0;
+
+	len = snprintf(&page[len], 64 - len, "=== minidump_rus_info: %s ===\n", minidump_rus_info);
+	if (len > *off) {
+		len -= *off;
+	} else {
+		len = 0;
+	}
+	if (copy_to_user(buf, page, (len < count ? len : count))) {
+		return -EFAULT;
+	}
+	*off += len < count ? len : count;
+	return (len < count ? len : count);
+}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static const struct proc_ops minidump_rus_fops = {
+	.proc_read = minidump_rus_read,
+	.proc_write = minidump_rus_write,
+	.proc_lseek = seq_lseek,
+};
+#else
+struct file_operations proc_ops minidump_rus_fops = {
+	.proc_read = minidump_rus_read,
+	.proc_write = minidump_rus_write,
+};
+#endif
+
+static void minidump_smem_init(void) {
+	struct minidump_status* smem_minidump_status = NULL;
+	size_t size = 0;
+	int ret = 0;
+	ret = qcom_smem_alloc(QCOM_SMEM_HOST_ANY, SMEM_MINIDUMP_INFO, sizeof(struct minidump_status));
+	if (ret < 0 && ret != -EEXIST) {
+		pr_err("qcom_smem_alloc failed in minidump_smem_init\n");
+		return;
+	}
+	smem_minidump_status = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_MINIDUMP_INFO, &size);
+	if (IS_ERR_OR_NULL(smem_minidump_status)) {
+		pr_err("qcom_smem_get failed in minidump_smem_init\n");
+		return;
+	}
+	smem_minidump_status -> minidump_mask = 0;
+	pr_debug("minidump_smem_init minidump_mask = %d\n", smem_minidump_status -> minidump_mask);
+}
+
 static int __init dump_reason_init(void)
 {
+	struct proc_dir_entry *pde = NULL;
 	dump_reason_init_smem();
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_block);
 	dump_reason_init_callstack();
+	minidump_smem_init();
+
+	pde = proc_create("minidump_rus", 0666, NULL, &minidump_rus_fops);
+	if (IS_ERR_OR_NULL(pde)) {
+		pr_err("%s: minidump_rus register failed\n", __func__);
+	}
 	return 0;
 }
 

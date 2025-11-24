@@ -2175,7 +2175,7 @@ static ssize_t mtk_chg_set_cv_write(struct file *file,
 static const struct proc_ops mtk_chg_set_cv_fops = {
 	.proc_open = mtk_chg_set_cv_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_set_cv_write,
 };
@@ -2239,7 +2239,7 @@ static ssize_t mtk_chg_current_cmd_write(struct file *file,
 static const struct proc_ops mtk_chg_current_cmd_fops = {
 	.proc_open = mtk_chg_current_cmd_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_current_cmd_write,
 };
@@ -2293,7 +2293,7 @@ static ssize_t mtk_chg_en_power_path_write(struct file *file,
 static const struct proc_ops mtk_chg_en_power_path_fops = {
 	.proc_open = mtk_chg_en_power_path_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_en_power_path_write,
 };
@@ -2357,7 +2357,7 @@ static ssize_t mtk_chg_en_safety_timer_write(struct file *file,
 static const struct proc_ops mtk_chg_en_safety_timer_fops = {
 	.proc_open = mtk_chg_en_safety_timer_open,
 	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 	.proc_release = single_release,
 	.proc_write = mtk_chg_en_safety_timer_write,
 };
@@ -7986,6 +7986,9 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 	}
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+	if (oplus_is_pps_charging())
+		oplus_pps_shutdown();
+
 /* Add for shipmode stm6620 */
 	if (g_oplus_chip) {
 		enter_ship_mode_function(g_oplus_chip);

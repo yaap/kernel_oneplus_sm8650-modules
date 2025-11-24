@@ -1871,7 +1871,7 @@ static const struct file_operations p9418_add_log_proc_fops = {
 static const struct proc_ops p9418_add_log_proc_fops = {
 	.proc_write = p9418_reg_store,
 	.proc_read = p9418_reg_show,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -1927,7 +1927,7 @@ static const struct file_operations p9418_data_log_proc_fops = {
 #else
 static const struct proc_ops p9418_data_log_proc_fops = {
 	.proc_write = p9418_data_log_write,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -2451,7 +2451,7 @@ static void p9418_track_pen_match_state_work(struct work_struct *work)
 	if (!chip)
 		return;
 	pr_info("p9418_track_pen_match_state_work start\n");
-	oplus_chg_track_upload_trigger_data(chip->pen_match_state_trigger);
+	oplus_chg_track_upload_trigger_data(&(chip->pen_match_state_trigger));
 
 	pr_info("p9418_track_pen_match_state_work success\n");
 }

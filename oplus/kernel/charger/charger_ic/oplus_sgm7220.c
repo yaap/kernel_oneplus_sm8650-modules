@@ -970,8 +970,8 @@ static void process_interrupt_register(struct sgm7220_info *info)
 	enum cable_state_type pre_state_type = info->type_c_param.attach_state;
 	struct typec_port *port = info->typec_port;
 
-	if (!port && !info && info->typec_port_support) {
-		pr_err("%s typec_port or sgm7220 chip info is NULL\n", __func__);
+	if (!port) {
+		pr_err("%s typec_port is NULL\n", __func__);
 		return;
 	}
 

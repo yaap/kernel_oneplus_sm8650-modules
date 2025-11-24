@@ -83,6 +83,7 @@ static struct haptic_fb_info g_haptic_fb_table[] = {
 
 	{HAPTIC_SPMI_READ_TRACK_ERR, "spmi_read_err", HAPTIC_TRACK_EVENT_DEVICE_ERR},
 	{HAPTIC_SPMI_WRITE_TRACK_ERR, "spmi_write_err", HAPTIC_TRACK_EVENT_DEVICE_ERR},
+	{HAPTIC_UVLO_MODE_TRACK, "uvlo_mode_err", HAPTIC_TRACK_EVENT_DEVICE_ERR},
 };
 
 static int oplus_haptic_event_payload_pack(struct haptic_fb_detail *fb_info)
@@ -207,6 +208,51 @@ int oplus_haptic_track_dev_err(uint32_t track_type, uint32_t reg_addr, uint32_t 
 	return TRACK_CMD_ACK_OK;
 }
 EXPORT_SYMBOL(oplus_haptic_track_dev_err);
+
+static void oplus_haptic_track_uvlo_mode_load_trigger_work(struct work_struct *work)
+{
+	struct oplus_haptic_track *chip = g_haptic_track_chip;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct haptic_uvlo_mode_track_event *uvlo_event =
+		container_of(dwork, struct haptic_uvlo_mode_track_event,
+		track_uvlo_mode_load_trigger_work);
+	struct haptic_fb_detail *fb_detail;
+
+	if ((!chip) || (!uvlo_event)) {
+		haptic_fb_err("%s:g_haptic_track_chip is null  \n", __func__);
+		return;
+	}
+	fb_detail = &uvlo_event->uvlo_mode_detail;
+	fb_detail->track_type = uvlo_event->uvlo_mode_event.track_type;
+	memset(fb_detail->detailData, 0, MAX_DETAIL_INFO_LEN);
+	snprintf(fb_detail->detailData, MAX_DETAIL_INFO_LEN,
+		"reg:%d fail_info:%s", uvlo_event->uvlo_mode_event.reg_value,
+		uvlo_event->uvlo_mode_event.fail_info);
+	oplus_haptic_track_upload_trigger_data(fb_detail);
+}
+
+int oplus_haptic_track_uvlo(uint32_t track_type, uint32_t reg_value, char *fail_info)
+{
+	struct oplus_haptic_track *chip = g_haptic_track_chip;
+	struct haptic_uvlo_mode_track_event *track_event;
+
+	if (!chip)
+		return TRACK_CMD_ERROR_CHIP_NULL;
+
+	track_event = &chip->uvlo_mode_track_event;
+	memset(track_event->uvlo_mode_event.fail_info, 0, sizeof(char) * MAX_FAIL_INFO_LEN);
+
+	track_event->uvlo_mode_event.track_type = track_type;
+	track_event->uvlo_mode_event.reg_value = reg_value;
+	strncpy(track_event->uvlo_mode_event.fail_info, fail_info, MAX_FAIL_INFO_LEN - 1);
+	track_event->uvlo_mode_event.fail_info[MAX_FAIL_INFO_LEN - 1] = '\0';
+	track_event->uvlo_mode_event.uvlo_report_counts++;
+
+	schedule_delayed_work(&track_event->track_uvlo_mode_load_trigger_work, 0);
+
+	return TRACK_CMD_ACK_OK;
+}
+EXPORT_SYMBOL(oplus_haptic_track_uvlo);
 
 int oplus_haptic_track_fre_cail(uint32_t track_type, uint32_t cali_data, uint32_t result_flag, char *fail_info)
 {
@@ -404,6 +450,7 @@ static void oplus_haptic_track_init(struct oplus_haptic_track *track_dev)
 	struct haptic_dev_track_event *dev_event;
 	struct haptic_fre_cail_track_event *fre_cail_event;
 	struct haptic_mem_alloc_track_event *mem_alloc_event;
+	struct haptic_uvlo_mode_track_event *uvlo_mode_event;
 
 	chip->trigger_data_ok = false;
 	mutex_init(&chip->upload_lock);
@@ -434,12 +481,17 @@ static void oplus_haptic_track_init(struct oplus_haptic_track *track_dev)
 			  oplus_haptic_track_mem_alloc_load_trigger_work);
 	mem_alloc_event->que_front = 0;
 	mem_alloc_event->que_rear = 0;
+
+	uvlo_mode_event = &(track_dev->uvlo_mode_track_event);
+	INIT_DELAYED_WORK(&uvlo_mode_event->track_uvlo_mode_load_trigger_work,
+	oplus_haptic_track_uvlo_mode_load_trigger_work);
 }
 
 /* debug node */
 static struct haptic_dev_event_info event_info_node;
 static struct haptic_fre_cail_event_info fre_cail_node;
 static struct haptic_mem_alloc_event_info mem_alloc_node;
+static struct haptic_uvlo_mode_event_info uvlo_mode_node;
 
 static ssize_t dev_event_track_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -519,17 +571,62 @@ static ssize_t dev_mem_alloc_track_store(struct device *dev, struct device_attri
 	return len;
 }
 
+static ssize_t dev_uvlo_updata_counts_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_haptic_track *chip = g_haptic_track_chip;
+	struct haptic_uvlo_mode_track_event *track_event;
+
+	if (!chip)
+		return TRACK_CMD_ERROR_CHIP_NULL;
+	track_event = &chip->uvlo_mode_track_event;
+	return snprintf(buf, PAGE_SIZE, "%u\n", track_event->uvlo_mode_event.uvlo_report_counts);
+}
+
+static ssize_t dev_uvlo_mode_track_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return oplus_haptic_track_uvlo(uvlo_mode_node.track_type, uvlo_mode_node.reg_value,
+		uvlo_mode_node.fail_info);
+}
+
+static ssize_t dev_uvlo_mode_track_store(struct device *dev, struct device_attribute *attr,
+					 const char *buf, size_t len)
+{
+	uint32_t track_type = 0;
+	uint32_t reg_value = 0;
+	char fail_info[MAX_FAIL_INFO_LEN];
+
+	if (sscanf(buf, "%d %x %127s", &track_type, &reg_value, &fail_info[0]) == 3) {
+		if (track_type >= HAPTIC_TRACK_TYPE_MAX) {
+			haptic_fb_err("%s: first value out of range!\n", __func__);
+			return len;
+		}
+		uvlo_mode_node.track_type = track_type;
+		uvlo_mode_node.reg_value = reg_value;
+		memset(uvlo_mode_node.fail_info, 0, MAX_FAIL_INFO_LEN);
+		strncpy(uvlo_mode_node.fail_info, fail_info, MAX_FAIL_INFO_LEN - 1);
+		uvlo_mode_node.fail_info[MAX_FAIL_INFO_LEN - 1] = '\0';
+	}
+
+	return len;
+}
+
 static DEVICE_ATTR(event_track, 0664, dev_event_track_show,
 		   dev_event_track_store);
 static DEVICE_ATTR(fre_cali_track, 0664, dev_fre_cail_track_show,
 		   dev_fre_cail_track_store);
 static DEVICE_ATTR(mem_alloc_track, 0664, dev_mem_alloc_track_show,
 		   dev_mem_alloc_track_store);
+static DEVICE_ATTR(uvlo_updata_counts, 0664, dev_uvlo_updata_counts_show,
+		   NULL);
+static DEVICE_ATTR(uvlo_mode_track, 0664, dev_uvlo_mode_track_show,
+		   dev_uvlo_mode_track_store);
 
 static struct attribute *haptic_fb_attributes[] = {
 	&dev_attr_event_track.attr,
 	&dev_attr_fre_cali_track.attr,
 	&dev_attr_mem_alloc_track.attr,
+	&dev_attr_uvlo_mode_track.attr,
+	&dev_attr_uvlo_updata_counts.attr,
 	NULL,
 };
 
@@ -638,6 +735,7 @@ static int oplus_haptic_feedback_remove(struct platform_device *pdev)
 	cancel_delayed_work_sync(&hapric_track->dev_track_event.track_dev_err_load_trigger_work);
 	cancel_delayed_work_sync(&hapric_track->fre_cail_track_event.track_fre_cail_load_trigger_work);
 	cancel_delayed_work_sync(&hapric_track->mem_alloc_track_event.track_mem_alloc_err_load_trigger_work);
+	cancel_delayed_work_sync(&hapric_track->uvlo_mode_track_event.track_uvlo_mode_load_trigger_work);
 	mutex_destroy(&hapric_track->upload_lock);
 	mutex_destroy(&hapric_track->trigger_data_lock);
 	mutex_destroy(&hapric_track->trigger_ack_lock);

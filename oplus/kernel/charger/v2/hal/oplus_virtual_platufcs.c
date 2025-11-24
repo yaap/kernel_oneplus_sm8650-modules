@@ -27,6 +27,7 @@
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <ufcs_class.h>
+#include <oplus_chg_monitor.h>
 
 #define UFCS_REG_TIMEOUT_MS	120000
 
@@ -50,7 +51,10 @@ struct oplus_virtual_ufcs_ic {
 	int child_num;
 	struct oplus_virtual_ufcs_child *child_list;
 	bool online;
+	struct delayed_work upload_device_id_work;
 };
+
+static void oplus_vpu_upload_device_id(struct oplus_virtual_ufcs_ic *chip, struct oplus_virtual_ufcs_child *child);
 
 static void oplus_chg_vpu_err_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
 {
@@ -312,6 +316,8 @@ static void oplus_vpu_child_reg_callback(struct oplus_chg_ic_dev *ic, void *data
 		parent->online = true;
 		oplus_chg_ic_func(child->parent, OPLUS_IC_FUNC_INIT);
 	}
+
+	oplus_vpu_upload_device_id(chip, child);
 }
 
 static int oplus_chg_vpu_child_init(struct oplus_virtual_ufcs_ic *chip)
@@ -1056,6 +1062,63 @@ static void *oplus_chg_vpu_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_
 	return func;
 }
 
+static void oplus_vpu_upload_device_id_subscribe_error_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_ufcs_ic *chip = prv_data;
+
+	/* delay 50ms upload for error topic init stop publish finish */
+	schedule_delayed_work(&chip->upload_device_id_work, msecs_to_jiffies(50));
+}
+
+static void oplus_vpu_upload_device_id_work(struct work_struct *work)
+{
+	int i;
+	int rc;
+	struct mms_msg *msg;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_virtual_ufcs_ic *chip = container_of(dwork,
+		struct oplus_virtual_ufcs_ic, upload_device_id_work);
+	struct oplus_mms *err_topic = oplus_mms_get_by_name("error");
+
+	if (!err_topic)
+		return;
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_UFCS_HANDSHAKE))
+			continue;
+
+		if (chip->child_list[i].ic_dev) {
+			msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM, ERR_ITEM_DEVICE_ID,
+				"ufcs_ic=%s", chip->child_list[i].ic_dev->name);
+			if (msg == NULL) {
+				chg_err("alloc device id msg error\n");
+				return;
+			}
+
+			rc = oplus_mms_publish_msg_sync(err_topic, msg);
+			if (rc < 0) {
+				chg_err("publish device id msg error, rc=%d\n", rc);
+				kfree(msg);
+			}
+			break;
+		}
+	}
+}
+
+static void oplus_vpu_upload_device_id(
+	struct oplus_virtual_ufcs_ic *chip, struct oplus_virtual_ufcs_child *child)
+{
+	if (chip ==NULL || child == NULL)
+		return;
+
+	if (!func_is_support(child, OPLUS_IC_FUNC_UFCS_HANDSHAKE))
+		return;
+
+	oplus_mms_wait_topic("error",
+		oplus_vpu_upload_device_id_subscribe_error_topic, chip);
+}
+
 struct oplus_chg_ic_virq oplus_vpu_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_ERR },
 	{ .virq_id = OPLUS_IC_VIRQ_ONLINE },
@@ -1080,6 +1143,8 @@ static int oplus_virtual_platufcs_probe(struct platform_device *pdev)
 
 	chip->dev = &pdev->dev;
 	platform_set_drvdata(pdev, chip);
+
+	INIT_DELAYED_WORK(&chip->upload_device_id_work, oplus_vpu_upload_device_id_work);
 
 	rc = of_property_read_u32(node, "oplus,ic_type", &ic_type);
 	if (rc < 0) {
@@ -1123,12 +1188,21 @@ reg_ic_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_platufcs_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_platufcs_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_ufcs_ic *chip = platform_get_drvdata(pdev);
 
-	if(chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_vpu_exit(chip->ic_dev);
@@ -1137,7 +1211,9 @@ static int oplus_virtual_platufcs_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_platufcs_match[] = {

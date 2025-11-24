@@ -121,6 +121,10 @@ typedef struct led_classdev cdev_t;
 #define F0_VAL_MAX_1419                     2150
 #define OS14_NEW_RING_START                 (371)
 #define OS14_NEW_RING_END                   (410)
+#define OS15_ALARM_RING_START               (322)
+#define OS15_ALARM_RING_END                 (333)
+#define OS15_OPERATOR_RING_START            (347)
+#define OS15_OPERATOR_RING_END              (354)
 #define ALCLOUDSCAPE_START                  (94)
 #define ALCLOUDSCAPE_END                    (99)
 #define RINGTONE_NOTIF_ALARM_START          (201)
@@ -266,6 +270,9 @@ typedef struct sih_detect_para {
 	uint32_t vbat;
 	uint32_t cali_target_value;
 	uint64_t resistance;
+	uint32_t f0_reg_addr[10];
+	uint32_t f0_reg_val[10];
+	uint32_t f0_reg_nums;
 } sih_detect_para_t;
 
 typedef struct sih_brake_para {
@@ -443,6 +450,7 @@ typedef struct haptic_func {
 	ssize_t (*get_cont_para)(sih_haptic_t *, uint8_t, char *);
 	bool (*if_chip_is_detect_done)(sih_haptic_t *);
 	void (*check_detect_state)(sih_haptic_t *, uint8_t);
+	int (*set_f0_para_config)(sih_haptic_t *, uint8_t *, uint8_t *, int);
 } haptic_func_t;
 
 typedef struct sih_haptic_ptr {

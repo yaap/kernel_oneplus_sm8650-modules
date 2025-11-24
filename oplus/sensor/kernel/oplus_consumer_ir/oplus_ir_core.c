@@ -11,6 +11,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/regulator/consumer.h>
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
 #include "oplus_ir_core.h"
 
 #define IR_BYTE_POS_INDEX                0
@@ -21,6 +23,7 @@
 #define IR_DEFAULT_VDD_TYPE              0
 #define IR_EXTERNAL_VDD_TYPE             1
 #define IR_NO_VDD_TYPE                   2
+#define IR_GPIO_VDD_TYPE                 3
 #define IR_PARAM_MAX_SIZE                256*1024
 #define MIN_FREQUENCY 20000
 #define MAX_FREQUENCY 60000
@@ -46,6 +49,7 @@ struct hw_core_config_t {
 	int vdd_min_vol;
 	int vdd_max_vol;
 	struct regulator *vdd_3v0;
+	int use_ldo_gpio;
 };
 
 struct ir_core {
@@ -85,6 +89,7 @@ static int parse_hw_core_config(struct device *dev, struct ir_core* ir_core)
 {
 	int retval = 0;
 	u32 value = 0;
+	int ret = 0;
 	struct device_node *np = dev->of_node;
 
 	if (!ir_core) {
@@ -115,6 +120,21 @@ static int parse_hw_core_config(struct device *dev, struct ir_core* ir_core)
 		if (ir_core->core_config.vdd_type != IR_DEFAULT_VDD_TYPE) {
 			ir_core->core_config.vdd_3v0 = NULL;
 			pr_info("oplus_ir_core: %s: ir_core->core_config.vdd_3v0 is NULL\n", __func__);
+			if(ir_core->core_config.vdd_type == IR_GPIO_VDD_TYPE) {
+				retval = of_get_named_gpio(np, "ir-ldo-ctrl", 0);
+				if (retval < 0) {
+					pr_err("not use_extern_ldo\n");
+				} else {
+					ir_core->core_config.use_ldo_gpio = retval;
+					pr_err("use_extern_ldo = %d\n", ir_core->core_config.use_ldo_gpio);
+					if (gpio_is_valid(ir_core->core_config.use_ldo_gpio)) {
+						ret = gpio_request(ir_core->core_config.use_ldo_gpio, "ir-ldo-ctrl");
+						if (ret < 0) {
+							pr_err("failed to request ldo-gpio\n");
+						}
+					}
+				}
+			}
 		} else {
 			ir_core->core_config.vdd_3v0 = regulator_get(dev, "vdd");
 			if (!IS_ERR_OR_NULL(ir_core->core_config.vdd_3v0)) {
@@ -139,6 +159,17 @@ static int parse_hw_core_config(struct device *dev, struct ir_core* ir_core)
 static void enable_ir_vdd(struct ir_core *ir_core)
 {
 	int retval = 0;
+	int ret = 0;
+	if(ir_core->core_config.vdd_type == IR_GPIO_VDD_TYPE) {
+		pr_err("oplus_ir_core: enable ir vdd\n");
+		if (ir_core->core_config.use_ldo_gpio > 0) {
+			pr_err("oplus_ir_core: set gpio value %d\n", ir_core->core_config.use_ldo_gpio);
+			ret = gpio_direction_output(ir_core->core_config.use_ldo_gpio, 1);
+			if (ret) {
+				pr_err("oplus_ir_core: set gpio value fail %d\n", ret);
+			}
+		}
+	}
 
 	if (ir_core->core_config.vdd_3v0 != NULL) {
 		regulator_set_voltage(ir_core->core_config.vdd_3v0,
@@ -161,10 +192,19 @@ static void enable_ir_vdd(struct ir_core *ir_core)
 
 static void disable_ir_vdd(struct ir_core *ir_core)
 {
+	int ret = 0;
 	if (ir_core->core_config.vdd_3v0 != NULL) {
 		regulator_disable(ir_core->core_config.vdd_3v0);
 	}
-
+	if(ir_core->core_config.vdd_type == IR_GPIO_VDD_TYPE) {
+		if (ir_core->core_config.use_ldo_gpio > 0) {
+			pr_err("oplus_ir_core: disable gpio value %d\n", ir_core->core_config.use_ldo_gpio);
+			ret = gpio_direction_output(ir_core->core_config.use_ldo_gpio, 0);
+			if (ret) {
+				pr_err("oplus_ir_core: disable gpio failed.\n");
+			}
+		}
+	}
 #if(defined (OPLUS_FEATURE_CAMERA_COMMON) && defined (CONFIG_OPLUS_PMIC_COMMON)) || (defined (CONFIG_OPLUS_SENSOR_IR_USE_WL2868C))
 	if ((true ==  wl2868c_test_i2c_enable()) && (ir_core->core_config.vdd_type == IR_EXTERNAL_VDD_TYPE)) {
 		pr_info("oplus_ir_core:wl2868c disable seq type EXT_LDO5");

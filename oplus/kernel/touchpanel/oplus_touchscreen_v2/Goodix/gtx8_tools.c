@@ -503,6 +503,8 @@ static const struct file_operations gtx8_tools_fops = {
 #endif
 };
 
+#define GTP_TOOLS_0 "gtp_tools0"
+#define GTP_TOOLS_1 "gtp_tools1"
 #define BUF_MAX 25
 int gtx8_init_tool_node(struct touchpanel_data *ts,  int *p)
 {
@@ -534,9 +536,17 @@ int gtx8_init_tool_node(struct touchpanel_data *ts,  int *p)
 	p_gtx8_tool_info->rmidev_major_num = MAJOR(p_gtx8_tool_info->dev_no);
 	/* 3. Alloc class */
 #if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
-	p_gtx8_tool_info->class = class_create(buf);
+	if (ts->tp_index == 0) {
+		p_gtx8_tool_info->class = class_create(GTP_TOOLS_0);
+	} else {
+		p_gtx8_tool_info->class = class_create(GTP_TOOLS_1);
+	}
 #else
-	p_gtx8_tool_info->class = class_create(THIS_MODULE, buf);
+	if (ts->tp_index == 0) {
+		p_gtx8_tool_info->class = class_create(THIS_MODULE, GTP_TOOLS_0);
+	} else {
+		p_gtx8_tool_info->class = class_create(THIS_MODULE, GTP_TOOLS_1);
+	}
 #endif
 	if (IS_ERR(p_gtx8_tool_info->class)) {
 		ret = PTR_ERR(p_gtx8_tool_info->class);

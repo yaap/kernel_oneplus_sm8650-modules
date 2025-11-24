@@ -426,7 +426,7 @@ static void pps_track_err_load_trigger_work(struct work_struct *work)
 	if (!chip)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->pps_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->pps_err_load_trigger);
 	if (chip->pps_err_load_trigger) {
 		kfree(chip->pps_err_load_trigger);
 		chip->pps_err_load_trigger = NULL;
@@ -985,7 +985,7 @@ static int oplus_pps_parse_batt_curves_third(struct oplus_pps_chip *chip)
 			}
 		}
 	}
-
+	chip->target_vbus_mv = chip->batt_curves_third_soc[0].batt_curves_temp[0].batt_curves[0].target_vbus;
 	return rc;
 }
 
@@ -1632,10 +1632,15 @@ static int oplus_pps_choose_curves(struct oplus_pps_chip *chip)
 		return -EINVAL;
 	}
 
-	if (chip->pps_adapter_type == PPS_ADAPTER_THIRD)
+	if (chip->pps_adapter_type == PPS_ADAPTER_THIRD) {
 		chip->batt_curves = chip->batt_curves_third_soc[batt_soc_plugin].batt_curves_temp[batt_temp_plugin];
-	else
+	} else if (chip->pps_adapter_type == PPS_ADAPTER_UNKNOWN) {
+		pps_err("no batt curves, stop pps\n");
+		chip->pps_stop_status = PPS_STOP_VOTER_TYPE_ERROR;
+		return -EINVAL;
+	} else {
 		chip->batt_curves = chip->batt_curves_oplus_soc[batt_soc_plugin].batt_curves_temp[batt_temp_plugin];
+	}
 
 	pps_err("[%d, %d, %d, %d, %d, %d, %d]", chip->pps_adapter_type, chip->data.ap_batt_temperature,
 		chip->data.ap_batt_soc, batt_soc_plugin, batt_temp_plugin, chip->pps_temp_cur_range,
@@ -5065,6 +5070,7 @@ void oplus_pps_shutdown(void)
 	}
 
 	schedule_delayed_work(&chip->pps_stop_work, 0);
+	flush_delayed_work(&chip->pps_stop_work);
 }
 
 int oplus_pps_start(int authen)
@@ -5550,6 +5556,9 @@ int oplus_pps_show_power(void)
 	struct oplus_pps_chip *chip = &g_pps_chip;
 	int pps_support_type = PPS_SUPPORT_2CP;
 	int show_power = OPLUS_PPS_POWER_V2;
+	int cpa_max_power = 0;
+	int adapter_power = 0;
+
 	if (!chip || !chip->pps_support_type)
 		return 0;
 
@@ -5571,11 +5580,35 @@ int oplus_pps_show_power(void)
 		show_power = OPLUS_PPS_POWER_CLR;
 		break;
 	default:
-		show_power = OPLUS_PPS_POWER_THIRD;
+		cpa_max_power = oplus_cpa_protocol_get_max_power(CHG_PROTOCOL_PPS);
+		adapter_power = oplus_pps_get_adapter_power();
+		show_power = min(adapter_power, cpa_max_power) / 1000;
+		if (show_power == 0)
+			show_power = OPLUS_PPS_POWER_THIRD;
 		break;
 	}
 
 	return show_power;
+}
+
+int oplus_pps_get_adapter_power(void)
+{
+	int adapter_power = 0;
+	int vbus = 0;
+	int ibus = 0;
+	struct oplus_pps_chip *chip = &g_pps_chip;
+
+	if (!chip) {
+		pps_err("g_pps_chip null!\n");
+		return -ENODEV;
+	}
+
+	vbus = chip->target_vbus_mv;
+	if (chip->ops && chip->ops->get_pps_max_cur)
+		ibus = chip->ops->get_pps_max_cur(vbus);
+	adapter_power = vbus * ibus / 1000;
+
+	return adapter_power;
 }
 
 /* only call in oplus_configs.c for autotest */

@@ -18,7 +18,7 @@
 #define LOW_CURR_FULL_SYS_MAX		6
 #define LCF_TEMP_STATUS_OVER_COUNTS	2
 #define LCF_LOW_CURR_FULL_COUNTS	6
-
+#define NAME_LENGTH			16
 enum {
 	STRATEGY_TEMP_RANGE_T0,
 	STRATEGY_TEMP_RANGE_T1,
@@ -59,16 +59,16 @@ struct low_curr_full_temp_range {
 struct lcf_strategy {
 	struct oplus_chg_strategy strategy;
 	unsigned int temp_type;
-	unsigned int batt_source_type;
 	struct low_curr_full_temp_range temp_range;
 	struct low_curr_full_curves_temp_range curves_temp_range[STRATEGY_TEMP_RANGE_MAX];
 	int low_curr_full_conut;
+	char topic_name[NAME_LENGTH];
+	struct oplus_mms *topic;
+	int alarm_offset;
 };
 
 static struct oplus_mms *comm_topic;
 static struct oplus_mms *gauge_topic;
-static struct oplus_mms *main_gauge_topic;
-static struct oplus_mms *sub_gauge_topic;
 
 __maybe_unused static bool is_comm_topic_available(void)
 {
@@ -84,18 +84,11 @@ __maybe_unused static bool is_gauge_topic_available(void)
 	return !!gauge_topic;
 }
 
-__maybe_unused static bool is_main_gauge_topic_available(void)
+__maybe_unused static bool is_gauge_topic_available_by_lcy(struct lcf_strategy *lcy)
 {
-	if (!main_gauge_topic)
-		main_gauge_topic = oplus_mms_get_by_name("gauge:0");
-	return !!main_gauge_topic;
-}
-
-__maybe_unused static bool is_sub_gauge_topic_available(void)
-{
-	if (!sub_gauge_topic)
-		sub_gauge_topic = oplus_mms_get_by_name("gauge:1");
-	return !!sub_gauge_topic;
+	if (!lcy->topic)
+		lcy->topic = oplus_mms_get_by_name(lcy->topic_name);
+	return !!lcy->topic;
 }
 
 static int __read_signed_data_from_node(struct device_node *node,
@@ -213,41 +206,12 @@ static int lcf_strategy_get_vbat(struct lcf_strategy *lcf, int *vbat)
 	union mms_msg_data data = { 0 };
 	int rc;
 
-	if (!is_gauge_topic_available()) {
+	if (!is_gauge_topic_available_by_lcy(lcf)) {
 		chg_err("gauge topic not found\n");
 		return -ENODEV;
 	}
-	rc = oplus_mms_get_item_data(gauge_topic, GAUGE_ITEM_VOL_MAX,
+	rc = oplus_mms_get_item_data(lcf->topic, GAUGE_ITEM_VOL_MAX,
 				     &data, false);
-	if (rc < 0) {
-		chg_err("can't get vbat, rc=%d\n", rc);
-		return rc;
-	}
-	*vbat = data.intval;
-
-	return 0;
-}
-
-static int lcf_strategy_get_sub_vbat(struct lcf_strategy *lcf, int *vbat)
-{
-	union mms_msg_data data = { 0 };
-	int rc = 0;
-
-	if (lcf->batt_source_type == STRATEGY_USE_MAIN_INFO) {
-		if (!is_main_gauge_topic_available()) {
-			chg_err("main gauge topic not found\n");
-			return -ENODEV;
-		}
-		rc = oplus_mms_get_item_data(main_gauge_topic, GAUGE_ITEM_VOL_MAX,
-					     &data, false);
-	} else if (lcf->batt_source_type == STRATEGY_USE_SUB_INFO) {
-		if (!is_sub_gauge_topic_available()) {
-			chg_err("sub gauge topic not found\n");
-			return -ENODEV;
-		}
-		rc = oplus_mms_get_item_data(sub_gauge_topic, GAUGE_ITEM_VOL_MAX,
-					     &data, false);
-	}
 	if (rc < 0) {
 		chg_err("can't get vbat, rc=%d\n", rc);
 		return rc;
@@ -262,41 +226,12 @@ static int lcf_strategy_get_ibat(struct lcf_strategy *lcf, int *ibat)
 	union mms_msg_data data = { 0 };
 	int rc;
 
-	if (!is_gauge_topic_available()) {
+	if (!is_gauge_topic_available_by_lcy(lcf)) {
 		chg_err("gauge topic not found\n");
 		return -ENODEV;
 	}
-	rc = oplus_mms_get_item_data(gauge_topic, GAUGE_ITEM_CURR,
+	rc = oplus_mms_get_item_data(lcf->topic, GAUGE_ITEM_CURR,
 				     &data, false);
-	if (rc < 0) {
-		chg_err("can't get ibat, rc=%d\n", rc);
-		return rc;
-	}
-	*ibat = -data.intval;
-
-	return 0;
-}
-
-static int lcf_strategy_get_sub_ibat(struct lcf_strategy *lcf, int *ibat)
-{
-	union mms_msg_data data = { 0 };
-	int rc = 0;
-
-	if (lcf->batt_source_type == STRATEGY_USE_MAIN_INFO) {
-		if (!is_main_gauge_topic_available()) {
-			chg_err("main gauge topic not found\n");
-			return -ENODEV;
-		}
-		rc = oplus_mms_get_item_data(main_gauge_topic, GAUGE_ITEM_CURR,
-					     &data, false);
-	} else if (lcf->batt_source_type == STRATEGY_USE_SUB_INFO) {
-		if (!is_sub_gauge_topic_available()) {
-			chg_err("sub gauge topic not found\n");
-			return -ENODEV;
-		}
-		rc = oplus_mms_get_item_data(sub_gauge_topic, GAUGE_ITEM_CURR,
-					     &data, false);
-	}
 	if (rc < 0) {
 		chg_err("can't get ibat, rc=%d\n", rc);
 		return rc;
@@ -347,6 +282,7 @@ lcf_strategy_alloc_by_node(struct device_node *node)
 	int i, j;
 	int length;
 	struct device_node *curves_node;
+	const char *topic_name;
 
 	if (node == NULL) {
 		chg_err("node is NULL\n");
@@ -359,13 +295,14 @@ lcf_strategy_alloc_by_node(struct device_node *node)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	rc = of_property_read_u32(node, "oplus,batt_source_type", &data);
+	memset(lcf->topic_name, 0, sizeof(lcf->topic_name));
+	rc = of_property_read_string(node, "oplus,gauge_topic_name", &topic_name);
 	if (rc < 0) {
-		chg_err("oplus,batt_source_type reading failed, rc=%d\n", rc);
-		lcf->batt_source_type = STRATEGY_USE_BATT_INFO;
+		chg_err("oplus,gauge_topic_name reading failed, rc=%d\n", rc);
+		snprintf(lcf->topic_name, sizeof(lcf->topic_name), "gauge");
 	} else {
-		lcf->batt_source_type = (uint32_t)data;
-		chg_info("lcf->batt_source_type = %d\n", lcf->batt_source_type);
+		snprintf(lcf->topic_name, sizeof(lcf->topic_name), "%s", topic_name);
+		chg_err("lcf gauge topic name: %s\n", lcf->topic_name);
 	}
 
 	rc = of_property_read_u32(node, "oplus,temp_type", &data);
@@ -375,6 +312,15 @@ lcf_strategy_alloc_by_node(struct device_node *node)
 	} else {
 		lcf->temp_type = (uint32_t)data;
 		chg_info("lcf->temp_type = %d\n", lcf->temp_type);
+	}
+
+	rc = of_property_read_u32(node, "oplus,alarm_offset", &data);
+	if (rc < 0) {
+		chg_err("oplus,alarm_offset reading failed, rc=%d\n", rc);
+		lcf->alarm_offset = 0;
+	} else {
+		lcf->alarm_offset = (uint32_t)data;
+		chg_info("lcf->alarm_offset = %d\n", lcf->alarm_offset);
 	}
 
 	rc = __read_signed_data_from_node(node, "oplus,temp_range",
@@ -601,7 +547,7 @@ static void update_low_curr_temp_status(struct lcf_strategy *lcf)
 	}
 }
 
-static int lcf_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret)
+static int __lcf_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret, int offset)
 {
 	struct lcf_strategy *lcf;
 	int i, vbatt, ibatt, temp_status, iterm, vterm;
@@ -622,34 +568,20 @@ static int lcf_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret)
 		chg_debug("temp_status is %d, INVALID\n", temp_status);
 		return -EINVAL;
 	}
-	if (lcf->batt_source_type == STRATEGY_USE_BATT_INFO) {
-		rc = lcf_strategy_get_vbat(lcf, &vbatt);
-		if (rc < 0) {
-			chg_err("can't get vbatt, rc=%d\n", rc);
-			return rc;
-		}
+	rc = lcf_strategy_get_vbat(lcf, &vbatt);
+	if (rc < 0) {
+		chg_err("can't get vbatt, rc=%d\n", rc);
+		return rc;
+	}
 
-		rc = lcf_strategy_get_ibat(lcf, &ibatt);
-		if (rc < 0) {
-			chg_err("can't get ibatt, rc=%d\n", rc);
-			return rc;
-		}
-	} else {
-		rc = lcf_strategy_get_sub_vbat(lcf, &vbatt);
-		if (rc < 0) {
-			chg_err("can't get vbatt, rc=%d\n", rc);
-			return rc;
-		}
-
-		rc = lcf_strategy_get_sub_ibat(lcf, &ibatt);
-		if (rc < 0) {
-			chg_err("can't get ibatt, rc=%d\n", rc);
-			return rc;
-		}
+	rc = lcf_strategy_get_ibat(lcf, &ibatt);
+	if (rc < 0) {
+		chg_err("can't get ibatt, rc=%d\n", rc);
+		return rc;
 	}
 
 	for (i = 0; i < lcf->curves_temp_range[temp_status].num; i++) {
-		iterm = lcf->curves_temp_range[temp_status].curves[i].iterm;
+		iterm = lcf->curves_temp_range[temp_status].curves[i].iterm + offset;
 		vterm = lcf->curves_temp_range[temp_status].curves[i].vterm;
 
 		if ((ibatt <= iterm) && (vbatt >= vterm)) {
@@ -672,6 +604,30 @@ static int lcf_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret)
 	return 0;
 }
 
+
+static int lcf_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret)
+{
+	return __lcf_strategy_get_data(strategy, ret, 0);
+}
+
+static int lcf_strategy_get_custom_data(struct oplus_chg_strategy *strategy, const char *type, void *ret)
+{
+	struct lcf_strategy *lcf;
+
+	if (strategy == NULL || !type) {
+		chg_err("strategy is NULL\n");
+		return -EINVAL;
+	}
+	if (strcmp(type, "alarm") != 0)
+		return -ENOTSUPP;
+	lcf = (struct lcf_strategy *)strategy;
+
+	if (!lcf->alarm_offset)
+		return -EINVAL;
+
+	return __lcf_strategy_get_data(strategy, ret, lcf->alarm_offset);
+}
+
 static struct oplus_chg_strategy_desc lcf_strategy_desc = {
 	.name = "low_curr_full_strategy",
 	.strategy_init = lcf_strategy_init,
@@ -682,6 +638,7 @@ static struct oplus_chg_strategy_desc lcf_strategy_desc = {
 	.strategy_alloc_by_param_head = lcf_strategy_alloc_by_param_head,
 #endif
 	.strategy_get_data = lcf_strategy_get_data,
+	.strategy_get_custom_data = lcf_strategy_get_custom_data,
 };
 
 int lcf_strategy_register(void)

@@ -35,6 +35,7 @@ struct onewire_gpio_data {
 	unsigned int write_begin_low_level_time;
 	unsigned int write_relese_ic_time;
 	bool maxim_romid_crc_support;
+	unsigned int maxim_trl_ndelay;
 	unsigned int gpio_reg[2];
 };
 

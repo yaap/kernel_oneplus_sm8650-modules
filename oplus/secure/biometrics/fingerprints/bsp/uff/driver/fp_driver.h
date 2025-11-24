@@ -198,6 +198,10 @@ struct fp_key {
 #define EVENT_ACTION_FOR_FILM 0x02
 #endif
 
+#ifndef EVENT_ACTION_FOR_FP_GIRP
+#define EVENT_ACTION_FOR_FP_GIRP   0x03
+#endif
+
 #ifndef EVENT_ACTION_UNDER_WATER
 #define EVENT_ACTION_UNDER_WATER 0x04
 #endif

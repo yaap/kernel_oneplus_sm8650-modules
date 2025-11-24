@@ -29,6 +29,7 @@
 #include <oplus_batt_bal.h>
 #include "oplus_hal_sy6603.h"
 #include "test-kit.h"
+#include "../monitor/oplus_chg_track.h"
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_CHG_DEBUG_KIT)
 #include <debug-kit.h>
 #endif
@@ -55,6 +56,7 @@ struct chip_sy6603 {
 	atomic_t suspended;
 	struct mutex i2c_lock;
 	struct mutex data_lock;
+	struct mutex pinctrl_lock;
 
 	unsigned long trigger_err_type;
 	int iref_sw_step_adjust_max_amp;
@@ -70,7 +72,10 @@ struct chip_sy6603 {
 	struct test_feature *bal_ic_test;
 #endif
 	bool disbale_bal;
+	bool hw_init_err;
 };
+
+static int sy6603_hardware_init(struct chip_sy6603 *chip);
 
 struct sy6603_err_reason {
 	int err_type;
@@ -87,9 +92,32 @@ static struct regmap_config sy6603_regmap_config = {
 	.max_register	= SY6603_REG_ADDR_MAX,
 };
 
+#define TRACK_UPLOAD_COUNT_MAX			10
+#define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD	(24 * 3600)
+#define MAX_STR_LEN				256
+static void sy6603_upload_track(struct chip_sy6603 *chip, int type, int sub_type, char *str)
+{
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+	int curr_time;
+
+	curr_time = oplus_chg_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (upload_count < TRACK_UPLOAD_COUNT_MAX) {
+		upload_count++;
+		pre_upload_time = oplus_chg_track_get_local_time_s();
+		oplus_chg_ic_creat_err_msg(chip->ic_dev, type, sub_type, str);
+		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
+	}
+}
+
 static __inline__ void sy6603_i2c_err_inc(struct chip_sy6603 *chip, u8 addr, bool read)
 {
 	int en_gpio_val;
+	char buf[MAX_STR_LEN] = {0};
+
 	if (unlikely(!chip->ic_dev))
 		return;
 
@@ -101,13 +129,13 @@ static __inline__ void sy6603_i2c_err_inc(struct chip_sy6603 *chip, u8 addr, boo
 		return;
 	}
 
-	if (atomic_read(&chip->i2c_err_count) > SY6603_I2C_ERR_MAX)
+	if (atomic_read(&chip->suspended) == 1 ||
+	    atomic_read(&chip->i2c_err_count) > SY6603_I2C_ERR_MAX)
 		return;
 
 	atomic_inc(&chip->i2c_err_count);
-	oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_I2C, 0,
-		"addr[0x%x] %s", addr, read ? "read error" : "write error");
-	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
+	scnprintf(buf, sizeof(buf), "$$err_reason@@i2c_err$$info@@addr[0x%x]%s", addr, read ? "read error" : "write error");
+	sy6603_upload_track(chip, OPLUS_IC_ERR_I2C, 0, buf);
 }
 
 static __inline__ void sy6603_i2c_err_clr(struct chip_sy6603 *chip)
@@ -317,7 +345,28 @@ __maybe_unused static int sy6603_write_byte_mask(
 
 static int oplus_sy6603_init(struct oplus_chg_ic_dev *ic_dev)
 {
-	ic_dev->online = true;
+	struct chip_sy6603 *chip;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("ic_dev is NULL");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip) {
+		chg_err("chip is NULL");
+		return -ENODEV;
+	}
+	if (chip->hw_init_err)
+		rc = sy6603_hardware_init(chip);
+
+	if (rc < 0) {
+		ic_dev->online = false;
+		return -EINVAL;
+	} else {
+		chip->hw_init_err = false;
+		ic_dev->online = true;
+	}
 
 	return 0;
 }
@@ -391,11 +440,6 @@ static int oplus_sy6603_get_pmos_enable(struct oplus_chg_ic_dev *ic_dev, bool *e
 		return -EINVAL;
 	}
 
-	if (atomic_read(&chip->suspended) == 1) {
-		chg_err("sy6603 is suspend\n");
-		return -EINVAL;
-	}
-
 	if (IS_ERR_OR_NULL(chip->pinctrl) ||
 	    IS_ERR_OR_NULL(chip->pmos_active) ||
 	    IS_ERR_OR_NULL(chip->pmos_sleep)) {
@@ -415,6 +459,8 @@ static int oplus_sy6603_set_pmos_enable(struct oplus_chg_ic_dev *ic_dev, bool en
 {
 	int rc;
 	struct chip_sy6603 *chip;
+	bool curr_enable_status;
+	bool change = false;
 
 	if (ic_dev == NULL) {
 		chg_err("ic_dev is NULL");
@@ -424,11 +470,6 @@ static int oplus_sy6603_set_pmos_enable(struct oplus_chg_ic_dev *ic_dev, bool en
 	chip = oplus_chg_ic_get_drvdata(ic_dev);
 	if (!chip) {
 		chg_err("chip not specified!\n");
-		return -EINVAL;
-	}
-
-	if (atomic_read(&chip->suspended) == 1) {
-		chg_err("sy6603 is suspend\n");
 		return -EINVAL;
 	}
 
@@ -442,13 +483,19 @@ static int oplus_sy6603_set_pmos_enable(struct oplus_chg_ic_dev *ic_dev, bool en
 	if (oplus_is_rf_ftm_mode())
 		enable = false;
 
+	curr_enable_status = (bool)(!!gpio_get_value(chip->pmos_gpio));
+	if (curr_enable_status != enable)
+		change = true;
+	mutex_lock(&chip->pinctrl_lock);
 	rc = pinctrl_select_state(chip->pinctrl,
 			enable ? chip->pmos_active : chip->pmos_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 	if (rc < 0) {
 		chg_err("can't %s\n", enable ? "enable" : "disable");
 	} else {
 		rc = 0;
-		chg_err("set value:%d, gpio_val:%d\n", enable, gpio_get_value(chip->pmos_gpio));
+		if (change)
+			chg_info("set value:%d, gpio_val:%d\n", enable, gpio_get_value(chip->pmos_gpio));
 	}
 
 	return rc;
@@ -473,11 +520,7 @@ static int __sy6603_set_hw_enable(struct chip_sy6603 *chip, bool enable)
 {
 	int rc;
 	bool curr_enable_status;
-
-	if (atomic_read(&chip->suspended) == 1) {
-		chg_err("sy6603 is suspend\n");
-		return -EINVAL;
-	}
+	bool change = false;
 
 	if (IS_ERR_OR_NULL(chip->pinctrl) ||
 	    IS_ERR_OR_NULL(chip->en_active) ||
@@ -489,18 +532,29 @@ static int __sy6603_set_hw_enable(struct chip_sy6603 *chip, bool enable)
 	if (chip->disbale_bal)
 		enable = false;
 
-	curr_enable_status = (bool)(!!gpio_get_value(chip->en_gpio));
-	if (curr_enable_status != enable)
-		__sy6603_enable_irq(chip, false);
+	if (atomic_read(&chip->suspended) == 1 && enable) {
+		chg_err("sy6603 is suspend\n");
+		return -EINVAL;
+	} else {
+		mutex_lock(&chip->pinctrl_lock);
+		curr_enable_status = (bool)(!!gpio_get_value(chip->en_gpio));
+		if (curr_enable_status != enable)
+			change = true;
+		if (change)
+			__sy6603_enable_irq(chip, false);
 
-	rc = pinctrl_select_state(chip->pinctrl,
-		enable ? chip->en_active : chip->en_sleep);
+		rc = pinctrl_select_state(chip->pinctrl,
+			enable ? chip->en_active : chip->en_sleep);
+		mutex_unlock(&chip->pinctrl_lock);
+	}
 	if (rc < 0) {
 		chg_err("can't %s\n", enable ? "enable" : "disable");
 	} else {
 		rc = 0;
-		msleep(2);
-		chg_err("set value:%d, gpio_val:%d\n", enable, gpio_get_value(chip->en_gpio));
+		if (change) {
+			msleep(2);
+			chg_info("set value:%d, gpio_val:%d\n", enable, gpio_get_value(chip->en_gpio));
+		}
 	}
 
 	return rc;
@@ -687,6 +741,7 @@ static int __sy6603_set_conver_enable(struct chip_sy6603 *chip, bool enable)
 	} else if (enable) {
 		rc = sy6603_write_byte_mask(chip, SY6603_REG_ADDR_00H,
 			SY6603_FREQ_SET_MASK, (0x01 << SY6603_FREQ_SET_SHIFT));
+		rc |= sy6603_write_byte(chip, SY6603_REG_ADDR_01H, 0x55); /* uvp 2V */
 		rc |= sy6603_write_byte_mask(chip,
 			SY6603_REG_ADDR_03H, SY6603_UVLO_ACTION_MASK,
 			(0x03 << SY6603_UVLO_ACTION_SHIFT));
@@ -1013,7 +1068,9 @@ static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
 	void *func = NULL;
 
 	if (!ic_dev->online && (func_id != OPLUS_IC_FUNC_INIT) &&
-	    (func_id != OPLUS_IC_FUNC_EXIT)) {
+	    (func_id != OPLUS_IC_FUNC_EXIT) &&
+	    func_id != OPLUS_IC_FUNC_BAL_GET_PMOS_ENABLE &&
+	    func_id != OPLUS_IC_FUNC_BAL_SET_PMOS_ENABLE) {
 		chg_err("%s is offline\n", ic_dev->name);
 		return NULL;
 	}
@@ -1103,7 +1160,9 @@ static int sy6603_gpio_init(struct chip_sy6603 *chip)
 		goto free_int_gpio;
 	}
 	gpio_direction_input(chip->interrupt_gpio);
+	mutex_lock(&chip->pinctrl_lock);
 	pinctrl_select_state(chip->pinctrl, chip->int_default);
+	mutex_unlock(&chip->pinctrl_lock);
 
 	chip->en_gpio = of_get_named_gpio(node, "sy6603,en-gpio", 0);
 	if (!gpio_is_valid(chip->en_gpio)) {
@@ -1126,7 +1185,9 @@ static int sy6603_gpio_init(struct chip_sy6603 *chip)
 		goto free_en_gpio;
 	}
 	gpio_direction_output(chip->en_gpio, 0);
+	mutex_lock(&chip->pinctrl_lock);
 	pinctrl_select_state(chip->pinctrl, chip->en_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 
 	chip->pmos_gpio = of_get_named_gpio(node, "sy6603,pmos-en-gpio", 0);
 	if (!gpio_is_valid(chip->pmos_gpio)) {
@@ -1149,7 +1210,9 @@ static int sy6603_gpio_init(struct chip_sy6603 *chip)
 		goto free_pmos_gpio;
 	}
 	gpio_direction_output(chip->pmos_gpio, 0);
+	mutex_lock(&chip->pinctrl_lock);
 	pinctrl_select_state(chip->pinctrl, chip->pmos_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 
 	return 0;
 
@@ -1205,6 +1268,7 @@ static int sy6603_hardware_init(struct chip_sy6603 *chip)
 	rc |= __sy6603_set_conver_enable(chip, false);
 	rc |= __sy6603_set_vout(chip, SY6603_SET_VOUT_MV(4700));
 	rc |= __sy6603_reg_dump(chip);
+	__sy6603_set_hw_enable(chip, false);
 
 	return rc;
 }
@@ -1232,6 +1296,7 @@ static irqreturn_t sy6603_int_handler(int irq, void *dev_id)
 	struct chip_sy6603 *chip = dev_id;
 	u8 fault_data[2] = {0};
 	int err_type = BATT_BAL_ERR_UNKNOW;
+	char buf[MAX_STR_LEN] = {0};
 
 	en_gpio_val = gpio_get_value(chip->en_gpio);
 	if (!en_gpio_val) {
@@ -1272,10 +1337,10 @@ static irqreturn_t sy6603_int_handler(int irq, void *dev_id)
 	if (err_type != BATT_BAL_ERR_UNKNOW) {
 		if (!sy6603_need_handle_handler(chip, err_type))
 			return IRQ_HANDLED;
-		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_BATT_BAL, err_type,
+		scnprintf(buf, sizeof(buf),
 			"$$err_reason@@%s$$reg_info@@reg[0x%x]=0x%x, reg[0x%x]=0x%x", batt_bal_ic_exit_reason_str(err_type),
 			SY6603_REG_ADDR_0CH, fault_data[0], SY6603_REG_ADDR_10H, fault_data[1]);
-		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
+		sy6603_upload_track(chip, OPLUS_IC_ERR_BATT_BAL, err_type, buf);
 		set_bit(err_type, &chip->trigger_err_type);
 	}
 
@@ -1362,7 +1427,9 @@ static bool test_kit_bal_ic_test(struct test_feature *feature, char *buf, size_t
 		return false;
 	}
 
+	mutex_lock(&chip->pinctrl_lock);
 	rc_gpio = pinctrl_select_state(chip->pinctrl, chip->en_active);
+	mutex_unlock(&chip->pinctrl_lock);
 	if (rc_gpio < 0) {
 		chg_err("can't enable\n");
 		return false;
@@ -1374,7 +1441,9 @@ static bool test_kit_bal_ic_test(struct test_feature *feature, char *buf, size_t
 
 	rc = sy6603_read_byte(chip, SY6603_REG_ADDR_00H, &data);
 
+	mutex_lock(&chip->pinctrl_lock);
 	rc_gpio = pinctrl_select_state(chip->pinctrl, chip->en_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 	if (rc_gpio < 0) {
 		chg_err("can't disable\n");
 		return false;
@@ -1425,6 +1494,7 @@ static int chip_sy6603_probe(struct i2c_client *client, const struct i2c_device_
 	i2c_set_clientdata(client, chip);
 	mutex_init(&chip->i2c_lock);
 	mutex_init(&chip->data_lock);
+	mutex_init(&chip->pinctrl_lock);
 
 	rc = sy6603_gpio_init(chip);
 	if (rc < 0) {
@@ -1436,8 +1506,8 @@ static int chip_sy6603_probe(struct i2c_client *client, const struct i2c_device_
 
 	rc = sy6603_hardware_init(chip);
 	if (rc < 0) {
+		chip->hw_init_err = true;
 		chg_err("hardware init error, rc=%d\n", rc);
-		goto hw_init_err;
 	}
 
 	rc = sy6603_irq_init(chip);
@@ -1481,7 +1551,6 @@ static int chip_sy6603_probe(struct i2c_client *client, const struct i2c_device_
 		chg_err("register %s error\n", chip->dev->of_node->name);
 		goto ic_reg_error;
 	}
-
 	oplus_sy6603_init(chip->ic_dev);
 #if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
 	chip->bal_ic_test = test_feature_register(&bal_ic_test_cfg, chip);
@@ -1512,7 +1581,6 @@ static int sy6603_pm_resume(struct device *dev_chip)
 	if(chip == NULL)
 		return 0;
 
-	chg_info("start\n");
 	atomic_set(&chip->suspended, 0);
 	return 0;
 }
@@ -1525,10 +1593,8 @@ static int sy6603_pm_suspend(struct device *dev_chip)
 	if(chip == NULL)
 		return 0;
 
-	chg_info("start\n");
-	oplus_sy6603_set_hw_enable(chip->ic_dev, false);
-	oplus_sy6603_set_pmos_enable(chip->ic_dev, true);
 	atomic_set(&chip->suspended, 1);
+	oplus_sy6603_set_hw_enable(chip->ic_dev, false);
 
 	return 0;
 }

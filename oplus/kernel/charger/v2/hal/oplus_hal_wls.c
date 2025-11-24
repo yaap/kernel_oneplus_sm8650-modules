@@ -443,6 +443,22 @@ int oplus_chg_wls_rx_set_fod_parm(struct oplus_chg_ic_dev *rx_ic, u8 buf[], int 
 	return rc;
 }
 
+int oplus_chg_wls_rx_send_epp_match_q(struct oplus_chg_ic_dev *rx_ic, u8 data[])
+{
+	int rc;
+
+	if (rx_ic == NULL || data == NULL) {
+		chg_err("rx_ic or data is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(rx_ic, OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q, data);
+	if (rc < 0)
+		chg_err("can't send epp match q, rc=%d\n", rc);
+
+	return rc;
+}
+
 int oplus_chg_wls_rx_send_msg_raw(struct oplus_chg_ic_dev *rx_ic, u8 buf[], int len, int raw_data)
 {
 	int rc;
@@ -647,6 +663,22 @@ int oplus_chg_wls_rx_get_tx_id(struct oplus_chg_ic_dev *rx_ic, int *tx_id)
 	rc = oplus_chg_ic_func(rx_ic, OPLUS_IC_FUNC_RX_GET_TX_ID, tx_id);
 	if (rc < 0 && rc != -ENOTSUPP)
 		chg_err("can't get tx_id, rc=%d\n", rc);
+
+	return rc;
+}
+
+int oplus_chg_wls_rx_set_silent(struct oplus_chg_ic_dev *rx_ic)
+{
+	int rc;
+
+	if (rx_ic == NULL) {
+		chg_err("rx_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(rx_ic, OPLUS_IC_FUNC_RX_SET_SILENT);
+	if (rc < 0 && rc != -ENOTSUPP)
+		chg_err("can't set silent, rc=%d\n", rc);
 
 	return rc;
 }
@@ -985,6 +1017,16 @@ int oplus_chg_wls_fast_set_enable(struct oplus_chg_ic_dev *fast_ic, bool en)
 	if (fast_ic == NULL) {
 		chg_err("fast_ic is NULL\n");
 		return -ENODEV;
+	}
+
+	if (!en) {
+		rc = oplus_chg_ic_func(fast_ic, OPLUS_IC_FUNC_CP_SET_WORK_START, false);
+		if (rc < 0)
+			chg_err("can't set cp start, rc=%d\n", rc);
+	} else {
+		rc = oplus_chg_ic_func(fast_ic, OPLUS_IC_FUNC_CP_SET_WORK_MODE, CP_WORK_MODE_2_TO_1);
+		if (rc < 0)
+			chg_err("can't set cp work mode to 2:1, rc=%d\n", rc);
 	}
 
 	rc = oplus_chg_ic_func(fast_ic, OPLUS_IC_FUNC_CP_ENABLE, en);

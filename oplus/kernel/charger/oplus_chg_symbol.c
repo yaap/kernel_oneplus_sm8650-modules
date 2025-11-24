@@ -25,7 +25,7 @@ enum {
 };
 
 #if IS_ENABLED(CONFIG_OPLUS_SM8350_CHARGER) || IS_ENABLED(CONFIG_OPLUS_SM8450_CHARGER)
-#if IS_ENABLED(CONFIG_OPLUS_ADSP_CHARGER)
+#if IS_ENABLED(CONFIG_OPLUS_ADSP_CHARGER) || IS_ENABLED(CONFIG_OPLUS_ADSP_SM8450_CHARGER)
 #define USE_ADSP
 #endif
 #endif
@@ -104,6 +104,7 @@ ADD_FUNC_BODY(chr_get_debug_level)
 DEF_SYMBOLE(int, mtk_chg_enable_vbus_ovp, bool enable)
 ADD_FUNC_BODY(mtk_chg_enable_vbus_ovp, enable)
 
+#if !IS_ENABLED(CONFIG_OPLUS_MT6789_CHARGER) && !IS_ENABLED(CONFIG_OPLUS_MT6835_CHARGER)
 DEF_SYMBOLE(int, mt_power_supply_type_check, void)
 ADD_FUNC_BODY(mt_power_supply_type_check)
 
@@ -118,6 +119,7 @@ ADD_FUNC_BODY(get_rtc_spare_oplus_fg_value)
 
 DEF_SYMBOLE(int, set_rtc_spare_oplus_fg_value, int soc)
 ADD_FUNC_BODY(set_rtc_spare_oplus_fg_value, soc)
+#endif
 
 DEF_SYMBOLE(bool, is_meta_mode, void)
 ADD_FUNC_BODY(is_meta_mode)
@@ -131,7 +133,21 @@ ADD_FUNC_BODY(oplus_force_get_subboard_temp)
 DEF_SYMBOLE(bool, oplus_get_hmac, void)
 ADD_FUNC_BODY(oplus_get_hmac)
 
+#if IS_ENABLED(CONFIG_OPLUS_MT6789_CHARGER) || IS_ENABLED(CONFIG_OPLUS_MT6835_CHARGER)
+DEF_SYMBOLE(bool, oplus_chg_check_ui_soc_is_ready, void)
+ADD_FUNC_BODY(oplus_chg_check_ui_soc_is_ready)
+DEF_SYMBOLE(int, set_chr_enable_otg, unsigned int enable)
+ADD_FUNC_BODY(set_chr_enable_otg, enable)
+DEF_SYMBOLE(void, oplus_chg_set_camera_on, bool val)
+ADD_FUNC_BODY(oplus_chg_set_camera_on, val)
+#endif
+
 #endif /* CONFIG_OPLUS_CHARGER_MTK && CONFIG_OPLUS_CHG_V2 */
+
+#if IS_ENABLED(CONFIG_OPLUS_SM6115R_CHARGER)
+DEF_SYMBOLE(void, oplus_chg_set_camera_on, bool val)
+ADD_FUNC_BODY(oplus_chg_set_camera_on, val)
+#endif
 
 static int __init oplus_chg_symbol_init(void)
 {

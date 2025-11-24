@@ -2057,7 +2057,7 @@ static int oplus_parallel_get_track_info(char *temp_str, int index)
 	if (!chip)
 		return 0;
 
-	return snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
+	return scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index,
 			"$$mos_err_status@@"
 			"main_sub_soc %d %d,"
 			"main_sub_volt %d %d,"
@@ -2120,7 +2120,7 @@ static void oplus_parallel_track_check(void)
 		chip->notify_flag |= 1 << NOTIFY_FAST_CHG_END_ERROR;
 		upload_count[TRACK_MOS_SOC_NOT_FULL]++;
 		pre_upload_time[TRACK_MOS_SOC_NOT_FULL] = track_get_local_time_s();
-		index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "full_at_soc_not_full");
+		index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "full_at_soc_not_full");
 		index += oplus_parallel_get_track_info(temp_str, index);
 		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_PARALLEL_UNBALANCE, 0, temp_str);
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
@@ -2134,7 +2134,7 @@ static void oplus_parallel_track_check(void)
 			chip->main_batt_soc, chip->sub_batt_soc);
 		upload_count[TRACK_MOS_SOC_GAP_TOO_BIG]++;
 		pre_upload_time[TRACK_MOS_SOC_GAP_TOO_BIG] = track_get_local_time_s();
-		index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "soc_gap_too_big");
+		index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "soc_gap_too_big");
 		index += oplus_parallel_get_track_info(temp_str, index);
 		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_PARALLEL_UNBALANCE, 0, temp_str);
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
@@ -2149,7 +2149,7 @@ static void oplus_parallel_track_check(void)
 		chip->notify_flag |= 1 << NOTIFY_CURRENT_UNBALANCE;
 		upload_count[TRACK_MOS_CURRENT_UNBALANCE]++;
 		pre_upload_time[TRACK_MOS_CURRENT_UNBALANCE] = track_get_local_time_s();
-		index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "current_unbalance");
+		index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "current_unbalance");
 		index += oplus_parallel_get_track_info(temp_str, index);
 		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_PARALLEL_UNBALANCE, 0, temp_str);
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
@@ -2164,7 +2164,7 @@ static void oplus_parallel_track_check(void)
 		    upload_count[TRACK_MOS_I2C_ERROR] < TRACK_UPLOAD_COUNT_MAX) {
 			upload_count[TRACK_MOS_I2C_ERROR]++;
 			pre_upload_time[TRACK_MOS_I2C_ERROR] = track_get_local_time_s();
-			index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "i2c_error ");
+			index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "i2c_error ");
 			need_upload = true;
 		}
 		if ((chip->parallel_error_flag & REASON_MOS_OPEN_ERROR ||
@@ -2173,7 +2173,7 @@ static void oplus_parallel_track_check(void)
 			chip->notify_flag |= 1 << NOTIFY_MOS_OPEN_ERROR;
 			upload_count[TRACK_MOS_OPEN_ERROR]++;
 			pre_upload_time[TRACK_MOS_OPEN_ERROR] = track_get_local_time_s();
-			index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "mos_open_error ");
+			index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "mos_open_error ");
 			need_upload = true;
 		}
 		if ((chip->parallel_error_flag & REASON_VBAT_GAP_BIG ||
@@ -2182,7 +2182,7 @@ static void oplus_parallel_track_check(void)
 			chip->notify_flag |= 1 << NOTIFY_CURRENT_UNBALANCE;
 			upload_count[TRACK_MOS_VBAT_GAP_BIG]++;
 			pre_upload_time[TRACK_MOS_VBAT_GAP_BIG] = track_get_local_time_s();
-			index += snprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "vbat_gap_big ");
+			index += scnprintf(&(temp_str[index]), REASON_LENGTH_MAX - index, "vbat_gap_big ");
 			need_upload = true;
 		}
 		if (need_upload) {
@@ -2428,7 +2428,11 @@ static int oplus_chg_parallel_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_chg_parallel_remove(struct platform_device *pdev)
+#else
 static int oplus_chg_parallel_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_parallel_chip *chip = platform_get_drvdata(pdev);
 
@@ -2444,7 +2448,9 @@ static int oplus_chg_parallel_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_chg_parallel_match[] = {

@@ -105,6 +105,7 @@ struct vphy_chip {
 	int track_err_type;
 	int cc_detect;
 	int eis_status;
+	int flash_mode;
 };
 
 extern void oplus_chg_adc_switch_ctrl(void);
@@ -133,18 +134,20 @@ bool oplus_chglib_is_switch_temp_range(void);
 int oplus_chglib_get_battery_btb_temp_cal(void);
 int oplus_chglib_get_usb_btb_temp_cal(void);
 bool oplus_chglib_get_chg_stats(void);
-bool oplus_chglib_get_flash_led_status(void);
+bool oplus_chglib_get_flash_led_status(struct device *dev);
 int oplus_chglib_get_charger_voltage(void);
 bool oplus_chglib_get_vooc_is_started(struct device *dev);
 bool oplus_chglib_get_vooc_sid_is_config(struct device *dev);
 int oplus_chglib_get_eis_status(struct device *dev);
 int oplus_chglib_notify_ap(struct device *dev, int event);
 int oplus_chglib_push_break_code(struct device *dev, int code);
+int oplus_chglib_push_lcf_alarm_status(struct device *dev, int status);
 struct vphy_chip *oplus_chglib_register_vphy(struct device *dev,
 					     struct hw_vphy_info *vinf);
 void oplus_chglib_creat_ic_err(struct device *dev, int type);
 void oplus_chglib_creat_i2c_err(struct device *dev);
 int oplus_chglib_get_cc_detect(struct device *dev);
-
-
+int oplus_chglib_upload_fcl_info(struct device *dev, int batt_volt, int batt_curr, int batt_temp);
+bool oplus_chglib_check_dchg(struct device *dev, int adapter_type);
+int oplus_chglib_fcl_vbatt(struct device *dev);
 #endif /*__OPLUS_CHGLIB_H__*/

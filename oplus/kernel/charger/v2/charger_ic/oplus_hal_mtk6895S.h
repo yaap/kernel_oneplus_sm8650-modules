@@ -19,8 +19,9 @@
 #include "mtk_disp_notify.h"
 #endif
 
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include "kernelFwUpdate.h"
-
+#endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #include <oplus_chg_ic.h>
@@ -102,13 +103,18 @@ struct charger_data;
 
 #define MAX_ALG_NO 10
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#define SUPPORT_PARAMETER_SIZE 8
+#define SUPPORT_TABLE_SIZE 360
+#endif
+
 enum bat_temp_state_enum {
 	BAT_TEMP_LOW = 0,
 	BAT_TEMP_NORMAL,
 	BAT_TEMP_HIGH
 };
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 enum mtk_pd_connect_type { //pd_adapter_event
 	MTK_PD_CONNECT_NONE,
 	MTK_PD_CONNECT_HARD_RESET,
@@ -300,6 +306,17 @@ struct ntc_temp{
 	int i_table_size;
 };
 
+struct ntc_temp_parameters {
+	int parameters_support;
+	int table_support;
+	int i_tap_over_critical_low;
+	int i_rap_pull_up_r;
+	int i_rap_pull_up_voltage;
+	int i_tap_min;
+	int i_tap_max;
+	unsigned int i_25c_volt;
+};
+
 struct oplus_custom_gpio_pinctrl {
 	int vchg_trig_gpio;
 	int ccdetect_gpio;
@@ -332,6 +349,12 @@ struct oplus_custom_gpio_pinctrl {
 };
 #endif
 
+enum oplus_sub_btb_adc_index {
+	OPLUS_SUB_BTB_VALD_MIN_ADC,
+	OPLUS_SUB_BTB_VALD_MAX_ADC,
+	OPLUS_SUB_BTB_MAX,
+};
+
 struct mtk_charger {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct oplus_chg_ic_dev *ic_dev;
@@ -342,6 +365,8 @@ struct mtk_charger {
 	struct oplus_mms *gauge_topic;
 	struct oplus_mms  *err_topic;
 	int low_batt_otg_boost_curr_ua;
+	struct ntc_temp_parameters subboard_parameters;
+	struct temp_param *support_subboard_table;
 #endif
 
 	struct platform_device *pdev;
@@ -378,7 +403,7 @@ struct mtk_charger {
 	struct power_supply *bat2_psy;
 	struct power_supply *bat_manager_psy;
 	struct adapter_device *select_adapter;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 	struct adapter_device *adapter_dev[MAX_TA_IDX];
 	struct info_notifier_block ta_nb[MAX_TA_IDX];
 #endif
@@ -392,7 +417,7 @@ struct mtk_charger {
 
 	u32 bootmode;
 	u32 boottype;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 	int ta_status[MAX_TA_IDX];
 #endif
 	int select_adapter_idx;
@@ -493,6 +518,7 @@ struct mtk_charger {
 
 	/*charger IC charging status*/
 	bool is_charging;
+	bool usb_aicl_enhance;
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct iio_channel	*subboard_temp_chan;
@@ -507,13 +533,13 @@ struct mtk_charger {
 	struct iio_channel	*slave_cp_chan;
 
 #ifdef CONFIG_THERMAL
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
 	struct thermal_zone_device *master_cp_temp_tzd;
 	struct thermal_zone_device *slave_cp_temp_tzd;
-#else
 	struct thermal_zone_device *cp_temp_tzd;
 	struct thermal_zone_device *sub_batt_temp_tzd;
-#endif
+	struct thermal_zone_device *subboard_temp_tzd;
+	struct thermal_zone_device *bat_btb_temp_tzd;
+	struct thermal_zone_device *bat_sub_btb_temp_tzd;
 #endif
 
 	int ccdetect_gpio;
@@ -528,8 +554,12 @@ struct mtk_charger {
 	int i_sub_board_temp;
 	bool support_ntc_01c_precision;
 	bool ntc_temp_volt_1840mv;
+	bool cp_sub_btb_temp_share;
+	bool support_adc_vin;
+	bool cp_btb_temp_share;
 	bool support_subboard_ntc;
 	bool pd_svooc;
+	int sub_board_pull_up_r;
 
 	struct tcpc_device *tcpc;
 	struct adapter_power_cap srccap;
@@ -556,8 +586,10 @@ struct mtk_charger {
 	struct delayed_work sourcecap_done_work;
 	struct delayed_work charger_suspend_recovery_work;
 	struct delayed_work	publish_close_cp_item_work;
+	struct delayed_work svid_check_work;
 	pd_msg_data pdo[PPS_PDO_MAX];
 	int cap_nr;
+	int sub_btb_valid_adc[OPLUS_SUB_BTB_MAX];
 #endif
 };
 

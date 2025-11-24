@@ -95,6 +95,7 @@
 #endif
 
 #include <linux/wait.h>
+
 static DECLARE_WAIT_QUEUE_HEAD(state_waiter);
 
 extern struct platform_device *syna_spi_device;
@@ -839,6 +840,7 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 					LOGI("screen off fingerprint down(%u %u)\n", fp_info.x, fp_info.y);
 					syna_send_signal(tcm, SIG_FINGER_DOWN);
 					LOGI("send finger down singal to app.\n");
+					tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_off_fp_down");
 				}/* else {
 					LOGI("repeat 'screen off fingerprint down' triggered\n");
 				}*/
@@ -850,29 +852,40 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 				LOGI("screen off fingerprint up\n");
 				syna_send_signal(tcm, SIG_FINGER_UP);
 				LOGI("send finger up singal to app.\n");
+				tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_off_fp_up");
 			} else if (touch_data->gesture_id == FINGERPRINT_ERR_REPORT) {
-				LOGI("fingerprint error type:[%*ph]\n", 6, touch_data->extra_gesture_info);
+				LOGI("TP_FP_ERROR_REPORT:fingerprint error type:[%*ph]\n", 6, touch_data->extra_gesture_info);
 				switch (touch_data->extra_gesture_info[0]) {
 				case FINGERPRINT_AREA_NOT_MATCH:
 					if (tcm->health_monitor_support) {
 						tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fingerprint_area_not_match_count");
 					}
-					LOGI("FINGERPRINT_AREA_NOT_MATCH\n");
+					LOGI("TP_FP_ERROR_REPORT:area size: 0x%x\n", touch_data->extra_gesture_info[2]);
+					LOGI("TP_FP_ERROR_REPORT:FINGERPRINT_AREA_NOT_MATCH\n");
 					break;
 				case ANOTHER_FINGER_ON_NON_FP_ZONE:
 					if (tcm->health_monitor_support) {
 						tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "another_finger_on_non-fingerprint_zone_count");
 					}
-					LOGI("ANOTHER_FINGER_ON_NON_FP_ZONE\n");
+					LOGI("TP_FP_ERROR_REPORT:x:0x%x,y:0x%x\n", (touch_data->extra_gesture_info[3] << 8) + touch_data->extra_gesture_info[2],
+						(touch_data->extra_gesture_info[5] << 8) + touch_data->extra_gesture_info[4]);
+					LOGI("TP_FP_ERROR_REPORT:ANOTHER_FINGER_ON_NON_FP_ZONE\n");
 					break;
 				case FINGERPRINT_DOWN_BEFORE_FP_ENABLE:
 					if (tcm->health_monitor_support) {
 						tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fingerprint_down_before_fp_enable_count");
 					}
-					LOGI("FINGERPRINT_DOWN_BEFORE_FP_ENABLE\n");
+					LOGI("TP_FP_ERROR_REPORT:down time: 0x%x\n", touch_data->extra_gesture_info[2]);
+					LOGI("TP_FP_ERROR_REPORT:FINGERPRINT_DOWN_BEFORE_FP_ENABLE\n");
+					break;
+				case FINGERPRINT_OUT_MOVE_IN:
+					if (tcm->health_monitor_support) {
+						tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fingerprint_out_move_in_count");
+					}
+					LOGI("TP_FP_ERROR_REPORT:FINGERPRINT_OUT_MOVE_IN\n");
 					break;
 				default:
-					LOGI("unknown fingerprint error type: 0x%x\n", touch_data->extra_gesture_info[0]);
+					LOGI("TP_FP_ERROR_REPORT:unknown fingerprint error type: 0x%x\n", touch_data->extra_gesture_info[0]);
 					break;
 				}
 			} else if (touch_data->gesture_id == UNDER_WATER) {
@@ -1388,6 +1401,7 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 		goto exit;
 
 	tcm->isr_pid = current->pid;
+
 #ifdef HAS_SYSFS_INTERFACE
 	if (tcm->is_attn_redirecting) {
 		syna_cdev_redirect_attn(tcm);
@@ -1416,7 +1430,6 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 		LOGE("Fail to get event data\n");
 		goto exit;
 	}
-
 	if (code == REPORT_DELTA || code == REPORT_RAW || code == REPORT_DEBUG) {
 		syna_tcm_test_report(tcm, code);
 		goto exit;
@@ -1756,6 +1769,7 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 		}
 		complete(&tcm->fw_complete);
 		syna_pal_mutex_unlock(&tcm->extif_mutex);
+		tcm->is_update_log = 1;
 		return;
 	}
 
@@ -1795,7 +1809,11 @@ static void syna_dev_reflash_startup_work(struct work_struct *work)
 			trace_stats_report(TOUCH_STATS_FW_UPDATE_FAULT, PLATFORM_DRIVER_NAME, tcm->panel_data.manufacture_info.version, "FW_Update_Failed");
 		}
 		syna_pal_mutex_unlock(&hw_if->bdata_rst.reset_en_mutex);
+		/*if probe_status is not exit, olc will update log*/
+		tcm->is_update_log = 1;
 		goto exit;
+	} else {
+		tcm->is_update_log = 0;
 	}
 
 	/* re-initialize the app fw */
@@ -2338,10 +2356,14 @@ static int syna_dev_suspend(struct device *dev)
 #endif
 	/*report fingerprint up in suspend*/
 	/*tcm->is_fp_down = false;*/
-	memset(&fp_info, 0, sizeof(struct fp_underscreen_info));
-	touch_call_notifier_fp(tcm, &fp_info);
+	if (!tcm->fingerprint_not_report_in_suspend) {
+		memset(&fp_info, 0, sizeof(struct fp_underscreen_info));
+		touch_call_notifier_fp(tcm, &fp_info);
 
-	LOGI("[compensate]Report UP event to fingerprint notifier\n");
+		LOGI("[compensate]Report UP event to fingerprint notifier\n");
+	} else {
+		LOGI("not report fp up\n");
+	}
 
 	/* once lpwg is enabled, irq should be alive.
 	 * otherwise, disable irq in suspend.
@@ -2983,7 +3005,8 @@ static struct syna_auto_test_operations syna_tcm_test_ops = {
 	.test8       =  syna_trex_shortcustom_test,
 	.test9       =  syna_hybrid_diffcbc_test,
 	.test10      =  syna_hybrid_absnoise_test,
-	.test11       =  syna_hybrid_rawcap_test_ad,
+	.test11      =  syna_hybrid_rawcap_test_ad,
+	.test12      =  syna_rst_test,
 	/*.syna_auto_test_enable_irq    =  synaptics_test_enable_interrupt,*/
 	/*.syna_auto_test_preoperation  =  synaptics_auto_test_preoperation,*/
 	/*.syna_auto_test_endoperation  =  synaptics_auto_test_endoperation,*/
@@ -3248,6 +3271,9 @@ static int init_chip_dts(struct device *dev, void *chip_data)
 
 	tcm->stats_upload_support = of_property_read_bool(np, "stats_upload_support");
 	TP_INFO(tcm->tp_index, "stats_upload_support = %d \n", tcm->stats_upload_support);
+
+	tcm->fingerprint_not_report_in_suspend = of_property_read_bool(np, "fingerprint_not_report_in_suspend");
+	TP_INFO(tcm->tp_index, "fingerprint_not_report_in_suspend = %d \n", tcm->fingerprint_not_report_in_suspend);
 
 	/* S3910_PANEL7 */
 	init_panel_config(dev, tcm);
@@ -3549,6 +3575,9 @@ static int syna_dev_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 1);
 	init_completion(&tcm->report_complete);
 
+	tcm->is_update_log = 0;
+	init_probe_status_proc(tcm);
+
 /* ts check panel dt */
 #if IS_ENABLED(CONFIG_DRM_OPLUS_PANEL_NOTIFY) || IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
 	/* get spi of_node from spi_register_driver */
@@ -3700,6 +3729,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 
 #ifdef HAS_SYSFS_INTERFACE
 err_create_cdev:
+	remove_touchpanel_proc(tcm);
 	syna_tcm_remove_device(tcm->tcm_dev);
 #endif
 #if defined(TCM_CONNECT_IN_PROBE)
@@ -3754,18 +3784,9 @@ static int syna_dev_remove(struct platform_device *pdev)
 	destroy_workqueue(tcm->helper.workqueue);
 #endif
 
-#ifdef HAS_SYSFS_INTERFACE
-	/* remove the cdev and sysfs nodes */
-	syna_cdev_remove_sysfs(tcm);
-	platform_set_drvdata(pdev, NULL);
-#endif
-
 	/* check the connection status, and do disconnection */
 	if (tcm->dev_disconnect(tcm) < 0)
 		LOGE("Fail to do device disconnection\n");
-
-	if (tcm->userspace_app_info != NULL)
-		syna_pal_mem_free(tcm->userspace_app_info);
 
 	mutex_unlock(&tcm->mutex);
 	/*step7 : suspend && resume fuction register*/
@@ -3806,17 +3827,6 @@ static int syna_dev_remove(struct platform_device *pdev)
 	}
 
 #endif/*CONFIG_FB*/
-	/*mutex_destroy(&tcm->mutex);*/
-	syna_tcm_buf_release(&tcm->event_data);
-
-	syna_pal_mutex_free(&tcm->tp_event_mutex);
-
-	/* remove the allocated tcm device */
-	syna_tcm_remove_device(tcm->tcm_dev);
-
-	/* release the device context */
-	syna_pal_mem_free((void *)tcm);
-
 	return 0;
 }
 

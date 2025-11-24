@@ -131,6 +131,7 @@ enum votable_type {
 #define SUB_DEEP_COUNT_VOTER	"SUB_DEEP_COUNT_VOTER"
 #define BOOST_VOTER		"BOOST_VOTER"
 #define CP_ERR_VOTER		"CP_ERR_VOTER"
+#define CP_OFFLINE_VOTER	"CP_OFFLINE_VOTER"
 #define BAL_STATE_VOTER		"BAL_STATE_VOTER"
 #define BATT_BAL_VOTER		"BATT_BAL_VOTER"
 #define IBUS_OVER_VOTER		"IBUS_OVER_VOTER"
@@ -140,11 +141,23 @@ enum votable_type {
 #define WLS_PLOSS_WARN_VOTER	"WLS_PLOSS_WARN_VOTER"
 #define WLS_TA_UV_VOTER		"WLS_TA_UV_VOTER"
 #define WLS_QUIET_MODE_VOTER	"WLS_QUIET_MODE_VOTER"
+#define WLS_BOOT_QUIET_VOTER	"WLS_BOOT_QUIET_VOTER"
 #define WLS_AUDIO_MODE_VOTER	"WLS_AUDIO_MODE_VOTER"
 #define WLS_CAMERA_MODE_VOTER	"WLS_CAMERA_MODE_VOTER"
 #define WLS_FORCE_EPP_TO_BPP_VOTER	"WLS_FORCE_EPP_TO_BPP_VOTER"
 #define WLS_Q_VALUE_ERROR_VOTER	"WLS_Q_VALUE_ERROR_VOTER"
 #define BATT_FG_I2CREST_VOTER	"BATT_FG_I2CREST_VOTER"
+#define USB_ENHANCE_VOTER	"USB_ENHANCE_VOTER"
+#define BAD_SUB_BTB_VOTER	"BAD_SUB_BTB_VOTER"
+#define IC_VOTER 		"IC_VOTER"
+#define PARENT_VOTER		"PARENT_VOTER"
+#define UCP_VOTER		"UCP_VOTER"
+#define OCP_VOTER		"OCP_VOTER"
+#define IIC_VOTER		"IIC_VOTER"
+#define WLS_TIMEOUT_VOTER	"WLS_TIMEOUT_VOTER"
+#define COMMON_POWER_CHECK	"COMMON_POWER_CHECK"
+#define FLASH_MODE_VOTER	"FLASH_MODE_VOTER"
+#define LIMIT_FCL_VOTER	        "LIMIT_FCL_VOTER"
 
 /* TOPIC voter */
 #define COMM_TOPIC_VOTER	"COMM_TOPIC_VOTER"
@@ -192,5 +205,6 @@ int votable_add_check_func(struct votable *votable,
 void destroy_votable(struct votable *votable);
 void lock_votable(struct votable *votable);
 void unlock_votable(struct votable *votable);
+const char *votable_name(struct votable *votable);
 
 #endif /* __PMIC_VOTER_H */

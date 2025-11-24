@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/regmap.h>
 #include <linux/list.h>
+#include <linux/sched/clock.h>
 #ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include <soc/oplus/system/boot_mode.h>
 #include <soc/oplus/device_info.h>
@@ -27,6 +28,10 @@
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <oplus_mms_gauge.h>
+#include <oplus_mms_wired.h>
+#include <oplus_chg_wls.h>
+#include <oplus_chg_monitor.h>
+#include <test-kit.h>
 
 struct oplus_virtual_gauge_child {
 	struct oplus_chg_ic_dev *ic_dev;
@@ -40,6 +45,16 @@ struct oplus_virtual_gauge_child {
 	int batt_hmac;
 };
 
+struct oplus_sub_btb_info {
+	bool support;
+	int gpio;
+	int sub_btb_state;
+	int pre_connect_state;
+	int pre_upload_time;
+	int upload_count;
+	int cnt_chg_count;
+};
+
 struct oplus_virtual_gauge_ic {
 	struct device *dev;
 	struct oplus_chg_ic_dev *ic_dev;
@@ -49,11 +64,33 @@ struct oplus_virtual_gauge_ic {
 	struct work_struct gauge_online_work;
 	struct work_struct gauge_offline_work;
 	struct work_struct gauge_resume_work;
+	struct work_struct gauge_hmac_update_work;
+	struct oplus_mms *error_topic;
+	struct oplus_mms *wired_topic;
+	struct oplus_mms *wls_topic;
+	struct mms_subscribe *error_subs;
+	struct mms_subscribe *wired_subs;
+	struct mms_subscribe *wls_subs;
+	struct work_struct gauge_fpga_rst_work;
+	struct work_struct gauge_i2c_rst_work;
+	struct delayed_work btb_connect_state_check_work;
 
+	int fpga_reset_status;
+	int i2c_reset_status;
 	int batt_capacity_mah;
+	bool fpga_support;
+	bool wired_online;
+	bool wls_online;
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+	struct test_feature *batt_sub_btb_test;
+#endif
+	struct oplus_sub_btb_info sub_btb;
 };
 
 static int oplus_chg_vg_virq_register(struct oplus_virtual_gauge_ic *chip);
+static int oplus_chg_vg_get_sub_btb_state(struct oplus_chg_ic_dev *ic_dev,
+					  enum oplus_sub_btb_state *state);
+static void oplus_test_feature_register_sub_btb(struct oplus_virtual_gauge_ic *chip);
 
 static inline bool func_is_support(struct oplus_virtual_gauge_child *ic,
 				   enum oplus_chg_ic_func func_id)
@@ -90,6 +127,27 @@ static inline bool virq_is_support(struct oplus_virtual_gauge_child *ic,
 						    virq_id);
 	else
 		return false;
+}
+
+static void oplus_chg_vg_check_sub_btb_support(struct oplus_virtual_gauge_ic *chip)
+{
+	int i;
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (func_is_support(&chip->child_list[i],
+				    OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE)) {
+			chg_info("found sub_btb support now.");
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+			if (chip && !chip->sub_btb.support)
+				oplus_test_feature_register_sub_btb(chip);
+#endif
+			chip->sub_btb.support = true;
+			break;
+		}
+	}
+
+	if (chip->sub_btb.support && (chip->wired_online || chip->wls_online))
+		schedule_delayed_work(&chip->btb_connect_state_check_work, 0);
 }
 
 static int oplus_chg_vg_child_funcs_init(struct oplus_virtual_gauge_ic *chip,
@@ -245,6 +303,9 @@ static int oplus_chg_vg_child_init(struct oplus_virtual_gauge_ic *chip)
 	if (rc < 0)
 		goto child_virqs_init_err;
 
+	if (!chip->sub_btb.support)
+		oplus_chg_vg_check_sub_btb_support(chip);
+
 	return 0;
 
 child_virqs_init_err:
@@ -252,10 +313,94 @@ child_virqs_init_err:
 		devm_kfree(chip->dev, chip->child_list[i].funcs);
 child_funcs_init_err:
 read_property_err:
-	for (; i >=0; i--)
+	for (; i >= 0; i--)
 		chip->child_list[i].ic_dev = NULL;
 	devm_kfree(chip->dev, chip->child_list);
+	chip->child_list = NULL;
 	return rc;
+}
+
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+static bool test_kit_batt_sub_btb_state_test(struct test_feature *feature,
+					     char *buf, size_t len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int index = 0;
+	enum oplus_sub_btb_state sub_btb_state = BATT_BTB_STATE_NOT_CONNECT;
+	int rc;
+
+	if (buf == NULL) {
+		chg_err("buf is NULL\n");
+		return false;
+	}
+	if (feature == NULL) {
+		chg_err("feature is NULL\n");
+		index += snprintf(buf + index, len - index, "feature is NULL");
+		return false;
+	}
+
+	chip = feature->private_data;
+	if (NULL == chip) {
+		chg_err("chip is NULL\n");
+		index += snprintf(buf + index, len - index, "chip is NULL");
+		return false;
+	}
+
+	rc = oplus_chg_vg_get_sub_btb_state(chip->ic_dev, &sub_btb_state);
+	if (rc < 0) {
+		chg_err("get sub_btb_state failed, rc = %d!\n", rc);
+		index += snprintf(buf + index, len - index, "get state failed, rc=[%d]", rc);
+		return false;
+	}
+
+	index += snprintf(buf + index, len - index, "sub_btb_state: %d\n",
+			  sub_btb_state);
+	chg_info("sub_btb_state: %d\n", sub_btb_state);
+	return sub_btb_state == BATT_BTB_STATE_CONNECT ? true : false;
+}
+
+static const struct test_feature_cfg batt_sub_btb_state_test_cfg = {
+	.name = "batt_sub_btb_test",
+	.test_func = test_kit_batt_sub_btb_state_test,
+};
+
+static void oplus_test_feature_register_sub_btb(struct oplus_virtual_gauge_ic *chip)
+{
+	chg_info("register the sub_btb test freature.");
+	chip->batt_sub_btb_test =
+		test_feature_register(&batt_sub_btb_state_test_cfg, chip);
+	if (IS_ERR_OR_NULL(chip->batt_sub_btb_test))
+		chg_err("batt_sub_btb_test register error");
+}
+#endif
+
+static int oplus_chg_vg_init_sub_btb(struct oplus_virtual_gauge_ic *chip)
+{
+	struct device_node *node = NULL;
+	struct oplus_sub_btb_info *sub_btb;
+	int rc;
+
+	if (chip == NULL) {
+		chg_err("chip is null");
+		return -ENODEV;
+	}
+
+	sub_btb = &chip->sub_btb;
+	node = chip->dev->of_node;
+	sub_btb->pre_connect_state = BATT_BTB_STATE_CONNECT;
+	sub_btb->cnt_chg_count = 0;
+	sub_btb->gpio = of_get_named_gpio(node, "oplus,batt_sub_btb-gpio", 0);
+	if (gpio_is_valid(sub_btb->gpio)) {
+		sub_btb->support = true;
+		rc = gpio_request(sub_btb->gpio, "batt_sub_btb-gpio");
+		if (rc < 0) {
+			chg_err("unable to request gpio [%d]\n", sub_btb->gpio);
+			return rc;
+		}
+		chg_info("batt_sub_btb_gpio val:%d\n", gpio_get_value(sub_btb->gpio));
+	}
+
+	return 0;
 }
 
 static int oplus_chg_vg_init(struct oplus_chg_ic_dev *ic_dev)
@@ -436,6 +581,8 @@ static int oplus_chg_vg_get_batt_vol(struct oplus_chg_ic_dev *ic_dev, int index,
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_VOL,
 				       index, vol_mv);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery voltage error, rc=%d\n",
 				i, rc);
@@ -467,10 +614,44 @@ static int oplus_chg_vg_get_batt_max(struct oplus_chg_ic_dev *ic_dev,
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_MAX,
 				       vol_mv);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery voltage max error, rc=%d\n",
 				i, rc);
 		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_batt_fcl(struct oplus_chg_ic_dev *ic_dev, int *vol_mv)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+					 OPLUS_IC_FUNC_GAUGE_GET_FCL_VOLT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+					   OPLUS_IC_FUNC_GAUGE_GET_FCL_VOLT,
+					   vol_mv);
+		if (rc == -ENOTSUPP)
+			continue;
+		if (rc < 0)
+			chg_err("child ic[%d] get battery fcl voltage max error, rc=%d, *vol_mv = %d\n",
+				i, rc, *vol_mv);
+		return rc;
 	}
 
 	return rc;
@@ -498,6 +679,8 @@ static int oplus_chg_vg_get_batt_min(struct oplus_chg_ic_dev *ic_dev,
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_MIN,
 				       vol_mv);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery voltage min error, rc=%d\n",
 				i, rc);
@@ -560,6 +743,8 @@ static int oplus_chg_vg_get_batt_curr(struct oplus_chg_ic_dev *ic_dev,
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_CURR,
 				       curr_ma);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery current error, rc=%d\n",
 				i, rc);
@@ -590,6 +775,8 @@ static int oplus_chg_vg_get_batt_temp(struct oplus_chg_ic_dev *ic_dev,
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_TEMP, temp);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery temp error, rc=%d\n",
 				i, rc);
@@ -619,6 +806,8 @@ static int oplus_chg_vg_get_batt_soc(struct oplus_chg_ic_dev *ic_dev, int *soc)
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_SOC, soc);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery soc error, rc=%d\n",
 				i, rc);
@@ -648,6 +837,8 @@ static int oplus_chg_vg_get_batt_fcc(struct oplus_chg_ic_dev *ic_dev, int *fcc)
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_FCC, fcc);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery fcc error, rc=%d\n",
 				i, rc);
@@ -677,6 +868,8 @@ static int oplus_chg_vg_get_batt_cc(struct oplus_chg_ic_dev *ic_dev, int *cc)
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_CC, cc);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery cc error, rc=%d\n", i,
 				rc);
@@ -706,6 +899,8 @@ static int oplus_chg_vg_get_batt_rm(struct oplus_chg_ic_dev *ic_dev, int *rm)
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_RM, rm);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery remaining capacity error, rc=%d\n",
 				i, rc);
@@ -735,6 +930,8 @@ static int oplus_chg_vg_get_batt_soh(struct oplus_chg_ic_dev *ic_dev, int *soh)
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_SOH, soh);
+		if (rc == -ENOTSUPP)
+			continue;
 		if (rc < 0)
 			chg_err("child ic[%d] get battery soh error, rc=%d\n",
 				i, rc);
@@ -770,7 +967,9 @@ static int oplus_chg_vg_get_batt_auth(struct oplus_chg_ic_dev *ic_dev,
 		}
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
 				       OPLUS_IC_FUNC_GAUGE_GET_BATT_AUTH, pass);
-		if (rc < 0)
+		if (rc == -ENOTSUPP)
+			continue;
+		else if (rc < 0)
 			chg_err("child ic[%d] get battery auth status error, rc=%d\n",
 				i, rc);
 		else
@@ -1524,6 +1723,247 @@ static int oplus_chg_vg_set_seal_flag(struct oplus_chg_ic_dev *ic_dev,
 	return rc;
 }
 
+static int oplus_chg_vg_sec_get_romid(struct oplus_chg_ic_dev *ic_dev,
+	uint8_t *romid, int *len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_GET_ROMID)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_GET_ROMID,
+				       romid, len);
+		if (rc < 0)
+			chg_err("child ic[%d] sec get romid error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_write_page(struct oplus_chg_ic_dev *ic_dev,
+	int page_id, uint8_t *data, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_WRITE_PAGE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_WRITE_PAGE,
+				       page_id, data, len);
+		if (rc < 0)
+			chg_err("child ic[%d] sec write page error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_read_page(struct oplus_chg_ic_dev *ic_dev,
+	int page_id, uint8_t *data, int *len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_READ_PAGE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_READ_PAGE,
+				       page_id, data, len);
+		if (rc < 0)
+			chg_err("child ic[%d] sec read page error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_ecdsa(struct oplus_chg_ic_dev *ic_dev, bool *val)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_ECDSA)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_ECDSA, val);
+		if (rc < 0)
+			chg_err("child ic[%d] sec ecdsa error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_ecw(struct oplus_chg_ic_dev *ic_dev, bool *val)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_ECW)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_ECW, val);
+		if (rc < 0)
+			chg_err("child ic[%d] sec ecw error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_shutdown(struct oplus_chg_ic_dev *ic_dev, bool *val)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_SHUTDOWN)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_SHUTDOWN, val);
+		if (rc < 0)
+			chg_err("child ic[%d] sec shutdown error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_set_prikey(struct oplus_chg_ic_dev *ic_dev,
+	int index, uint8_t *prikey, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_SET_PRIKEY)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_SET_PRIKEY,
+				       index, prikey, len);
+		if (rc < 0)
+			chg_err("child ic[%d] sec set prikey error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_sec_get_prikey_index(struct oplus_chg_ic_dev *ic_dev, int *index)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SEC_GET_PRIKEY_INDEX)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SEC_GET_PRIKEY_INDEX,
+				       index);
+		if (rc < 0)
+			chg_err("child ic[%d] sec get prikey index error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static int
 oplus_chg_vg_get_device_type_for_vooc(struct oplus_chg_ic_dev *ic_dev,
 				       int *type)
@@ -1726,7 +2166,11 @@ static int oplus_chg_vg_get_exist_status(struct oplus_chg_ic_dev *ic_dev,
 	*exist = true;
 	chip = oplus_chg_ic_get_drvdata(ic_dev);
 	for (i = 0; i < chip->child_num; i++) {
-		if (!chip->child_list[i].ic_dev->online) {
+		if (chip->child_list[i].ic_dev->online)
+			continue;
+
+		if (func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_BATT_EXIST)) {
 			*exist = false;
 			break;
 		}
@@ -2139,7 +2583,7 @@ static int oplus_chg_vg_get_sili_lifetime_info(
 {
 	struct oplus_virtual_gauge_ic *chip;
 	int i, index;
-	int rc;
+	int rc = 0;
 
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
@@ -2149,6 +2593,11 @@ static int oplus_chg_vg_get_sili_lifetime_info(
 	chip = oplus_chg_ic_get_drvdata(ic_dev);
 	index = 0;
 	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_GAUGE_GET_SILI_LIFETIME_INFO)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+
 		if (index >= len)
 			return len;
 		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
@@ -2397,7 +2846,7 @@ static int oplus_chg_vg_get_batt_deep_dischg_count(struct oplus_chg_ic_dev *ic_d
 	return rc;
 }
 
-static int oplus_chg_vg_set_batt_deep_dischg_count(struct oplus_chg_ic_dev *ic_dev, int *count)
+static int oplus_chg_vg_set_batt_deep_dischg_count(struct oplus_chg_ic_dev *ic_dev, int count)
 {
 	struct oplus_virtual_gauge_ic *chip;
 	int i;
@@ -2426,7 +2875,7 @@ static int oplus_chg_vg_set_batt_deep_dischg_count(struct oplus_chg_ic_dev *ic_d
 	return rc;
 }
 
-static int oplus_chg_vg_set_batt_deep_term_volt(struct oplus_chg_ic_dev *ic_dev, int *volt)
+static int oplus_chg_vg_set_batt_deep_term_volt(struct oplus_chg_ic_dev *ic_dev, int volt)
 
 {
 	struct oplus_virtual_gauge_ic *chip;
@@ -2485,7 +2934,7 @@ static int oplus_chg_vg_get_batt_deep_term_volt(struct oplus_chg_ic_dev *ic_dev,
 	return rc;
 }
 
-static int oplus_chg_vg_set_last_cc(struct oplus_chg_ic_dev *ic_dev, int *cc)
+static int oplus_chg_vg_set_last_cc(struct oplus_chg_ic_dev *ic_dev, int cc)
 
 {
 	struct oplus_virtual_gauge_ic *chip;
@@ -2704,6 +3153,95 @@ static int oplus_chg_vg_set_calib_time(struct oplus_chg_ic_dev *ic_dev,
 	return rc;
 }
 
+static int oplus_chg_vg_get_three_level_term_volt(
+	struct oplus_chg_ic_dev *ic_dev, char *args, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_GAUGE_GET_THREE_LEVEL_TERM_VOLT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_GAUGE_GET_THREE_LEVEL_TERM_VOLT,
+			                   args, len);
+		if (rc < 0)
+			chg_err("child ic[%d] get gauge three level term volt, rc=%d\n", i, rc);
+		else
+			break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_set_three_level_term_volt(struct oplus_chg_ic_dev *ic_dev,
+		char *args, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_THREE_LEVEL_TERM_VOLT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SET_THREE_LEVEL_TERM_VOLT,
+				       args, len);
+		if (rc < 0)
+			chg_err("child ic[%d] set three level term volt fail, rc=%d\n",
+				    i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_set_true_fcc(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_TRUE_FCC)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				OPLUS_IC_FUNC_GAUGE_SET_TRUE_FCC);
+		if (rc < 0)
+			chg_err("child ic[%d] set true fcc fail, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static int oplus_chg_vg_get_battinfo_sn(struct oplus_chg_ic_dev *ic_dev, char buf[], int len)
 {
 	struct oplus_virtual_gauge_ic *chip;
@@ -2733,6 +3271,43 @@ static int oplus_chg_vg_get_battinfo_sn(struct oplus_chg_ic_dev *ic_dev, char bu
 	}
 
 	return rc;
+}
+
+static int oplus_chg_vg_get_gauge_r_info(struct oplus_chg_ic_dev *ic_dev, unsigned char *info, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i, index;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	index = 0;
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_GAUGE_GET_GAUGE_R_INFO)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+
+		if (index >= len)
+			return len;
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_GAUGE_R_INFO, info + index, len - index);
+		if (rc < 0) {
+			if (rc != -ENOTSUPP) {
+				chg_err("child ic[%d] get r info error, rc=%d\n", i, rc);
+				rc = snprintf(info + index, len - index, "ic %d read error, rc=%d", i, rc);
+			} else {
+				rc = 0;
+			}
+		}
+		index += rc;
+	}
+
+	return index;
 }
 
 static int oplus_chg_vg_set_read_mode(struct oplus_chg_ic_dev *ic_dev, int value)
@@ -2789,6 +3364,69 @@ static int oplus_chg_vg_get_manu_date(struct oplus_chg_ic_dev *ic_dev, char *buf
 	return rc;
 }
 
+static int oplus_chg_vg_get_batt_sn(struct oplus_chg_ic_dev *ic_dev, char *buf, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN, buf, len);
+		if (rc < 0)
+			chg_err("child ic[%d] get oplus_chg_vg_get_batt_sn error, rc=%d\n",
+				i, rc);
+		break;
+	}
+	chg_err("oplus_chg_vg_get_batt_sn %s", buf);
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_historic_soh_date(struct oplus_chg_ic_dev *ic_dev, int *buf, int len)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA, buf, len);
+		if (rc < 0)
+			chg_err("child ic[%d] get oplus_chg_vg_get_historic_soh_date error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static int oplus_chg_vg_get_first_usage_date(struct oplus_chg_ic_dev *ic_dev, char *buf, int len)
 {
 	struct oplus_virtual_gauge_ic *chip;
@@ -2819,6 +3457,71 @@ static int oplus_chg_vg_get_first_usage_date(struct oplus_chg_ic_dev *ic_dev, ch
 
 	return rc;
 }
+
+static int oplus_chg_vg_set_histrioc_soh_date(struct oplus_chg_ic_dev *ic_dev, const int *buf)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA, buf);
+		if (rc < 0)
+			chg_err("child ic[%d] set oplus_chg_vg_set_histrioc_soh_date error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_set_reset_gauge_date(struct oplus_chg_ic_dev *ic_dev, const int *buf)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE, buf);
+		if (rc < 0)
+			chg_err("child ic[%d] set oplus_chg_vg_set_reset_gauge_date error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 
 static int oplus_chg_vg_set_first_usage_date(struct oplus_chg_ic_dev *ic_dev, const char *buf)
 {
@@ -3096,6 +3799,338 @@ static int oplus_chg_vg_get_gauge_car_c(struct oplus_chg_ic_dev *ic_dev, int *ca
 	return rc;
 }
 
+static int oplus_chg_vg_get_batt_soc_centi(struct oplus_chg_ic_dev *ic_dev, int *soc_centi)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_GAUGE_GET_BATT_SOC_CENTI)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev, OPLUS_IC_FUNC_GAUGE_GET_BATT_SOC_CENTI, soc_centi);
+		if (rc == -ENOTSUPP)
+			continue;
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_fpga_rst(struct oplus_chg_ic_dev *ic_dev, int type)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip || !chip->child_list) {
+		chg_err("chip or chip->child_list is NULL");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_FPGA_RST)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("unsupport, i=%d rc=%d\n", i, rc);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_FPGA_RST, type);
+		if (rc < 0)
+			chg_err("child ic[%d] OPLUS_IC_FUNC_GAUGE_FPGA_RST error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_i2c_rst(struct oplus_chg_ic_dev *ic_dev, int type)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip || !chip->child_list) {
+		chg_err("chip or chip->child_list is NULL");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_I2C_RST)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("unsupport, i=%d rc=%d\n", i, rc);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_I2C_RST, type);
+		if (rc < 0)
+			chg_err("child ic[%d] OPLUS_IC_FUNC_GAUGE_I2C_RST error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_sub_btb_connect_state(
+	struct oplus_chg_ic_dev *ic_dev, enum oplus_sub_btb_state *state)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	struct oplus_sub_btb_info *sub_btb;
+	int rc = 0;
+	int i;
+	bool func_support = false;
+
+	if (ic_dev == NULL || state == NULL) {
+		chg_err("oplus_chg_ic_dev or state is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip) {
+		chg_err("chip is NULL");
+		return -ENODEV;
+	}
+
+	sub_btb = &chip->sub_btb;
+
+	/* check if the btb_state can be got by gpio */
+	if (gpio_is_valid(sub_btb->gpio)) {
+		*state = gpio_get_value(sub_btb->gpio);
+		chg_debug("btb_state can be got by gpio, *state = %d \n", *state);
+		return 0;
+	}
+
+	/* check if the btb_state can be got by other way except gpio */
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_debug("unsupport, i=%d rc=%d\n", i, rc);
+			continue;
+		}
+		func_support = true;
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE, state);
+		if (chip->child_list[i].ic_dev)
+			chg_debug("ic_dev->name %s, mau_name %s rc = %d",
+				  chip->child_list[i].ic_dev->name,
+				  chip->child_list[i].ic_dev->manu_name, rc);
+		break;
+	}
+
+	chg_debug("rc = %d, func_support = %d, state = %d \n", rc, func_support, *state);
+	if (!func_support) {
+		*state = BATT_BTB_STATE_NOT_SUPPORT;
+		rc = 0;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_dec_fg_type(struct oplus_chg_ic_dev *ic_dev, int *fg_type)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support GET_DEC_FG_TYPE", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE, fg_type);
+		if (rc < 0)
+			chg_err("child ic[%d] get battery dec fg type error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_dec_cv_soh(struct oplus_chg_ic_dev *ic_dev, int *dec_soh)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			chg_err("child ic[%d] not support GET_DEC_CV_SOH", i);
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH, dec_soh);
+		if (rc < 0)
+			chg_err("child ic[%d] get battery dec dec cv soh error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_batt_vct(struct oplus_chg_ic_dev *ic_dev, int *count)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_VCT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_VCT, count);
+		if (rc < 0)
+			chg_err("child ic[%d] get battery vct error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_set_batt_vct(struct oplus_chg_ic_dev *ic_dev, int vct)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_VCT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SET_VCT, vct);
+		if (rc < 0)
+			chg_err("child ic[%d] set battery vct error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_set_batt_cuv_state(struct oplus_chg_ic_dev *ic_dev, int cuv_state)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_SET_CUV_STATE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_SET_CUV_STATE, cuv_state);
+		if (rc < 0)
+			chg_err("child ic[%d] set battery cuv state error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vg_get_batt_cuv_state(struct oplus_chg_ic_dev *ic_dev, int *cuv_state)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_GET_CUV_STATE)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_GET_CUV_STATE, cuv_state);
+		if (rc < 0)
+			chg_err("child ic[%d] Get battery cuv state error, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static void *oplus_chg_vg_get_func(struct oplus_chg_ic_dev *ic_dev,
 				   enum oplus_chg_ic_func func_id)
 {
@@ -3292,6 +4327,10 @@ static void *oplus_chg_vg_get_func(struct oplus_chg_ic_dev *ic_dev,
 			OPLUS_IC_FUNC_GAUGE_GET_DEVICE_TYPE_FOR_VOOC,
 			oplus_chg_vg_get_device_type_for_vooc);
 		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE,
+					       oplus_chg_vg_get_sub_btb_connect_state);
+		break;
 	case OPLUS_IC_FUNC_GAUGE_GET_DOD0:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_DOD0,
 					       oplus_chg_vg_get_battery_dod0);
@@ -3459,6 +4498,22 @@ static void *oplus_chg_vg_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_FIRST_USAGE_DATE,
 			oplus_chg_vg_set_first_usage_date);
 		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE,
+			oplus_chg_vg_set_reset_gauge_date);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA,
+			oplus_chg_vg_set_histrioc_soh_date);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA,
+			oplus_chg_vg_get_historic_soh_date);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN,
+			oplus_chg_vg_get_batt_sn);
+		break;
 	case OPLUS_IC_FUNC_GAUGE_GET_UI_CC:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_UI_CC,
 			oplus_chg_vg_get_ui_cycle_count);
@@ -3499,6 +4554,87 @@ static void *oplus_chg_vg_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_GAUGE_CAR_C,
 			oplus_chg_vg_get_gauge_car_c);
 		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE,
+			oplus_chg_vg_get_dec_fg_type);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH,
+			oplus_chg_vg_get_dec_cv_soh);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_VCT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_VCT,
+			oplus_chg_vg_get_batt_vct);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_VCT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_VCT,
+			oplus_chg_vg_set_batt_vct);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_GET_ROMID:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_GET_ROMID,
+			oplus_chg_vg_sec_get_romid);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_WRITE_PAGE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_WRITE_PAGE,
+			oplus_chg_vg_sec_write_page);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_READ_PAGE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_READ_PAGE,
+			oplus_chg_vg_sec_read_page);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_ECDSA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_ECDSA,
+			oplus_chg_vg_sec_ecdsa);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_ECW:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_ECW,
+			oplus_chg_vg_sec_ecw);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_SHUTDOWN:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_SHUTDOWN,
+			oplus_chg_vg_sec_shutdown);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_SET_PRIKEY:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_SET_PRIKEY,
+			oplus_chg_vg_sec_set_prikey);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SEC_GET_PRIKEY_INDEX:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SEC_GET_PRIKEY_INDEX,
+			oplus_chg_vg_sec_get_prikey_index);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_CUV_STATE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_CUV_STATE,
+			oplus_chg_vg_set_batt_cuv_state);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_CUV_STATE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_CUV_STATE,
+			oplus_chg_vg_get_batt_cuv_state);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_GAUGE_R_INFO:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_GAUGE_R_INFO,
+			oplus_chg_vg_get_gauge_r_info);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_THREE_LEVEL_TERM_VOLT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_THREE_LEVEL_TERM_VOLT,
+			oplus_chg_vg_get_three_level_term_volt);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_THREE_LEVEL_TERM_VOLT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_THREE_LEVEL_TERM_VOLT,
+ 			oplus_chg_vg_set_three_level_term_volt);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_BATT_SOC_CENTI:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_BATT_SOC_CENTI,
+			oplus_chg_vg_get_batt_soc_centi);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_GET_FCL_VOLT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_GET_FCL_VOLT,
+			oplus_chg_vg_get_batt_fcl);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_SET_TRUE_FCC:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_TRUE_FCC,
+			oplus_chg_vg_set_true_fcc);
+		break;
+
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
 		func = NULL;
@@ -3558,6 +4694,180 @@ static void oplus_gauge_resume_work(struct work_struct *work)
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_RESUME);
 }
 
+static void oplus_gauge_hmac_update_work(struct work_struct *work)
+{
+	struct oplus_virtual_gauge_ic *chip = container_of(
+		work, struct oplus_virtual_gauge_ic, gauge_hmac_update_work);
+
+	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_HMAC_UPDATE);
+}
+
+static void oplus_gauge_fpga_rst_work(struct work_struct *work)
+{
+	struct oplus_virtual_gauge_ic *chip = container_of(
+		work, struct oplus_virtual_gauge_ic, gauge_fpga_rst_work);
+
+	oplus_chg_vg_fpga_rst(chip->ic_dev, chip->fpga_reset_status);
+}
+
+static void oplus_gauge_i2c_rst_work(struct work_struct *work)
+{
+	struct oplus_virtual_gauge_ic *chip = container_of(
+		work, struct oplus_virtual_gauge_ic, gauge_i2c_rst_work);
+
+	oplus_chg_vg_i2c_rst(chip->ic_dev, chip->i2c_reset_status);
+}
+
+#define ERR_COUNT_MAX				3
+#define BTB_CHECK_DELAY_MS			100
+#define TRACK_UPLOAD_BTB_STATE_COUNT_MAX	3
+#define TRACK_LOCAL_T_NS_TO_S_THD		1000000000
+#define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD	(24 * 3600)
+#define TRACK_BTB_STATE_MSG_LEN			256
+#define	OPLUS_GAUGE_BOOT_COMPLET_SECOND		40
+#define	OPLUS_SUB_BTB_CHECK_INTERVAL_MS		5000
+
+static void oplus_chg_vg_upload_btb_connect_state_track(
+	struct oplus_virtual_gauge_ic *chip, int type, int sub_type, char *btb_msg)
+{
+	int curr_time;
+	struct oplus_sub_btb_info *sub_btb;
+
+	if (NULL == chip)
+		return;
+
+	sub_btb = &chip->sub_btb;
+
+	curr_time = local_clock() / TRACK_LOCAL_T_NS_TO_S_THD;
+	if (curr_time - sub_btb->pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		sub_btb->upload_count = 0;
+
+	if (sub_btb->upload_count >= TRACK_UPLOAD_BTB_STATE_COUNT_MAX)
+		return;
+
+	sub_btb->pre_upload_time = local_clock() / TRACK_LOCAL_T_NS_TO_S_THD;
+	sub_btb->upload_count++;
+	chg_info("%s upload err msg, upload_count = %d",
+		  chip->ic_dev->name, sub_btb->upload_count);
+	oplus_chg_ic_creat_err_msg(chip->ic_dev, type, sub_type, btb_msg);
+	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
+
+	return;
+}
+
+static void oplus_chg_vg_set_sub_btb_state(struct oplus_virtual_gauge_ic *chip, int state)
+{
+	if (!chip) {
+		chg_err("chip is NULL");
+		return;
+	}
+
+	oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_BTB_STATE_CHANGE);
+	chg_info("state = %d trigger the btb_state change!", state);
+
+	return;
+}
+
+static int oplus_chg_vg_get_sub_btb_state(struct oplus_chg_ic_dev *ic_dev,
+					  enum oplus_sub_btb_state *state)
+{
+	int rc = oplus_chg_ic_func(ic_dev,
+				   OPLUS_IC_FUNC_GAUGE_GET_SUB_BTB_CONNECT_STATE,
+				   state);
+	if (rc < 0) {
+		chg_err("rc = %d, not support", rc);
+		return rc;
+	}
+
+	chg_debug("state is %d", *state);
+
+	return rc;
+}
+
+static void oplus_chg_vg_btb_connect_state_check_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_virtual_gauge_ic *chip =
+		container_of(dwork, struct oplus_virtual_gauge_ic, btb_connect_state_check_work);
+	struct oplus_sub_btb_info *sub_btb;
+	bool charging = false;
+	unsigned char msg[TRACK_BTB_STATE_MSG_LEN] = { 0 };
+	int err_count = 0;
+	enum oplus_sub_btb_state state = BATT_BTB_STATE_CONNECT;
+	int curr_time = 0;
+	int rc;
+
+	charging = chip->wired_online || chip->wls_online;
+	if (!charging)
+		return;
+
+	sub_btb = &chip->sub_btb;
+
+	/* Anti shake detection, with an interval of 10ms and a maximum of 3 detections */
+	do {
+		rc = oplus_chg_vg_get_sub_btb_state(chip->ic_dev, &state);
+		chg_debug("state = %d, rc = %d", state, rc);
+		if (state == BATT_BTB_STATE_NOT_CONNECT) {
+			err_count++;
+			usleep_range(10000, 11000);
+		} else {
+			break;
+		}
+	} while (err_count <= ERR_COUNT_MAX);
+
+	curr_time = local_clock() / TRACK_LOCAL_T_NS_TO_S_THD;
+	if (err_count >= ERR_COUNT_MAX) {
+		chg_debug("pre_connect_state[%d] ==> btb_connect_state[%d]",
+			  sub_btb->pre_connect_state, state);
+
+		/*
+		* Upload the track msg when the state change or the btb_state
+		* is disconnected more than 24 hours.
+		*/
+		if (((sub_btb->pre_connect_state == BATT_BTB_STATE_CONNECT) &&
+		    (state == BATT_BTB_STATE_NOT_CONNECT)) ||
+		    (curr_time - sub_btb->pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)) {
+			if ((sub_btb->pre_connect_state == BATT_BTB_STATE_CONNECT) &&
+			    (state == BATT_BTB_STATE_NOT_CONNECT))
+				sub_btb->cnt_chg_count++;
+			chg_info("set the sub_btb_state to NOT_CONNECT");
+			oplus_chg_vg_set_sub_btb_state(chip, BATT_BTB_STATE_NOT_CONNECT);
+			chg_info("pre_connect_state[%d] ==> state[%d], cnt_chg_count = %d",
+				  sub_btb->pre_connect_state, state, sub_btb->cnt_chg_count);
+			scnprintf(msg, TRACK_BTB_STATE_MSG_LEN, "sub_btb_state[%d], cnt_chg_count[%d]",
+				 state, sub_btb->cnt_chg_count);
+			oplus_chg_vg_upload_btb_connect_state_track(chip, OPLUS_IC_ERR_GAUGE,
+					TRACK_GAGUE_ERR_SUB_BTB_CONNECT, msg);
+		}
+
+		sub_btb->sub_btb_state = state;
+		sub_btb->pre_connect_state = BATT_BTB_STATE_NOT_CONNECT;
+	} else {
+		if ((sub_btb->pre_connect_state == BATT_BTB_STATE_NOT_CONNECT) &&
+		    (state == BATT_BTB_STATE_CONNECT)) {
+			sub_btb->cnt_chg_count++;
+			chg_info("pre_connect_state[%d] ==> state[%d], cnt_chg_count = %d",
+				  sub_btb->pre_connect_state, state, sub_btb->cnt_chg_count);
+
+			/* cancel the current vote when the btb_state is connected. */
+			oplus_chg_vg_set_sub_btb_state(chip, BATT_BTB_STATE_CONNECT);
+			scnprintf(msg, TRACK_BTB_STATE_MSG_LEN, "sub_btb_state[%d], cnt_chg_count[%d]",
+				 state, sub_btb->cnt_chg_count);
+			oplus_chg_vg_upload_btb_connect_state_track(chip,
+				OPLUS_IC_ERR_GAUGE, TRACK_GAGUE_ERR_SUB_BTB_CONNECT, msg);
+		}
+
+		sub_btb->pre_connect_state = state;
+		sub_btb->sub_btb_state = state;
+	}
+
+	schedule_delayed_work(&chip->btb_connect_state_check_work,
+			      msecs_to_jiffies(OPLUS_SUB_BTB_CHECK_INTERVAL_MS));
+	return;
+}
+
+
+
 static void oplus_chg_vg_err_handler(struct oplus_chg_ic_dev *ic_dev,
 				     void *virq_data)
 {
@@ -3591,11 +4901,26 @@ static void oplus_chg_vg_resume_handler(struct oplus_chg_ic_dev *ic_dev,
 	schedule_work(&chip->gauge_resume_work);
 }
 
+static void oplus_chg_vg_hmac_update_handler(struct oplus_chg_ic_dev *ic_dev,
+					void *virq_data)
+{
+	struct oplus_virtual_gauge_ic *chip = virq_data;
+	int i;
+
+	for (i = 0; i < chip->child_num; i++) {
+		chip->child_list[i].batt_hmac = -1;
+	}
+
+	schedule_work(&chip->gauge_hmac_update_work);
+}
+
 struct oplus_chg_ic_virq oplus_chg_vg_virq_table[] = {
 	{ .virq_id = OPLUS_IC_VIRQ_ERR },
 	{ .virq_id = OPLUS_IC_VIRQ_ONLINE },
 	{ .virq_id = OPLUS_IC_VIRQ_OFFLINE },
 	{ .virq_id = OPLUS_IC_VIRQ_RESUME },
+	{ .virq_id = OPLUS_IC_VIRQ_BTB_STATE_CHANGE },
+	{ .virq_id = OPLUS_IC_VIRQ_HMAC_UPDATE },
 };
 
 static int oplus_chg_vg_virq_register(struct oplus_virtual_gauge_ic *chip)
@@ -3635,6 +4960,14 @@ static int oplus_chg_vg_virq_register(struct oplus_virtual_gauge_ic *chip)
 				chg_err("register OPLUS_IC_VIRQ_RESUME error, rc=%d",
 					rc);
 		}
+		if (virq_is_support(&chip->child_list[i], OPLUS_IC_VIRQ_HMAC_UPDATE)) {
+			rc = oplus_chg_ic_virq_register(
+				chip->child_list[i].ic_dev, OPLUS_IC_VIRQ_HMAC_UPDATE,
+				oplus_chg_vg_hmac_update_handler, chip);
+			if (rc < 0 && rc != -ENOTSUPP)
+				chg_err("register OPLUS_IC_VIRQ_HMAC_UPDATE error, rc=%d",
+					rc);
+		}
 	}
 
 	return 0;
@@ -3651,8 +4984,197 @@ static int oplus_virtual_gauge_parse_dt(struct oplus_virtual_gauge_ic *chip)
 		chg_err("can't get oplus,batt_capacity_mah, rc=%d\n", rc);
 		chip->batt_capacity_mah = 2000;
 	}
+	chip->fpga_support = of_property_read_bool(node, "oplus,fpga_support");
 
 	return 0;
+}
+
+static void oplus_virtual_gauge_error_subs_callback(struct mms_subscribe *subs,
+					   enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_virtual_gauge_ic *chip = subs->priv_data;
+	union mms_msg_data data = { 0 };
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case ERR_ITEM_FPGA_RESET:
+			if (!chip->fpga_support)
+				break;
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data,
+						false);
+			chip->fpga_reset_status = data.intval;
+			chg_err("ERR_ITEM_FPGA_RESET, reset_status=%d\n", chip->fpga_reset_status);
+			schedule_work(&chip->gauge_fpga_rst_work);
+			break;
+		case ERR_ITEM_I2C_RESET:
+			if (!chip->fpga_support)
+				break;
+			oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_I2C_RESET, &data,
+						false);
+			chip->i2c_reset_status = data.intval;
+			chg_err("ERR_ITEM_I2C_RESET, reset_status=%d\n", chip->i2c_reset_status);
+			schedule_work(&chip->gauge_i2c_rst_work);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_virtual_gauge_subscribe_error_topic(struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_gauge_ic *chip = prv_data;
+	union mms_msg_data data = { 0 };
+
+	chip->error_topic = topic;
+	chip->error_subs =
+		oplus_mms_subscribe(chip->error_topic, chip,
+				    oplus_virtual_gauge_error_subs_callback, "%s", chip->ic_dev->manu_name);
+	if (IS_ERR_OR_NULL(chip->error_subs)) {
+		chg_err("subscribe error topic error, rc=%ld\n",
+			PTR_ERR(chip->error_subs));
+		return;
+	}
+	if (chip->fpga_support) {
+		oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_FPGA_RESET, &data, true);
+		chip->fpga_reset_status = data.intval;
+		if (chip->fpga_reset_status == FPGA_RESET_START || chip->fpga_reset_status == FPGA_RESET_END)
+			schedule_work(&chip->gauge_fpga_rst_work);
+
+		oplus_mms_get_item_data(chip->error_topic, ERR_ITEM_I2C_RESET, &data, true);
+		chip->i2c_reset_status = data.intval;
+		if (chip->i2c_reset_status == GUAGE_I2C_RST_START || chip->i2c_reset_status == GUAGE_I2C_RST_END)
+			schedule_work(&chip->gauge_i2c_rst_work);
+	}
+}
+
+static void oplus_virtual_wired_subs_callback(struct mms_subscribe *subs,
+	enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_virtual_gauge_ic *chip = subs->priv_data;
+	struct oplus_sub_btb_info *sub_btb = &chip->sub_btb;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case WIRED_ITEM_ONLINE:
+			rc = oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, false);
+			if (rc < 0) {
+				chg_err("can't get wired online status, rc=%d\n", rc);
+			} else {
+				/*
+				 * When the usb plugin, set it to a connected state to
+				 * avoid current limitation
+				 */
+				chip->wired_online = !!data.intval;
+				if (chip->wired_online && sub_btb->support) {
+					chg_info("start the btb check work!");
+					schedule_delayed_work(&chip->btb_connect_state_check_work, 0);
+				}
+			}
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_virtual_gauge_subscribe_wired_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_gauge_ic *chip = prv_data;
+	struct oplus_sub_btb_info *sub_btb = &chip->sub_btb;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	chip->wired_topic = topic;
+	chip->wired_subs = oplus_mms_subscribe(chip->wired_topic, chip,
+					       oplus_virtual_wired_subs_callback,
+					       "virtual_gauge:%d", chip->ic_dev->index);
+	if (IS_ERR_OR_NULL(chip->wired_subs)) {
+		chg_err("subscribe wired topic error, rc=%ld\n",
+			PTR_ERR(chip->wired_subs));
+		return;
+	}
+
+	rc = oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, true);
+	if (rc >= 0) {
+		chip->wired_online = !!data.intval;
+		chg_debug("wired_online = %d", chip->wired_online);
+		if (sub_btb->support && chip->wired_online)
+			schedule_delayed_work(&chip->btb_connect_state_check_work, 0);
+	} else {
+		chg_err("get the wired_online faliled, rc = %d", rc);
+	}
+}
+
+static void oplus_virtual_wls_subs_callback(
+	struct mms_subscribe *subs, enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_virtual_gauge_ic *chip = subs->priv_data;
+	struct oplus_sub_btb_info *sub_btb = &chip->sub_btb;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case WLS_ITEM_PRESENT:
+			rc = oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_PRESENT,
+						     &data, false);
+			if (rc < 0) {
+				chg_err("can't get wls online status, rc=%d\n", rc);
+			} else {
+				chip->wls_online = !!data.intval;
+				chg_debug("wls_online = %d", data.intval);
+				if (chip->wls_online && sub_btb->support)
+					schedule_delayed_work(&chip->btb_connect_state_check_work, 0);
+			}
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_virtual_gauge_subscribe_wls_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_gauge_ic *chip = prv_data;
+	struct oplus_sub_btb_info *sub_btb = &chip->sub_btb;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	chip->wls_topic = topic;
+	chip->wls_subs = oplus_mms_subscribe(chip->wls_topic, chip,
+					     oplus_virtual_wls_subs_callback,
+					     "virtual_gauge:%d", chip->ic_dev->index);
+	if (IS_ERR_OR_NULL(chip->wls_subs)) {
+		chg_err("subscribe wls topic error, rc=%ld\n",
+			PTR_ERR(chip->wls_subs));
+		return;
+	}
+
+	rc = oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_PRESENT, &data, true);
+	if (rc >= 0) {
+		chip->wls_online = !!data.intval;
+		if (sub_btb->support && chip->wls_online)
+			schedule_delayed_work(&chip->btb_connect_state_check_work, 0);
+	} else {
+		chg_err("get the wls_online faliled, rc = %d", rc);
+	}
 }
 
 static int oplus_virtual_gauge_probe(struct platform_device *pdev)
@@ -3677,6 +5199,11 @@ static int oplus_virtual_gauge_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->gauge_online_work, oplus_gauge_online_work);
 	INIT_WORK(&chip->gauge_offline_work, oplus_gauge_offline_work);
 	INIT_WORK(&chip->gauge_resume_work, oplus_gauge_resume_work);
+	INIT_WORK(&chip->gauge_fpga_rst_work, oplus_gauge_fpga_rst_work);
+	INIT_WORK(&chip->gauge_i2c_rst_work, oplus_gauge_i2c_rst_work);
+	INIT_WORK(&chip->gauge_hmac_update_work, oplus_gauge_hmac_update_work);
+	INIT_DELAYED_WORK(&chip->btb_connect_state_check_work,
+			  oplus_chg_vg_btb_connect_state_check_work);
 
 	rc = oplus_virtual_gauge_parse_dt(chip);
 	if (rc < 0)
@@ -3692,9 +5219,11 @@ static int oplus_virtual_gauge_probe(struct platform_device *pdev)
 		chg_err("can't get ic index, rc=%d\n", rc);
 		goto reg_ic_err;
 	}
+
 	ic_cfg.name = node->name;
 	ic_cfg.index = ic_index;
-	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "gauge-virtual:%d", ic_index);
+	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "gauge-virtual:%d",
+		 ic_index);
 	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x00");
 	ic_cfg.type = ic_type;
 	ic_cfg.get_func = oplus_chg_vg_get_func;
@@ -3707,6 +5236,16 @@ static int oplus_virtual_gauge_probe(struct platform_device *pdev)
 		chg_err("register %s error\n", node->name);
 		goto reg_ic_err;
 	}
+	oplus_mms_wait_topic("error", oplus_virtual_gauge_subscribe_error_topic, chip);
+	oplus_mms_wait_topic("wired", oplus_virtual_gauge_subscribe_wired_topic, chip);
+	oplus_mms_wait_topic("wireless", oplus_virtual_gauge_subscribe_wls_topic, chip);
+
+	oplus_chg_vg_init_sub_btb(chip);
+
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+	if (chip->sub_btb.support)
+		oplus_test_feature_register_sub_btb(chip);
+#endif
 
 	chg_err("probe success\n");
 	return 0;
@@ -3720,20 +5259,42 @@ parse_dt_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_gauge_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_gauge_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_gauge_ic *chip = platform_get_drvdata(pdev);
+	struct oplus_sub_btb_info *sub_btb;
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
+	sub_btb = &chip->sub_btb;
 	if (chip->ic_dev->online)
 		oplus_chg_vg_exit(chip->ic_dev);
+
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+	if (!IS_ERR_OR_NULL(chip->batt_sub_btb_test))
+		test_feature_unregister(chip->batt_sub_btb_test);
+#endif
+
+	if (gpio_is_valid(sub_btb->gpio))
+		gpio_free(sub_btb->gpio);
+
 	devm_oplus_chg_ic_unregister(&pdev->dev, chip->ic_dev);
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_gauge_match[] = {

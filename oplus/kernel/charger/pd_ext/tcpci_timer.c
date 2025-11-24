@@ -267,7 +267,7 @@ static inline void on_pe_timer_timeout(
 
 	case PD_TIMER_HARD_RESET_COMPLETE:
 		rv = tcpci_get_chip_vid(tcpc, &chip_vid);
-		if (!rv &&  SOUTHCHIP_PD_VID == chip_vid) {
+		if (!rv && SOUTHCHIP_PD_VID == chip_vid) {
 			pd_put_sent_hard_reset_event(tcpc);
 		}
 		break;

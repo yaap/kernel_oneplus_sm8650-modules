@@ -29,10 +29,11 @@
 #define MT6375_REG_MTINT2		0x99
 #define MT6375_REG_MTST1		0x9F
 
-#define TCPC_V10_REG_POWER_CTRL		0x1C
-#define TCPC_V10_REG_CC_STATUS		0x1D
-#define TCPC_V10_REG_POWER_STATUS	0x1E
-#define TCPC_V10_REG_FAULT_STATUS	0x1F
+/*oplus distinguish std_tcpci_v10.h macro definition*/
+#define MT6375_TCPC_V10_REG_POWER_CTRL		0x1C
+#define MT6375_TCPC_V10_REG_CC_STATUS		0x1D
+#define MT6375_TCPC_V10_REG_POWER_STATUS	0x1E
+#define MT6375_TCPC_V10_REG_FAULT_STATUS	0x1F
 
 #define MT6375_VCOON_OVP_MASK		BIT(4)
 #define MT6375_VCOON_RVP_MASK		BIT(2)
@@ -102,9 +103,9 @@ __maybe_unused static int mt6375_vcoon_is_ocp(struct mt6375_device *chip)
 	int rc;
 	unsigned int data;
 
-	rc = regmap_read(chip->rmap, TCPC_V10_REG_FAULT_STATUS, &data);
+	rc = regmap_read(chip->rmap, MT6375_TCPC_V10_REG_FAULT_STATUS, &data);
 	if (rc < 0) {
-		chg_err("failed to 0x%02x, rc=%d\n", TCPC_V10_REG_FAULT_STATUS,
+		chg_err("failed to 0x%02x, rc=%d\n", MT6375_TCPC_V10_REG_FAULT_STATUS,
 			rc);
 		return rc;
 	}
@@ -132,9 +133,9 @@ static int mt6375_vbus_is_error(struct mt6375_device *chip)
 	unsigned int data;
 	bool vbus_present, vsafe_0v;
 
-	rc = regmap_read(chip->rmap, TCPC_V10_REG_POWER_STATUS, &data);
+	rc = regmap_read(chip->rmap, MT6375_TCPC_V10_REG_POWER_STATUS, &data);
 	if (rc < 0) {
-		chg_err("failed to 0x%02x, rc=%d\n", TCPC_V10_REG_POWER_STATUS,
+		chg_err("failed to 0x%02x, rc=%d\n", MT6375_TCPC_V10_REG_POWER_STATUS,
 			rc);
 		return rc;
 	}
@@ -155,9 +156,9 @@ static int mt6375_vcoon_is_open(struct mt6375_device *chip)
 	int rc;
 	unsigned int data;
 
-	rc = regmap_read(chip->rmap, TCPC_V10_REG_POWER_CTRL, &data);
+	rc = regmap_read(chip->rmap, MT6375_TCPC_V10_REG_POWER_CTRL, &data);
 	if (rc < 0) {
-		chg_err("failed to 0x%02x, rc=%d\n", TCPC_V10_REG_POWER_CTRL,
+		chg_err("failed to 0x%02x, rc=%d\n", MT6375_TCPC_V10_REG_POWER_CTRL,
 			rc);
 		return rc;
 	}
@@ -545,7 +546,11 @@ err_get_tcpc_dev:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void mt6375_remove(struct platform_device *pdev)
+#else
 static int mt6375_remove(struct platform_device *pdev)
+#endif
 {
 	struct mt6375_device *chip = platform_get_drvdata(pdev);
 
@@ -553,7 +558,9 @@ static int mt6375_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	devm_kfree(&pdev->dev, chip);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id mt6375_match_table[] = {

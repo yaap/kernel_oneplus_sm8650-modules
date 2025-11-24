@@ -344,7 +344,7 @@ static int oplus_ufcs_track_upload_err_info(struct oplus_ufcs_chip *chip, int er
 {
 	int index = 0;
 	int curr_time;
-	char power_info[OPLUS_CHG_TRACK_CURX_INFO_LEN] = { 0 };
+	char *power_info;
 	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN] = { 0 };
 	static int upload_count = 0;
 	static int pre_upload_time = 0;
@@ -392,15 +392,21 @@ static int oplus_ufcs_track_upload_err_info(struct oplus_ufcs_chip *chip, int er
 			  "$$err_reason@@%s$$value@@%d", err_reason, value);
 
 	oplus_chg_track_pack_ufcs_stats(chip, chip->ufcs_err_load_trigger->crux_info, &index);
+	power_info = (char*)kmalloc(OPLUS_CHG_TRACK_CURX_INFO_LEN, GFP_KERNEL);
+	if (power_info == NULL) {
+		ufcs_debug("%s: power_info kmalloc fail!\n", __func__);
+		return -ENOMEM;
+	}
 	oplus_chg_track_obtain_power_info(power_info, sizeof(power_info));
 	index += snprintf(&(chip->ufcs_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s",
 			  power_info);
-	memset(power_info, 0, sizeof(power_info));
+	memset(power_info, 0, OPLUS_CHG_TRACK_CURX_INFO_LEN);
 	oplus_chg_track_obtain_general_info(power_info, strlen(power_info), sizeof(power_info));
 	index += snprintf(&(chip->ufcs_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s",
 			  power_info);
 	schedule_delayed_work(&chip->ufcs_err_load_trigger_work, 0);
 	ufcs_debug("success\n");
+	kfree(power_info);
 
 	return 0;
 }
@@ -413,7 +419,7 @@ static void ufcs_track_err_load_trigger_work(struct work_struct *work)
 	if (!chip->ufcs_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->ufcs_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->ufcs_err_load_trigger);
 
 	kfree(chip->ufcs_err_load_trigger);
 	chip->ufcs_err_load_trigger = NULL;

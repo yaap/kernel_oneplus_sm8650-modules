@@ -212,7 +212,7 @@ int pogo_keyboard_input_report(char *buf)
     }
 
     input_sync(input_dev);
-    kb_debug("%s %d input end\n", __func__, __LINE__);
+    //kb_debug("%s %d input end\n", __func__, __LINE__);
     memcpy(kbd->old, kbd->new, 8);
     return 0;
 
@@ -261,7 +261,7 @@ int pogo_keyboard_mm_input_report(char *buf)
                     if (keywords == mm_pogo_keyboard[j][0])
                         break;
                 }
-                kb_debug("%s %d i:%d j:%d %p!=%p keywords:0x%x\n", __func__, __LINE__, i, j, memscan_ex(kbd->mm_new, keywords, 4), kbd->mm_new + 4, keywords);
+                //kb_debug("%s %d i:%d j:%d %p!=%p keywords:0x%x\n", __func__, __LINE__, i, j, memscan_ex(kbd->mm_new, keywords, 4), kbd->mm_new + 4, keywords);
                 if (j < KEYBOARD_MM_NUM_KEYS) {
                     input_report_key(input_dev, mm_pogo_keyboard[j][1], 0);
                     kbd->is_mmdown = false;
@@ -283,7 +283,7 @@ int pogo_keyboard_mm_input_report(char *buf)
                     if (keywords == mm_pogo_keyboard[j][0])
                         break;
                 }
-                kb_debug("%s %d i:%d j:%d %p!=%p keywords:0x%x\n", __func__, __LINE__, i, j, memscan_ex(kbd->mm_old, keywords, 4), kbd->mm_new + 4, keywords);
+                //kb_debug("%s %d i:%d j:%d %p!=%p keywords:0x%x\n", __func__, __LINE__, i, j, memscan_ex(kbd->mm_old, keywords, 4), kbd->mm_new + 4, keywords);
                 if (j < KEYBOARD_MM_NUM_KEYS) {
                     input_report_key(input_dev, mm_pogo_keyboard[j][1], 1);
                     kbd->is_mmdown = true;

@@ -138,6 +138,7 @@ struct oplus_mms {
 	struct mutex sync_msg_lock;
 	struct delayed_work update_work;
 	struct delayed_work msg_work;
+	struct work_struct callback_work;
 
 	struct device_node *of_node;
 	void *drv_data;
@@ -190,6 +191,8 @@ struct mms_subscribe *oplus_mms_subscribe(
 	void (*callback)(struct mms_subscribe *, enum mms_msg_type, u32, bool),
 	const char *format, ...);
 int oplus_mms_unsubscribe(struct mms_subscribe *subs);
+int oplus_mms_subs_move_to_top(struct mms_subscribe *subs);
+int oplus_mms_subs_move_to_down(struct mms_subscribe *subs);
 int oplus_mms_wait_topic(const char *name, mms_callback_t call, void *data);
 int oplus_mms_set_publish_interval(struct oplus_mms *mms, int time_ms);
 int oplus_mms_stop_publish(struct oplus_mms *mms);

@@ -70,7 +70,7 @@ enum wls_ic_err_reason {
 	WLS_IC_ERR_VRECTOVP,
 	WLS_IC_ERR_OVP0,
 	WLS_IC_ERR_OVP1,
-	WLS_IC_ERR_OTP160,
+	WLS_IC_ERR_SOFTOTP,
 	WLS_IC_ERR_V2X_UCP,
 	WLS_IC_ERR_V2X_OVP,
 	WLS_IC_ERR_V2X_VV_UVP,
@@ -93,7 +93,7 @@ static const char * const wls_ic_err_reason_text[] = {
 	[WLS_IC_ERR_VRECTOVP] = "vrectovp",
 	[WLS_IC_ERR_OVP0] = "ovp0",
 	[WLS_IC_ERR_OVP1] = "ovp1",
-	[WLS_IC_ERR_OTP160] = "otp160",
+	[WLS_IC_ERR_SOFTOTP] = "softotp",
 	[WLS_IC_ERR_V2X_UCP] = "v2xucp",
 	[WLS_IC_ERR_V2X_OVP] = "v2xovp",
 	[WLS_IC_ERR_V2X_VV_UVP] = "v2xvvuvp",
@@ -260,7 +260,10 @@ struct rx_cust_type {/*<offset>*/
 	u8 reserved008d[3];
 	/*0x0090*/
 	u8 vsys_cfg;
-	u8 reserved0091[15];
+	u8 vsys_cfg_reserved;
+	u8 fod_q;
+	u8 fod_r;
+	u8 reserved0094[12];
 	/*0x00A0*/
 	u32 tx_setting[24];
 	/*0x0100*/
@@ -317,7 +320,6 @@ struct rx_cust_type {/*<offset>*/
 	u8 sig_strength;
 	u8 pch_value;
 	u16 reserved01a2;
-	/*u8 reserved01a4;*/
 	struct cfg_pkt_type rxcfg_packet;
 	u16 reserved01aa;
 	union contract_type neg_req_contract;
@@ -337,7 +339,12 @@ struct rx_cust_type {/*<offset>*/
 	u8 reserved01cc[3];
 	u8 i2c_check;
 	/*0x01D0*/
-	u8 rsv01d0[48];
+	u8 silent_sleep;
+	u8 rsv01d0[3];
+	u8 info0[4];
+	u8 mag_case;
+	u8 cfg0[3];
+	u8 rsv01dc[36];
 } __attribute__((packed));
 
 /*DO NOT modify this structure*/
@@ -448,7 +455,6 @@ struct tx_cust_type {/*<offset>*/
 	u8 sig_strength;
 	u8 pch_value;
 	u16 reserved01a2;
-	u8 reserved01a4;
 	struct cfg_pkt_type rxcfg_packet;
 	u16 reserved01aa;
 	union contract_type neg_req_contract;
@@ -463,9 +469,7 @@ struct tx_cust_type {/*<offset>*/
 	u16 tx_mfr_code;
 	u8 tx_ver;
 	u8 afc_ver;
-	struct capability_pkt_type capability_packet;
-	u8 reserved01cb;
-	u8 reserved01cc[3];
+	u8 reserved01c8[7];
 	u8 i2c_check;
 	/*0x01D0*/
 	u8 rsv01d0[48];
@@ -509,10 +513,13 @@ struct oplus_sc96257 {
 	int rx_en_gpio;
 	int mode_sw_gpio;
 	int insert_dis_gpio;
+	int rx_mode;
+	int rx_en_status;
 
 	bool connected_ldo_on;
 	bool rx_connected;
 	bool support_epp_11w;
+	bool standby_config;
 
 	unsigned char *fw_data;
 	int fw_length;
@@ -524,6 +531,7 @@ struct oplus_sc96257 {
 	int event_code;
 
 	struct mutex i2c_lock;
+	struct mutex pinctrl_lock;
 
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *rx_con_default;
@@ -539,6 +547,7 @@ struct oplus_sc96257 {
 	struct delayed_work event_work;
 	struct delayed_work connect_work;
 	struct delayed_work check_ldo_on_work;
+	struct delayed_work rx_mode_work;
 
 	struct regmap *regmap;
 	struct rx_msg_struct rx_msg;
@@ -553,6 +562,8 @@ struct oplus_sc96257 {
 static struct oplus_sc96257 *g_sc96257_chip = NULL;
 static int sc96257_get_running_mode(struct oplus_sc96257 *chip);
 static int sc96257_get_power_cap(struct oplus_sc96257 *chip);
+static int sc96257_set_rx_enable(struct oplus_chg_ic_dev *dev, bool en);
+static int sc96257_fw_checksum(struct oplus_sc96257 *chip);
 
 __maybe_unused static bool is_nor_ic_available(struct oplus_sc96257 *chip)
 {
@@ -895,7 +906,7 @@ __maybe_unused static int sc96257_get_rx_event_gpio_val(struct oplus_sc96257 *ch
 	return gpio_get_value(chip->rx_event_gpio);
 }
 
-static int sc96257_set_rx_enable(struct oplus_chg_ic_dev *dev, bool en)
+static int sc96257_set_rx_enable_raw(struct oplus_chg_ic_dev *dev, bool en)
 {
 	struct oplus_sc96257 *chip;
 	int rc;
@@ -906,21 +917,41 @@ static int sc96257_set_rx_enable(struct oplus_chg_ic_dev *dev, bool en)
 	}
 	chip = oplus_chg_ic_get_drvdata(dev);
 
+	mutex_lock(&chip->pinctrl_lock);
 	if (IS_ERR_OR_NULL(chip->pinctrl) ||
 	    IS_ERR_OR_NULL(chip->rx_en_active) ||
 	    IS_ERR_OR_NULL(chip->rx_en_sleep)) {
 		chg_err("rx_en pinctrl error\n");
+		mutex_unlock(&chip->pinctrl_lock);
 		return -ENODEV;
 	}
 
 	rc = pinctrl_select_state(chip->pinctrl,
 		en ? chip->rx_en_active : chip->rx_en_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
+	return rc;
+}
+
+static int sc96257_set_rx_enable(struct oplus_chg_ic_dev *dev, bool en)
+{
+	struct oplus_sc96257 *chip;
+	int rc;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+	chip->rx_en_status = en;
+
+	rc = sc96257_set_rx_enable_raw(dev, en);
 	if (rc < 0)
 		chg_err("can't %s rx\n", en ? "enable" : "disable");
 	else
 		chg_info("set rx %s\n", en ? "enable" : "disable");
 
-	chg_info("vt_sleep: set value:%d, gpio_val:%d\n", !en, gpio_get_value(chip->rx_en_gpio));
+	chg_info("vt_sleep: set value:%d, gpio_val:%d, rx_en_status:%d\n",
+		 !en, gpio_get_value(chip->rx_en_gpio), chip->rx_en_status);
 
 	return rc;
 }
@@ -1021,7 +1052,7 @@ retry:
 	return 0;
 }
 
-static void sc96257_set_wake_pattern(struct oplus_sc96257 *chip)
+static int sc96257_set_wake_pattern(struct oplus_sc96257 *chip)
 {
 	u8 pattern = WAKE_PATTERN;
 	int rc;
@@ -1029,14 +1060,16 @@ static void sc96257_set_wake_pattern(struct oplus_sc96257 *chip)
 	rc = sc96257_write_block(chip, WAKE_REG, &pattern, 1);
 	if (rc < 0) {
 		chg_err("wake pattern 1 fail, rc=%d\n", rc);
-		return;
+		return rc;
 	}
 	pattern = 0;
 	rc = sc96257_write_block(chip, WAKE_REG, &pattern, 1);
 	if (rc < 0) {
 		chg_err("wake pattern 0 fail, rc=%d\n", rc);
-		return;
+		return rc;
 	}
+
+	return rc;
 }
 
 __maybe_unused static int sc96257_get_tdie(struct oplus_chg_ic_dev *dev, int *tdie)
@@ -1044,6 +1077,7 @@ __maybe_unused static int sc96257_get_tdie(struct oplus_chg_ic_dev *dev, int *td
 	struct oplus_sc96257 *chip;
 	int rc;
 	u16 addr;
+	s16 temp;
 
 	if (dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL\n");
@@ -1060,11 +1094,12 @@ __maybe_unused static int sc96257_get_tdie(struct oplus_chg_ic_dev *dev, int *td
 		return rc;
 	}
 
-	rc = sc96257_read_block(chip, addr, (u8 *)tdie, sizeof(chip->info.rx_info.tdie));
+	rc = sc96257_read_block(chip, addr, &temp, sizeof(chip->info.rx_info.tdie));
 	if (rc < 0) {
 		chg_err("read tdie err, rc=%d\n", rc);
 		return rc;
 	}
+	*tdie = temp / 10;
 	/*if (printk_ratelimit())*/
 		chg_info("<~WPC~> temp:%d.\n", *tdie);
 
@@ -1382,11 +1417,29 @@ static int sc96257_get_power_cap(struct oplus_sc96257 *chip)
 	return chip->rx_pwr_cap;
 }
 
+static int sc96257_get_sys_mode(struct oplus_sc96257 *chip, u32 *sys_mode)
+{
+	int rc;
+	u16 addr;
+
+	if (chip == NULL) {
+		chg_err("oplus_sc96257 is NULL\n");
+		return -ENODEV;
+	}
+
+	addr = (u16)ADDR(struct rx_cust_type, mode);
+	rc = sc96257_read_block(chip, addr, sys_mode, sizeof(chip->info.rx_info.mode));
+	if (rc < 0) {
+		chg_err("Couldn't read sys mode, rc=%d\n", rc);
+		return rc;
+	}
+	return 0;
+}
+
 static int sc96257_get_running_mode(struct oplus_sc96257 *chip)
 {
 	int rc;
 	u32 temp;
-	u16 addr;
 
 	if (chip == NULL) {
 		chg_err("oplus_sc96257 is NULL\n");
@@ -1396,15 +1449,9 @@ static int sc96257_get_running_mode(struct oplus_sc96257 *chip)
 	if (chip->adapter_type != 0)
 		return chip->adapter_type;
 
-	addr = (u16)ADDR(struct rx_cust_type, mode);
-	rc = sc96257_rx_set_cmd(chip, AP_CMD_REFRESH);
+	rc = sc96257_get_sys_mode(chip, &temp);
 	if (rc < 0) {
-		chg_err("set cmd refresh fail\n");
-		return rc;
-	}
-	rc = sc96257_read_block(chip, addr, (u8 *)&temp, sizeof(chip->info.rx_info.mode));
-	if (rc < 0) {
-		chg_err("Couldn't read rx mode, rc=%d\n", rc);
+		chg_err("Couldn't read sys mode, rc=%d\n", rc);
 		return 0;
 	}
 
@@ -1458,7 +1505,6 @@ static int sc96257_get_rx_mode(struct oplus_chg_ic_dev *dev, enum oplus_chg_wls_
 static int sc96257_set_rx_mode(struct oplus_chg_ic_dev *dev, enum oplus_chg_wls_rx_mode rx_mode)
 {
 	struct oplus_sc96257 *chip;
-	int rc;
 
 	if (dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL\n");
@@ -1466,32 +1512,14 @@ static int sc96257_set_rx_mode(struct oplus_chg_ic_dev *dev, enum oplus_chg_wls_
 	}
 	chip = oplus_chg_ic_get_drvdata(dev);
 
-	if (IS_ERR_OR_NULL(chip->pinctrl) ||
-	    IS_ERR_OR_NULL(chip->mode_sw_active) ||
-	    IS_ERR_OR_NULL(chip->mode_sw_sleep)) {
-		chg_err("mode_sw pinctrl error\n");
-		return -ENODEV;
-	}
-
-	rc = pinctrl_select_state(chip->pinctrl, chip->mode_sw_active);
-	if (rc < 0)
-		chg_err("can't set mode_sw active, rc=%d\n", rc);
+	chip->rx_mode = rx_mode;
+	chg_info("set rx_mode:%d\n", chip->rx_mode);
+	if (chip->rx_mode == OPLUS_CHG_WLS_RX_MODE_BPP)
+		schedule_delayed_work(&chip->rx_mode_work, 0);
 	else
-		chg_info("set mode_sw active\n");
+		cancel_delayed_work(&chip->rx_mode_work);
 
-	chg_info("mode_sw: gpio_val:%d\n", gpio_get_value(chip->mode_sw_gpio));
-
-	rc = sc96257_set_rx_enable(dev, false);
-	if (rc < 0)
-		chg_err("set rx disable failed, rc=%d\n", rc);
-
-	msleep(100);
-
-	rc = sc96257_set_rx_enable(dev, true);
-	if (rc < 0)
-		chg_err("set rx enable failed, rc=%d\n", rc);
-
-	return rc;
+	return 0;
 }
 
 static bool sc96257_get_mode_sw_active(struct oplus_sc96257 *chip)
@@ -1518,14 +1546,17 @@ static int sc96257_set_mode_sw_default(struct oplus_sc96257 *chip)
 		return -ENODEV;
 	}
 
+	mutex_lock(&chip->pinctrl_lock);
 	if (IS_ERR_OR_NULL(chip->pinctrl) ||
 	    IS_ERR_OR_NULL(chip->mode_sw_active) ||
 	    IS_ERR_OR_NULL(chip->mode_sw_sleep)) {
 		chg_err("mode_sw pinctrl error\n");
+		mutex_unlock(&chip->pinctrl_lock);
 		return -ENODEV;
 	}
 
 	rc = pinctrl_select_state(chip->pinctrl, chip->mode_sw_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 	if (rc < 0)
 		chg_err("can't set mode_sw active, rc=%d\n", rc);
 	else
@@ -1577,6 +1608,13 @@ static int sc96257_set_tx_start(struct oplus_chg_ic_dev *dev, bool start)
 	if (start) {
 		sc96257_set_wake_pattern(chip);
 		msleep(10);
+		if (sc96257_fw_checksum(chip) == FW_CHECKSUM_FAIL) {
+			chg_info("check tx_fw fail\n");
+			chip->event_code = WLS_EVENT_FORCE_UPGRADE;
+			oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_EVENT_CHANGED);
+			sc96257_track_upload_wls_ic_err_info(chip, WLS_ERR_SCENE_TX, WLS_IC_ERR_VAC_ACDRV);
+			return -ENODEV;
+		}
 		rc = sc96257_tx_set_cmd(chip, AP_CMD_TX_ENABLE);
 	} else {
 		rc = sc96257_tx_set_cmd(chip, AP_CMD_TX_DISABLE);
@@ -1673,6 +1711,39 @@ static int sc96257_set_headroom(struct oplus_chg_ic_dev *dev, int val)
 	return 0;
 }
 
+static int sc96257_epp_send_match_q(struct oplus_chg_ic_dev *dev, u8 data[])
+{
+	struct oplus_sc96257 *chip;
+	int rc;
+	u8 fod_q;
+	u8 fod_f;
+
+	if (dev == NULL || data == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+	fod_f = data[0];
+	fod_q = data[1];
+
+	rc = sc96257_write_block(chip, (u16)ADDR(struct rx_cust_type, fod_q), (u8 *)&fod_q,
+		sizeof(chip->info.rx_info.fod_q));
+	if (rc < 0) {
+		chg_err("set epp fod_q err, rc=%d\n", rc);
+		return rc;
+	}
+
+	sc96257_write_block(chip, (u16)ADDR(struct rx_cust_type, fod_r), (u8 *)&fod_f,
+		sizeof(chip->info.rx_info.fod_r));
+	if (rc < 0) {
+		chg_err("send epp fod_f err, rc=%d\n", rc);
+		return rc;
+	}
+	chg_info("epp f value:0x%x, q value:0x%x\n", data[0], data[1]);
+
+	return 0;
+}
+
 #define PPP_BUSY_WAIT	30
 static int sc96257_send_match_q(struct oplus_chg_ic_dev *dev, u8 data[])
 {
@@ -1713,12 +1784,66 @@ static int sc96257_send_match_q(struct oplus_chg_ic_dev *dev, u8 data[])
 		chg_err("send match q err, rc=%d\n", rc);
 		return rc;
 	}
+	rc = sc96257_rx_set_cmd(chip, AP_CMD_SEND_PPP);
+	if (rc < 0) {
+		chg_err("sc96257 set cmd fail\n");
+		return rc;
+	}
+	chg_info("q value:0x%x, f value:0x%x\n", buf[3], buf[2]);
 
 	return 0;
 }
 
 static int sc96257_set_fod_parm(struct oplus_chg_ic_dev *dev, u8 data[], int len, int mode, int magcvr)
 {
+	struct oplus_sc96257 *chip;
+	u8 fod_parm[SC96257_FOD_PARM_LEN_MAX] = { 0xff };
+	int i;
+	u16 addr;
+	int reg_len;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	if (len <= 0 || len > SC96257_FOD_PARM_LEN_MAX) {
+		chg_err("data length error\n");
+		return -EINVAL;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+
+	switch (mode) {
+	case FOD_BPP_MODE:
+		addr = (u16)ADDR(struct rx_cust_type, fod);
+		reg_len = sizeof(chip->info.rx_info.fod);
+		break;
+	case FOD_EPP_MODE:
+		addr = (u16)ADDR(struct rx_cust_type, epp_fod);
+		reg_len = sizeof(chip->info.rx_info.epp_fod);
+		break;
+	case FOD_FAST_MODE:
+		addr = (u16)ADDR(struct rx_cust_type, fod);
+		reg_len = sizeof(chip->info.rx_info.fod) + sizeof(chip->info.rx_info.epp_fod);
+		break;
+	default:
+		chg_info("mode: %d not support, return.\n", mode);
+		return 0;
+	}
+
+	memcpy(&fod_parm[0], &data[0], len);
+	/*set magcvr status*/
+	sc96257_write_block(chip, (u16)ADDR(struct rx_cust_type, mag_case), (u8 *)&magcvr,
+		sizeof(chip->info.rx_info.mag_case));
+	/*set fod data*/
+	sc96257_write_block(chip, addr, &fod_parm[0], reg_len);
+	if (mode == FOD_FAST_MODE)
+		sc96257_rx_set_cmd(chip, AP_CMD_RX_FOD_ENABLE);
+
+	printk(KERN_CONT "%s: mode: %d, magcvr: %d, fod_parms:", __func__, mode, magcvr);
+	for (i = 0; i < len; i++)
+		printk(KERN_CONT " 0x%x", fod_parm[i]);
+	printk(KERN_CONT ".\n");
+
 	return 0;
 }
 
@@ -1886,10 +2011,15 @@ static uint8_t pgm_state(struct oplus_sc96257 *chip)
 {
 	int i;
 	u8 state;
+	int rc;
 
 	for (i = 0; i < MAX_COUNT; i++) {
-		msleep(1);
-		sc96257_read_byte(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &state);
+		usleep_range(1000, 1100);
+		rc = sc96257_read_byte(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &state);
+		if (rc < 0) {
+			chg_err("read pgm_state failed\n");
+			return rc;
+		}
 		if ((state != PGM_STATE_BUSY) && (state != PGM_STATE_NONE))
 			return state;
 	}
@@ -1901,13 +2031,18 @@ __maybe_unused static int pgm_sector_erase(struct oplus_sc96257 *chip, u32 addr,
 {
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
+	int rc;
 
 	pgm.type.addr = (u16)(addr / PGM_WORD);
 	pgm.type.len = length / PGM_WORD;
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_SECTOR_ERASE << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_SECTOR_ERASE);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_SECTOR_ERASE);
+	if (rc < 0) {
+		chg_err("pgm_sector_erase failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -1922,11 +2057,16 @@ static int pgm_chip_erase(struct oplus_sc96257 *chip)
 {
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
+	int rc;
 
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_CHIP_ERASE << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_CHIP_ERASE);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_CHIP_ERASE);
+	if (rc < 0) {
+		chg_err("pgm_chip_erase failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -1941,11 +2081,16 @@ __maybe_unused static int pgm_trim_erase(struct oplus_sc96257 *chip)
 {
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
+	int rc;
 
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_TRIM_ERASE << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_TRIM_ERASE);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_TRIM_ERASE);
+	if (rc < 0) {
+		chg_err("pgm_trim_erase failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -1960,11 +2105,16 @@ __maybe_unused static int pgm_cust_erase(struct oplus_sc96257 *chip)
 {
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
+	int rc;
 
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_CUST_ERASE << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_CUST_ERASE);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_CUST_ERASE);
+	if (rc < 0) {
+		chg_err("pgm_cust_erase failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -1979,6 +2129,7 @@ static int pgm_set_margin(struct oplus_sc96257 *chip, u8 buffer)
 {
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
+	int rc;
 
 	pgm.type.addr = 0x00;
 	pgm.type.len = 1;
@@ -1987,8 +2138,12 @@ static int pgm_set_margin(struct oplus_sc96257 *chip, u8 buffer)
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN + 4);
 	pgm.type.xor ^= PGM_CMD_MARGIN << 8;
 
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], 4 + PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_MARGIN);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], 4 + PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_MARGIN);
+	if (rc < 0) {
+		chg_err("pgm_set_margin failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -2019,17 +2174,26 @@ __maybe_unused static int pgm_info(struct oplus_sc96257 *chip, char *info)
 	int index;
 	union pgm_pkt_type pgm = { 0 };
 	u16 msg_len;
+	int rc;
 
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_INFO << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_INFO);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_INFO);
+	if (rc < 0) {
+		chg_err("write pgm_info failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state == PGM_STATE_DONE) {
-		sc96257_read_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, (u8 *)pgm.value, PGM_HEADER_SIZE);
+		rc = sc96257_read_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, (u8 *)pgm.value, PGM_HEADER_SIZE);
 		msg_len = pgm.type.len * PGM_WORD;
-		sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, pgm.type.msg, msg_len);
+		rc |= sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, pgm.type.msg, msg_len);
+		if (rc < 0) {
+			chg_err("read pgm_info failed\n");
+			return rc;
+		}
 		if (pgm_xor((u8 *)pgm.value, msg_len + PGM_HEADER_SIZE) == 0x00) {
 			index = 0;
 			for (i = 0; i < msg_len; i++) {
@@ -2051,6 +2215,7 @@ __maybe_unused static int pgm_access(struct oplus_sc96257 *chip, u8 *key_buffer,
 {
 	u8 state;
 	union pgm_pkt_type pgm = {0};
+	int rc;
 
 	pgm.type.addr = 0x00;
 	pgm.type.len = key_len / PGM_WORD;
@@ -2058,8 +2223,12 @@ __maybe_unused static int pgm_access(struct oplus_sc96257 *chip, u8 *key_buffer,
 
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 	pgm.type.xor ^= PGM_CMD_AUTH << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], key_len + PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_AUTH);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], key_len + PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_AUTH);
+	if (rc < 0) {
+		chg_err("pgm_access failed\n");
+		return rc;
+	}
 
 	state = pgm_state(chip);
 	if (state != PGM_STATE_DONE) {
@@ -2077,20 +2246,29 @@ static int pgm_read_crc(struct oplus_sc96257 *chip, u8 *crc, u16 crc_size, u16 a
 	int index;
 	union pgm_pkt_type pgm = { 0 };
 	u16 msg_len;
+	int rc;
 
 	pgm.type.addr = addr;
 	pgm.type.len = len;
 	pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 
 	pgm.type.xor ^= PGM_CMD_VERIFY << 8;
-	sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-	sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_VERIFY);
-	msleep(1);
+	rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+	rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, PGM_CMD_VERIFY);
+	if (rc < 0) {
+		chg_err("write pgm_read_crc failed\n");
+		return rc;
+	}
+	usleep_range(1000, 1100);
 	state = pgm_state(chip);
 	if (state == PGM_STATE_DONE) {
-		sc96257_read_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, (uint8_t *)pgm.value, PGM_HEADER_SIZE);
+		rc = sc96257_read_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, (uint8_t *)pgm.value, PGM_HEADER_SIZE);
 		msg_len = crc_size;
-		sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, pgm.type.msg, msg_len);
+		rc |= sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, pgm.type.msg, msg_len);
+		if (rc < 0) {
+			chg_err("read pgm_read_crc failed\n");
+			return rc;
+		}
 		if (pgm_xor((u8 *)pgm.value, msg_len + PGM_HEADER_SIZE) == 0x00) {
 			index = 0;
 			for (i = 0; (i < msg_len) && (i < crc_size); i++) {
@@ -2113,6 +2291,7 @@ __maybe_unused static int pgm_read(struct oplus_sc96257 *chip, u32 addr, u8 *buf
 	union pgm_pkt_type pgm = { 0 };
 	u16 offset;
 	u8 *p_buffer;
+	int rc;
 
 	p_buffer = buffer;
 
@@ -2127,12 +2306,20 @@ __maybe_unused static int pgm_read(struct oplus_sc96257 *chip, u32 addr, u8 *buf
 		pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], PGM_XOR_LEN);
 		pgm.type.xor ^= sel << 8;
 
-		sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
-		sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, sel);
+		rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, &pgm.value[0], PGM_HEADER_SIZE);
+		rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, sel);
+		if (rc < 0) {
+			chg_err("pgm_read failed\n");
+			return rc;
+		}
 
 		state = pgm_state(chip);
 		if (state == PGM_STATE_DONE) {
-			sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, p_buffer, offset);
+			rc = sc96257_read_block(chip, PGM_SRAM_BASE + PGM_MSG_ADDR, p_buffer, offset);
+			if (rc < 0) {
+				chg_err("read PGM_MSG_ADDR failed\n");
+				return -EINVAL;
+			}
 		} else {
 			chg_err("Error: pgm read state 0x%02x\n", state);
 			return -EINVAL;
@@ -2149,6 +2336,7 @@ static int pgm_write(struct oplus_sc96257 *chip, u32 addr, u8 *buffer, u16 len, 
 	u8 state;
 	union pgm_pkt_type pgm = { 0 };
 	u16 offset;
+	int rc;
 
 	for (i = 0; i < len; i += PGM_FRIMWARE_SIZE) {
 		memset(pgm.value, 0, sizeof(pgm.value));
@@ -2160,8 +2348,12 @@ static int pgm_write(struct oplus_sc96257 *chip, u32 addr, u8 *buffer, u16 len, 
 		memcpy(pgm.type.msg, &buffer[i], offset);
 		pgm.type.xor = pgm_xor(&pgm.value[PGM_XOR_INDEX], offset + PGM_XOR_LEN);
 		pgm.type.xor ^= (sel << 8);
-		sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, pgm.value, offset + PGM_HEADER_SIZE);
-		sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, sel);
+		rc = sc96257_write_block(chip, PGM_SRAM_BASE + PGM_STATE_ADDR, pgm.value, offset + PGM_HEADER_SIZE);
+		rc |= sc96257_write_byte(chip, PGM_SRAM_BASE + PGM_CMD_ADDR, sel);
+		if (rc < 0) {
+			chg_err("pgm_write failed\n");
+			return rc;
+		}
 
 		state = pgm_state(chip);
 		if (state != PGM_STATE_DONE) {
@@ -2223,9 +2415,17 @@ static int sram_write(struct oplus_sc96257 *chip)
 	int rc;
 	int addr_base = SRAM_BASE_ADDRESS;
 	u32 size = sizeof(sc96257_pgm_data);
+	u8 *pgm_data_read;
+	u32 read_crc = 0;
+	static int crc_check_num = 0;
+
+	if (size % PGM_WORD) {
+		chg_err("pgm_data error\n");
+		return -EINVAL;
+	}
 
 	rc = wdt_close(chip);
-	msleep(1);
+	usleep_range(1000, 1100);
 	rc |= wdt_close(chip);
 	if (rc < 0) {
 		chg_err("WDT close failed\n");
@@ -2246,12 +2446,60 @@ static int sram_write(struct oplus_sc96257 *chip)
 		}
 	}
 
+	pgm_data_read = kzalloc(size, GFP_KERNEL);
+	if (pgm_data_read) {
+		for (i = 0; i < size; i += PGM_WORD) {
+			rc = sc96257_read_block(chip, addr_base + i, &pgm_data_read[i], PGM_WORD);
+			if (rc < 0) {
+				chg_err("sc96257_read_block failed\n");
+				kfree(pgm_data_read);
+				return -EINVAL;
+			}
+		}
+
+		for (i = 0; i < size; i++) {
+			if (pgm_data_read[i] != sc96257_pgm_data[i]) {
+				chg_err("pgm read != pgm data, num=%d, read=0x%x write=0x%x\n", i, pgm_data_read[i], sc96257_pgm_data[i]);
+				kfree(pgm_data_read);
+				return -EINVAL;
+			}
+		}
+		kfree(pgm_data_read);
+	}
+
 	rc = bool_sel(chip, true);
 	rc |= sys_reset_ctrl(chip, true);
 	rc |= sys_reset_ctrl(chip, false);
 	if (rc < 0) {
 		chg_err("sys_reset_ctrl failed\n");
 		return rc;
+	}
+
+	while(1) {
+		/*set margin*/
+		rc = pgm_set_margin(chip, CRC_CHECK_MARGIN0);
+		if (rc < 0) {
+			if (crc_check_num >= 10) {
+				chg_err("run pgm set margin fail\n");
+				return rc;
+			}
+		}
+
+		rc = pgm_read_crc(chip, (u8 *)(&read_crc), CRC_SIZE, 0x0000, CHIP_SIZE / PGM_WORD);
+		if (rc < 0) {
+			if (crc_check_num >= 10) {
+				chg_err("run pgm final get crc failed\n");
+				return -EINVAL;
+			} else {
+				chg_err("run pgm get crc failed num=%d\n", crc_check_num);
+			}
+		} else {
+			crc_check_num = 0;
+			chg_info("run pgm get crc successfully\n");
+			break;
+		}
+		crc_check_num = crc_check_num + 1;
+		usleep_range(1000, 1100);
 	}
 
 	/*rc = pgm_info(chip, info);
@@ -2422,6 +2670,9 @@ static int sc96257_upgrade_firmware_by_buf(struct oplus_chg_ic_dev *dev, unsigne
 		goto exit_enable_irq;
 	}
 	msleep(100);
+
+	sc96257_set_wake_pattern(chip);
+	msleep(10);
 
 	if (chip->debug_force_ic_err == WLS_IC_ERR_I2C) {
 		chg_err("<FW UPDATE> debug i2c error!\n");
@@ -2600,9 +2851,11 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 	u16 addr;
 	int rc;
 	enum wls_ic_err_reason rx_err_reason = WLS_IC_ERR_NONE;
+	u32 mode_value;
 
 	sc96257_rx_is_enable(chip->ic_dev, &enable);
-	if (!enable && sc96257_get_wls_type(chip) != OPLUS_CHG_WLS_TRX) {
+	if (!enable && sc96257_get_wls_type(chip) != OPLUS_CHG_WLS_TRX && !chip->standby_config &&
+	    (chip->rx_mode != OPLUS_CHG_WLS_RX_MODE_BPP)) {
 		chg_info("RX is sleep or TX is disable, Ignore events\n");
 		return;
 	}
@@ -2617,9 +2870,21 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 	if (irq_flag == 0 || irq_flag == SC96257_ERR_IRQ_VALUE)
 		 goto out;
 
+	if (chip->standby_config && (irq_flag & WP_IRQ_TX_AC_PRESENT)) {
+		if (sc96257_get_sys_mode(chip, &mode_value) < 0) {
+			chg_err("read sys mode error\n");
+			return;
+		}
+		if (mode_value & AC_MODE)
+			chip->event_code = WLS_EVENT_RXAC_ATTACH;
+		else
+			chip->event_code = WLS_EVENT_RXAC_DETACH;
+		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_EVENT_CHANGED);
+	}
+
 	if (sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_TRX) {
 		sc96257_tx_event_config(chip, irq_flag & SC96257_TX_STATUS_MASK, irq_flag & SC96257_TX_ERR_MASK);
-		if (irq_flag & WP_IRQ_TX_AC_PRESENT)
+		if (irq_flag & WP_IRQ_TX_VAC_PRESENT)
 			/*trigger only in tx mode*/
 			chip->event_code = WLS_EVENT_VAC_PRESENT;
 		else
@@ -2630,7 +2895,7 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 		chip->tx_status = TX_STATUS_OFF;
 	}
 
-	if (irq_flag & WP_IRQ_RX_LDO_ON) {
+	if (chip->rx_connected == true && (irq_flag & WP_IRQ_RX_LDO_ON)) {
 		chg_err("LDO is on, connected.\n");
 		complete(&chip->ldo_on);
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ONLINE);
@@ -2653,12 +2918,12 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 		} else if (irq_flag & WP_IRQ_LVP) {
 			rx_err_reason = WLS_IC_ERR_LVP;
 			chg_err("rx LVP happen!\n");
-		} else if (irq_flag & WP_IRQ_OTP) {
+		} else if (irq_flag & WP_IRQ_OTP_160) {
 			rx_err_reason = WLS_IC_ERR_OTP;
 			chg_err("rx OTP happen!\n");
-		} else if (irq_flag & WP_IRQ_OTP_160) {
-			rx_err_reason = WLS_IC_ERR_OTP160;
-			chg_err("rx OTP160 happen!\n");
+		} else if (irq_flag & WP_IRQ_OTP) {
+			rx_err_reason = WLS_IC_ERR_SOFTOTP;
+			chg_err("rx SOFTOTP happen!\n");
 		} else if (irq_flag & WP_IRQ_RX_V2X_UCP) {
 			rx_err_reason = WLS_IC_ERR_V2X_UCP;
 			chg_err("rx V2XUCP happen!\n");
@@ -2681,8 +2946,14 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 	}
 
 	if (irq_flag & WP_IRQ_POWER_PROFILE) {
-		chip->rx_pwr_cap = sc96257_get_power_cap(chip);
-		chip->event_code = WLS_EVENT_RX_EPP_CAP;
+		(void)sc96257_get_sys_mode(chip, &mode_value);
+		if (mode_value & BPP_MODE) {
+			chip->adapter_type = 0;
+			chip->event_code = WLS_EVENT_EPP_NEGO_FAIL;
+		} else {
+			chip->rx_pwr_cap = sc96257_get_power_cap(chip);
+			chip->event_code = WLS_EVENT_RX_EPP_CAP;
+		}
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_EVENT_CHANGED);
 	}
 
@@ -2698,6 +2969,11 @@ static void sc96257_event_process(struct oplus_sc96257 *chip)
 			if (chip->rx_msg.msg_call_back != NULL)
 				chip->rx_msg.msg_call_back(chip->rx_msg.dev_data, val_buf);
 		}
+	}
+
+	if (irq_flag & WP_IRQ_RX_EPP_ID_SUCCESS) {
+		chip->event_code = WLS_EVENT_EPP_TX_MANU_ID;
+		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_EVENT_CHANGED);
 	}
 
 out:
@@ -2775,15 +3051,18 @@ static int sc96257_set_insert_disable(struct oplus_chg_ic_dev *dev, bool en)
 	}
 	chip = oplus_chg_ic_get_drvdata(dev);
 
+	mutex_lock(&chip->pinctrl_lock);
 	if (IS_ERR_OR_NULL(chip->pinctrl) ||
 	    IS_ERR_OR_NULL(chip->insert_dis_active) ||
 	    IS_ERR_OR_NULL(chip->insert_dis_sleep)) {
 		chg_err("insert_dis pinctrl error\n");
+		mutex_unlock(&chip->pinctrl_lock);
 		return -ENODEV;
 	}
 
 	rc = pinctrl_select_state(chip->pinctrl,
 		en ? chip->insert_dis_active : chip->insert_dis_sleep);
+	mutex_unlock(&chip->pinctrl_lock);
 	if (rc < 0)
 		chg_err("can't %s insert_dis\n", en ? "enable" : "disable");
 	else
@@ -2794,32 +3073,152 @@ static int sc96257_set_insert_disable(struct oplus_chg_ic_dev *dev, bool en)
 	return rc;
 }
 
-static bool sc96257_vac_acdrv_check(struct oplus_sc96257 *chip)
+static int sc96257_standby_config(struct oplus_chg_ic_dev *dev, bool en)
+{
+	struct oplus_sc96257 *chip;
+	int rc = 0;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+
+	if (en)
+		rc = sc96257_set_wake_pattern(chip);
+	chip->standby_config = en;
+
+	return rc;
+}
+
+#define COMU_CAP_AUTO	0
+#define COMU_CAP_22UF	3
+#define COMU_CAP_47UF	5
+#define COMU_CAP_69UF	7
+static int sc96257_set_rx_comu(struct oplus_chg_ic_dev *dev, int comu)
+{
+	struct oplus_sc96257 *chip;
+	u16 addr;
+	u8 comu_cap;
+	int rc;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+
+	switch (comu) {
+	case WLS_RX_COMU_CAP_AUTO:
+		comu_cap = COMU_CAP_AUTO;
+		break;
+	case WLS_RX_COMU_CAP_A:
+		comu_cap = COMU_CAP_22UF;
+		break;
+	case WLS_RX_COMU_CAP_B:
+		comu_cap = COMU_CAP_47UF;
+		break;
+	case WLS_RX_COMU_CAP_AB:
+		comu_cap = COMU_CAP_69UF;
+		break;
+	default:
+		comu_cap = COMU_CAP_AUTO;
+		break;
+	}
+	addr = (u16)ADDR(struct rx_cust_type, ask_cfg);
+	rc = sc96257_write_block(chip, addr, (u8 *)&comu_cap, sizeof(chip->info.rx_info.ask_cfg));
+	if (rc < 0) {
+		chg_err("set comu err, rc=%d\n", rc);
+		return rc;
+	}
+	chg_info("<~WPC~> set comu:%d\n", comu);
+
+	return 0;
+}
+
+static int sc96257_get_tx_id(struct oplus_chg_ic_dev *dev, int *tx_id)
+{
+	struct oplus_sc96257 *chip;
+	int rc;
+	u16 addr;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+
+	addr = (u16)ADDR(struct rx_cust_type, tx_mfr_code);
+	rc = sc96257_read_block(chip, addr, (u8 *)tx_id, sizeof(chip->info.rx_info.tx_mfr_code));
+	if (rc < 0) {
+		chg_err("read tx_id err, rc=%d\n", rc);
+		return rc;
+	}
+	chg_info("<~WPC~> tx_id:0x%x.\n", *tx_id);
+
+	return 0;
+}
+
+static int sc96257_set_silent(struct oplus_chg_ic_dev *dev)
+{
+	struct oplus_sc96257 *chip;
+	u16 addr;
+	u8 silent = BIT(3);
+	int rc;
+
+	if (dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+	chip = oplus_chg_ic_get_drvdata(dev);
+
+	addr = (u16)ADDR(struct rx_cust_type, silent_sleep);
+	rc = sc96257_write_block(chip, addr, (u8 *)&silent, sizeof(chip->info.rx_info.silent_sleep));
+	if (rc < 0) {
+		chg_err("set silent err, rc=%d\n", rc);
+		return rc;
+	}
+	chg_info("<~WPC~> set silent...\n");
+
+	return 0;
+}
+
+static int sc96257_fw_checksum(struct oplus_sc96257 *chip)
 {
 	u32 fw_check = 0;
 	u32 fw_version = 0;
 	int rc;
 
-
 	rc = sc96257_get_fw_check(chip, &fw_check);
 	if (rc < 0) {
 		chg_err("read fw_check err, rc=%d\n", rc);
-		return true;
+		return FW_CHECKSUM_UNKNOWN;
 	}
 	rc = sc96257_get_fw_version(chip, &fw_version);
 	if (rc < 0) {
 		chg_err("read fw_version err, rc=%d\n", rc);
-		return true;
+		return FW_CHECKSUM_UNKNOWN;
 	}
 
-	if (fw_check == fw_version && fw_version != 0x0 && fw_version != 0xFFFFFFFF) {
+	if (fw_check == fw_version && fw_version != INVALID_FW_VERSION0 && fw_version != INVALID_FW_VERSION1)
+		return FW_CHECKSUM_OK;
+	return FW_CHECKSUM_FAIL;
+}
+
+static bool sc96257_vac_acdrv_check(struct oplus_sc96257 *chip)
+{
+	int checksum;
+
+	checksum = sc96257_fw_checksum(chip);
+	if (checksum == FW_CHECKSUM_OK) {
 		chg_info("check vac_acdrv OK\n");
 		return true;
-	} else {
+	} else if (checksum == FW_CHECKSUM_FAIL) {
 		sc96257_track_upload_wls_ic_err_info(chip, WLS_ERR_SCENE_RX, WLS_IC_ERR_VAC_ACDRV);
 		chg_err("check vac_acdrv fail\n");
 		return false;
 	}
+	return true;
 }
 
 static void sc96257_check_ldo_on_work(struct work_struct *work)
@@ -2844,6 +3243,38 @@ static void sc96257_check_ldo_on_work(struct work_struct *work)
 	}
 }
 
+static void sc96257_rx_mode_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_sc96257 *chip =
+		container_of(dwork, struct oplus_sc96257, rx_mode_work);
+	int i = 0;
+
+	chg_info("rx_mode = %d, recover rx_enable:%d\n", chip->rx_mode, chip->rx_en_status);
+	if (chip->rx_mode == OPLUS_CHG_WLS_RX_MODE_BPP) {
+		for (i = 0; i < RX_MODE_BPP_COUNT; i++) {
+			sc96257_set_rx_enable_raw(chip->ic_dev, false);
+			msleep(30);
+			if (chip->rx_mode == OPLUS_CHG_WLS_RX_MODE_UNKNOWN) {
+				sc96257_set_rx_enable_raw(chip->ic_dev, chip->rx_en_status);
+				chg_info("rx_mode force exit BPP! count:%d\n", i);
+				return;
+			}
+			sc96257_set_rx_enable_raw(chip->ic_dev, true);
+			msleep(20);
+			if (chip->rx_mode == OPLUS_CHG_WLS_RX_MODE_UNKNOWN) {
+				sc96257_set_rx_enable_raw(chip->ic_dev, chip->rx_en_status);
+				chg_info("rx_mode force exit BPP! count:%d\n", i);
+				return;
+			}
+		}
+	}
+	sc96257_set_rx_enable_raw(chip->ic_dev, chip->rx_en_status);
+	chg_info("rx_mode:%d, gpio_val:%d, count:%d\n",
+		chip->rx_mode, gpio_get_value(chip->rx_en_gpio), i);
+	return;
+}
+
 static void sc96257_event_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -2857,7 +3288,7 @@ static void sc96257_event_work(struct work_struct *work)
 	if (sc96257_wait_resume(chip) < 0)
 		return;
 
-	if (chip->rx_connected == true || sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_TRX)
+	if (chip->rx_connected == true || sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_TRX || chip->standby_config)
 		sc96257_event_process(chip);
 }
 
@@ -3111,7 +3542,8 @@ static void sc96257_shutdown(struct i2c_client *client)
 	    (sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_VOOC ||
 	     sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_SVOOC ||
 	     sc96257_get_wls_type(chip) == OPLUS_CHG_WLS_PD_65W)) {
-		sc96257_set_rx_enable(chip->ic_dev, false);
+		sc96257_set_silent(chip->ic_dev);
+		sc96257_set_rx_enable_raw(chip->ic_dev, false);
 		msleep(100);
 		while (wait_wpc_disconn_cnt < 10) {
 			sc96257_rx_is_connected(chip->ic_dev, &is_connected);
@@ -3324,6 +3756,26 @@ static void *oplus_chg_rx_get_func(struct oplus_chg_ic_dev *ic_dev,
 	case OPLUS_IC_FUNC_RX_DIS_INSERT:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_DIS_INSERT,
 			sc96257_set_insert_disable);
+		break;
+	case OPLUS_IC_FUNC_RX_STANDBY_CONFIG:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_STANDBY_CONFIG,
+			sc96257_standby_config);
+		break;
+	case OPLUS_IC_FUNC_RX_SET_COMU:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_SET_COMU,
+			sc96257_set_rx_comu);
+		break;
+	case OPLUS_IC_FUNC_RX_GET_TX_ID:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_GET_TX_ID,
+			sc96257_get_tx_id);
+		break;
+	case OPLUS_IC_FUNC_RX_SET_SILENT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_SET_SILENT,
+			sc96257_set_silent);
+		break;
+	case OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q,
+			sc96257_epp_send_match_q);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -3604,7 +4056,9 @@ static int sc96257_driver_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&chip->event_work, sc96257_event_work);
 	INIT_DELAYED_WORK(&chip->connect_work, sc96257_connect_work);
 	INIT_DELAYED_WORK(&chip->check_ldo_on_work, sc96257_check_ldo_on_work);
+	INIT_DELAYED_WORK(&chip->rx_mode_work, sc96257_rx_mode_work);
 	mutex_init(&chip->i2c_lock);
+	mutex_init(&chip->pinctrl_lock);
 	init_completion(&chip->ldo_on);
 	init_completion(&chip->resume_ack);
 	complete_all(&chip->resume_ack);

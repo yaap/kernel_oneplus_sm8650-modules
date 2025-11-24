@@ -256,6 +256,9 @@ int fp_parse_pwr_list(struct fp_dev *fp_dev) {
                 pr_err("set uff_pwr %u output %d \n", child_node_index,
                     pwr_list[child_node_index].poweron_level);
                 break;
+            case FP_POWER_MODE_AUTO:
+                pr_info("[%s] auto power mode, no need parse\n", __func__);
+                break;
             case FP_POWER_MODE_WL2868C:
             case FP_POWER_MODE_DIO8018:
                 ret = of_property_read_u32(np, LDO_CONFIG_NODE, &fp_dev->ldo_voltage);

@@ -22,12 +22,6 @@ enum {
 	STRATEGY_USE_SUB_BATT_TEMP,
 };
 
-enum {
-	STRATEGY_USE_BATT_INFO = 0,
-	STRATEGY_USE_MAIN_INFO,
-	STRATEGY_USE_SUB_INFO,
-};
-
 struct oplus_chg_strategy_desc {
 	const char *name;
 	struct list_head list;
@@ -43,6 +37,7 @@ struct oplus_chg_strategy_desc {
 	int (*strategy_get_data)(struct oplus_chg_strategy *strategy, void *ret);
 	int (*strategy_set_process_data)(struct oplus_chg_strategy *strategy, const char *type, unsigned long arg);
 	int (*strategy_get_metadata)(struct oplus_chg_strategy *strategy, void *ret);
+	int (*strategy_get_custom_data)(struct oplus_chg_strategy *strategy, const char *type, void *ret);
 };
 
 struct oplus_chg_strategy {
@@ -62,6 +57,7 @@ int oplus_chg_strategy_init(struct oplus_chg_strategy *strategy);
 int oplus_chg_strategy_release(struct oplus_chg_strategy *strategy);
 int oplus_chg_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret);
 int oplus_chg_strategy_set_process_data(struct oplus_chg_strategy *strategy, const char *type, unsigned long arg);
+int oplus_chg_strategy_get_custom_data(struct oplus_chg_strategy *strategy, const char *type, void *ret);
 int oplus_chg_strategy_get_metadata(struct oplus_chg_strategy *strategy, void *ret);
 int oplus_chg_strategy_register(struct oplus_chg_strategy_desc *desc);
 int oplus_chg_strategy_read_data(struct device *dev,

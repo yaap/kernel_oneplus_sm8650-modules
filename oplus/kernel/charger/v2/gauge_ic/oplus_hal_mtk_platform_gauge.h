@@ -60,15 +60,24 @@ enum oplus_gauge_track_type {
 };
 #endif
 
-struct chip_mt6375_gauge{
+enum oplus_sub_btb_temp_index {
+	OPLUS_SUB_BTB_VALD_MIN_TMEP,
+	OPLUS_SUB_BTB_VALD_MAX_TMEP,
+	OPLUS_SUB_BTB_MAX,
+};
+
+struct chip_mt6375_gauge {
 	struct device *dev;
 	struct oplus_chg_ic_dev *ic_dev;
 
 	struct oplus_mms *wired_topic;
 	struct oplus_mms *comm_topic;
+	struct oplus_mms *cpa_topic;
+	struct oplus_mms *wls_topic;
 
 	struct mms_subscribe *wired_subs;
 	struct mms_subscribe *comm_subs;
+	struct mms_subscribe *wls_subs;
 
 	struct work_struct gauge_cali_track_by_plug_work;
 	struct work_struct gauge_cali_track_by_full_work;
@@ -143,11 +152,15 @@ struct chip_mt6375_gauge{
 	atomic_t i2c_err_count;
 	bool i2c_err;
 	bool mtk_gauge_power_sel_support;
+	bool mtk_gauge_power_sel_by_power_support;
 	bool mtk_gauge_cali_track_support;
 	struct file_operations *authenticate_ops;
 
 	struct delayed_work check_iic_recover;
 	int gauge_type;
+	bool wls_online;
+
+	int sub_btb_valid_temp[OPLUS_SUB_BTB_MAX];
 };
 
 enum {
@@ -156,5 +169,15 @@ enum {
 	CHARGER_FASTCHG_VOOC_AND_QCPD_CURVE,
 	CHARGER_FASTCHG_PPS_AND_UFCS_CURVE,
 };
+
+enum {
+	CHARGER_NORMAL_CHG_ZCV_R0, /* normal chg 10w */
+	CHARGER_FASTCHG_ZCV_R1, /* >= 50w */
+	CHARGER_FASTCHG_ZCV_R2, /* >= 20w , < 50 */
+	CHARGER_FASTCHG_ZCV_R3, /* >= 10w , < 20 */
+	CHARGER_FASTCHG_ZCV_R4, /* unused */
+};
+
+int oplus_chg_get_actual_power(void);
 
 #endif /* __OPLUS_HAL_GAUGE_MT6375_H__ */

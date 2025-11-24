@@ -909,6 +909,7 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
     struct fp_underscreen_info fp_info = {0};
     struct fp_underscreen_info *tp_info = &fp_info;
     struct fp_touch_film_info *p_tp_film_info = NULL;
+    struct touch_fp_grip_info *tp_grip_info = NULL;
     struct fp_touch_under_water_info  *p_tp_under_water_info = NULL;
     fp_tp_ai_film_info_t tp_film_info = {0};
     fp_tp_under_water_info_t tp_under_water_info = {0};
@@ -958,6 +959,13 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
             send_fingerprint_msg_by_type(E_TP_AIFILM, E_FP_EVENT_AIFILM_INFO,
                                          (void *)&tp_film_info,
                                          sizeof(fp_tp_ai_film_info_t));
+            break;
+
+        case EVENT_ACTION_FOR_FP_GIRP:
+            tp_grip_info = (struct touch_fp_grip_info *)data;
+            pr_info("%s tp_grip_info.value = %d \n", __func__, tp_grip_info->value);
+            wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
+            send_fingerprint_msg_by_type(E_FP_TP_GRIP, tp_grip_info->value, tp_grip_info, sizeof(struct touch_fp_grip_info));
             break;
 
         case EVENT_ACTION_UNDER_WATER:

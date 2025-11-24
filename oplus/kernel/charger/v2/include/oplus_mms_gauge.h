@@ -2,6 +2,7 @@
 #define __OPLUS_MMS_GAUGE_H__
 
 #include <oplus_mms.h>
+#include <oplus_chg.h>
 
 #define GAUGE_INVALID_TEMP	(-400)
 #define OPLUS_BATTERY_TYPE_LEN 16
@@ -42,6 +43,10 @@ enum gauge_topic_item {
 	GAUGE_ITEM_QMAX,
 	GAUGE_ITEM_CAR_C,
 	GAUGE_ITEM_RATIO_LIMIT_CURR,
+	GAUGE_ITEM_SUB_BTB_STATE,
+	GAUGE_ITEM_GAUGE_R_INFO,
+	GAUGE_ITEM_SOC_CENTI,
+	GAUGE_ITEM_VOL_FCL,
 };
 
 enum gauge_type_id {
@@ -51,7 +56,23 @@ enum gauge_type_id {
 	DEVICE_ZY0602,
 	DEVICE_ZY0603,
 	DEVICE_NFG8011B,
+	DEVICE_SN28Z729 = 7,
+	DEVICE_MPC7022,
 };
+
+typedef enum {
+	DEC_CV_PACK_UNKNOWN,
+	DEC_CV_PACK_DOUBLE_SERIES,
+	DEC_CV_PACK_DOUBLE_PARALLE,
+	DEC_CV_PACK_SINGLE,
+	DEC_CV_PACK_SOH,
+	DEC_CV_QCOM_FG,
+	DEC_CV_MTK_FG,
+	DEC_CV_MB_TI,
+	DEC_CV_MB_CW,
+	DEC_CV_MB_SMI,
+	DEC_CV_PACK_MAX,
+} DEC_CV_PACK_TYPE;
 
 #define OPLUS_BATTINFO_DATE_SIZE 11
 #define OPLUS_BATT_SERIAL_NUM_SIZE 20
@@ -72,6 +93,9 @@ enum {
     GAUGE_TYPE_MAX,
 };
 
+#define BATT_SUB_BTB_ABNORMAL_MAX_CURR	9500
+#define BATT_SUB_BTB_ABNORMAL_MIN_CURR	2000
+
 struct battery_manufacture_info {
     u16 manu_date;
     u16 first_usage_date;
@@ -87,6 +111,42 @@ struct gauge_calib_info {
 	int qmax_time;
 	unsigned char calib_args[GAUGE_CALIB_ARGS_LEN];
 }__attribute__((aligned(4)));
+
+#define OPLUS_GAUGE_THREE_LEVEL_TERM_VOLT_LEN   18
+#define OPLUS_GAUGE_CUV_STATE_CHECK_TRY_MAX    2
+#define OPLUS_GAUGE_CUV_STATE_1    1
+#define OPLUS_GAUGE_CUV_STATE_2    0
+
+enum battery_test_state {
+	BATTERY_STOP_TEST_TYPE,
+	BATTERY_START_TEST_TYPE,
+	BATTERY_MAX_TEST_TYPE,
+};
+
+struct oplus_gauge_nvram_stress_test {
+	int input_count;
+	int interval_ms;
+	int input_state;
+
+	/* nvram test */
+	int sum_cnt;
+	int fail_cnt;
+	int suc_cnt;
+
+	/* term volt test */
+	int term_volt_sum_cnt;
+	int term_volt_fail_cnt;
+	int term_volt_suc_cnt;
+
+	/* normal gauge test */
+	int read_sum_cnt;
+	int read_fail_cnt;
+	int read_suc_cnt;
+
+	int test_state;
+	int read_test_state;
+	int term_volt_test_state;
+};
 
 int oplus_gauge_get_batt_mvolts(void);
 int oplus_gauge_get_batt_fc(void);
@@ -148,7 +208,7 @@ int oplus_gauge_get_bcc_parameters(char *buf);
 int oplus_gauge_fastchg_update_bcc_parameters(char *buf);
 int oplus_gauge_get_prev_bcc_parameters(char *buf);
 int oplus_gauge_set_bcc_parameters(const char *buf);
-
+int oplus_gauge_get_sub_btb_curr_limit(struct oplus_mms *topic);
 int oplus_gauge_protect_check(void);
 bool oplus_gauge_afi_update_done(void);
 
@@ -169,6 +229,10 @@ int oplus_gauge_get_sili_alg_lifetime_info(struct oplus_mms *mms, u8 *info, int 
 int oplus_gauge_get_battinfo_manu_date(struct oplus_mms *topic, char *buff, int size_buffer);
 int oplus_gauge_get_battinfo_first_usage_date(struct oplus_mms *topic, char *buff, int size_buffer);
 int oplus_gauge_set_battinfo_first_usage_date(struct oplus_mms *topic, const char *buff);
+int oplus_set_reset_gauge_parms(struct oplus_mms *topic, const int *buff);
+int oplus_gauge_get_batt_sn(struct oplus_mms *topic, char *buff, int size_buffer);
+int oplus_gauge_get_historic_soh_date(struct oplus_mms *topic, int *buff, int size_buffer);
+int oplus_set_histrioc_soh_date(struct oplus_mms *topic, const int *buff);
 int oplus_gauge_get_ui_cc(struct oplus_mms *topic);
 int oplus_gauge_set_ui_cc(struct oplus_mms *topic, int count);
 int oplus_gauge_get_ui_soh(struct oplus_mms *topic);
@@ -177,4 +241,32 @@ int oplus_gauge_get_used_flag(struct oplus_mms *topic);
 int oplus_gauge_set_used_flag(struct oplus_mms *topic, int flag);
 int oplus_gauge_show_batt_chem_id(struct oplus_mms *topic, char *buf, int len);
 int oplus_gauge_set_seal_flag(struct oplus_mms *topic, int seal_flag);
+bool oplus_gauge_set_fg_vct(struct oplus_mms *mms, int count);
+int oplus_gauge_get_fg_vct(struct oplus_mms *mms);
+int oplus_gauge_get_dec_pack_type(struct oplus_mms *mms);
+int oplus_gauge_get_dec_cv_soh(struct oplus_mms *mms);
+int oplus_gauge_sec_get_romid(struct oplus_mms *topic, uint8_t *romid, int *len);
+int oplus_gauge_sec_write_page(struct oplus_mms *topic, int page_id, uint8_t *data, int len);
+int oplus_gauge_sec_read_page(struct oplus_mms *topic, int page_id, uint8_t *data, int *len);
+int oplus_gauge_sec_ecdsa(struct oplus_mms *topic, bool *val);
+int oplus_gauge_sec_ecw(struct oplus_mms *topic, bool *val);
+int oplus_gauge_sec_shutdown(struct oplus_mms *topic, bool *val);
+int oplus_gauge_sec_set_prikey(struct oplus_mms *topic, int index, uint8_t *prikey, int len);
+int oplus_gauge_sec_get_prikey_index(struct oplus_mms *topic, int *index);
+int oplus_gauge_set_cuv_state(struct oplus_mms *mms, int state);
+int oplus_gauge_get_cuv_state(struct oplus_mms *mms, int *state);
+bool oplus_gauge_get_fcl_curr(int hw_vth, int sw_vth, int vbat, int *curr_dec, int *min_curr, bool *hw);
+int oplus_gauge_get_fcl_support(struct oplus_mms *mms, bool *fcl_support);
+int oplus_gauge_get_vb_offset(struct oplus_mms *mms, int *vb_offset);
+
+int oplus_gauge_start_nvram_stress_test(struct oplus_mms *topic,
+		int input_count, int interval_ms);
+int oplus_gauge_start_stress_read_test(struct oplus_mms *topic,
+		int input_count, int interval_ms);
+int oplus_gauge_get_nvram_stress_test(struct oplus_mms *topic,
+		struct oplus_gauge_nvram_stress_test *data);
+int oplus_gauge_start_term_volt_stress_test(struct oplus_mms *topic,
+		int input_count, int interval_ms);
+int oplus_gauge_get_three_level_term_volt(struct oplus_mms *topic, int term_volt[]);
+
 #endif /* __OPLUS_MMS_GAUGE_H__ */

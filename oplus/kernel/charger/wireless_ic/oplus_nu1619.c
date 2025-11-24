@@ -97,7 +97,6 @@ static int nu1619_get_tx_iout(struct oplus_nu1619_ic *chip);
 static void nu1619_clear_debug_info(struct oplus_nu1619_ic *chip);
 static int nu1619_write_reg(struct oplus_nu1619_ic *chip, int regnum, int val);
 static int nu1619_write_cmd_D(struct oplus_nu1619_ic *chip, int val);
-static int oplus_chg_set_mutual_cmd(u32 cmd, u32 data_size, const void *data_buf);
 
 #define BACKCOVER_COLOR_GLASS	0
 #define BACKCOVER_COLOR_LEATHER	1
@@ -1789,7 +1788,7 @@ static int oplus_wpc_track_upload_trx_general_info(struct oplus_nu1619_ic *chip,
 void nu1619_set_rtx_function(bool is_on)
 {
 	struct oplus_nu1619_ic *chip = nu1619_chip;
-	char trx_crux_info[OPLUS_CHG_TRACK_CURX_INFO_LEN] = {0};
+	char *trx_crux_info;
 
 	if (!g_oplus_chip || !g_oplus_chip->chg_ops) {
 		chg_err("<~WPC~> g_oplus_chip is NULL\n");
@@ -1897,12 +1896,18 @@ void nu1619_set_rtx_function(bool is_on)
 			chip->nu1619_chg_status.trx_usb_present_once);
 		if (chip->nu1619_chg_status.tx_online &&
 		    chip->nu1619_chg_status.trx_transfer_start_time &&
-		   (chip->nu1619_chg_status.trx_transfer_end_time - 
+		   (chip->nu1619_chg_status.trx_transfer_end_time -
 		    chip->nu1619_chg_status.trx_transfer_start_time >
 		     WPC_TRX_INFO_UPLOAD_THD_2MINS)) {
-			oplus_wpc_update_track_info(chip, trx_crux_info);
-			oplus_wpc_track_upload_trx_general_info(chip,
-			    trx_crux_info, chip->nu1619_chg_status.trx_usb_present_once);
+			trx_crux_info = (char*)kmalloc(OPLUS_CHG_TRACK_CURX_INFO_LEN, GFP_KERNEL);
+			if (trx_crux_info != NULL) {
+				oplus_wpc_update_track_info(chip, trx_crux_info);
+				oplus_wpc_track_upload_trx_general_info(chip,
+			    	trx_crux_info, chip->nu1619_chg_status.trx_usb_present_once);
+				kfree(trx_crux_info);
+			} else {
+				chg_err("%s: trx_crux_info kmalloc fail!\n", __func__);
+			}
 		}
 		chip->nu1619_chg_status.vout = 0;
 		chip->nu1619_chg_status.iout = 0;
@@ -4910,7 +4915,7 @@ static void nu1619_charge_set_target_ichg(struct oplus_nu1619_ic *chip)
 	case ADAPTER_TYPE_THIRD_PARTY:
 	case ADAPTER_TYPE_SVOOC:
 	case ADAPTER_TYPE_SVOOC_50W:
-		if ((chip->nu1619_chg_status.dock_version == DOCK_THIRD) && (chip->nu1619_chg_status.adapter_power == ADAPTER_POWER_THIRD_20W)) {
+		if ((chip->nu1619_chg_status.dock_version == DOCK_THIRD) && (chip->nu1619_chg_status.adapter_power == ADAPTER_POWER_20W)) {
 			if (target_ichg >= WPC_20W_DOCK_CURR_MAX_MA)
 				target_ichg = WPC_20W_DOCK_CURR_MAX_MA;
 		}
@@ -6256,7 +6261,7 @@ static void nu1619_idt_dischg_status(struct oplus_nu1619_ic *chip)
 	int rc = 0;
 	int count = 20;
 	static bool pre_tx_online = false;
-	char trx_crux_info[OPLUS_CHG_TRACK_CURX_INFO_LEN] = {0};
+	char *trx_crux_info;
 
 	if (atomic_read(&chip->suspended) == 1) {
 		while (count--) {
@@ -6307,9 +6312,15 @@ static void nu1619_idt_dischg_status(struct oplus_nu1619_ic *chip)
 
 			if (chip->nu1619_chg_status.wpc_dischg_status != WPC_DISCHG_IC_ERR_TX_RXEPT) {
 				chip->nu1619_chg_status.wpc_chg_err = chip->nu1619_chg_status.wpc_dischg_status;
-				oplus_wpc_update_track_info(chip, trx_crux_info);
-				oplus_wpc_track_upload_trx_err_info(chip, trx_crux_info,
-					chip->nu1619_chg_status.wpc_dischg_status);
+				trx_crux_info = (char*)kmalloc(OPLUS_CHG_TRACK_CURX_INFO_LEN, GFP_KERNEL);
+				if (trx_crux_info != NULL) {
+					oplus_wpc_update_track_info(chip, trx_crux_info);
+					oplus_wpc_track_upload_trx_err_info(chip, trx_crux_info,
+						chip->nu1619_chg_status.wpc_dischg_status);
+					kfree(trx_crux_info);
+				} else {
+					chg_err("%s: trx_crux_info kmalloc fail!\n", __func__);
+				}
 			}
 
 			nu1619_disable_tx_power();
@@ -6376,9 +6387,15 @@ static void nu1619_idt_dischg_status(struct oplus_nu1619_ic *chip)
 			if (chip->nu1619_chg_status.trx_transfer_end_time -
 			    chip->nu1619_chg_status.trx_transfer_start_time >
 				WPC_TRX_INFO_UPLOAD_THD_2MINS) {
-				oplus_wpc_update_track_info(chip, trx_crux_info);
-				oplus_wpc_track_upload_trx_general_info(chip, trx_crux_info,
-					chip->nu1619_chg_status.trx_usb_present_once);
+				trx_crux_info = (char*)kmalloc(OPLUS_CHG_TRACK_CURX_INFO_LEN, GFP_KERNEL);
+				if (trx_crux_info != NULL) {
+					oplus_wpc_update_track_info(chip, trx_crux_info);
+					oplus_wpc_track_upload_trx_general_info(chip, trx_crux_info,
+						chip->nu1619_chg_status.trx_usb_present_once);
+					kfree(trx_crux_info);
+				} else {
+					chg_err("%s: trx_crux_info kmalloc fail!\n", __func__);
+				}
 			}
 			chip->nu1619_chg_status.trx_usb_present_once = false;
 		} else if (!pre_tx_online && chip->nu1619_chg_status.tx_online) {
@@ -8838,7 +8855,7 @@ static const struct file_operations nu1619_add_log_proc_fops = {
 static const struct proc_ops nu1619_add_log_proc_fops = {
 	.proc_write = nu1619_reg_store,
 	.proc_read = nu1619_reg_show,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -8895,7 +8912,7 @@ static const struct file_operations nu1619_data_log_proc_fops = {
 #else
 static const struct proc_ops nu1619_data_log_proc_fops = {
 	.proc_write = nu1619_data_log_write,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9113,8 +9130,8 @@ static void oplus_chg_wls_get_third_part_verity_data_work_v1(
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct oplus_nu1619_ic *chip = container_of(dwork, struct oplus_nu1619_ic, wls_get_third_part_verity_data_work_v1);
 
-	oplus_chg_set_mutual_cmd(CMD_WLS_THIRD_PART_AUTH,
-	sizeof(chip->nu1619_chg_status.vendor_id), &(chip->nu1619_chg_status.vendor_id));
+	oplus_charger_set_mutual_cmd(g_oplus_chip, CMD_WLS_THIRD_PART_AUTH,
+		sizeof(chip->nu1619_chg_status.vendor_id), &(chip->nu1619_chg_status.vendor_id));
 }
 
 static void wlchg_reset_variables(struct oplus_nu1619_ic *chip)
@@ -9214,7 +9231,7 @@ static const struct proc_ops proc_wireless_voltage_rect_ops =
 	.proc_read = proc_wireless_voltage_rect_read,
 	.proc_write  = proc_wireless_voltage_rect_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9289,7 +9306,7 @@ static const struct proc_ops proc_wireless_current_out_ops =
 	.proc_read = proc_wireless_current_out_read,
 	.proc_write  = proc_wireless_current_out_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9370,7 +9387,7 @@ static const struct proc_ops proc_wireless_ftm_mode_ops =
 	.proc_read = proc_wireless_ftm_mode_read,
 	.proc_write  = proc_wireless_ftm_mode_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9437,7 +9454,7 @@ static const struct proc_ops proc_wireless_rx_voltage = {
 	.proc_read = proc_wireless_rx_voltage_read,
 	.proc_write = proc_wireless_rx_voltage_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9529,7 +9546,7 @@ static const struct proc_ops proc_wireless_tx_ops = {
 	.proc_read = proc_wireless_tx_read,
 	.proc_write = proc_wireless_tx_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9618,7 +9635,7 @@ static const struct proc_ops proc_wireless_epp_ops = {
 	.proc_read = proc_wireless_epp_read,
 	.proc_write = proc_wireless_epp_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9716,7 +9733,7 @@ static const struct proc_ops proc_wireless_charge_pump_ops = {
 	.proc_read = proc_wireless_charge_pump_read,
 	.proc_write = proc_wireless_charge_pump_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9779,7 +9796,7 @@ static const struct proc_ops proc_wireless_bat_mult_ops = {
 	.proc_read = proc_wireless_bat_mult_read,
 	.proc_write = proc_wireless_bat_mult_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9818,7 +9835,7 @@ static const struct proc_ops proc_wireless_deviated_ops = {
 	.proc_read = proc_wireless_deviated_read,
 	.proc_write = NULL,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -9894,7 +9911,7 @@ static const struct proc_ops proc_wireless_rx_ops = {
 	.proc_read = proc_wireless_rx_read,
 	.proc_write = proc_wireless_rx_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10305,7 +10322,7 @@ static const struct proc_ops proc_upgrade_firmware_ops = {
 	.proc_read = NULL,
 	.proc_write = proc_wireless_upgrade_firmware_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 #endif /* OPLUS_CHG_ADB_FW_DEBUG */
@@ -10376,7 +10393,7 @@ static const struct proc_ops proc_wireless_rx_freq_ops = {
 	.proc_read = proc_wireless_rx_freq_read,
 	.proc_write = proc_wireless_rx_freq_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10449,7 +10466,7 @@ static const struct proc_ops proc_wireless_w30w_time_ops = {
 	.proc_read = proc_wireless_w30w_time_read,
 	.proc_write = proc_wireless_w30w_time_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 #endif /*HW_TEST_EDITION*/
@@ -10556,7 +10573,7 @@ static const struct proc_ops proc_wireless_user_sleep_mode_ops = {
 	.proc_read = proc_wireless_user_sleep_mode_read,
 	.proc_write = proc_wireless_user_sleep_mode_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10636,7 +10653,7 @@ static const struct proc_ops proc_wireless_idt_adc_test_ops = {
 	.proc_read = proc_wireless_idt_adc_test_read,
 	.proc_write = proc_wireless_idt_adc_test_write,
 	.proc_open = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10685,7 +10702,7 @@ static const struct proc_ops proc_wireless_rx_power_ops =
 	.proc_read = proc_wireless_rx_power_read,
 	.proc_write  = proc_wireless_rx_power_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10732,7 +10749,7 @@ static const struct proc_ops proc_wireless_tx_power_ops =
 	.proc_read = proc_wireless_tx_power_read,
 	.proc_write  = proc_wireless_tx_power_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10779,7 +10796,7 @@ static const struct proc_ops proc_wireless_rx_version_ops =
 	.proc_read = proc_wireless_rx_version_read,
 	.proc_write  = proc_wireless_rx_version_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -10830,7 +10847,7 @@ static const struct proc_ops proc_wired_otg_online_ops =
 	.proc_read = proc_wired_otg_online_read,
 	.proc_write  = proc_wired_otg_online_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -11580,7 +11597,7 @@ static void nu1619_wpc_track_trx_info_load_trigger_work(
 	if (!chip)
 		return;
 
-	oplus_chg_track_upload_trigger_data(chip->trx_info_load_trigger);
+	oplus_chg_track_upload_trigger_data(&(chip->trx_info_load_trigger));
 }
 
 static void nu1619_wpc_track_trx_err_load_trigger_work(
@@ -11593,7 +11610,7 @@ static void nu1619_wpc_track_trx_err_load_trigger_work(
 	if (!chip)
 		return;
 
-	oplus_chg_track_upload_trigger_data(chip->trx_err_load_trigger);
+	oplus_chg_track_upload_trigger_data(&(chip->trx_err_load_trigger));
 }
 
 static int nu1619_wpc_track_init(struct oplus_nu1619_ic *chip)
@@ -11652,11 +11669,6 @@ static int oplus_chg_wls_aes_mutual_notifier_call_v1
 	return NOTIFY_OK;
 }
 
-static int oplus_chg_comm_reg_mutual_notifier_v1(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_register(&comm_mutual_notifier_v1, nb);
-}
-
 static void oplus_chg_comm_mutual_event_v1(char *buf)
 {
 	atomic_notifier_call_chain(&comm_mutual_notifier_v1, 1, buf);
@@ -11704,47 +11716,6 @@ ssize_t oplus_chg_response_mutual_cmd(const char *buf, size_t count)
 	complete(&chip->cmd_ack);
 
 	return ret;
-}
-
-static int oplus_chg_set_mutual_cmd(u32 cmd, u32 data_size, const void *data_buf)
-{
-	int rc;
-	struct oplus_nu1619_ic * chip = nu1619_chip;
-
-	if (!chip)
-		return CMD_ERROR_CHIP_NULL_V1;
-	if (!data_buf)
-		return CMD_ERROR_DATA_NULL_V1;
-	if (data_size > CHG_CMD_DATA_LEN_V1) {
-		chg_err("cmd data size if invalid\n");
-		return CMD_ERROR_DATA_INVALID_V1;
-	}
-	if (!chip->hidl_handle_cmd_ready) {
-		chg_err("hidl not ready\n");
-		return CMD_ERROR_HIDL_NOT_READY_V1;
-	}
-	mutex_lock(&chip->cmd_ack_lock);
-	mutex_lock(&chip->cmd_data_lock);
-	memset(&chip->cmd, 0, sizeof(struct oplus_chg_cmd));
-	chip->cmd.cmd = cmd;
-	chip->cmd.data_size = data_size;
-	memcpy(chip->cmd.data_buf, data_buf, data_size);
-	chip->cmd_data_ok = true;
-	mutex_unlock(&chip->cmd_data_lock);
-
-	wake_up(&chip->read_wq);
-	reinit_completion(&chip->cmd_ack);
-	rc = wait_for_completion_timeout(&chip->cmd_ack, msecs_to_jiffies(CHG_CMD_TIME_MS_V1));
-	if (!rc) {
-		chg_err("Error,timed out sending message\n");
-		mutex_unlock(&chip->cmd_ack_lock);
-		return CMD_ERROR_TIME_OUT_V1;
-	}
-	rc = CMD_ACK_OK_V1;
-	chg_err("success\n");
-	mutex_unlock(&chip->cmd_ack_lock);
-
-	return rc;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
@@ -11815,7 +11786,7 @@ static int nu1619_driver_probe(struct i2c_client *client, const struct i2c_devic
 
 	nu1619_reset_variables(chip);
 	chip->wls_aes_nb_v1.notifier_call = oplus_chg_wls_aes_mutual_notifier_call_v1;
-	rc = oplus_chg_comm_reg_mutual_notifier_v1(&chip->wls_aes_nb_v1);
+	rc = oplus_charger_reg_mutual_notifier(&chip->wls_aes_nb_v1);
 	if (rc) {
 		chg_err("register wls aes mutual notifier v1 error, rc=%d\n", rc);
 	}

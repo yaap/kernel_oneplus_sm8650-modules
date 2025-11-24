@@ -307,6 +307,7 @@ int synaptics_auto_test(struct seq_file *s,  struct touchpanel_data *ts)
 	syna_testdata.tp_fw     = ts->panel_data.tp_fw;
 	syna_testdata.fw        = ts->com_test_data.limit_fw;
 	syna_testdata.test_item = test_head->test_item;
+	syna_testdata.raw_cap_restriction = ts->com_test_data.raw_cap_restriction;
 
 	TPD_INFO("%s, step 0: begin to check INT-GND short item\n", __func__);
 	ret = syna_auto_test_irq(ts, syna_test_ops, &syna_testdata, false);

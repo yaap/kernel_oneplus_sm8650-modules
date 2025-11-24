@@ -6,7 +6,11 @@
 #define __OPLUS_WIRELESS_GLINK__
 
 #ifndef CONFIG_OPLUS_CHARGER_MTK
+#if (KERNEL_VERSION(6, 6, 0) <= LINUX_VERSION_CODE)
+#include <linux/soc/qcom/qti_pmic_glink.h>
+#else
 #include <linux/soc/qcom/pmic_glink.h>
+#endif
 
 #define OEM_OPCODE_SET_HBOOST_VOLT	0x10007
 #define MSG_OWNER_HBOOST	32785

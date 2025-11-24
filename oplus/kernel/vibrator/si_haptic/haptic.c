@@ -204,6 +204,50 @@ static int sih_parse_lra_dts(struct device *dev, sih_haptic_t *sih_haptic,
 	return 0;
 }
 
+static int sih_f0_reg_and_value_config(sih_haptic_t *sih_haptic)
+{
+	struct device_node *sih_node = sih_haptic->i2c->dev.of_node;
+	uint8_t f0_addr_regs[20] = {0};
+	uint8_t f0_addr_val[20] = {0};
+	int f0_reg_nums = 0;
+	int f0_val_nums = 0;
+	int ret = -1;
+
+	if (sih_node == NULL) {
+		hp_err("%s:haptic device node acquire failed\n", __func__);
+		return -EINVAL;
+	}
+
+	f0_reg_nums = of_property_count_elems_of_size(sih_node, "oplus,f0_addr_regs", sizeof(uint8_t));
+	hp_info("%s: f0 addr_reg_nums = %d\n", __func__, f0_reg_nums);
+	if (f0_reg_nums <= 0)
+		return -EINVAL;
+	/* read f0 regs addr config from dts*/
+	ret = of_property_read_u8_array(sih_node, "oplus,f0_addr_regs", f0_addr_regs, f0_reg_nums);
+	if (ret != 0) {
+		hp_err("%s: f0 regs nums acquire failed\n", __func__);
+		return -EINVAL;
+	}
+
+	f0_val_nums = of_property_count_elems_of_size(sih_node, "oplus,f0_addr_val", sizeof(uint8_t));
+	hp_info("%s: f0 addr_val_nums = %d\n", __func__, f0_val_nums);
+	if (f0_val_nums <= 0)
+		return -EINVAL;
+	/* read f0 regs val config from dts */
+	ret = of_property_read_u8_array(sih_node, "oplus,f0_addr_val", f0_addr_val, f0_val_nums);
+	if (ret != 0) {
+		hp_err("%s: f0 regs value acquire failed\n", __func__);
+		return -EINVAL;
+	}
+	if (f0_reg_nums != f0_val_nums) {
+		hp_err("%s: f0 regs nums acquire failed\n", __func__);
+		return -EINVAL;
+	}
+
+	sih_haptic->hp_func->set_f0_para_config(sih_haptic, f0_addr_regs, f0_addr_val, f0_reg_nums);
+	return 0;
+}
+
 static int sih_parse_dts(struct device *dev, sih_haptic_t *sih_haptic,
 	struct device_node *np)
 {
@@ -1479,6 +1523,8 @@ static ssize_t rtp_store(struct device *dev,
 		|| (val >=  OS12_NEW_RING_START && val <= OS12_NEW_RING_END)
 		|| (val >=  OPLUS_RING_START && val < OPLUS_RING_END)
 		|| (val >=  OS14_NEW_RING_START && val <= OS14_NEW_RING_END)
+		|| (val >=  OS15_ALARM_RING_START && val <= OS15_ALARM_RING_END)
+		|| (val >=  OS15_OPERATOR_RING_START && val <= OS15_OPERATOR_RING_END)
 		|| (val >=  ALCLOUDSCAPE_START && val <= ALCLOUDSCAPE_END)
 		|| (val >=  RINGTONE_NOTIF_ALARM_START && val <= RINGTONE_NOTIF_ALARM_END)
 		|| val == RINGTONES_SIMPLE_INDEX
@@ -3826,10 +3872,10 @@ static const char* get_rtp_name(uint32_t id, uint32_t f0) {
 		hp_err("%s: f0 is %d, not found suffix.\n", __func__, f0);
 		return NULL;
 	}
-    if (id >= 0 && id < NUM_WAVEFORMS)
-        wave_name = rtp_wave_map[id];
-    else
-        hp_err("%s: id is %d, out of range.\n", __func__, id);
+	if (id > 0 && id < NUM_WAVEFORMS)
+		wave_name = rtp_wave_map[id];
+	else
+		hp_err("%s: id is %d, out of range.\n", __func__, id);
 	if (!wave_name) {
 		hp_err("%s: id is %d, not found wave name.\n", __func__, id);
 		return NULL;
@@ -4437,6 +4483,7 @@ static int vibrator_chip_init(sih_haptic_t *sih_haptic)
 		sih_haptic->hp_func->set_brk_state(sih_haptic, SIH_RTP_MODE, true);
 		hp_info("%s: auto break opened\n", __func__);
 	}
+	sih_f0_reg_and_value_config(sih_haptic);
 	sih_op_clean_status(sih_haptic);
 	hp_info("%s:end\n", __func__);
 	return ret;

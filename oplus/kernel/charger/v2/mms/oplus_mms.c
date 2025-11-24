@@ -396,9 +396,9 @@ static void oplus_mms_notify_caller(struct oplus_mms *mms, struct mms_msg *msg)
 		if (!subs->callback)
 			continue;
 		if (sync)
-			list_add(&subs->callback_list_sync, &callback_list);
+			list_add_tail(&subs->callback_list_sync, &callback_list);
 		else
-			list_add(&subs->callback_list, &callback_list);
+			list_add_tail(&subs->callback_list, &callback_list);
 	}
 	rcu_read_unlock();
 
@@ -732,6 +732,7 @@ struct mms_subscribe *oplus_mms_subscribe(
 {
 	struct mms_subscribe *subs, *subs_temp;
 	va_list args;
+	char name[TOPIC_NAME_MAX] = {0};
 
 	if (mms == NULL) {
 		chg_err("mms is NULL\n");
@@ -746,11 +747,14 @@ struct mms_subscribe *oplus_mms_subscribe(
 		return ERR_PTR(-EINVAL);
 	}
 
+	va_start(args, format);
+	(void)vsnprintf(name, TOPIC_NAME_MAX, format, args);
+	va_end(args);
 	spin_lock(&mms->subscribe_lock);
 	list_for_each_entry_rcu(subs_temp, &mms->subscribe_list, list) {
-		if (callback == subs_temp->callback) {
+		if (!strcmp(name, subs_temp->name)) {
 			spin_unlock(&mms->subscribe_lock);
-			chg_info("There are the same subscribers(%s)\n", subs_temp->name);
+			chg_info("There are the same name(%s)\n", subs_temp->name);
 			return subs_temp;
 		}
 	}
@@ -761,9 +765,7 @@ struct mms_subscribe *oplus_mms_subscribe(
 		chg_err("alloc subs memory error\n");
 		return ERR_PTR(-ENOMEM);
 	}
-	va_start(args, format);
-	(void)vsnprintf(subs->name, TOPIC_NAME_MAX, format, args);
-	va_end(args);
+	snprintf(subs->name, TOPIC_NAME_MAX, "%s", name);
 	subs->priv_data = priv_data;
 	subs->callback = callback;
 	subs->mms = mms;
@@ -797,6 +799,86 @@ int oplus_mms_unsubscribe(struct mms_subscribe *subs)
 
 	return 0;
 }
+
+int oplus_mms_subs_move_to_top(struct mms_subscribe *subs)
+{
+	struct mms_subscribe *subs_temp;
+	struct oplus_mms *mms;
+	bool find = false;
+
+	if (subs == NULL) {
+		chg_err("subs is NULL");
+		return -EINVAL;
+	}
+	mms = subs->mms;
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -ENODEV;
+	}
+
+	spin_lock(&mms->subscribe_lock);
+	list_for_each_entry_rcu(subs_temp, &mms->subscribe_list, list) {
+		if (subs_temp == subs) {
+			find = true;
+			break;
+		}
+	}
+	if (find) {
+		list_del_rcu(&subs->list);
+		list_add_rcu(&subs->list, &mms->subscribe_list);
+	}
+	spin_unlock(&mms->subscribe_lock);
+
+	if (find) {
+		synchronize_rcu();
+	} else {
+		chg_err("%s topic not find %s subs\n", mms->desc->name, subs->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(oplus_mms_subs_move_to_top);
+
+int oplus_mms_subs_move_to_down(struct mms_subscribe *subs)
+{
+	struct mms_subscribe *subs_temp;
+	struct oplus_mms *mms;
+	bool find = false;
+
+	if (subs == NULL) {
+		chg_err("subs is NULL");
+		return -EINVAL;
+	}
+	mms = subs->mms;
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -ENODEV;
+	}
+
+	spin_lock(&mms->subscribe_lock);
+	list_for_each_entry_rcu(subs_temp, &mms->subscribe_list, list) {
+		if (subs_temp == subs) {
+			find = true;
+			break;
+		}
+	}
+	if (find) {
+		list_del_rcu(&subs->list);
+		list_add_tail_rcu(&subs->list, &mms->subscribe_list);
+	}
+	spin_unlock(&mms->subscribe_lock);
+
+	if (find) {
+		synchronize_rcu();
+	} else {
+		chg_err("%s topic not find %s subs\n", mms->desc->name, subs->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(oplus_mms_subs_move_to_down);
 
 int oplus_mms_set_publish_interval(struct oplus_mms *mms, int time_ms)
 {
@@ -1006,6 +1088,14 @@ static void oplus_mms_msg_work(struct work_struct *work)
 	queue_delayed_work(mms_wq, &mms->msg_work, 0);
 }
 
+static void oplus_mms_callback_work(struct work_struct *work)
+{
+	struct oplus_mms *mms = container_of(work, struct oplus_mms,
+					callback_work);
+
+	oplus_mms_call(mms);
+}
+
 static int oplus_mms_match_device_by_name(struct device *dev, const void *data)
 {
 	const char *name = data;
@@ -1107,6 +1197,7 @@ __oplus_mms_register(struct device *parent, const struct oplus_mms_desc *desc,
 	}
 	INIT_DELAYED_WORK(&mms->update_work, oplus_mms_update_work);
 	INIT_DELAYED_WORK(&mms->msg_work, oplus_mms_msg_work);
+	INIT_WORK(&mms->callback_work, oplus_mms_callback_work);
 	INIT_LIST_HEAD(&mms->subscribe_list);
 	INIT_LIST_HEAD(&mms->msg_list);
 
@@ -1145,7 +1236,7 @@ __oplus_mms_register(struct device *parent, const struct oplus_mms_desc *desc,
 	kobject_uevent(&dev->kobj, KOBJ_CHANGE);
 
 	queue_delayed_work(mms_wq, &mms->update_work, 0);
-	oplus_mms_call(mms);
+	schedule_work(&mms->callback_work);
 
 	return mms;
 
@@ -1236,6 +1327,7 @@ void oplus_mms_unregister(struct oplus_mms *mms)
 	mms->removing = true;
 	cancel_delayed_work_sync(&mms->update_work);
 	cancel_delayed_work_sync(&mms->msg_work);
+	cancel_work_sync(&mms->callback_work);
 	sysfs_remove_link(&mms->dev.kobj, "powers");
 #ifdef CONFIG_OPLUS_CHG_MMS_DEBUG
 	if (!IS_ERR_OR_NULL(mms->debug_subs))

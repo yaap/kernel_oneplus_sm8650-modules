@@ -1417,6 +1417,63 @@ static int oplus_chg_vr_get_tx_id(struct oplus_chg_ic_dev *ic_dev, int *tx_id)
 	return rc;
 }
 
+static int oplus_chg_vr_set_silent(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct oplus_virtual_rx_ic *vr;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+
+	vr = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < vr->child_num; i++) {
+		if (!func_is_support(&vr->child_list[i],
+				     OPLUS_IC_FUNC_RX_SET_SILENT)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vr->child_list[i].ic_dev,
+			OPLUS_IC_FUNC_RX_SET_SILENT);
+		if (rc < 0)
+			chg_err("child ic[%d] set_silent error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+static int oplus_chg_vr_epp_send_match_q(struct oplus_chg_ic_dev *ic_dev, u8 data[])
+{
+	struct oplus_virtual_rx_ic *vr;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL\n");
+		return -ENODEV;
+	}
+
+	vr = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < vr->child_num; i++) {
+		if (!func_is_support(&vr->child_list[i],
+				     OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vr->child_list[i].ic_dev,
+			OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q, data);
+		if (rc < 0)
+			chg_err("child ic[%d] epp_send_match_q error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
+
 static void *oplus_chg_vr_get_func(struct oplus_chg_ic_dev *ic_dev,
 				   enum oplus_chg_ic_func func_id)
 {
@@ -1589,6 +1646,14 @@ static void *oplus_chg_vr_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_GET_TX_ID,
 			    oplus_chg_vr_get_tx_id);
 		break;
+	case OPLUS_IC_FUNC_RX_SET_SILENT:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_SET_SILENT,
+			    oplus_chg_vr_set_silent);
+		break;
+	case OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_RX_SEND_EPP_MATCH_Q,
+			    oplus_chg_vr_epp_send_match_q);
+		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
 		func = NULL;
@@ -1743,12 +1808,21 @@ reg_ic_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_rx_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_rx_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_rx_ic *chip = platform_get_drvdata(pdev);
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_vr_exit(chip->ic_dev);
@@ -1756,7 +1830,9 @@ static int oplus_virtual_rx_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_rx_match[] = {

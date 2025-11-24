@@ -21,6 +21,7 @@
 #include <oplus_strategy.h>
 
 #define IRQ_EVNET_NUM				8
+
 #define BIDIRECT_IRQ_EVNET_NUM			12
 #define IRQ_EVNET_NUM_HL7138			16
 #define DEFAULT_CP_IBUS_DEVATION		800
@@ -69,6 +70,8 @@
 #define ADAPTER_CHECK_VOOC_HEAD_TIMES	0x2
 #define ADAPTER_CHECK_CMD_DATA_TIMES	0x2
 #define FAST_CHARGER_MOS_DISABLE	0
+
+#define INT_EXCEPT_INFO_LEN		30
 
 enum {
 	VOOC_CHARGER_MODE,
@@ -172,6 +175,12 @@ struct irqinfo {
         int mask;
         char except_info[30];
         int mark_except;
+};
+
+struct intinfo {
+        int mask;
+        char except_info[INT_EXCEPT_INFO_LEN];
+        int level;
 };
 
 static struct irqinfo vooc_flag[IRQ_EVNET_NUM] = {
@@ -602,6 +611,8 @@ struct oplus_voocphy_manager {
 
 	struct oplus_mms *plc_topic;
 	struct mms_subscribe *plc_subs;
+	struct oplus_mms *gauge_topic;
+	struct mms_subscribe *gauge_subs;
 
 	int irq_gpio;
 	int irq;
@@ -678,6 +689,14 @@ struct oplus_voocphy_manager {
 	unsigned int current_ap;
 	unsigned int current_bcc;
 	unsigned int current_batt_temp;
+	bool fcl_support;
+	bool allow_current_pcc_ctrl;
+	bool dchg;
+	bool fcl_trigger;
+	unsigned int current_pcc;
+	unsigned int current_fcl;
+	unsigned int pre_current_fcl;
+	unsigned int fcl_cnt;
 	unsigned char ap_need_change_current;
 	unsigned char adjust_curr;
 	unsigned char adjust_fail_cnt;
@@ -694,6 +713,8 @@ struct oplus_voocphy_manager {
 	unsigned int master_cp_ichg;
 	unsigned int cp_vbat;
 	unsigned int cp_vac;
+	int cp_tsbus;
+	int cp_tsbat;
 	unsigned int slave_cp_ichg;
 	unsigned int slave_cp_vbus;
 	unsigned int slave_cp_vsys;
@@ -909,18 +930,22 @@ struct oplus_voocphy_manager {
 #if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
 	struct oplus_cfg debug_cfg;
 #endif
-	struct oplus_chg_strategy *svooc_lcf_strategy;
-	struct oplus_chg_strategy *svooc_sub_lcf_strategy;
+	struct oplus_chg_strategy **svooc_lcf_strategy;
+	int lcf_num;
+
 	bool fastchg_disable_charger;
 	bool v2x_volt_full_open_low;
 	int eis_status;
 	int eis_copycat_detect_cnt;
+	int eis_vbus;
 	bool cp_err_uploading;
+	int batt_alarm;
 
 	int plc_status;
 	bool ic_abnormal;
 	bool slave_ic_abnormal;
 	struct delayed_work clear_ic_abnormal_status_work;
+	struct oplus_chg_strategy *svooc_pcc_strategy;
 };
 
 struct oplus_voocphy_operations {
@@ -964,6 +989,7 @@ struct oplus_voocphy_operations {
 	int (*upload_cp_error)(struct oplus_voocphy_manager *chip, int err_type);
 	int (*get_cp_error_type)(struct oplus_voocphy_manager *chip, int *err_type);
 	bool (*ic_is_abnormal)(struct oplus_voocphy_manager *chip);
+	int (*set_sstimeout_ucp_enable)(struct oplus_voocphy_manager *chip, bool enable);
 };
 
 #define VOOCPHY_LOG_BUF_LEN 1024

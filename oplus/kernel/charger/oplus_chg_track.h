@@ -430,7 +430,7 @@ typedef struct {
 
 
 int oplus_chg_track_handle_adsp_info(u8 *crux_info, int len);
-int oplus_chg_track_upload_trigger_data(oplus_chg_track_trigger data);
+int oplus_chg_track_upload_trigger_data(oplus_chg_track_trigger *data);
 int oplus_chg_track_comm_monitor(void);
 int oplus_chg_track_check_wired_charging_break(int vbus_rising);
 int oplus_chg_track_parallel_mos_error(int reason);

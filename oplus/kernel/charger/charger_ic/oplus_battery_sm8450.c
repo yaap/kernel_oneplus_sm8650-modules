@@ -3100,6 +3100,12 @@ static int battery_psy_get_prop(struct power_supply *psy,
 					oplus_get_abnormal_disconnect_keep_connect()) &&
 					oplus_quirks_keep_connect_status() && chip->mmi_chg)
 					pval->intval = chip->keep_prop_status;
+
+				if (chip->prop_status == POWER_SUPPLY_STATUS_FULL &&
+				    (chip->tbatt_status == BATTERY_STATUS__WARM_TEMP ||
+				     chip->tbatt_status == BATTERY_STATUS__COLD_TEMP) &&
+				     chip->ui_soc != 100)
+					pval->intval = POWER_SUPPLY_STATUS_CHARGING;
 			} else if (!chip->authenticate) {
 				pval->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 			} else {
@@ -5143,7 +5149,6 @@ static int oplus_chg_parse_custom_dt(struct oplus_chg_chip *chip)
 	chg_err("pmic_is_pm7250b:%d,ffc_full_delta_iterm_ma:%d, ffc_full_delta_iterm_ma_low:%d\n",
 		bcdev->pmic_is_pm7250b, bcdev->ffc_full_delta_iterm_ma, bcdev->ffc_full_delta_iterm_ma_low);
 
-	bcdev->common_charge_icl_support = of_property_read_bool(bcdev->dev->of_node, "oplus,common-charge-icl-support");
 	return 0;
 }
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
@@ -11824,7 +11829,7 @@ static const struct proc_ops proc_debug_reg_ops =
 	.proc_read = proc_debug_reg_read,
 	.proc_write  = proc_debug_reg_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 #ifdef WLS_QI_DEBUG
@@ -11882,7 +11887,7 @@ static const struct proc_ops proc_icl_ops =
 	.proc_read = proc_icl_read,
 	.proc_write  = proc_icl_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 static ssize_t proc_fcc_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
@@ -11939,7 +11944,7 @@ static const struct proc_ops proc_fcc_ops =
 	.proc_read = proc_fcc_read,
 	.proc_write  = proc_fcc_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif /*WLS_QI_DEBUG*/
 #endif
@@ -12319,7 +12324,7 @@ static void oplus_chg_track_icl_err_load_trigger_work(
 	if (!bcdev->icl_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->icl_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->icl_err_load_trigger);
 	mutex_lock(&bcdev->track_icl_err_lock);
 	kfree(bcdev->icl_err_load_trigger);
 	bcdev->icl_err_load_trigger = NULL;
@@ -12337,7 +12342,7 @@ static void oplus_chg_track_adsp_err_load_trigger_work(
 	if (!bcdev->adsp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->adsp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->adsp_err_load_trigger);
 	mutex_lock(&bcdev->track_adsp_err_lock);
 	kfree(bcdev->adsp_err_load_trigger);
 	bcdev->adsp_err_load_trigger = NULL;

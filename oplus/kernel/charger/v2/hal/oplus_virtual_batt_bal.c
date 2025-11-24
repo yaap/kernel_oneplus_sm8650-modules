@@ -112,8 +112,10 @@ static int oplus_chg_batt_bal_init(struct oplus_chg_ic_dev *ic_dev)
 			if (phy_ic_num == chip->child_num)
 				goto init_done;
 		} else {
+			retry = true;
 			chg_err("switch ic(=%s) init error, rc=%d\n",
 				temp_ic_dev->name, rc);
+			break;
 		}
 		if (i < BATT_BAL_PHY_IC_NUM_MAX)
 			dev_initialized[i] = true;
@@ -798,12 +800,21 @@ child_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_batt_bal_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_batt_bal_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_batt_bal_ic *chip = platform_get_drvdata(pdev);
 
-	if (chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_batt_bal_exit(chip->ic_dev);
@@ -812,7 +823,9 @@ static int oplus_virtual_batt_bal_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static void oplus_virtual_batt_bal_shutdown(struct platform_device *pdev)

@@ -57,6 +57,7 @@ enum {
 	SCREEN_OFF = 2,
 };
 
+#if !IS_ENABLED(CONFIG_OPLUS_FEATURE_TRACE_SENSOR)
 enum sensor_fb_event_id {
 	FD_HEAD_EVENT_ID = 0,
 	/*1~100*/
@@ -146,7 +147,7 @@ enum sensor_fb_event_id {
 	/*750~789*/
 	FOLD_DEVICE_FOLDE_COUNT_ID = 750,
 	FOLD_DEVICE_USE_HALL_ANGLE_COUNT_ID = 751,
-
+	HINGE_DETECT_INTERVAL_TIME_ID = 752,
 	/*790~799*/
 	FREE_FALL_TRIGGER_ID = 790,
 
@@ -212,7 +213,7 @@ enum sensor_fb_event_id {
 	HAL_QMI_ERROR = 10001,
 	HAL_SENSOR_TIMESTAMP_ERROR = 10002,
 };
-
+#endif
 
 struct subsystem_desc {
 	u64 subsys_sleep_time_s;  //ts

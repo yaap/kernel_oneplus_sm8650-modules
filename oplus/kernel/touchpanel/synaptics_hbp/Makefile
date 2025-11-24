@@ -12,6 +12,9 @@ ccflags-y += \
 	-I$(srctree)/$(src) \
 	-I$(srctree)/$(src)/../oplus_touchscreen_v2
 
+subdir-ccflags-$(CONFIG_TOUCHPANEL_MTK_PLATFORM) += -I$(srctree)/drivers/misc/mediatek/include/
+subdir-ccflags-$(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY) += -I$(srctree)/drivers/misc/mediatek/include/
+
 synaptics_tcm2-y := syna_tcm2.o
 
 synaptics_tcm2-y += \

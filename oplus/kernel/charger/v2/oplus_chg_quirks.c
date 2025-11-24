@@ -557,14 +557,23 @@ error:
 	return -1;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_chg_quirks_remove(struct platform_device *pdev)
+#else
 static int oplus_chg_quirks_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_quirks *quirks_chip_init = platform_get_drvdata(pdev);
 	struct plug_info *info;
 	struct list_head *pos, *n;
 
-	if (!quirks_chip_init)
+	if (!quirks_chip_init) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENOMEM;
+#else
+		return;
+#endif
+	}
 
 	list_for_each_safe(pos, n, &g_quirks_chip->plug_info_head.list) {
 		info = list_entry(pos, struct plug_info, list);
@@ -578,7 +587,9 @@ static int oplus_chg_quirks_remove(struct platform_device *pdev)
 		oplus_mms_unsubscribe(quirks_chip_init->wired_subs);
 	devm_kfree(&pdev->dev, quirks_chip_init);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_chg_quirks_match[] = {

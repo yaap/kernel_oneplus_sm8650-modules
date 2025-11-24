@@ -767,7 +767,7 @@ static int cw2217_get_battery_mvolts(void)
 static int  cw2217_get_battery_fc(void)
 {
 	cw_get_soh(g_cw_bat);
-	g_cw_bat->fcc = (g_cw_bat->soh/SOH_INIT_VALUE)*g_cw_bat->design_capacity;
+	g_cw_bat->fcc = (g_cw_bat->soh * g_cw_bat->design_capacity) / SOH_INIT_VALUE;
         return g_cw_bat->fcc;
 }
 
@@ -1010,6 +1010,13 @@ static int cw2217b_fw_check(void)
 	return rc;
 }
 
+static int cw2217_get_dec_fg_type(void)
+{
+	chg_info(" %d\n", MB_CW);
+
+	return MB_CW;
+}
+
 static struct oplus_gauge_operations battery_cw2217_gauge = {
         .get_battery_mvolts			= cw2217_get_battery_mvolts,
         .get_battery_fc				= cw2217_get_battery_fc,
@@ -1043,6 +1050,7 @@ static struct oplus_gauge_operations battery_cw2217_gauge = {
         .get_batt_soh				= cw2217_get_soh,
         .get_gauge_info				= cw2217_get_info,
         .bqfs_fw_check				= cw2217b_fw_check,
+        .get_dec_fg_type 			= cw2217_get_dec_fg_type,
 };
 
 static ssize_t
@@ -1179,7 +1187,7 @@ static void cw2217b_track_upgrade_err_load_trigger_work(struct work_struct *work
 	if (!chip->cw_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cw_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cw_err_load_trigger);
 
 	kfree(chip->cw_err_load_trigger);
 	chip->cw_err_load_trigger = NULL;
@@ -1257,7 +1265,7 @@ static int cw2217_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	if (ret) {
 		chg_err("%s : cw2217 init fail!\n", __func__);
-		return ret;
+		return -EPROBE_DEFER;
 	}
 
 	ret = cw_init_data(cw_bat);

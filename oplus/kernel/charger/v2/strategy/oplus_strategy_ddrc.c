@@ -37,6 +37,7 @@ struct ddrc_ratio_curves {
 	struct ddrc_temp_curves temp_curves[DDRC_TEMP_RANGE_MAX + 1];
 };
 
+#define NAME_LENGTH	16
 struct ddrc_strategy {
 	struct oplus_chg_strategy strategy;
 	struct ddrc_temp_curves *curve;
@@ -45,6 +46,8 @@ struct ddrc_strategy {
 	int32_t temp_range_data[DDRC_TEMP_RANGE_MAX];
 	uint32_t temp_type;
 	int curr_level;
+	char topic_name[NAME_LENGTH];
+	struct oplus_mms *topic;
 };
 
 #define DDRC_DATA_SIZE	sizeof(struct ddrc_strategy_data)
@@ -80,6 +83,13 @@ __maybe_unused static bool is_gauge_topic_available(void)
 	if (!gauge_topic)
 		gauge_topic = oplus_mms_get_by_name("gauge");
 	return !!gauge_topic;
+}
+
+__maybe_unused static bool is_gauge_topic_available_by_ddrc(struct ddrc_strategy *ddrc)
+{
+	if (!ddrc->topic)
+		ddrc->topic = oplus_mms_get_by_name(ddrc->topic_name);
+	return !!ddrc->topic;
 }
 
 static int __read_signed_data_from_node(struct device_node *node,
@@ -155,11 +165,11 @@ static int ddrc_strategy_get_ratio(struct ddrc_strategy *ddrc, int *ratio)
 	union mms_msg_data data = { 0 };
 	int rc;
 
-	if (!is_gauge_topic_available()) {
+	if (!is_gauge_topic_available_by_ddrc(ddrc)) {
 		chg_err("gauge topic not found\n");
 		return -ENODEV;
 	}
-	rc = oplus_mms_get_item_data(gauge_topic, GAUGE_ITEM_RATIO_VALUE,
+	rc = oplus_mms_get_item_data(ddrc->topic, GAUGE_ITEM_RATIO_VALUE,
 				     &data, true);
 	if (rc < 0) {
 		chg_err("can't get ratio, rc=%d\n", rc);
@@ -285,6 +295,7 @@ ddrc_strategy_alloc_by_node(struct device_node *node)
 	int i, j;
 	int length;
 	struct device_node *soc_node;
+	const char *topic_name;
 
 	if (node == NULL) {
 		chg_err("node is NULL\n");
@@ -295,6 +306,15 @@ ddrc_strategy_alloc_by_node(struct device_node *node)
 	if (ddrc == NULL) {
 		chg_err("alloc strategy memory error\n");
 		return ERR_PTR(-ENOMEM);
+	}
+
+	memset(ddrc->topic_name, 0, sizeof(ddrc->topic_name));
+	rc = of_property_read_string(node, "oplus,gauge_topic_name", &topic_name);
+	if (rc < 0) {
+		snprintf(ddrc->topic_name, sizeof(ddrc->topic_name), "gauge");
+	} else {
+		snprintf(ddrc->topic_name, sizeof(ddrc->topic_name), "%s", topic_name);
+		chg_info("ddrc gauge topic name: %s\n", ddrc->topic_name);
 	}
 
 	rc = of_property_read_u32(node, "oplus,temp_type", &data);

@@ -30,16 +30,12 @@
 #include <linux/seq_file.h>
 #include <linux/serial.h>
 #include <linux/ratelimit.h>
-
 #include <linux/uaccess.h>
-
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
 #include <linux/selection.h>
-
 #include <linux/kmod.h>
 #include <linux/nsproxy.h>
-
 #include <linux/tty_ldisc.h>
 
 static int tty_paranoia_check(struct tty_struct *tty, struct inode *inode,
@@ -60,8 +56,6 @@ static int tty_paranoia_check(struct tty_struct *tty, struct inode *inode,
 	return 0;
 }
 
-
-
 static int tty_write_lock(struct tty_struct *tty, int ndelay)
 {
 	if (!mutex_trylock(&tty->atomic_write_lock)) {
@@ -72,15 +66,21 @@ static int tty_write_lock(struct tty_struct *tty, int ndelay)
 	}
 	return 0;
 }
+
 static inline struct tty_struct *file_tty(struct file *file)
 {
-	return ((struct tty_file_private *)file->private_data)->tty;
+    if (file != NULL && file->private_data != NULL)
+        return ((struct tty_file_private *)file->private_data)->tty;
+    else
+        return NULL;
 }
+
 static void tty_write_unlock(struct tty_struct *tty)
 {
 	mutex_unlock(&tty->atomic_write_lock);
 	wake_up_interruptible_poll(&tty->write_wait, EPOLLOUT);
 }
+
 static ssize_t hung_up_tty_write(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
@@ -185,7 +185,6 @@ out:
 
 	return ret;
 }
-
 
 const char *tty_driver_name(const struct tty_struct *tty)
 {

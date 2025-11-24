@@ -824,6 +824,8 @@ int tp_touch_healthinfo_handle(struct monitor_data *monitor_data,
 	bool need_record_eli_point_bothalf = false;
 	int elizone_point_tophalf_i = -1;
 	int elizone_point_bothalf_i = -1;
+	int tx_num = 0;
+	int rx_num = 0;
 
 	u64 touch_time = 0;
 
@@ -831,6 +833,14 @@ int tp_touch_healthinfo_handle(struct monitor_data *monitor_data,
 
 	if (!monitor_data || !monitor_data->points_state || (!points && finger_num)) {
 		return -1;
+	}
+
+	if (monitor_data->tx_rx_num_exchange_support) {
+		tx_num = monitor_data->rx_num;
+		rx_num = monitor_data->tx_num;
+	} else {
+		rx_num = monitor_data->rx_num;
+		tx_num = monitor_data->tx_num;
 	}
 
 	if (finger_num) {
@@ -864,9 +874,9 @@ int tp_touch_healthinfo_handle(struct monitor_data *monitor_data,
 								 monitor_data->report_rate))) { /*up and down in short time(2.5 frames) and short distance. judge as broken swipe*/
 						/*add_swipe_to_record(&monitor_data->broken_swipes,
 								    monitor_data->points_state[i].last_point, points[i]);*/
-						monitor_data->broken_swipes_count_array[points[i].y * (monitor_data->rx_num / 2) /
-								    monitor_data->max_y * (monitor_data->tx_num / 2) +
-								    points[i].x * (monitor_data->tx_num / 2) / monitor_data->max_x]++;
+						monitor_data->broken_swipes_count_array[points[i].y * (rx_num / 2) /
+								    monitor_data->max_y * (tx_num / 2) +
+								    points[i].x * (tx_num / 2) / monitor_data->max_x]++;
 						TPD_DETAIL("broken swipe:[%d %d] to [%d %d].\n",
 							   monitor_data->points_state[i].first_point.x,
 							   monitor_data->points_state[i].first_point.y,
@@ -938,7 +948,7 @@ int tp_touch_healthinfo_handle(struct monitor_data *monitor_data,
 					if (!monitor_data->points_state[i].is_down_handled) {
 						/*add_point_to_record(&monitor_data->jumping_points, points[i]);*/
 						monitor_data->jumping_points_count_array[points[i].y *
-								 (monitor_data->rx_num / 2) / monitor_data->max_y *
+								 (rx_num / 2) / monitor_data->max_y *
 								 (monitor_data->tx_num / 2) + points[i].x *
 								 (monitor_data->tx_num / 2) / monitor_data->max_x]++;
 						catch_delta_data(monitor_data,
@@ -958,17 +968,17 @@ int tp_touch_healthinfo_handle(struct monitor_data *monitor_data,
 							monitor_data->points_state[i].time_counter, STUCK_POINT_TIME)) {
 					if (direction == VERTICAL_SCREEN) {
 						/*add_point_to_record(&monitor_data->stuck_points, points[i]);*/
-						monitor_data->stuck_points_count_array[points[i].y * (monitor_data->rx_num / 2) /
-							   monitor_data->max_y * (monitor_data->tx_num / 2) + points[i].x *
-							   (monitor_data->tx_num / 2) / monitor_data->max_x]++;
+						monitor_data->stuck_points_count_array[points[i].y * (rx_num / 2) /
+							   monitor_data->max_y * (tx_num / 2) + points[i].x *
+							   (tx_num / 2) / monitor_data->max_x]++;
 						TPD_DETAIL("stuck point:[%d %d]\n", points[i].x, points[i].y);
 
 					} else {
 						/*add_point_to_record(&monitor_data->lanscape_stuck_points, points[i]);*/
 						monitor_data->lanscape_stuck_points_count_array[points[i].y *
-							   (monitor_data->rx_num / 2) / monitor_data->max_y *
-							   (monitor_data->tx_num / 2) + points[i].x *
-							   (monitor_data->tx_num / 2) / monitor_data->max_x]++;
+							   (rx_num / 2) / monitor_data->max_y *
+							   (tx_num / 2) + points[i].x *
+							   (tx_num / 2) / monitor_data->max_x]++;
 						TPD_DETAIL("lanscape stuck point:[%d %d]\n", points[i].x, points[i].y);
 					}
 
@@ -1173,9 +1183,19 @@ int tp_raw_touch_healthinfo_handle(struct monitor_data *monitor_data,
 	int i = 0;
 	int x_zone_divide = 0;
 	int y_zone_divide = 0;
+	int tx_num = 0;
+	int rx_num = 0;
 
 	if (!monitor_data || !monitor_data->points_state || !points) {
 		return -1;
+	}
+
+	if (monitor_data->tx_rx_num_exchange_support) {
+		tx_num = monitor_data->rx_num;
+		rx_num = monitor_data->tx_num;
+	} else {
+		rx_num = monitor_data->rx_num;
+		tx_num = monitor_data->tx_num;
 	}
 
 	if (monitor_data->max_y >  monitor_data->max_x) {
@@ -1190,26 +1210,26 @@ int tp_raw_touch_healthinfo_handle(struct monitor_data *monitor_data,
 		if (is_point_reporting(obj_attention, points, i)) {
 			/*edge corner judge*/
 			if (monitor_data->kernel_grip_support)  {
-				if ((points[i].x < 2 * monitor_data->max_x / monitor_data->tx_num
-						   || points[i].x > (monitor_data->tx_num - 2) * monitor_data->max_x / monitor_data->tx_num)
-						   && (points[i].y < 2 * monitor_data->max_y / monitor_data->rx_num
-						   || points[i].y > (monitor_data->rx_num - 2) * monitor_data->max_y / monitor_data->rx_num)) {
+				if ((points[i].x < 1 * monitor_data->max_x / tx_num
+						   || points[i].x > (tx_num - 1) * monitor_data->max_x / tx_num)
+						   && (points[i].y < 1 * monitor_data->max_y / rx_num
+						   || points[i].y > (rx_num - 1) * monitor_data->max_y / rx_num)) {
 					if ((!points[i].rx_press && !points[i].rx_er) || (!points[i].tx_press && !points[i].tx_er)) {
 						monitor_data->corner_trx_ewr_zero_count++;
 						TPD_DETAIL("Touchpanel id %d :Raw Down[%4d %4d %4d %4d %4d %4d %4d](corner tx-rx-ewr ALL zero error)\n",
 							   i, points[i].x, points[i].y, points[i].z,
 							   points[i].rx_press, points[i].tx_press, points[i].rx_er, points[i].tx_er);
 					}
-				} else if (points[i].x < monitor_data->max_x / monitor_data->tx_num
-						   || points[i].x > (monitor_data->tx_num - 1) * monitor_data->max_x / monitor_data->tx_num) {
+				} else if (points[i].x < monitor_data->max_x / tx_num
+						   || points[i].x > (tx_num - 1) * monitor_data->max_x / tx_num) {
 					if (!points[i].rx_press && !points[i].rx_er) {
 						monitor_data->edge_rx_ewr_zero_count++;
 						TPD_DETAIL("Touchpanel id %d :Raw Down[%4d %4d %4d %4d %4d %4d %4d](edge rx-ewr ALL zero error)\n",
 							   i, points[i].x, points[i].y, points[i].z,
 							   points[i].rx_press, points[i].tx_press, points[i].rx_er, points[i].tx_er);
 					}
-				} else if (points[i].y < monitor_data->max_y / monitor_data->rx_num
-					   || points[i].y > (monitor_data->rx_num - 1) * monitor_data->max_y / monitor_data->rx_num) {
+				} else if (points[i].y < monitor_data->max_y / rx_num
+					   || points[i].y > (rx_num - 1) * monitor_data->max_y / rx_num) {
 					if (!points[i].tx_press && !points[i].tx_er) {
 						monitor_data->edge_tx_ewr_zero_count++;
 						TPD_DETAIL("Touchpanel id %d :Raw Down[%4d %4d %4d %4d %4d %4d %4d](edge tx-ewr ALL zero error)\n",
@@ -3167,6 +3187,8 @@ int tp_healthinfo_init(struct device *dev, void *tp_monitor_data)
 		monitor_data->max_finger_support = 10;
 	}
 
+	monitor_data->tx_rx_num_exchange_support = of_property_read_bool(dev->of_node, "tx_rx_num_exchange_support");
+	TPD_INFO("tx_rx_num_exchange_support:%d\n", monitor_data->tx_rx_num_exchange_support);
 	ret = of_property_read_u32_array(dev->of_node, "touchpanel,tx-rx-num",
 					 temp_array, 2);
 

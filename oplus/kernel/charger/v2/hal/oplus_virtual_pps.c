@@ -27,6 +27,7 @@
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <oplus_chg_pps.h>
+#include <oplus_chg_monitor.h>
 
 #define PPS_REG_TIMEOUT_MS	120000
 
@@ -43,6 +44,8 @@ struct oplus_virtual_pps_ic {
 	bool online;
 	int child_num;
 	struct oplus_virtual_pps_child *child_list;
+	struct delayed_work upload_device_id_work;
+	bool upload_device_id;
 };
 
 static void oplus_vpps_err_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
@@ -64,6 +67,57 @@ static int oplus_vpps_base_virq_register(struct oplus_virtual_pps_ic *chip, int 
 	chg_info("%s virq register success\n", chip->child_list[index].ic_dev->name);
 
 	return 0;
+}
+
+static void oplus_vpps_upload_device_id_subscribe_error_topic(
+	struct oplus_mms *topic, void *prv_data)
+{
+	struct oplus_virtual_pps_ic *chip = prv_data;
+
+	/* delay 50ms upload for error topic init stop publish finish */
+	schedule_delayed_work(&chip->upload_device_id_work, msecs_to_jiffies(50));
+}
+
+static void oplus_vpps_upload_device_id_work(struct work_struct *work)
+{
+	int i;
+	int rc;
+	struct mms_msg *msg;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_virtual_pps_ic *chip = container_of(dwork,
+		struct oplus_virtual_pps_ic, upload_device_id_work);
+	struct oplus_mms *err_topic = oplus_mms_get_by_name("error");
+
+	if (chip->upload_device_id)
+		return;
+
+	if (!err_topic)
+		return;
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (chip->child_list[i].ic_dev) {
+			msg = oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM, ERR_ITEM_DEVICE_ID,
+				"pps_ic=%s", chip->child_list[i].ic_dev->name);
+			if (msg == NULL) {
+				chg_err("alloc device id msg error\n");
+				return;
+			}
+
+			rc = oplus_mms_publish_msg_sync(err_topic, msg);
+			if (rc < 0) {
+				chg_err("publish device id msg error, rc=%d\n", rc);
+				kfree(msg);
+			}
+			chip->upload_device_id = true;
+			break;
+		}
+	}
+}
+
+static void oplus_vpps_upload_device_id(struct oplus_virtual_pps_ic *chip)
+{
+	oplus_mms_wait_topic("error",
+		oplus_vpps_upload_device_id_subscribe_error_topic, chip);
 }
 
 static void oplus_vpps_child_reg_callback(struct oplus_chg_ic_dev *ic, void *data, bool timeout)
@@ -102,6 +156,8 @@ static void oplus_vpps_child_reg_callback(struct oplus_chg_ic_dev *ic, void *dat
 		parent->online = true;
 		oplus_chg_ic_func(child->parent, OPLUS_IC_FUNC_INIT);
 	}
+
+	oplus_vpps_upload_device_id(chip);
 }
 
 static int oplus_vpps_child_init(struct oplus_virtual_pps_ic *chip)
@@ -470,11 +526,14 @@ static int oplus_virtual_pps_probe(struct platform_device *pdev)
 	chip->dev = &pdev->dev;
 	platform_set_drvdata(pdev, chip);
 
+	INIT_DELAYED_WORK(&chip->upload_device_id_work, oplus_vpps_upload_device_id_work);
+
 	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "pps-virtual");
 	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x01");
 	ic_cfg.get_func = oplus_chg_pps_get_func;
 	ic_cfg.virq_data = oplus_pps_virq_table;
 	ic_cfg.virq_num = ARRAY_SIZE(oplus_pps_virq_table);
+	ic_cfg.of_node = node;
 	chip->ic_dev = devm_oplus_chg_ic_register(chip->dev, &ic_cfg);
 	if (!chip->ic_dev) {
 		rc = -ENODEV;
@@ -500,12 +559,21 @@ reg_ic_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_virtual_pps_remove(struct platform_device *pdev)
+#else
 static int oplus_virtual_pps_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_virtual_pps_ic *chip = platform_get_drvdata(pdev);
 
-	if(chip == NULL)
+	if (chip == NULL) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 		return -ENODEV;
+#else
+		return;
+#endif
+	}
 
 	if (chip->ic_dev->online)
 		oplus_chg_pps_exit(chip->ic_dev);
@@ -514,7 +582,9 @@ static int oplus_virtual_pps_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, chip);
 	platform_set_drvdata(pdev, NULL);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_virtual_pps_match[] = {

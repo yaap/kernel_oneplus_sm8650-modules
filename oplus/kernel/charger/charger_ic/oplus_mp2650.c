@@ -3063,7 +3063,7 @@ static const struct file_operations mp2650_write_log_proc_fops = {
 #else
 static const struct proc_ops mp2650_write_log_proc_fops = {
 	.proc_write = mp2650_data_log_write,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 
@@ -3164,7 +3164,7 @@ static const struct file_operations mp2650_read_log_proc_fops = {
 static const struct proc_ops mp2650_read_log_proc_fops = {
 	.proc_read = mp2650_reg_show,
 	.proc_write = mp2650_reg_store,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif
 static void init_mp2650_read_log(void)
@@ -3208,7 +3208,7 @@ static void mp2650_track_i2c_err_load_trigger_work(
 	if (!chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	mutex_lock(&chip->track_i2c_err_lock);
 	if (chip->i2c_err_load_trigger) {
 		kfree(chip->i2c_err_load_trigger);
@@ -3322,7 +3322,7 @@ static void mp2650_chg_track_icl_err_load_trigger_work(
 	if (!chip->icl_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->icl_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->icl_err_load_trigger);
 	mutex_lock(&chip->track_icl_err_lock);
 	if (chip->icl_err_load_trigger) {
 		kfree(chip->icl_err_load_trigger);

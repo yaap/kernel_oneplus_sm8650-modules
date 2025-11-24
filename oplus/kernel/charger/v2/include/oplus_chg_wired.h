@@ -9,6 +9,8 @@ enum oplus_wired_charge_mode {
 	OPLUS_WIRED_CHG_MODE_VOOC,
 	OPLUS_WIRED_CHG_MODE_QC,
 	OPLUS_WIRED_CHG_MODE_PD,
+	OPLUS_WIRED_CHG_MODE_QC12V,
+	OPLUS_WIRED_CHG_MODE_PD12V,
 	OPLUS_WIRED_CHG_MODE_MAX,
 };
 
@@ -21,7 +23,18 @@ enum oplus_wired_action {
 enum oplus_wired_vbus_vol {
 	OPLUS_VBUS_5V,
 	OPLUS_VBUS_9V,
+	OPLUS_VBUS_12V,
 	OPLUS_VBUS_MAX,
+};
+
+enum oplus_wired_vbus_status {
+	VBUS_STS_DEFAULT,
+	VBUS_STS_12V_REQ,
+	VBUS_STS_12V_RDY,
+	VBUS_STS_12V_TIMEOUT,
+	VBUS_STS_12V_FORCE_9V,
+	VBUS_STS_12V_ERR,
+	VBUS_STS_12V_POST_ERR,
 };
 
 #endif /* __OPLUS_CHG_WIRED_H__ */

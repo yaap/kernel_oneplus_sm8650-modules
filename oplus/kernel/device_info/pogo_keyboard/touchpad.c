@@ -2,6 +2,60 @@
 #include <linux/input/mt.h>
 
 
+void reset_tool_buttons(struct input_dev *input_dev)
+{
+    input_report_key(input_dev, BTN_TOOL_FINGER, 0);
+    input_report_key(input_dev, BTN_TOOL_DOUBLETAP, 0);
+    input_report_key(input_dev, BTN_TOOL_TRIPLETAP, 0);
+    input_report_key(input_dev, BTN_TOOL_QUADTAP, 0);
+    input_report_key(input_dev, BTN_TOOL_QUINTTAP, 0);
+}
+
+static void report_tool_button(struct input_dev *input_dev, int finger_count)
+{
+    switch (finger_count) {
+        case 1:
+            input_report_key(input_dev, BTN_TOOL_FINGER, 1);
+            kb_debug("%s %d 1-finger detected\n", __func__, __LINE__);
+            break;
+        case 2:
+            input_report_key(input_dev, BTN_TOOL_DOUBLETAP, 1);
+            kb_debug("%s %d 2-finger gesture detected\n", __func__, __LINE__);
+            break;
+        case 3:
+            input_report_key(input_dev, BTN_TOOL_TRIPLETAP, 1);
+            kb_debug("%s %d 3-finger gesture detected\n", __func__, __LINE__);
+            break;
+        case 4:
+            input_report_key(input_dev, BTN_TOOL_QUADTAP, 1);
+            kb_debug("%s %d 4-finger gesture detected\n", __func__, __LINE__);
+            break;
+        case 5:
+            input_report_key(input_dev, BTN_TOOL_QUINTTAP, 1);
+            kb_debug("%s %d 5-finger gesture detected\n", __func__, __LINE__);
+            break;
+        default:
+            break;
+    }
+}
+
+static void process_button_events(struct input_dev *input_dev,
+                               struct touch_event *event,
+                               struct touch_event *temp)
+{
+    /* left button */
+    if (temp->is_left || (event->is_left && !temp->is_left)) {
+        event->is_left = temp->is_left;
+        input_report_key(input_dev, BTN_MOUSE, temp->is_left);
+    }
+
+    /* right button */
+    if (temp->is_right || (event->is_right && !temp->is_right)) {
+        event->is_right = temp->is_right;
+        input_report_key(input_dev, BTN_RIGHT, temp->is_right);
+    }
+}
+
 int touchpad_input_report(char *buf)
 {
     struct input_dev *input_dev = pogo_keyboard_client->input_touchpad;
@@ -12,6 +66,10 @@ int touchpad_input_report(char *buf)
     int fingers = 0;
     int len = 0;
     int offset = 0;
+    unsigned char palm = 0;
+    unsigned int xarea = 0;
+
+    int finger_count = 0;
 
     if (!buf || !input_dev) {
         return -EINVAL;
@@ -24,8 +82,8 @@ int touchpad_input_report(char *buf)
         kb_err("%s %d data overflow\n", __func__, __LINE__);
         return 0;
     }
-    if (!memcmp(data, &buf[1], len)) {
-        kb_debug("%s %d data repeat,no do finger:%d len:%d!\n", __func__, __LINE__, fingers, len);
+    if ((!memcmp(data, &buf[1], fingers * 5)) && (!memcmp(&data[len - 1], &buf[len], 1))) {
+        //kb_debug("%s %d data repeat, len:%d\n", __func__, __LINE__, len);
         return 0;
     }
 
@@ -33,26 +91,31 @@ int touchpad_input_report(char *buf)
     memcpy(data, &buf[1], len);
     temp.is_left = data[len - 1] & 0x01;
     temp.is_right = (data[len - 1] >> 1) & 0x01;
-    temp.area = 0x09;
+
     for (j = 0; j < fingers; j++) {
         offset = 5 * j;
         temp.id = data[offset + 0] >> 4 & 0xf;
         temp.is_down = data[offset + 0] >> 1 & 0x01;
+        palm = data[offset + 0] & 0x03;
         temp.x = data[offset + 1] | data[offset + 2] << 8;
         temp.y = data[offset + 3] | data[offset + 4] << 8;
+        xarea = pogo_keyboard_client->touchpad_x_max / 3;
+        temp.area = (temp.x > xarea && temp.x < 2 * xarea) ? 1 : 0;
 
-        kb_debug("%s %d id:%d,down:%d,left:%d,right:%d,x:%d,y:%d,area:%d offset:%d\n",
-            __func__, __LINE__, temp.id, temp.is_down, temp.is_left, temp.is_right, temp.x, temp.y, temp.area, offset);
+        kb_debug("%s %d id:%d, down:%d, left:%d, right:%d, x:%d, y:%d, palm:%d, %s\n",
+            __func__, __LINE__, temp.id, temp.is_down, temp.is_left, temp.is_right,
+            temp.x, temp.y, palm, (temp.area == 1) ? "B" : "A");
+
         input_mt_slot(input_dev, temp.id);
         if (temp.is_down) {
             input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, true);
-            input_report_key(input_dev, BTN_TOOL_FINGER, 1);
             input_report_key(input_dev, BTN_TOUCH, 1);
             pogo_keyboard_client->touch_down |= BIT(temp.id);
             pogo_keyboard_client->touch_temp |= BIT(temp.id);
             input_report_abs(input_dev, ABS_MT_POSITION_X, temp.x);
             input_report_abs(input_dev, ABS_MT_POSITION_Y, temp.y);
-            kb_debug("%s %d finger down\n", __func__, __LINE__);
+            finger_count++;
+            //kb_debug("%s %d finger down\n", __func__, __LINE__);
         } else {
             input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
             pogo_keyboard_client->touch_down &= ~BIT(temp.id);
@@ -66,38 +129,31 @@ int touchpad_input_report(char *buf)
                     }
                 }
             }
+
             if (!pogo_keyboard_client->touch_down) {    //finger all up
-                input_report_key(input_dev, BTN_TOOL_FINGER, 0);
                 input_report_key(input_dev, BTN_TOUCH, 0);
+                reset_tool_buttons(input_dev);
                 pogo_keyboard_client->touch_temp = 0;
                 pogo_keyboard_client->touch_down = 0;
-                kb_debug("%s %d finger all up\n", __func__, __LINE__);
+                pogo_keyboard_client->prev_finger_count = 0;
+                kb_debug("%s %d finger all up, finger%d\n", __func__, __LINE__, j);
+                goto sync_report;
             }
-            kb_debug("%s %d finger up\n", __func__, __LINE__);
-        }
-
-        if (j == fingers - 1) {
-            if (temp.is_left) {
-                event->is_left = temp.is_left;
-                input_report_key(input_dev, BTN_MOUSE, temp.is_left);
-            }
-            if (temp.is_right) {
-                event->is_right = temp.is_right;
-                input_report_key(input_dev, BTN_RIGHT, temp.is_right);
-            }
-            if (event->is_left && temp.is_left == 0) {
-                event->is_left = temp.is_left;
-                input_report_key(input_dev, BTN_MOUSE, temp.is_left);
-            }
-            if (event->is_right && temp.is_right == 0) {
-                temp.is_right = temp.is_right;
-                input_report_key(input_dev, BTN_RIGHT, temp.is_right);
-            }
+            //kb_debug("%s %d finger up\n", __func__, __LINE__);
         }
     }
+    if (pogo_keyboard_client->prev_finger_count != finger_count) {
+        reset_tool_buttons(input_dev);
+        pogo_keyboard_client->prev_finger_count = finger_count;
+        report_tool_button(input_dev, pogo_keyboard_client->prev_finger_count);
+    }
 
+sync_report:
+    if (fingers > 0) {
+        process_button_events(input_dev, event, &temp);
+    }
     input_sync(input_dev);
-    kb_debug("%s %d input end\n", __func__, __LINE__);
+    //kb_debug("%s %d input end\n", __func__, __LINE__);
 
     return 0;
 }
@@ -117,6 +173,7 @@ int touchpad_input_init(void)
         return -ENOMEM;
     }
     input_dev->name = TOUCHPAD_NAME;
+    input_dev->phys = TOUCHPAD_NAME"_phys";
     input_dev->id.bustype = BUS_HOST;
     input_dev->id.vendor = 0x22d9;
     input_dev->id.product = 0x3869;
@@ -158,6 +215,8 @@ int touchpad_input_init(void)
     input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
     input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 65535, 0, 0, 0);
 
+    input_dev->absinfo[ABS_MT_POSITION_X].resolution = pogo_keyboard_client->touchpad_x_resolution;
+    input_dev->absinfo[ABS_MT_POSITION_Y].resolution = pogo_keyboard_client->touchpad_y_resolution;
 #ifdef CONFIG_TOUCH_SCREEN
     set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 #endif

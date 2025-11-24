@@ -5,11 +5,16 @@
 #ifndef OPLUS_PROJECT_DATA_OCDT_H
 #define OPLUS_PROJECT_DATA_OCDT_H
 
+#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
+#include "oplus_midplat.h"
+#endif
+
 #define MAX_OCP	6
 #define MAX_LEN 8
 #define FEATURE_COUNT 40
 #define OCDT_VERSION_1_0	(1)
 #define OCDT_VERSION_2_0	(2)
+#define BRAND_NAME_OCCUPIED_POSITION  0
 
 enum PCB_VERSION {
     UNKNOWN_VERSION = 0,
@@ -108,7 +113,7 @@ use of get_project.
 One byte for one feature, so one feature support 256 different status
 */
 typedef enum {
-	OPLUS_BOARD_FEATURE_VIBRATOR_STATUS = 0,  /*add as a example */
+	OPLUS_BOARD_FEATURE_BRAND_FLAG = 0,  /*feature[0] used for brand name */
 	OPLUS_BOARD_FEATURE_END = FEATURE_COUNT,
 } OplusBoardFeatureMask;
 
@@ -133,7 +138,8 @@ typedef  struct
 	unsigned int	  PCB;
 	unsigned char	  PmicOcp[MAX_OCP];
 	unsigned char	  Operator;
-	unsigned char	  Reserved[15];
+	unsigned char	  Gauge;
+	unsigned char	  Reserved[14];
 } ProjectDataSCDT;
 
 typedef  struct
@@ -142,5 +148,14 @@ typedef  struct
   ProjectDataBCDT nDataBCDT;
   ProjectDataSCDT nDataSCDT;
   ProjectDataECDT nDataECDT;
+#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
+  ImageInfoMidPlat nDataMidPlat;
+#endif
 } ProjectInfoOCDT;
+
+enum OPLUS_BRAND_NAME_NEWCDT {
+	OPLUS_BRAND_OPPO		= 1,
+	OPLUS_BRAND_ONEPLUS		= 2,
+	OPLUS_BRAND_REALME		= 3,
+};
 #endif

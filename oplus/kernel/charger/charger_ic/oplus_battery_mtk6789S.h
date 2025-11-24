@@ -8,24 +8,37 @@
 
 #include <linux/alarmtimer.h>
 #include <linux/reboot.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include "charger_class.h"
+#include "adapter_class.h"
+#include "mtk_charger_algorithm_class.h"
+#include "mtk_smartcharging.h"
+#include "soc/oplus/kernelFwUpdate.h"
+#else
 #include "../../../../kernel-5.10/drivers/power/supply/charger_class.h"
 #include "../../../../kernel-5.10/drivers/power/supply/adapter_class.h"
 #include "../../../../kernel-5.10/drivers/power/supply/mtk_charger_algorithm_class.h"
-#include <linux/power_supply.h>
 #include "../../../../kernel-5.10/drivers/power/supply/mtk_smartcharging.h"
+#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"
+#endif
+#include <linux/power_supply.h>
 
 #ifdef CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY_CHG
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include "mtk_panel_ext.h"
+#include "mtk_disp_notify.h"
+#else
 #include "../../../../kernel-5.10/drivers/gpu/drm/mediatek/mediatek_v2/mtk_panel_ext.h"
 #include "../../../../kernel-5.10/drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
 #endif
-
-#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"
+#endif
 
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
 
 #if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
-#include "oplus_chg_symbol.h"
+#include "../oplus_chg_symbol.h"
 #endif
 
 #define RT9471D 0
@@ -118,6 +131,18 @@ typedef enum {
 	NTC_CHARGER_IC,
 	NTC_SUB_BOARD,
 }NTC_TYPE;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+enum pd_adapter_event {
+	MTK_PD_CONNECT_NONE,
+	MTK_PD_CONNECT_HARD_RESET,
+	MTK_PD_CONNECT_SOFT_RESET,
+	MTK_PD_CONNECT_PE_READY_SNK,
+	MTK_PD_CONNECT_PE_READY_SNK_PD30,
+	MTK_PD_CONNECT_PE_READY_SNK_APDO,
+	MTK_PD_CONNECT_TYPEC_ONLY_SNK,
+};
+#endif
 
 struct temp_param {
 	__s32 bts_temp;
@@ -221,6 +246,11 @@ struct sw_jeita_data {
 	int cv;
 	bool charging;
 	bool error_recovery_flag;
+};
+
+struct info_notifier_block {
+	struct notifier_block nb;
+	struct mtk_charger *info;
 };
 
 struct mtk_charger_algorithm {
@@ -360,7 +390,12 @@ struct mtk_charger {
 	struct power_supply  *bat_psy;
 	struct adapter_device *pd_adapter;
 	struct notifier_block pd_nb;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+	struct info_notifier_block ta_nb[MAX_TA_IDX];
+	int ta_status[MAX_TA_IDX];
+#endif
 	struct mutex pd_lock;
+	struct mutex ta_lock;
 	int pd_type;
 	bool pd_reset;
 
@@ -443,6 +478,7 @@ struct mtk_charger {
 
 	/* water detection */
 	bool water_detected;
+	bool record_water_detected;
 
 	bool enable_dynamic_mivr;
 

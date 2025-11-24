@@ -270,13 +270,19 @@ error:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_mos_ctrl_remove(struct platform_device *pdev)
+#else
 static int oplus_mos_ctrl_remove(struct platform_device *pdev)
+#endif
 {
 	struct chip_mos_ctl *dev = platform_get_drvdata(pdev);
 
 	pinctrl_select_state(dev->mos_en_pinctrl, dev->mos_en_gpio_sleep);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static void oplus_mos_ctrl_shutdown(struct platform_device *pdev)

@@ -55,15 +55,13 @@
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
 #include <linux/pinctrl/consumer.h>
 #endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include "thermal_core.h"
+#endif
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK
-#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
-#include "../pd_ext/inc/tcpci.h"
-#include "../pd_ext/inc/tcpm.h"
-#else
 #include <tcpci.h>
 #include <tcpm.h>
-#endif
 #endif
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK
@@ -615,7 +613,6 @@ static int sc6607_bc12_timeout_start(struct sc6607 *chip)
 	pr_info(" start\n");
 	del_timer(&chip->bc12_timeout);
 	chip->bc12_timeout.expires = jiffies + msecs_to_jiffies(500);
-	chip->bc12_timeout.function = sc6607_bc12_timeout_func;
 	add_timer(&chip->bc12_timeout);
 	return 0;
 }
@@ -1491,6 +1488,11 @@ static int oplus_sc6607_set_ichg(int curr)
 	if (curr > SC6607_CHG_CURRENT_MAX_MA)
 		curr = SC6607_CHG_CURRENT_MAX_MA;
 
+	if (g_chip->oplus_chg_type == POWER_SUPPLY_TYPE_UNKNOWN) {
+		curr = SC6607_DEFAULT_IBUS_MA;
+		pr_info("oplus_chg_type UNKNOW set ichg is 500mA\n");
+	}
+
 	val = (curr - SC6607_BUCK_ICHG_OFFSET) / SC6607_BUCK_ICHG_STEP;
 	ret = sc6607_field_write(g_chip, F_ICHG_CC, val);
 	pr_info("current = %d, val=0x%0x\n", curr, val);
@@ -1699,12 +1701,16 @@ static int sc6607_force_dpdm(struct sc6607 *chip, bool enable)
 static int sc6607_reset_chip(struct sc6607 *chip)
 {
 	int ret;
-
-	if (!chip)
+	int rst_en;
+	if (!chip || !chip->platform_data)
 		return -EINVAL;
+	rst_en = chip->platform_data->batfet_rst_en;
 
 	ret = sc6607_field_write(chip, F_REG_RST, true);
-	ret = sc6607_field_write(chip, F_BATFET_RST_EN, false);
+	if (!rst_en)
+		ret = sc6607_field_write(chip, F_BATFET_RST_EN, false);
+	else
+		ret = sc6607_field_write(chip, F_BATFET_RST_EN, true);
 	pr_info("reset chip %s\n", !ret ? "successfully" : "failed");
 	return ret;
 }
@@ -2154,6 +2160,12 @@ static struct sc6607_platform_data *sc6607_parse_dt(struct device_node *np, stru
 	if (ret)
 		pr_err("Failed to read node of sc,bmc_width set default\n");
 
+	ret = of_property_read_u32(np, "sc,batfet_rst_en", &pdata->batfet_rst_en);
+	if (ret) {
+		pr_err("Failed to read node of sc,batfet_rst_en set default\n");
+		pdata->batfet_rst_en = 0;
+	}
+
 	return pdata;
 }
 
@@ -2174,6 +2186,7 @@ static bool sc6607_check_rerun_detect_chg_type(struct sc6607 *chip, u8 type)
 		Charger_Detect_Init();
 		sc6607_disable_hvdcp(chip);
 		sc6607_force_dpdm(chip, true);
+		sc6607_bc12_timeout_start(chip);
 		pr_info("hw rerun bc12\n");
 		return true;
 	}
@@ -3557,7 +3570,11 @@ static DEVICE_ATTR(charger_registers, 0660, sc6607_charger_show_registers, sc660
 
 static void sc6607_charger_create_device_node(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_charger_registers);
+	int ret = 0;
+	ret = device_create_file(dev, &dev_attr_charger_registers);
+
+	if (ret != 0)
+		chg_err("create device node failed, ret = %d.", ret);
 }
 
 static int sc6607_enter_ship_mode(struct sc6607 *chip, bool en)
@@ -4374,6 +4391,7 @@ static void sc6607_force_pd_to_dcp(void)
 #define IBUS_2A	2000
 #define IBUS_3A	3000
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 static enum power_supply_usb_type sc6607_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_UNKNOWN,
 	POWER_SUPPLY_USB_TYPE_SDP,
@@ -4384,6 +4402,7 @@ static enum power_supply_usb_type sc6607_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
 	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
 };
+#endif
 
 static enum power_supply_property sc6607_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -4399,6 +4418,11 @@ static int sc6607_charger_get_property(struct power_supply *psy,
 	int ret = 0;
 	int boot_mode = get_boot_mode();
 
+	if (!chip) {
+		chg_info("oplus_chip not ready!\n");
+		return -ENODATA;
+	}
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = chip->power_good;
@@ -4408,7 +4432,7 @@ static int sc6607_charger_get_property(struct power_supply *psy,
 		if (boot_mode == META_BOOT) {
 			val->intval = POWER_SUPPLY_TYPE_USB;
 		} else {
-			val->intval = g_chip->oplus_chg_type;
+			val->intval = chip->oplus_chg_type;
 		}
 		pr_info("sc6607 get power_supply_type = %d\n", val->intval);
 		break;
@@ -4425,8 +4449,21 @@ static char *sc6607_charger_supplied_to[] = {
 
 static const struct power_supply_desc sc6607_charger_desc = {
 	.type			= POWER_SUPPLY_TYPE_USB,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	.usb_types      = sc6607_charger_usb_types,
 	.num_usb_types  = ARRAY_SIZE(sc6607_charger_usb_types),
+#else
+	.usb_types		= BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN) |
+				BIT(POWER_SUPPLY_USB_TYPE_SDP)     |
+				BIT(POWER_SUPPLY_USB_TYPE_DCP)     |
+				BIT(POWER_SUPPLY_USB_TYPE_CDP)     |
+				BIT(POWER_SUPPLY_USB_TYPE_ACA)     |
+				BIT(POWER_SUPPLY_USB_TYPE_C)       |
+				BIT(POWER_SUPPLY_USB_TYPE_PD)      |
+				BIT(POWER_SUPPLY_USB_TYPE_PD_DRP)  |
+				BIT(POWER_SUPPLY_USB_TYPE_PD_PPS)  |
+				BIT(POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID),
+#endif
 	.properties 	= sc6607_charger_properties,
 	.num_properties 	= ARRAY_SIZE(sc6607_charger_properties),
 	.get_property		= sc6607_charger_get_property,
@@ -4573,13 +4610,11 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		} else if (old_state == TYPEC_UNATTACHED &&
 			   (new_state == TYPEC_ATTACHED_SRC ||
 			    new_state == TYPEC_ATTACHED_DEBUG)) {
-			oplus_pd_set_aicr(SC6607_PD_AICR_MAX_3000MA, false);
 			pr_info("OTG plug in, polarity = %d\n", noti->typec_state.polarity);
 			battery_update();
 		} else if ((old_state == TYPEC_ATTACHED_SRC ||
 			    old_state == TYPEC_ATTACHED_DEBUG) &&
 			    new_state == TYPEC_UNATTACHED) {
-			oplus_pd_set_aicr(SC6607_PD_AICR_MAX_3000MA, false);
 			pr_info("OTG plug out\n");
 			battery_update();
 		} else if (old_state == TYPEC_UNATTACHED &&
@@ -5359,7 +5394,7 @@ static void sc6607_voocphy_track_i2c_err_load_trigger_work(struct work_struct *w
 	if (!chip || !chip->i2c_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->i2c_err_load_trigger);
 	if (chip->i2c_err_load_trigger) {
 		kfree(chip->i2c_err_load_trigger);
 		chip->i2c_err_load_trigger = NULL;
@@ -5535,7 +5570,7 @@ static void sc6607_track_hk_err_load_trigger_work(struct work_struct *work)
 	if (!chip || !chip->hk_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->hk_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->hk_err_load_trigger);
 	if (chip->hk_err_load_trigger) {
 		kfree(chip->hk_err_load_trigger);
 		chip->hk_err_load_trigger = NULL;
@@ -5627,7 +5662,7 @@ static void sc6607_voocphy_track_cp_err_load_trigger_work(struct work_struct *wo
 	if (!chip || !chip->cp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(chip->cp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(chip->cp_err_load_trigger);
 	if (chip->cp_err_load_trigger) {
 		kfree(chip->cp_err_load_trigger);
 		chip->cp_err_load_trigger = NULL;
@@ -6029,16 +6064,7 @@ static struct thermal_zone_device_ops charger_temp_ops = {
 static int register_charger_thermal(struct sc6607 *info)
 {
 	int ret = 0;
-
-	struct tsbus_charger_temp *hst;
 	struct thermal_zone_device *tz_dev;
-
-	hst = kzalloc(sizeof(struct thermal_zone_device), GFP_KERNEL);
-
-	if (!hst) {
-		pr_err("alloc thermal_zone_device failed\n");
-		return -ENOMEM;
-	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
 	tz_dev = thermal_tripless_zone_device_register("charger_temp",
@@ -6547,7 +6573,7 @@ static int sc6607_voocphy_svooc_ovp_hw_setting(struct oplus_voocphy_manager *chi
 		return 0;
 
 	ret = sc6607_field_write(g_chip, F_VAC_OVP, 0x00);
-	ret = sc6607_field_write(g_chip, F_VBUS_OVP, 0x01);
+	ret = sc6607_field_write(g_chip, F_VBUS_OVP, SC6607_HK_VBUS_OVP_DATA);
 
 	return 0;
 }
@@ -6565,7 +6591,7 @@ static int sc6607_voocphy_svooc_hw_setting(struct oplus_voocphy_manager *chip)
 		ret = sc6607_field_write(g_chip, F_VAC_OVP, 0x02); /*VAC_OVP:12v VBUS_OVP:10v*/
 	else
 		ret = sc6607_field_write(g_chip, F_VAC_OVP, 0x00); /*VAC_OVP:12v VBUS_OVP:10v*/
-	ret = sc6607_field_write(g_chip, F_VBUS_OVP, 0x01);
+	ret = sc6607_field_write(g_chip, F_VBUS_OVP, SC6607_HK_VBUS_OVP_DATA);
 	reg_data = chip->ocp_reg & 0xff;
 	ret = sc6607_field_write(g_chip, F_IBUS_OCP, reg_data); /*IBUS_OCP_UCP:4.25A*/
 	ret = sc6607_set_watchdog_timer(g_chip, 1000);

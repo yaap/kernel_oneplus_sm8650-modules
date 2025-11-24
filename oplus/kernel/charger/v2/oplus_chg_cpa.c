@@ -26,6 +26,7 @@
 #include <oplus_chg_vooc.h>
 #include <oplus_chg_wired.h>
 #include <oplus_chg_ufcs.h>
+#include <oplus_chg_pps.h>
 #include <oplus_chg_voter.h>
 #include <oplus_chg_state_retention.h>
 
@@ -35,12 +36,18 @@
 
 #define PROTOCAL_SWITCH_REPLY_TIMEOUT_MS	1000
 #define PROTOCAL_READY_TIMEOUT_MS		200000
+#define PROTOCAL_WAIT_TIMEOUT_MS 		1000
 #define WIRED_PLUGOUT_TO_PRESENT_MS		2000
 
 struct oplus_cpa_protocol_info {
 	enum oplus_chg_protocol_type type;
 	int power_mw;
 	int max_power_mw;
+};
+
+struct oplus_cpa_protocol_wait_info {
+	enum oplus_chg_protocol_type type;
+	int time; /* ms */
 };
 
 struct oplus_cpa {
@@ -51,7 +58,9 @@ struct oplus_cpa {
 	struct mms_subscribe *wired_subs;
 	struct mms_subscribe *vooc_subs;
 	struct oplus_mms *ufcs_topic;
+	struct oplus_mms *pps_topic;
 	struct mms_subscribe *ufcs_subs;
+	struct mms_subscribe *pps_subs;
 	struct oplus_mms *retention_topic;
 	struct mms_subscribe *retention_subs;
 
@@ -85,8 +94,24 @@ struct oplus_cpa {
 	bool wired_online;
 	int cc_detect;
 	int wired_type;
+	int wired_real_chg_type;
+
+	bool vooc_started;
+	bool vooc_online;
+	bool vooc_charging;
+	bool vooc_online_keep;
 	unsigned int vooc_sid;
+
 	bool ufcs_online;
+	bool ufcs_charging;
+	bool ufcs_oplus_adapter;
+	u32 ufcs_adapter_id;
+
+	bool pps_online;
+	bool pps_online_keep;
+	bool pps_charging;
+	bool pps_oplus_adapter;
+
 	bool retention_state;
 	bool pre_retention_state;
 	bool retention_state_ready;
@@ -98,6 +123,12 @@ struct oplus_cpa {
 	struct mutex start_lock;
 
 	uint8_t region_id;
+
+	bool pd_comleted;
+	bool protocol_wait_support;
+	int protocol_wait_cnt;
+	struct completion pd_completed_ack;
+	struct oplus_cpa_protocol_wait_info protocol_wait_table[CHG_PROTOCOL_MAX];
 };
 
 const char * const protocol_name_str[] = {
@@ -185,6 +216,45 @@ static enum oplus_chg_protocol_type get_highest_priority_protocol_type(struct op
 	return CHG_PROTOCOL_INVALID;
 }
 
+static int oplus_cpa_pd_completed_set(struct oplus_cpa *cpa, bool done)
+{
+	if (done) {
+		complete_all(&cpa->pd_completed_ack);
+	} else {
+		complete_all(&cpa->pd_completed_ack);
+		reinit_completion(&cpa->pd_completed_ack);
+	}
+
+	return 0;
+}
+
+static int oplus_cpa_protocol_wait(struct oplus_cpa *cpa, enum oplus_chg_protocol_type type)
+{
+	int rc = 0;
+	int wait_time = 0;
+	unsigned long left = 0;
+	int i;
+
+	if (!cpa->protocol_wait_support)
+		return -ENOTSUPP;
+
+	for (i = 0; i < cpa->protocol_wait_cnt; i++) {
+		if (cpa->protocol_wait_table[i].type == type) {
+			wait_time = cpa->protocol_wait_table[i].time;
+			chg_info("set %s to wait %d ms\n", get_protocol_name_str(type), wait_time);
+			left = wait_for_completion_timeout(&cpa->pd_completed_ack, msecs_to_jiffies(wait_time));
+			if (!left) {
+				chg_debug("timeout waiting for pd_ack\n");
+				rc = -ETIMEDOUT;
+			} else {
+				chg_info("exit pd wait. left time = %lu\n", left);
+			}
+		}
+	}
+
+	return rc;
+}
+
 static int oplus_cpa_set_current_protocol_type(struct oplus_cpa *cpa, enum oplus_chg_protocol_type type)
 {
 	struct mms_msg *msg;
@@ -192,6 +262,8 @@ static int oplus_cpa_set_current_protocol_type(struct oplus_cpa *cpa, enum oplus
 
 	if (cpa->current_protocol_type == type)
 		return 0;
+
+	oplus_cpa_protocol_wait(cpa, type);
 
 	chg_info("set current_protocol_type to %s\n", get_protocol_name_str(type));
 	cpa->current_protocol_type = type;
@@ -241,8 +313,11 @@ static int __protocol_identify_request(struct oplus_cpa *cpa, enum oplus_chg_pro
 	current_protocol_type = READ_ONCE(cpa->current_protocol_type);
 	if (current_protocol_type != CHG_PROTOCOL_INVALID &&
 	    current_protocol_type != CHG_PROTOCOL_BC12 &&
-	    !oplus_cpa_is_allow_switch(current_protocol_type, BIT(type)))
+	    !oplus_cpa_is_allow_switch(current_protocol_type, BIT(type))) {
+		chg_info("current %s protocol, not allow switch to %s protocol\n",
+			get_protocol_name_str(current_protocol_type), get_protocol_name_str(type));
 		return -EBUSY;
+	}
 
 	cpa->started = false;
 	rc = oplus_cpa_set_current_protocol_type(cpa, type);
@@ -257,10 +332,14 @@ static int protocol_identify_request(struct oplus_cpa *cpa, uint32_t protocol)
 	enum oplus_chg_protocol_type current_protocol_type;
 
 	if (!cpa->retention_state) {
-		if (!cpa->wired_online)
+		if (!cpa->wired_online) {
+			chg_info("wired_online is false\n");
 			return -EFAULT;
-		if (!oplus_wired_is_present())
+		}
+		if (!oplus_wired_is_present()) {
+			chg_info("wired_present is false\n");
 			return -EFAULT;
+		}
 	}
 
 	protocol_to_be_switched = READ_ONCE(cpa->protocol_to_be_switched) | protocol;
@@ -269,14 +348,21 @@ static int protocol_identify_request(struct oplus_cpa *cpa, uint32_t protocol)
 	current_protocol_type = READ_ONCE(cpa->current_protocol_type);
 	if (current_protocol_type != CHG_PROTOCOL_INVALID &&
 	    current_protocol_type != CHG_PROTOCOL_BC12 &&
-	    !oplus_cpa_is_allow_switch(current_protocol_type, protocol))
+	    !oplus_cpa_is_allow_switch(current_protocol_type, protocol)) {
+		chg_info("current %s protocol, not allow switch to 0x%0x protocol\n",
+			get_protocol_name_str(current_protocol_type), protocol);
 		return -EBUSY;
+	}
 
 	/* Suspend other requests before opening the request default protocol */
-	if (!cpa->def_req)
+	if (!cpa->def_req) {
+		chg_info("not request default protocol\n");
 		return 0;
-	if (cpa->request_locked)
+	}
+	if (cpa->request_locked) {
+		chg_info("request_locked\n");
 		return 0;
+	}
 
 	schedule_work(&cpa->protocol_switch_work);
 
@@ -288,6 +374,7 @@ static int oplus_cpa_request_lock_vote_callback(struct votable *votable,
 						const char *client, bool step)
 {
 	struct oplus_cpa *cpa = data;
+	int rc;
 
 	if (votable == NULL) {
 		chg_err("votable is NUL\n");
@@ -310,17 +397,24 @@ static int oplus_cpa_request_lock_vote_callback(struct votable *votable,
 
 	if (!cpa->request_pending) {
 		mutex_lock(&cpa->cpa_request_lock);
+		chg_info("start request to_be_switched=0x%x protocol\n", READ_ONCE(cpa->protocol_to_be_switched));
 		protocol_identify_request(cpa, READ_ONCE(cpa->protocol_to_be_switched));
 		mutex_unlock(&cpa->cpa_request_lock);
 		return 0;
 	}
 
 	cpa->request_pending = false;
-	if (cpa->def_req)
+	if (cpa->def_req) {
+		chg_info("already request default protocol\n");
 		return 0;
+	}
 	mutex_lock(&cpa->cpa_request_lock);
 	cpa->def_req = true;
-	protocol_identify_request(cpa, cpa->default_protocol_type);
+	chg_info("start request default protocol\n");
+	rc = protocol_identify_request(cpa, cpa->default_protocol_type);
+	/* If setting protocol_to_be_switched fails, def_req should be set to false */
+	if (rc < 0 && rc != -EBUSY)
+		cpa->def_req = false;
 	mutex_unlock(&cpa->cpa_request_lock);
 
 	return 0;
@@ -428,14 +522,20 @@ static void oplus_cpa_protocol_switch_work(struct work_struct *work)
 	int rc;
 
 	/* Suspend other requests before opening the request default protocol */
-	if (!cpa->def_req)
+	if (!cpa->def_req) {
+		chg_info("not request default protocol\n");
 		return;
+	}
 
 	if (!cpa->retention_state) {
-		if (!cpa->wired_online)
+		if (!cpa->wired_online) {
+			chg_info("wired_online is false\n");
 			return;
-		if (!oplus_wired_is_present())
+		}
+		if (!oplus_wired_is_present()) {
+			chg_info("wired_present is false\n");
 			return;
+		}
 	}
 
 	protocol_to_be_switched = READ_ONCE(cpa->protocol_to_be_switched);
@@ -534,7 +634,7 @@ static void oplus_cpa_chg_type_change_work(struct work_struct *work)
 			wired_type = OPLUS_CHG_USB_TYPE_UNKNOWN;
 		else
 			wired_type = data.intval;
-		if (cpa->wired_type != wired_type) {
+		if (cpa->wired_real_chg_type != wired_type) {
 			switch (wired_type) {
 			case OPLUS_CHG_USB_TYPE_UNKNOWN:
 			case OPLUS_CHG_USB_TYPE_SDP:
@@ -545,7 +645,7 @@ static void oplus_cpa_chg_type_change_work(struct work_struct *work)
 			case OPLUS_CHG_USB_TYPE_PD_PPS:
 				/* switch to pps from pd because some third adapter give pd first
 				   and then give pps later, otherwise fall-through default */
-				if (cpa->wired_type == OPLUS_CHG_USB_TYPE_PD &&
+				if (cpa->wired_real_chg_type == OPLUS_CHG_USB_TYPE_PD &&
 				    (cpa->default_protocol_type & BIT(CHG_PROTOCOL_PPS)) &&
 				    test_bit(CHG_PROTOCOL_PPS, &cpa->ready_protocol_type)) {
 					if (cpa->retention_state) {
@@ -579,12 +679,16 @@ static void oplus_cpa_chg_type_change_work(struct work_struct *work)
 						break;
 					mutex_lock(&cpa->cpa_request_lock);
 					cpa->def_req = true;
-					protocol_identify_request(cpa, cpa->default_protocol_type);
+					chg_info("start request default protocol\n");
+					rc = protocol_identify_request(cpa, cpa->default_protocol_type);
+					/* If setting protocol_to_be_switched fails, def_req should be set to false */
+					if (rc < 0 && rc != -EBUSY)
+						cpa->def_req = false;
 					mutex_unlock(&cpa->cpa_request_lock);
 				}
 				break;
 			}
-			cpa->wired_type = wired_type;
+			cpa->wired_real_chg_type = wired_type;
 		}
 	}
 
@@ -672,13 +776,14 @@ static void oplus_cpa_wired_offline_work(struct work_struct *work)
 	cpa->protocol_disable_mask = 0;
 	cpa->def_req = false;
 	cpa->request_pending = false;
-	cpa->wired_type = OPLUS_CHG_USB_TYPE_UNKNOWN;
+	cpa->wired_real_chg_type = OPLUS_CHG_USB_TYPE_UNKNOWN;
 	for (i = 0; i < CHG_PROTOCOL_MAX; i++) {
 		if (cpa->protocol_prio_table[i].type != CHG_PROTOCOL_INVALID)
 			oplus_cpa_protocol_clear_power(cpa->cpa_topic,
 				cpa->protocol_prio_table[i].type);
 	}
 	WRITE_ONCE(cpa->status_reset, true);
+	chg_info("cpa status reset done\n");
 }
 
 static bool oplus_wired_offline_clear_cpa_queue(struct oplus_cpa *cpa)
@@ -703,8 +808,11 @@ static void oplus_cpa_wired_online_work(struct work_struct *work)
 			    oplus_wired_offline_clear_cpa_queue(cpa)) {
 				chg_info("cc_detect or offline clear cpa queue, cc_detect=%d\n", cpa->cc_detect);
 				schedule_work(&cpa->wired_offline_work);
+			} else {
+				chg_info("cc_detect=%d, not schedule wired_offline_work\n", cpa->cc_detect);
 			}
 		} else {
+			chg_info("schedule wired_offline_work\n");
 			schedule_work(&cpa->wired_offline_work);
 		}
 	}
@@ -714,8 +822,10 @@ static void oplus_cpa_wired_online_work(struct work_struct *work)
 		chg_err("can't get wired online status, rc=%d\n", rc);
 		return;
 	}
-	if (!data.intval)
+	if (!data.intval) {
+		chg_err("wired_online is false\n");
 		return;
+	}
 	cpa->wired_online = true;
 	WRITE_ONCE(cpa->status_reset, false);
 
@@ -723,6 +833,7 @@ static void oplus_cpa_wired_online_work(struct work_struct *work)
 	if ((rc < 0) || (data.intval == OPLUS_CHG_USB_TYPE_UNKNOWN))
 		return;
 	schedule_work(&cpa->chg_type_change_work);
+	chg_info("done\n");
 }
 
 static void oplus_cpa_wired_subs_callback(struct mms_subscribe *subs,
@@ -738,11 +849,16 @@ static void oplus_cpa_wired_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(cpa->wired_topic, id, &data, false);
 			if (!data.intval) {
 				cpa->wired_online = false;
-				if (!cpa->retention_topic)
+				cpa->pd_comleted = false;
+				oplus_cpa_pd_completed_set(cpa, cpa->pd_comleted);
+				if (!cpa->retention_topic) {
+					chg_info("schedule wired_offline_work\n");
 					schedule_work(&cpa->wired_offline_work);
-				else if ((cpa->retention_state_ready || cpa->pre_retention_state)
-					&& !cpa->retention_state)
+				} else if ((cpa->retention_state_ready || cpa->pre_retention_state)
+					&& !cpa->retention_state) {
+					chg_info("retention_state is false, schedule wired_offline_work\n");
 					schedule_work(&cpa->wired_offline_work);
+				}
 				cpa->pre_retention_state = cpa->retention_state;
 			} else {
 				if (!cpa->retention_state)
@@ -759,8 +875,20 @@ static void oplus_cpa_wired_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(cpa->wired_topic, id, &data, false);
 			cpa->cc_detect = data.intval;
 			if (!!cpa->retention_topic && !cpa->wired_online &&
-				cpa->cc_detect == CC_DETECT_NOTPLUG)
+				cpa->cc_detect == CC_DETECT_NOTPLUG) {
+				chg_info("cc_detect notplug, schedule wired_offline_work\n");
 				schedule_work(&cpa->wired_offline_work);
+			}
+			break;
+		case WIRED_ITEM_CHG_TYPE:
+			oplus_mms_get_item_data(cpa->wired_topic, id, &data,
+						false);
+			cpa->wired_type = data.intval;
+			break;
+		case WIRED_ITEM_PD_COMPLETED:
+			oplus_mms_get_item_data(cpa->wired_topic, id, &data, false);
+			cpa->pd_comleted = data.intval;
+			oplus_cpa_pd_completed_set(cpa, cpa->pd_comleted);
 			break;
 		case WIRED_ITEM_PRESENT:
 			oplus_mms_get_item_data(cpa->wired_topic, id, &data, false);
@@ -793,9 +921,8 @@ static void oplus_cpa_subscribe_wired_topic(struct oplus_mms *topic, void *prv_d
 	}
 
 	oplus_mms_get_item_data(cpa->wired_topic, WIRED_ITEM_ONLINE, &data, true);
-	cpa->wired_online = !!data.intval;
-	if (cpa->wired_online)
-		schedule_work(&cpa->chg_type_change_work);
+	if (data.intval)
+		schedule_work(&cpa->wired_online_work);
 	oplus_mms_get_item_data(cpa->wired_topic, WIRED_ITEM_PRESENT, &data, true);
 	cpa->wired_present = !!data.intval;
 	if (!cpa->wired_present)
@@ -811,11 +938,31 @@ static void oplus_cpa_vooc_subs_callback(struct mms_subscribe *subs,
 	switch (type) {
 	case MSG_TYPE_ITEM:
 		switch (id) {
+		case VOOC_ITEM_VOOC_STARTED:
+			oplus_mms_get_item_data(cpa->vooc_topic, id, &data,
+						false);
+			cpa->vooc_started = data.intval;
+			break;
+		case VOOC_ITEM_VOOC_CHARGING:
+			oplus_mms_get_item_data(cpa->vooc_topic, id, &data,
+						false);
+			cpa->vooc_charging = data.intval;
+			break;
+		case VOOC_ITEM_ONLINE:
+			oplus_mms_get_item_data(cpa->vooc_topic, id, &data,
+						false);
+			cpa->vooc_online = data.intval;
+			break;
 		case VOOC_ITEM_SID:
 			oplus_mms_get_item_data(cpa->vooc_topic, id, &data,
 						false);
 			cpa->vooc_sid = (unsigned int)data.intval;
 			schedule_work(&cpa->fast_chg_type_change_work);
+			break;
+		case VOOC_ITEM_ONLINE_KEEP:
+			oplus_mms_get_item_data(cpa->vooc_topic, id, &data,
+						false);
+			cpa->vooc_online_keep = (unsigned int)data.intval;
 			break;
 		default:
 			break;
@@ -842,6 +989,19 @@ static void oplus_cpa_subscribe_vooc_topic(struct oplus_mms *topic,
 		return;
 	}
 
+	oplus_mms_get_item_data(cpa->vooc_topic, VOOC_ITEM_VOOC_STARTED, &data,
+				true);
+	cpa->vooc_started = data.intval;
+	oplus_mms_get_item_data(cpa->vooc_topic, VOOC_ITEM_VOOC_CHARGING,
+				&data, true);
+	cpa->vooc_charging = data.intval;
+	oplus_mms_get_item_data(cpa->vooc_topic, VOOC_ITEM_ONLINE, &data,
+				true);
+	cpa->vooc_online = data.intval;
+	oplus_mms_get_item_data(cpa->vooc_topic, VOOC_ITEM_ONLINE_KEEP, &data,
+				true);
+	cpa->vooc_online_keep = data.intval;
+
 	oplus_mms_get_item_data(cpa->vooc_topic, VOOC_ITEM_SID, &data, true);
 	cpa->vooc_sid = (unsigned int)data.intval;
 }
@@ -851,6 +1011,7 @@ static void oplus_cpa_ufcs_subs_callback(struct mms_subscribe *subs,
 {
 	struct oplus_cpa *cpa = subs->priv_data;
 	union mms_msg_data data = { 0 };
+	int rc;
 
 	switch (type) {
 	case MSG_TYPE_ITEM:
@@ -860,6 +1021,24 @@ static void oplus_cpa_ufcs_subs_callback(struct mms_subscribe *subs,
 			cpa->ufcs_online = !!data.intval;
 			chg_info("ufcs_online=%d\n", cpa->ufcs_online);
 			schedule_work(&cpa->fast_chg_type_change_work);
+			break;
+		case UFCS_ITEM_CHARGING:
+			rc = oplus_mms_get_item_data(cpa->ufcs_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			cpa->ufcs_charging = !!data.intval;
+			break;
+		case UFCS_ITEM_ADAPTER_ID:
+			rc = oplus_mms_get_item_data(cpa->ufcs_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			cpa->ufcs_adapter_id = (u32)data.intval;
+			break;
+		case UFCS_ITEM_OPLUS_ADAPTER:
+			rc = oplus_mms_get_item_data(cpa->ufcs_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			cpa->ufcs_oplus_adapter = !!data.intval;
 			break;
 		default:
 			break;
@@ -875,6 +1054,7 @@ static void oplus_cpa_subscribe_ufcs_topic(struct oplus_mms *topic,
 {
 	struct oplus_cpa *cpa = prv_data;
 	union mms_msg_data data = { 0 };
+	int rc;
 
 	cpa->ufcs_topic = topic;
 	cpa->ufcs_subs = oplus_mms_subscribe(topic, cpa,
@@ -888,6 +1068,81 @@ static void oplus_cpa_subscribe_ufcs_topic(struct oplus_mms *topic,
 
 	oplus_mms_get_item_data(cpa->ufcs_topic, UFCS_ITEM_ONLINE, &data, true);
 	cpa->ufcs_online = !!data.intval;
+
+	rc = oplus_mms_get_item_data(cpa->ufcs_topic, UFCS_ITEM_CHARGING, &data, true);
+	if (rc >= 0)
+		cpa->ufcs_charging = !!data.intval;
+	rc = oplus_mms_get_item_data(cpa->ufcs_topic, UFCS_ITEM_ADAPTER_ID, &data, true);
+	if (rc >= 0)
+		cpa->ufcs_adapter_id = (u32)data.intval;
+	rc = oplus_mms_get_item_data(cpa->ufcs_topic, UFCS_ITEM_OPLUS_ADAPTER, &data, true);
+	if (rc >= 0)
+		cpa->ufcs_oplus_adapter = !!data.intval;
+}
+
+static void oplus_cpa_pps_subs_callback(struct mms_subscribe *subs,
+	enum mms_msg_type type, u32 id, bool sync)
+{
+	struct oplus_cpa *cpa = subs->priv_data;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case PPS_ITEM_ONLINE:
+			oplus_mms_get_item_data(cpa->pps_topic, id, &data, false);
+			cpa->pps_online = !!data.intval;
+			chg_info("pps_online=%d\n", cpa->pps_online);
+			schedule_work(&cpa->fast_chg_type_change_work);
+			break;
+		case PPS_ITEM_CHARGING:
+			rc = oplus_mms_get_item_data(cpa->pps_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			cpa->pps_charging = !!data.intval;
+			break;
+		case PPS_ITEM_OPLUS_ADAPTER:
+			rc = oplus_mms_get_item_data(cpa->pps_topic, id, &data, false);
+			if (rc < 0)
+				break;
+			cpa->pps_oplus_adapter = !!data.intval;
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_cpa_subscribe_pps_topic(struct oplus_mms *topic,
+	  void *prv_data)
+{
+	struct oplus_cpa *cpa = prv_data;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	cpa->pps_topic = topic;
+	cpa->pps_subs = oplus_mms_subscribe(topic, cpa,
+		oplus_cpa_pps_subs_callback,
+		"cpa");
+	if (IS_ERR_OR_NULL(cpa->pps_subs)) {
+		chg_err("subscribe pps topic error, rc=%ld\n",
+			PTR_ERR(cpa->pps_subs));
+		return;
+	}
+
+	oplus_mms_get_item_data(cpa->pps_topic, PPS_ITEM_ONLINE, &data, true);
+	cpa->pps_online = !!data.intval;
+
+	rc = oplus_mms_get_item_data(cpa->pps_topic, PPS_ITEM_CHARGING, &data, true);
+	if (rc >= 0)
+		cpa->pps_charging = !!data.intval;
+	rc = oplus_mms_get_item_data(cpa->pps_topic, PPS_ITEM_OPLUS_ADAPTER, &data, true);
+	if (rc >= 0)
+		cpa->pps_oplus_adapter = !!data.intval;
 }
 
 static void oplus_cpa_retention_subs_callback(struct mms_subscribe *subs,
@@ -902,16 +1157,22 @@ static void oplus_cpa_retention_subs_callback(struct mms_subscribe *subs,
 		case RETENTION_ITEM_CONNECT_STATUS:
 			oplus_mms_get_item_data(cpa->retention_topic, id, &data,
 						false);
-			if (!data.intval && cpa->retention_state != !!data.intval)
+			if (!data.intval && cpa->retention_state != !!data.intval) {
+				chg_info("retention_state true to false, schedule wired_offline_work\n");
 				schedule_work(&cpa->wired_offline_work);
+			}
 			cpa->retention_state = !!data.intval;
 			if (cpa->retention_state)
 				cpa->pre_retention_state = cpa->retention_state;
+			if (cpa->wired_present && !cpa->retention_state)
+				cpa->pre_retention_state = false;
 			break;
 		case RETENTION_ITEM_STATE_READY:
 			cpa->retention_state_ready = true;
-			if (!cpa->retention_state && !cpa->wired_online)
+			if (!cpa->retention_state && !cpa->wired_online) {
+				chg_info("retention_state false, schedule wired_offline_work\n");
 				schedule_work(&cpa->wired_offline_work);
+			}
 			break;
 		default:
 			break;
@@ -1000,6 +1261,22 @@ static int oplus_cpa_update_timeout(struct oplus_mms *mms, union mms_msg_data *d
 	return 0;
 }
 
+static int oplus_cpa_update_power(struct oplus_mms *mms, union mms_msg_data *data)
+{
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL");
+		return -EINVAL;
+	}
+
+	data->intval = oplus_cpa_get_actual_used_power(mms);
+
+	return 0;
+}
+
 static void oplus_cpa_update(struct oplus_mms *mms, bool publish)
 {
 }
@@ -1021,6 +1298,12 @@ static struct mms_item oplus_cpa_item[] = {
 		.desc = {
 			.item_id = CPA_ITEM_TIMEOUT,
 			.update = oplus_cpa_update_timeout,
+		}
+	},
+	{
+		.desc = {
+			.item_id = CPA_ITEM_POWER,
+			.update = oplus_cpa_update_power,
 		}
 	},
 };
@@ -1112,6 +1395,7 @@ static int oplus_cpa_parse_dt(struct oplus_cpa *cpa)
 	uint32_t data, power;
 	u8 pps_region_list[PPS_REGION_COUNT_MAX];
 	int len;
+	uint32_t wait_data, wait_time;
 
 	if (oplus_cpa_regionid_from_cmdline(cpa) && cpa->region_id != DEFAULT_REGION_ID) {
 		chg_info("region_id = 0x%02x", cpa->region_id);
@@ -1226,11 +1510,52 @@ FOUND_NODE:
 		}
 	}
 
+	/* not necessary for every project*/
+	num = of_property_count_elems_of_size(node, "oplus,protocol_wait_list", sizeof(uint32_t));
+	if (num < 0) {
+		chg_err("read oplus,protocol_wait_list failed, rc=%d\n", num);
+		num = 0;
+	} else if ((num >> 1) > CHG_PROTOCOL_MAX) {
+		chg_err("too many items in \"oplus,protocol_wait_list\"\n");
+		num = CHG_PROTOCOL_MAX;
+		cpa->protocol_wait_support = true;
+	} else {
+		num /= 2;
+		cpa->protocol_wait_support = true;
+	}
+	cpa->protocol_wait_cnt = num;
+
+	for (i = 0; i < cpa->protocol_wait_cnt; i++) {
+		cpa->protocol_wait_table[i].type = CHG_PROTOCOL_INVALID;
+		cpa->protocol_wait_table[i].time = PROTOCAL_WAIT_TIMEOUT_MS;
+		rc = of_property_read_u32_index(node, "oplus,protocol_wait_list", i * 2, &wait_data);
+		if (rc < 0) {
+			chg_err("read oplus,protocol_wait_list index %d failed, rc=%d\n", i * 2, rc);
+			continue;
+		} else {
+			if (wait_data >= CHG_PROTOCOL_MAX) {
+				chg_err("oplus,protocol_wait_list index %d wait_data error, wait_data=%u\n", i, wait_data);
+				continue;
+			} else {
+				cpa->protocol_wait_table[i].type = wait_data;
+			}
+		}
+
+		rc = of_property_read_u32_index(node, "oplus,protocol_wait_list", i * 2 + 1, &wait_time);
+		if (rc < 0) {
+			chg_err("read oplus,protocol_wait_list index %d failed, rc=%d\n", i * 2 + 1, rc);
+			cpa->protocol_prio_table[i].type = CHG_PROTOCOL_INVALID;
+			continue;
+		} else {
+			cpa->protocol_wait_table[i].time = wait_time;
+		}
+	}
+
 	return 0;
 }
 
 #if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
-#include "config/dynamic_cfg/oplus_cpa_cfg.c"
+#include "config/dynamic_cfg/oplus_cpa_cfg.h"
 #endif
 
 static int oplus_cpa_probe(struct platform_device *pdev)
@@ -1258,6 +1583,7 @@ static int oplus_cpa_probe(struct platform_device *pdev)
 	cpa->region_id = DEFAULT_REGION_ID;
 	mutex_init(&cpa->cpa_request_lock);
 	mutex_init(&cpa->start_lock);
+	init_completion(&cpa->pd_completed_ack);
 
 	oplus_cpa_parse_dt(cpa);
 	INIT_WORK(&cpa->protocol_switch_work, oplus_cpa_protocol_switch_work);
@@ -1286,6 +1612,7 @@ static int oplus_cpa_probe(struct platform_device *pdev)
 	oplus_mms_wait_topic("wired", oplus_cpa_subscribe_wired_topic, cpa);
 	oplus_mms_wait_topic("vooc", oplus_cpa_subscribe_vooc_topic, cpa);
 	oplus_mms_wait_topic("ufcs", oplus_cpa_subscribe_ufcs_topic, cpa);
+	oplus_mms_wait_topic("pps", oplus_cpa_subscribe_pps_topic, cpa);
 	oplus_mms_wait_topic("retention", oplus_cpa_subscribe_retention_topic, cpa);
 
 	schedule_delayed_work(&cpa->protocol_ready_timeout_work,
@@ -1305,7 +1632,11 @@ votable_init_err:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+static void oplus_cpa_remove(struct platform_device *pdev)
+#else
 static int oplus_cpa_remove(struct platform_device *pdev)
+#endif
 {
 	struct oplus_cpa *cpa = platform_get_drvdata(pdev);
 
@@ -1318,7 +1649,9 @@ static int oplus_cpa_remove(struct platform_device *pdev)
 	destroy_votable(cpa->req_lock_votable);
 	devm_kfree(&pdev->dev, cpa);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 	return 0;
+#endif
 }
 
 static const struct of_device_id oplus_cpa_match[] = {
@@ -1567,6 +1900,8 @@ void oplus_cpa_protocol_add_type(struct protocol_map *map, int type)
 int oplus_cpa_protocol_set_power(struct oplus_mms *topic, enum oplus_chg_protocol_type type, int power_mw)
 {
 	struct oplus_cpa *cpa;
+	struct mms_msg *msg;
+	int rc = 0;
 	int i;
 
 	if (topic == NULL) {
@@ -1584,6 +1919,18 @@ int oplus_cpa_protocol_set_power(struct oplus_mms *topic, enum oplus_chg_protoco
 			if (power_mw > cpa->protocol_prio_table[i].max_power_mw)
 				power_mw = cpa->protocol_prio_table[i].max_power_mw;
 			cpa->protocol_prio_table[i].power_mw = power_mw;
+
+			msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM, CPA_ITEM_POWER);
+			if (msg == NULL) {
+				chg_err("alloc msg error\n");
+			} else {
+				rc = oplus_mms_publish_msg(cpa->cpa_topic, msg);
+				if (rc < 0) {
+					chg_err("publish cpa power msg error, rc=%d\n", rc);
+					kfree(msg);
+				}
+			}
+
 			return 0;
 		}
 	}
@@ -1694,6 +2041,136 @@ int oplus_cpa_protocol_get_max_power_by_type(struct oplus_mms *topic, enum oplus
 
 	chg_err("unsupported protocol type, type=%d\n", type);
 	return -ENOTSUPP;
+}
+
+static int oplus_cpa_get_adapter_power(struct oplus_cpa *chip)
+{
+	int power = 0;
+	union mms_msg_data data = { 0 };
+	int cur_sid = 0;
+
+	if (chip->ufcs_online) {
+		power = oplus_ufcs_get_ufcs_power(chip->ufcs_topic) * 1000;
+	} else if (chip->pps_online || chip->pps_online_keep) {
+		power = oplus_pps_get_adapter_power_mw(chip->pps_topic);
+	} else if (chip->vooc_online) {
+		cur_sid = chip->vooc_sid;
+		chg_info("cur_sid = 0x%08x\n", cur_sid);
+
+		if (sid_to_adapter_id(cur_sid) == 0) {
+			if (sid_to_adapter_chg_type(cur_sid) == CHARGER_TYPE_VOOC)
+				power = 20000;
+			else if (sid_to_adapter_chg_type(cur_sid) == CHARGER_TYPE_SVOOC)
+				power = 50000;
+		} else {
+			power = sid_to_adapter_power(cur_sid) * 1000;
+		}
+	} else {
+		switch (chip->wired_type) {
+		case OPLUS_CHG_USB_TYPE_PD_PPS:
+			oplus_mms_get_item_data(chip->cpa_topic, CPA_ITEM_ALLOW, &data, false);
+			if (data.intval == CHG_PROTOCOL_PPS) {
+				/* switching pps */
+				power = 10000;
+				break;
+			}
+			fallthrough;
+		case OPLUS_CHG_USB_TYPE_QC2:
+		case OPLUS_CHG_USB_TYPE_QC3:
+		case OPLUS_CHG_USB_TYPE_PD:
+		case OPLUS_CHG_USB_TYPE_PD_DRP:
+			power = 18000;
+			break;
+		case OPLUS_CHG_USB_TYPE_SDP:
+			power = 2500;
+			break;
+		case OPLUS_CHG_USB_TYPE_DCP:
+		case OPLUS_CHG_USB_TYPE_ACA:
+		case OPLUS_CHG_USB_TYPE_C:
+		case OPLUS_CHG_USB_TYPE_PD_SDP:
+		case OPLUS_CHG_USB_TYPE_APPLE_BRICK_ID:
+			power = 10000;
+			break;
+		case OPLUS_CHG_USB_TYPE_CDP:
+			power = 7500;
+			break;
+		default:
+			break;
+		}
+	}
+	return power;
+}
+
+static int oplus_cpa_get_project_watt(struct oplus_cpa *chip)
+{
+	int project_power = 0;
+
+	project_power = oplus_cpa_protocol_get_max_power(chip->cpa_topic);
+	if (project_power < 0)
+		project_power = 0;
+
+	return project_power;
+}
+
+int oplus_cpa_get_actual_used_power(struct oplus_mms *topic)
+{
+	struct oplus_cpa *chip;
+	int adapter_power = 0;
+	int project_power = 0;
+	int cpa_power = 0;
+	int pps_or_ufcs_ing = 0;
+	int pps_or_ufcs_power = 0;
+	int actual_power_used = 0;
+	static int pre_cpa_power = 0;
+
+	if (topic == NULL) {
+		chg_err("topic is NULL");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(topic);
+
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	adapter_power = oplus_cpa_get_adapter_power(chip);
+	project_power = oplus_cpa_get_project_watt(chip);
+
+	if (chip->ufcs_online) {
+		if (chip->ufcs_oplus_adapter)
+			pps_or_ufcs_ing = oplus_ufcs_adapter_id_to_protocol_type(chip->ufcs_adapter_id);
+		else
+			pps_or_ufcs_ing = PROTOCOL_CHARGING_UFCS_THIRD;
+
+		pps_or_ufcs_power = oplus_ufcs_get_ufcs_power(chip->ufcs_topic);
+	} else 	if (chip->pps_online || chip->pps_online_keep) {
+		if (chip->pps_oplus_adapter) {
+			pps_or_ufcs_ing = PROTOCOL_CHARGING_PPS_OPLUS;
+		} else {
+			pps_or_ufcs_ing = PROTOCOL_CHARGING_PPS_THIRD;
+		}
+		pps_or_ufcs_power = oplus_pps_get_charging_power_watt(chip->pps_topic);
+	}
+
+	if (pps_or_ufcs_ing > 0)
+		cpa_power = pps_or_ufcs_power * 1000;
+	else
+		cpa_power = min(adapter_power, project_power);
+
+	if (cpa_power < 0)
+		cpa_power = 0;
+
+	if (pre_cpa_power != cpa_power) {
+		pre_cpa_power = cpa_power;
+		chg_info("%d %d %d %d, %d %d %d %d, %d %d\n",
+			  adapter_power, project_power, chip->ufcs_online, chip->pps_online,
+			  chip->ufcs_oplus_adapter, chip->pps_oplus_adapter, pps_or_ufcs_ing, pps_or_ufcs_power,
+			  cpa_power, chip->ufcs_adapter_id);
+	}
+
+	actual_power_used = cpa_power;
+	return actual_power_used;
 }
 
 int oplus_cpa_request_lock(struct oplus_mms *topic, const char *name)
