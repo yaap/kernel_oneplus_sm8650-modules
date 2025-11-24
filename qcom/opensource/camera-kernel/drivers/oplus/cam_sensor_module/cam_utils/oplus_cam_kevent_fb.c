@@ -35,7 +35,8 @@ static struct cam_fb_conf g_kernel_fb_conf[] = {
 	{ EXCEP_SOF_TIMEOUT, "CAM_EXCEP_SOF_TIMEOUT", "EXP_HARDWARE", 0 },
 	{ EXCEP_CRC, "CAM_EXCEP_CRC", "EXP_HARDWARE", 0 },
 	{ EXCEP_ACTUATOR, "CAM_EXCEP_ACTUATOR", "EXP_HARDWARE", 0 },
-	{ EXCEP_EEPROM, "CAM_EXCEP_EEPROM", "EXP_HARDWARE", 0 }
+	{ EXCEP_EEPROM, "CAM_EXCEP_EEPROM", "EXP_HARDWARE", 0 },
+	{ EXCEP_ACTUATOR_IIC, "CAM_EXCEP_ACTUATOR_IIC", "EXP_HARDWARE", 0 },
 };
 
 static ssize_t kernel_fb_write(struct file *file, const char __user *buf,

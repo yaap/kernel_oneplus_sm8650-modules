@@ -570,8 +570,25 @@ int oplus_display_panel_get_serial_number(void *buf)
 		panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
 
 		panel_serial_info.year = (read[panel_serial_info.reg_index] & 0xF0) >> 0x4;
-		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel")) {
+
+		if (!panel_serial_info.year) {
+			/*
+			 * the panel we use always large than 2011, so
+			 * force retry when year is 2011
+			 */
+			msleep(20);
+			LCD_ERR("continue force retry when year is 2011\n");
+			continue;
+		}
+
+		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel") ||
+			!strcmp(display->panel->name, "AA592 P 7 A0014 dsc cmd mode panel")) {
 			panel_serial_info.year += 10;
+		}
+
+		if (!strcmp(display->panel->name, "AA613 P 3 A0034 dsc video mode panel") ||
+			!strcmp(display->panel->name, "AA613 P 7 A0034 dsc video mode panel")) {
+			panel_serial_info.year += 9;
 		}
 
 		panel_serial_info.month		= read[panel_serial_info.reg_index]	& 0x0F;
@@ -590,15 +607,6 @@ int oplus_display_panel_get_serial_number(void *buf)
 				+ (panel_serial_info.second	<< 16)\
 				+ (panel_serial_info.reserved[0] << 8)\
 				+ (panel_serial_info.reserved[1]);
-
-		if (!panel_serial_info.year) {
-			/*
-			 * the panel we use always large than 2011, so
-			 * force retry when year is 2011
-			 */
-			msleep(20);
-			continue;
-		}
 
 		if (display->panel->oplus_ser.is_switch_page) {
 			/* switch default page */
@@ -2535,5 +2543,38 @@ int oplus_display_panel_set_dc_compensate(void *data)
 		EXCEPTION_TRACKPOINT_REPORT("DisplayDriverID@@431$$DCCompensate file destroied!!");
 	}
 #endif /* OPLUS_TRACKPOINT_REPORT */
+	return 0;
+}
+
+int oplus_display_get_ignore_mode(void *data)
+{
+	struct ignore_mode_get *ignore_get = data;
+	int display_id = ignore_get->count;
+	struct dsi_display *display = NULL;
+	struct dsi_panel *panel = NULL;
+	char payload[128] = "";
+	u32 cnt = 0;
+
+	display = get_main_display();
+	if (1 == display_id)
+		display = get_sec_display();
+	if (!display) {
+		LCD_ERR("display is null\n");
+		return 0;
+	}
+
+	panel = display->panel;
+	if (!panel) {
+		LCD_ERR("panel is null\n");
+		return 0;
+	}
+
+	ignore_get->count = panel->oplus_priv.ignore_mode_count;
+	LCD_INFO("ignore_get->count = %d\n", ignore_get->count);
+	for (int i = 0; i < ignore_get->count; i++) {
+		ignore_get->ignore_mode[i] = panel->oplus_priv.ignore_mode[i];
+		cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "[%u]", ignore_get->ignore_mode[i]);
+	}
+	LCD_INFO("ignore mode = %s\n", payload);
 	return 0;
 }

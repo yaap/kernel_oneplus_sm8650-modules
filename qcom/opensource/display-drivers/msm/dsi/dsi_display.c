@@ -64,13 +64,16 @@
 #define MAX_NAME_SIZE	64
 #define MAX_TE_RECHECKS 5
 
+#define DOZE_DISABLE_TIME_US 50000
+
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
 #ifdef OPLUS_FEATURE_DISPLAY
 
 static struct dsi_display *primary_display;
 static struct dsi_display *secondary_display;
-
+extern bool g_oplus_send_fps_code;
+extern int __oplus_vid_sync_backlight_thread_ctl(bool enable);
 extern int oplus_display_panel_get_id2(void);
 extern int lcd_closebl_flag;
 extern bool is_lhbm_panel;
@@ -353,6 +356,12 @@ error:
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	oplus_adfr_sa_mode_restore(dsi_display);
 #endif /* OPLUS_FEATURE_DISPLAY_ADFR */
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	if (oplus_ofp_is_supported()) {
+		oplus_ofp_lhbm_handle(dsi_display);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 #ifdef OPLUS_FEATURE_DISPLAY
 	if (!rc)
@@ -963,6 +972,17 @@ static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
 	flags = DSI_CTRL_CMD_READ;
 
 	for (i = 0; i < count; ++i) {
+#ifdef OPLUS_FEATURE_DISPLAY
+		struct sde_connector *sde_conn;
+		sde_conn = to_sde_connector(display->drm_conn);
+		if (g_oplus_send_fps_code || atomic_read(&sde_conn->dsi_cmd_need_update)) {
+			rc = EBUSY;
+			break;
+		}
+
+//		oplus_panel_esd_set_page(panel, i);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 		memset(config->status_buf, 0x0, SZ_4K);
 
 		if (config->status_cmd.state == DSI_CMD_SET_STATE_LP)
@@ -989,6 +1009,9 @@ static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
 			}
 		} else {
 #endif
+#ifdef OPLUS_FEATURE_DISPLAY
+		oplus_display_esd_check_mode_switch(panel, i);
+#endif /* OPLUS_FEATURE_DISPLAY */
 		rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds[i].ctrl_flags);
 		if (rc) {
 			DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
@@ -1040,6 +1063,17 @@ static int dsi_display_validate_status(struct dsi_display_ctrl *ctrl,
 		 * check for validity of the data read back.
 		 */
 #ifdef OPLUS_FEATURE_DISPLAY
+		struct sde_connector *sde_conn;
+		if (!display) {
+			DSI_ERR("Invalid display\n");
+			return false;
+		}
+		sde_conn = to_sde_connector(display->drm_conn);
+		if (g_oplus_send_fps_code || atomic_read(&sde_conn->dsi_cmd_need_update)) {
+			DSI_INFO("Set other dsi cmd, skip esd check!\n");
+			return true;
+		}
+
 		rc = oplus_panel_validate_reg_read(display->panel);
 #else /* OPLUS_FEATURE_DISPLAY */
 		rc = dsi_display_validate_reg_read(display->panel);
@@ -1244,6 +1278,7 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	u32 status_mode;
 	int rc = 0x1;
 	int te_rechecks = 1;
+	ktime_t time_gap = 0;
 
 	if (!dsi_display || !dsi_display->panel)
 		return -EINVAL;
@@ -1275,19 +1310,13 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		goto release_panel_lock;
 
 #ifdef OPLUS_FEATURE_DISPLAY
-	if (atomic_read(&panel->esd_pending)) {
-		DSI_WARN("Skip the check because esd is pending\n");
-		if (!strcmp(dsi_display->panel->name, "AB964 p 1 A0017 dsc video mode panel")) {
-			if (dsi_display->panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable
-			&& dsi_display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
-				atomic_set(&panel->esd_pending, 0);
-			}
+	if (panel->oplus_priv.dozedisable_esdcheck_delay) {
+		time_gap = ktime_to_us(ktime_sub(ktime_get(), oplus_get_doze_disable_time()));
+		if (time_gap > 0 && time_gap <= DOZE_DISABLE_TIME_US) {
+			DSI_WARN("[ESD] Panel in aod state, skip esd check!\n");
+			goto release_panel_lock;
 		}
-		goto release_panel_lock;
-	}
-	if (panel->power_mode != SDE_MODE_DPMS_ON) {
-		DSI_WARN("Skip the check because panel power mode not power on!\n");
-		goto release_panel_lock;
+		DSI_WARN("dsi_display_check_status,time_gap=%d\n",time_gap);
 	}
 #endif /* OPLUS_FEATURE_DISPLAY */
 
@@ -4825,6 +4854,7 @@ static bool dsi_display_is_seamless_dfps_possible(
 		DSI_DEBUG("timing.h_back_porch differs %d %d\n",
 				cur->timing.h_back_porch,
 				tgt->timing.h_back_porch);
+		if (dfps_type != DSI_DFPS_IMMEDIATE_HV_P)
 		return false;
 	}
 
@@ -5539,6 +5569,13 @@ static int dsi_display_get_dfps_timing(struct dsi_display *display,
 		DSI_ERR("Unsupported DFPS mode %d\n", dfps_caps.type);
 		rc = -ENOTSUPP;
 	}
+
+	DSI_INFO("dfps_type=%d, cur_fps=%d, adj_fps=%d, h_active=%d, v_active=%d, hfp:%d, fbp:%d, hpw:%d, vbp:%d, vfp:%d, vpw:%d",
+		dfps_caps.type, curr_refresh_rate, timing->refresh_rate,
+		adj_mode->timing.h_active, adj_mode->timing.v_active,
+		adj_mode->timing.h_front_porch, adj_mode->timing.h_back_porch,
+		adj_mode->timing.h_sync_width, adj_mode->timing.v_back_porch,
+		adj_mode->timing.v_front_porch, adj_mode->timing.v_sync_width);
 
 	return rc;
 }
@@ -9536,6 +9573,7 @@ int dsi_display_enable(struct dsi_display *display)
 		DSI_DEBUG("cont splash enabled, display enable not required\n");
 		dsi_display_panel_id_notification(display);
 #ifdef OPLUS_FEATURE_DISPLAY
+		__oplus_vid_sync_backlight_thread_ctl(true);
 		oplus_display_update_current_display();
 		__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
@@ -9580,6 +9618,7 @@ int dsi_display_enable(struct dsi_display *display)
 		/* Force update of demurra2 offset when panel power on*/
 		oplus_panel_need_to_set_demura2_offset(display->panel);
 		oplus_panel_switch_vid_mode(display, mode);
+		oplus_panel_switch_vid_mode_post(display, mode);
 #endif /* OPLUS_FEATURE_DISPLAY */
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 		oplus_adfr_need_resend_osync_cmd(display, true);

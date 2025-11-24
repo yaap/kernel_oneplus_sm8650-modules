@@ -61,6 +61,10 @@ extern bool g_speaker_resistance_fail;
 #include <soc/oplus/system/oplus_mm_kevent_fb.h>
 #endif
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+#include <soc/oplus/fpga_notify.h>
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 /* Change volume selection behavior:
  * Uncomment following line to generate a profile change when updating
  * a volume control (also changes to the profile of the modified  volume
@@ -127,6 +131,22 @@ static int tfa_state_mark = 0;
 static int selector_for_speaker_mute = 0;
 #endif /* OPLUS_FEATURE_SPEAKER_MUTE */
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+enum {
+	TFA_FPGA_STATUS_OK,
+	TFA_FPGA_STATUS_ERR,
+};
+
+enum {
+	TFA_PA_IS_HW_RESET,
+	TFA_PA_IS_NOT_HW_RESET,
+};
+
+void tfa98xx_error_feedback(char *str, int ret);
+unsigned long fpga_fail_timeout = 0;
+#define FPGA_FAIL_TIMEOUT_MS (10 * 1000)
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 static char *fw_name = "tfa98xx.cnt";
 module_param(fw_name, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(fw_name, "TFA98xx DSP firmware (container file) name.");
@@ -188,7 +208,8 @@ static bool is_tfa98xx_series(int rev)
 	if (((rev & 0xff) == 0x80) || ((rev & 0xff) == 0x81) ||
 		((rev & 0xff) == 0x92) || ((rev & 0xff) == 0x91) ||
 		((rev & 0xff) == 0x94) || ((rev & 0xff) == 0x73) ||
-		((rev & 0xff) == 0x74)
+		((rev & 0xff) == 0x74) || ((rev & 0xff) == 0x65) ||
+		((rev & 0xff) == 0x66)
 	) {
 		ret = true;
 	}
@@ -2313,16 +2334,18 @@ static void tfa98xx_debug_init(struct tfa98xx *tfa98xx, struct i2c_client *i2c)
 	scnprintf(name, MAX_CONTROL_NAME, "%s-%x", i2c->name, i2c->addr);
 #ifdef CONFIG_DEBUG_FS
 	tfa98xx->dbg_dir = debugfs_create_dir(name, NULL);
-	debugfs_create_file("OTC", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
+	if (!(tfa98xx->flags & TFA98XX_FLAG_OTP_TYPE_DEVICE)) {
+		debugfs_create_file("OTC", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 						i2c, &tfa98xx_dbgfs_calib_otc_fops);
-	debugfs_create_file("MTPEX", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
+		debugfs_create_file("MTPEX", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 						i2c, &tfa98xx_dbgfs_calib_mtpex_fops);
+		debugfs_create_file("R", S_IRUGO, tfa98xx->dbg_dir,
+						i2c, &tfa98xx_dbgfs_r_fops);
+	}
 	debugfs_create_file("TEMP", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 						i2c, &tfa98xx_dbgfs_calib_temp_fops);
 	debugfs_create_file("calibrate", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 						i2c, &tfa98xx_dbgfs_calib_start_fops);
-	debugfs_create_file("R", S_IRUGO, tfa98xx->dbg_dir,
-						i2c, &tfa98xx_dbgfs_r_fops);
 	#ifdef OPLUS_ARCH_EXTENDS
 	/*Add for calibration range*/
 	debugfs_create_file("range", S_IRUGO, tfa98xx->dbg_dir,
@@ -2352,16 +2375,18 @@ static void tfa98xx_debug_init(struct tfa98xx *tfa98xx, struct i2c_client *i2c)
 	}
 #else /*CONFIG_DEBUG_FS*/
 	tfa98xx->dbg_dir = proc_mkdir(name, NULL);
-	proc_create_data("OTC", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
+	if (!(tfa98xx->flags & TFA98XX_FLAG_OTP_TYPE_DEVICE)) {
+		proc_create_data("OTC", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 					&tfa98xx_dbgfs_calib_otc_fops, i2c);
-	proc_create_data("MTPEX", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
+		proc_create_data("MTPEX", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 					&tfa98xx_dbgfs_calib_mtpex_fops, i2c);
+		proc_create_data("R", S_IRUGO, tfa98xx->dbg_dir,
+					&tfa98xx_dbgfs_r_fops, i2c);
+	}
 	proc_create_data("TEMP", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 					&tfa98xx_dbgfs_calib_temp_fops, i2c);
 	proc_create_data("calibrate", S_IRUGO|S_IWUGO, tfa98xx->dbg_dir,
 					&tfa98xx_dbgfs_calib_start_fops, i2c);
-	proc_create_data("R", S_IRUGO, tfa98xx->dbg_dir,
-					&tfa98xx_dbgfs_r_fops, i2c);
 	proc_create_data("FRES", S_IRUGO, tfa98xx->dbg_dir,
 					&tfa98xx_dbgfs_fres_fops, i2c);
 	#ifdef OPLUS_ARCH_EXTENDS
@@ -3220,14 +3245,24 @@ static int tfa98xx_get_default_impedance_ctl(struct snd_kcontrol *kcontrol,
 #define OPLUS_AUDIO_EVENTID_SPK_ERR        10042
 #define ERROR_INFO_MAX_LEN                 32
 
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
+
 #define REG_BITS  16
 #define TFA9874_STATUS_NORMAL_VALUE    ((0x850F<<REG_BITS) + 0x16)/*reg 0x13 high 16 bits and 0x10 low 16 bits*/
 #define TFA9874_STATUS_CHECK_MASK      ((0x300<<REG_BITS) + 0x9C)/*reg 0x10 mask bit2~4, bit7, reg 0x13 mask bit8 , bit9 */
 #define TFA9873_STATUS_NORMAL_VALUE    ((0x850F<<REG_BITS) + 0x56) /*reg 0x13 high 16 bits and 0x10 low 16 bits*/
 #define TFA9873_STATUS_CHECK_MASK      ((0x300<<REG_BITS) + 0x15C)/*reg 0x10 mask bit2~4, bit6, bit8, reg 0x13 mask bit8 , bit9*/
 
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+#define VBAT_LOW_REG_BIT_MASK              0x10
+static uint32_t g_vbatlow_cnt = 0;
+
 static ktime_t last_fb = 0;
 static bool g_chk_err = false;
+static uint32_t g_control_fb = 0;
 static char const *tfa98xx_check_feedback_text[] = {"Off", "On"};
 static const struct soc_enum tfa98xx_check_feedback_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(tfa98xx_check_feedback_text), tfa98xx_check_feedback_text);
@@ -3303,6 +3338,15 @@ static int tfa98xx_check_status_reg(void )
 
 		if (Tfa98xx_Error_Ok == err) {
 			reg_val = (reg13 << REG_BITS) + reg10;
+			if (g_control_fb & TEST_PA_ERR_FB_10041) {
+				reg_val = 0;
+				pr_info("%s: just for test 10041, change reg_val=0x%x", __func__, reg_val);
+			}
+			/* 2024/06/28, Add for smartpa vbatlow err check. */
+			if (0 == (reg_val & VBAT_LOW_REG_BIT_MASK)) {
+				g_vbatlow_cnt++;
+				pr_info("%s: vbatlow_cnt=%u", __func__, g_vbatlow_cnt);
+			}
 			flag = 0;
 			if ((g_pa_type == PA_TFA9874) &&
 					((TFA9874_STATUS_NORMAL_VALUE&TFA9874_STATUS_CHECK_MASK) != (reg_val&TFA9874_STATUS_CHECK_MASK))) {
@@ -3358,8 +3402,12 @@ static int tfa98xx_check_status_reg(void )
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		fd_buf[offset] = '\0';
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		if (g_control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			fd_buf[offset] = '\0';
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		}
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
 				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
 		pr_err("%s: fd_buf=%s\n", __func__, fd_buf);
@@ -3388,9 +3436,50 @@ static int tfa98xx_get_check_feedback(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int tfa98xx_set_bypass_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	g_control_fb = ucontrol->value.integer.value[0];
+	pr_info("%s: set %u", __func__, g_control_fb);
+	return 0;
+}
+
+static int tfa98xx_get_bypass_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = g_control_fb;
+	pr_info("%s: get %u", __func__, g_control_fb);
+
+	return 0;
+}
+
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+static int tfa98xx_get_vbatlow_cnt(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct tfa98xx *tfa98xx = snd_soc_component_get_drvdata(component);
+
+	if (g_chk_err && (tfa98xx->dsp_init != TFA98XX_DSP_INIT_STOPPED) &&
+			!(g_control_fb & BYPASS_PA_ERR_FB_10041)) {
+		tfa98xx_check_status_reg();
+	}
+
+	ucontrol->value.integer.value[0] = g_vbatlow_cnt;
+	pr_info("%s: vbatlow_cnt = %u", __func__, g_vbatlow_cnt);
+	g_vbatlow_cnt = 0;
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new tfa98xx_check_feedback[] = {
 	SOC_ENUM_EXT("TFA_CHECK_FEEDBACK", tfa98xx_check_feedback_enum,
 			   tfa98xx_get_check_feedback, tfa98xx_set_check_feedback),
+	SOC_SINGLE_EXT("PA_BYPASS_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
+			tfa98xx_get_bypass_feedback, tfa98xx_set_bypass_feedback),
+	/* 2024/06/28, Add for smartpa vbatlow err check. */
+	SOC_SINGLE_EXT("PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
+			tfa98xx_get_vbatlow_cnt, NULL),
 };
 
 #ifdef OPLUS_FEATURE_TFA98XX_VI_FEEDBACK
@@ -3419,6 +3508,10 @@ static int tfa98xx_check_speaker_status(struct tfa98xx *tfa98xx)
 	pr_info("%s: ret=%d, get value=%d\n", __func__, err, buffer[2]);
 
 	if (err == Tfa98xx_Error_Ok) {
+		if (g_control_fb & TEST_SPK_ERR_FB_10042) {
+			buffer[2] = 0x6;
+			pr_info("just for test 10042, change buffer[2]=0x%x", buffer[2]);
+		}
 		if (buffer[2] & 0x6) {
 			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@");
 			if (buffer[2] & 0x2) {
@@ -3433,8 +3526,13 @@ static int tfa98xx_check_speaker_status(struct tfa98xx *tfa98xx)
 				scnprintf(fd_buf + strlen(fd_buf),
 						sizeof(fd_buf) - strlen(fd_buf), " SPK2 damaged or hole blocked");
 			}
-			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR,
-					MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+			if (g_control_fb & TEST_SPK_ERR_FB_10042) {
+				mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR,
+						MM_FB_KEY_RATELIMIT_5MIN, "just for test 10042, ignore");
+			} else {
+				mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR,
+						MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+			}
 			pr_err("%s: fd_buf=%s\n", __func__, fd_buf);
 		}
 	} else {
@@ -3823,6 +3921,31 @@ static void tfa98xx_add_widgets(struct tfa98xx *tfa98xx)
 	}
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+/*read back I2C data and check for fpga-reset*/
+int tfa98xx_check_writen_data(struct tfa98xx *tfa98xx,
+	unsigned char reg_addr, unsigned int write_data)
+{
+	int ret = -1;
+	uint16_t rd_val = 0;
+
+	ret = tfa98xx_read_register16_v6(tfa98xx->tfa, reg_addr, &rd_val);
+	if (ret < 0) {
+		dev_err(tfa98xx->dev, "i2c read back error, ret=%d\n", ret);
+		return ret;
+	}
+
+	if (rd_val != write_data) {
+		ret = regmap_write(tfa98xx->regmap, reg_addr, write_data);
+		if (ret < 0) {
+			tfa98xx_error_feedback("tfa98xx_check_writen_data re-send fail", ret);
+		}
+	}
+
+	return ret;
+}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 /* I2C wrapper functions */
 enum Tfa98xx_Error tfa98xx_write_register16_v6(struct tfa_device *tfa,
 					unsigned char subaddress,
@@ -3852,8 +3975,24 @@ retry:
 			msleep(I2C_RETRY_DELAY);
 			goto retry;
 		}
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+		/*error feedback for fpga-reset*/
+		if (tfa98xx->fpga_check_enable) {
+			tfa98xx_error_feedback("tfa98xx_write_register16_v6 fail", ret);
+		}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 		return Tfa98xx_Error_Fail;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/* if write ok, chicking data in next step */
+	if (tfa98xx->fpga_check_enable && ret >= 0) {
+		tfa98xx_check_writen_data(tfa98xx, subaddress, value);
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 	if (tfa98xx_kmsg_regs)
 		dev_dbg(&tfa98xx->i2c->dev, "  WR reg=0x%02x, val=0x%04x %s\n",
 		        subaddress, value,
@@ -3895,6 +4034,13 @@ retry:
 			msleep(I2C_RETRY_DELAY);
 			goto retry;
 		}
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+		/*error feedback for fpga-reset*/
+		if (tfa98xx->fpga_check_enable) {
+			tfa98xx_error_feedback("tfa98xx_read_register16_v6 fail", ret);
+		}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 		return Tfa98xx_Error_Fail;
 	}
 	*val = value & 0xffff;
@@ -4249,8 +4395,14 @@ static void tfa98xx_container_loaded(const struct firmware *cont, void *context)
 	*/
 	tfa98xx->tfa->buffer_size = 65536;
 
-	/* DSP messages via i2c */
-	tfa98xx->tfa->has_msg = 0;
+	/* once the device without internal DSP,
+	 * we should be using DSP HAL to send msg to host DSP.
+	 */
+	if (tfa98xx->tfa->is_probus_device == 1) {
+		tfa98xx->tfa->has_msg = 1;
+	} else {
+		tfa98xx->tfa->has_msg = 0;
+	}
 
 	if (tfa_dev_probe(tfa98xx->i2c->addr, tfa98xx->tfa) != 0) {
 		dev_err(tfa98xx->dev, "Failed to probe TFA98xx @ 0x%.2x\n", tfa98xx->i2c->addr);
@@ -4322,7 +4474,8 @@ static void tfa98xx_container_loaded(const struct firmware *cont, void *context)
 	#endif /* OPLUS_ARCH_EXTENDS */
 
 	/* Preload settings using internal clock on TFA2 */
-	if (tfa98xx->tfa->tfa_family == 2) {
+	if ((tfa98xx->tfa->tfa_family == 2) &&
+		(tfa98xx->tfa->is_probus_device == 0)) {
 		mutex_lock(&tfa98xx->dsp_lock);
 		ret = tfa98xx_tfa_start(tfa98xx, tfa98xx->profile, tfa98xx->vstep);
 		if (ret == Tfa98xx_Error_Not_Supported)
@@ -4456,6 +4609,23 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 	dev_info(&tfa98xx->i2c->dev, "tfa98xx_dsp_init enter\n");
 
 	mutex_lock(&tfa98xx->dsp_lock);
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	if (tfa98xx->fpga_check_enable &&
+		tfa98xx->fpga_current_status != TFA_FPGA_STATUS_OK) {
+		if (time_after(jiffies, fpga_fail_timeout)) {
+			dev_info(&tfa98xx->i2c->dev, "FPGA status is not ok but timeout, go ahead\n");
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, 0, FB_HIGH,
+				"payload@@tfa98xx_dsp_init:FPGA not OK, but 10s timeout, go on init");
+#endif
+		} else {
+			dev_info(&tfa98xx->i2c->dev, "FPGA status is not ok & not timeout, return!!\n");
+			mutex_unlock(&tfa98xx->dsp_lock);
+			return;
+		}
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	tfa98xx->dsp_init = TFA98XX_DSP_INIT_PENDING;
 
@@ -5061,9 +5231,13 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 		if (g_chk_err && (tfa98xx->dsp_init != TFA98XX_DSP_INIT_STOPPED)) {
-			tfa98xx_check_status_reg();
+			if (!(g_control_fb & BYPASS_PA_ERR_FB_10041)) {
+				tfa98xx_check_status_reg();
+			}
 #ifdef OPLUS_FEATURE_TFA98XX_VI_FEEDBACK
-			tfa98xx_check_speaker_status(tfa98xx);
+			if (!(g_control_fb & BYPASS_SPK_ERR_FB_10042)) {
+				tfa98xx_check_speaker_status(tfa98xx);
+			}
 #endif /* OPLUS_FEATURE_TFA98XX_VI_FEEDBACK */
 			g_chk_err = false;
 		}
@@ -5121,7 +5295,9 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 			tfa98xx->pstream = 1;
 #ifdef OPLUS_FEATURE_TFA98XX_VI_FEEDBACK
 			if (tfa98xx->tfa->is_probus_device) {
-				tfa98xx_adsp_send_calib_values();
+				if (tfa98xx->tfa->is_otp_device) {
+					tfa98xx_adsp_send_calib_values();
+				}
 				#ifdef OPLUS_FEATURE_FADE_IN
 				/*Add for volume fadein*/
 				if (tfa98xx->fadein_enable) {
@@ -5362,9 +5538,10 @@ static irqreturn_t tfa98xx_irq(int irq, void *data)
 static int tfa98xx_ext_reset(struct tfa98xx *tfa98xx)
 {
 	if (tfa98xx && gpio_is_valid(tfa98xx->reset_gpio)) {
-		gpio_set_value_cansleep(tfa98xx->reset_gpio, 1);
+		int reset = tfa98xx->reset_polarity;
+		gpio_set_value_cansleep(tfa98xx->reset_gpio, reset);
 		mdelay(5);
-		gpio_set_value_cansleep(tfa98xx->reset_gpio, 0);
+		gpio_set_value_cansleep(tfa98xx->reset_gpio, !reset);
 		mdelay(5);
 	}
 	return 0;
@@ -5373,6 +5550,12 @@ static int tfa98xx_ext_reset(struct tfa98xx *tfa98xx)
 
 static int tfa98xx_parse_dt(struct device *dev, struct tfa98xx *tfa98xx,
 		struct device_node *np) {
+	u32 value = 0;
+	int ret = 0;
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	int32_t fpga_chk_enable = 0;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 	tfa98xx->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
 	if (tfa98xx->reset_gpio < 0)
 		dev_dbg(dev, "No reset GPIO provided, will not HW reset device\n");
@@ -5383,6 +5566,27 @@ static int tfa98xx_parse_dt(struct device *dev, struct tfa98xx *tfa98xx,
 
 	tfa98xx->is_use_freq = of_property_read_bool(np, "is_use_freq");
 	dev_dbg(dev, "is_use_freq : %d\n", tfa98xx->is_use_freq);
+
+	ret = of_property_read_u32(np, "reset-polarity", &value);
+	if (ret < 0) {
+		tfa98xx->reset_polarity = HIGH;
+	} else {
+		tfa98xx->reset_polarity = (value == 0) ? LOW : HIGH;
+	}
+	dev_dbg(dev, "reset-polarity:%d\n",tfa98xx->reset_polarity);
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/*get enable-flag from dts for fpga-reset*/
+	ret = of_property_read_u32(np, "fpga-check-enable", &fpga_chk_enable);
+	if (ret < 0) {
+		tfa98xx->fpga_check_enable = 0;
+	} else {
+		tfa98xx->fpga_check_enable = fpga_chk_enable;
+	}
+	dev_info(dev,
+		"fpga_check_enable is %d\n", tfa98xx->fpga_check_enable);
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 	return 0;
 }
 
@@ -5498,6 +5702,185 @@ static struct bin_attribute dev_attr_reg = {
 	.write = tfa98xx_reg_write,
 };
 
+#ifdef OPLUS_ARCH_EXTENDS
+#define REG_READ_LEN 128
+#define CHIP_ID_ADDR 0x03
+static ssize_t tfa98xx_reg_read_test(struct file *file,
+				char __user *user_buf, size_t count,
+				loff_t *ppos)
+{
+	struct i2c_client *i2c = file->private_data;
+	struct tfa98xx *tfa98xx = NULL;
+	unsigned int reg_val = 0;
+	int ret = 0;
+	int len = 0;
+	char *str = NULL;
+
+	if (*ppos) {
+		return 0;
+	}
+
+	if (!i2c) {
+		pr_err("%s:i2c is error\n", __func__);
+		return ret;
+	}
+	pr_info("enter:%s reg addr=0x%x\n", __func__, i2c->addr);
+
+	tfa98xx = i2c_get_clientdata(i2c);
+	if (!tfa98xx) {
+		pr_err("%s:tfa98xx is error\n", __func__);
+		return ret;
+	}
+
+	str = kzalloc(REG_READ_LEN, GFP_KERNEL);
+	if (!str) {
+		pr_err("%s:memory allocation failed\n", __func__);
+		return ret;
+	}
+
+	ret = regmap_read(tfa98xx->regmap, CHIP_ID_ADDR, &reg_val);
+	if (ret >= 0 && is_tfa98xx_series(reg_val & 0xff)) {
+		len = snprintf(str, REG_READ_LEN, "0x%x\n", reg_val);
+	} else {
+		len = snprintf(str, REG_READ_LEN, "error\n");
+	}
+	pr_info("%s: ret=%d, len=%d, str=%s\n", __func__, ret, len, str);
+
+	if (len == 0) {
+		pr_err("%s: str copy err\n", __func__);
+		kfree(str);
+		return ret;
+	}
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, str, strlen(str));
+	pr_info("exit %s: ret=%d\n", __func__, ret);
+	kfree(str);
+	return ret;
+}
+
+static const struct proc_ops tfa98xx_i2c_test_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_reg_read_test,
+	.proc_lseek = default_llseek,
+};
+
+static struct proc_dir_entry *fpga_audio_pa_proc_dir = NULL;
+static int tfa98xx_proc_init(struct tfa98xx *tfa98xx)
+{
+	const char *proc_path = "audio_pa_i2c_aging";
+	char pa_name[10] = {0};
+
+	pr_info("%s: enter\n", __func__);
+
+	if (fpga_audio_pa_proc_dir == NULL) {
+		fpga_audio_pa_proc_dir = proc_mkdir(proc_path, NULL);
+	}
+
+	snprintf(pa_name, 10, "pa_0x%x", tfa98xx->i2c->addr);
+	pr_info("%s: pa_name=%s\n", __func__, pa_name);
+	proc_create_data((const char*)pa_name, S_IRUGO, fpga_audio_pa_proc_dir,
+				&tfa98xx_i2c_test_fops, tfa98xx->i2c);
+
+	return 0;
+}
+#endif /* OPLUS_ARCH_EXTENDS */
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+/* feedback error if status abnormal for fpga-reset */
+void tfa98xx_error_feedback(char *str, int ret)
+{
+	int str_len = 0;
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+
+	str_len = strlen(str);
+	if ((str_len > 0) && (str_len < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@aw_fpga: in:%s, ret:%d", str, ret);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
+			MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+	}
+}
+
+static void oplus_tfa98xx_restart_pa(struct tfa98xx *tfa98xx)
+{
+	dev_info(&tfa98xx->i2c->dev, "enter:%s, pstream=%d, dsp_init =%d, flags=0x%x\n",
+			__func__, tfa98xx->pstream, tfa98xx->dsp_init, tfa98xx->flags);
+
+	if (tfa98xx->pstream == 1 &&
+		tfa98xx->flags & TFA98XX_FLAG_CHIP_SELECTED) {
+		tfa98xx->dsp_init = TFA98XX_DSP_INIT_INVALIDATED;
+		tfa98xx_dsp_init(tfa98xx);
+	} else {
+		mutex_lock(&tfa98xx->dsp_lock);
+		tfa_dev_stop(tfa98xx->tfa);
+		tfa98xx_ext_reset(tfa98xx);
+		tfa98xx->dsp_init = TFA98XX_DSP_INIT_STOPPED;
+		mutex_unlock(&tfa98xx->dsp_lock);
+	}
+}
+
+static int oplus_tfa_fpga_state_change(struct notifier_block *nb, unsigned long ev, void *v)
+{
+	struct tfa98xx *tfa98xx = container_of(nb, struct tfa98xx, pd_nb);
+	int fpga_state = -1;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
+	if (!tfa98xx) {
+		pr_err("%s, switch_priv is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("event is %lu.\n", ev);
+
+	if (!tfa98xx->fpga_check_enable) {
+		return -1;
+	}
+
+	/*get current fpga state from notify*/
+	if (ev == FPGA_RST_END || ev == FPGA_POWER_ON_END) {
+		fpga_state = TFA_FPGA_STATUS_OK;
+	} else {
+		fpga_state = TFA_FPGA_STATUS_ERR;
+	}
+
+	if (tfa98xx->fpga_current_status == fpga_state) {
+		/*get same state, no need process again*/
+		return 0;
+	} else {
+		if (fpga_state == TFA_FPGA_STATUS_ERR) {
+			fpga_fail_timeout = jiffies + msecs_to_jiffies(FPGA_FAIL_TIMEOUT_MS);
+			pr_info("%s:enable fpga timeout check\n", __func__);
+		}
+		tfa98xx->fpga_current_status = fpga_state;
+	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (tfa98xx->fpga_current_status == TFA_FPGA_STATUS_OK) {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@oplus_tfa_fpga_state_change:FPGA STATUS_OK");
+		mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, 0, FB_HIGH, fd_buf);
+	} else {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@oplus_tfa_fpga_state_change:FPGA STATUS_FAIL");
+		mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, FEEDBACK_DELAY_60S * 2, FB_HIGH, fd_buf);
+	}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
+	dev_info(&tfa98xx->i2c->dev, "fpga current status:%s.\n",
+		(tfa98xx->fpga_current_status == 0)? "ok" : "error");
+
+	/*check register to confirm if is hw-reset by fpga*/
+	if (tfa98xx->fpga_current_status == TFA_FPGA_STATUS_OK) {
+		/*init pa register again after fpga status ok*/
+		dev_info(&tfa98xx->i2c->dev, "init pa register again.\n");
+		oplus_tfa98xx_restart_pa(tfa98xx);
+	}
+
+	return 0;
+}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
 static int tfa98xx_i2c_probe(struct i2c_client *i2c)
 #else
@@ -5537,6 +5920,10 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	tfa98xx = devm_kzalloc(&i2c->dev, sizeof(struct tfa98xx), GFP_KERNEL);
 	if (tfa98xx == NULL)
 		return -ENOMEM;
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	tfa98xx->fpga_notify_reg_success = 0;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	tfa98xx->dev = &i2c->dev;
 	tfa98xx->i2c = i2c;
@@ -5654,15 +6041,19 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	if (gpio_is_valid(tfa98xx->reset_gpio)) {
 		ret = devm_gpio_request_one(&i2c->dev, tfa98xx->reset_gpio,
 			GPIOF_OUT_INIT_LOW, "TFA98XX_RST");
-		if (ret)
+		if (ret) {
+			dev_err(&i2c->dev, "Failed to request reset pin\n");
 			return ret;
+		}
 	}
 
 	if (gpio_is_valid(tfa98xx->irq_gpio)) {
 		ret = devm_gpio_request_one(&i2c->dev, tfa98xx->irq_gpio,
 			GPIOF_DIR_IN, "TFA98XX_INT");
-		if (ret)
+		if (ret) {
+			dev_err(&i2c->dev, "Failed to request irq pin\n");
 			return ret;
+		}
 	}
 
 	/* Power up! */
@@ -5720,6 +6111,16 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 			g_pa_type = PA_TFA9874;
 #endif
 			break;
+		case 0x65: /* tfa9865*/
+			pr_info("TFA9865 detected\n");
+			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+			tfa98xx->flags |= TFA98XX_FLAG_OTP_TYPE_DEVICE;
+			break;
+		case 0x66: /* tfa986x*/
+			pr_info("TFA986x detected\n");
+			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+			tfa98xx->flags |= TFA98XX_FLAG_OTP_TYPE_DEVICE;
+			break;
 		case 0x88: /* tfa9888 */
 			pr_info("TFA9888 detected\n");
 			tfa98xx->flags |= TFA98XX_FLAG_STEREO_DEVICE;
@@ -5767,7 +6168,20 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 					FEEDBACK_DELAY_60S, "Unsupported device revision 0x%x", reg);
 			#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 			pr_info("Unsupported device revision (0x%x)\n", reg & 0xff);
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+			if (tfa98xx->fpga_check_enable) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+				mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, \
+					FEEDBACK_DELAY_60S, "payload@@tfa98xx_read_chipid failed");
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
+				return -EPROBE_DEFER;
+			} else {
+				return -EINVAL;
+			}
+#else
 			return -EINVAL;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 		}
 	}
 
@@ -5888,6 +6302,10 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	if (no_start == 0)
 		tfa98xx_debug_init(tfa98xx, i2c);
 
+#ifdef OPLUS_ARCH_EXTENDS
+	tfa98xx_proc_init(tfa98xx);
+#endif
+
 	#ifdef OPLUS_ARCH_EXTENDS
 	/*Add for FTM*/
 	#ifdef CONFIG_DEBUG_FS
@@ -5925,6 +6343,25 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	list_add(&tfa98xx->list, &tfa98xx_device_list);
 	mutex_unlock(&tfa98xx_mutex);
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/*register fpga notify for fpga-reset*/
+	if (tfa98xx->fpga_check_enable) {
+		tfa98xx->pd_nb.notifier_call = oplus_tfa_fpga_state_change;
+		tfa98xx->pd_nb.priority = 0;
+		ret = fpga_register_notifier(&tfa98xx->pd_nb);
+		if (ret != 0) {
+			pr_err("%s : fpga_register_notifier failed!\n", __func__);
+			tfa98xx->fpga_notify_reg_success = -1;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, \
+				FEEDBACK_DELAY_60S, "payload@@register fpga notify failed");
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+		} else {
+			pr_info("%s : fpga_register_notifier  done!\n", __func__);
+			tfa98xx->fpga_notify_reg_success = 0;
+		}
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 	return 0;
 }
 
@@ -6003,6 +6440,13 @@ static int tfa98xx_i2c_remove(struct i2c_client *i2c)
 	}
 	mutex_unlock(&tfa98xx_mutex);
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	if (tfa98xx->fpga_check_enable && tfa98xx->fpga_notify_reg_success == 0) {
+		pr_info("%s: fpga_unregister_notifier\n", __func__);
+		fpga_unregister_notifier(&tfa98xx->pd_nb);
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return 0;
 #endif /* KERNEL_VERSION(6, 1, 0) */
@@ -6020,6 +6464,7 @@ static struct of_device_id tfa98xx_dt_match[] = {
 	{ .compatible = "nxp,tfa9872" },
 	{ .compatible = "nxp,tfa9873" },
 	{ .compatible = "nxp,tfa9874" },
+	{ .compatible = "nxp,tfa9865" },
 	{ .compatible = "nxp,tfa9888" },
 	{ .compatible = "nxp,tfa9890" },
 	{ .compatible = "nxp,tfa9891" },
@@ -6028,6 +6473,7 @@ static struct of_device_id tfa98xx_dt_match[] = {
 	{ .compatible = "nxp,tfa9896" },
 	{ .compatible = "nxp,tfa9897" },
 	{ .compatible = "nxp,tfa9912" },
+	{ .compatible = "tfa,tfa986x" },
 	{ },
 };
 #endif

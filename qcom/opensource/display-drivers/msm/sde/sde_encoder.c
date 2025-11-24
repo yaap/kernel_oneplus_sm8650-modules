@@ -53,6 +53,9 @@
 #include "oplus_display_panel_common.h"
 #include "oplus_display_interface.h"
 #include <linux/ktime.h>
+#include <uapi/linux/sched/types.h>
+extern bool g_oplus_send_fps_code;
+extern int dsi_cmd_set_type_status;
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
@@ -5649,6 +5652,162 @@ int oplus_apollo_delay_for_ts_rsc(struct drm_encoder *drm_enc)
 	return 0;
 }
 
+wait_queue_head_t sync_backlight_queue;
+int oplus_sync_backlight_vid_thread(void *data)
+{
+	struct dsi_display *display = get_main_display();
+	struct sde_connector *sde_conn;
+	int ret = 0;
+	u32 brightness = 0;
+
+	if (!display || !display->panel) {
+		SDE_ERROR("display is null\n");
+		return -EFAULT;
+	}
+
+	sde_conn = to_sde_connector(display->drm_conn);
+	while(!kthread_should_stop()) {
+		wait_event_interruptible(sync_backlight_queue, atomic_read(&sde_conn->dsi_cmd_need_update));
+
+		brightness = sde_connector_get_property(sde_conn->base.state, CONNECTOR_PROP_SYNC_BACKLIGHT_LEVEL);
+
+		if(display->panel->power_mode == SDE_MODE_DPMS_ON || display->panel->power_mode == SDE_MODE_DPMS_LP1 || display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if(sde_conn->bl_need_sync && brightness) {
+				ret = oplus_set_brightness(sde_conn->bl_device, brightness);
+				dsi_cmd_set_type_status = 0;
+			} else if (display->panel->oplus_priv.dsi_cmd_need_to_package) {
+				mutex_lock(&display->panel->panel_lock);
+				ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+				mutex_unlock(&display->panel->panel_lock);
+				dsi_cmd_set_type_status = 0;
+			}
+		}
+		display->panel->oplus_priv.dsi_cmd_need_to_package = false;
+		sde_conn->bl_need_sync = false;
+		atomic_set(&sde_conn->dsi_cmd_need_update, false);
+	}
+
+	return ret;
+}
+
+int __oplus_vid_sync_backlight_thread_ctl(bool enable)
+{
+	static struct task_struct *sync_backlight_thread = NULL;
+	struct dsi_display *display = oplus_display_get_current_display();
+	struct sde_connector *sde_conn;
+	u32 last_refresh_rate = display->panel->last_refresh_rate;
+
+	if (!display || !display->panel) {
+		SDE_ERROR("display is null\n");
+		return -EINVAL;
+	}
+	sde_conn = to_sde_connector(display->drm_conn);
+
+	if(display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
+		if(enable) {
+			if(!sync_backlight_thread) {
+				struct sched_param sp = {0};
+				init_waitqueue_head(&sync_backlight_queue);
+				if (sde_conn) {
+					atomic_set(&sde_conn->dsi_cmd_need_update, false);
+				}
+				sync_backlight_thread = kthread_run(oplus_sync_backlight_vid_thread, NULL, "sync_cmd_thread");
+				if (IS_ERR(sync_backlight_thread)) {
+					pr_err("Failed to create sync_backlight_thread.\n");
+					return -EINVAL;
+				}
+
+				sp.sched_priority = 16;
+				sched_setscheduler(sync_backlight_thread, SCHED_FIFO, &sp);
+			} else if ((sde_conn->bl_need_sync || display->panel->oplus_priv.dsi_cmd_need_to_package) && (last_refresh_rate == 120 || last_refresh_rate == 144 || last_refresh_rate == 165 || last_refresh_rate == 30)) {
+				atomic_set(&sde_conn->dsi_cmd_need_update, true);
+				wake_up_interruptible(&sync_backlight_queue);
+			}
+		} else {
+			if(sync_backlight_thread) {
+				kthread_stop(sync_backlight_thread);
+				sync_backlight_thread = NULL;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int oplus_sync_panel_brightness_video(struct drm_encoder *drm_enc)
+{
+	struct sde_encoder_virt *sde_enc = NULL;
+	struct sde_encoder_phys *phys_encoder = NULL;
+	struct sde_connector *sde_conn = NULL;
+	struct dsi_display *display = NULL;
+	int ret = 0;
+	u32 brightness = 0;
+	u32 refresh_rate = 0;
+	u32 last_refresh_rate = 0;
+
+	sde_enc = to_sde_encoder_virt(drm_enc);
+	phys_encoder = sde_enc->phys_encs[0];
+	if (!phys_encoder || !phys_encoder->connector) {
+		SDE_ERROR("phys_encoder or connector is null\n");
+		return -EFAULT;
+	}
+
+	sde_conn = to_sde_connector(phys_encoder->connector);
+	if (!sde_conn) {
+		SDE_ERROR("sde_conn is null\n");
+		return -EFAULT;
+	}
+	if (!sde_conn->base.state) {
+		SDE_ERROR("sde_conn->base.state is null\n");
+		return -EFAULT;
+	}
+	if (sde_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
+		return 0;
+	}
+
+	display = sde_conn->display;
+	if (!display || !display->panel) {
+		SDE_ERROR("display is null\n");
+		return -EFAULT;
+	}
+	if (display->panel->panel_mode != DSI_OP_VIDEO_MODE) {
+		return 0;
+	}
+	last_refresh_rate = display->panel->last_refresh_rate;
+
+	if (display->panel->cur_mode)
+		refresh_rate = display->panel->cur_mode->timing.refresh_rate;
+
+	if((sde_conn->bl_need_sync || display->panel->oplus_priv.dsi_cmd_need_to_package) && (last_refresh_rate == 60 || last_refresh_rate == 90)) {
+		brightness = sde_connector_get_property(sde_conn->base.state, CONNECTOR_PROP_SYNC_BACKLIGHT_LEVEL);
+		if(display->panel->power_mode == SDE_MODE_DPMS_ON || display->panel->power_mode == SDE_MODE_DPMS_LP1 ||
+			display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if(sde_conn->bl_need_sync && brightness) {
+				atomic_set(&sde_conn->dsi_cmd_need_update, true);
+
+				ret = oplus_set_brightness(sde_conn->bl_device, brightness);
+				dsi_cmd_set_type_status = 0;
+				if (ret) {
+					SDE_ERROR("Failed to set brightness\n");
+					return ret;
+				}
+			} else if (display->panel->oplus_priv.dsi_cmd_need_to_package) {
+					mutex_lock(&display->panel->panel_lock);
+					ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+					mutex_unlock(&display->panel->panel_lock);
+					dsi_cmd_set_type_status = 0;
+			}
+		}
+
+		display->panel->oplus_priv.dsi_cmd_need_to_package = false;
+		sde_conn->bl_need_sync = false;
+		atomic_set(&sde_conn->dsi_cmd_need_update, false);
+	}
+	display->panel->last_refresh_rate = refresh_rate;
+	g_oplus_send_fps_code = false;
+	return ret;
+}
+
 int oplus_sync_panel_brightness_v2(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = NULL;
@@ -5659,7 +5818,7 @@ int oplus_sync_panel_brightness_v2(struct drm_encoder *drm_enc)
 	int rc = 0;
 	struct sde_encoder_phys_cmd *cmd_enc = NULL;
 	struct sde_encoder_phys_cmd_te_timestamp *te_timestamp;
-	s64 us_per_frame;
+	u32 us_per_frame;
 	u32 vsync_width;
 	u32 refresh_rate;
 	ktime_t last_te_timestamp;
@@ -5689,6 +5848,10 @@ int oplus_sync_panel_brightness_v2(struct drm_encoder *drm_enc)
 	display = c_conn->display;
 	if (display == NULL)
 		return -EFAULT;
+
+	if (display->panel->panel_mode != DSI_OP_CMD_MODE) {
+		return 0;
+	}
 
 	cmd_enc = to_sde_encoder_phys_cmd(phys_encoder);
 	if (cmd_enc == NULL) {
@@ -6040,8 +6203,10 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 	if (oplus_ofp_is_supported()) {
 		oplus_ofp_lhbm_backlight_update(sde_enc, NULL, NULL);
 		oplus_ofp_hbm_handle(sde_enc);
+		oplus_ofp_lhbm_handle_kick(sde_enc);
 		oplus_ofp_aod_off_backlight_recovery(sde_enc);
 		oplus_ofp_ultra_low_power_aod_update(sde_enc);
+		oplus_ofp_video_mode_aod_handle(sde_enc);
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
@@ -6054,6 +6219,10 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 #ifdef OPLUS_FEATURE_DISPLAY_HIGH_PRECISION
 	oplus_adfr_high_precision_handle(sde_enc);
 #endif /* OPLUS_FEATURE_DISPLAY_HIGH_PRECISION */
+#ifdef OPLUS_FEATURE_DISPLAY
+	__oplus_vid_sync_backlight_thread_ctl(true);
+	oplus_sync_panel_brightness_video(drm_enc);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	/* All phys encs are ready to go, trigger the kickoff */
 	_sde_encoder_kickoff_phys(sde_enc, config_changed);

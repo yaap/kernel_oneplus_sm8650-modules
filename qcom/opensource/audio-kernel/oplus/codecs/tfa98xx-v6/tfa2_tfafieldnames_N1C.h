@@ -6,6 +6,10 @@
  * published by the Free Software Foundation.
  *
  */
+
+#ifndef _TFA2_TFAFIELDNAMES_N1C_H
+#define _TFA2_TFAFIELDNAMES_N1C_H
+
 #define TFA9888_I2CVERSION 18
 typedef enum nxpTfa2BfEnumList {
     TFA2_BF_PWDN  = 0x0000,    /*!< Powerdown selection                                */
@@ -1524,3 +1528,5 @@ enum tfa2_irq {
 	{ 35, "STOCPM"},\
 	{ 36, "36"},\
 };
+
+#endif /* _TFA2_TFAFIELDNAMES_N1C_H */

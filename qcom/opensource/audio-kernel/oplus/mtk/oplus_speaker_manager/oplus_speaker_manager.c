@@ -66,7 +66,8 @@ int ext_amp_chipset_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 
 	if (list_empty(&oplus_speaker_list) || (contrl_status == NULL)) {
 		pr_err("%s(),no device regist",__func__);
-		ucontrol->value.integer.value[0] = 0;
+		/* 2025/1/15, add to avoid smart PA entering analog PA section */
+		ucontrol->value.integer.value[0] = MFR_COUNT;
 		return 1;
 	}
 

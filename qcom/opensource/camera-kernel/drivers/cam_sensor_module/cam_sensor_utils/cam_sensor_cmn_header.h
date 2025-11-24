@@ -207,6 +207,8 @@ struct cam_sensor_i2c_reg_array {
 	uint32_t delay;
 	uint32_t data_mask;
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
+	uint32_t  addr_type;
+	uint32_t  data_type;
 	unsigned short  operation;
 #endif
 };

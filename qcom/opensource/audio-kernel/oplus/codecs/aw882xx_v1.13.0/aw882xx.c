@@ -49,6 +49,7 @@ static int s_speaker_reboot = 0;
 #endif /*OPLUS_ARCH_EXTENDS*/
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 #include <soc/oplus/system/oplus_mm_kevent_fb.h>
 #endif
 
@@ -422,14 +423,45 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 }
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-#define AW882XX_CHECK_WORK_DELAY           (6*HZ)
+/* 2022/02/15, Add for smartpa err feedback.*/
+#define AW882XX_CHECK_WORK_DELAY           (10000)
 #define OPLUS_AUDIO_EVENTID_SMARTPA_ERR    10041
 #define OPLUS_AUDIO_EVENTID_SPK_ERR        10042
+#define SMARTPA_ERR_FB_VERSION             "1.0.0"
+#define SPK_ERR_FB_VERSION                 "1.1.0"
 #define ERROR_INFO_MAX_LEN                 20
 #define AW882XX_STATUS_REG                 0x01
 #define AW882XX_STATUS_NORMAL_VALUE        0x311
 /* 0xCFBB = 1100101110111011b, mask bit0/1/3/4/5/7/8/9/11/14/15 */
 #define AW882XX_STATUS_CHECK_MASK          0xCBBB
+
+#define RE_BASE_RANGE                      2500
+#define RE_ERR_COUNT_FB                    3
+#define RE_ALLOW_NORMAL_CNT                2
+#define RE_ERR_TIME_MS                     300000
+
+#define F0_OUT_OF_RANGE_COUNT_FB           3
+#define F0_HOLE_BOLCK_COUNT_FB             5
+#define F0_HOLE_BOLCK_TIME_FB              1800000
+#define F0_MIN                             200
+#define F0_MAX                             1900
+#define F0_BLOCK_HOLE_INC                  180
+#define F0_ALLOW_NORMAL_CNT                2
+#define F0_INVALID_VALUE                   2600
+
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
+
+/* 2024/07/08, Add for smartpa vbatlow err check. */
+#define VBAT_LOW_REG_BIT_MASK              0x4000
+
+enum {
+    READ_RE_VALUE = 0,
+    READ_F0_VALUE,
+    AW_SPKS_MAX_STEPS
+};
 
 enum {
 	RE_ERR_IV_OR_MEC_DISABLE = -99000,
@@ -461,10 +493,12 @@ static const struct check_status_err check_err[] = {
 	{15, 1, "BoostOVP"},
 };
 
+const unsigned int g_step_delay[AW_SPKS_MAX_STEPS] ={AW882XX_CHECK_WORK_DELAY, 100};
 const unsigned char fb_regs_aw88264[] = {0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x10, 0x12, 0x13, 0x14, 0x60, 0x61};
 const unsigned char fb_regs_aw88265[] = {0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x20, 0x21, 0x22, 0x23, 0x60, 0x61};
 
 static bool g_chk_err = false;
+static uint32_t g_control_fb = 0;
 
 static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 {
@@ -488,6 +522,15 @@ static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 		aw_dev_info(aw882xx->dev, "i2c read error, ret=%d", ret);
 	} else {
 		aw_dev_info(aw882xx->dev, "read reg[0x%x]=0x%x", AW882XX_STATUS_REG, reg_val);
+		if (g_control_fb & TEST_PA_ERR_FB_10041) {
+			reg_val = 0xFFFF;
+			aw_dev_info(aw882xx->dev, "just for test 10041, change reg[0x%x]=0x%x", AW882XX_STATUS_REG, reg_val);
+		}
+		/* 2024/07/08, Add for smartpa vbatlow err check. */
+		if (reg_val & VBAT_LOW_REG_BIT_MASK) {
+			aw882xx->vbatlow_cnt++;
+			aw_dev_info(aw882xx->dev, "vbatlow_cnt=%u", aw882xx->vbatlow_cnt);
+		}
 		if ((AW882XX_STATUS_NORMAL_VALUE & AW882XX_STATUS_CHECK_MASK) != (reg_val & AW882XX_STATUS_CHECK_MASK)) {
 			offset = strlen(info);
 			scnprintf(info + offset, sizeof(info) - offset - 1, \
@@ -531,7 +574,11 @@ static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		if (g_control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		}
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
 				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
 		aw882xx->last_fb = ktime_get();
@@ -541,66 +588,276 @@ static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 	return 1;
 }
 
-static int aw882xx_check_speaker_status(struct aw882xx *aw882xx)
+static void aw882xx_check_speaker_f0(struct aw882xx *aw882xx, int f0)
 {
-	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
-	int32_t re = 0;
-	int32_t te = 0;
-	int32_t ret = 0;
+	char fd_buf[MAX_PAYLOAD_DATASIZE] = {0};
+	aw_f0_err_record_t *p_record = &aw882xx->rd_f0;
+	unsigned int i = 0;
 
-	if ((aw882xx->last_fb !=0)  && ktime_before(ktime_get(), ktime_add_ms(aw882xx->last_fb, MM_FB_KEY_RATELIMIT_1MIN))) {
-		return 0;
+	if (F0_INVALID_VALUE == f0) {
+		aw_dev_info(aw882xx->dev, "skip invalid F0 value: %d", f0);
+		return;
 	}
 
-	ret = aw882xx_dsp_read_st(aw882xx->aw_pa, &re, &te);
-	if (ret) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-				"payload@@AW882xx SPK%u:read data from adsp error, ret=%d,", \
-				aw882xx->aw_pa->channel + 1, ret);
-	} else {
-		switch (re) {
-		case RE_ERR_IV_OR_MEC_DISABLE:
-			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-					"payload@@AW882xx SPK%u:IV or MEC channel disable, re=%d, te=%d", \
-					aw882xx->aw_pa->channel + 1, re, te);
-			break;
-		case RE_ERR_NOT_WORK:
-			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-					"payload@@AW882xx SPK%u:equivalent chip not working, re=%d, te=%d", \
-					aw882xx->aw_pa->channel + 1, re, te);
-			break;
-		case RE_ERR_IV_ERR:
-			/*2022/07/04, Delete smartpa iv_err feedback.*/
-			/*scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-					"payload@@AW882xx SPK%u:IV data error(no tx or MEC not open), re=%d, te=%d", \
-					aw882xx->aw_pa->channel + 1, re, te);*/
-			aw_dev_err(aw882xx->dev, "payload@@AW882xx SPK%u:IV data error(no tx or MEC not open), re=%d, te=%d", aw882xx->aw_pa->channel + 1, re, te);
-			break;
-		case RE_ERR_OPEN:
-			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-					"payload@@AW882xx SPK%u:speaker open circuit, re=%d, te=%d", \
-					aw882xx->aw_pa->channel + 1, re, te);
-			break;
-		default:
-			if ((re > RE_ERR_SHORT_MIN) && (re < RE_ERR_SHORT_MAX)) {
-				scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-						"payload@@AW882xx SPK%u:speaker short circuit, re=%d, te=%d", \
-						aw882xx->aw_pa->channel + 1, re, te);
-			} else if ((re < RE_NORMAL_MIN) || (re > RE_NORMAL_MAX)) {
-				scnprintf(fd_buf, sizeof(fd_buf) - 1, \
-						"payload@@AW882xx SPK%u:speaker R0 out of range(%d, %d), re=%d, te=%d", \
-						aw882xx->aw_pa->channel + 1, RE_NORMAL_MIN, RE_NORMAL_MAX, re, te);
-			}
-			aw_dev_info(aw882xx->dev, "AW882xx SPK%u: re=%d, te=%d", \
-					aw882xx->aw_pa->channel + 1, re, te);
-			break;
+	aw_dev_info(aw882xx->dev, "SPK%u, f0=%d", aw882xx->aw_pa->channel + 1, f0);
+
+	if (f0 <= F0_MIN) {
+		if (p_record->rd_id < F0_RECORD_CNT) {
+			p_record->f0[p_record->rd_id] = f0;
+			p_record->rd_id++;
+			p_record->err_cnt++;
+		} else {
+			p_record->rd_id = F0_RECORD_CNT;
+			p_record->err_cnt = p_record->rd_id;
 		}
+
+		if (p_record->err_cnt >= F0_OUT_OF_RANGE_COUNT_FB) {
+			snprintf(fd_buf, sizeof(fd_buf) - 1, \
+				"payload@@AW882xx SPK%u:F0=%d,out of range(%u, %u) smaller,record f0=", \
+				aw882xx->aw_pa->channel + 1, f0, F0_MIN, F0_MAX);
+			for (i = 0; i < p_record->rd_id; i++) {
+				snprintf(fd_buf + strlen(fd_buf), sizeof(fd_buf) - strlen(fd_buf) - 1, "%d,", p_record->f0[i]);
+			}
+		}
+	} else if (f0 > (aw882xx->aw_pa->cali_desc.cali_f0 + F0_BLOCK_HOLE_INC)) {
+		if (p_record->rd_id == 0) {
+			p_record->tm = ktime_get();
+		}
+		if (p_record->rd_id < F0_RECORD_CNT) {
+			p_record->f0[p_record->rd_id] = f0;
+			p_record->rd_id++;
+			p_record->err_cnt++;
+		} else {
+			p_record->rd_id = F0_RECORD_CNT;
+			p_record->err_cnt = p_record->rd_id;
+		}
+
+		p_record->max_f0 = (p_record->max_f0 < f0) ? f0 : p_record->max_f0;
+		if ((p_record->err_cnt >= F0_OUT_OF_RANGE_COUNT_FB) && (p_record->max_f0 >= F0_MAX)) {
+			snprintf(fd_buf, sizeof(fd_buf) - 1, \
+				"payload@@AW882xx SPK%u:F0=%d,out of range(%u, %u) bigger,max_f0=%d,record f0=", \
+				aw882xx->aw_pa->channel + 1, f0, F0_MIN, F0_MAX, p_record->max_f0);
+			for (i = 0; i < p_record->rd_id; i++) {
+				snprintf(fd_buf + strlen(fd_buf), sizeof(fd_buf) - strlen(fd_buf) - 1, "%d,", p_record->f0[i]);
+			}
+		} else if ((p_record->err_cnt >= F0_HOLE_BOLCK_COUNT_FB) &&
+					ktime_after(ktime_get(), ktime_add_ms(p_record->tm, F0_HOLE_BOLCK_TIME_FB))) {
+			snprintf(fd_buf, sizeof(fd_buf) - 1, \
+				"payload@@AW882xx SPK%u:F0=%d, larger than %u, maybe speaker hole blocked,max_f0=%d,record f0=", \
+				aw882xx->aw_pa->channel + 1, f0, (aw882xx->aw_pa->cali_desc.cali_f0 + F0_BLOCK_HOLE_INC), p_record->max_f0);
+			for (i = 0; i < p_record->rd_id; i++) {
+				snprintf(fd_buf + strlen(fd_buf), sizeof(fd_buf) - strlen(fd_buf) - 1, "%d,", p_record->f0[i]);
+			}
+		}
+	} else if (p_record->rd_id > 0) {
+		if (p_record->rd_id < (p_record->err_cnt + F0_ALLOW_NORMAL_CNT)) {
+			if (p_record->rd_id < F0_RECORD_CNT) {
+				p_record->f0[p_record->rd_id] = f0;
+				p_record->rd_id++;
+			} else {
+				p_record->err_cnt--;
+			}
+		} else {
+			memset(p_record, 0, sizeof(aw_f0_err_record_t));
+		}
+	}
+
+	if (p_record->err_cnt > 0) {
+		aw_dev_info(aw882xx->dev, "record tm=%lld, now tm=%lld, err_cnt=%u, rd_id=%u, max_f0=%d",
+			p_record->tm, ktime_get(), p_record->err_cnt, p_record->rd_id, p_record->max_f0);
 	}
 
 	if (strlen(fd_buf) > 0) {
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
-		aw882xx->last_fb = ktime_get();
 		aw_dev_info(aw882xx->dev, "%s", fd_buf);
+		memset(p_record, 0, sizeof(aw_f0_err_record_t));
+	}
+}
+
+// macro for record re error value
+#define RE_ERR_RECORD(p_record, val)                                           \
+	do {                                                                       \
+		if (p_record->err_cnt == 0) {                                          \
+			p_record->tm = ktime_get();                                        \
+		}                                                                      \
+		if (p_record->rd_id < RE_RECORD_CNT) {                                 \
+			p_record->re[p_record->rd_id] = val;                               \
+			p_record->rd_id++;                                                 \
+			p_record->err_cnt++;                                               \
+		} else {                                                               \
+			p_record->rd_id = RE_RECORD_CNT;                                   \
+			p_record->err_cnt = p_record->rd_id;                               \
+		}                                                                      \
+		p_record->max_re = (p_record->max_re < val) ? val : p_record->max_re;  \
+		p_record->min_re = (p_record->min_re > val) ? val : p_record->min_re;  \
+		if ((p_record->min_re == 0) || (p_record->min_re > val)) {             \
+			p_record->min_re = val;                                            \
+		}                                                                      \
+	} while(0)
+
+static void aw882xx_check_speaker_re(struct aw882xx *aw882xx, int re, int te)
+{
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+	aw_re_err_record_t *p_record = &aw882xx->rd_re;
+	int32_t re_normal_min = 0;
+	int32_t re_normal_max = 0;
+	unsigned int i = 0;
+
+	aw_dev_info(aw882xx->dev, "AW882xx SPK%u: re=%d, te=%d", \
+			aw882xx->aw_pa->channel + 1, re, te);
+
+	if (aw882xx->aw_pa->cali_desc.cali_result == CALI_RESULT_NORMAL) {
+		re_normal_min = aw882xx->aw_pa->cali_desc.cali_re - RE_BASE_RANGE;
+		re_normal_max = aw882xx->aw_pa->cali_desc.cali_re + RE_BASE_RANGE;
+	} else {
+		re_normal_min = RE_NORMAL_MIN;
+		re_normal_max = RE_NORMAL_MAX;
+	}
+
+	if (g_control_fb & TEST_SPK_ERR_FB_10042) {
+		re = RE_ERR_OPEN;
+		aw_dev_info(aw882xx->dev, "just for test 10042, set re=%d", re);
+	}
+
+	switch (re) {
+	case RE_ERR_IV_OR_MEC_DISABLE:
+		RE_ERR_RECORD(p_record, re);
+		if (p_record->err_cnt >= RE_ERR_COUNT_FB) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+					"payload@@AW882xx SPK%u:IV or MEC channel disable, re=%d, te=%d", \
+					aw882xx->aw_pa->channel + 1, re, te);
+		}
+		break;
+	case RE_ERR_NOT_WORK:
+		RE_ERR_RECORD(p_record, re);
+		if (p_record->err_cnt >= RE_ERR_COUNT_FB) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+					"payload@@AW882xx SPK%u:equivalent chip not working, re=%d, te=%d", \
+					aw882xx->aw_pa->channel + 1, re, te);
+		}
+		break;
+	case RE_ERR_IV_ERR:
+		/*2022/07/04, Delete smartpa iv_err feedback.*/
+		/*scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+				"payload@@AW882xx SPK%u:IV data error(no tx or MEC not open), re=%d, te=%d", \
+				aw882xx->aw_pa->channel + 1, re, te);*/
+		RE_ERR_RECORD(p_record, re);
+		aw_dev_err(aw882xx->dev, "payload@@AW882xx SPK%u:IV data error(no tx or MEC not open), re=%d, te=%d", aw882xx->aw_pa->channel + 1, re, te);
+		break;
+	case RE_ERR_OPEN:
+		RE_ERR_RECORD(p_record, re);
+		if (p_record->err_cnt >= RE_ERR_COUNT_FB) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+					"payload@@AW882xx SPK%u:speaker open circuit, re=%d, te=%d", \
+					aw882xx->aw_pa->channel + 1, re, te);
+		}
+		break;
+	default:
+		if ((re > RE_ERR_SHORT_MIN) && (re < RE_ERR_SHORT_MAX)) {
+			RE_ERR_RECORD(p_record, re);
+			if (p_record->err_cnt >= RE_ERR_COUNT_FB) {
+				scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+						"payload@@AW882xx SPK%u:speaker short circuit, re=%d, te=%d", \
+						aw882xx->aw_pa->channel + 1, re, te);
+			}
+		} else if ((re < re_normal_min) || (re > re_normal_max)) {
+			RE_ERR_RECORD(p_record, re);
+			if ((p_record->err_cnt >= RE_ERR_COUNT_FB) &&
+				ktime_after(ktime_get(), ktime_add_ms(p_record->tm, RE_ERR_TIME_MS))) {
+				scnprintf(fd_buf, sizeof(fd_buf) - 1, \
+						"payload@@AW882xx SPK%u:speaker R0 out of range(%d, %d), re=%d, te=%d", \
+						aw882xx->aw_pa->channel + 1, re_normal_min, re_normal_max, re, te);
+			}
+		} else {
+			if ((p_record->rd_id > 0) && (p_record->rd_id < (p_record->err_cnt + RE_ALLOW_NORMAL_CNT))) {
+				if (p_record->rd_id < RE_RECORD_CNT) {
+					p_record->re[p_record->rd_id] = re;
+					p_record->rd_id++;
+				} else {
+					p_record->err_cnt--;
+				}
+			} else if (p_record->rd_id >= (p_record->err_cnt + RE_ALLOW_NORMAL_CNT)) {
+				memset(p_record, 0, sizeof(aw_re_err_record_t));
+			}
+		}
+		break;
+	}
+
+	if (p_record->err_cnt > 0) {
+		aw_dev_info(aw882xx->dev, "AW882xx SPK%u: min_re=%d, max_re=%d, rd_id=%u, err_cnt=%u",
+				aw882xx->aw_pa->channel + 1, p_record->min_re, p_record->max_re, p_record->rd_id, p_record->err_cnt);
+	}
+
+	if (strlen(fd_buf) > 0) {
+		snprintf(fd_buf + strlen(fd_buf), sizeof(fd_buf) - strlen(fd_buf) - 1,
+				",min_re=%d,max_re=%d,record re=",
+				p_record->min_re, p_record->max_re);
+		for (i = 0; i < p_record->rd_id; i++) {
+			snprintf(fd_buf + strlen(fd_buf), sizeof(fd_buf) - strlen(fd_buf) - 1, "%d,", p_record->re[i]);
+		}
+		if (g_control_fb & TEST_SPK_ERR_FB_10042) {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_5MIN, "payload@@just for test 10042, ignore");
+		} else {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+		}
+		aw_dev_info(aw882xx->dev, "%s", fd_buf);
+
+		memset(p_record, 0, sizeof(aw_re_err_record_t));
+	}
+}
+
+static bool aw882xx_is_cali_f0_valid(struct aw882xx *aw882xx)
+{
+	int32_t cali_f0 = aw882xx->aw_pa->cali_desc.cali_f0;
+
+	return (aw882xx->need_f0_cali && (cali_f0 > AW_CALI_F0_DEFAULT_MIN) && (cali_f0 < AW_CALI_F0_DEFAULT_MAX));
+}
+
+static int aw882xx_check_speaker_status(struct aw882xx *aw882xx)
+{
+	int32_t re = 0;
+	int32_t te = 0;
+	int32_t f0 = 0;
+	int32_t q = 0;
+	unsigned int delay_ms = AW882XX_CHECK_WORK_DELAY;
+	int32_t ret = 0;
+
+	if (aw882xx_cali_svc_get_cali_status()) {
+		aw_dev_info(aw882xx->dev, "done nothing during calibration");
+		return 0;
+	}
+
+	if (aw882xx->check_step == READ_RE_VALUE) {
+		ret = aw882xx_dsp_read_st(aw882xx->aw_pa, &re, &te);
+		if (ret) {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_5MIN,
+					"payload@@AW882xx SPK%u:R0 read data from adsp error, ret=%d,", \
+					aw882xx->aw_pa->channel + 1, ret);
+		} else {
+			aw882xx_check_speaker_re(aw882xx, re, te);
+		}
+	} else if (aw882xx->check_step == READ_F0_VALUE) {
+		ret = aw882xx_dsp_read_f0_q(aw882xx->aw_pa, &f0, &q);
+		if (ret) {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_5MIN,
+					"payload@@AW882xx SPK%u:F0 read data from adsp error, ret=%d,", \
+					aw882xx->aw_pa->channel + 1, ret);
+		} else {
+			aw882xx_check_speaker_f0(aw882xx, f0);
+		}
+	}
+
+	if ((ret == 0) && aw882xx_is_cali_f0_valid(aw882xx)) {
+		aw882xx->check_step++;
+		aw882xx->check_step = aw882xx->check_step % AW_SPKS_MAX_STEPS;
+		delay_ms = g_step_delay[aw882xx->check_step];
+		aw_dev_info(aw882xx->dev, "AW882xx SPK%u: next step=%d, delay_ms=%u", \
+				aw882xx->aw_pa->channel + 1, aw882xx->check_step, delay_ms);
+		queue_delayed_work(aw882xx->work_queue,
+				&aw882xx->check_work,
+				msecs_to_jiffies(delay_ms));
+	} else {
+		aw882xx->check_step = 0;
 	}
 
 	return ret;
@@ -610,8 +867,8 @@ static void aw882xx_check_work(struct work_struct *work)
 {
 	struct aw882xx *aw882xx = container_of(work, struct aw882xx, check_work.work);
 
-	aw_dev_info(aw882xx->dev, "enter");
-	if (g_chk_err) {
+	aw_dev_info(aw882xx->dev, "enter, g_control_fb=0x%x", g_control_fb);
+	if (g_chk_err && !(g_control_fb & BYPASS_SPK_ERR_FB_10042)) {
 		aw882xx_check_speaker_status(aw882xx);
 	}
 }
@@ -629,6 +886,7 @@ static int aw882xx_set_check_feedback(struct snd_kcontrol *kcontrol,
 	g_chk_err = need_chk;
 	if (!g_chk_err) {
 		cancel_delayed_work_sync(&aw882xx->check_work);
+		aw882xx->check_step = 0;
 	}
 
 	return 0;
@@ -643,6 +901,43 @@ static int aw882xx_get_check_feedback(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/* 2024/07/08, Add for smartpa vbatlow err check. */
+static int aw882xx_get_vbatlow_cnt(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	aw_snd_soc_codec_t *codec =
+			aw_componet_codec_ops.kcontrol_codec(kcontrol);
+	struct aw882xx *aw882xx =
+			aw_componet_codec_ops.codec_get_drvdata(codec);
+
+	if (g_chk_err && !(g_control_fb & BYPASS_PA_ERR_FB_10041) &&
+		aw882xx->allow_pw && aw882xx->pstream) {
+		aw882xx_check_status_reg(aw882xx);
+	}
+	ucontrol->value.integer.value[0] = aw882xx->vbatlow_cnt;
+	aw_pr_info("vbatlow_cnt = %u", aw882xx->vbatlow_cnt);
+	aw882xx->vbatlow_cnt = 0;
+
+	return 0;
+}
+
+static int aw882xx_set_bypass_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	g_control_fb = ucontrol->value.integer.value[0];
+	aw_pr_info("set %u", g_control_fb);
+	return 0;
+}
+
+static int aw882xx_get_bypass_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = g_control_fb;
+	aw_pr_info("get %u", g_control_fb);
+
+	return 0;
+}
+
 static char const *aw882xx_check_feedback_text[] = {"Off", "On"};
 static const struct soc_enum aw882xx_check_feedback_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(aw882xx_check_feedback_text), aw882xx_check_feedback_text);
@@ -650,6 +945,14 @@ static const struct soc_enum aw882xx_check_feedback_enum =
 static const struct snd_kcontrol_new aw882xx_check_feedback[] = {
 	SOC_ENUM_EXT("AW_CHECK_FEEDBACK", aw882xx_check_feedback_enum,
 			   aw882xx_get_check_feedback, aw882xx_set_check_feedback),
+	SOC_SINGLE_EXT("PA_BYPASS_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
+			aw882xx_get_bypass_feedback, aw882xx_set_bypass_feedback),
+};
+static const struct snd_kcontrol_new aw882xx_vbatlow_controls[] = {
+	SOC_SINGLE_EXT("SpkrLeft PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
+			aw882xx_get_vbatlow_cnt, NULL),
+	SOC_SINGLE_EXT("SpkrRight PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
+			aw882xx_get_vbatlow_cnt, NULL),
 };
 #endif /*OPLUS_FEATURE_MM_FEEDBACK*/
 
@@ -726,12 +1029,14 @@ static int aw882xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 	aw_dev_info(aw882xx->dev, "mute state=%d", mute);
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 	if (mute) {
-		if (g_chk_err) {
+		if (g_chk_err && !(g_control_fb & BYPASS_PA_ERR_FB_10041)) {
 			aw882xx_check_status_reg(aw882xx);
 			g_chk_err = false;
 		}
 		cancel_delayed_work_sync(&aw882xx->check_work);
+		aw882xx->check_step = 0;
 	}
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
@@ -764,9 +1069,11 @@ static int aw882xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 #endif /* OPLUS_ARCH_EXTENDS */
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		if (g_chk_err) {
+/* 2022/02/15, Add for smartpa err feedback.*/
+		if (g_chk_err && !(g_control_fb & BYPASS_SPK_ERR_FB_10042)) {
 			queue_delayed_work(aw882xx->work_queue,
-					&aw882xx->check_work, AW882XX_CHECK_WORK_DELAY);
+					&aw882xx->check_work, msecs_to_jiffies(AW882XX_CHECK_WORK_DELAY));
+			aw882xx->check_step = 0;
 		}
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 #ifndef OPLUS_ARCH_EXTENDS
@@ -957,12 +1264,14 @@ static int aw882xx_switch_set(struct snd_kcontrol *kcontrol,
 	if (aw882xx->pstream) {
 		if (ucontrol->value.integer.value[0] == 0) {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 /*MTK platform set aw_dev_0_switch before pcm close, so check reg here rather than aw882xx_mute */
-			if (g_chk_err) {
+			if (g_chk_err && !(g_control_fb & BYPASS_PA_ERR_FB_10041)) {
 				aw882xx_check_status_reg(aw882xx);
 				g_chk_err = false;
 			}
 			cancel_delayed_work_sync(&aw882xx->check_work);
+			aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			cancel_delayed_work_sync(&aw882xx->dc_work);
 			cancel_delayed_work_sync(&aw882xx->start_work);
@@ -973,7 +1282,9 @@ static int aw882xx_switch_set(struct snd_kcontrol *kcontrol,
 			aw_dev_info(aw882xx->dev, "stop pa");
 		} else {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 			cancel_delayed_work_sync(&aw882xx->check_work);
+			aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			cancel_delayed_work_sync(&aw882xx->start_work);
 			mutex_lock(&aw882xx->lock);
@@ -1345,8 +1656,10 @@ static void aw882xx_dc_prot_work(struct work_struct *work)
 			dc_status = aw882xx_dev_dc_status(aw882xx->aw_pa);
 			if (dc_status > 0) {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 				g_chk_err = false;
 				cancel_delayed_work_sync(&aw882xx->check_work);
+				aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 				cancel_delayed_work_sync(&aw882xx->start_work);
 				mutex_lock(&aw882xx->lock);
@@ -1846,8 +2159,10 @@ static int aw882xx_spk_l_mute_ctrl_put(struct snd_kcontrol *kcontrol,
 		if (ucontrol->value.integer.value[0] == 1) {
 			aw_dev_info(aw882xx->dev, "AW_L operating, setting mute state...");
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 			g_chk_err = false;
 			cancel_delayed_work_sync(&aw882xx->check_work);
+			aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			cancel_delayed_work_sync(&aw882xx->dc_work);
 			cancel_delayed_work_sync(&aw882xx->start_work);
@@ -1915,8 +2230,10 @@ static int aw882xx_spk_r_mute_ctrl_put(struct snd_kcontrol *kcontrol,
 		if (ucontrol->value.integer.value[0] == 1) {
 			aw_dev_info(aw882xx->dev, "AW_R operating, setting mute state...");
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 			g_chk_err = false;
 			cancel_delayed_work_sync(&aw882xx->check_work);
+			aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			cancel_delayed_work_sync(&aw882xx->dc_work);
 			cancel_delayed_work_sync(&aw882xx->start_work);
@@ -1973,8 +2290,10 @@ static int aw882xx_spk_reboot_ctrl_put(struct snd_kcontrol *kcontrol,
 		if (ucontrol->value.integer.value[0] == 1) {
 			aw_dev_info(aw882xx->dev, "AW rebooting, setting mute state...");
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 			g_chk_err = false;
 			cancel_delayed_work_sync(&aw882xx->check_work);
+			aw882xx->check_step = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			cancel_delayed_work_sync(&aw882xx->dc_work);
 			cancel_delayed_work_sync(&aw882xx->start_work);
@@ -2043,6 +2362,7 @@ static void aw882xx_add_codec_controls(struct aw882xx *aw882xx)
 		aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
 				aw882xx_spin_control, ARRAY_SIZE(aw882xx_spin_control));
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	/* 2022/02/15, Add for smartpa err feedback.*/
 	aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
 			&aw882xx_check_feedback[0], ARRAY_SIZE(aw882xx_check_feedback));
 #endif
@@ -2274,10 +2594,6 @@ static int aw882xx_codec_probe(aw_snd_soc_codec_t *aw_codec)
 	INIT_DELAYED_WORK(&aw882xx->dc_work, aw882xx_dc_prot_work);
 	INIT_DELAYED_WORK(&aw882xx->fw_work, aw882xx_request_firmware);
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	aw882xx->last_fb = 0;
-	INIT_DELAYED_WORK(&aw882xx->check_work, aw882xx_check_work);
-#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	aw882xx->codec = aw_codec;
 
 	if (aw882xx->aw_pa->channel == 0)
@@ -2295,6 +2611,22 @@ static int aw882xx_codec_probe(aw_snd_soc_codec_t *aw_codec)
 	/*load cali re*/
 	aw882xx_dev_init_cali_re(aw882xx->aw_pa);
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
+/* 2024/07/08, Add for smartpa vbatlow err check. */
+	aw882xx->vbatlow_cnt = 0;
+	if (aw882xx->aw_pa->channel < (sizeof(aw882xx_vbatlow_controls) / sizeof(aw882xx_vbatlow_controls[0]))) {
+		aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
+				&aw882xx_vbatlow_controls[aw882xx->aw_pa->channel], 1);
+	}
+
+	aw882xx->last_fb = 0;
+	aw882xx->check_step = 0;
+	INIT_DELAYED_WORK(&aw882xx->check_work, aw882xx_check_work);
+	aw_dev_err(aw882xx->dev, "event_id=%u, version:%s\n", OPLUS_AUDIO_EVENTID_SMARTPA_ERR, SMARTPA_ERR_FB_VERSION);
+	aw_dev_err(aw882xx->dev, "event_id=%u, version:%s\n", OPLUS_AUDIO_EVENTID_SPK_ERR, SPK_ERR_FB_VERSION);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	#ifdef OPLUS_FEATURE_SPEAKER_MUTE
 	snd_soc_add_component_controls(aw882xx->codec,
@@ -3396,6 +3728,14 @@ static ssize_t aw882xx_dbgfs_check_cali_re(struct file *file,
 		pr_err("%s aw882xx is null\n", __func__);
 		return -EINVAL;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/*2024/05/15, Add for speaker f0 err feedback.*/
+	g_chk_err = false;
+	aw882xx->check_step = 0;
+	cancel_delayed_work_sync(&aw882xx->check_work);
+#endif
+
 	str = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!str) {
 		ret = -ENOMEM;
@@ -3481,6 +3821,34 @@ range_err:
 	return ret;
 }
 
+static ssize_t aw882xx_dbgfs_auto_cali_re(struct file *file,
+				char __user *user_buf, size_t count,
+				loff_t *ppos)
+{
+	struct i2c_client *i2c = PDE_DATA(file_inode(file));
+	struct aw882xx *aw882xx = i2c_get_clientdata(i2c);
+	char *str = NULL;
+	int ret = 0;
+	if (!aw882xx) {
+		pr_err("%s aw882xx is null\n", __func__);
+		return -EINVAL;
+	}
+
+	str = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!str) {
+		ret = -ENOMEM;
+		pr_err("[0x%x] memory allocation failed\n", aw882xx->i2c->addr);
+		goto cali_re_err;
+	}
+
+	ret = oplus_aw_cali_re(&i2c->dev, str);
+	pr_info("%s addr 0x%x, str=%s\n", __func__, aw882xx->i2c->addr, str);
+	ret = simple_read_from_buffer(user_buf, count, ppos, str, ret);
+	kfree(str);
+cali_re_err:
+	return ret;
+}
+
 static const struct proc_ops aw882xx_dbgfs_range_fops = {
 	.proc_open = simple_open,
 	.proc_read = aw882xx_dbgfs_range_read,
@@ -3517,6 +3885,12 @@ static const struct proc_ops aw882xx_dbgfs_f0_show_fops = {
 	.proc_lseek = default_llseek,
 };
 
+static const struct proc_ops aw882xx_dbgfs_auto_cali_re_fops = {
+	.proc_open = simple_open,
+	.proc_read = aw882xx_dbgfs_auto_cali_re,
+	.proc_lseek = default_llseek,
+};
+
 static void aw882xx_debug_init(struct aw882xx *aw882xx, struct i2c_client *i2c)
 {
 	char name[50];
@@ -3530,6 +3904,8 @@ static void aw882xx_debug_init(struct aw882xx *aw882xx, struct i2c_client *i2c)
 					&aw882xx_dbgfs_cali_re_fops, i2c);
 	proc_create_data("r_impedance", S_IRUGO, aw882xx->dbg_dir,
 					&aw882xx_dbgfs_cali_r_impedance_fops, i2c);
+	proc_create_data("auto_cali_re", S_IRUGO, aw882xx->dbg_dir,
+					&aw882xx_dbgfs_auto_cali_re_fops, i2c);
 #ifdef AW_NEED_CALIB_F0
 	if (aw882xx->need_f0_cali) {
 		proc_create_data("f0_range", S_IRUGO, aw882xx->dbg_dir,
@@ -3965,8 +4341,12 @@ static void aw882xx_i2c_shutdown(struct i2c_client *i2c)
 	struct aw882xx *aw882xx = i2c_get_clientdata(i2c);
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
 	g_chk_err = false;
 	cancel_delayed_work_sync(&aw882xx->check_work);
+	aw882xx->check_step = 0;
+	memset(&aw882xx->rd_re, 0, sizeof(aw_re_err_record_t));
+	memset(&aw882xx->rd_f0, 0, sizeof(aw_f0_err_record_t));
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	aw_dev_info(aw882xx->dev, "enter");
 	mutex_lock(&aw882xx->lock);

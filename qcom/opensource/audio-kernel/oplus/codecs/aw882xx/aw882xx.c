@@ -44,6 +44,10 @@
 #include <linux/proc_fs.h>
 #endif
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+#include <soc/oplus/fpga_notify.h>
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 #define AW882XX_DRIVER_VERSION "v1.15.0.3"
 #define AW882XX_I2C_NAME "aw882xx_smartpa"
 
@@ -85,6 +89,22 @@ static struct aw_componet_codec_ops aw_componet_codec_ops = {
 	.register_codec = snd_soc_register_codec,
 };
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+enum {
+	AW_FPGA_STATUS_OK,
+	AW_FPGA_STATUS_ERR,
+};
+
+enum {
+	AW_PA_IS_HW_RESET,
+	AW_PA_IS_NOT_HW_RESET,
+};
+
+static int aw882xx_i2c_reads(struct aw882xx *aw882xx,
+	unsigned char reg_addr, unsigned char *data_buf, unsigned int data_len);
+void aw882xx_error_feedback(char *str);
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 static aw_snd_soc_codec_t *aw_get_codec(struct snd_soc_dai *dai)
 {
@@ -132,7 +152,6 @@ static int aw882xx_i2c_writes(struct aw882xx *aw882xx,
 	if (data == NULL)
 		return -ENOMEM;
 
-
 	data[0] = reg_addr;
 	memcpy(&data[1], buf, len);
 
@@ -176,6 +195,34 @@ static int aw882xx_i2c_reads(struct aw882xx *aw882xx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+/*read back I2C data and check for fpga-reset*/
+int aw882xx_check_writen_data(struct aw882xx *aw882xx,
+	unsigned char reg_addr, unsigned int write_data)
+{
+	int ret = -1;
+	unsigned int rd_val = 0;
+	unsigned char buf[2];
+
+	ret = aw882xx_i2c_read(aw882xx, reg_addr, &rd_val);
+	if (ret < 0) {
+		aw_dev_err(aw882xx->dev, "i2c read back error, ret=%d\n", ret);
+		return ret;
+	}
+
+	if (rd_val != write_data) {
+		buf[0] = (write_data&0xff00)>>8;
+		buf[1] = (write_data&0x00ff)>>0;
+		ret = aw882xx_i2c_writes(aw882xx, reg_addr, buf, 2);
+		if (ret < 0) {
+			aw882xx_error_feedback("aw882xx_check_writen_data re-send fail");
+		}
+	}
+
+	return ret;
+}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 int aw882xx_i2c_write(struct aw882xx *aw882xx,
 	unsigned char reg_addr, unsigned int reg_data)
 {
@@ -199,6 +246,13 @@ int aw882xx_i2c_write(struct aw882xx *aw882xx,
 		}
 		cnt++;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/* if write ok, chicking data in next step */
+	if (aw882xx->fpga_check_enable && ret >= 0) {
+		aw882xx_check_writen_data(aw882xx, reg_addr, reg_data);
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	return ret;
 }
@@ -224,6 +278,13 @@ int aw882xx_i2c_read(struct aw882xx *aw882xx,
 		}
 		cnt++;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/*error feedback for fpga-reset*/
+	if (ret < 0 && aw882xx->fpga_check_enable) {
+		aw882xx_error_feedback("aw882xx_i2c_read fail");
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	return ret;
 }
@@ -348,7 +409,7 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 	int ret;
 	int i;
 
-	aw_dev_info(aw882xx->dev, "enter");
+	aw_dev_info(aw882xx->dev, "enter, phase_sync=%d", aw882xx->phase_sync);
 
 	if (aw882xx->fw_status == AW_DEV_FW_OK) {
 		#ifndef OPLUS_FEATURE_SPEAKER_MUTE
@@ -402,6 +463,11 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 #define AW882XX_STATUS_CHECK_MASK          0xCABB
 #define AW882XX_CHECK_PA_ERR_FEEDBACK      0x1
 
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
+
 /* 2024/07/08, Add for smartpa vbatlow err check. */
 #define VBAT_LOW_REG_BIT_MASK              0x4000
 
@@ -426,6 +492,8 @@ static const struct check_status_err check_err[] = {
 const unsigned char fb_regs_aw88264[] = {0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x10, 0x12, 0x13, 0x14, 0x60, 0x61};
 const unsigned char fb_regs_aw88265[] = {0x02, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x20, 0x21, 0x22, 0x23, 0x60, 0x61};
 
+static uint32_t g_control_fb = 0;
+
 static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 {
 	unsigned int reg_val = 0;
@@ -444,6 +512,10 @@ static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 		aw_dev_info(aw882xx->dev, "i2c read error, ret=%d", ret);
 	} else {
 		aw_dev_info(aw882xx->dev, "read reg[0x%x]=0x%x", AW882XX_STATUS_REG, reg_val);
+		if (g_control_fb & TEST_PA_ERR_FB_10041) {
+			reg_val = 0xFFFF;
+			aw_dev_info(aw882xx->dev, "just for test 10041, change reg[0x%x]=0x%x", AW882XX_STATUS_REG, reg_val);
+		}
 		/* 2024/07/08, Add for smartpa vbatlow err check. */
 		if (reg_val & VBAT_LOW_REG_BIT_MASK) {
 			aw882xx->vbatlow_cnt++;
@@ -493,7 +565,11 @@ static int aw882xx_check_status_reg(struct aw882xx *aw882xx)
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		if (g_control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		}
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
 				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
 		aw_dev_info(aw882xx->dev, "fd_buf=%s", fd_buf);
@@ -519,7 +595,7 @@ static int aw882xx_set_check_feedback(struct snd_kcontrol *kcontrol,
 	int need_chk = ucontrol->value.integer.value[0];
 	aw_pr_info("%d", need_chk);
 
-	if ((need_chk == AW882XX_CHECK_PA_ERR_FEEDBACK) &&
+	if ((need_chk == AW882XX_CHECK_PA_ERR_FEEDBACK) && !(g_control_fb & BYPASS_PA_ERR_FB_10041) &&
 		aw882xx->allow_pw && aw882xx->pstream) {
 		aw882xx_check_status_reg(aw882xx);
 	}
@@ -546,6 +622,23 @@ static int aw882xx_get_vbatlow_cnt(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int aw882xx_set_bypass_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	g_control_fb = ucontrol->value.integer.value[0];
+	aw_pr_info("set %u", g_control_fb);
+	return 0;
+}
+
+static int aw882xx_get_bypass_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = g_control_fb;
+	aw_pr_info("get %u", g_control_fb);
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new aw882xx_check_feedback[] = {
 	SOC_SINGLE_EXT("SpkrLeft PA_ERR_CHECK_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
 			aw882xx_get_check_feedback, aw882xx_set_check_feedback),
@@ -557,6 +650,10 @@ static const struct snd_kcontrol_new aw882xx_vbatlow_controls[] = {
 			aw882xx_get_vbatlow_cnt, NULL),
 	SOC_SINGLE_EXT("SpkrRight PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
 			aw882xx_get_vbatlow_cnt, NULL),
+};
+static const struct snd_kcontrol_new aw882xx_bypass_feedback[] = {
+	SOC_SINGLE_EXT("PA_BYPASS_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
+			aw882xx_get_bypass_feedback, aw882xx_set_bypass_feedback),
 };
 #endif /*OPLUS_FEATURE_MM_FEEDBACK*/
 
@@ -571,36 +668,47 @@ static int aw882xx_spk_mute_ctrl_get(struct snd_kcontrol *kcontrol,
 static int aw882xx_spk_mute_ctrl_set(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	aw_snd_soc_codec_t *codec =
-		aw_componet_codec_ops.kcontrol_codec(kcontrol);
-	struct aw882xx *aw882xx =
-		aw_componet_codec_ops.codec_get_drvdata(codec);
-
+	int ret = 0;
+	struct aw_device *local_dev = NULL;
+	struct list_head *pos = NULL;
+	struct list_head *dev_list = NULL;
+	struct aw882xx *aw882xx = NULL;
 	int val = ucontrol->value.integer.value[0];
+
+	ret = aw882xx_dev_get_list_head(&dev_list);
+	if (ret < 0) {
+		aw_pr_err("get dev list failed");
+		return ret;
+	}
+
 	if (val == speaker_mute_control) {
-		aw_dev_info(codec->dev, "Speaker mute is already %s\n", val == 1 ? "on" : "off");
+		aw_pr_info("Speaker mute is already %s\n", val == 1 ? "on" : "off");
 		return 1;
 	} else {
-		aw_dev_info(codec->dev, "Speaker mute set to %s\n", val == 1 ? "on" : "off");
+		aw_pr_info("Speaker mute set to %s\n", val == 1 ? "on" : "off");
 		speaker_mute_control = val;
 	}
 
-	if (aw882xx->pstream) {
-		if (speaker_mute_control == 1) {
-			cancel_delayed_work_sync(&aw882xx->dc_work);
-			cancel_delayed_work_sync(&aw882xx->start_work);
-			mutex_lock(&aw882xx->lock);
-			aw882xx_device_stop(aw882xx->aw_pa);
-			mutex_unlock(&aw882xx->lock);
-			aw_dev_info(aw882xx->dev, "stop pa");
-		} else {
-			cancel_delayed_work_sync(&aw882xx->start_work);
-			mutex_lock(&aw882xx->lock);
-			if (aw882xx->fw_status == AW_DEV_FW_OK)
-				aw882xx_start_pa(aw882xx);
-			else
-				aw_dev_info(aw882xx->dev, "fw_load failed ,can not start PA");
-			mutex_unlock(&aw882xx->lock);
+	list_for_each(pos, dev_list) {
+		local_dev = container_of(pos, struct aw_device, list_node);
+		aw882xx = (struct aw882xx *)local_dev->private_data;
+		if (aw882xx->pstream) {
+			if (speaker_mute_control == 1) {
+				cancel_delayed_work_sync(&aw882xx->dc_work);
+				cancel_delayed_work_sync(&aw882xx->start_work);
+				mutex_lock(&aw882xx->lock);
+				aw882xx_device_stop(aw882xx->aw_pa);
+				mutex_unlock(&aw882xx->lock);
+				aw_dev_info(aw882xx->dev, "stop pa");
+			} else {
+				cancel_delayed_work_sync(&aw882xx->start_work);
+				mutex_lock(&aw882xx->lock);
+				if (aw882xx->fw_status == AW_DEV_FW_OK)
+					aw882xx_start_pa(aw882xx);
+				else
+					aw_dev_info(aw882xx->dev, "fw_load failed ,can not start PA");
+				mutex_unlock(&aw882xx->lock);
+			}
 		}
 	}
 	return 0;
@@ -2106,6 +2214,10 @@ static int aw882xx_codec_probe(aw_snd_soc_codec_t *aw_codec)
 		aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
 				&aw882xx_vbatlow_controls[aw882xx->aw_pa->channel], 1);
 	}
+
+	if (aw882xx->aw_pa->channel == 0) {
+		aw_componet_codec_ops.add_codec_controls(aw882xx->codec, &aw882xx_bypass_feedback[0], 1);
+	}
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	#ifdef OPLUS_FEATURE_SPEAKER_MUTE
@@ -2390,6 +2502,9 @@ static int aw882xx_parse_dt(struct device *dev, struct aw882xx *aw882xx,
 	int ret;
 	int32_t dc_enable = 0;
 	int32_t sync_enable = 0;
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	int32_t fpga_chk_enable = 0;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	/*gpio dts parser*/
 	ret = aw882xx_parse_gpio_dt(aw882xx, np);
@@ -2419,11 +2534,41 @@ static int aw882xx_parse_dt(struct device *dev, struct aw882xx *aw882xx,
 
 	aw882xx->phase_sync = sync_enable;
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/*get enable-flag from dts for fpga-reset*/
+	ret = of_property_read_u32(np, "fpga-check-enable", &fpga_chk_enable);
+	if (ret < 0) {
+		aw882xx->fpga_check_enable = 0;
+	} else {
+		aw882xx->fpga_check_enable = fpga_chk_enable;
+	}
+	aw_dev_info(aw882xx->dev,
+		"fpga_check_enable is %d\n", aw882xx->fpga_check_enable);
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 	aw882xx_parse_rename_flag_dt(aw882xx);
 	aw882xx_parse_sync_load_dt(aw882xx);
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+/* feedback error if status abnormal for fpga-reset */
+void aw882xx_error_feedback(char *str)
+{
+	int str_len = 0;
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+
+	str_len = strlen(str);
+	if ((str_len > 0) && (str_len < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@aw_fpga: in %s", str);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
+			MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+	}
+}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 int aw882xx_hw_reset(struct aw882xx *aw882xx)
 {
@@ -3101,6 +3246,95 @@ static int aw882xx_proc_init(struct aw882xx *aw882xx)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+// add for restoe playback after fpga-reset
+static void oplus_aw882xx_restart_pa(struct aw882xx *aw882xx)
+{
+	int cur_index;
+
+	aw_dev_info(aw882xx->dev, "enter, pstream=%d, pa-status=%d\n",
+			aw882xx->pstream, aw882xx->aw_pa->status);
+
+	mutex_lock(&aw882xx->lock);
+	if (aw882xx->pstream) {
+		cur_index = aw882xx_dev_get_profile_index(aw882xx->aw_pa);
+		aw_dev_info(aw882xx->dev, "cur profile index=%d\n", cur_index);
+		aw882xx_dev_set_profile_index(aw882xx->aw_pa, cur_index);
+
+		aw_dev_info(aw882xx->dev, "stop PA first, pa-status=%d\n", aw882xx->aw_pa->status);
+		aw882xx_device_stop(aw882xx->aw_pa);
+		aw_dev_info(aw882xx->dev, "force PA HW-reset\n");
+		aw882xx_hw_reset(aw882xx);
+
+		aw_dev_info(aw882xx->dev, "force open PA, pa-status=%d, allow_pw=%d\n",
+			aw882xx->aw_pa->status, aw882xx->allow_pw);
+		aw882xx_start_pa(aw882xx);
+	} else {
+		/* after receiving notifition of fpga reset ok, stop and hw-reset device
+		in case of no pstream */
+		aw882xx_device_stop(aw882xx->aw_pa);
+		aw882xx_hw_reset(aw882xx);
+	}
+	mutex_unlock(&aw882xx->lock);
+}
+
+static int oplus_aw_fpga_state_change(struct notifier_block *nb, unsigned long ev, void *v)
+{
+	struct aw882xx *aw882xx = container_of(nb, struct aw882xx, pd_nb);
+	int fpga_state = -1;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
+	if (!aw882xx) {
+		pr_err("%s, switch_priv is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	aw_dev_info(aw882xx->dev, "event is %lu.\n", ev);
+
+	if (!aw882xx->fpga_check_enable) {
+		return -1;
+	}
+
+	/*get current fpga state from notify*/
+	if (ev == FPGA_RST_END || ev == FPGA_POWER_ON_END) {
+		fpga_state = AW_FPGA_STATUS_OK;
+	} else {
+		fpga_state = AW_FPGA_STATUS_ERR;
+	}
+
+	if (aw882xx->fpga_current_status == fpga_state) {
+		/*get same state, no need process again*/
+		return 0;
+	} else {
+		aw882xx->fpga_current_status = fpga_state;
+	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (aw882xx->fpga_current_status == AW_FPGA_STATUS_OK) {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@oplus_aw_fpga_state_change:FPGA STATUS OK");
+		mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, 0, FB_HIGH, fd_buf);
+	} else {
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@oplus_aw_fpga_state_change:FPGA STATUS FAIL");
+		mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, FEEDBACK_DELAY_60S * 2, FB_HIGH, fd_buf);
+	}
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
+	aw_dev_info(aw882xx->dev, "fpga current status:%s.\n",
+		(aw882xx->fpga_current_status == 0)? "ok" : "error");
+
+	/*check register to confirm if is hw-reset by fpga*/
+	if (aw882xx->fpga_current_status == AW_FPGA_STATUS_OK) {
+		/*init pa register again after fpga status ok*/
+		aw_dev_info(aw882xx->dev, "init pa register again.\n");
+		oplus_aw882xx_restart_pa(aw882xx);
+	}
+
+	return 0;
+}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
 static int aw882xx_i2c_probe(struct i2c_client *i2c)
 #else
@@ -3125,6 +3359,9 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 		aw_dev_err(&i2c->dev, "malloc aw882xx failed");
 		return -ENOMEM;
 	}
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	aw882xx->fpga_notify_reg_success = 0;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 	i2c_set_clientdata(i2c, aw882xx);
 
@@ -3146,7 +3383,19 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 	ret = aw882xx_read_chipid(aw882xx);
 	if (ret < 0) {
 		aw_dev_err(&i2c->dev, "aw882xx_read_chipid failed ret=%d", ret);
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+		if (aw882xx->fpga_check_enable) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, \
+				FEEDBACK_DELAY_60S, "payload@@aw882xx_read_chipid failed");
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+			return -EPROBE_DEFER;
+		} else {
+			return ret;
+		}
+#else
 		return ret;
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 	}
 
 	/*aw pa init*/
@@ -3189,6 +3438,27 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 	g_aw882xx_dev_cnt++;
 	mutex_unlock(&g_aw882xx_lock);
 	aw_dev_info(&i2c->dev, "dev_cnt %d", g_aw882xx_dev_cnt);
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	/*register fpga notify for fpga-reset*/
+	if (aw882xx->fpga_check_enable) {
+		aw882xx->pd_nb.notifier_call = oplus_aw_fpga_state_change;
+		aw882xx->pd_nb.priority = 0;
+		ret = fpga_register_notifier(&aw882xx->pd_nb);
+		if (ret != 0) {
+			aw_pr_err("%s : fpga_register_notifier failed!\n", __func__);
+			aw882xx->fpga_notify_reg_success = -1;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, \
+				FEEDBACK_DELAY_60S, "payload@@register fpga notify failed");
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+		} else {
+			aw_pr_info("%s : fpga_register_notifier  done!\n", __func__);
+			aw882xx->fpga_notify_reg_success = 0;
+		}
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
+
 	return ret;
 err_sysfs:
 	aw_componet_codec_ops.unregister_codec(&i2c->dev);
@@ -3240,6 +3510,13 @@ static int aw882xx_i2c_remove(struct i2c_client *i2c)
 		}
 	}
 	mutex_unlock(&g_aw882xx_lock);
+
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	if (aw882xx->fpga_check_enable && aw882xx->fpga_notify_reg_success == 0) {
+		aw_dev_info(&i2c->dev, "fpga_unregister_notifier\n");
+		fpga_unregister_notifier(&aw882xx->pd_nb);
+	}
+#endif /* CONFIG_OPLUS_FPGA_NOTIFY */
 
 #ifdef AW_KERNEL_VER_OVER_6_1_0
 #else

@@ -2397,10 +2397,16 @@ static int swrm_disconnect_port(struct swr_master *master,
 			mport->ch_rate = 0;
 			swrm_update_bus_clk(swrm);
 		} else {
+#ifdef OPLUS_ARCH_EXTENDS
+/* add condition to update mport chrate during disconnect port. CR-3779547 and CR-3822295 */
 			if (mport->ch_rate > 0 && mport->req_ch != 0) {
 				mport->ch_rate -= port_req->ch_rate;
 				swrm_update_bus_clk(swrm);
 			}
+#else /* OPLUS_ARCH_EXTENDS */
+			mport->ch_rate -= port_req->ch_rate;
+			swrm_update_bus_clk(swrm);
+#endif /* OPLUS_ARCH_EXTENDS */
 		}
 		num_port++;
 	}
@@ -2532,7 +2538,12 @@ static void swrm_process_change_enum_slave_status(struct swr_mstr_ctrl *swrm)
 	}
 
 	num_enum_devs = 0;
+#ifdef OPLUS_ARCH_EXTENDS
+/* fix coverity issue */
 	memset(enum_devnum, 0, (SWR_MAX_DEV_NUM * 2 * sizeof(u8)));
+#else /* OPLUS_ARCH_EXTENDS */
+	memset(enum_devnum, 0, sizeof(SWR_MAX_DEV_NUM * 2 * sizeof(u8)));
+#endif /* OPLUS_ARCH_EXTENDS */
 	chg_sts = swrm_check_slave_change_status(swrm, enum_devnum, &num_enum_devs);
 
 	if (num_enum_devs == 0)
@@ -2544,24 +2555,24 @@ static void swrm_process_change_enum_slave_status(struct swr_mstr_ctrl *swrm)
 		switch (chg_sts) {
 		case SWR_NOT_PRESENT:
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
- 				dev_info(swrm->dev,
- 					"%s: device %d got detached, dev_up:%d, state:%d\n",
- 					__func__, devnum, swrm->dev_up,swrm->state);
- 				if (!strcmp(dev_name(swrm->dev), "va_swr_ctrl") && (devnum == 1)) {
- 					ratelimited_fb("payload@@%s %s:device %d got detached",
- 						dev_driver_string(swrm->dev), dev_name(swrm->dev), devnum);
- 				}
+			dev_info(swrm->dev,
+				"%s: device %d got detached, dev_up:%d, state:%d\n",
+				__func__, devnum, swrm->dev_up,swrm->state);
+			if (!strcmp(dev_name(swrm->dev), "va_swr_ctrl") && (devnum == 1)) {
+				ratelimited_fb("payload@@%s %s:device %d got detached",
+					dev_driver_string(swrm->dev), dev_name(swrm->dev), devnum);
+			}
 #else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
- 				dev_dbg(swrm->dev,
-						"%s: device %d got detached\n", __func__, devnum);
+			dev_dbg(swrm->dev,
+					"%s: device %d got detached\n", __func__, devnum);
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 #ifdef OPLUS_ARCH_EXTENDS
- 				if (!strcmp(dev_name(swrm->dev), "va_swr_ctrl") && (devnum == 1) &&
- 					(swrm->state != SWR_MSTR_SSR && swrm->dev_up) &&
- 					(ktime_after(ktime_get(), ktime_add_ms(ssr_time, SWRM_FIFO_FAILED_LIMIT_MS)))) {
- 					ssr_time = ktime_get();
- 					schedule_delayed_work(&swrm->adsp_ssr_work, msecs_to_jiffies(200));
- 				}
+			if (!strcmp(dev_name(swrm->dev), "va_swr_ctrl") && (devnum == 1) &&
+				(swrm->state != SWR_MSTR_SSR && swrm->dev_up) &&
+				(ktime_after(ktime_get(), ktime_add_ms(ssr_time, SWRM_FIFO_FAILED_LIMIT_MS)))) {
+				ssr_time = ktime_get();
+				schedule_delayed_work(&swrm->adsp_ssr_work, msecs_to_jiffies(200));
+			}
 #endif /* OPLUS_ARCH_EXTENDS */
 			if (devnum == 0) {
 				/*
@@ -2583,6 +2594,11 @@ static void swrm_process_change_enum_slave_status(struct swr_mstr_ctrl *swrm)
 			dev_dbg(swrm->dev, "%s: device %d has pending interrupt\n",
 					__func__, devnum);
 			break;
+#ifdef OPLUS_ARCH_EXTENDS
+/* fix coverity issue */
+		default:
+			break;
+#endif /* OPLUS_ARCH_EXTENDS */
 		}
 	}
 }

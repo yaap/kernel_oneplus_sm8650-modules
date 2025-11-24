@@ -878,6 +878,7 @@ enum {
 #define WCD9378_CDC_AUX_GAIN_CTL_AUX_EN_SHIFT                             0x00
 
 #ifdef OPLUS_ARCH_EXTENDS
+/* 2024/8/28, add for fix wcd9378_hph channel Exception */
 #define WCD9378_CN_MBQ_ENABLE_MASK      (0x6000)
 #define WCD9378_CN_ENABLE_MASK          (0x4000)
 

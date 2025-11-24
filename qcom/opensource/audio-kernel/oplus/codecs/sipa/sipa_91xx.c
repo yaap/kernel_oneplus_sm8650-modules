@@ -77,6 +77,13 @@ extern int speaker_mute_control;
 #define SIA91XX_STATUS_NORMAL_VALUE        0x0
 /* 0x106D = 0001000001101101b, mask bit0/2/3/5/6 */
 #define SIA91XX_STATUS_CHECK_MASK          0x6D
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+#define VBAT_LOW_REG_BIT_MASK              0x20
+
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
 
 struct check_status_err {
 	int bit;
@@ -93,7 +100,7 @@ static const struct check_status_err check_err[] = {
 
 const unsigned char fb_regs_sia9175[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 
-static int sia91xx_check_status_reg(sipa_dev_t *si_pa)
+int sia91xx_check_status_reg(sipa_dev_t *si_pa)
 {
 	unsigned int reg_val = 0;
 	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
@@ -109,7 +116,17 @@ static int sia91xx_check_status_reg(sipa_dev_t *si_pa)
 	ret = regmap_read(si_pa->regmap, SIA91XX_STATUS_REG, &reg_val);
 
 	if (ret == 0) {
-		pr_info("%s: read reg[0x%x]=0x%x\n", si_pa->name, SIA91XX_STATUS_REG, reg_val);
+		pr_info("[ info][%s] %s: read reg[0x%x]=0x%x\n", __func__, si_pa->name, SIA91XX_STATUS_REG, reg_val);
+		if (si_pa->control_fb & TEST_PA_ERR_FB_10041) {
+			reg_val = 0xFF;
+			pr_info("[ info][%s] just for test 10041, change reg_val=0x%x", __func__, reg_val);
+		}
+		/* 2024/06/28, Add for smartpa vbatlow err check. */
+		if (reg_val & VBAT_LOW_REG_BIT_MASK) {
+			si_pa->vbatlow_cnt++;
+			pr_info("[ info][%s] vbatlow_cnt=%u", __func__, si_pa->vbatlow_cnt);
+		}
+
 		if ((SIA91XX_STATUS_NORMAL_VALUE & SIA91XX_STATUS_CHECK_MASK) != (reg_val & SIA91XX_STATUS_CHECK_MASK)) {
 			offset = strlen(info);
 			scnprintf(info + offset, sizeof(info) - offset - 1, \
@@ -144,22 +161,25 @@ static int sia91xx_check_status_reg(sipa_dev_t *si_pa)
 				"sia91xx SPK%u:failed to read regs 0x%x, ret=%d,", \
 				si_pa->channel_num + 1, SIA91XX_STATUS_REG, ret);
 
-		pr_info("reg read err, ret = %d", ret);
+		pr_info("[ info][%s] reg read err, ret = %d", __func__, ret);
 	}
 
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		if (si_pa->control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		}
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
 				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
 		si_pa->last_fb = ktime_get();
-		pr_info("fd_buf=%s", fd_buf);
+		pr_info("[ info][%s] fd_buf=%s", __func__, fd_buf);
 	}
 
 	return 1;
 }
-
 #endif /*OPLUS_FEATURE_MM_FEEDBACK*/
 
 
@@ -497,7 +517,7 @@ int sia91xx_mute(
 	if (mute) {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 /* 2023/04/18, Add for smartpa err feedback. */
-		if (si_pa->need_chk_err) {
+		if (si_pa->need_chk_err && !(si_pa->control_fb & BYPASS_PA_ERR_FB_10041)) {
 			sia91xx_check_status_reg(si_pa);
 			si_pa->need_chk_err = false;
 		}
@@ -562,6 +582,7 @@ int sia91xx_component_probe(struct snd_soc_component *component)
 	struct snd_soc_dapm_context *dapm;
 	unsigned int num_dapm_widgets = ARRAY_SIZE(sia91xx_dapm_widgets_common);
 	sipa_dev_t *si_pa = snd_soc_component_get_drvdata(component);
+	int ret = 0;
 
 	dapm = snd_soc_component_get_dapm(component);
 
@@ -587,10 +608,24 @@ int sia91xx_component_probe(struct snd_soc_component *component)
 					NULL,
 					0);
 
-	snd_soc_dapm_new_controls(dapm, widgets,
+	ret = snd_soc_dapm_new_controls(dapm, widgets,
 					ARRAY_SIZE(sia91xx_dapm_widgets_common));
-	snd_soc_dapm_add_routes(dapm, sia91xx_dapm_routes_common,
+	if (ret < 0) {
+		pr_err("%s: failed to add controls\n", __func__);
+	}
+
+	ret = snd_soc_dapm_add_routes(dapm, sia91xx_dapm_routes_common,
 					ARRAY_SIZE(sia91xx_dapm_routes_common));
+	if (ret < 0) {
+		pr_err("%s: failed to add routes\n", __func__);
+	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2024/07/08, Add for smartpa vbatlow err check. */
+	si_pa->need_chk_err = false;
+	si_pa->vbatlow_cnt = 0;
+	si_pa->control_fb = 0;
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 }
@@ -632,6 +667,13 @@ int sia91xx_codec_probe(struct snd_soc_codec *codec)
 			ARRAY_SIZE(sia91xx_dapm_widgets_common));
 	snd_soc_dapm_add_routes(dapm, sia91xx_dapm_routes_common,
 			ARRAY_SIZE(sia91xx_dapm_routes_common));
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2024/07/08, Add for smartpa vbatlow err check. */
+	si_pa->need_chk_err = false;
+	si_pa->vbatlow_cnt = 0;
+	si_pa->control_fb = 0;
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 }

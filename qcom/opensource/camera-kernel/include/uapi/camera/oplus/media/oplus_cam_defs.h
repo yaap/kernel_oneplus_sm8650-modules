@@ -25,12 +25,14 @@
 #define CAM_OEM_CMD_WRITE_DEV                   1
 #define CAM_OEM_OIS_CALIB                       2
 #define CAM_OEM_RW_SIZE_MAX                     128
-#define CAM_OEM_INITSETTINGS_SIZE_MAX           9200
+#define CAM_OEM_INITSETTINGS_SIZE_MAX           10000
 
 struct cam_oem_i2c_reg_array {
 	unsigned int    reg_addr;
 	unsigned int    reg_data;
 	unsigned int    delay;
+	unsigned int    addr_type;
+	unsigned int    data_type;
 	unsigned int    data_mask;
 	unsigned short  operation;
 };
@@ -43,6 +45,15 @@ enum  CCIOperationType
     CCI_READ             = 3,
     CCI_POLL             = 4,
     MAX                  = 5
+};
+
+enum  RegDataType
+{
+      DataTypeByte       = 1, ///< Byte: 1 byte
+      DataTypeWord       = 2, ///< Word: 2 bytes
+      DataType3Byte      = 3, ///< 3Byte: 3 bytes
+      DataTypeDoubleWord = 4, ///< DoubleWord: 4 bytes
+      DataTypeMax
 };
 
 struct cam_oem_rw_ctl {

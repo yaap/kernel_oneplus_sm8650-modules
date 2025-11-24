@@ -77,6 +77,14 @@ static u32 _regs_dump_i7p[] = {
 	0xf0000290,
 	0xf0010004,
 	0xf0000210,
+	0xf1600070,
+	0xf1600094,
+	0xf1601000,
+	0xf1601040,
+	0xf1601044,
+	0xf15c0000,
+	0xf1580000,
+	0xf13400e0,
 	0xf1640000, //mipi_rx
 	0xf1640004,
 	0xf164000c,
@@ -99,6 +107,7 @@ static u32 _regs_dump_i7p[] = {
 	0xf1600008,
 	0xf1600010,
 	0xf160015c,
+	0xf160017c,
 	0xf1600228,
 	0xf1601000,
 	0xf161ffe4,
@@ -2021,6 +2030,10 @@ void iris_qsync_set(bool enable)
 		return;
 
 	pcfg = iris_get_cfg();
+	if (pcfg->iris_chip_type == CHIP_IRIS7P) {
+		return;
+	}
+
 	IRIS_LOGD("%s, mode: %d. enable: %d", __func__, pcfg->abyp_ctrl.abypass_mode, enable);
 
 	if (pcfg->abyp_ctrl.abypass_mode == PASS_THROUGH_MODE) {

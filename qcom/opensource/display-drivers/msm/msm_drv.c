@@ -64,6 +64,9 @@
 #ifdef OPLUS_FEATURE_DISPLAY
 #include "leds_ktz8866.h"
 #endif
+#ifdef CONFIG_HMBIRD_SCHED_GKI
+#include <linux/sched/sched_ext.h>
+#endif
 /*
  * MSM driver version:
  * - 1.0.0 - initial interface
@@ -129,6 +132,9 @@ static void msm_drm_display_thread_priority_worker(struct kthread_work *work)
 	if (ret)
 		pr_warn("pid:%d name:%s priority update failed: %d\n",
 			current->tgid, task->comm, ret);
+#if defined(CONFIG_HMBIRD_SCHED) || defined(CONFIG_HMBIRD_SCHED_GKI)
+	sched_set_sched_prop(task, SCHED_PROP_DEADLINE_LEVEL3);
+#endif
 }
 
 /**

@@ -492,6 +492,14 @@ int oplus_panel_gpio_request(struct dsi_panel *panel)
 				gpio_free(r_config->panel_vddr_aod_en_gpio);
 		}
 	}
+	if (gpio_is_valid(r_config->panel_vddr_vout_gpio2)) {
+		rc = gpio_request(r_config->panel_vddr_vout_gpio2, "panel_vddr_vout_gpio2");
+		if (rc) {
+			LCD_ERR("request for panel_vddr_vout_gpio2 failed, rc=%d\n", rc);
+			if (gpio_is_valid(r_config->panel_vddr_vout_gpio2))
+				gpio_free(r_config->panel_vddr_vout_gpio2);
+		}
+	}
 
 	if (gpio_is_valid(esd_config->mipi_err_flag_gpio)) {
 		rc = gpio_request(esd_config->mipi_err_flag_gpio , "mipi_err_flag_gpio");
@@ -521,6 +529,8 @@ int oplus_panel_gpio_release(struct dsi_panel *panel)
 		gpio_free(r_config->panel_vout_gpio);
 	if (gpio_is_valid(r_config->panel_vddr_aod_en_gpio))
 		gpio_free(r_config->panel_vddr_aod_en_gpio);
+	if (gpio_is_valid(r_config->panel_vddr_vout_gpio2))
+		gpio_free(r_config->panel_vddr_vout_gpio2);
 	if (gpio_is_valid(esd_config->mipi_err_flag_gpio))
 		gpio_free(esd_config->mipi_err_flag_gpio);
 
@@ -571,7 +581,9 @@ int oplus_panel_gpio_on(struct dsi_panel *panel)
 		|| !strcmp(panel->oplus_priv.vendor_name , "A0004")
 		|| !strcmp(panel->oplus_priv.vendor_name , "A0020")
 		|| !strcmp(panel->oplus_priv.vendor_name , "AB781")
-		|| !strcmp(panel->oplus_priv.vendor_name , "AC223"))
+		|| !strcmp(panel->oplus_priv.vendor_name , "AC223")
+		|| !strcmp(panel->oplus_priv.vendor_name , "AA592")
+		|| !strcmp(panel->oplus_priv.vendor_name , "A0034"))
 		return 0;
 
 	r_config = &panel->reset_config;
@@ -609,7 +621,9 @@ int oplus_panel_gpio_off(struct dsi_panel *panel)
 		|| !strcmp(panel->oplus_priv.vendor_name , "A0004")
 		|| !strcmp(panel->oplus_priv.vendor_name , "A0020")
 		|| !strcmp(panel->oplus_priv.vendor_name , "AB781")
-		|| !strcmp(panel->oplus_priv.vendor_name , "AC223"))
+		|| !strcmp(panel->oplus_priv.vendor_name , "AC223")
+		|| !strcmp(panel->oplus_priv.vendor_name , "AA592")
+		|| !strcmp(panel->oplus_priv.vendor_name , "A0034"))
 		return 0;
 
 	r_config = &panel->reset_config;
@@ -639,7 +653,9 @@ int oplus_panel_vddr_on(struct dsi_display *display, const char *vreg_name)
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0004")
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0020")
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "AB781")
-		|| !strcmp(display->panel->oplus_priv.vendor_name , "AC223"))
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "AC223")
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0014")
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0034"))
 		&& !strcmp(vreg_name, "vddio")) {
 		if (gpio_is_valid(display->panel->reset_config.panel_vout_gpio)) {
 			rc = gpio_direction_output(display->panel->reset_config.panel_vout_gpio, 1);
@@ -647,6 +663,14 @@ int oplus_panel_vddr_on(struct dsi_display *display, const char *vreg_name)
 				LCD_ERR("unable to set dir for panel_vout_gpio rc=%d\n", rc);
 			gpio_set_value(display->panel->reset_config.panel_vout_gpio, 1);
 		}
+
+		if (gpio_is_valid(display->panel->reset_config.panel_vddr_vout_gpio2)) {
+			rc = gpio_direction_output(display->panel->reset_config.panel_vddr_vout_gpio2, 1);
+			if (rc)
+				LCD_ERR("unable to set dir for panel_vddr_aod_en_gpio rc=%d\n", rc);
+			gpio_set_value(display->panel->reset_config.panel_vddr_vout_gpio2, 1);
+		}
+		usleep_range(5000, 5100);
 	}
 
 	return rc;
@@ -670,11 +694,18 @@ int oplus_panel_vddr_off(struct dsi_display *display, const char *vreg_name)
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0004")
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0020")
 		|| !strcmp(display->panel->oplus_priv.vendor_name , "AB781")
-		|| !strcmp(display->panel->oplus_priv.vendor_name , "AC223"))
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "AC223")
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0014")
+		|| !strcmp(display->panel->oplus_priv.vendor_name , "A0034"))
 		&& !strcmp(vreg_name, "vci")) {
 		if (gpio_is_valid(display->panel->reset_config.panel_vout_gpio)) {
 			gpio_set_value(display->panel->reset_config.panel_vout_gpio, 0);
 		}
+
+		if (gpio_is_valid(display->panel->reset_config.panel_vddr_vout_gpio2)) {
+			gpio_set_value(display->panel->reset_config.panel_vddr_vout_gpio2, 0);
+		}
+		usleep_range(5000, 5100);
 	}
 
 	return rc;
@@ -705,6 +736,12 @@ int oplus_panel_gpio_parse(struct dsi_panel *panel)
 
 	if (!gpio_is_valid(panel->reset_config.panel_vddr_aod_en_gpio)) {
 		LCD_ERR("[%s] failed get panel_vddr_aod_en_gpio\n", panel->oplus_priv.vendor_name);
+	}
+
+	panel->reset_config.panel_vddr_vout_gpio2 = utils->get_named_gpio(utils->data,
+								"qcom,platform-panel-vddr-vout-gpio2", 0);
+	if (!gpio_is_valid(panel->reset_config.panel_vddr_vout_gpio2)) {
+		LCD_ERR("[%s] failed get panel_vddr_vout_gpio2\n", panel->oplus_priv.vendor_name);
 	}
 
 	esd_config->mipi_err_flag_gpio = utils->get_named_gpio(utils->data,

@@ -413,6 +413,14 @@ void oplus_panel_backlight_demura_dbv_switch(struct dsi_panel *panel, u32 bl_lvl
 			panel->oplus_priv.bl_demura_mode = 4;
 			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE4;
 		}
+	} else if (!strcmp(panel->name, "AA592 P 7 A0014 dsc cmd mode panel")) {
+		if (bl_lvl <= 0x481) {
+			panel->oplus_priv.bl_demura_mode = 0;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE0;
+		} else if ((bl_lvl > 0x481) && (bl_lvl < 0xFFF)) {
+			panel->oplus_priv.bl_demura_mode = 1;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE1;
+		}
 	} else {
 		if (bl_lvl <= 3515)
 			return;
@@ -457,7 +465,8 @@ void oplus_panel_backlight_demura_dbv_switch(struct dsi_panel *panel, u32 bl_lvl
 		}
 	}
 
-	if ((panel->oplus_priv.bl_demura_mode != bl_demura_last_mode || send_demura_after_hbm_off_flag) && (panel->power_mode == SDE_MODE_DPMS_ON)) {
+	if ((panel->oplus_priv.bl_demura_mode != bl_demura_last_mode || send_demura_after_hbm_off_flag || oplus_last_backlight == 0)
+	 		&& (panel->power_mode == SDE_MODE_DPMS_ON)) {
 		rc = dsi_panel_tx_cmd_set(panel, bl_demura_mode, false);
 		send_demura_after_hbm_off_flag = false;
 	}

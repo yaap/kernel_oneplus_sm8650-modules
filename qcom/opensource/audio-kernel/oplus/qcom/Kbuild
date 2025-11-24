@@ -113,3 +113,4 @@ endif
 # Module information used by KBuild framework
 obj-$(CONFIG_AUDIO_EXTEND_DRV) += oplus_audio_extend.o
 oplus_audio_extend-y := $(AUDIO_EXTEND_OBJS)
+

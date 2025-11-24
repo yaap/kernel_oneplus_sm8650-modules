@@ -1874,6 +1874,9 @@ void iris_debug_memc_option_set_i7p(u32 type, u32 value)
 	case DEBUG_EMV_LOCAL_FALLBACK:
 		debug_emv_local_fallback = value;
 		break;
+	case DEBUG_IRIS_ESD_SWITCH:
+		pcfg->lp_ctrl.esd_ctrl = value;
+		break;
 	default:
 		break;
 	}

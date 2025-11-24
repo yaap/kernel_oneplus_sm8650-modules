@@ -2366,6 +2366,10 @@ static int msm_int_wsa2_init(struct snd_soc_pcm_runtime *rtd)
 static const struct snd_soc_dapm_route qcom_rx_audio_map[] = {
  	{"AUX_OUT", NULL, "RX INT2 MIX2"},
 };
+/* 2024/11/28, modify for wcd9378 use damp avoid noise issues */
+static const struct snd_soc_dapm_route qcom_wcd9378_rx_audio_map[] = {
+	{"AUX PGA", NULL, "AUX_MIXER"},
+};
 #endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
 
 static int msm_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
@@ -2519,18 +2523,39 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	if (pdata->pa_manager == 1) {
 		ret = oplus_add_pa_manager_snd_controls(component);
 		if (ret < 0) {
-			pr_err("%s: add oplus pa mangerr snd controls failed: %d\n",
+			pr_err("%s: add oplus pa manager snd controls failed: %d\n",
 				__func__, ret);
 			return ret;
 		}
 
-		ret = oplus_add_analog_pa_manager_dapm(dapm);
-		if (ret < 0) {
-			pr_err("%s: add oplus pa manager dapm failed: %d\n",
-				__func__, ret);
-			return ret;
+		/* 2024/11/28, modify for wcd9378 use damp avoid noise issues */
+		if (pdata->wcd_used == WCD9378_DEV_INDEX) {
+			snd_soc_dapm_add_routes(dapm, qcom_rx_audio_map, ARRAY_SIZE(qcom_rx_audio_map));
+			ret = oplus_add_analog_pa_manager_wcd9378_dapm(dapm);
+			if (ret < 0) {
+				pr_err("%s: add oplus pa manager wcd9378 dapm failed: %d\n",
+					__func__, ret);
+				return ret;
+			}
+		} else {
+			ret = oplus_add_analog_pa_manager_dapm(dapm);
+			if (ret < 0) {
+				pr_err("%s: add oplus pa manager dapm failed: %d\n",
+					__func__, ret);
+				return ret;
+			}
 		}
 	} else {
+		/* 2024/11/28, modify for wcd9378 use damp avoid noise issues */
+		if (pdata->wcd_used == WCD9378_DEV_INDEX) {
+			ret = snd_soc_dapm_add_routes(dapm, qcom_wcd9378_rx_audio_map,
+				ARRAY_SIZE(qcom_wcd9378_rx_audio_map));
+			if (ret < 0) {
+				pr_err("%s: failed to add wcd9378 routes\n", __func__);
+				return ret;
+			}
+		}
+
 		ret = snd_soc_dapm_add_routes(dapm, qcom_rx_audio_map,
 			ARRAY_SIZE(qcom_rx_audio_map));
 		if (ret < 0) {

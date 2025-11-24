@@ -70,6 +70,8 @@ struct tfa_device_ops {
 	enum Tfa98xx_Error (*set_mute)(struct tfa_device *tfa, int mute); /**< set mute */
 	enum Tfa98xx_Error (*faim_protect)(struct tfa_device *tfa, int state); /**< Protect FAIM from being corrupted  */
 	enum Tfa98xx_Error(*set_osc_powerdown)(struct tfa_device *tfa, int state); /**< Allow to change internal osc. gating settings */
+	int (*tfa_set_bitfield)(struct tfa_device* tfa, uint16_t bitfield, uint16_t value);
+	enum Tfa98xx_Error (*tfa_status)(struct tfa_device* tfa);
 	/*To support tfa9873*/
 	enum Tfa98xx_Error(*update_lpm)(struct tfa_device *tfa, int state); /**< Allow to change lowpowermode settings */
 };
@@ -109,7 +111,8 @@ struct tfa_device {
 	int buffer_size;		/**< lowest level max buffer size */
 	int has_msg; 			/**< support direct dsp messaging */
 	unsigned char slave_address; /**< I2C slave address (not shifted) */
-	unsigned short rev;     /**< full revid of this device */
+	int rev;     /**< full revid of this device */
+	int revid;     /**< sub variants of this device */
 	unsigned char tfa_family; /**< tfa1/tfa2 */
 	enum featureSupport supportDrc;
 	enum featureSupport supportFramework;
@@ -138,6 +141,7 @@ struct tfa_device {
 	int convert_dsp32; /**< convert 24 bit DSP messages to 32 bit */
 	int sync_iv_delay; /**< synchronize I/V delay at cold start */
 	int is_probus_device; /**< probus device: device without internal DSP */
+	int is_otp_device; /**< only OTP new generation devices: device without MTP */
 	/*To support tfa9873*/
 	int advance_keys_handling;
 

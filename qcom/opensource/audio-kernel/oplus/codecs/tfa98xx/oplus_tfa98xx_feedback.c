@@ -31,23 +31,55 @@
 #define OPLUS_AUDIO_EVENTID_SMARTPA_ERR    10041
 #define OPLUS_AUDIO_EVENTID_SPK_ERR        10042
 
-/*bit0~3 check status registers; bit16:check speaker status*/
-#define CHECK_STATUS_REGS_MASKS (0xF)
-#define CHECK_SPEAKER_MASKS     (0x100)
-#define IS_EXIT_CHECK_WORK(flag)    (!(flag & CHECK_SPEAKER_MASKS))
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
 
-#define CHECK_DAMAGE_TIME            MM_FB_KEY_RATELIMIT_30MIN
+/*bit0~3 check status registers; bit16:check speaker status*/
+#define CHECK_STATUS_REGS_MASKS            (0xF)
+#define CHECK_SPEAKER_MASKS                (0x100)
 
 /* SB35-->8.28*/
-#define TFA_LIB_VER_SB35             0x81c0000
-/* default threshold */
-#define R0_MIN                       2000
-#define R0_MAX                       14000
-#define F0_MIN                       200
-#define F0_MAX                       2000
-#define F0_BLOCK_HOLE                1000
+#define TFA_LIB_VER_SB35                   0x81c0000
 
-#define R0_BASE_RANGE                3000
+#define RE_BASE_RANGE                      2500
+#define RE_ERR_COUNT_FB                    3
+#define RE_ALLOW_NORMAL_CNT                2
+#define RE_ERR_TIME_S                      300
+
+#define F0_OUT_OF_RANGE_COUNT_FB           3
+#define F0_HOLE_BOLCK_COUNT_FB             5
+#define F0_HOLE_BOLCK_TIME_FB              1800
+#define F0_MIN                             150
+#define F0_MAX                             1900
+#define F0_BLOCK_HOLE_INC                  180
+#define F0_ALLOW_NORMAL_CNT                2
+
+#define RE_RECORD_CNT                      12
+#define F0_RECORD_CNT                      12
+
+#define CHECK_SPK_DELAY_TIME               (10) /* seconds */
+
+/* this enum order must consistent with ready command data, such as: tfaCmdStereoReady_LP */
+enum {
+	POS_R0 = 0,
+	POS_F0,
+	POS_NUM
+};
+
+#define TFA_DATA_BYTES               3
+#define TFA_OFFSET_BASE              3
+#define PARAM_OFFSET(pos, id)        (TFA_OFFSET_BASE + ((id) * POS_NUM + (pos)) * TFA_DATA_BYTES)
+#define GET_VALUE(pdata, offset)     ((pdata[offset] << 16) + (pdata[offset+1] << 8) + pdata[offset+2])
+#define TFA_GET_R0(pdata, id)        (GET_VALUE(pdata, PARAM_OFFSET(POS_R0, id)) / 65) /* 65 ~ 0x10000 / 1000 */
+#define TFA_GET_F0(pdata, id)        (GET_VALUE(pdata, PARAM_OFFSET(POS_F0, id)))
+#define TFA_MAX_RESULT_LEN           (MAX_SPK_NUM * POS_NUM * TFA_DATA_BYTES + TFA_OFFSET_BASE)
+#define TFA_RESULT_BUF_LEN           ((TFA_MAX_RESULT_LEN + 3) & (~3))
+#define TFA_ONE_ALGO_MAX_RESULT_LEN  (2 * POS_NUM * TFA_DATA_BYTES + TFA_OFFSET_BASE)
+#define TFA_CMD_READY_LEN(spkNum)    (((spkNum) * POS_NUM + 2) * TFA_DATA_BYTES)
+#define TFA_DATA_NUM_OFFSET          5
+#define TFA_CMD_HEAD_OFFSET          0
 
 enum {
 	ALL_OFF = 0,
@@ -68,7 +100,19 @@ enum {
 	MAX_SPK_NUM
 };
 
-#define IS_DEV_COUNT_VALID(cnt) (((cnt) > MONO) && ((cnt) <= MAX_SPK_NUM))
+enum {
+	READ_ALGORITHM_VERSION = 0,
+	READ_DAMAGED_STATUS_1,
+	SET_READY_CMD_1,
+	READ_RESULT_FB_1,
+	TWO_SPKS_MAX_STEPS = READ_RESULT_FB_1,
+	READ_DAMAGED_STATUS_2,
+	SET_READY_CMD_2,
+	READ_RESULT_FB_2,
+	FOUR_SPKS_MAX_STEPS
+};
+
+const uint32_t g_step_delay[FOUR_SPKS_MAX_STEPS] ={10000, 20, 20, 100, 20, 20, 100};
 
 #define SetFdBuf(buf, arg, ...) \
 	do { \
@@ -76,22 +120,37 @@ enum {
 		snprintf(buf + len, sizeof(buf) - len - 1, arg, ##__VA_ARGS__); \
 	} while (0)
 
+typedef struct {
+	uint32_t max_re;
+	uint32_t min_re;
+	uint32_t err_cnt;
+	uint32_t rd_id;
+	uint32_t re[RE_RECORD_CNT];
+	ktime_t tm;
+} tfa_re_err_record_t;
+
+typedef struct {
+	uint32_t max_f0;
+	uint32_t err_cnt;
+	uint32_t rd_id;
+	uint32_t f0[F0_RECORD_CNT];
+	ktime_t tm;
+} tfa_f0_err_record_t;
+
 struct oplus_tfa98xx_feedback {
 	uint32_t chk_flag;
+	uint32_t control_fb;
+	uint32_t vbatlow_cnt;
 	uint32_t queue_work_flag;
 	int pa_cnt;
 	int cmd_step;
 	uint32_t lib_version;
 	uint32_t lib_new;
 	uint32_t r0_cal[MAX_SPK_NUM];
-	uint32_t r0_min[MAX_SPK_NUM];
-	uint32_t r0_max[MAX_SPK_NUM];
-	uint32_t f0_min[MAX_SPK_NUM];
-	uint32_t f0_max[MAX_SPK_NUM];
+	uint32_t f0_cal[MAX_SPK_NUM];
 	uint32_t damage_flag;
-	uint32_t last_damage_r0[MAX_SPK_NUM];
-	uint32_t last_damage_f0[MAX_SPK_NUM];
-	ktime_t start_damage_tm[MAX_SPK_NUM];
+	tfa_re_err_record_t rd_re[MAX_SPK_NUM];
+	tfa_f0_err_record_t rd_f0[MAX_SPK_NUM];
 	struct mutex *lock;
 	ktime_t last_chk_reg;
 	ktime_t last_chk_spk;
@@ -100,25 +159,58 @@ struct oplus_tfa98xx_feedback {
 
 static struct oplus_tfa98xx_feedback tfa_fb = {
 	.chk_flag = 0,
+	.control_fb = 0,
+	.vbatlow_cnt = 0,
 	.queue_work_flag = 0,
 	.pa_cnt = 0,
 	.cmd_step = 0,
 	.lib_version = 0,
 	.lib_new = 0xff,
 	.r0_cal = {0, 0, 0, 0},
-	.r0_min = {R0_MIN, R0_MIN, R0_MIN, R0_MIN},
-	.r0_max = {R0_MAX, R0_MAX, R0_MAX, R0_MAX},
-	.f0_min = {F0_MIN, F0_MIN, F0_MIN, F0_MIN},
-	.f0_max = {F0_MAX, F0_MAX, F0_MAX, F0_MAX},
+	.f0_cal = {0, 0, 0, 0},
 	.damage_flag = 0,
-	.last_damage_r0 = {0, 0, 0, 0},
-	.last_damage_f0 = {0, 0, 0, 0},
-	.start_damage_tm = {0, 0, 0, 0},
+	.rd_re = {0},
+	.rd_f0 = {0},
 	.lock = NULL,
 	.last_chk_reg = 0,
 	.last_chk_spk = 0,
 	.plist = NULL
 };
+
+/* macro for record re error value */
+#define F0_ERR_RECORD(rd_f0, val)                                  \
+	do {                                                           \
+		if (rd_f0.err_cnt == 0) {                                  \
+			rd_f0.tm = ktime_get();                                \
+		}                                                          \
+		if (rd_f0.rd_id < F0_RECORD_CNT) {                         \
+			rd_f0.f0[rd_f0.rd_id] = val;                           \
+			rd_f0.rd_id++;                                         \
+		} else {                                                   \
+			rd_f0.rd_id = F0_RECORD_CNT;                           \
+		}                                                          \
+		rd_f0.err_cnt++;                                           \
+		rd_f0.max_f0 = (rd_f0.max_f0 < val) ? val : rd_f0.max_f0;  \
+	} while (0)
+
+/* macro for record re error value */
+#define RE_ERR_RECORD(rd_re, val)                                  \
+	do {                                                           \
+		if (rd_re.err_cnt == 0) {                                  \
+			rd_re.tm = ktime_get();                                \
+		}                                                          \
+		if (rd_re.rd_id < RE_RECORD_CNT) {                         \
+			rd_re.re[rd_re.rd_id] = val;                           \
+			rd_re.rd_id++;                                         \
+		} else {                                                   \
+			rd_re.rd_id = RE_RECORD_CNT;                           \
+		}                                                          \
+		rd_re.err_cnt++;                                           \
+		rd_re.max_re = (rd_re.max_re < val) ? val : rd_re.max_re;  \
+		if ((rd_re.min_re == 0) || (rd_re.min_re > val)) {         \
+			rd_re.min_re = val;                                    \
+		}                                                          \
+	} while (0)
 
 #define ERROR_INFO_MAX_LEN                 32
 #define REG_BITS  16
@@ -126,6 +218,9 @@ static struct oplus_tfa98xx_feedback tfa_fb = {
 #define TFA9874_STATUS_CHECK_MASK      ((0x300 << REG_BITS) + 0x9C)/*reg 0x10 mask bit2~4, bit7, reg 0x13 mask bit8 , bit9 */
 #define TFA9873_STATUS_NORMAL_VALUE    ((0x850F << REG_BITS) + 0x56) /*reg 0x13 high 16 bits and 0x10 low 16 bits*/
 #define TFA9873_STATUS_CHECK_MASK      ((0x300 << REG_BITS) + 0x15C)/*reg 0x10 mask bit2~4, bit6, bit8, reg 0x13 mask bit8 , bit9*/
+
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+#define VBAT_LOW_REG_BIT_MASK              0x10
 
 struct check_status_err {
 	int bit;
@@ -158,92 +253,10 @@ static const struct check_status_err check_err_tfa9873[] = {
 
 static const unsigned char fb_regs[] = {0x00, 0x01, 0x02, 0x04, 0x05, 0x11, 0x14, 0x15, 0x16};
 
-#define OPLUS_CHECK_LIMIT_TIME  (5*MM_FB_KEY_RATELIMIT_1H)
-#define CHECK_SPK_DELAY_TIME    (6)/* seconds */
-
-enum {
-	STEP_GET_STATUS = 0, /* get speaker status to check whether speaker damaged */
-	STEP_SET_READY_CMD, /* set ready command for R0/F0/AT */
-	STEP_GET_CHECK_RESULT, /* get and check R0/F0/AT value and feedback */
-	STEP_END
-};
-
-/* this enum order must consistent with ready command data, such as: tfaCmdStereoReady_LP */
-enum {
-	POS_R0 = 0,
-	POS_F0,
-	POS_NUM
-};
-
 extern enum Tfa98xx_Error
 tfa98xx_write_dsp(struct tfa_device *tfa,  int num_bytes, const char *command_buffer);
 extern enum Tfa98xx_Error
 tfa98xx_read_dsp(struct tfa_device *tfa,  int num_bytes, unsigned char *result_buffer);
-
-
-#define TFA_DATA_BYTES               3
-#define TFA_OFFSET_BASE              3
-#define PARAM_OFFSET(pos, id)        (TFA_OFFSET_BASE + ((id) * POS_NUM + (pos)) * TFA_DATA_BYTES)
-#define GET_VALUE(pdata, offset)     ((pdata[offset] << 16) + (pdata[offset+1] << 8) + pdata[offset+2])
-#define TFA_GET_R0(pdata, id)        (GET_VALUE(pdata, PARAM_OFFSET(POS_R0, id)) / 65) /* 65 ~ 0x10000 / 1000 */
-#define TFA_GET_F0(pdata, id)        (GET_VALUE(pdata, PARAM_OFFSET(POS_F0, id)))
-#define TFA_MAX_RESULT_LEN           (MAX_SPK_NUM * POS_NUM * TFA_DATA_BYTES + TFA_OFFSET_BASE)
-#define TFA_RESULT_BUF_LEN           ((TFA_MAX_RESULT_LEN + 3) & (~3))
-#define TFA_ONE_ALGO_MAX_RESULT_LEN  (2 * POS_NUM * TFA_DATA_BYTES + TFA_OFFSET_BASE)
-#define TFA_CMD_READY_LEN(spkNum)    (((spkNum) * POS_NUM + 2) * TFA_DATA_BYTES)
-#define TFA_DATA_NUM_OFFSET          5
-#define TFA_CMD_HEAD_OFFSET          0
-
-
-static int tfa98xx_set_check_feedback(struct snd_kcontrol *kcontrol,
-				   struct snd_ctl_elem_value *ucontrol)
-{
-	int val = ucontrol->value.integer.value[0];
-
-	switch (val) {
-	case ALL_OFF:
-		tfa_fb.chk_flag = 0;
-		break;
-	case ALL_ON:
-		tfa_fb.chk_flag = CHECK_SPEAKER_MASKS + CHECK_STATUS_REGS_MASKS;
-		break;
-	case SPK_OFF:
-		tfa_fb.chk_flag &= ~CHECK_SPEAKER_MASKS;
-		break;
-	case PA_OFF:
-		tfa_fb.chk_flag &= ~CHECK_STATUS_REGS_MASKS;
-		break;
-	case SPK_ON:
-		tfa_fb.chk_flag |= CHECK_SPEAKER_MASKS;
-		break;
-	case PA_ON:
-		tfa_fb.chk_flag |= CHECK_STATUS_REGS_MASKS;
-		break;
-	default:
-		pr_info("unsupported set value = %d\n", val);
-		break;
-	}
-
-	pr_info("set value = %d, tfa_fb.chk_flag = 0x%x\n", val, tfa_fb.chk_flag);
-	return 1;
-}
-
-static int tfa98xx_get_check_feedback(struct snd_kcontrol *kcontrol,
-						struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.integer.value[0] = tfa_fb.chk_flag;
-	pr_info("tfa_fb.chk_flag = 0x%x\n", tfa_fb.chk_flag);
-
-	return 0;
-}
-
-static char const *tfa98xx_check_feedback_text[] = {"Off", "On", "SPKOff", "PAOff", "SPKOn", "PAOn"};
-static const struct soc_enum tfa98xx_check_feedback_enum =
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(tfa98xx_check_feedback_text), tfa98xx_check_feedback_text);
-const struct snd_kcontrol_new tfa98xx_check_feedback[] = {
-	SOC_ENUM_EXT("TFA_CHECK_FEEDBACK", tfa98xx_check_feedback_enum,
-		       tfa98xx_get_check_feedback, tfa98xx_set_check_feedback),
-};
 
 inline bool is_param_valid(struct tfa98xx *tfa98xx)
 {
@@ -271,23 +284,31 @@ static int tfa98xx_check_status_reg(struct tfa98xx *tfa98xx)
 	uint16_t reg13 = 0;
 	uint16_t reg_tmp = 0;
 	int flag = 0;
-	char fd_buf[MAX_PAYLOAD_DATASIZE] = {0};
+	char fb_buf[MAX_PAYLOAD_DATASIZE] = {0};
 	char info[MAX_PAYLOAD_DATASIZE] = {0};
 	int offset = 0;
 	enum Tfa98xx_Error err;
 	int i;
 
-	mutex_lock(tfa_fb.lock);
 	/* check status register 0x10 value */
 	err = tfa98xx_read_register16(tfa98xx->tfa, 0x10, &reg10);
 	if (Tfa98xx_Error_Ok == err) {
 		err = tfa98xx_read_register16(tfa98xx->tfa, 0x13, &reg13);
 	}
-	pr_info("read SPK%d status regs ret=%d, reg[0x10]=0x%x, reg[0x13]=0x%x", \
-			tfa98xx->tfa->dev_idx + 1, err, reg10, reg13);
+	pr_info("%s: read SPK%d status regs ret=%d, reg[0x10]=0x%x, reg[0x13]=0x%x", \
+			__func__, tfa98xx->tfa->dev_idx + 1, err, reg10, reg13);
 
 	if (Tfa98xx_Error_Ok == err) {
 		reg_val = (reg13 << REG_BITS) + reg10;
+		if (tfa_fb.control_fb & TEST_PA_ERR_FB_10041) {
+			reg_val = 0;
+			pr_info("%s: just for test 10041, change reg_val=0x%x", __func__, reg_val);
+		}
+		/* 2024/06/28, Add for smartpa vbatlow err check. */
+		if (0 == (reg_val & VBAT_LOW_REG_BIT_MASK)) {
+			tfa_fb.vbatlow_cnt++;
+			pr_info("%s: vbatlow_cnt=%u", __func__, tfa_fb.vbatlow_cnt);
+		}
 		flag = 0;
 		if ((tfa98xx->pa_type == PA_TFA9874) &&
 				((TFA9874_STATUS_NORMAL_VALUE&TFA9874_STATUS_CHECK_MASK) != (reg_val&TFA9874_STATUS_CHECK_MASK))) {
@@ -327,19 +348,116 @@ static int tfa98xx_check_status_reg(struct tfa98xx *tfa98xx)
 				(tfa98xx->pa_type == PA_TFA9873) ? "TFA9873" : "TFA9874", tfa98xx->tfa->dev_idx + 1, err);
 		tfa_fb.last_chk_reg = ktime_get();
 	}
-	mutex_unlock(tfa_fb.lock);
 
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
-		pr_err("fd_buf=%s\n", fd_buf);
+		if (tfa_fb.control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fb_buf, sizeof(fb_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			scnprintf(fb_buf, sizeof(fb_buf) - 1, "payload@@%s", info);
+		}
+		pr_err("%s: fb_buf=%s\n", __func__, fb_buf);
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
-				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
+				MM_FB_KEY_RATELIMIT_5MIN, fb_buf);
 	}
 
 	return 0;
 }
+
+static int tfa98xx_set_check_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	switch (val) {
+	case ALL_OFF:
+		tfa_fb.chk_flag = 0;
+		break;
+	case ALL_ON:
+		tfa_fb.chk_flag = CHECK_SPEAKER_MASKS + CHECK_STATUS_REGS_MASKS;
+		break;
+	case SPK_OFF:
+		tfa_fb.chk_flag &= ~CHECK_SPEAKER_MASKS;
+		break;
+	case PA_OFF:
+		tfa_fb.chk_flag &= ~CHECK_STATUS_REGS_MASKS;
+		break;
+	case SPK_ON:
+		tfa_fb.chk_flag |= CHECK_SPEAKER_MASKS;
+		break;
+	case PA_ON:
+		tfa_fb.chk_flag |= CHECK_STATUS_REGS_MASKS;
+		break;
+	default:
+		pr_info("%s: unsupported set value = %d\n", __func__, val);
+		break;
+	}
+
+	pr_info("%s: set value = %d, tfa_fb.chk_flag = 0x%x\n", __func__, val, tfa_fb.chk_flag);
+	return 1;
+}
+
+static int tfa98xx_get_check_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = tfa_fb.chk_flag;
+	pr_info("%s: tfa_fb.chk_flag = 0x%x\n", __func__, tfa_fb.chk_flag);
+
+	return 0;
+}
+
+static int tfa98xx_set_bypass_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	tfa_fb.control_fb = ucontrol->value.integer.value[0];
+	pr_info("%s: set %u", __func__, tfa_fb.control_fb);
+	return 0;
+}
+
+static int tfa98xx_get_bypass_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = tfa_fb.control_fb;
+	pr_info("%s: get %u", __func__, tfa_fb.control_fb);
+	return 0;
+}
+
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+static int tfa98xx_get_vbatlow_cnt(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct tfa98xx *tfa98xx = snd_soc_component_get_drvdata(component);
+
+	if ((tfa_fb.chk_flag & CHECK_STATUS_REGS_MASKS) && (tfa98xx->dsp_init != TFA98XX_DSP_INIT_STOPPED) &&
+			!(tfa_fb.control_fb & BYPASS_PA_ERR_FB_10041)) {
+		mutex_lock(tfa_fb.lock);
+		list_for_each_entry(tfa98xx, tfa_fb.plist, list) {
+			tfa98xx_check_status_reg(tfa98xx);
+		}
+		mutex_unlock(tfa_fb.lock);
+	}
+
+	ucontrol->value.integer.value[0] = tfa_fb.vbatlow_cnt;
+	pr_info("%s: vbatlow_cnt = %u", __func__, tfa_fb.vbatlow_cnt);
+	tfa_fb.vbatlow_cnt = 0;
+
+	return 0;
+}
+
+static char const *tfa98xx_check_feedback_text[] = {"Off", "On", "SPKOff", "PAOff", "SPKOn", "PAOn"};
+static const struct soc_enum tfa98xx_check_feedback_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(tfa98xx_check_feedback_text), tfa98xx_check_feedback_text);
+const struct snd_kcontrol_new tfa98xx_check_feedback[] = {
+	SOC_ENUM_EXT("TFA_CHECK_FEEDBACK", tfa98xx_check_feedback_enum,
+			tfa98xx_get_check_feedback, tfa98xx_set_check_feedback),
+	SOC_SINGLE_EXT("PA_BYPASS_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
+			tfa98xx_get_bypass_feedback, tfa98xx_set_bypass_feedback),
+	/* 2024/06/28, Add for smartpa vbatlow err check. */
+	SOC_SINGLE_EXT("PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
+			tfa98xx_get_vbatlow_cnt, NULL),
+};
 
 static int tfa98xx_cmd_set(struct tfa98xx *tfa98xx, int8_t *pbuf, int16_t size)
 {
@@ -410,6 +528,10 @@ static int tfa98xx_check_new_lib(struct tfa98xx *tfa98xx)
 {
 	unsigned int lib_ver = 0;
 
+	if ((tfa_fb.lib_new == 0) || (tfa_fb.lib_new == 1)) {
+		return Tfa98xx_Error_Ok;
+	}
+
 	if (Tfa98xx_Error_Ok == tfa98xx_get_lib_version(tfa98xx, &lib_ver)) {
 		if (lib_ver != 0) {
 			tfa_fb.lib_version = lib_ver;
@@ -422,23 +544,8 @@ static int tfa98xx_check_new_lib(struct tfa98xx *tfa98xx)
 	return -1;
 }
 
-static bool tfa98xx_is_algorithm_working(struct tfa98xx *tfa98xx)
-{
-	unsigned int lib_ver = 0;
-
-	if (Tfa98xx_Error_Ok == tfa98xx_get_lib_version(tfa98xx, &lib_ver)) {
-		pr_info("get lib_ver=0x%x, record lib_version = 0x%x", lib_ver, tfa_fb.lib_version);
-		if ((lib_ver != 0) && (tfa_fb.lib_version == lib_ver)) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 static int tfa98xx_get_speaker_status(struct tfa98xx *tfa98xx, uint32_t algo_flag)
 {
-	char fd_buf[MAX_PAYLOAD_DATASIZE] = {0};
 	enum Tfa98xx_Error err = Tfa98xx_Error_Ok;
 	char buffer[6] = {0};
 
@@ -472,18 +579,13 @@ static int tfa98xx_get_speaker_status(struct tfa98xx *tfa98xx, uint32_t algo_fla
 				pr_err("not support algo_flag = %u", algo_flag);
 			}
 		}
-	} else {
-		pr_err("tfa_dsp_cmd_id_write_read_v6 err = %d\n", err);
-		SetFdBuf(fd_buf, "payload@@tfa_dsp_cmd_id_write_read_v6 err = %u", (unsigned int)err);
-		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
-				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
 	}
 	pr_info("ret=%d, damage_flag=%d\n", err, tfa_fb.damage_flag);
 
 	return err;
 }
 
-/* set cmd to protection algorithm to calcurate r0, f0 and atmospheric pressure */
+/* set cmd to protection algorithm to calcurate r0, f0 */
 static int tfa98xx_set_ready_cmd(struct tfa98xx *tfa98xx, uint32_t algo_flag)
 {
 	int16_t spk_num = 0;
@@ -530,11 +632,10 @@ static int tfa98xx_set_ready_cmd(struct tfa98xx *tfa98xx, uint32_t algo_flag)
 	return tfa98xx_cmd_set(tfa98xx, pcmd, cmdlen);
 }
 
-static int tfa98xx_get_result(struct tfa98xx *tfa98xx, uint8_t *pbuf, int64_t len, uint32_t algo_flag)
+static int tfa98xx_get_result(struct tfa98xx *tfa98xx, uint8_t *pbuf, int len, uint32_t algo_flag)
 {
 	uint8_t tfaCmdGet[] = {0x00, 0x80, 0x8b, 0x00};
 	int err = Tfa98xx_Error_Ok;
-	int idx = 0;
 
 	if (!pbuf || (0 == len)) {
 		err = -EINVAL;
@@ -566,12 +667,7 @@ static int tfa98xx_get_result(struct tfa98xx *tfa98xx, uint8_t *pbuf, int64_t le
 		goto exit;
 	}
 
-	for (idx = 0; idx < len; idx += 4) {
-		pr_debug("get data: 0x%x  0x%x  0x%x  0x%x\n", \
-			*(pbuf + idx), *(pbuf + idx + 1), *(pbuf + idx + 2), *(pbuf + idx + 3));
-	}
-
-	if (0x00 == *(pbuf + 2)) {
+	if (0x00 == GET_VALUE(pbuf, 0)) {
 		pr_err("get adsp data error\n");
 		err = Tfa98xx_Error_DSP_not_running;
 		goto exit;
@@ -581,91 +677,159 @@ exit:
 	return err;
 }
 
-static int tfa98xx_check_result(struct tfa98xx *tfa98xx, uint8_t *pdata)
+void tfa98xx_check_f0(uint32_t f0, int ch)
 {
-	int err = Tfa98xx_Error_Ok;
+	char fb_buf[MAX_PAYLOAD_DATASIZE] = {0};
+	int i = 0;
+
+	if ((ch < 0) || (ch >= MAX_SPK_NUM)) {
+		pr_err("invalid speaker number: %d", ch + 1);
+		return;
+	}
+
+	if ((f0 <= F0_MIN) || (f0 >= F0_MAX)) {
+		F0_ERR_RECORD(tfa_fb.rd_f0[ch], f0);
+		if (tfa_fb.rd_f0[ch].err_cnt >= F0_OUT_OF_RANGE_COUNT_FB) {
+			SetFdBuf(fb_buf, "payload@@TFA98xx SPK%d:F0=%u,out of range(%u, %u)", \
+				ch + 1, f0, F0_MIN, F0_MAX);
+		}
+	} else if ((tfa_fb.f0_cal[ch] != 0) && (f0 > (tfa_fb.f0_cal[ch] + F0_BLOCK_HOLE_INC))) {
+		F0_ERR_RECORD(tfa_fb.rd_f0[ch], f0);
+		if ((tfa_fb.rd_f0[ch].err_cnt >= F0_HOLE_BOLCK_COUNT_FB) &&
+			(ktime_after(ktime_get(), ktime_add_ms(tfa_fb.rd_f0[ch].tm, F0_HOLE_BOLCK_TIME_FB * 1000)) ||
+				(tfa_fb.rd_f0[ch].max_f0 >= F0_MAX))) {
+			SetFdBuf(fb_buf, "payload@@TFA98xx SPK%d:F0=%u, larger than %u, maybe speaker hole blocked", \
+				ch + 1, f0, (tfa_fb.f0_cal[ch] + F0_BLOCK_HOLE_INC));
+		}
+	} else if (tfa_fb.rd_f0[ch].rd_id > 0) {
+		if (tfa_fb.rd_f0[ch].rd_id < (tfa_fb.rd_f0[ch].err_cnt + F0_ALLOW_NORMAL_CNT)) {
+			if (tfa_fb.rd_f0[ch].rd_id < F0_RECORD_CNT) {
+				tfa_fb.rd_f0[ch].f0[tfa_fb.rd_f0[ch].rd_id] = f0;
+				tfa_fb.rd_f0[ch].rd_id++;
+			} else {
+				tfa_fb.rd_f0[ch].err_cnt--;
+			}
+		} else {
+			memset(&tfa_fb.rd_f0[ch], 0, sizeof(tfa_fb.rd_f0[ch]));
+		}
+	}
+
+	if (tfa_fb.rd_f0[ch].err_cnt > 0) {
+		pr_err("TFA98xx SPK%d: record tm=%lld, now tm=%lld, err_cnt=%u, rd_id=%u, max_f0=%u",
+			ch + 1, tfa_fb.rd_f0[ch].tm, ktime_get(), tfa_fb.rd_f0[ch].err_cnt, tfa_fb.rd_f0[ch].rd_id, tfa_fb.rd_f0[ch].max_f0);
+	}
+
+	if (strlen(fb_buf) > 0) {
+		SetFdBuf(fb_buf, ",max_f0=%u,record f0=", tfa_fb.rd_f0[ch].max_f0);
+		for (i = 0; i < tfa_fb.rd_f0[ch].rd_id; i++) {
+			SetFdBuf(fb_buf, "%u,", tfa_fb.rd_f0[ch].f0[i]);
+		}
+		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_1H, fb_buf);
+		pr_err("%s", fb_buf);
+		memset(&tfa_fb.rd_f0[ch], 0, sizeof(tfa_fb.rd_f0[ch]));
+	}
+}
+
+void tfa98xx_check_re(uint32_t re, int ch)
+{
+	char fb_buf[MAX_PAYLOAD_DATASIZE] = {0};
+	int i = 0;
+
+	if ((ch < 0) || (ch >= MAX_SPK_NUM)) {
+		pr_err("invalid speaker number: %d", ch + 1);
+		return;
+	}
+
+	/* just for test */
+	if (tfa_fb.control_fb & TEST_SPK_ERR_FB_10042) {
+		re = 20000;
+		pr_err("change re=%d, just for test 10042, ignore", re);
+	}
+
+	if (tfa_fb.damage_flag & (1 << ch)) {
+		RE_ERR_RECORD(tfa_fb.rd_re[ch], re);
+		if ((tfa_fb.rd_re[ch].err_cnt >= RE_ERR_COUNT_FB) &&
+			ktime_after(ktime_get(), ktime_add_ms(tfa_fb.rd_re[ch].tm, RE_ERR_TIME_S * 1000))) {
+			SetFdBuf(fb_buf, "payload@@TFA98xx SPK%d-detected-damaged", ch + 1);
+		}
+	} else if ((re < (tfa_fb.r0_cal[ch] - RE_BASE_RANGE)) || (re > (tfa_fb.r0_cal[ch] + RE_BASE_RANGE))) {
+		RE_ERR_RECORD(tfa_fb.rd_re[ch], re);
+		if ((tfa_fb.rd_re[ch].err_cnt >= RE_ERR_COUNT_FB) &&
+			ktime_after(ktime_get(), ktime_add_ms(tfa_fb.rd_re[ch].tm, RE_ERR_TIME_S * 1000))) {
+			SetFdBuf(fb_buf, "payload@@TFA98xx SPK%d:speaker R0 out of range(%u, %u), re=%u", \
+					ch + 1, (tfa_fb.r0_cal[ch] - RE_BASE_RANGE), (tfa_fb.r0_cal[ch] + RE_BASE_RANGE), re);
+		}
+	} else {
+		if ((tfa_fb.rd_re[ch].rd_id > 0) && (tfa_fb.rd_re[ch].rd_id < (tfa_fb.rd_re[ch].err_cnt + RE_ALLOW_NORMAL_CNT))) {
+			if (tfa_fb.rd_re[ch].rd_id < RE_RECORD_CNT) {
+				tfa_fb.rd_re[ch].re[tfa_fb.rd_re[ch].rd_id] = re;
+				tfa_fb.rd_re[ch].rd_id++;
+			} else {
+				tfa_fb.rd_re[ch].err_cnt--;
+			}
+		} else if (tfa_fb.rd_re[ch].rd_id >= (tfa_fb.rd_re[ch].err_cnt + RE_ALLOW_NORMAL_CNT)) {
+			memset(&tfa_fb.rd_re[ch], 0, sizeof(tfa_fb.rd_re[ch]));
+		}
+	}
+
+	if (tfa_fb.rd_re[ch].err_cnt > 0) {
+		pr_err("TFA98xx SPK%u: min_re=%d, max_re=%d, rd_id=%u, err_cnt=%u",
+			ch + 1, tfa_fb.rd_re[ch].min_re, tfa_fb.rd_re[ch].max_re, tfa_fb.rd_re[ch].rd_id, tfa_fb.rd_re[ch].err_cnt);
+	}
+
+	if (strlen(fb_buf) > 0) {
+		SetFdBuf(fb_buf, ",r0_cal=%u, min_re=%u,max_re=%u,record re=",
+			tfa_fb.r0_cal[ch], tfa_fb.rd_re[ch].min_re, tfa_fb.rd_re[ch].max_re);
+		for (i = 0; i < tfa_fb.rd_re[ch].rd_id; i++) {
+			SetFdBuf(fb_buf, "%u,", tfa_fb.rd_re[ch].re[i]);
+		}
+
+		if (tfa_fb.control_fb & TEST_SPK_ERR_FB_10042) {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_1H, "just for test 10042, ignore");
+		} else {
+			mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR, MM_FB_KEY_RATELIMIT_1H, fb_buf);
+		}
+		pr_err("%s", fb_buf);
+		memset(&tfa_fb.rd_re[ch], 0, sizeof(tfa_fb.rd_re[ch]));
+	}
+}
+
+static int tfa98xx_check_result(uint8_t *pdata, uint32_t algo_flag)
+{
 	uint32_t re = 0;
 	uint32_t fr = 0;
-	char fb_buf[MAX_PAYLOAD_DATASIZE] = {0};
-	bool spk_err = false;
 	int index = 0;
 
 	if (!pdata) {
-		err = -EINVAL;
 		pr_err("pdata is null");
-		goto exit;
+		return -EINVAL;
 	}
-	if (!IS_DEV_COUNT_VALID(tfa_fb.pa_cnt)) {
-		err = -EINVAL;
+	if ((tfa_fb.pa_cnt <= MONO) || (tfa_fb.pa_cnt > MAX_SPK_NUM)) {
 		pr_err("pa_cnt %d invalid", tfa_fb.pa_cnt);
-		goto exit;
+		return -EINVAL;
 	}
 
-	SetFdBuf(fb_buf, "payload@@");
-	for (index = 0; index < tfa_fb.pa_cnt; index++) {
-		if (tfa_fb.damage_flag & (1 << index)) {
-			SetFdBuf(fb_buf, "TFA98xx SPK%d-detected-damaged;", (index + 1));
-		} else {
-			tfa_fb.last_damage_r0[index] = 0;
-			tfa_fb.last_damage_f0[index] = 0;
-			tfa_fb.start_damage_tm[index] = 0;
-			pr_info("speaker%d, R0 = %u, F0 = %u", \
-					index+1, TFA_GET_R0(pdata, index), TFA_GET_F0(pdata, index));
-			continue;
-		}
-
-		/* check r0 out of range */
+	if (algo_flag == 1) {
+		index = 0;
+	} else {
+		index = 2;
+	}
+	for (; index < tfa_fb.pa_cnt; index++) {
 		re = TFA_GET_R0(pdata, index);
-		if ((re < tfa_fb.r0_min[index]) || (re > tfa_fb.r0_max[index])) {
-			SetFdBuf(fb_buf, "TFA98xx SPK%u:R0=%u,out of range(%u, %u),R0_cal=%u;", \
-					index+1, re, tfa_fb.r0_min[index], tfa_fb.r0_max[index], tfa_fb.r0_cal[index]);
-			spk_err = true;
-		}
-		pr_info("speaker%d, R0 = %u", index+1, re);
-
-		/* check f0 out of range */
 		fr = TFA_GET_F0(pdata, index);
-		if ((fr < tfa_fb.f0_min[index]) || (fr > tfa_fb.f0_max[index])) {
-			SetFdBuf(fb_buf, "TFA98xx SPK%u:F0=%u,out of range(%u, %u);", \
-				   index+1, fr, tfa_fb.f0_min[index], tfa_fb.f0_max[index]);
-			spk_err = true;
-		}
-		pr_info("speaker%d, F0 = %u", index+1, fr);
+		pr_info("TFA98xx SPK%d: damage_flag=0x%x, re=%u, fr=%u",
+			index + 1, tfa_fb.damage_flag, re, fr);
 
-		/* When short circuit or open circuit, read r0 will return same value */
-		/* damaged but f0 and r0 is ok, record and check whether r0 is same . */
-		if ((false == spk_err) && (tfa_fb.damage_flag & (1 << index)) && (fr < F0_BLOCK_HOLE)) {
-			if (re == tfa_fb.last_damage_r0[index]) {
-				if (tfa_fb.start_damage_tm[index] == 0) {
-					tfa_fb.start_damage_tm[index] = ktime_get();
-				} else if (ktime_after(ktime_get(), ktime_add_ms(tfa_fb.start_damage_tm[index], CHECK_DAMAGE_TIME))) {
-					SetFdBuf(fb_buf, "TFA98xx SPK%u:speaker short circuit or open circuit.R0=%u,R0_cal=%u,F0=%u;", \
-							index+1, re, tfa_fb.r0_cal[index], fr);
-					spk_err = true;
-					tfa_fb.last_damage_r0[index] = 0;
-					tfa_fb.last_damage_f0[index] = 0;
-					tfa_fb.start_damage_tm[index] = 0;
-				}
-				pr_info("speaker%d, maybe short circuit or open circuit", index + 1);
-			} else {
-				tfa_fb.last_damage_r0[index] = re;
-				tfa_fb.last_damage_f0[index] = fr;
-				tfa_fb.start_damage_tm[index] = ktime_get();
-			}
+		/* for feedback test */
+		if (tfa_fb.control_fb & TEST_SPK_ERR_FB_10042) {
+			re = 20000;
+			pr_info("just for test 10042, change re=%d", re);
 		}
+		tfa98xx_check_re(re, index);
+		tfa98xx_check_f0(fr, index);
 	}
 
-	if (spk_err) {
-		if (tfa98xx_is_algorithm_working(tfa98xx)) {
-			if (spk_err) {
-				mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SPK_ERR,
-						MM_FB_KEY_RATELIMIT_1H, fb_buf);
-			}
-		}
-	}
-
-exit:
-	return err;
+	return Tfa98xx_Error_Ok;
 }
 
 static void tfa98xx_check_work(struct work_struct *work)
@@ -673,9 +837,8 @@ static void tfa98xx_check_work(struct work_struct *work)
 	struct tfa98xx *tfa98xx = NULL;
 	struct tfa98xx *tfa98xx_1 = NULL;
 	struct tfa98xx *tfa98xx_2 = NULL;
-	uint8_t rebuf[TFA_RESULT_BUF_LEN] = {0};
-	uint8_t rebuf2[TFA_RESULT_BUF_LEN] = {0};
-	int ret = -1;
+	uint8_t result[TFA_RESULT_BUF_LEN] = {0};
+	int ret = Tfa98xx_Error_Ok;
 
 	if (!(CHECK_SPEAKER_MASKS & tfa_fb.chk_flag) || !tfa_fb.plist || !tfa_fb.lock) {
 		return;
@@ -702,116 +865,83 @@ static void tfa98xx_check_work(struct work_struct *work)
 
 	tfa98xx = container_of(work, struct tfa98xx, check_work.work);
 
-	pr_info("chk_flag = 0x%x, cmd_step = %d, pa_cnt = %d, lib_new = %d\n", \
-			tfa_fb.chk_flag, tfa_fb.cmd_step, tfa_fb.pa_cnt, tfa_fb.lib_new);
-
 	switch (tfa_fb.cmd_step) {
-	case STEP_GET_STATUS:
+	case READ_ALGORITHM_VERSION:
 		/*get algorithm library version if not get before*/
-		if ((tfa_fb.lib_new != 0) && (tfa_fb.lib_new != 1)) {
-			ret = tfa98xx_check_new_lib(tfa98xx);
-			if (Tfa98xx_Error_Ok != ret) {
-				goto exit;
-			}
-		}
-
+		ret = tfa98xx_check_new_lib(tfa98xx);
+		break;
+	case READ_DAMAGED_STATUS_1:
 		/*get speaker hole blocked or damaged status */
 		ret = tfa98xx_get_speaker_status(tfa98xx_1, 1);
-		if ((Tfa98xx_Error_Ok != ret) || IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-			goto exit;
-		}
-		if (tfa98xx_2) {
-			ret = tfa98xx_get_speaker_status(tfa98xx_2, 2);
-			if ((Tfa98xx_Error_Ok != ret) || IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-				goto exit;
-			}
-		}
-
-		/* not to check R0, F0, atmospheric pressure value if:
-			1. not detected speaker damage
-			2. has checked since boot
-			3. limit time do not pass since last check */
-		if (tfa_fb.damage_flag == 0 && (tfa_fb.last_chk_spk != 0) && \
-				ktime_before(ktime_get(), ktime_add_ms(tfa_fb.last_chk_spk, OPLUS_CHECK_LIMIT_TIME))) {
-			tfa_fb.chk_flag = (~CHECK_SPEAKER_MASKS) & tfa_fb.chk_flag;
-			tfa_fb.cmd_step = STEP_GET_STATUS;
-			goto exit;
-		} else {
-			queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->check_work, \
-				msecs_to_jiffies(20));
-			tfa_fb.cmd_step = STEP_SET_READY_CMD;
+		break;
+	case SET_READY_CMD_1:
+		/* set cmd to protection algorithm to calcurate r0, f0 */
+		ret = tfa98xx_set_ready_cmd(tfa98xx_1, 1);
+		break;
+	case READ_RESULT_FB_1:
+	/* set cmd to get r0, f0 */
+		ret = tfa98xx_get_result(tfa98xx_1, result, sizeof(result), 1);
+		if (ret == Tfa98xx_Error_Ok) {
+			tfa98xx_check_result(result, 1);
 		}
 		break;
-	case STEP_SET_READY_CMD:
-		/* set cmd to protection algorithm to calcurate r0, f0 and atmospheric pressure */
-		ret = tfa98xx_set_ready_cmd(tfa98xx_1, 1);
-		if ((Tfa98xx_Error_Ok != ret) || IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-			goto exit;
+	case READ_DAMAGED_STATUS_2:
+		/*get speaker hole blocked or damaged status */
+		if (tfa98xx_2) {
+			ret = tfa98xx_get_speaker_status(tfa98xx_2, 2);
 		}
+		break;
+	case SET_READY_CMD_2:
+		/* set cmd to protection algorithm to calcurate r0, f0 */
 		if (tfa98xx_2) {
 			ret = tfa98xx_set_ready_cmd(tfa98xx_2, 2);
 		}
-		if ((Tfa98xx_Error_Ok == ret) && !IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-			queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->check_work, \
-					msecs_to_jiffies(100));
-			tfa_fb.cmd_step = STEP_GET_CHECK_RESULT;
-		}
 		break;
-	case STEP_GET_CHECK_RESULT:
-		/* set cmd to get r0, f0 and atmospheric pressure */
-		ret = tfa98xx_get_result(tfa98xx_1, rebuf, sizeof(rebuf), 1);
-		if ((Tfa98xx_Error_Ok != ret) || IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-			goto exit;
-		}
+	case READ_RESULT_FB_2:
+		/* set cmd to get r0, f0 */
 		if (tfa98xx_2) {
-			ret = tfa98xx_get_result(tfa98xx_2, rebuf2, sizeof(rebuf2), 2);
+			ret = tfa98xx_get_result(tfa98xx_2, result, sizeof(result), 2);
+			if (ret == Tfa98xx_Error_Ok) {
+				tfa98xx_check_result(result, 2);
+			}
 		}
-		if ((Tfa98xx_Error_Ok != ret) || IS_EXIT_CHECK_WORK(tfa_fb.chk_flag)) {
-			goto exit;
-		}
-		memcpy(rebuf + TFA_ONE_ALGO_MAX_RESULT_LEN, rebuf2 + TFA_OFFSET_BASE, \
-			(TFA_RESULT_BUF_LEN - TFA_ONE_ALGO_MAX_RESULT_LEN));
-
-		tfa98xx_check_result(tfa98xx, rebuf);
-		tfa_fb.cmd_step = STEP_END;
 		break;
 	default:
+		ret = Tfa98xx_Error_Bad_Parameter;
 		break;
 	}
 
-exit:
-	if ((Tfa98xx_Error_Ok != ret) || (tfa_fb.cmd_step >= STEP_END)) {
-		tfa_fb.chk_flag = (~CHECK_SPEAKER_MASKS) & tfa_fb.chk_flag;
-		tfa_fb.cmd_step = STEP_GET_STATUS;
-		tfa_fb.damage_flag = 0;
-		tfa_fb.last_chk_spk = ktime_get();
+	if (Tfa98xx_Error_Ok == ret) {
+		tfa_fb.cmd_step += 1;
+	} else {
+		pr_err("chk_flag=0x%x, step=%d, error ret=%d\n", tfa_fb.chk_flag, tfa_fb.cmd_step, ret);
+		tfa_fb.cmd_step = 0;
 	}
-	pr_info("exit, chk_flag=0x%x, cmd_step=%d, ret=%d\n", tfa_fb.chk_flag, tfa_fb.cmd_step, ret);
+
+	if ((!tfa98xx_2 && tfa_fb.cmd_step > READ_RESULT_FB_1) || (tfa_fb.cmd_step > READ_RESULT_FB_2)) {
+		tfa_fb.cmd_step = 0;
+		tfa_fb.damage_flag = 0;
+	}
+
+	if (tfa_fb.chk_flag & CHECK_SPEAKER_MASKS) {
+		queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->check_work,
+			msecs_to_jiffies(g_step_delay[tfa_fb.cmd_step]));
+	}
 
 	return;
 }
 
-void oplus_tfa98xx_record_r0_f0_range(int r0_cal, uint32_t f0_min, uint32_t f0_max, int dev_idx)
+void oplus_tfa98xx_record_r0_f0_range(int r0_cal, int32_t f0_cal, int dev_idx)
 {
 	if ((dev_idx >= MONO) && (dev_idx < MAX_SPK_NUM)) {
 		if (r0_cal == tfa_fb.r0_cal[dev_idx]) {
 			return;
 		}
 
-		if ((r0_cal > R0_MIN) && (r0_cal < R0_MAX)) {
-			tfa_fb.r0_cal[dev_idx] = r0_cal;
-			tfa_fb.r0_max[dev_idx] = r0_cal + R0_BASE_RANGE;
-			tfa_fb.r0_min[dev_idx] = r0_cal - R0_BASE_RANGE;
-		} else {
-			tfa_fb.r0_cal[dev_idx] = r0_cal;
-			tfa_fb.r0_max[dev_idx] = R0_MAX;
-			tfa_fb.r0_min[dev_idx] = R0_MIN;
-		}
-		tfa_fb.f0_max[dev_idx] = f0_max;
-		tfa_fb.f0_min[dev_idx] = f0_min;
-		pr_info("spk dev_idx=%d, r0_cal = %d, r0 range [%d, %d], f0 range [%d, %d]\n", \
-			dev_idx, r0_cal, tfa_fb.r0_min[dev_idx], tfa_fb.r0_max[dev_idx], \
-			tfa_fb.f0_min[dev_idx], tfa_fb.f0_max[dev_idx]);
+		tfa_fb.r0_cal[dev_idx] = r0_cal;
+		tfa_fb.f0_cal[dev_idx] = f0_cal;
+
+		pr_info("spk dev_idx=%d, r0_cal = %d, f0_cal = %d\n", dev_idx, r0_cal, f0_cal);
 	} else {
 		pr_info("unsupport dev_idx=%d\n", dev_idx);
 	}
@@ -821,7 +951,7 @@ void oplus_tfa98xx_check_reg(struct tfa98xx *tfa98xx)
 {
 	uint32_t id = 0;
 
-	if ((tfa_fb.chk_flag == 0) || (NULL == tfa_fb.lock)) {
+	if ((tfa_fb.chk_flag == 0) || (NULL == tfa_fb.lock) || (tfa_fb.control_fb & BYPASS_PA_ERR_FB_10041)) {
 		return;
 	}
 
@@ -840,18 +970,21 @@ void oplus_tfa98xx_check_reg(struct tfa98xx *tfa98xx)
 			ktime_before(ktime_get(), ktime_add_ms(tfa_fb.last_chk_reg, MM_FB_KEY_RATELIMIT_5MIN))) {
 		return;
 	}
-
+	mutex_lock(tfa_fb.lock);
 	tfa98xx_check_status_reg(tfa98xx);
+	mutex_unlock(tfa_fb.lock);
 }
 
 void oplus_tfa98xx_queue_check_work(struct tfa98xx *tfa98xx)
 {
-	if (((tfa_fb.chk_flag & CHECK_SPEAKER_MASKS) != 0) && (0 == tfa_fb.queue_work_flag)) {
+	if (((tfa_fb.chk_flag & CHECK_SPEAKER_MASKS) != 0) && (0 == tfa_fb.queue_work_flag) &&
+		!(tfa_fb.control_fb & BYPASS_SPK_ERR_FB_10042)) {
 		if (tfa98xx && tfa98xx->tfa98xx_wq && tfa98xx->check_work.work.func && (0 == tfa_fb.queue_work_flag)) {
 			pr_info("queue delay work for check speaker\n");
+			tfa_fb.cmd_step = 0;
+			tfa_fb.damage_flag = 0;
 			queue_delayed_work(tfa98xx->tfa98xx_wq, &tfa98xx->check_work, CHECK_SPK_DELAY_TIME * HZ);
 			tfa_fb.queue_work_flag = 1;
-			tfa_fb.cmd_step = 0;
 		}
 	}
 }
@@ -864,25 +997,6 @@ void oplus_tfa98xx_exit_check_work(struct tfa98xx *tfa98xx)
 		tfa_fb.cmd_step = 0;
 		cancel_delayed_work_sync(&tfa98xx->check_work);
 		tfa_fb.queue_work_flag = 0;
-	}
-}
-
-void oplus_tfa98xx_get_dt(struct tfa98xx *tfa98xx, struct device_node *np)
-{
-	int ret = 0;
-
-	if (tfa98xx && tfa98xx->tfa && np) {
-		ret = of_property_read_u32(np, "tfa_min_f0", &tfa98xx->f0_min);
-		if (ret) {
-			pr_info("Failed to parse tfa_min_f0 node\n");
-			tfa98xx->f0_min = F0_MIN;
-		}
-		ret = of_property_read_u32(np, "tfa_max_f0", &tfa98xx->f0_max);
-		if (ret) {
-			pr_info("Failed to parse tfa_max_f0 node\n");
-			tfa98xx->f0_max = F0_MAX;
-		}
-		pr_info("spk f0 range (%u, %u)\n", tfa98xx->f0_min, tfa98xx->f0_max);
 	}
 }
 

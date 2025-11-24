@@ -343,7 +343,8 @@ static ssize_t ois_write(struct file *p_file,
 	}
 
 	cur = data;
-	while ((token = strsep(&cur, delim)))
+	token = strsep(&cur, delim);
+	while (NULL != token)
 	{
 		//CAM_ERR(CAM_OIS, "string = %s iIndex = %d, count = %d", token, iIndex, count);
                 int ret=0;
@@ -360,6 +361,7 @@ static ssize_t ois_write(struct file *p_file,
 			CAM_ERR(CAM_OIS,"String conversion to unsigned int failed");
 		}
 		iIndex++;
+		token = strsep(&cur, delim);
 	}
 	if (ois_ctrls[CAM_OIS_MASTER] && addr != 0)
 	{
@@ -403,7 +405,8 @@ static ssize_t ois_write_tele(struct file *p_file,
 	}
 
 	cur = data;
-	while ((token = strsep(&cur, delim)))
+	token = strsep(&cur, delim);
+	while (NULL != token)
 	{
 		//CAM_ERR(CAM_OIS, "string = %s iIndex = %d, count = %d", token, iIndex, count);
 		int ret=0;
@@ -421,6 +424,7 @@ static ssize_t ois_write_tele(struct file *p_file,
 			CAM_ERR(CAM_OIS,"String conversion to unsigned int failed");
 		}
 		iIndex++;
+		token = strsep(&cur, delim);
 	}
 
 	if (ois_ctrls[CAM_OIS_SLAVE] && addr != 0)

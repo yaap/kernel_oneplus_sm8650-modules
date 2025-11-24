@@ -622,8 +622,19 @@ static int lpass_cdc_tx_macro_tx_mixer_put(struct snd_kcontrol *kcontrol,
 			dev_err(component->dev, "%s: channel is already disabled, dec_id = %d, dai_id = %d\n",
 					__func__, dec_id, dai_id);
 		} else {
+#ifndef OPLUS_ARCH_EXTENDS
+/* fix channels number mismatch issues */
 			tx_priv->active_ch_cnt[dai_id]--;
 			clear_bit(dec_id, &tx_priv->active_ch_mask[dai_id]);
+#else /* OPLUS_ARCH_EXTENDS */
+			if (tx_priv->active_ch_cnt[dai_id] > 0) {
+				tx_priv->active_ch_cnt[dai_id]--;
+				clear_bit(dec_id, &tx_priv->active_ch_mask[dai_id]);
+			} else {
+				pr_err("%s: dai_id:%d, active_ch_cnt: %d\n", __func__,
+					dai_id, tx_priv->active_ch_cnt[dai_id]);
+			}
+#endif /* OPLUS_ARCH_EXTENDS */
 		}
 	}
 	snd_soc_dapm_mixer_update_power(widget->dapm, kcontrol, enable, update);

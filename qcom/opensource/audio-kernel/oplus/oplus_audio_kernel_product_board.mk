@@ -14,6 +14,7 @@ endif
 
 ifeq ($(TARGET_BOARD_PLATFORM), volcano)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_extend.ko
+AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_tfa98xx_v6.ko
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa.ko
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa_tuning.ko
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_pa_manager.ko
@@ -46,6 +47,11 @@ PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_aw882xx.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_tfa98xx_v6.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa_tuning.ko
+PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_pa_manager.ko
+# add for audio daemon kernel on QCOM platform sun
+PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_daemon.ko
+# add for audio netlink kernel communication
+AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_netlink.ko
 endif
 
 ifeq ($(call is-board-platform-in-list,parrot), true)

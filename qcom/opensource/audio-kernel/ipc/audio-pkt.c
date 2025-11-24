@@ -589,7 +589,7 @@ static int audio_pkt_probe(struct gpr_device *adev)
 #ifdef OPLUS_ARCH_EXTENDS
 		gskb = alloc_skb(GLOBAL_SKB_LEN, GFP_ATOMIC);
 		if (!gskb) {
-			dev_dbg(&adev->dev, "%s: alloc_skb 256 failed \n", __func__);
+			dev_dbg(&adev->dev, "%s: alloc gskb failed \n", __func__);
 		}
 		spin_lock_init(&gskb_lock);
 #endif /* OPLUS_ARCH_EXTENDS */
@@ -630,6 +630,7 @@ static int audio_pkt_remove(struct gpr_device *adev)
 #ifdef OPLUS_ARCH_EXTENDS
 		if (gskb) {
 			kfree_skb(gskb);
+			gskb = NULL;
 		}
 #endif /* OPLUS_ARCH_EXTENDS */
 

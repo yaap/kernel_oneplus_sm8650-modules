@@ -33,7 +33,7 @@ const char *const ext_amp_vdd_need[] = { "None", "Need" };
 const char *const ext_amp_boost_vol_text[] = {"Level_1", "Level_2", "Level_3", "Level_4"};
 const char *const ext_amp_speaker_switch_function[] = { "Off", "On" };
 const char *const ext_rcv_amp_function[] = { "Off", "On" };
-const char *const ext_amp_speaker_mode_function[] = { "Off", "Music", "Voice", "Fm", "Rcv", "Left", "Right", "Left_Voice"};
+const char *const ext_amp_speaker_mode_function[] = { "Off", "Music", "Voice", "Fm", "Rcv", "Left", "Right", "Left_Voice", "Right_Voice"};
 const char *const ext_amp_voice_function[] = { "Off", "On" };
 const char *const ext_amp_mute_function[] = { "Off", "On" };
 const char *const ext_amp_check_feedback[] = { "Off", "On" };
@@ -73,6 +73,14 @@ static const struct snd_soc_dapm_widget oplus_analog_pa_manager_dapm_widgets[] =
 static const struct snd_soc_dapm_route oplus_analog_pa_manager_dapm_map[] = {
 	{"OPLUS_SPKR_DRV", NULL, "RX INT2 MIX2"},
 	{"AUX_OUT", NULL, "OPLUS_SPKR_DRV"},
+};
+
+static bool g_rcv_as_l_spk = false;
+
+/* 2024/11/28, modify for wcd9378 use damp avoid noise issues */
+static const struct snd_soc_dapm_route oplus_analog_pa_manager_wcd9378_dapm_map[] = {
+	{"OPLUS_SPKR_DRV", NULL, "AUX_MIXER"},
+	{"AUX PGA", NULL, "OPLUS_SPKR_DRV"},
 };
 
 /*------------------------------------------------------------------------------*/
@@ -257,7 +265,13 @@ int speaker_r_amp_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *
 
 int rcv_amp_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-	struct oplus_speaker_device *speaker_device = get_speaker_dev(R_SPK);
+	struct oplus_speaker_device *speaker_device = NULL;
+
+	if (g_rcv_as_l_spk) {
+		speaker_device = get_speaker_dev(L_SPK);
+	} else {
+		speaker_device = get_speaker_dev(R_SPK);
+	}
 
 	ucontrol->value.integer.value[0] = 0;
 
@@ -281,12 +295,18 @@ int rcv_amp_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontr
 int rcv_amp_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	int value = ucontrol->value.integer.value[0];
+	struct oplus_speaker_device *speaker_device = NULL;
 
 	enum oplus_pa_work_mode work_mode = WORK_MODE_OFF;
 	int protection_needed = 0;
 
-	struct oplus_speaker_device *speaker_device = get_speaker_dev(R_SPK);
 	int ret = 0;
+
+	if (g_rcv_as_l_spk) {
+		speaker_device = get_speaker_dev(L_SPK);
+	} else {
+		speaker_device = get_speaker_dev(R_SPK);
+	}
 
 	if (value == 0) {
 		work_mode = WORK_MODE_OFF;
@@ -542,7 +562,8 @@ int oplus_spkr_pa_event(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcon
 			} else if ((contrl_status->amp_mode_setting == WORK_MODE_LEFT)
 				|| (contrl_status->amp_mode_setting == WORK_MODE_LEFT_VOICE)) {
 				oplus_speaker_amp_set(L_SPK, WORK_STATUS_ON);
-			} else if (contrl_status->amp_mode_setting == WORK_MODE_RIGHT) {
+			} else if ((contrl_status->amp_mode_setting == WORK_MODE_RIGHT)
+				|| (contrl_status->amp_mode_setting == WORK_MODE_RIGHT_VOICE)) {
 				oplus_speaker_amp_set(R_SPK, WORK_STATUS_ON);
 			} else {
 				oplus_speaker_amp_set(L_SPK, WORK_STATUS_ON);
@@ -600,6 +621,41 @@ int oplus_add_analog_pa_manager_dapm(struct snd_soc_dapm_context *dapm)
 	return ret;
 }
 EXPORT_SYMBOL(oplus_add_analog_pa_manager_dapm);
+
+void set_pa_index_order(int m_pa_index) {
+	if (m_pa_index) {
+		g_rcv_as_l_spk = true;
+	} else {
+		g_rcv_as_l_spk = false;
+	}
+}
+EXPORT_SYMBOL(set_pa_index_order);
+/*------------------------------------------------------------------------------*/
+/* 2024/11/28, modify for wcd9378 use damp avoid noise issues */
+int oplus_add_analog_pa_manager_wcd9378_dapm(struct snd_soc_dapm_context *dapm)
+{
+	int ret = 0;
+
+	ret = snd_soc_dapm_new_controls(dapm, oplus_analog_pa_manager_dapm_widgets,
+			ARRAY_SIZE(oplus_analog_pa_manager_dapm_widgets));
+	if (ret < 0) {
+		pr_err("%s: failed to add controls\n", __func__);
+		return ret;
+	}
+
+	snd_soc_dapm_ignore_suspend(dapm, "OPLUS_SPKR_DRV");
+
+	ret = snd_soc_dapm_add_routes(dapm, oplus_analog_pa_manager_wcd9378_dapm_map,
+			ARRAY_SIZE(oplus_analog_pa_manager_wcd9378_dapm_map));
+	if (ret < 0) {
+		pr_err("%s: failed to add wcd9378 routes\n", __func__);
+		return ret;
+	}
+
+	pr_debug("%s, %d", __func__, __LINE__);
+	return ret;
+}
+EXPORT_SYMBOL(oplus_add_analog_pa_manager_wcd9378_dapm);
 /*------------------------------------------------------------------------------*/
 static int __init oplus_pa_manager_init(void)
 {

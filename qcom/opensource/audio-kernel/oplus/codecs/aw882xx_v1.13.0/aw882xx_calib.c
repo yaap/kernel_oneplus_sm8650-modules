@@ -1608,6 +1608,13 @@ static ssize_t aw_range_re_show(struct device *dev,
 
 	return len;
 }
+
+ssize_t oplus_aw_cali_re(struct device *dev, char *buf)
+{
+	pr_info("[awinic] %s: cali re only.\n",
+			__func__);
+	return oplus_cali_re_f0_show(dev, buf, AW_CALI_CMD_RE);
+}
 #endif /*OPLUS_ARCH_EXTENDS*/
 
 /*set cali time*/

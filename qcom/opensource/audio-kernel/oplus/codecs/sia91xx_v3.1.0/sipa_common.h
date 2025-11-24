@@ -100,6 +100,7 @@ typedef struct sipa_dev_s {
 /* 2024/07/08, Add for smartpa vbatlow err check. */
 	uint32_t check_fb;
 	uint32_t vbatlow_cnt;
+	uint32_t control_fb;
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
 //#ifdef SIA91XX_TYPE
@@ -184,6 +185,7 @@ enum {
 	CHIP_TYPE_SIA8157,
 	CHIP_TYPE_SIA8001,
 	CHIP_TYPE_SIA8102,
+	CHIP_TYPE_SIA8150,
 	// add compatible chip type here
 	CHIP_TYPE_UNKNOWN,
 	CHIP_TYPE_INVALID

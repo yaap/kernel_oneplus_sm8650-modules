@@ -51,9 +51,9 @@ static void sipa_container_loaded(
 	const struct firmware *cont,
 	void *context)
 {
-	uint32_t sz = 0;
-	const SIPA_PARAM_FW *param = NULL;
+	const SIPA_PARAM_FW_LEGENCY *param = NULL;
 	sipa_dev_t *si_pa = context;
+	void *dest = NULL;
 
 	pr_debug("[debug][%s] %s: enter load\r\n", LOG_FLAG, __func__);
 
@@ -76,45 +76,56 @@ static void sipa_container_loaded(
 		goto pending_actions;
 	}
 
-	sz = sizeof(SIPA_PARAM_FW);
-	if (sz > cont->size) {
-		pr_err("[  err][%s] %s: sizeof(SIPA_PARAM_FW)(%u) > cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-		goto load_error;
+	pr_debug("[debug][%s] %s: cont->size(%lu) ch_num_max(%u) \n",
+		LOG_FLAG, __func__, cont->size, si_pa->ch_num_max);
+
+	if (si_pa->ch_num_max == SIPA_CHANNEL_NUM_LENGENCY) {
+		param = (SIPA_PARAM_FW_LEGENCY *)cont->data;
+		sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + sizeof(SIPA_PARAM_FW) + param->data_size, GFP_KERNEL);
+	} else if (si_pa->ch_num_max == SIPA_CHANNEL_NUM) {
+		sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + cont->size, GFP_KERNEL);
 	}
-
-	param = (SIPA_PARAM_FW *)cont->data;
-	sz += param->data_size;
-
-	if (sz > cont->size) {
-		pr_err("[  err][%s] %s: sz(%u) > cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-		goto load_error;
-	} else if (sz < cont->size) {
-		pr_warn("[ warn][%s] %s: sz(%u) < cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-	}
-
-	if (SIPA_FW_VER != param->version) {
-		pr_err("[  err][%s] %s: SIPA_FW_VER(0x%08x) != param->version(0x%08x) \r\n",
-			LOG_FLAG, __func__, SIPA_FW_VER, param->version);
-		goto load_error;
-	}
-
-	if (param->crc != crc32((uint8_t *)&param->version, sz - sizeof(uint32_t))) {
-		pr_err("[  err][%s] %s: param crc(0x%x) check failed! \r\n",
-		   LOG_FLAG, __func__, param->crc);
-		goto load_error;
-	}
-
-	sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + sz, GFP_KERNEL);
 	if (NULL == sipa_parameters) {
 		pr_err("[  err][%s] %s: kmalloc failed \r\n",
 			LOG_FLAG, __func__);
 		goto load_error;
 	}
 
-	memcpy(&sipa_parameters->fw, cont->data, sz);
+	if (SIPA_FW_VER != *((uint32_t *)cont->data + 1)) {
+		pr_err("[  err][%s] %s: SIPA_FW_VER(0x%08x) != pa.bin version(0x%08x) \r\n",
+			LOG_FLAG, __func__, SIPA_FW_VER, *((uint32_t *)cont->data + 1));
+		goto load_error;
+	}
+
+	if (*((uint32_t *)cont->data) != crc32((uint8_t *)cont->data + sizeof(uint32_t), cont->size - sizeof(uint32_t))) {
+		pr_err("[  err][%s] %s: pa.bin crc(0x%x) check failed! \r\n",
+		LOG_FLAG, __func__, *((uint32_t *)cont->data));
+		goto load_error;
+	}
+
+	if (si_pa->ch_num_max == SIPA_CHANNEL_NUM_LENGENCY) {
+		param = (SIPA_PARAM_FW_LEGENCY *)cont->data;
+
+		sipa_parameters->fw.version = param->version;
+
+		dest = sipa_parameters->fw.ch_en;
+		memcpy(dest, param->ch_en, sizeof(uint32_t) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		dest = sipa_parameters->fw.chip_cfg;
+		memcpy(dest, param->chip_cfg, sizeof(SIPA_PARAM_LIST) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		dest = sipa_parameters->fw.extra_cfg;
+		memcpy(dest, param->extra_cfg, sizeof(SIPA_EXTRA_CFG) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		sipa_parameters->fw.data_size = param->data_size;
+
+		dest = sipa_parameters->fw.data;
+		memcpy(dest, param->data, param->data_size);
+	} else if (si_pa->ch_num_max == SIPA_CHANNEL_NUM) {
+		dest = &sipa_parameters->fw;
+		memcpy(dest, cont->data, cont->size);
+	}
+
 	sipa_fw_loaded = 1;
 
 pending_actions:
@@ -156,11 +167,10 @@ static void sipa_fw_load_work_routine(struct work_struct *work)
 static void sipa_fw_load_work_delay(struct work_struct *work)
 {
 	int ret = 0;
-	uint32_t sz = 0;
-	const SIPA_PARAM_FW *param = NULL;
+	const SIPA_PARAM_FW_LEGENCY *param = NULL;
 	sipa_dev_t *si_pa = container_of(work, sipa_dev_t, fw_load_work.work);
 	const struct firmware *cont = NULL;
-	void *fw = NULL;
+	void *dest = NULL;
 
 	pr_debug("[debug][%s] %s: enter load\r\n", LOG_FLAG, __func__);
 
@@ -185,46 +195,55 @@ static void sipa_fw_load_work_delay(struct work_struct *work)
 		return;
 	}
 
-	sz = sizeof(SIPA_PARAM_FW);
-	if (sz > cont->size) {
-		pr_err("[  err][%s] %s: sizeof(SIPA_PARAM_FW)(%u) > cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-		goto load_error;
+		pr_debug("[debug][%s] %s: cont->size(%lu) ch_num_max(%u) \n",
+		LOG_FLAG, __func__, cont->size, si_pa->ch_num_max);
+
+	if (si_pa->ch_num_max == SIPA_CHANNEL_NUM_LENGENCY) {
+		param = (SIPA_PARAM_FW_LEGENCY *)cont->data;
+		sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + sizeof(SIPA_PARAM_FW) + param->data_size, GFP_KERNEL);
+	} else if (si_pa->ch_num_max == SIPA_CHANNEL_NUM) {
+		sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + cont->size, GFP_KERNEL);
 	}
-
-	param = (SIPA_PARAM_FW *)cont->data;
-	sz += param->data_size;
-
-	if (sz > cont->size) {
-		pr_err("[  err][%s] %s: sz(%u) > cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-		goto load_error;
-	} else if (sz < cont->size) {
-		pr_warn("[ warn][%s] %s: sz(%u) < cont->size(%lu) \r\n",
-			LOG_FLAG, __func__, sz, cont->size);
-	}
-
-	if (SIPA_FW_VER != param->version) {
-		pr_err("[  err][%s] %s: SIPA_FW_VER(0x%08x) != param->version(0x%08x) \r\n",
-			LOG_FLAG, __func__, SIPA_FW_VER, param->version);
-		goto load_error;
-	}
-
-	if (param->crc != crc32((uint8_t *)&param->version, sz - sizeof(uint32_t))) {
-		pr_err("[  err][%s] %s: param crc(0x%x) check failed! \r\n",
-		   LOG_FLAG, __func__, param->crc);
-		goto load_error;
-	}
-
-	sipa_parameters = kzalloc(sizeof(SIPA_PARAM_WRITEABLE) + sz, GFP_KERNEL);
 	if (NULL == sipa_parameters) {
 		pr_err("[  err][%s] %s: kmalloc failed \r\n",
 			LOG_FLAG, __func__);
 		goto load_error;
 	}
 
-	fw = (void*)&sipa_parameters->fw;
-	memcpy(fw, cont->data, sz);
+	if (SIPA_FW_VER != *((uint32_t *)cont->data + 1)) {
+		pr_err("[  err][%s] %s: SIPA_FW_VER(0x%08x) != pa.bin version(0x%08x) \r\n",
+			LOG_FLAG, __func__, SIPA_FW_VER, *((uint32_t *)cont->data + 1));
+		goto load_error;
+	}
+
+	if (*((uint32_t *)cont->data) != crc32((uint8_t *)cont->data + sizeof(uint32_t), cont->size - sizeof(uint32_t))) {
+		pr_err("[  err][%s] %s: pa.bin crc(0x%x) check failed! \r\n",
+		LOG_FLAG, __func__, *((uint32_t *)cont->data));
+		goto load_error;
+	}
+
+	if (si_pa->ch_num_max == SIPA_CHANNEL_NUM_LENGENCY) {
+		param = (SIPA_PARAM_FW_LEGENCY *)cont->data;
+
+		sipa_parameters->fw.version = param->version;
+
+		dest = sipa_parameters->fw.ch_en;
+		memcpy(dest, param->ch_en, sizeof(uint32_t) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		dest = sipa_parameters->fw.chip_cfg;
+		memcpy(dest, param->chip_cfg, sizeof(SIPA_PARAM_LIST) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		dest = sipa_parameters->fw.extra_cfg;
+		memcpy(dest, param->extra_cfg, sizeof(SIPA_EXTRA_CFG) * SIPA_CHANNEL_NUM_LENGENCY);
+
+		sipa_parameters->fw.data_size = param->data_size;
+
+		dest = sipa_parameters->fw.data;
+		memcpy(dest, param->data, param->data_size);
+	} else if (si_pa->ch_num_max == SIPA_CHANNEL_NUM) {
+		dest = &sipa_parameters->fw;
+		memcpy(dest, cont->data, cont->size);
+	}
 	release_firmware(cont);
 	sipa_fw_loaded = 1;
 

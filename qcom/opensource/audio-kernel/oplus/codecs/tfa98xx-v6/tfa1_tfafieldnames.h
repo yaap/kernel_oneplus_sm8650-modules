@@ -6,6 +6,10 @@
  * published by the Free Software Foundation.
  *
  */
+
+#ifndef _TFA1_TFAFIELDNAMES_H
+#define _TFA1_TFAFIELDNAMES_H
+
 #define TFA9897_I2CVERSION 34
 typedef enum nxpTfa1BfEnumList {
     TFA1_BF_VDDS  = 0x0000,    /*!< Power-on-reset flag                                */
@@ -902,3 +906,5 @@ enum tfa1_irq {
 	{ 32, "ACK"},\
 	{ 33, "33"},\
 };
+
+#endif /* _TFA1_TFAFIELDNAMES_H */

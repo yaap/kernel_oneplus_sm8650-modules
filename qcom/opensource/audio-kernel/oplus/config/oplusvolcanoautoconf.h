@@ -8,3 +8,5 @@
 #define CONFIG_SND_SOC_SIPA 1
 #define CONFIG_SND_SOC_SIPA_TUNING 1
 #define CONFIG_SND_SOC_OPLUS_PA_MANAGER 1
+/*add for tfa98xx bringup*/
+#define CONFIG_SND_SOC_TFA98XX 1

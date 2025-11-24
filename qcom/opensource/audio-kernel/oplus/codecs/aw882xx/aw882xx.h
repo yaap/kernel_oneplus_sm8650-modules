@@ -208,6 +208,13 @@ struct aw882xx {
 /* 2024/07/08, Add for smartpa vbatlow err check. */
 	uint32_t vbatlow_cnt;
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+// param for fpga-reset
+	struct notifier_block pd_nb;
+	int fpga_current_status;
+	int fpga_check_enable;
+	int fpga_notify_reg_success;
+#endif /* OPLUS_ARCH_EXTENDS */
 	struct mutex lock;
 };
 

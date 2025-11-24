@@ -1442,7 +1442,12 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 	if (!sde_in_trusted_vm(sde_kms) && c_conn->bl_device && !display->poms_pending) {
 		c_conn->bl_device->props.power = FB_BLANK_UNBLANK;
 		c_conn->bl_device->props.state &= ~BL_CORE_FBBLANK;
+#ifdef OPLUS_FEATURE_DISPLAY
+		if (c_conn->bl_device->props.brightness != 0)
+			backlight_update_status(c_conn->bl_device);
+#else
 		backlight_update_status(c_conn->bl_device);
+#endif
 	}
 }
 
@@ -3213,6 +3218,14 @@ int sde_connector_esd_status(struct drm_connector *conn)
 		mutex_unlock(&sde_conn->lock);
 		return -ETIMEDOUT;
 	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (display) {
+		if (oplus_display_check_status_pre(display->panel)) {
+			mutex_unlock(&sde_conn->lock);
+			return -ETIMEDOUT;
+		}
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
 	ret = sde_conn->ops.check_status(&sde_conn->base,
 					 sde_conn->display, true);
 	mutex_unlock(&sde_conn->lock);
@@ -3236,6 +3249,9 @@ static void sde_connector_check_status_work(struct work_struct *work)
 	struct sde_connector *conn;
 	int rc = 0;
 	struct device *dev;
+#ifdef OPLUS_FEATURE_DISPLAY
+	struct dsi_display *display;
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	conn = container_of(to_delayed_work(work),
 			struct sde_connector, status_work);
@@ -3253,6 +3269,16 @@ static void sde_connector_check_status_work(struct work_struct *work)
 		mutex_unlock(&conn->lock);
 		return;
 	}
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	display = (struct dsi_display *)(conn->display);
+	if (display) {
+		if (oplus_display_check_status_pre(display->panel)) {
+			mutex_unlock(&conn->lock);
+			return;
+		}
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	rc = conn->ops.check_status(&conn->base, conn->display, false);
 	mutex_unlock(&conn->lock);
@@ -3967,6 +3993,11 @@ int sde_connector_register_custom_event(struct sde_kms *kms,
 		ret = _sde_conn_enable_hw_recovery(conn_drm);
 		sde_dbg_update_dump_mode(val);
 		break;
+#ifdef OPLUS_FEATURE_DISPLAY
+	case DRM_EVENT_TP_TOUCHDOWN:
+		ret = 0;
+		break;
+#endif
 	default:
 		break;
 	}
@@ -3990,6 +4021,9 @@ int sde_connector_event_notify(struct drm_connector *connector, uint32_t type,
 	case DRM_EVENT_PANEL_DEAD:
 	case DRM_EVENT_SDE_HW_RECOVERY:
 	case DRM_EVENT_MISR_SIGN:
+#ifdef OPLUS_FEATURE_DISPLAY
+	case DRM_EVENT_TP_TOUCHDOWN:
+#endif
 		ret = 0;
 		break;
 	default:

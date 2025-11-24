@@ -240,6 +240,9 @@ struct dsi_panel_oplus_privite {
 	bool cmdq_pack_state;
 	u32 pwm_sw_cmd_te_cnt;
 	bool directional_onepulse_switch;
+	/* add for video mode dsi cmd package feature*/
+	bool dsi_cmd_need_to_package;
+	bool enable_dsi_cmd_package;
 /********************************************
 	fp_type usage:
 	bit(0):lcd capacitive fingerprint(aod/fod are not supported)
@@ -264,6 +267,7 @@ struct dsi_panel_oplus_privite {
 	bool oplus_bl_demura_dbv_support;
 	int bl_demura_mode;
 	bool vid_timming_switch_enabled;
+	bool vid_timming_switch_post_enabled;
 	bool dimming_setting_before_bl_0_enable;
 	bool vidmode_backlight_async_wait_enable;
 	bool set_backlight_not_do_esd_reg_read_enable;
@@ -271,6 +275,11 @@ struct dsi_panel_oplus_privite {
 	/* indicates how many frames cost from aod off cmd sent to normal frame,
 	"0" means once aod off cmd sent the next frame will be normal frame */
 	unsigned int aod_off_frame_cost;
+	bool dozedisable_esdcheck_delay;
+
+	/* add for factory test fps switch, ignore some fps */
+	int ignore_mode_count;
+	u32 *ignore_mode;
 };
 
 struct dsi_panel_oplus_serial_number {
@@ -363,6 +372,7 @@ struct dsi_panel_reset_config {
 #ifdef OPLUS_FEATURE_DISPLAY
 	int panel_vout_gpio;
 	int panel_vddr_aod_en_gpio;
+	int panel_vddr_vout_gpio2;
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 
@@ -667,6 +677,8 @@ int dsi_panel_create_cmd_packets(const char *data, u32 length, u32 count,
 void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set);
 
 void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
+
+int oplus_panel_vid_cmdp_handle(void *dsi_panel, enum dsi_cmd_set_type type);
 
 #ifdef OPLUS_FEATURE_DISPLAY
 int dsi_panel_tx_cmd_set(struct dsi_panel *panel,

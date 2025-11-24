@@ -108,8 +108,8 @@ static const struct reg_map_info reg_map_info_table[] = {
 		.reg_addr_width = 8,
 		.reg_val_width = 16,
 		.chip_id_addr = 0x06,
-		.chip_id_ranges = {{0x6190, 0x6191}},
-		.chip_id_range_num = 1
+		.chip_id_ranges = {{0x6200, 0x6202},{0x6210,0x6211}},
+		.chip_id_range_num = 2
 	},
 	[CHIP_TYPE_SIA9177] = {
 		.chip_type = CHIP_TYPE_SIA9177,
@@ -826,6 +826,16 @@ void sipa_regmap_check_trimming(
 			crc_cal = crc8_maxim(trim, trim_bytes);
 			pr_debug("[debug][%s] %s: check crc_cal, crc = 0x%x, crc_cal = 0x%x! \r\n",
 				LOG_FLAG, __func__, crc, crc_cal);
+			if (crc_cal == crc) {
+				return;
+			}
+		}
+		if (si_pa->chip_type == CHIP_TYPE_SIA9196) {
+			trim[3] &= 0x00;
+			trim[4] &= 0x04;
+			crc_cal = crc8_maxim(trim, trim_bytes);
+			pr_debug("[  debug][%s] %s: check crc_cal, crc = 0x%x, crc_cal = 0x%x! \r\n",
+			LOG_FLAG, __func__, crc, crc_cal);
 			if (crc_cal == crc) {
 				return;
 			}

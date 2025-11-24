@@ -25,6 +25,8 @@
 #define SIPA_FW_VER				\
 	((SIPA_FW_VER_MAIN << 16) | (SIPA_FW_VER_SUB << 8) | (SIPA_FW_VER_REV))
 
+#define SIPA_CHANNEL_NUM_LENGENCY   (4)
+
 typedef enum __sipa_reg_proc_action {
 	SIPA_REG_READ,
 	SIPA_REG_WRITE,
@@ -170,6 +172,16 @@ typedef struct __sipa_param_fw {
 	uint32_t data_size;
 	uint8_t data[];
 } __packed SIPA_PARAM_FW;
+
+typedef struct{
+	uint32_t crc;
+	uint32_t version;
+	uint32_t ch_en[SIPA_CHANNEL_NUM_LENGENCY]; /* 0:diable, 1:enable, other:undefine */
+	SIPA_PARAM_LIST chip_cfg[SIPA_CHANNEL_NUM_LENGENCY];	/* SIPA_CHIP_CFG, for multi SI PA  compat*/
+	SIPA_EXTRA_CFG extra_cfg[SIPA_CHANNEL_NUM_LENGENCY];
+	uint32_t data_size;
+	uint8_t data[];
+} __packed SIPA_PARAM_FW_LEGENCY;
 
 typedef struct __sipa_param {
 	SIPA_PARAM_WRITEABLE writeable;

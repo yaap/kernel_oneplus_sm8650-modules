@@ -161,6 +161,28 @@ struct aw882xx_i2c_packet {
 	char *reg_data;
 };
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/*2024/05/15, Add for speaker f0 err feedback.*/
+#define RE_RECORD_CNT     12
+#define F0_RECORD_CNT     12
+typedef struct {
+    int max_re;
+    int min_re;
+    unsigned int err_cnt;
+    unsigned int rd_id;
+    int re[RE_RECORD_CNT];
+    ktime_t tm;
+} aw_re_err_record_t;
+
+typedef struct {
+    int max_f0;
+    unsigned int err_cnt;
+    unsigned int rd_id;
+    int f0[F0_RECORD_CNT];
+    ktime_t tm;
+} aw_f0_err_record_t;
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
 /********************************************
  * struct aw882xx
  *******************************************/
@@ -203,8 +225,13 @@ struct aw882xx {
 	struct delayed_work dc_work;
 	struct delayed_work fw_work;
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* 2022/02/15, Add for smartpa err feedback.*/
+	uint32_t vbatlow_cnt;
 	struct delayed_work check_work;
 	ktime_t last_fb;
+	unsigned int check_step;
+	aw_re_err_record_t rd_re;
+	aw_f0_err_record_t rd_f0;
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
 #ifdef OPLUS_ARCH_EXTENDS

@@ -10,6 +10,8 @@
 
 #include "oplus_display_esd.h"
 
+int esd_check_mode = 0;
+
 int oplus_panel_parse_esd_reg_read_configs(struct dsi_panel *panel)
 {
 	struct drm_panel_esd_config *esd_config;
@@ -174,3 +176,60 @@ error:
 
 	return 1;
 }
+
+void oplus_display_esd_check_mode_switch(struct dsi_panel *panel, int cmd_index)
+{
+	struct drm_panel_esd_config *config;
+
+	if (!panel) {
+		LCD_ERR("Invalid params\n");
+		return;
+	}
+
+	config = &(panel->esd_config);
+
+	if (!strcmp(panel->name, "AC172 P 3 A0023 dsc cmd mode panel") && cmd_index == 0) {
+		oplus_sde_early_wakeup(panel);
+		oplus_wait_for_vsync(panel);
+		if (esd_check_mode == 0) {
+			esd_check_mode = 1;
+			config->status_value[0] = 0x06;
+			config->status_value[1] = 0x00;
+			config->status_match_modes = 0x00000000;
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION);
+		} else if (esd_check_mode == 1) {
+			esd_check_mode = 0;
+			config->status_value[0] = 0x14;
+			config->status_value[1] = 0x14;
+			config->status_match_modes = 0x00000001;
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION_TWO);
+		}
+	}
+}
+
+bool oplus_display_check_status_pre(struct dsi_panel *panel)
+{
+	if(!panel) {
+		LCD_ERR("Invalid params\n");
+		return false;
+	}
+	if (atomic_read(&panel->esd_pending)) {
+		DSI_WARN("Skip the check because esd is pending\n");
+		if (!strcmp(panel->name, "AB964 p 1 A0017 dsc video mode panel")) {
+			if (panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable
+			&& panel->panel_mode == DSI_OP_VIDEO_MODE) {
+				atomic_set(&panel->esd_pending, 0);
+			}
+		} else {
+			if (panel->panel_mode == DSI_OP_VIDEO_MODE)
+				atomic_set(&panel->esd_pending, 0);
+		}
+		return true;
+	}
+	if (panel->power_mode != SDE_MODE_DPMS_ON) {
+		DSI_WARN("Skip the check because panel power mode not power on!\n");
+		return true;
+	}
+	return false;
+}
+

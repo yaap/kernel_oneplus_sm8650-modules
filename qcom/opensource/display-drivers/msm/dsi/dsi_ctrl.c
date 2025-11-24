@@ -30,6 +30,7 @@
 
 #ifdef OPLUS_FEATURE_DISPLAY
 #include "../oplus/oplus_display_interface.h"
+extern bool g_oplus_send_fps_code;
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 #if defined(CONFIG_PXLW_IRIS)
@@ -1397,7 +1398,25 @@ static void dsi_configure_command_scheduling(struct dsi_ctrl *dsi_ctrl,
 		(dsi_ctrl->current_state.vid_engine_state ==
 					DSI_CTRL_ENGINE_ON)) {
 		sched_line_no = (line_no == 0) ? 1 : line_no;
-
+#ifdef OPLUS_FEATURE_DISPLAY
+		switch (timing->refresh_rate) {
+			case 60:
+				sched_line_no = dsi_ctrl->host_config.common_config.dma_sched_line_60;
+				break;
+			case 90:
+				sched_line_no = dsi_ctrl->host_config.common_config.dma_sched_line_90;
+				break;
+			case 120:
+				sched_line_no = dsi_ctrl->host_config.common_config.dma_sched_line_120;
+				break;
+			case 30:
+				sched_line_no = dsi_ctrl->host_config.common_config.dma_sched_line_120;
+				break;
+			default:
+				break;
+		}
+		sched_line_no = g_oplus_send_fps_code ? 1 : ((sched_line_no == 0) ? 1 :sched_line_no);
+#endif
 		if (timing) {
 			if (sched_line_no >= timing->v_front_porch)
 				sched_line_no = 1;

@@ -14,4 +14,5 @@ int32_t oplus_cam_actuator_construct_default_power_setting(struct cam_actuator_c
 void oplus_cam_actuator_parklens_power_down(struct cam_actuator_ctrl_t *a_ctrl);
 int actuator_power_down_thread(void *arg);
 int oplus_cam_actuator_reactive_setting_apply(struct cam_actuator_ctrl_t *a_ctrl);
+int oplus_cam_actuator_SetNotifyRfiService(struct cam_actuator_ctrl_t *a_ctrl, struct i2c_settings_array *i2c_set);
 #endif /* _CAM_ACTUATOR_CORE_H_ */

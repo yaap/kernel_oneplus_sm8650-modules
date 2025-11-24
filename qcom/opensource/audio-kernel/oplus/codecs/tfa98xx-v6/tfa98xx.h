@@ -32,9 +32,8 @@
 #define TFA98XX_FLAG_REMOVE_PLOP_NOISE	(1 << 6)
 #define TFA98XX_FLAG_LP_MODES	        (1 << 7)
 #define TFA98XX_FLAG_TDM_DEVICE         (1 << 8)
-
-/*To support tfa9873*/
 #define TFA98XX_FLAG_ADAPT_NOISE_MODE   (1 << 9)
+#define TFA98XX_FLAG_OTP_TYPE_DEVICE    (1 << 10)
 #ifdef OPLUS_ARCH_EXTENDS
 /*Add for multi speaker*/
 #define TFA98XX_FLAG_CHIP_SELECTED      (1 << 16)
@@ -86,6 +85,11 @@ struct tfa98xx_baseprofile {
 	struct list_head list;              /* list of all profiles */
 };
 
+enum tfa_reset_polarity{
+	LOW = 0,
+	HIGH = 1
+};
+
 struct tfa98xx {
 	struct regmap *regmap;
 	struct i2c_client *i2c;
@@ -131,7 +135,7 @@ struct tfa98xx {
 	int reset_gpio;
 	int power_gpio;
 	int irq_gpio;
-
+	enum tfa_reset_polarity reset_polarity;
 	bool is_use_freq;
 	struct list_head list;
 	struct tfa_device *tfa;
@@ -164,6 +168,13 @@ struct tfa98xx {
 	#ifdef OPLUS_ARCH_EXTENDS
 	uint16_t f0_data;
 	#endif /*OPLUS_ARCH_EXTENDS*/
+#if IS_ENABLED(CONFIG_OPLUS_FPGA_NOTIFY)
+	// param for fpga-reset
+	struct notifier_block pd_nb;
+	int fpga_current_status;
+	int fpga_check_enable;
+	int fpga_notify_reg_success;
+#endif /* OPLUS_ARCH_EXTENDS */
 };
 
 

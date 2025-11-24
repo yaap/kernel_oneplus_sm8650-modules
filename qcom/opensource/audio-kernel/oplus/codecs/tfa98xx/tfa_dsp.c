@@ -4399,7 +4399,7 @@ enum tfa_error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state)
 		 * However in case of calibration wait for DSP! (This should be
 		 * case only during calibration).
 		 */
-		if (TFA_GET_BF(tfa, MTPOTC) == 1 && tfa->tfa_family == 2) {
+		if (TFA_GET_BF(tfa, MTPOTC) == 1 && tfa->tfa_family == 2 && !tfa->is_probus_device) {
 			count = MTPEX_WAIT_NTRIES * 4;
 			/* Calibration takes a lot of time */
 			while ((TFA_GET_BF(tfa, MTPEX) != 1) && count) {

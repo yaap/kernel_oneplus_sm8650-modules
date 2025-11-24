@@ -1195,8 +1195,19 @@ static int lpass_cdc_va_macro_tx_mixer_put(struct snd_kcontrol *kcontrol,
 			dev_err_ratelimited(component->dev, "%s: channel is already disabled, dec_id = %d, dai_id = %d\n",
 					__func__, dec_id, dai_id);
 		} else {
+#ifndef OPLUS_ARCH_EXTENDS
+/* fix channels number mismatch issues */
 			va_priv->active_ch_cnt[dai_id]--;
 			clear_bit(dec_id, &va_priv->active_ch_mask[dai_id]);
+#else /* OPLUS_ARCH_EXTENDS */
+			if (va_priv->active_ch_cnt[dai_id] > 0) {
+				clear_bit(dec_id, &va_priv->active_ch_mask[dai_id]);
+				va_priv->active_ch_cnt[dai_id]--;
+			} else {
+				pr_err("%s: dai_id:%d, active_ch_cnt: %d\n", __func__,
+					dai_id, va_priv->active_ch_cnt[dai_id]);
+			}
+#endif /* OPLUS_ARCH_EXTENDS */
 		}
 	}
 

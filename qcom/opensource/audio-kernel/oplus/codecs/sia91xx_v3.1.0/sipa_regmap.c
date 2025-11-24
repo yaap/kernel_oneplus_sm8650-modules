@@ -121,6 +121,14 @@ static const struct reg_map_info reg_map_info_table[] = {
 		.chip_id_ranges = {{0x5880, 0x5880},{0x5890, 0x5891},{0x58A0, 0x58A1}},
 		.chip_id_range_num = 3
 	},
+	[CHIP_TYPE_SIA8150] = {
+		.chip_type = CHIP_TYPE_SIA8150,
+		.reg_addr_width = 8,
+		.reg_val_width = 8,
+		.chip_id_addr = 0x00,
+		.chip_id_ranges = {{0x50, 0x50}},
+		.chip_id_range_num = 1
+	},
 	[CHIP_TYPE_SIA8157] = {
 		.chip_type = CHIP_TYPE_SIA8157,
 		.reg_addr_width = 8,
@@ -462,6 +470,9 @@ static int sipa_regmap_proc_1_reg(sipa_dev_t *si_pa,
 
 		if (0 != reg->delay)
 			udelay(reg->delay);
+
+		pr_info("[ info][%s] %s: addr:0x%x, val:0x%x\n", LOG_FLAG, __func__,
+				reg->addr, val);
 		break;
 	case SIPA_REG_WRITE:
 		if (full_mask != (reg->mask & full_mask)) {
@@ -492,6 +503,9 @@ static int sipa_regmap_proc_1_reg(sipa_dev_t *si_pa,
 			udelay(reg->delay);
 		break;
 	case SIPA_REG_PAD:
+		if (CHIP_TYPE_SIA9177 == si_pa->chip_type && reg->addr > 0x55)
+			pr_info("[ info][%s] %s: SIPA_REG_PAD addr:0x%x\n", LOG_FLAG, __func__, reg->addr);
+
 		if (0 != reg->delay)
 			udelay(reg->delay);
 		break;
@@ -801,26 +815,23 @@ void sipa_regmap_check_trimming(
 		return;
 	}
 
-	pr_debug("[debug][%s] %s: ch%d check trim. 0x20 = 0x%02x,  0x21 = 0x%02x, 0x22 = 0x%02x,\r\n",
-		LOG_FLAG, __func__, si_pa->channel_num, trim[2], trim[1], trim[0]);
-
 	si_pa->pa_status &= 0xFE; //clear status;
 	if (crc_cal != crc) {
-		pr_err("[  err][%s] %s: ch%d check trim crc failed! \r\n",
-			LOG_FLAG, __func__, si_pa->channel_num);
+		pr_err("[  err][%s] %s: ch%d check frist trim crc failed! crc = 0x%x, crc_cal = 0x%x! \r\n",
+			LOG_FLAG, __func__, si_pa->channel_num, crc, crc_cal);
 		if (si_pa->chip_type == CHIP_TYPE_SIA9177) {
 			trim[0] &= 0x0F;
 			trim[4] &= 0xF0;
 			trim[5] &= 0x1F;
 			crc_cal = crc8_maxim(trim, trim_bytes);
-			pr_debug("[debug][%s] %s: check crc_cal, crc = 0x%x, crc_cal = 0x%x! \r\n",
-				LOG_FLAG, __func__, crc, crc_cal);
 			if (crc_cal == crc) {
+				pr_debug("[debug][%s] %s: check second trim crc success! \r\n",
+					LOG_FLAG, __func__);
 				return;
 			}
+			pr_err("[  err][%s] %s: ch%d check second trim crc failed! crc = 0x%x, crc_cal = 0x%x! \r\n",
+				LOG_FLAG, __func__, si_pa->channel_num, crc, crc_cal);
 		}
-		pr_err("[  err][%s] %s: ch%d check trim crc failed! crc_cal = 0x%x\r\n",
-			LOG_FLAG, __func__, si_pa->channel_num, crc_cal);
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 		/* Add for smartpa check CRC feedback. */

@@ -907,6 +907,60 @@ static int wcd937x_hph_impedance_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for test audio-kernel err feedback and headphone detect err feedback*/
+static int wcd937x_set_feedback_control(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+					snd_soc_kcontrol_component(kcontrol);
+	struct wcd937x_mbhc *wcd937x_mbhc = wcd937x_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc;
+
+	if (!wcd937x_mbhc) {
+		dev_err_ratelimited(component->dev, "%s: mbhc not initialized!\n", __func__);
+		return -EINVAL;
+	}
+
+	mbhc = &wcd937x_mbhc->wcd_mbhc;
+
+	mbhc->fb_ctl = ucontrol->value.integer.value[0];
+	pr_info("%s: set %u", __func__, mbhc->fb_ctl);
+
+	if (mbhc->fb_ctl & TEST_KERNEL_FEEDBACK_10047) {
+		pr_err("%s: just for test 10047, igonre", __func__);
+	}
+
+	return 0;
+}
+
+static int wcd937x_get_feedback_control(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+					snd_soc_kcontrol_component(kcontrol);
+	struct wcd937x_mbhc *wcd937x_mbhc = wcd937x_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc;
+
+	if (!wcd937x_mbhc) {
+		dev_err_ratelimited(component->dev, "%s: mbhc not initialized!\n", __func__);
+		return -EINVAL;
+	}
+
+	mbhc = &wcd937x_mbhc->wcd_mbhc;
+
+	ucontrol->value.integer.value[0] = mbhc->fb_ctl;
+	pr_info("%s: get %u", __func__, mbhc->fb_ctl);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new feedback_controls[] = {
+	SOC_SINGLE_EXT("FEEDBACK_CONTROL", SND_SOC_NOPM, 0, 0xff, 0,
+			wcd937x_get_feedback_control, wcd937x_set_feedback_control),
+};
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 static const struct snd_kcontrol_new hph_type_detect_controls[] = {
 	SOC_SINGLE_EXT("HPH Type", 0, 0, UINT_MAX, 0,
 		       wcd937x_get_hph_type, NULL),
@@ -1190,6 +1244,12 @@ int wcd937x_mbhc_init(struct wcd937x_mbhc **mbhc,
 				   ARRAY_SIZE(impedance_detect_controls));
 	snd_soc_add_component_controls(component, hph_type_detect_controls,
 				   ARRAY_SIZE(hph_type_detect_controls));
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for test audio-kernel err feedback and headphone detect err feedback*/
+	snd_soc_add_component_controls(component, feedback_controls,
+				   ARRAY_SIZE(feedback_controls));
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 err:

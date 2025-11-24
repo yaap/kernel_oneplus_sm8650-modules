@@ -77,6 +77,11 @@ const struct sia91xx_irq_desc irq_range[] = {
 /* 2024/06/28, Add for smartpa vbatlow err check. */
 #define VBAT_LOW_REG_BIT_MASK              0x20
 
+#define BYPASS_PA_ERR_FB_10041             0x01
+#define BYPASS_SPK_ERR_FB_10042            0x02
+#define TEST_PA_ERR_FB_10041               0x04
+#define TEST_SPK_ERR_FB_10042              0x08
+
 struct check_status_err {
 	int bit;
 	uint32_t err_val;
@@ -103,11 +108,15 @@ int sia91xx_check_status_reg(sipa_dev_t *si_pa)
 
 	ret = regmap_read(si_pa->regmap, SIA91XX_STATUS_REG, &reg_val);
 	if (ret == 0) {
-		pr_info("read reg[0x%x]=0x%x", SIA91XX_STATUS_REG, reg_val);
+		pr_info("[ info][%s] read reg[0x%x]=0x%x", __func__, SIA91XX_STATUS_REG, reg_val);
+		if (si_pa->control_fb & TEST_PA_ERR_FB_10041) {
+			reg_val = 0xFF;
+			pr_info("[ info][%s] just for test 10041, change reg_val=0x%x", __func__, reg_val);
+		}
 		/* 2024/06/28, Add for smartpa vbatlow err check. */
 		if (reg_val & VBAT_LOW_REG_BIT_MASK) {
 			si_pa->vbatlow_cnt++;
-			pr_info("vbatlow_cnt=%u", si_pa->vbatlow_cnt);
+			pr_info("[ info][%s] vbatlow_cnt=%u", __func__, si_pa->vbatlow_cnt);
 		}
 
 		if ((SIA91XX_STATUS_NORMAL_VALUE & SIA91XX_STATUS_CHECK_MASK) != (reg_val & SIA91XX_STATUS_CHECK_MASK)) {
@@ -144,16 +153,20 @@ int sia91xx_check_status_reg(sipa_dev_t *si_pa)
 				"sia91xx SPK%u:failed to read regs 0x%x, ret=%d,", \
 				si_pa->channel_num + 1, SIA91XX_STATUS_REG, ret);
 
-		pr_info("reg read err, ret = %d", ret);
+		pr_info("[ info][%s] reg read err, ret = %d", __func__, ret);
 	}
 
 	/* feedback the check error */
 	offset = strlen(info);
 	if ((offset > 0) && (offset < MM_KEVENT_MAX_PAYLOAD_SIZE)) {
-		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		if (si_pa->control_fb & TEST_PA_ERR_FB_10041) {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@just for test 10041, ignore");
+		} else {
+			scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@%s", info);
+		}
 		mm_fb_audio_kevent_named(OPLUS_AUDIO_EVENTID_SMARTPA_ERR,
 				MM_FB_KEY_RATELIMIT_5MIN, fd_buf);
-//		pr_info("fd_buf=%s = %d", fd_buf);
+		pr_info("[ info][%s] fd_buf=%s", __func__, fd_buf);
 	}
 
 	return 1;
@@ -510,7 +523,7 @@ int sia91xx_mute(
 		if (mute) {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 /* 2023/04/18, Add for smartpa err feedback. */
-			if (si_pa->check_fb) {
+			if (si_pa->check_fb && !(si_pa->control_fb & BYPASS_PA_ERR_FB_10041)) {
 				sia91xx_check_status_reg(si_pa);
 				si_pa->check_fb = 0;
 			}
@@ -604,6 +617,7 @@ int sia91xx_component_probe(struct snd_soc_component *component)
 /* 2024/07/08, Add for smartpa vbatlow err check. */
 	si_pa->check_fb = 0;
 	si_pa->vbatlow_cnt = 0;
+	si_pa->control_fb = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
@@ -651,6 +665,7 @@ int sia91xx_codec_probe(struct snd_soc_codec *codec)
 /* 2024/07/08, Add for smartpa vbatlow err check. */
 	si_pa->check_fb = 0;
 	si_pa->vbatlow_cnt = 0;
+	si_pa->control_fb = 0;
 #endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;

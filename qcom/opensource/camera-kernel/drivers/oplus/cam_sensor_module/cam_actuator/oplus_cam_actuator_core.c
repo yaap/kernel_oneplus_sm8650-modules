@@ -5,6 +5,7 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#include "cam_req_mgr_dev.h"
 
 #include "oplus_cam_actuator_core.h"
 #include "oplus_cam_actuator_dev.h"
@@ -319,6 +320,32 @@ int oplus_cam_actuator_reactive_setting_apply(struct cam_actuator_ctrl_t *a_ctrl
 		CAM_INFO(CAM_ACTUATOR,
 			"Reactive actuator success. rc %d",
 			rc);
+	}
+
+	return rc;
+}
+
+int oplus_cam_actuator_SetNotifyRfiService(struct cam_actuator_ctrl_t *a_ctrl, struct i2c_settings_array *i2c_set)
+{
+	struct cam_req_mgr_message req_msg = {0};
+	int rc = 0;
+
+	req_msg.session_hdl = a_ctrl->bridge_intf.session_hdl;
+	req_msg.u.err_msg.device_hdl = a_ctrl->bridge_intf.device_hdl;
+	req_msg.u.err_msg.link_hdl = a_ctrl->bridge_intf.link_hdl;
+	req_msg.u.err_msg.error_type = a_ctrl->id;
+	req_msg.u.err_msg.request_id = i2c_set->request_id;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code = CAM_REQ_MGR_IIC_ERR_ACTUATOR_FAIL;
+	rc = cam_req_mgr_notify_message(&req_msg,
+		V4L_EVENT_CAM_REQ_MGR_NODE_EVENT,
+		V4L_EVENT_CAM_REQ_MGR_EVENT);
+	CAM_ERR(CAM_SENSOR,"Notifying v4l2 error [type: %u code: %u] failed on %d id%s",req_msg.u.err_msg.error_type, req_msg.u.err_msg.error_code, a_ctrl->id,a_ctrl->actuator_name);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR, "send event failed! rc %d", rc);
+	} else {
+		CAM_ERR(CAM_ACTUATOR, "send event success! rc%d", rc);
 	}
 
 	return rc;

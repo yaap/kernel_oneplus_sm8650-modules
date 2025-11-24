@@ -96,8 +96,8 @@
 #define SIA81XX_DISABLE_LEVEL				(0)
 
 
-/* 10us > pulse width > 0.75us */
-#define MIN_OWI_PULSE_GAP_TIME_US			(1)
+/* 100us > pulse width > 2us, suggest 10 us */
+#define MIN_OWI_PULSE_GAP_TIME_US			(10)
 #define MAX_OWI_PULSE_GAP_TIME_US			(160)
 #define MAX_OWI_RETRY_TIMES					(10)
 #define MIN_OWI_MODE						(1)
@@ -106,7 +106,7 @@
 /* OWI_POLARITY 0 : pulse level == high, 1 : pulse level == low */
 #define OWI_POLARITY						(SIA81XX_DISABLE_LEVEL)
 
-// #define DISTINGUISH_CHIP_TYPE
+#define DISTINGUISH_CHIP_TYPE
 // #define OWI_SUPPORT_WRITE_DATA
 #ifdef OWI_SUPPORT_WRITE_DATA
 #define OWI_DATA_BIG_END
@@ -162,6 +162,11 @@ static const char *support_chip_type_name_table[] = {
 
 static sipa_dev_t *g_default_sia_dev;
 uint32_t g_dyn_ud_vdd_port;
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* Added for allow multiple PAs to shared the same reset pin */
+struct pinctrl *sipa_shared_rst_pinctrl = NULL;
+#endif /* OPLUS_ARCH_EXTENDS */
 
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 int sipa_pa_enable(int channel, int enable);
@@ -1488,6 +1493,60 @@ static int sia91xx_get_check_feedback(struct snd_kcontrol *kcontrol,
 static char const *sia91xx_check_feedback_text[] = {"Off", "On"};
 static const struct soc_enum sia91xx_check_feedback_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sia91xx_check_feedback_text), sia91xx_check_feedback_text);
+
+static int sia91xx_set_bypass_feedback(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 16, 28))
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_component_get_drvdata(component);
+#else
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_codec_get_drvdata(codec);
+#endif
+	si_pa->control_fb = ucontrol->value.integer.value[0];
+	pr_info("%s: set %u", __func__, si_pa->control_fb);
+	return 0;
+}
+
+static int sia91xx_get_bypass_feedback(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 16, 28))
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_component_get_drvdata(component);
+#else
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_codec_get_drvdata(codec);
+#endif
+	ucontrol->value.integer.value[0] = si_pa->control_fb;
+	pr_info("%s: get %u", __func__, si_pa->control_fb);
+
+	return 0;
+}
+
+/* 2024/06/28, Add for smartpa vbatlow err check. */
+static int sia91xx_get_vbatlow_cnt(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 16, 28))
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_component_get_drvdata(component);
+#else
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	sipa_dev_t *si_pa = snd_soc_codec_get_drvdata(codec);
+#endif
+
+	if (si_pa->need_chk_err && si_pa->power_mode) {
+		sia91xx_check_status_reg(si_pa);
+	}
+
+	ucontrol->value.integer.value[0] = si_pa->vbatlow_cnt;
+	pr_info("%s: vbatlow_cnt = %u", __func__, si_pa->vbatlow_cnt);
+	si_pa->vbatlow_cnt = 0;
+
+	return 0;
+}
 #endif /*OPLUS_FEATURE_MM_FEEDBACK*/
 
 
@@ -2305,6 +2364,13 @@ static const struct snd_kcontrol_new sipa_controls[] = {
 	/* 2023/04/18, Add for smartpa err feedback. */
 	SOC_ENUM_EXT("SIA_CHECK_FEEDBACK", sia91xx_check_feedback_enum,
 			   sia91xx_get_check_feedback, sia91xx_set_check_feedback),
+
+	SOC_SINGLE_EXT("PA_BYPASS_FEEDBACK", SND_SOC_NOPM, 0, 0xff, 0,
+			sia91xx_get_bypass_feedback, sia91xx_set_bypass_feedback),
+
+	/* 2024/06/28, Add for smartpa vbatlow err check. */
+	SOC_SINGLE_EXT("PA Vbatlow Count", SND_SOC_NOPM, 0, 0xFFFF, 0,
+			sia91xx_get_vbatlow_cnt, NULL),
 #endif
 
 	SOC_SINGLE_EXT("Sipa Pvdd Limit", SND_SOC_NOPM, 0, 5000000, 0,
@@ -2354,14 +2420,14 @@ static struct snd_soc_dai_driver sia91xx_dai[] = {
 		.playback = {
 			.stream_name = "AIF Playback",
 			.channels_min = 1,
-			.channels_max = 2,
+			.channels_max = SIPA_CHANNEL_NUM,
 			.rates = SIA91XX_RATES,
 			.formats = SIA91XX_FORMATS,
 		},
 		.capture = {
 			 .stream_name = "AIF Capture",
 			 .channels_min = 1,
-			 .channels_max = 2,
+			 .channels_max = SIPA_CHANNEL_NUM,
 			 .rates = SIA91XX_RATES,
 			 .formats = SIA91XX_FORMATS,
 		 },
@@ -2990,7 +3056,7 @@ int sipa_i2c_probe(
 				spk_dev_node = oplus_speaker_pa_register(speaker_device);
 				si_pa->oplus_dev_node = spk_dev_node;
 			} else {
-				pr_err("%s, %s, No memory!\n", __func__, __LINE__);
+				pr_err("%s, %d, No memory!\n", __func__, __LINE__);
 			}
 		}
 	}
@@ -3187,6 +3253,7 @@ static int sipa_property_init(struct device_node *sipa_of_node, sipa_dev_t *si_p
 	unsigned int chip_type = CHIP_TYPE_UNKNOWN;
 	int disable_pin = 0;
 	int channel_num = 0;
+	int ch_num_max = 4;
 	int en_dyn_id = 0;
 	int rst_pin = 0;
 	int id_pin = 0;
@@ -3194,6 +3261,9 @@ static int sipa_property_init(struct device_node *sipa_of_node, sipa_dev_t *si_p
 	int irq_pin = 0;
 	int en_irq_pin = 0;
 	int owi_pin = 0;
+#ifdef OPLUS_ARCH_EXTENDS
+	int shared_rst_pin = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	/* get chip type name */
 	ret = of_property_read_string_index(sipa_of_node,
@@ -3228,6 +3298,11 @@ static int sipa_property_init(struct device_node *sipa_of_node, sipa_dev_t *si_p
 		channel_num = 0;
 	}
 
+	ret = of_property_read_u32(sipa_of_node, "channel_num_max", &ch_num_max);
+	if (0 != ret) {
+		ch_num_max = 4;
+	}
+
 	ret = of_property_read_u32(sipa_of_node, "en_dynamic_id", &en_dyn_id);
 	if ((0 != ret) || (1 != en_dyn_id)) {
 		en_dyn_id = 0;
@@ -3236,6 +3311,7 @@ static int sipa_property_init(struct device_node *sipa_of_node, sipa_dev_t *si_p
 
 	memset(&si_pa->err_info, 0, sizeof(si_pa->err_info));
 	si_pa->channel_num = (uint32_t)channel_num;
+	si_pa->ch_num_max = (uint32_t)ch_num_max;
 	si_pa->scene = AUDIO_SCENE_PLAYBACK;
 	si_pa->chip_type = chip_type;
 	si_pa->disable_pin = disable_pin;
@@ -3326,6 +3402,14 @@ static int sipa_property_init(struct device_node *sipa_of_node, sipa_dev_t *si_p
 
 	pr_info("%s: min_mohms=%u, max_mohms=%u, default_mohms=%u\n",
 			__func__, si_pa->min_mohms, si_pa->max_mohms, si_pa->default_mohms);
+
+	ret = of_property_read_u32(sipa_of_node, "oplus,shared_rst_pin", &shared_rst_pin);
+	if (ret) {
+		pr_debug("%s: missing shared_rst_pin in dt node\n", __func__);
+		si_pa->is_shared_rst_pin = false;
+	} else {
+		si_pa->is_shared_rst_pin = !!shared_rst_pin;
+	}
 #endif /* OPLUS_ARCH_EXTENDS */
 
 	return 0;
@@ -3348,20 +3432,32 @@ static int sipa_pinctrl_select(struct platform_device *pdev, sipa_dev_t *si_pa)
 
 		/* get owi gpio pin's specify pinctrl state */
 		pinctrl_state = pinctrl_lookup_state(si_pa_pinctrl, "si_pa_gpio");
-		if (NULL == pinctrl_state) {
+		if (IS_ERR_OR_NULL(pinctrl_state)) {
+#ifdef OPLUS_ARCH_EXTENDS
+			if (!si_pa->is_shared_rst_pin) {
+				pr_err("[  err][%s] %s: NULL == pinctrl_state !!! \r\n",
+					LOG_FLAG, __func__);
+				ret = -ENODEV;
+				goto err;
+			} else {
+				pr_info("[%s] %s: sipa is shared reset pin, ignored si_pa_gpio error\n",
+					LOG_FLAG, __func__);
+			}
+#else /* OPLUS_ARCH_EXTENDS */
 			pr_err("[  err][%s] %s: NULL == pinctrl_state !!! \r\n",
 				LOG_FLAG, __func__);
 			ret = -ENODEV;
 			goto err;
-		}
-
-		/* set this pinctrl state, make this pin works in the gpio mode */
-		ret = pinctrl_select_state(si_pa_pinctrl, pinctrl_state);
-		if (0 != ret) {
-			pr_err("[  err][%s] %s: error pinctrl_select_state return %d \r\n",
-				LOG_FLAG, __func__, ret);
-			ret = -ENODEV;
-			goto err;
+#endif /* OPLUS_ARCH_EXTENDS */
+		} else {
+			/* set this pinctrl state, make this pin works in the gpio mode */
+			ret = pinctrl_select_state(si_pa_pinctrl, pinctrl_state);
+			if (0 != ret) {
+				pr_err("[  err][%s] %s: error pinctrl_select_state return %d \r\n",
+					LOG_FLAG, __func__, ret);
+				ret = -ENODEV;
+				goto err;
+			}
 		}
 
 		if (IS_DIGITAL_PA_TYPE(si_pa->chip_type)) {
@@ -3403,6 +3499,28 @@ static int sipa_pinctrl_select(struct platform_device *pdev, sipa_dev_t *si_pa)
 			gpio_direction_input(si_pa->id_pin);
 		}
 
+#ifdef OPLUS_ARCH_EXTENDS
+		mutex_lock(&sipa_mutex);
+		if (si_pa->is_shared_rst_pin && !sipa_shared_rst_pinctrl) {
+			pinctrl_state = pinctrl_lookup_state(si_pa_pinctrl, "si_pa_shared_rst_gpio");
+			if (IS_ERR_OR_NULL(pinctrl_state)) {
+				pr_info("[%s] %s: failed to get pinctrl: si_pa_shared_rst_gpio\n",
+					LOG_FLAG, __func__);
+			} else {
+				/* set this pinctrl state, make this pin works in the gpio mode */
+				ret = pinctrl_select_state(si_pa_pinctrl, pinctrl_state);
+				if (0 != ret) {
+					pr_err("[  err][%s] %s: error pinctrl_select_state return %d \r\n",
+						LOG_FLAG, __func__, ret);
+					ret = -ENODEV;
+					goto err;
+				}
+				sipa_shared_rst_pinctrl = si_pa_pinctrl;
+			}
+		}
+		mutex_unlock(&sipa_mutex);
+#endif /* OPLUS_ARCH_EXTENDS */
+
 		/* set rst pin's direction */
 		gpio_direction_output(si_pa->rst_pin, SIA81XX_DISABLE_LEVEL);
 
@@ -3432,6 +3550,10 @@ static int sipa_probe(struct platform_device *pdev)
 	sipa_dev_t *si_pa = NULL;
 	char work_name[20];
 	char *sipa_fw_name = "sipa.bin";
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	struct oplus_spk_dev_node *spk_dev_node = NULL;
+	struct oplus_speaker_device *speaker_device = NULL;
+#endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
 
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 	oplus_speaker_probe_lock();
@@ -3501,6 +3623,51 @@ static int sipa_probe(struct platform_device *pdev)
 		/* load firmware */
 		sipa_param_load_fw(&pdev->dev, sipa_fw_name);
 	}
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	if (IS_SUPPORT_OWI_TYPE(si_pa->chip_type)) {
+		if (speaker_device == NULL) {
+			pr_info("[ info][%s] %s():speaker_device == null ,oplus_register start\r\n", LOG_FLAG, __func__);
+			speaker_device = kzalloc(sizeof(struct oplus_speaker_device), GFP_KERNEL);
+			if ( speaker_device != NULL) {
+				speaker_device->speaker_manufacture = MFR_SI;
+				speaker_device->chipset = si_pa->chip_type;
+				speaker_device->type = L_SPK + si_pa->channel_num;
+				speaker_device->speaker_enable_set = sipa_speaker_enable;
+				speaker_device->speaker_enable_get = sipa_get_speaker_status;
+			#ifndef OPLUS_AUDIO_PA_BOOST_VOLTAGE
+				speaker_device->boost_voltage_set = NULL;
+			#else
+				speaker_device->boost_voltage_set = sipa_volme_boost_set;
+			#endif
+				speaker_device->boost_voltage_get = NULL;
+			#ifndef OPLUS_FEATURE_SPEAKER_MUTE
+				speaker_device->speaker_mute_set = NULL;
+			#else /* OPLUS_FEATURE_SPEAKER_MUTE */
+				speaker_device->speaker_mute_set = sipa_speaker_mute_set;
+			#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+				speaker_device->speaker_mute_get = NULL;
+			#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+				speaker_device->speaker_check_feeback_set = sipa_speaker_check_feeback_set;
+				speaker_device->speaker_check_feeback_get = sipa_speaker_check_feeback_get;
+			#else
+				speaker_device->speaker_check_feeback_set = NULL;
+				speaker_device->speaker_check_feeback_get = NULL;
+			#endif
+				spk_dev_node = oplus_speaker_pa_register(speaker_device);
+				if (spk_dev_node == NULL) {
+					pr_err("[err][%s] %s:,oplus_register fail \r\n",LOG_FLAG, __func__);
+					kfree(speaker_device);
+				} else {
+					si_pa->oplus_dev_node = spk_dev_node;
+					pr_info("[info][%s] %s():,oplus_register end\r\n", LOG_FLAG, __func__);
+				}
+			}else {
+				pr_err("[err][%s] %s:,spk device kzalloc failed \r\n",LOG_FLAG, __func__);
+			}
+		}
+	}
+#endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
+
 	pr_info("[ info][%s] %s: finish, channel:%d\r\n", LOG_FLAG, __func__, si_pa->channel_num);
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 	oplus_speaker_probe_unlock();
@@ -3515,6 +3682,13 @@ out1:
 #endif
 
 	if (0 == si_pa->disable_pin) {
+#ifdef OPLUS_ARCH_EXTENDS
+		mutex_lock(&sipa_mutex);
+		if (sipa_shared_rst_pinctrl == si_pa->si_pa_pinctrl) {
+			sipa_shared_rst_pinctrl = NULL;
+		}
+		mutex_unlock(&sipa_mutex);
+#endif /* OPLUS_ARCH_EXTENDS */
 		devm_pinctrl_put(si_pa->si_pa_pinctrl);
 	}
 out0:
@@ -3541,7 +3715,11 @@ static int sipa_remove(struct platform_device *pdev)
 	si_pa = (sipa_dev_t *)dev_get_drvdata(&pdev->dev);
 	if (NULL == si_pa)
 		return 0;
-
+#ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
+	if (IS_SUPPORT_OWI_TYPE(si_pa->chip_type)) {
+		oplus_speaker_pa_unregister(si_pa->oplus_dev_node);
+	}
+#endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
 #ifdef LOAD_FW_BY_DELAY_WORK
 	cancel_delayed_work_sync(&si_pa->fw_load_work);
 #endif

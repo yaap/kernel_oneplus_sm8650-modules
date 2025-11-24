@@ -45,6 +45,7 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 u32 oplus_panel_silence_backlight(struct dsi_panel *panel, u32 bl_lvl);
 void oplus_printf_backlight_log(struct dsi_display *display, u32 bl_lvl);
 void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display_mode *mode);
+void oplus_panel_switch_vid_mode_post(struct dsi_display *display, struct dsi_display_mode *mode);
 
 #endif /* _OPLUS_DISPLAY_PANEL_FEATURE_H_ */
 

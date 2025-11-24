@@ -77,6 +77,11 @@ struct panel_reg_rw {
 	uint32_t value[PANEL_IOCTL_BUF_MAX]; /*for read, value is empty, just user get function for read the value*/
 };
 
+struct ignore_mode_get {
+	uint32_t ignore_mode[PANEL_IOCTL_BUF_MAX];
+	uint32_t count;
+};
+
 extern bool oplus_temp_compensation_wait_for_vsync_set;
 
 int oplus_display_panel_get_id(void *buf);
@@ -145,5 +150,6 @@ void oplus_panel_switch_to_sync_te(struct dsi_panel *panel);
 void oplus_set_pwm_switch_cmd_te_flag(struct sde_connector *c_conn);
 int oplus_display_set_shutdown_flag(void *buf);
 int oplus_display_panel_set_dc_compensate(void *data);
+int oplus_display_get_ignore_mode(void *data);
 #endif /* _OPLUS_DISPLAY_PANEL_COMMON_H_ */
 

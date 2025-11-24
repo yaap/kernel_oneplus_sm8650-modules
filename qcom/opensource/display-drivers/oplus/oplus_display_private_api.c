@@ -83,6 +83,7 @@ u32 oplus_backlight_delta = 0;
 unsigned int oplus_dsi_log_type = OPLUS_DEBUG_LOG_DISABLED;
 unsigned int oplus_display_trace_enable = OPLUS_DISPLAY_DISABLE_TRACE;
 int dsi_cmd_panel_debug = 0;
+int oplus_sync_power_state = 0;
 
 struct touchpanel_event fp_state = {0};
 
@@ -210,8 +211,10 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	cmdsreq.msg.rx_len = len;
 	cmdsreq.msg.flags |= MIPI_DSI_MSG_UNICAST_COMMAND;
 
-	if ((!strcmp(panel->name, "AA570 P 1 A0017 vid mode panel") || !strcmp(panel->name, "AB964 p 1 A0017 dsc video mode panel"))
-		&& panel->panel_mode == DSI_OP_VIDEO_MODE) {
+	if ((!strcmp(panel->name, "AA570 P 1 A0017 vid mode panel") || !strcmp(panel->name, "AC238 P 1 A0017 vid mode panel")
+	|| !strcmp(panel->name, "AB964 p 1 A0017 dsc video mode panel") || !strcmp(panel->name, "AC272 P 1 A0017 vid mode panel")
+	|| !strcmp(panel->name, "AA613 P 3 A0034 dsc video mode panel") || !strcmp(panel->name, "AA613 P 7 A0034 dsc video mode panel"))
+	&& panel->panel_mode == DSI_OP_VIDEO_MODE) {
 		cmdsreq.msg.flags |= MIPI_DSI_MSG_USE_LPM;
 	}
 
@@ -673,8 +676,25 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 		panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
 
 		panel_serial_info.year = (read[panel_serial_info.reg_index] & 0xF0) >> 0x4;
-		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel")) {
+
+		if (!panel_serial_info.year) {
+			/*
+			 * the panel we use always large than 2011, so
+			 * force retry when year is 2011
+			 */
+			msleep(20);
+			LCD_ERR("continue force retry when year is 2011\n");
+			continue;
+		}
+
+		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel") ||
+			!strcmp(display->panel->name, "AA592 P 7 A0014 dsc cmd mode panel")) {
 			panel_serial_info.year += 10;
+		}
+
+		if (!strcmp(display->panel->name, "AA613 P 3 A0034 dsc video mode panel") ||
+			!strcmp(display->panel->name, "AA613 P 7 A0034 dsc video mode panel")) {
+			panel_serial_info.year += 9;
 		}
 
 		panel_serial_info.month		= read[panel_serial_info.reg_index]	& 0x0F;
@@ -693,15 +713,6 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 				+ (panel_serial_info.second	<< 16)\
 				+ (panel_serial_info.reserved[0] << 8)\
 				+ (panel_serial_info.reserved[1]);
-
-		if (!panel_serial_info.year) {
-			/*
-			 * the panel we use always large than 2011, so
-			 * force retry when year is 2011
-			 */
-			msleep(20);
-			continue;
-		}
 
 		if (display->panel->oplus_ser.is_switch_page) {
 			/* switch default page */
@@ -2390,6 +2401,7 @@ int oplus_display_set_power(struct drm_connector *connector,
 	if (power_mode == SDE_MODE_DPMS_OFF)
 		atomic_set(&display->panel->esd_pending, 1);
 
+	oplus_sync_power_state = power_mode;
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
 	case SDE_MODE_DPMS_LP2:

@@ -689,6 +689,7 @@ struct cam_mem_cpu_access_op {
 #define CAM_REQ_MGR_SENSOR_STREAM_OFF_FAILED             BIT(14)
 #define CAM_REQ_MGR_VALID_SHUTTER_DROPPED                BIT(15)
 #define CAM_REQ_MGR_ISP_ERR_HWPD_VIOLATION               BIT(16)
+#define CAM_REQ_MGR_IIC_ERR_ACTUATOR_FAIL                3859
 
 /**
  * struct cam_req_mgr_error_msg

@@ -15,6 +15,10 @@
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 #include <linux/pm_wakeup.h>
 #define HEADSET_ERR_FB_VERSION    "1.0.0"
+/* add for test audio-kernel err feedback and headphone detect err feedback*/
+#define TEST_KERNEL_FEEDBACK_10047          0x01
+#define TEST_HEADPHONE_FEEDBACK_10009       0x02
+#define BYPASS_HEADPHONE_FEEDBACK_10009     0x04
 #endif
 
 #define TOMBAK_MBHC_NC	0
@@ -534,6 +538,11 @@ struct wcd_mbhc_cb {
 	bool (*extn_use_mb)(struct snd_soc_component *component);
 	int (*mbhc_micb_ctrl_thr_mic)(struct snd_soc_component *component,
 			int micb_num, bool req_en);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for dio switch plug in pop noise */
+	int (*mbhc_micbias_adjust_voltage)(struct snd_soc_component *component,
+			int micb_num, u32 mb_mv);
+#endif /* OPLUS_ARCH_EXTENDS */
 	void (*mbhc_gnd_det_ctrl)(struct snd_soc_component *component,
 			bool enable);
 	void (*hph_pull_down_ctrl)(struct snd_soc_component *component,
@@ -686,9 +695,12 @@ struct wcd_mbhc {
 	#ifdef OPLUS_ARCH_EXTENDS
 	/* headset detect mode, 0:cc detect, 1:gpio detect */
 	unsigned int headset_detect_mode;
+	/* check whether L DET is disabled */
+	bool disable_hp_l_det;
 	#endif /* OPLUS_ARCH_EXTENDS */
 
 	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	unsigned int fb_ctl;
 	struct delayed_work hp_irq_chk_work;
 	struct wakeup_source *hp_wake_lock;
 	#endif /* OPLUS_FEATURE_MM_FEEDBACK */

@@ -52,7 +52,9 @@ int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		s_ctrl->sensordata->slave_info.sensor_id == 0x32e2 ||
 		s_ctrl->sensordata->slave_info.sensor_id == 0xe0 ||
 		s_ctrl->sensordata->slave_info.sensor_id == 0x5044 ||
-		s_ctrl->sensordata->slave_info.sensor_id == 0xeb52)
+		s_ctrl->sensordata->slave_info.sensor_id == 0xeb52 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0x08a8 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0x5608)
 	{
 		sensor_setting.reg_setting = sensor_init_settings.streamoff.reg_setting;
 		sensor_setting.addr_type = sensor_init_settings.streamoff.addr_type;
@@ -392,6 +394,28 @@ int cam_ftm_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		sensor_setting.data_type = sensor_init_settings.sc201cs_setting.data_type;
 		sensor_setting.size = sensor_init_settings.sc201cs_setting.size;
 		sensor_setting.delay = sensor_init_settings.sc201cs_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0x08a8)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.gc08a8_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.gc08a8_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.gc08a8_setting.data_type;
+		sensor_setting.size = sensor_init_settings.gc08a8_setting.size;
+		sensor_setting.delay = sensor_init_settings.gc08a8_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0x5608)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.ov08d_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.ov08d_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.ov08d_setting.data_type;
+		sensor_setting.size = sensor_init_settings.ov08d_setting.size;
+		sensor_setting.delay = sensor_init_settings.ov08d_setting.delay;
 		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
 	}
 	else
@@ -808,8 +832,18 @@ int cam_sensor_match_id_oem(struct cam_sensor_ctrl_t *s_ctrl,uint32_t chip_id)
 			vendor_id,
 			s_ctrl->sensordata->id_info.sensor_id,
 			rc);
-		/*if vendor_id id is 512(0x0200),it is short module if vendor_id <= 287(0x011F),it is long(0x011f) or long(0x010f) module*/
-		if(vendor_id > S5KJN5_SHORT_VENDOR_ID){
+		/*if vendor_id id is 512(0x0200),it is short module if vendor_id <= 287(0x011F),it is long(0x011f) or long(0x010f) module, Add 0x700(1792) as new module*/
+		if(vendor_id > S5KJN5_LONG_VENDOR_ID){
+			if(s_ctrl->sensordata->id_info.sensor_id > S5KJN5_LONG_SENSOR_ID)
+			{
+				return 0;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else if(vendor_id > S5KJN5_SHORT_VENDOR_ID){
 			if(s_ctrl->sensordata->id_info.sensor_id > S5KJN5_SHORT_SENSOR_ID)
 			{
 				return 0;
@@ -847,18 +881,27 @@ int cam_sensor_read_uniqueid(struct cam_sensor_ctrl_t *s_ctrl, void *arg)
 	int rc = 0;
 	int i = 0;
 	struct cam_control *cmd = (struct cam_control *)arg;
-	struct cam_oem_reg_setting *regsettings;
 	char uniqueid[MAX_UNIQUE_ID_LENGTH] = {'\0'};
 	char temp[MAX_UNIQUE_ID_LENGTH] = {'\0'};
 	int read_length = 0;
-	regsettings = vzalloc(cmd->size);
-	if (!s_ctrl || cmd == NULL || regsettings == NULL)
+
+	if (!s_ctrl || cmd == NULL)
 	{
-		CAM_ERR(CAM_SENSOR, "cam_sensor_read_uniqueid s_ctrl or arg or regsettings is null ");
+		CAM_ERR(CAM_SENSOR, "cam_sensor_read_uniqueid s_ctrl or arg is null ");
 		return -1;
 	}
 
-	memset(regsettings, 0, cmd->size);
+	struct cam_oem_reg_setting *regsettings = vzalloc(cmd->size);
+	if(regsettings != NULL)
+	{
+		memset(regsettings, 0, cmd->size);
+	}
+	else
+	{
+		CAM_ERR(CAM_SENSOR, "cam_sensor_read_uniqueid regsettings is null ");
+		return -1;
+	}
+
 	if (copy_from_user(regsettings, u64_to_user_ptr(cmd->handle), cmd->size))
 	{
 		CAM_ERR(CAM_SENSOR, "copy_from_user failed ");
@@ -869,6 +912,11 @@ int cam_sensor_read_uniqueid(struct cam_sensor_ctrl_t *s_ctrl, void *arg)
 	rc = cam_sensor_power_up_advance(s_ctrl);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "Power up failed for %s ", s_ctrl->sensor_name);
+		if (regsettings != NULL)
+		{
+			vfree(regsettings);
+			regsettings = NULL;
+		}
 		return rc;
 	}
 	for (i = 0; i < cmd->reserved && read_length < MAX_UNIQUE_ID_LENGTH; i++)
@@ -1053,6 +1101,36 @@ int oplus_shift_sensor_mode(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 	return rc;
 }
+
+void convert_us_to_ms(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	if (!s_ctrl)
+	{
+		CAM_ERR(CAM_SENSOR, "Device data is NULL");
+		return;
+	}
+	else if(!s_ctrl->sensordata)
+	{
+		CAM_ERR(CAM_SENSOR, "sensor data is NULL");
+		return;
+	}
+	else
+	{
+		if (s_ctrl->sensordata->slave_info.sensor_id == 0x38E5)
+		{
+			struct cam_sensor_i2c_reg_array *reg_setting = s_ctrl->sensor_init_setting.reg_setting;
+			uint32_t size = s_ctrl->sensor_init_setting.size;
+			for (uint32_t i = 0; i < size; i++)
+			{
+				if (reg_setting[i].reg_addr == 0x7002 && reg_setting[i].reg_data == 0x8)
+				{
+					reg_setting[i].delay /= 1000;
+				}
+			}
+		}
+		return;
+	}
+}
 #endif
 
 #define BURST_MAX_DATA_NUM (256)
@@ -1062,9 +1140,15 @@ int sensor_burst_write(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int initSettingsIndex = 0;
 	int current_opreation = CCI_WRITE;
+	int current_addrtype = DataTypeWord;//2
+	int current_datatype = DataTypeByte;//1
+	uint32_t current_delay = 0;
 	static struct cam_sensor_i2c_reg_array *i2c_write_setting_gl = NULL;
 	struct cam_sensor_i2c_reg_setting i2c_write;
 	int opreation_type = CCI_WRITE;
+	int addrtype = DataTypeWord;//2
+	int datatype = DataTypeByte;//1
+	uint32_t delay = 0;
 	int i = 0;
 	int rc = 0;
 
@@ -1081,46 +1165,74 @@ int sensor_burst_write(struct cam_sensor_ctrl_t *s_ctrl)
 
 	memset(i2c_write_setting_gl, 0, sizeof(struct cam_sensor_i2c_reg_array)*BURST_MAX_DATA_NUM);
 
-	for (i = 0; i <= s_ctrl->sensor_init_setting.size; i++)
+	for (i = 0; i < s_ctrl->sensor_init_setting.size; i++)
 	{
-		//CAM_ERR(CAM_SENSOR,"0x%0x=0x%0x", s_ctrl->sensor_init_setting.reg_setting[i].reg_addr, s_ctrl->sensor_init_setting.reg_setting[i].reg_data);
-		opreation_type = s_ctrl->sensor_init_setting.reg_setting[i].operation;
-		if (i == 0)
-		{
-			current_opreation = opreation_type;
-		}
-
-		if ((current_opreation != opreation_type || initSettingsIndex == BURST_MAX_DATA_NUM || i == s_ctrl->sensor_init_setting.size)
-			&& (initSettingsIndex > 0))
-		{
-			i2c_write.reg_setting = i2c_write_setting_gl;
-			i2c_write.size = initSettingsIndex;
-			i2c_write.addr_type = s_ctrl->sensor_init_setting.addr_type;
-			i2c_write.data_type = s_ctrl->sensor_init_setting.data_type;
-			i2c_write.delay = 0x00;
-			if (current_opreation == CCI_WRITE)
-			{
-				//CAM_ERR(CAM_SENSOR,"camera_io_dev_write  0x%0x=0x%0x  size=%u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
-				//trace_begin("camera_io_dev_write: 0x%0x=0x%0x   size %u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
-				rc = camera_io_dev_write(&(s_ctrl->io_master_info), &i2c_write);
-				//trace_end();
-			}
-			else if (current_opreation == CCI_WRITE_BURST)
-			{
-				//CAM_ERR(CAM_SENSOR,"camera_io_dev_write_continuous	0x%0x=0x%0x  size=%u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
-				//trace_begin("camera_io_dev_write_continuous:0x%0x=0x%0x   size %u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
-				rc = camera_io_dev_write_continuous(&(s_ctrl->io_master_info), &i2c_write, CCI_MASTER);
-				//trace_end();
-			}
-			current_opreation = opreation_type;
-			initSettingsIndex = 0;
-		}
+		// CAM_INFO(CAM_SENSOR, "0x%0x=0x%0x  addrtype  %u   datatype  %u "
+		// , s_ctrl->sensor_init_setting.reg_setting[i].reg_addr, s_ctrl->sensor_init_setting.reg_setting[i].reg_data
+		// , s_ctrl->sensor_init_setting.reg_setting[i].addr_type, s_ctrl->sensor_init_setting.reg_setting[i].data_type);
 		{
 			i2c_write_setting_gl[initSettingsIndex].reg_addr = s_ctrl->sensor_init_setting.reg_setting[i].reg_addr;
 			i2c_write_setting_gl[initSettingsIndex].reg_data = s_ctrl->sensor_init_setting.reg_setting[i].reg_data;
-			i2c_write_setting_gl[initSettingsIndex].delay = 0x00;
+			i2c_write_setting_gl[initSettingsIndex].delay = s_ctrl->sensor_init_setting.reg_setting[i].delay;
 			i2c_write_setting_gl[initSettingsIndex].data_mask = 0x00;
 			initSettingsIndex++;
+		}
+		if (i < s_ctrl->sensor_init_setting.size - 1)
+		{
+			opreation_type = s_ctrl->sensor_init_setting.reg_setting[i + 1].operation;
+			addrtype = s_ctrl->sensor_init_setting.reg_setting[i + 1].addr_type;
+			datatype = s_ctrl->sensor_init_setting.reg_setting[i + 1].data_type;
+			delay = s_ctrl->sensor_init_setting.reg_setting[i + 1].delay;
+		}
+		else
+		{
+			opreation_type = s_ctrl->sensor_init_setting.reg_setting[i].operation;
+			addrtype = s_ctrl->sensor_init_setting.reg_setting[i].addr_type;
+			datatype = s_ctrl->sensor_init_setting.reg_setting[i].data_type;
+			delay = s_ctrl->sensor_init_setting.reg_setting[i].delay;
+		}
+		if (i == 0)
+		{
+			current_opreation = s_ctrl->sensor_init_setting.reg_setting[i].operation;
+			current_addrtype  = s_ctrl->sensor_init_setting.reg_setting[i].addr_type;
+			current_datatype  = s_ctrl->sensor_init_setting.reg_setting[i].data_type;
+			current_delay     = s_ctrl->sensor_init_setting.reg_setting[i].delay;
+		}
+
+		//CAM_INFO(CAM_SENSOR, "current_opreation  %d  opreation_type  %d  current_addrtype %d addrtype %d current_datatype %d datatype %d current_delay:%u, delay:%u, initSettingsIndex %d i %d"
+		//,current_opreation, opreation_type, current_addrtype, addrtype, current_datatype, datatype, current_delay, delay, initSettingsIndex, i);
+		if ((current_opreation != opreation_type
+				|| current_addrtype != addrtype
+				|| current_datatype != datatype
+				|| current_delay != delay
+				|| initSettingsIndex == BURST_MAX_DATA_NUM
+				|| i == s_ctrl->sensor_init_setting.size - 1)
+				&& (initSettingsIndex > 0))
+		{
+			i2c_write.reg_setting = i2c_write_setting_gl;
+			i2c_write.size = initSettingsIndex;
+			i2c_write.addr_type = current_addrtype;
+			i2c_write.data_type = current_datatype;
+			i2c_write.delay = current_delay;
+			if (current_opreation == CCI_WRITE)
+			{
+				//CAM_INFO(CAM_SENSOR, "camera_io_dev_write  0x%0x=0x%0x  size=%u, i2c_write.delay:%u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size, i2c_write.delay);
+				trace_begin("camera_io_dev_write: 0x%0x=0x%0x   size %u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
+				rc = camera_io_dev_write(&(s_ctrl->io_master_info), &i2c_write);
+				trace_end();
+			}
+			else if (current_opreation == CCI_WRITE_BURST || current_opreation == CCI_WRITE_SEQUENTIAL)
+			{
+				//CAM_INFO(CAM_SENSOR, "camera_io_dev_write_continuous 0x%0x=0x%0x  size=%u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
+				trace_begin("camera_io_dev_write_continuous:0x%0x=0x%0x   size %u", i2c_write_setting_gl[0].reg_addr, i2c_write_setting_gl[0].reg_data, i2c_write.size);
+				rc = camera_io_dev_write_continuous(&(s_ctrl->io_master_info), &i2c_write, current_opreation);
+				trace_end();
+			}
+			current_opreation = opreation_type;
+			current_addrtype = addrtype;
+			current_datatype = datatype;
+			current_delay = delay;
+			initSettingsIndex = 0;
 		}
 	}
 	if (i2c_write_setting_gl != NULL)
@@ -1176,6 +1288,7 @@ int sensor_start_thread(void *arg)
 		{
 			CAM_ERR(CAM_SENSOR, "Enter CAM_SENSOR_SETTING_WRITE_INVALID!");
 			oplus_shift_sensor_mode(s_ctrl);
+			convert_us_to_ms(s_ctrl);
 			if (s_ctrl->is_surpport_wr_burst == TRUE)
 			{
 				rc = sensor_burst_write(s_ctrl);
@@ -1363,11 +1476,13 @@ int cam_sensor_start(struct cam_sensor_ctrl_t *s_ctrl, void *arg)
 	for (i = 0; i < initsettings->size; i++)
 	{
 		reg_setting[i].reg_addr = initsettings->reg_setting[i].reg_addr;
+		reg_setting[i].addr_type = initsettings->reg_setting[i].addr_type;
 		reg_setting[i].reg_data = initsettings->reg_setting[i].reg_data;
+		reg_setting[i].data_type = initsettings->reg_setting[i].data_type;
 		reg_setting[i].delay = initsettings->reg_setting[i].delay;
 		reg_setting[i].data_mask = 0x00;
 		reg_setting[i].operation = initsettings->reg_setting[i].operation;
-		if (reg_setting[i].operation == CCI_WRITE_BURST && m_support_burst == FALSE)
+		if ((reg_setting[i].operation == CCI_WRITE_BURST || reg_setting[i].operation == CCI_WRITE_SEQUENTIAL) && m_support_burst == FALSE)
 		{
 			m_support_burst = TRUE;
 		}

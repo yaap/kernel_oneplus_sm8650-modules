@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _TFA98XX_TFAFIELDNAMES_H
+#define _TFA98XX_TFAFIELDNAMES_H
+
 typedef struct TfaBfName {
    unsigned short bfEnum;
    char  *bfName;
@@ -29,6 +32,10 @@ typedef struct TfaIrqName {
 #include "tfa9874_tfafieldnames.h"
 #include "tfa9894_tfafieldnames.h"
 #include "tfa9894_tfafieldnames_N2.h"
+#include "tfa9865_tfafieldnames.h"
+#include "tfa986x_tfafieldnames.h"
+#include "tfa9865_tfafieldnames_A2.h"
+#include "tfa986xn2_tfafieldnames.h"
 
 /*To support tfa9873*/
 #include "tfa9873_tfafieldnames.h"
@@ -143,3 +150,5 @@ typedef struct TfaIrqName {
 /* TDM STATUS fields not available on TFA1 */
 #define TFA1_BF_TDMLUTER -1
 #define TFA1_BF_TDMERR -1
+
+#endif /* _TFA98XX_TFAFIELDNAMES_H */

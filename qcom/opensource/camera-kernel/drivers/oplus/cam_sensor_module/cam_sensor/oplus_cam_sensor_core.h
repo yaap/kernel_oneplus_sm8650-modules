@@ -15,6 +15,8 @@
 #define CAM_S5KJN5_SENSOR_ID 0x38E5
 #define S5KJN5_SHORT_SENSOR_ID  511
 #define S5KJN5_SHORT_VENDOR_ID  511
+#define S5KJN5_LONG_SENSOR_ID  1791
+#define S5KJN5_LONG_VENDOR_ID  1791
 
 struct cam_sensor_i2c_reg_setting_array {
 	struct cam_sensor_i2c_reg_array reg_setting[CAM_OEM_INITSETTINGS_SIZE_MAX];
@@ -57,6 +59,8 @@ struct cam_sensor_settings {
 	struct cam_sensor_i2c_reg_setting_array gc02m1_setting;
 	struct cam_sensor_i2c_reg_setting_array ov50d_setting;
 	struct cam_sensor_i2c_reg_setting_array sc201cs_setting;
+	struct cam_sensor_i2c_reg_setting_array gc08a8_setting;
+	struct cam_sensor_i2c_reg_setting_array ov08d_setting;
 };
 
 int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl);
@@ -66,6 +70,7 @@ void cam_sensor_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl);
 bool cam_ftm_if_do(void);
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 int oplus_shift_sensor_mode(struct cam_sensor_ctrl_t *s_ctrl);
+void convert_us_to_ms(struct cam_sensor_ctrl_t *s_ctrl);
 int oplus_cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl);
 #endif
 

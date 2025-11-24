@@ -209,6 +209,7 @@ bool aw882xx_cali_check_result(struct aw_cali_desc *cali_desc);
 void oplus_aw882xx_cali_set_pa_number(unsigned char total_pa_number);
 ssize_t oplus_aw_calib_re_show(struct device *dev, char *buf);
 ssize_t oplus_aw_cali_re_f0(struct device *dev, char *buf);
+ssize_t oplus_aw_cali_re(struct device *dev, char *buf);
 int aw_cali_svc_get_devs_cali_re(struct aw_device *aw_dev, int32_t *re_buf, int num);
 int aw_cali_svc_get_devs_cali_f0(struct aw_device *aw_dev, int32_t *f0_buf, int num);
 int aw_cali_svc_set_devs_re_str(struct aw_device *aw_dev, const char *re_str);

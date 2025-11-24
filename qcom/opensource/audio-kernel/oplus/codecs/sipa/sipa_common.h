@@ -38,7 +38,7 @@
 #define OPLUS_ARCH_EXTENDS
 #endif /* OPLUS_ARCH_EXTENDS */
 
-#define SIPA_DRIVER_VERSION					("3.1.8")
+#define SIPA_DRIVER_VERSION					("3.1.8-250210")
 #define SIPA_MAX_CHANNEL_SUPPORT			(8)
 
 struct sipa_err {
@@ -90,6 +90,7 @@ typedef struct sipa_dev_s {
 	unsigned int scene;
 
 	uint32_t channel_num;
+	uint32_t  ch_num_max;
 	uint32_t dyn_ud_vdd_port;
 	uint32_t en_dyn_id;
 	// uint32_t en_dyn_ud_vdd;
@@ -102,6 +103,8 @@ typedef struct sipa_dev_s {
 /* 2023/04/18, Add for smartpa err feedback. */
 	ktime_t last_fb;
 	bool need_chk_err;
+	uint32_t vbatlow_cnt;
+	uint32_t control_fb;
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
 	struct snd_soc_codec *codec;
@@ -118,6 +121,7 @@ typedef struct sipa_dev_s {
 	int default_mohms;
 	int min_freq;
 	int max_freq;
+	bool is_shared_rst_pin;
 #endif /* OPLUS_ARCH_EXTENDS */
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 	struct oplus_spk_dev_node* oplus_dev_node;
@@ -142,7 +146,7 @@ enum {
 	SIPA_CHANNEL_1,
 	SIPA_CHANNEL_2,
 	SIPA_CHANNEL_3,
-#if 0
+#if 1
 	SIPA_CHANNEL_4,
 	SIPA_CHANNEL_5,
 	SIPA_CHANNEL_6,

@@ -110,6 +110,7 @@ static const struct panel_ioctl_desc panel_ioctls[] = {
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_LONGRUI_AOD, oplus_ofp_set_longrui_aod_mode),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_LONGRUI_AOD, oplus_ofp_get_longrui_aod_config),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_DC_COMPENSATE, oplus_display_panel_set_dc_compensate),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_IGNORE_MODE, oplus_display_get_ignore_mode),
 };
 
 int oplus_display_fix_apollo_level(void)

@@ -133,9 +133,61 @@ config SND_SOC_CODEC_AW882XX_V1_13_0
 	  multi-band DRC, equalizer function. It would
 	  be set to yes if device with aw882xx_v1_13_0 on it.
 
+config OPLUS_MTK_PLATFORM
+	bool "Use MTK PLATFORM"
+	default n
+
+config SND_SMARTPA_AW883XX
+	tristate "SoC Audio for awinic aw883xx series"
+	depends on I2C
+	help
+	  This option enables support for aw883xx series Smart PA.
+
 # add for Audio Type-C switch
 config SND_SOC_OPLUS_DISCRETE_TYPEC_SWITCH
 	tristate "TypeC Switch"
 	depends on I2C
 	help
 	  It is a USB type-C Analog Audio Switch.
+
+config AUDIO_DAEMON_KERNEL_MTK_HIFI
+	tristate "audio daemon kernel for mtk hifi adsp"
+	default n
+	help
+	  This adds for Mediatek boards with hifi adsp
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N".
+
+config AUDIO_DAEMON_KERNEL_MTK_RV
+	tristate "audio daemon kernel for mtk rv55 adsp"
+	default n
+	help
+	  This adds for Mediatek boards with rv55 adsp
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N".
+
+config AUDIO_DAEMON_KERNEL_QCOM
+	tristate "audio daemon kernel for qcom"
+	default n
+	help
+	  This adds for QCOM boards
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N".
+
+config AUDIO_NETLINK_KERNEL
+	tristate "audio netlink kernel communication"
+	default n
+	help
+	  This adds for QCOM or MTK boards
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N".
+
+config SND_SOC_FS181X
+	tristate "FourSemi Analog speaker amplifier"
+	depends on I2C
+	help
+	  Config of FourSemi Analog speaker amplifier.

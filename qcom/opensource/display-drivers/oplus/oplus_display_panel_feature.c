@@ -40,6 +40,10 @@
 extern int lcd_closebl_flag;
 extern u32 oplus_last_backlight;
 int switch_pwm_in_pre_bl = 0;
+bool g_oplus_send_fps_code = false;
+extern int oplus_sync_power_state;
+extern int dsi_cmd_set_type_status;
+
 int oplus_panel_get_serial_number_info(struct dsi_panel *panel)
 {
 	struct dsi_parser_utils *utils = NULL;
@@ -88,6 +92,46 @@ int oplus_panel_get_serial_number_info(struct dsi_panel *panel)
 	return 0;
 }
 
+void oplus_panel_parse_ignore_mode_config(struct dsi_panel *panel)
+{
+	int rc = 0;
+	struct dsi_parser_utils *utils = &panel->utils;
+	char payload[128] = "";
+	u32 cnt = 0;
+
+	panel->oplus_priv.ignore_mode_count = utils->count_u32_elems(utils->data,
+			"oplus,factory-ignore-mode");
+	if (panel->oplus_priv.ignore_mode_count < 1) {
+		LCD_INFO("factory ignore mode is NULL!\n");
+		panel->oplus_priv.ignore_mode_count = 0;
+		return;
+	}
+
+	panel->oplus_priv.ignore_mode = kcalloc(panel->oplus_priv.ignore_mode_count,
+			sizeof(u32), GFP_KERNEL);
+	if (!panel->oplus_priv.ignore_mode) {
+		LCD_ERR("factory ignore mode list alloc failed!\n");
+		return;
+	}
+
+	rc = utils->read_u32_array(utils->data,
+			"oplus,factory-ignore-mode",
+			panel->oplus_priv.ignore_mode,
+			panel->oplus_priv.ignore_mode_count);
+
+	if (rc) {
+		LCD_ERR("factory ignore mode list parse failed!\n");
+		return;
+	}
+
+	for (int i = 0; i < panel->oplus_priv.ignore_mode_count; i++) {
+		cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "[%u]", panel->oplus_priv.ignore_mode[i]);
+	}
+	LCD_INFO("parse ignore mode count: %d, mode_list: %s\n", panel->oplus_priv.ignore_mode_count, payload);
+
+	return;
+}
+
 int oplus_panel_features_config(struct dsi_panel *panel)
 {
 	struct dsi_parser_utils *utils = NULL;
@@ -129,10 +173,16 @@ int oplus_panel_features_config(struct dsi_panel *panel)
 
 	oplus_panel_get_serial_number_info(panel);
 
+	oplus_panel_parse_ignore_mode_config(panel);
 	panel->oplus_priv.vid_timming_switch_enabled = utils->read_bool(utils->data,
 			"oplus,dsi-vid-timming-switch_enable");
 	LCD_INFO("oplus,dsi-vid-timming-switch_enable: %s\n",
 			panel->oplus_priv.vid_timming_switch_enabled ? "true" : "false");
+
+	panel->oplus_priv.vid_timming_switch_post_enabled = utils->read_bool(utils->data,
+			"oplus,dsi_vid_timming_switch_post_enable");
+	LCD_INFO("oplus,dsi_vid_timming_switch_post_enable: %s\n",
+		panel->oplus_priv.vid_timming_switch_post_enabled ? "true" : "false");
 
 	panel->oplus_priv.dimming_setting_before_bl_0_enable = utils->read_bool(utils->data,
 			"oplus,dsi-dimming-setting-before-bl-0-enable");
@@ -153,6 +203,16 @@ int oplus_panel_features_config(struct dsi_panel *panel)
 			"oplus,gamma-compensation-support");
 	LCD_INFO("oplus,gamma-compensation-support: %s\n",
 			panel->oplus_priv.gamma_compensation_support ? "true" : "false");
+
+	panel->oplus_priv.dozedisable_esdcheck_delay = utils->read_bool(utils->data,
+			"oplus,dozedisable-esdcheck-delay");
+	LCD_INFO("oplus,dozedisable-esdcheck-delay: %s\n",
+			panel->oplus_priv.dozedisable_esdcheck_delay ? "true" : "false");
+
+	panel->oplus_priv.enable_dsi_cmd_package = utils->read_bool(utils->data,
+		"oplus,enable_dsi_cmd_package");
+	LCD_INFO("oplus,enable_dsi_cmd_package: %s\n",
+		panel->oplus_priv.enable_dsi_cmd_package ? "true" : "false");
 	return 0;
 }
 
@@ -189,17 +249,16 @@ int oplus_panel_post_on_backlight(void *display, struct dsi_panel *panel, u32 bl
 	return 0;
 }
 
-void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display_mode *mode)
+void oplus_panel_switch_vid_mode_post(struct dsi_display *display, struct dsi_display_mode *mode)
 {
-	int rc = 0;
+	u32 rc = 0;
 	int refresh_rate = 0;
+	static int cur_refresh_rate = 0;
 	int dsi_cmd_vid_switch = 0;
-	int te_count = 1;
-	u32 current_vblank;
 	struct dsi_panel *panel = NULL;
 	struct drm_crtc *crtc = NULL;
 
-	if (!display && !display->panel) {
+	if (!display || !display->panel) {
 		LCD_INFO("display/panel is null!\n");
 		return;
 	}
@@ -211,8 +270,72 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 
 	panel = display->panel;
 	crtc = display->drm_conn->state->crtc;
+
+	if (!panel->oplus_priv.vid_timming_switch_post_enabled) {
+		return;
+	}
+
 	if (panel->power_mode == SDE_MODE_DPMS_OFF) {
-		LCD_INFO("display panel in off status\n");
+		LCD_INFO("display panel in off status,power_mode = %d\n", panel->power_mode);
+		return;
+	}
+
+	if (!dsi_panel_initialized(panel)) {
+		LCD_ERR("should not set panel hbm if panel is not initialized\n");
+		return;
+	}
+
+	refresh_rate = mode->timing.refresh_rate;
+		LCD_INFO("oplus_panel_switch_vid_mode_post refresh %d\n", refresh_rate);
+
+	if (refresh_rate == 120) {
+		dsi_cmd_vid_switch = DSI_CMD_VID_120_SWITCH;
+	} else if (refresh_rate == 60) {
+		dsi_cmd_vid_switch = DSI_CMD_VID_60_SWITCH;
+	} else if (refresh_rate == 90) {
+		dsi_cmd_vid_switch = DSI_CMD_VID_90_SWITCH;
+	} else {
+		return;
+	}
+	g_oplus_send_fps_code = true;
+
+	mutex_lock(&panel->panel_lock);
+	rc = dsi_panel_tx_cmd_set(panel, dsi_cmd_vid_switch);
+	mutex_unlock(&panel->panel_lock);
+	if (rc) {
+		LCD_INFO("[%s] failed to send DSI_CMD_VID_SWITCH cmds, rc=%d\n",
+			panel->name, rc);
+	}
+
+	cur_refresh_rate = refresh_rate;
+
+	return;
+}
+
+void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display_mode *mode)
+{
+	int rc = 0;
+	int refresh_rate = 0;
+	int dsi_cmd_vid_switch = 0;
+	int te_count = 1;
+	u32 current_vblank;
+	struct dsi_panel *panel = NULL;
+	struct drm_crtc *crtc = NULL;
+
+	if (!display || !display->panel) {
+		LCD_INFO("display/panel is null!\n");
+		return;
+	}
+
+	if (!mode) {
+		LCD_INFO("dsi_display_mode is null!\n");
+		return;
+	}
+
+	panel = display->panel;
+	crtc = display->drm_conn->state->crtc;
+	if (panel->power_mode == SDE_MODE_DPMS_OFF || oplus_sync_power_state != SDE_MODE_DPMS_ON) {
+		LCD_INFO("display panel in off status,power_mode = %d, oplus_sync_power_state =  %d\n", panel->power_mode, oplus_sync_power_state);
 		return;
 	}
 
@@ -231,8 +354,12 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 
 	if (refresh_rate == 120) {
 		dsi_cmd_vid_switch = DSI_CMD_VID_120_SWITCH;
+	} else if (refresh_rate == 90) {
+		dsi_cmd_vid_switch = DSI_CMD_VID_90_SWITCH;
 	} else if (refresh_rate == 60) {
 		dsi_cmd_vid_switch = DSI_CMD_VID_60_SWITCH;
+	} else if (refresh_rate == 144) {
+		dsi_cmd_vid_switch = DSI_CMD_VID_144_SWITCH;
 	} else {
 		return;
 	}
@@ -400,6 +527,11 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 		else
 #endif
 		rc = mipi_dsi_dcs_set_display_brightness(dsi, inverted_dbv_bl_lvl);
+
+		if (panel->oplus_priv.dsi_cmd_need_to_package) {
+			dsi_cmd_set_type_status = 0;
+			panel->oplus_priv.dsi_cmd_need_to_package = false;
+		}
 		mutex_unlock(&panel->panel_tx_lock);
 		if (rc < 0)
 			LCD_ERR("failed to update dcs backlight:%d\n", bl_lvl);

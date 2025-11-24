@@ -116,8 +116,6 @@ struct tfa98xx {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 	struct delayed_work check_work;
 	int pa_type;
-	uint32_t f0_min;
-	uint32_t f0_max;
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
 	struct mutex dsp_lock;

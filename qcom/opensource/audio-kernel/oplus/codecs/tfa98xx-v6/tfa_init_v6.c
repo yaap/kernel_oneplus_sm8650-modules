@@ -575,6 +575,809 @@ void tfa9912_ops(struct tfa_device_ops *ops)
 	ops->set_osc_powerdown = tfa9912_set_osc_powerdown;
 }
 
+
+/***********************************************************************************/
+/* TFA986X                                                                         */
+/***********************************************************************************/
+
+static enum Tfa98xx_Error tfa986x_specific(struct tfa_device *tfa)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* Fix coverity 592538 issue */
+	unsigned short value, xor;
+	int rc = 0;
+	#else /* OPLUS_ARCH_EXTENDS */
+	unsigned short value, xor, rc;
+	#endif /* OPLUS_ARCH_EXTENDS */
+	int type = 0;
+	int rev = tfa->rev;
+	enum variant {
+		N = 0,
+		MN = 1
+	};
+
+	if (tfa->in_use == 0) {
+		return Tfa98xx_Error_NotOpen;
+	}
+
+	tfa_set_bf_v6(tfa, TFA986X_BF_PWDN, 0);
+	tfa_set_bf_v6(tfa, TFA986X_BF_MANAOOSC, 0);
+
+	rc = tfa_wait4manstate(tfa, TFA986X_BF_MANSTATE, 1, 50);
+	if (rc < 0) {
+		pr_err("Error, waiting powerdown leaving\n");
+		return rc;
+	}
+
+	if (((rev & 0xff) == 0x66) && tfa_get_bf_v6(tfa, 0xf3b1)) {
+		rev = rev - 1;  /* To > 0x65 */
+		/* For N/MN variant, bits from 19..16 are used*/
+		/* For TFA9865X2XX or TFA9865MN1XX, bits from 23..20 are used */
+		if (tfa_get_bf_v6(tfa, 0xf090)) {          /* For N variant */
+			if (tfa_get_bf_v6(tfa, 0xf4f0)) { /* For 64N variant */
+				rev = (N << 16) | rev;        /* For 64N1 */
+			} else {
+				rev = (1 << 20) | (N << 16) | rev; /* For 65N2 */
+			}
+		} else {        /* For MN variant */
+			rev = (MN << 16) | rev;       /* For 65/64 MN1XX */
+		}
+
+		if (tfa_get_bf_v6(tfa, 0xf4f0)) { /*  0xf4f0, "lock_max_dcdc_voltage" */
+			rev -= 1; /* 65 > 64 */
+		}
+	}
+
+	if ((rev & 0xff) == 0x66) {
+		type = tfa_get_bf_v6(tfa, 0x0687) & 0x3;
+
+		switch (type)
+		{
+			case 0x0:
+				// rev = rev;
+				break;
+			case 0x1:
+				rev = rev + 0x100000;
+				break;
+			case 0x2:
+				rev = rev + 0x200000;
+				break;
+			case 0x3:
+				rev = rev + 0x300000;
+				break;
+			default:
+				pr_info("%s: tfa->rev = 0x%x, type = 0x%x", __func__, tfa->rev, type);
+		}
+	}
+
+	tfa->revid = rev;
+
+	/* Unlock key 1 and 2 */
+	error = tfa_reg_write(tfa, 0x0F, 0x5A6B);
+	error = tfa_reg_read(tfa, 0xFB, &value);
+	xor = value ^ 0x005A;
+	error = tfa_reg_write(tfa, 0xA0, xor);
+	tfa98xx_key2_v6(tfa, 0);
+	pr_info("%s: Enter, tfa->rev = 0x%x ", __func__, tfa->rev);
+
+	switch (tfa->revid) {
+	case 0x1a64:/**TFA9864 N1A1**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 22 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0626); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x76, 0xbf00); //POR=0xf000
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x11a64:/**TFA9864 MN1A1**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 22 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0626); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x76, 0xbf00); //POR=0xf000
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x101a65:/**TFA9865 N2A1**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 22 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0626); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x11a65:/**TFA9865 MN1A1**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 22 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0626); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x3a64:/**TFA9864 N1A3**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 2 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f4c); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0066); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x76, 0xbf00); //POR=0xf000
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x13a64:/**TFA9864 MN1A3**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 2 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f4c); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0066); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x76, 0xbf00); //POR=0xf000
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x103a65:/**TFA9865 N2A3**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 3 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f4c); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0066); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x13a65:/**TFA9865 MN1A3**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 3 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f4c); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x67, 0x0066); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x60f0); //POR=0x4cf0
+		tfa_reg_write(tfa, 0x75, 0x0e00); //POR=0x1200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x10f2); //POR=0x1602
+		tfa_reg_write(tfa, 0xcf, 0x2cd7); //POR=0x0cd7
+		tfa_reg_write(tfa, 0xd7, 0x1000); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0036); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x100a64:/**TFA9864 N2A0**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 1 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x009a); //POR=0x00d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x54, 0xe0e0); //POR=0x00e0
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0xb02b); //POR=0xde96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x0684); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x65, 0x0c58); //POR=0x0458
+		tfa_reg_write(tfa, 0x67, 0x006e); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x69, 0x0119); //POR=0x0319
+		tfa_reg_write(tfa, 0x74, 0x6028); //POR=0x4c14
+		tfa_reg_write(tfa, 0x75, 0x1daa); //POR=0x49e0
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x1072); //POR=0x1602
+		tfa_reg_write(tfa, 0xdd, 0x01b6); //POR=0x01de
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x110a64:/**TFA9864 MN2A0**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 1 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x009a); //POR=0x00d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x54, 0xe0e0); //POR=0x00e0
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0xb02b); //POR=0xde96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x0684); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x65, 0x0c58); //POR=0x0458
+		tfa_reg_write(tfa, 0x67, 0x006e); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x69, 0x0119); //POR=0x0319
+		tfa_reg_write(tfa, 0x74, 0x6028); //POR=0x4c14
+		tfa_reg_write(tfa, 0x75, 0x1daa); //POR=0x49e0
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x1072); //POR=0x1602
+		tfa_reg_write(tfa, 0xdd, 0x01b6); //POR=0x01de
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x200a65:/**TFA9865 N3A0**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 1 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x009a); //POR=0x00d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x54, 0xe0e0); //POR=0x00e0
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0xb02b); //POR=0xde96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x0684); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x65, 0x0c58); //POR=0x0458
+		tfa_reg_write(tfa, 0x67, 0x006e); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x69, 0x0119); //POR=0x0319
+		tfa_reg_write(tfa, 0x74, 0x6028); //POR=0x4c14
+		tfa_reg_write(tfa, 0x75, 0x1daa); //POR=0x49e0
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x1072); //POR=0x1602
+		tfa_reg_write(tfa, 0xdd, 0x01b6); //POR=0x01de
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x110a65:/**TFA9865 MN2A0**/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 1 ----- */
+		tfa_reg_write(tfa, 0x00, 0xf241); //POR=0xf261
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x009a); //POR=0x00d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x54, 0xe0e0); //POR=0x00e0
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0xb02b); //POR=0xde96
+		tfa_reg_write(tfa, 0x5f, 0x00a0); //POR=0x00c0
+		tfa_reg_write(tfa, 0x62, 0x0684); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x80d4); //POR=0x0602
+		tfa_reg_write(tfa, 0x65, 0x0c58); //POR=0x0458
+		tfa_reg_write(tfa, 0x67, 0x006e); //POR=0x0602
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x69, 0x0119); //POR=0x0319
+		tfa_reg_write(tfa, 0x74, 0x6028); //POR=0x4c14
+		tfa_reg_write(tfa, 0x75, 0x1daa); //POR=0x49e0
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0x7c, 0x1072); //POR=0x1602
+		tfa_reg_write(tfa, 0xdd, 0x01b6); //POR=0x01de
+		/* ----- generated code end   ----- */
+		break;
+
+	default:
+		pr_info("\nWarning: Optimal settings not found for device with revid = 0x%x \n", tfa->revid);
+		break;
+	}
+
+	tfa_set_bf_v6(tfa, TFA986X_BF_PWDN, 1); /* 1 = off */
+	rc = tfa_wait4manstate(tfa, TFA986X_BF_MANSTATE, 0, 50);
+	if (rc < 0) {
+		pr_err("Timeout waiting for manstate 0\n");
+		return rc;
+	}
+	/* we come from reset state so turn off osc */
+	tfa_set_bf_v6(tfa, TFA986X_BF_MANAOOSC, 1);
+
+	return error;
+}
+
+static int tfa986x_set_bitfield(struct tfa_device* tfa, uint16_t bitfield, uint16_t value)
+{
+	if (((bitfield >> 8) & 0xff) == 0x10 || ((bitfield >> 8) & 0xff) == 0x13) {
+		return tfa_set_bf_v6_volatile(tfa, (uint16_t)bitfield, value);
+	} else {
+		return tfa_set_bf_v6(tfa, (uint16_t)bitfield, value);
+	}
+}
+
+enum Tfa98xx_Error tfa986x_tfa_status(struct tfa_device* tfa)
+{
+	int value = 0;
+	uint16_t val = 0;
+
+	value = tfa_read_reg_v6(tfa, TFA986X_BF_VDDS); /* STATUSREG */
+	if (value < 0) {
+		return -value;
+	}
+
+	val = (uint16_t)value;
+	if (!tfa_get_bf_v6_value_v6(TFA986X_BF_UVDS, val) ||
+		!tfa_get_bf_v6_value_v6(TFA986X_BF_OVDS, val) ||
+		!tfa_get_bf_v6_value_v6(TFA986X_BF_OTDS, val) ||
+		tfa_get_bf_v6_value_v6(TFA986X_BF_OCDS, val)  ||
+		tfa_get_bf_v6_value_v6(TFA986X_BF_NOCLK, val)) {
+		pr_err("Misc errors detected: STATUS_FLAG0 = 0x%x\n", val);
+	}
+
+	if (tfa_get_bf_v6_value_v6(TFA986X_BF_NOCLK, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_NOCLK, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA986X_BF_UVDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_UVDS, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA986X_BF_OVDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_OVDS, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA986X_BF_OTDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_OTDS, 1);
+	}
+	if (tfa_get_bf_v6_value_v6(TFA986X_BF_OCDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_OCDS, 1);
+	}
+	/*
+	 * checking clocking stability.
+	 */
+	if (!tfa_get_bf_v6(tfa, TFA986X_BF_CLKS)) {
+		pr_err("ERROR: CLKS is unstable\n");
+	}
+	if (!tfa_get_bf_v6(tfa, TFA986X_BF_PLLS)) {
+		pr_err("ERROR: PLL not locked\n");
+	}
+	if (tfa_get_bf_v6(tfa, TFA986X_BF_TDMERR) ||
+		tfa_get_bf_v6(tfa, TFA986X_BF_TDMLUTER)) {
+		pr_err("TDM related errors: STATUS_FLAG1 = 0x%x\n", (uint16_t)tfa_read_reg_v6(tfa, TFA986X_BF_TDMERR));
+	}
+	if (tfa_get_bf_v6(tfa, TFA986X_BF_BODNOK)) {
+		pr_err("BODNOK error detected : STATUS_FLAG3 = 0x%x\n", (uint16_t)tfa_read_reg_v6(tfa, TFA986X_BF_BODNOK));
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA986X_BF_BODNOK, 1);
+	}
+
+	return Tfa98xx_Error_Ok;
+}
+
+static int tfa986x_set_swprofile(struct tfa_device *tfa, unsigned short new_value)
+{
+	int active_value = tfa_dev_get_swprof(tfa);
+
+	/* Set the new value in the struct */
+	tfa->profile = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_v6_volatile(tfa, TFA986X_BF_SWPROFIL, new_value);
+
+	return active_value;
+}
+
+static int tfa986x_get_swprofile(struct tfa_device *tfa)
+{
+	return tfa_get_bf_v6(tfa, TFA986X_BF_SWPROFIL) - 1;
+}
+
+static int tfa986x_set_swvstep(struct tfa_device *tfa, unsigned short new_value)
+{
+
+	/* Set the new value in the struct */
+	tfa->vstep = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_v6_volatile(tfa, TFA986X_BF_SWVSTEP, new_value);
+
+	return new_value;
+}
+
+static int tfa986x_get_swvstep(struct tfa_device *tfa)
+{
+	return tfa_get_bf_v6(tfa, TFA986X_BF_SWVSTEP) - 1;
+}
+
+/* tfa98xx_dsp_system_stable
+*  return: *ready = 1 when clocks are stable to allow DSP subsystem access
+*/
+static enum Tfa98xx_Error tfa986x_dsp_system_stable(struct tfa_device *tfa, int *ready)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+
+	/* check CLKS: ready if set */
+	*ready = tfa_get_bf_v6(tfa, TFA986X_BF_CLKS) == 1;
+
+	return error;
+}
+
+void tfa986x_ops(struct tfa_device_ops *ops)
+{
+	/* Set defaults for ops */
+	set_ops_defaults(ops);
+
+	ops->get_mtpb = NULL; /* no mtp, used as check for new efuse types */
+	ops->tfa_init = tfa986x_specific;
+	ops->set_swprof = tfa986x_set_swprofile;
+	ops->get_swprof = tfa986x_get_swprofile;
+	ops->set_swvstep = tfa986x_set_swvstep;
+	ops->get_swvstep = tfa986x_get_swvstep;
+	ops->dsp_system_stable = tfa986x_dsp_system_stable;
+	ops->set_mute = tfa_set_mute_nodsp;
+	ops->tfa_set_bitfield = tfa986x_set_bitfield;
+	ops->tfa_status = tfa986x_tfa_status;
+}
+
+/***********************************************************************************/
+/* TFA9865                                                                         */
+/***********************************************************************************/
+
+static enum Tfa98xx_Error tfa9865_specific(struct tfa_device *tfa)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* Fix coverity 592538 issue */
+	unsigned short value, xor;
+	int rc = 0;
+	#else /* OPLUS_ARCH_EXTENDS */
+	unsigned short value, xor, rc;
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	if (tfa->in_use == 0) {
+		return Tfa98xx_Error_NotOpen;
+	}
+
+	tfa_set_bf_v6(tfa, TFA9865_BF_PWDN, 0);
+	tfa_set_bf_v6(tfa, TFA9865_BF_MANAOOSC, 0);
+
+	rc = tfa_wait4manstate(tfa, TFA9865_BF_MANSTATE, 1, 50);
+	if (rc < 0) {
+		pr_err("Error, waiting powerdown leaving\n");
+		return rc;
+	}
+
+	/* Unlock key 1 and 2 */
+	error = tfa_reg_write(tfa, 0x0F, 0x5A6B);
+	error = tfa_reg_read(tfa, 0xFB, &value);
+	xor = value ^ 0x005A;
+	error = tfa_reg_write(tfa, 0xA0, xor);
+	tfa98xx_key2_v6(tfa, 0);
+	pr_info("%s:  Enter, tfa->rev = 0x%x ", __func__, tfa->rev);
+
+	switch (tfa->rev) {
+	case 0x0a65: /* Initial revision ID TFA9865 N1A0 */
+		/* ----- generated code start ----- */
+		/* -----  version 12 ----- */
+		tfa_reg_write(tfa, 0x00, 0xca41); //POR=0xc241
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x0002); //POR=0x0000
+		tfa_reg_write(tfa, 0x52, 0x1400); //POR=0x1140
+		tfa_reg_write(tfa, 0x59, 0x0001); //POR=0x0000
+		tfa_reg_write(tfa, 0x5a, 0x36bc); //POR=0x36be
+		tfa_reg_write(tfa, 0x5f, 0x0080); //POR=0x00c0
+		tfa_reg_write(tfa, 0x75, 0x9900); //POR=0x9200
+		tfa_reg_write(tfa, 0xd2, 0x0000); //POR=0x03c0
+		tfa_reg_write(tfa, 0xda, 0x0002); //POR=0x0000
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x2a65:/**TFA9865 N1A2**/
+		/* ----- generated code start ----- */
+		/* -----  version 12 ----- */
+		tfa_reg_write(tfa, 0x00, 0xca41); //POR=0xc241
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x0002); //POR=0x0000
+		tfa_reg_write(tfa, 0x52, 0x1400); //POR=0x1140
+		tfa_reg_write(tfa, 0x59, 0x0001); //POR=0x0000
+		tfa_reg_write(tfa, 0x5a, 0x36bc); //POR=0x36be
+		tfa_reg_write(tfa, 0x5f, 0x0080); //POR=0x00c0
+		tfa_reg_write(tfa, 0x75, 0x9900); //POR=0x9200
+		tfa_reg_write(tfa, 0xd2, 0x0000); //POR=0x03c0
+		tfa_reg_write(tfa, 0xda, 0x0002); //POR=0x0000
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x0c65:/**TFA9865 N1C0 **/
+		/* ----- generated code start ----- */
+		/* -----  version 38 ----- */
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x01c2); //POR=0x01d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x62, 0x0580); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x0194); //POR=0x0182
+		tfa_reg_write(tfa, 0x74, 0x61a0); //POR=0x50f0
+		tfa_reg_write(tfa, 0x75, 0x9a00); //POR=0x9200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0xd7, 0x0001); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0006); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x3c65:/**TFA9865 N1C3 **/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 10 ----- */
+		tfa_reg_write(tfa, 0x00, 0xc041); //POR=0xc241
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x01c2); //POR=0x01d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x62, 0x0580); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x0194); //POR=0x0182
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x61a0); //POR=0x50f0
+		tfa_reg_write(tfa, 0x75, 0x9a00); //POR=0x9200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0xd7, 0x0001); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0006); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	case 0x4c65:/**TFA9865 N1C4 **/
+		/* ----- generated code start(V6) ----- */
+		/* -----  version 9 ----- */
+		tfa_reg_write(tfa, 0x00, 0x8041); //POR=0x8241
+		tfa_reg_write(tfa, 0x02, 0x0628); //POR=0x0008
+		tfa_reg_write(tfa, 0x08, 0x01c2); //POR=0x01d2
+		tfa_reg_write(tfa, 0x50, 0xc000); //POR=0x8000
+		tfa_reg_write(tfa, 0x5a, 0x5f5e); //POR=0x36be
+		tfa_reg_write(tfa, 0x5b, 0x74e2); //POR=0x7329
+		tfa_reg_write(tfa, 0x5c, 0x302b); //POR=0x5e96
+		tfa_reg_write(tfa, 0x62, 0x05c6); //POR=0x0582
+		tfa_reg_write(tfa, 0x63, 0x0194); //POR=0x0182
+		tfa_reg_write(tfa, 0x68, 0x0820); //POR=0x0c20
+		tfa_reg_write(tfa, 0x74, 0x61a0); //POR=0x50f0
+		tfa_reg_write(tfa, 0x75, 0x9a00); //POR=0x9200
+		tfa_reg_write(tfa, 0x78, 0x0001); //POR=0x000d
+		tfa_reg_write(tfa, 0xd7, 0x0001); //POR=0x0000
+		tfa_reg_write(tfa, 0xdd, 0x0006); //POR=0x005e
+		/* ----- generated code end   ----- */
+		break;
+
+	default:
+		pr_info("\nWarning: Optimal settings not found for device with revid = 0x%x \n", tfa->rev);
+		break;
+	}
+
+	tfa_set_bf_v6(tfa, TFA9865_BF_PWDN, 1); /* 1 = off */
+	rc = tfa_wait4manstate(tfa, TFA9865_BF_MANSTATE, 0, 50);
+	if (rc < 0) {
+		pr_err("Timeout waiting for manstate 0\n");
+		return rc;
+	}
+	/* we come from reset state so turn off osc */
+	tfa_set_bf_v6(tfa, TFA9865_BF_MANAOOSC, 1);
+
+	return error;
+}
+
+static int tfa9865_set_bitfield(struct tfa_device* tfa, uint16_t bitfield, uint16_t value)
+{
+	if (((bitfield >> 8) & 0xff) == 0x10 || ((bitfield >> 8) & 0xff) == 0x13) {
+		return tfa_set_bf_v6_volatile(tfa, (uint16_t)bitfield, value);
+	} else {
+		return tfa_set_bf_v6(tfa, (uint16_t)bitfield, value);
+	}
+}
+
+enum Tfa98xx_Error tfa9865_tfa_status(struct tfa_device* tfa)
+{
+	int value = 0;
+	uint16_t val = 0;
+
+	value = tfa_read_reg_v6(tfa, TFA9865_BF_VDDS); /* STATUSREG */
+	if (value < 0) {
+		return -value;
+	}
+
+	val = (uint16_t)value;
+	if (!tfa_get_bf_v6_value_v6(TFA9865_BF_UVDS, val) ||
+		!tfa_get_bf_v6_value_v6(TFA9865_BF_OVDS, val) ||
+		!tfa_get_bf_v6_value_v6(TFA9865_BF_OTDS, val) ||
+		tfa_get_bf_v6_value_v6(TFA9865_BF_OCDS, val)  ||
+		tfa_get_bf_v6_value_v6(TFA9865_BF_NOCLK, val)) {
+		pr_err("Misc errors detected: STATUS_FLAG0 = 0x%x\n", val);
+	}
+
+	if (tfa_get_bf_v6_value_v6(TFA9865_BF_NOCLK, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_NOCLK, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA9865_BF_UVDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_UVDS, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA9865_BF_OVDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_OVDS, 1);
+	}
+	if (!tfa_get_bf_v6_value_v6(TFA9865_BF_OTDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_OTDS, 1);
+	}
+	if (tfa_get_bf_v6_value_v6(TFA9865_BF_OCDS, val)) {
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_OCDS, 1);
+	}
+	/*
+	 * checking clocking stability.
+	 */
+	if (!tfa_get_bf_v6(tfa, TFA9865_BF_CLKS)) {
+		pr_err("ERROR: CLKS is unstable\n");
+	}
+	if (!tfa_get_bf_v6(tfa, TFA9865_BF_PLLS)) {
+		pr_err("ERROR: PLL not locked\n");
+	}
+	if (tfa_get_bf_v6(tfa, TFA9865_BF_TDMERR) ||
+		tfa_get_bf_v6(tfa, TFA9865_BF_TDMLUTER)) {
+		pr_err("TDM related errors: STATUS_FLAG1 = 0x%x\n", (uint16_t)tfa_read_reg_v6(tfa, TFA9865_BF_TDMERR));
+	}
+	if (tfa_get_bf_v6(tfa, TFA9865_BF_BODNOK)) {
+		pr_err("BODNOK error detected : STATUS_FLAG3 = 0x%x\n", (uint16_t)tfa_read_reg_v6(tfa, TFA9865_BF_BODNOK));
+		tfa_set_bf_v6_volatile(tfa, (uint16_t)TFA9865_BF_BODNOK, 1);
+	}
+
+	return Tfa98xx_Error_Ok;
+}
+
+static int tfa9865_set_swprofile(struct tfa_device *tfa, unsigned short new_value)
+{
+	int active_value = tfa_dev_get_swprof(tfa);
+
+	/* Set the new value in the struct */
+	tfa->profile = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_v6_volatile(tfa, TFA9865_BF_SWPROFIL, new_value);
+
+	return active_value;
+}
+
+static int tfa9865_get_swprofile(struct tfa_device *tfa)
+{
+	return tfa_get_bf_v6(tfa, TFA9865_BF_SWPROFIL) - 1;
+}
+
+static int tfa9865_set_swvstep(struct tfa_device *tfa, unsigned short new_value)
+{
+	/* Set the new value in the struct */
+	tfa->vstep = new_value - 1;
+
+	/* Set the new value in the hw register */
+	tfa_set_bf_v6_volatile(tfa, TFA9865_BF_SWVSTEP, new_value);
+
+	return new_value;
+}
+
+static int tfa9865_get_swvstep(struct tfa_device *tfa)
+{
+	return tfa_get_bf_v6(tfa, TFA9865_BF_SWVSTEP) - 1;
+}
+
+/* tfa98xx_dsp_system_stable
+*  return: *ready = 1 when clocks are stable to allow DSP subsystem access
+*/
+static enum Tfa98xx_Error tfa9865_dsp_system_stable(struct tfa_device *tfa, int *ready)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+
+	/* check CLKS: ready if set */
+	*ready = tfa_get_bf_v6(tfa, TFA9865_BF_CLKS) == 1;
+
+	return error;
+}
+
+void tfa9865_ops(struct tfa_device_ops *ops)
+{
+	/* Set defaults for ops */
+	set_ops_defaults(ops);
+
+	ops->get_mtpb = NULL; /* no mtp, used as check for new efuse types */
+	ops->tfa_init = tfa9865_specific;
+	ops->set_swprof = tfa9865_set_swprofile;
+	ops->get_swprof = tfa9865_get_swprofile;
+	ops->set_swvstep = tfa9865_set_swvstep;
+	ops->get_swvstep = tfa9865_get_swvstep;
+	ops->dsp_system_stable = tfa9865_dsp_system_stable;
+	ops->set_mute = tfa_set_mute_nodsp;
+	ops->tfa_set_bitfield = tfa9865_set_bitfield;
+	ops->tfa_status = tfa9865_tfa_status;
+}
+
 /***********************************************************************************/
 /* TFA9872                                                                         */
 /***********************************************************************************/

@@ -29,6 +29,12 @@ extern char ftm_spk_resistance[24];
 extern bool aging_flag;
 #endif /* OPLUS_ARCH_EXTENDS */
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/*Add for smartpa err feedback.*/
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#define OPLUS_AUDIO_EVENTID_SMARTPA_ERR    10041
+#endif
+
 /* handle macro for bitfield */
 #define TFA_MK_BF(reg, pos, len) ((reg<<8)|(pos<<4)|(len-1))
 
@@ -54,6 +60,8 @@ extern bool aging_flag;
 #define MIN_BATT_LEVEL 640
 #define MAX_BATT_LEVEL 670
 void tfanone_ops(struct tfa_device_ops *ops);
+void tfa9865_ops(struct tfa_device_ops *ops);
+void tfa986x_ops(struct tfa_device_ops *ops);
 void tfa9872_ops(struct tfa_device_ops *ops);
 /*To support tfa9873*/
 void tfa9873_ops(struct tfa_device_ops *ops);
@@ -248,6 +256,7 @@ void tfa_set_query_info(struct tfa_device *tfa)
 	tfa->vstep = -1;
 	/* defaults */
 	tfa->is_probus_device = 0;
+	tfa->is_otp_device = 0;
 	/*To support tfa9873*/
 	tfa->advance_keys_handling = 0; /*artf65038*/
 	tfa->tfa_family = 1;
@@ -265,7 +274,7 @@ void tfa_set_query_info(struct tfa_device *tfa)
 
 	/* TODO use the getfeatures() for retrieving the features [artf103523]
 	tfa->supportDrc = supportNotSet;*/
-
+	pr_info("device type : 0x%02x\n", tfa->rev);
 	switch (tfa->rev & 0xff) {
 	case 0: /* tfanone : non-i2c external DSP device */
 		/* e.g. qc adsp */
@@ -275,6 +284,28 @@ void tfa_set_query_info(struct tfa_device *tfa)
 		tfa->daimap = 0;
 		tfanone_ops(&tfa->dev_ops); /* register device operations via tfa hal*/
 		tfa->bus=1;
+		break;
+	case 0x65:
+		/* tfa9865 */
+		tfa->supportDrc = supportYes;
+		tfa->tfa_family = 2;
+		tfa->spkr_count = 1;
+		tfa->is_probus_device = 1;
+		tfa->is_otp_device = 1;
+		tfa->advance_keys_handling = 1; /*artf65038*/
+		tfa->daimap = Tfa98xx_DAI_TDM;
+		tfa9865_ops(&tfa->dev_ops); /* register device operations */
+		break;
+	case 0x66:
+		/* tfa9866 */
+		tfa->supportDrc = supportYes;
+		tfa->tfa_family = 2;
+		tfa->spkr_count = 1;
+		tfa->is_probus_device = 1;
+		tfa->is_otp_device = 1;
+		tfa->advance_keys_handling = 1; /*artf65038*/
+		tfa->daimap = Tfa98xx_DAI_TDM;
+		tfa986x_ops(&tfa->dev_ops); /* register device operations */
 		break;
 	case 0x72:
 		/* tfa9872 */
@@ -396,6 +427,8 @@ int tfa98xx_dev2family_v6(int dev_type)
 	case 0x73:
 	case 0x13:
 	case 0x74:
+	case 0x65:
+	case 0x66:
 	case 0x94:
 		return 2;
 	case 0x50:
@@ -764,17 +797,19 @@ enum Tfa98xx_Error tfa98xx_get_mtp_v6(struct tfa_device *tfa, uint16_t *value)
 	int result;
 
 	/* not possible if PLL in powerdown */
-	if ( TFA_GET_BF(tfa, PWDN) ) {
-		pr_info("PLL in powerdown\n");
-		return Tfa98xx_Error_NoClock;
-	}
+	if (tfa->tfa_family == 1) {
+		/* not possible if PLL in powerdown */
+		if (TFA_GET_BF(tfa, PWDN)) {
+			pr_info("PLL in powerdown\n");
+			return Tfa98xx_Error_NoClock;
+		}
 
-	tfa98xx_dsp_system_stable_v6(tfa, &status);
-	if (status==0) {
-		pr_info("PLL not running\n");
-		return Tfa98xx_Error_NoClock;
+		tfa98xx_dsp_system_stable_v6(tfa, &status);
+		if (status == 0) {
+			pr_info("PLL not running\n");
+			return Tfa98xx_Error_NoClock;
+		}
 	}
-
 	result = TFA_READ_REG(tfa, MTP0);
 	if (result <  0) {
 		return -result;
@@ -807,8 +842,13 @@ void tfa2_manual_mtp_cpy(struct tfa_device *tfa, uint16_t reg_row_to_keep, uint1
 {
 	uint16_t value;
 	int loop = 0;
-	enum Tfa98xx_Error error;
-/* Assure FAIM is enabled (enable it when neccesery) */
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+
+	if (tfa->is_otp_device) {
+		return;
+	}
+
+	/* Assure FAIM is enabled (enable it when neccesery) */
 	if (tfa->is_probus_device)
 	{
 		error = tfa98xx_faim_protect(tfa, 1);
@@ -847,7 +887,11 @@ enum Tfa98xx_Error tfa98xx_set_mtp_v6(struct tfa_device *tfa, uint16_t value, ui
 {
 	unsigned short mtp_old, mtp_new;
 	int loop, status;
-	enum Tfa98xx_Error error;
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+
+	if (tfa->is_otp_device) {
+		return Tfa98xx_Error_Ok;
+	}
 
 	error = tfa98xx_get_mtp_v6(tfa, &mtp_old);
 
@@ -1171,21 +1215,34 @@ static enum Tfa98xx_Error
 tfa98xx_check_ic_rom_version(struct tfa_device *tfa, const unsigned char patchheader[])
 {
 	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
-	unsigned short checkrev, revid;
-	unsigned char lsb_revid;
+	unsigned short checkrev;
+	unsigned char msb_revid, lsb_revid;
 	unsigned short checkaddress;
-	int checkvalue;
+	int checkvalue, revid, devid;
 	int value = 0;
 	int status;
-	checkrev = patchheader[0];
-	lsb_revid = tfa->rev & 0xff; /* only compare lower byte */
 
-	if ((checkrev != 0xFF) && (checkrev != lsb_revid))
+	lsb_revid = patchheader[0];
+	msb_revid = patchheader[5];
+	checkrev = tfa->rev & 0xff; /* only compare lower byte like 9865 : 0x65; 9875 : 0x75 */
+
+	devid = tfa_cnt_get_devid_v6(tfa->cnt, tfa->dev_idx);
+	if ((devid == tfa->rev) || (devid == tfa->revid)) {
+		return error;
+	}
+
+	if ((lsb_revid != 0xFF) && (checkrev != lsb_revid)) {
 		return Tfa98xx_Error_Not_Supported;
+	}
+
+	if((checkrev != 0x74) && ((msb_revid & 0xF) <= 0x5)) {
+		msb_revid = msb_revid + 0x0a;
+		// in case the patch file contains numbers instead of HEX letters ex.: 0 = A, 1 = B
+	}
 
 	checkaddress = (patchheader[1] << 8) + patchheader[2];
-	checkvalue =
-	    (patchheader[3] << 16) + (patchheader[4] << 8) + patchheader[5];
+	checkvalue = (patchheader[3] << 16) + (patchheader[4] << 8) + msb_revid;
+
 	if (checkaddress != 0xFFFF) {
 		/* before reading XMEM, check if we can access the DSP */
 		error = tfa98xx_dsp_system_stable_v6(tfa, &status);
@@ -1201,7 +1258,7 @@ tfa98xx_check_ic_rom_version(struct tfa_device *tfa, const unsigned char patchhe
 		}
 		if (error == Tfa98xx_Error_Ok) {
 			if (value != checkvalue) {
-				pr_err("patch file romid type check failed [0x%04x]: expected 0x%02x, actual 0x%02x\n",
+				pr_err("patch file romid mismatch [0x%04x]: expected 0x%02x, actual 0x%02x\n",
 						checkaddress, value, checkvalue);
 				error = Tfa98xx_Error_Not_Supported;
 			}
@@ -1209,9 +1266,14 @@ tfa98xx_check_ic_rom_version(struct tfa_device *tfa, const unsigned char patchhe
 	} else { /* == 0xffff */
 		/* check if the revid subtype is in there */
 		if ( checkvalue != 0xFFFFFF && checkvalue != 0) {
-			revid = patchheader[5]<<8 | patchheader[0]; /* full revid */
+			revid = (msb_revid << 8) | lsb_revid; /* full revid */
 			if ( revid != tfa->rev) {
-				pr_err("patch file device type check failed: expected 0x%02x, actual 0x%02x\n",
+				if (revid != tfa->revid) {
+					pr_err("container patch and HW mismatch: expected: 0x%02x, actual 0x%02x\n",
+						tfa->revid, revid);
+					return Tfa98xx_Error_Not_Supported;
+				}
+				pr_err("container patch and HW mismatch: expected: 0x%02x, actual 0x%02x\n",
 						tfa->rev, revid);
 				return Tfa98xx_Error_Not_Supported;
 			}
@@ -2284,35 +2346,46 @@ enum Tfa98xx_Error tfa98xx_dsp_get_state_info_v6(struct tfa_device *tfa, unsigne
 
 enum Tfa98xx_Error tfa98xx_dsp_support_drc_v6(struct tfa_device *tfa, int *pbSupportDrc)
 {
-    enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	char firmware_version[4] = { 0 };
 
-    *pbSupportDrc = 0;
+	*pbSupportDrc = 0;
 
-    if(tfa->in_use == 0)
-        return Tfa98xx_Error_NotOpen;
-    if (tfa->supportDrc != supportNotSet) {
-        *pbSupportDrc = (tfa->supportDrc == supportYes);
-    } else {
-        int featureBits[2];
+	if(tfa->in_use == 0)
+		return Tfa98xx_Error_NotOpen;
+	if (tfa->supportDrc != supportNotSet) {
+		if (tfa->tfa_family == 2) {
+			error = tfaGetFwApiVersion(tfa, (unsigned char*)&firmware_version[0]);
+			if (error != Tfa98xx_Error_Ok) {
+				return error;
+			}
+			if (firmware_version[0] == 10) { /* SB FW ProtectionOnly Config */
+				tfa->supportDrc = supportNo;
+			}
+		}
+		*pbSupportDrc = (tfa->supportDrc == supportYes);
+	} else {
+		int featureBits[2];
 
-        error = tfa98xx_dsp_get_sw_feature_bits_v6(tfa, featureBits);
-        if (error == Tfa98xx_Error_Ok) {
-            /* easy case: new API available */
-            /* bit=0 means DRC enabled */
-            *pbSupportDrc = (featureBits[0] & FEATURE1_DRC) == 0;
-        } else if (error == Tfa98xx_Error_RpcParamId) {
-            /* older ROM code, doesn't support it */
-            *pbSupportDrc = 0;
-            error = Tfa98xx_Error_Ok;
-        }
-        /* else some other error, return transparently */
-        /* pbSupportDrc only changed when error == Tfa98xx_Error_Ok */
+		error = tfa98xx_dsp_get_sw_feature_bits_v6(tfa, featureBits);
+		if (error == Tfa98xx_Error_Ok) {
+			/* easy case: new API available */
+			/* bit=0 means DRC enabled */
+			*pbSupportDrc = (featureBits[0] & FEATURE1_DRC) == 0;
+		} else if (error == Tfa98xx_Error_RpcParamId) {
+			/* older ROM code, doesn't support it */
+			*pbSupportDrc = 0;
+			error = Tfa98xx_Error_Ok;
+		}
+		/* else some other error, return transparently */
+		/* pbSupportDrc only changed when error == Tfa98xx_Error_Ok */
 
-        if (error == Tfa98xx_Error_Ok) {
-        	tfa->supportDrc = *pbSupportDrc ? supportYes : supportNo;
-        }
-    }
-    return error;
+		if (error == Tfa98xx_Error_Ok) {
+			tfa->supportDrc = *pbSupportDrc ? supportYes : supportNo;
+		}
+	}
+
+	return error;
 }
 
 enum Tfa98xx_Error
@@ -2442,9 +2515,22 @@ enum Tfa98xx_Error tfa98xx_dsp_write_drc_v6(struct tfa_device *tfa,
 enum Tfa98xx_Error tfa98xx_powerdown_v6(struct tfa_device *tfa, int powerdown)
 {
 	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	int change = 0, lnm = 0;
 
 	if (tfa->in_use == 0)
 		return Tfa98xx_Error_NotOpen;
+
+	pr_info("%s: tfa98xx_powerdown_v6 enter.\n", __func__);
+
+	/* set low gain to avoid powerdown pop */
+	if (powerdown && (tfa->rev & 0xff) == 0x66 &&
+			tfa_get_bf_v6(tfa, TFA986X_BF_DUALCELL) == 1 &&
+			tfa_get_bf_v6(tfa, TFA986X_BF_LPMS) == 1) {
+		change = 1;
+		lnm = tfa_get_bf_v6(tfa, TFA986X_BF_LNM);
+		tfa_set_bf_v6(tfa, TFA986X_BF_LNM, 3);
+		pr_info("%s: set lnm 3 before powerdown.\n", __func__);
+	}
 
 	error = TFA_SET_BF(tfa, PWDN, (uint16_t)powerdown);
 
@@ -2453,6 +2539,12 @@ enum Tfa98xx_Error tfa98xx_powerdown_v6(struct tfa_device *tfa, int powerdown)
 		if (tfa->tfa_family == 2) {
 			TFA_SET_BF_VOLATILE(tfa, AMPE, 0);
 		}
+	}
+
+	/* restore gain after powerdown */
+	if (change) {
+		tfa_set_bf_v6(tfa, TFA986X_BF_LNM, lnm);
+		pr_info("%s: restore lnm[%d] after powerdown.\n", __func__, lnm);
 	}
 
 	return error;
@@ -2719,6 +2811,8 @@ enum Tfa98xx_Error show_current_state_v6(struct tfa_device *tfa)
 	if (tfa->tfa_family == 2 && tfa->verbose) {
 		if (is_94_N2_device(tfa))
 			manstate = tfa_get_bf_v6(tfa, TFA9894N2_BF_MANSTATE);
+		else if ((tfa->rev & 0xff) == 0x66)
+			manstate = tfa_get_bf_v6(tfa, TFA986X_BF_MANSTATE);
 		else
 			manstate = TFA_GET_BF(tfa, MANSTATE);
 		if (manstate < 0)
@@ -2827,7 +2921,7 @@ enum Tfa98xx_Error tfaGetFwApiVersion(struct tfa_device *tfa, unsigned char *pFi
 		   Firmware cannot return the 4th field (mono/stereo) of ITF version correctly, as it requires
 		   certain set of messages to be sent before it can detect itself as a mono/stereo configuration.
 		   Hence, HostSDK need to handle this at system level */
-		if ((pFirmwareVersion[0] != 2) && (pFirmwareVersion[1] >= 31)) {
+		if (((pFirmwareVersion[0] == 8) && (pFirmwareVersion[1] >= 31)) || ((pFirmwareVersion[0] == 10))) {
 			pFirmwareVersion[3] = 1;
 		}
 	}
@@ -3433,6 +3527,40 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep
 		tfa_dev_set_swprof(tfa, (unsigned short)next_profile);
 		tfa_dev_set_swvstep(tfa, (unsigned short)tfa->vstep);
 
+		/*Update amp_ciff_trim for dualcell battery*/
+		if ((tfa->rev & 0xff) == 0x66 &&
+			tfa_get_bf_v6(tfa, TFA986X_BF_DUALCELL) &&
+			tfa_get_bf_v6(tfa, 0xf3f0) == 0) {
+			uint16_t dualcell_trims[16] = {6, 7, 7, 7,
+							7, 7, 7, 7,
+							0, 1, 1, 1,
+							2, 3, 4, 5};
+			uint16_t defaults = tfa_get_bf_v6(tfa, 0xf053);
+			uint16_t new_trim = 0;
+			#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+			#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+
+			if (defaults < (sizeof(dualcell_trims) / sizeof(uint16_t))) {
+				/* set mapped trim value*/
+				tfa_set_bf_v6(tfa, 0xf053, dualcell_trims[defaults]);
+				/* readback new trim value */
+				new_trim = tfa_get_bf_v6(tfa, 0xf053);
+
+				pr_info("%s: dev:0x%x set trim from %d to %d\n", __func__,
+					tfa->slave_address, defaults, new_trim);
+				#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+				if (dualcell_trims[defaults] != new_trim) {
+					scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@tfa_dev_start:update trim failed");
+					mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, 0, FB_HIGH, fd_buf);
+				}
+				#endif
+			} else {
+				pr_err("%s: dev:0x%x get error default trim value:%d\n", __func__,
+					tfa->slave_address, defaults);
+			}
+		}
+
 		/* PLMA5539: Gives information about current setting of powerswitch */
 		if (tfa->verbose) {
 			if (!tfa98xx_powerswitch_is_enabled(tfa))
@@ -3592,6 +3720,8 @@ int tfa_reset_v6(struct tfa_device *tfa)
 			for (retry_cnt = 0; retry_cnt < TFA98XX_WAITRESULT_NTRIES; retry_cnt++) {
 				if (is_94_N2_device(tfa))
 					state = tfa_get_bf_v6(tfa, TFA9894N2_BF_MANSTATE);
+				else if ((tfa->rev & 0xff) == 0x66)
+					state = tfa_get_bf_v6(tfa, TFA986X_BF_MANSTATE);
 				else
 					state = TFA_GET_BF(tfa, MANSTATE);
 				if (state < 0) {
@@ -3697,12 +3827,12 @@ enum Tfa98xx_Error tfa_dsp_get_calibration_impedance_v6(struct tfa_device *tfa)
 
 	error = tfa_supported_speakers(tfa, &spkr_count);
 
-	#ifndef OPLUS_ARCH_EXTENDS
-	/*Add for aging calibration*/
-	if (tfa_dev_mtp_get(tfa, TFA_MTP_OTC)) {
-	#else /* OPLUS_ARCH_EXTENDS */
-	if (tfa_dev_mtp_get(tfa, TFA_MTP_OTC) && !aging_flag) {
-	#endif /* OPLUS_ARCH_EXTENDS */
+	#ifndef OPLUS_CALIBRATION
+	if (!tfa->is_otp_device && tfa_dev_mtp_get(tfa, TFA_MTP_OTC)) {
+	#else /* OPLUS_CALIBRATION */
+	if (!tfa->is_otp_device &&
+		tfa_dev_mtp_get(tfa, TFA_MTP_OTC) && !aging_flag) {
+	#endif /* OPLUS_CALIBRATION */
 		pr_debug("Getting calibration values from MTP\n");
 
 		if((tfa->rev & 0xFF) == 0x88) {
@@ -3823,7 +3953,10 @@ int tfa_dev_set_swvstep(struct tfa_device *tfa, unsigned short new_value)
  */
 int tfa_dev_get_mtpb(struct tfa_device *tfa)
 {
-	return (tfa->dev_ops.get_mtpb)(tfa);
+	if (tfa->dev_ops.get_mtpb == NULL)
+		return 0;
+	else
+		return (tfa->dev_ops.get_mtpb)(tfa);
 }
 
 int tfa_is_cold(struct tfa_device *tfa)
@@ -4052,7 +4185,7 @@ enum Tfa98xx_Error dsp_partial_coefficients(struct tfa_device *tfa, uint8_t *pre
 /* fill context info */
 int tfa_dev_probe(int slave, struct tfa_device *tfa)
 {
-	uint16_t rev;
+	uint16_t rev, reg_6, msb_rev;
 
 	tfa->slave_address = (unsigned char)slave;
 
@@ -4060,6 +4193,15 @@ int tfa_dev_probe(int slave, struct tfa_device *tfa)
 	if (tfa98xx_read_register16_v6(tfa, 3, &rev) != Tfa98xx_Error_Ok) {
 		pr_err("Error: Unable to read revid from slave:0x%02x\n", slave);
 		return -1;
+	}
+	if ((rev >> 8) == 0x98) { /* new family has 0x98 in rev MSB */
+		/*overwriteing tfa->rev MSB with the revision number to match with older devices representation*/
+		if (tfa98xx_read_register16_v6(tfa, 6, &reg_6) != Tfa98xx_Error_Ok) {
+			pr_err("Error: Unable to read revid from slave:0x%02x \n", slave);
+			return -1;
+		}
+		msb_rev = (reg_6 >> 8) + 0x0a;
+		rev = msb_rev << 8 | (rev & 0xff);
 	}
 
 	tfa->rev = rev;
@@ -4216,6 +4358,8 @@ enum tfa_state tfa_dev_get_state(struct tfa_device *tfa)
 	} else /* family 2 */ {
 		if (is_94_N2_device(tfa))
 			manstate = tfa_get_bf_v6(tfa, TFA9894N2_BF_MANSTATE);
+		else if ((tfa->rev & 0xff) == 0x66)
+			manstate = tfa_get_bf_v6(tfa, TFA986X_BF_MANSTATE);
 		else
 			manstate = TFA_GET_BF(tfa, MANSTATE);
 		switch(manstate) {
@@ -4239,6 +4383,10 @@ enum tfa_state tfa_dev_get_state(struct tfa_device *tfa)
 int tfa_dev_mtp_get(struct tfa_device *tfa, enum tfa_mtp item)
 {
 	int value = 0;
+
+	if (tfa->is_otp_device) {
+		return value;
+	}
 
 	#ifdef OPLUS_ARCH_EXTENDS
 	/*Add for null point issue at boot*/
@@ -4288,6 +4436,10 @@ int tfa_dev_mtp_get(struct tfa_device *tfa, enum tfa_mtp item)
 enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int value)
 {
 	enum tfa_error err = tfa_error_ok;
+
+	if (tfa->is_otp_device) {
+		return err;
+	}
 
 	#ifdef OPLUS_ARCH_EXTENDS
 	/*Add for null point issue at boot*/
@@ -4405,6 +4557,26 @@ enum Tfa98xx_Error tfa_status(struct tfa_device *tfa)
 	}
 
 	return Tfa98xx_Error_Ok;
+}
+
+int tfa_wait4manstate(struct tfa_device *tfa, uint16_t bf, uint16_t wait_value, int loop)
+{
+	//TODO use tfa->reg_time;
+	int value = 0, rc = 0;
+	int loop_arg = loop;
+
+	do {
+		value = tfa_get_bf_v6(tfa, bf); /* read */
+	} while (value < wait_value && --loop);
+
+	rc = loop ? 0 : -ETIME;
+
+	if (rc == -ETIME) {
+		pr_err("timeout waiting for bitfield:0x%04x, value:%d, %d times\n",
+			bf, wait_value, loop_arg);
+	}
+
+	return rc;
 }
 
 #define NR_OF_BATS 10

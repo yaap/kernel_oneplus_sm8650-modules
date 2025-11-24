@@ -22,6 +22,22 @@
 #include "wcd9378-registers.h"
 #include "internal.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err_ratelimited
+#undef dev_err_ratelimited
+#define dev_err_ratelimited dev_err_ratelimited_fb
+#endif
+#ifdef pr_err_ratelimited
+#undef pr_err_ratelimited
+#define pr_err_ratelimited pr_err_ratelimited_fb
+#endif
+#ifdef pr_err
+#undef pr_err
+#define pr_err pr_err_fb_delay
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 #define WCD9378_ZDET_SUPPORTED          true
 /* Z value defined in milliohm */
 #define WCD9378_ZDET_VAL_0              0
@@ -378,6 +394,35 @@ static int wcd9378_mbhc_micb_ctrl_threshold_mic(
 
 	return rc;
 }
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for dio switch plug in pop noise */
+static int wcd9378_mbhc_micbias_adjust_voltage(
+						struct snd_soc_component *component,
+						int micb_num, u32 mb_mv)
+{
+	int rc, micb_mv;
+
+	if (NULL == component)
+		return -EINVAL;
+
+	if (micb_num != MIC_BIAS_2)
+		return -EINVAL;
+
+	dev_dbg(component->dev, "%s: mb_mv: %d\n",__func__, mb_mv);
+
+	if (mb_mv > WCD_MBHC_THR_HS_MICB_MV) {
+		pr_debug("%s:mb_mv is invalid!", __func__);
+		return 0;
+	}
+
+	micb_mv = mb_mv;
+
+	rc = wcd9378_mbhc_micb_adjust_voltage(component, micb_mv, MIC_BIAS_2);
+
+	return rc;
+}
+#endif /* OPLUS_ARCH_EXTENDS */
 
 static inline void wcd9378_mbhc_get_result_params(struct wcd9378_priv *wcd9378,
 						s16 *d1_a, u16 noff,
@@ -853,6 +898,10 @@ static const struct wcd_mbhc_cb mbhc_cb = {
 	.mbhc_moisture_polling_ctrl = wcd9378_mbhc_moisture_polling_ctrl,
 	.mbhc_moisture_detect_en = wcd9378_mbhc_moisture_detect_en,
 	.bcs_enable = wcd9378_mbhc_bcs_enable,
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for dio switch plug in pop noise  */
+	.mbhc_micbias_adjust_voltage = wcd9378_mbhc_micbias_adjust_voltage,
+#endif /* OPLUS_ARCH_EXTENDS */
 };
 
 static int wcd9378_get_hph_type(struct snd_kcontrol *kcontrol,
@@ -899,6 +948,60 @@ static int wcd9378_hph_impedance_get(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for test audio-kernel err feedback and headphone detect err feedback*/
+static int wcd9378_set_feedback_control(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+					snd_soc_kcontrol_component(kcontrol);
+	struct wcd9378_mbhc *wcd9378_mbhc = wcd9378_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc;
+
+	if (!wcd9378_mbhc) {
+		dev_err_ratelimited(component->dev, "%s: mbhc not initialized!\n", __func__);
+		return -EINVAL;
+	}
+
+	mbhc = &wcd9378_mbhc->wcd_mbhc;
+
+	mbhc->fb_ctl = ucontrol->value.integer.value[0];
+	pr_info("%s: set %u", __func__, mbhc->fb_ctl);
+
+	if (mbhc->fb_ctl & TEST_KERNEL_FEEDBACK_10047) {
+		pr_err("%s: just for test 10047, igonre", __func__);
+	}
+
+	return 0;
+}
+
+static int wcd9378_get_feedback_control(struct snd_kcontrol *kcontrol,
+						struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+					snd_soc_kcontrol_component(kcontrol);
+	struct wcd9378_mbhc *wcd9378_mbhc = wcd9378_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc;
+
+	if (!wcd9378_mbhc) {
+		dev_err_ratelimited(component->dev, "%s: mbhc not initialized!\n", __func__);
+		return -EINVAL;
+	}
+
+	mbhc = &wcd9378_mbhc->wcd_mbhc;
+
+	ucontrol->value.integer.value[0] = mbhc->fb_ctl;
+	pr_info("%s: get %u", __func__, mbhc->fb_ctl);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new feedback_controls[] = {
+	SOC_SINGLE_EXT("FEEDBACK_CONTROL", SND_SOC_NOPM, 0, 0xff, 0,
+			wcd9378_get_feedback_control, wcd9378_set_feedback_control),
+};
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 static const struct snd_kcontrol_new hph_type_detect_controls[] = {
 	SOC_SINGLE_EXT("HPH Type", 0, 0, UINT_MAX, 0,
@@ -995,6 +1098,15 @@ void wcd9378_mbhc_hs_detect_exit(struct snd_soc_component *component)
 		return;
 	}
 	wcd_mbhc_stop(&wcd9378_mbhc->wcd_mbhc);
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* disable micbias2 during ssr. CR#4097496 */
+	if (wcd9378_mbhc->wcd_mbhc.micbias_enable) {
+		wcd9378_micbias_control(component,
+				MIC_BIAS_2, MICB_DISABLE, false);
+		wcd9378_mbhc->wcd_mbhc.micbias_enable = false;
+	}
+#endif /* OPLUS_ARCH_EXTENDS */
 }
 EXPORT_SYMBOL_GPL(wcd9378_mbhc_hs_detect_exit);
 
@@ -1056,8 +1168,18 @@ int wcd9378_mbhc_post_ssr_init(struct wcd9378_mbhc *mbhc,
 	/* Reset detection type to insertion after SSR recovery */
 	snd_soc_component_update_bits(component, WCD9378_ANA_MBHC_MECH,
 				0x20, 0x20);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for headphone volume match to impedance */
+	if (wcd_mbhc->enable_hp_impedance_detect)
+		ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb, &intr_ids,
+					wcd_mbhc_registers, true);
+	else
+		ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb, &intr_ids,
+					wcd_mbhc_registers, false);
+#else /* OPLUS_ARCH_EXTENDS */
 	ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb, &intr_ids,
 			    wcd_mbhc_registers, WCD9378_ZDET_SUPPORTED);
+#endif /* OPLUS_ARCH_EXTENDS */
 	if (ret) {
 		dev_err(component->dev, "%s: mbhc initialization failed\n",
 			__func__);
@@ -1094,6 +1216,12 @@ int wcd9378_mbhc_init(struct wcd9378_mbhc **mbhc,
 	int ret = 0;
 	struct wcd9378_pdata *pdata;
 	struct wcd9378_priv *wcd9378 = NULL;
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for headphone volume match to impedance */
+	u32 enable_hp_impedance_detect = 0;
+	int rc = 0;
+	const char *mbhc_enable_hp_impedance_detect = "oplus,mbhc_enable_hp_impedance_detect";
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (!component) {
 		pr_err("%s: component is NULL\n", __func__);
@@ -1124,19 +1252,60 @@ int wcd9378_mbhc_init(struct wcd9378_mbhc **mbhc,
 
 	pdata = dev_get_platdata(component->dev);
 	if (!pdata) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_fb_fatal_delay(component->dev, "%s: pdata pointer is NULL\n", __func__);
+#else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 		dev_err(component->dev, "%s: pdata pointer is NULL\n",
 			__func__);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 		ret = -EINVAL;
 		goto err;
 	}
 	wcd_mbhc->micb_mv = pdata->micbias.micb2_mv;
 
+#ifdef OPLUS_ARCH_EXTENDS
+/* Add for headphone volume match to impedance */
+	wcd_mbhc->enable_hp_impedance_detect = false;
+	if (of_find_property(component->dev->of_node, mbhc_enable_hp_impedance_detect, NULL)) {
+		rc = of_property_read_u32(component->dev->of_node, mbhc_enable_hp_impedance_detect, &enable_hp_impedance_detect);
+		if (!rc) {
+			if (enable_hp_impedance_detect) {
+				wcd_mbhc->enable_hp_impedance_detect = true;
+			} else {
+				wcd_mbhc->enable_hp_impedance_detect = false;
+			}
+		} else {
+			dev_info(component->dev, "%s: Looking up %s property in node %s failed\n",
+				__func__, mbhc_enable_hp_impedance_detect, component->dev->of_node->full_name);
+		}
+	} else {
+		dev_info(component->dev, "%s: %s DT property not found\n", __func__, mbhc_enable_hp_impedance_detect);
+	}
+	dev_info(component->dev, "%s:enable_hp_impedance_detect(%d)\n", __func__, wcd_mbhc->enable_hp_impedance_detect);
+#endif /* OPLUS_ARCH_EXTENDS */
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for headphone volume match to impedance */
+	if (wcd_mbhc->enable_hp_impedance_detect)
+		ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb,
+					&intr_ids, wcd_mbhc_registers,
+					true);
+	else
+		ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb,
+					&intr_ids, wcd_mbhc_registers,
+					false);
+#else /* OPLUS_ARCH_EXTENDS */
 	ret = wcd_mbhc_init(wcd_mbhc, component, &mbhc_cb,
 				&intr_ids, wcd_mbhc_registers,
 				WCD9378_ZDET_SUPPORTED);
+#endif /* OPLUS_ARCH_EXTENDS */
 	if (ret) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_fb_fatal_delay(component->dev, "%s: mbhc initialization failed\n", __func__);
+#else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 		dev_err(component->dev, "%s: mbhc initialization failed\n",
 			__func__);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 		goto err;
 	}
 
@@ -1154,6 +1323,12 @@ int wcd9378_mbhc_init(struct wcd9378_mbhc **mbhc,
 				   ARRAY_SIZE(impedance_detect_controls));
 	snd_soc_add_component_controls(component, hph_type_detect_controls,
 				   ARRAY_SIZE(hph_type_detect_controls));
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for test audio-kernel err feedback and headphone detect err feedback*/
+	snd_soc_add_component_controls(component, feedback_controls,
+				   ARRAY_SIZE(feedback_controls));
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return 0;
 err:

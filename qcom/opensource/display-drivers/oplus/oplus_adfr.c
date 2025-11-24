@@ -1686,12 +1686,19 @@ int oplus_adfr_sa_handle(void *sde_encoder_virt)
 		ADFR_ERR("invalid cur_mode param\n");
 		return -EINVAL;
 	}
-
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	/* idle mode are available only after power on */
+	if ((display->panel->power_mode != SDE_MODE_DPMS_ON) && !oplus_ofp_full_screen_aod_mode_is_enabled()) {
+		ADFR_DEBUG("should not handle idle mode when power mode is %u\n", display->panel->power_mode);
+		return 0;
+	}
+#else
 	/* auto mode, fakeframe and min fps are available only after power on */
 	if (display->panel->power_mode != SDE_MODE_DPMS_ON) {
 		ADFR_DEBUG("should not handle sa when power mode is %u\n", display->panel->power_mode);
 		return 0;
 	}
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 	h_skew = display->panel->cur_mode->timing.h_skew;
 
@@ -3359,11 +3366,19 @@ int oplus_adfr_idle_mode_handle(void *sde_encoder_virt, bool enter_idle)
 	}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	/* idle mode are available only after power on */
+	if ((display->panel->power_mode != SDE_MODE_DPMS_ON) && !oplus_ofp_full_screen_aod_mode_is_enabled()) {
+		ADFR_DEBUG("should not handle idle mode when power mode is %u\n", display->panel->power_mode);
+		return 0;
+	}
+#else
 	/* idle mode are available only after power on */
 	if (display->panel->power_mode != SDE_MODE_DPMS_ON) {
 		ADFR_DEBUG("should not handle idle mode when power mode is %u\n", display->panel->power_mode);
 		return 0;
 	}
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 	OPLUS_ADFR_TRACE_BEGIN("oplus_adfr_idle_mode_handle");
 

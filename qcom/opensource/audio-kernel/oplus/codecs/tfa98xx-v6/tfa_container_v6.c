@@ -681,6 +681,11 @@ enum Tfa98xx_Error tfaContWriteFile_v6(struct tfa_device *tfa,  nxpTfaFileDsc_t 
                 }
 				for (i = 0; i<3; i++)
 				{
+					if (tfa->fw_itf_ver[1] >= 34) {   // HSS-2353 : SB5.0 and greater
+						if (i == 2) {                 // ITF version check skipped in the 3rd field, update field
+							continue;
+						}
+					}
 					if (tfa->fw_itf_ver[i] != hdr->customer[i + 4]) //+4 to skip "?PIV" string part in the .msg file.
 					{
 						ERRORMSG("Error: tfaContWriteFile: Expected FW API version = %d.%d.%d, Msg File version: %d.%d.%d \n",
@@ -1632,7 +1637,7 @@ enum Tfa98xx_Error tfaContWriteProfile_v6(struct tfa_device *tfa, int prof_idx, 
 	char buffer[(MEMTRACK_MAX_WORDS * 4) + 4] = {0}; //every word requires 3 or 4 bytes, and 3 or 4 is the msg
 	unsigned int i, k=0, j=0, tries=0;
 	nxpTfaFileDsc_t *file;
-	int size = 0, ready, fs_previous_profile = 8; /* default fs is 48kHz*/
+	int manstate, size = 0, ready, fs_previous_profile = 8; /* default fs is 48kHz*/
 
 	if ( !prof || !previous_prof ) {
 		pr_err("Error trying to get the (previous) swprofile \n");
@@ -1666,13 +1671,37 @@ enum Tfa98xx_Error tfaContWriteProfile_v6(struct tfa_device *tfa, int prof_idx, 
 		/* When we switch profile we first power down the subsystem
 		 * This should only be done when we are in operating mode
 		 */
-		if (((tfa->tfa_family == 2) && (TFA_GET_BF(tfa, MANSTATE) >= 6)) || (tfa->tfa_family != 2)) {
+		if (is_94_N2_device(tfa))
+			manstate = tfa_get_bf_v6(tfa, TFA9894N2_BF_MANSTATE);
+		else if ((tfa->rev & 0xff) == 0x66)
+			manstate = tfa_get_bf_v6(tfa, TFA986X_BF_MANSTATE);
+		else
+			manstate = TFA_GET_BF(tfa, MANSTATE);
+		if (((tfa->tfa_family == 2) && (manstate >= 6)) || (tfa->tfa_family != 2)) {
 			err = tfa98xx_powerdown_v6(tfa, 1);
 			if (err) return err;
 
 			/* Wait until we are in PLL powerdown */
 			do {
 				err = tfa98xx_dsp_system_stable_v6(tfa, &ready);
+
+				if (is_94_N2_device(tfa))
+					manstate = tfa_get_bf_v6(tfa, TFA9894N2_BF_MANSTATE);
+				else if ((tfa->rev & 0xff) == 0x66)
+					manstate = tfa_get_bf_v6(tfa, TFA986X_BF_MANSTATE);
+				else
+					manstate = TFA_GET_BF(tfa, MANSTATE);
+				if (manstate == 6) {
+					TFA_SET_BF_VOLATILE(tfa, SBSL, 1);
+					msleep_interruptible(10); /* wait 10ms to avoid busload */
+					err = tfa98xx_powerdown_v6(tfa, 1);
+					if (err)
+						return err;
+				} else if (manstate == 0) {
+					/* Reset SBSL back after powering down */
+					TFA_SET_BF_VOLATILE(tfa, SBSL, 0);
+				}
+
 				if (!ready)
 					break;
 				else

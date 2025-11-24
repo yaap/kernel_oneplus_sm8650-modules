@@ -63,8 +63,7 @@ extern void oplus_tfa98xx_feedback_init(struct tfa98xx *tfa98xx,
 extern void oplus_tfa98xx_check_reg(struct tfa98xx *tfa98xx);
 extern void oplus_tfa98xx_queue_check_work(struct tfa98xx *tfa98xx);
 extern void oplus_tfa98xx_exit_check_work(struct tfa98xx *tfa98xx);
-extern void oplus_tfa98xx_get_dt(struct tfa98xx *tfa98xx, struct device_node *np);
-extern void oplus_tfa98xx_record_r0_f0_range(int r0_cal, uint32_t f0_min, uint32_t f0_max, int dev_idx);
+extern void oplus_tfa98xx_record_r0_f0_range(int r0_cal, int32_t f0_cal, int dev_idx);
 extern int oplus_need_check_calib_values(void);
 #endif
 
@@ -735,7 +734,7 @@ static enum Tfa98xx_Error tfa98xx_fres_cal_get(void)
 
 #ifdef OPLUS_ARCH_EXTENDS
 #define TFA_DEV_REG_CHECK_NUM 3
-enum Tfa98xx_Error tfa98xx_dsp_get_calibration_status(struct tfa98xx *tfa98xx, int dev_idx, int f0_support)
+enum Tfa98xx_Error tfa98xx_dsp_get_calibration_status(struct tfa98xx *tfa98xx, int dev_idx, int f0_support, bool aging_mode)
 {
 	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
 	enum Tfa98xx_Error errPrimarySpeaker = Tfa98xx_Error_Ok;
@@ -745,7 +744,9 @@ enum Tfa98xx_Error tfa98xx_dsp_get_calibration_status(struct tfa98xx *tfa98xx, i
 	char buffer[6] = { 0 };
 
 	if (1 == f0_support) {
-		fResCalDamageMask = TFADSP_FLAG_DAMAGED_FRESCAL;
+		if (aging_mode == false) {
+			fResCalDamageMask = TFADSP_FLAG_DAMAGED_FRESCAL;
+		}
 		vSenseDamageMask = TFADSP_FLAG_DAMAGED_VSENSE_P | TFADSP_FLAG_DAMAGED_VSENSE_S;
 	}
 
@@ -1021,7 +1022,7 @@ static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *sp
 				tfa98xx->tfa->mohm[0] = 0;
 			}
 			// check the status here!!
-			err = tfa98xx_dsp_get_calibration_status(tfa98xx, i, tfa98xx->is_use_freq);
+			err = tfa98xx_dsp_get_calibration_status(tfa98xx, i, tfa98xx->is_use_freq, b_aging);
 			if (err == Tfa9xxx_Error_SpeakerError)
 				num_spkr_in_error++;
 
@@ -5081,16 +5082,17 @@ enum Tfa98xx_Error tfa98xx_adsp_send_calib_values(void)
         }
 #endif
         dsp_cal_value = (value * 65536) / 1000;
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-		/* Add for smartpa err feedback.*/
-        oplus_tfa98xx_record_r0_f0_range(value, tfa98xx->f0_min, tfa98xx->f0_max, tfa98xx->tfa->dev_idx);
-#endif
 
         if (tfa98xx->is_use_freq) {
             fres_mtp = tfa_dev_mtp_get(tfa, TFA_MTP_F0);
             fres = (fres_mtp * 2) + 300;
             dsp_fres_value = (uint32_t)(2048 * fres);
         }
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+        /* Add for smartpa err feedback.*/
+        oplus_tfa98xx_record_r0_f0_range(value, fres, tfa98xx->tfa->dev_idx);
+#endif
 
         if ((TFA_GET_BF(tfa, MTPEX) == 1) &&(tfa98xx->tfa->dev_idx == 0)){
             nr = 4;
@@ -6114,10 +6116,6 @@ int tfa98xx_i2c_probe(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "Failed to parse tfa_need_reverse node\n");
 		tfa98xx->tfa->is_need_reverse = 0;
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
-	oplus_tfa98xx_get_dt(tfa98xx, i2c->dev.of_node);
-#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
 	dev_err(&i2c->dev, "channel=%d   (0-left/top, 1-right/bottom, 0xff-default, not initialized)\n",
 			tfa98xx->tfa->channel);

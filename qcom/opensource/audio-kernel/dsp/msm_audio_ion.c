@@ -317,7 +317,12 @@ static int msm_audio_ion_unmap_kernel(struct dma_buf *dma_buf, struct msm_audio_
 		dev_err(cb_dev,
 			"%s: cannot find allocation for dma_buf %pK",
 			__func__, dma_buf);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+		rc = -ENOENT;
+#else /* OPLUS_ARCH_EXTENDS */
 		rc = -EINVAL;
+#endif /* OPLUS_ARCH_EXTENDS */
 		goto err;
 	}
 
@@ -400,24 +405,45 @@ void msm_audio_update_fd_list(struct msm_audio_fd_data *msm_audio_fd_data)
 	mutex_unlock(&(msm_audio_ion_fd_list.list_mutex));
 }
 
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+void msm_audio_delete_fd_entry(void *handle, int handle_fd)
+#else /* OPLUS_ARCH_EXTENDS */
 void msm_audio_delete_fd_entry(void *handle)
+#endif /* OPLUS_ARCH_EXTENDS */
 {
 	struct msm_audio_fd_data *msm_audio_fd_data = NULL;
 	struct list_head *ptr, *next;
 
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+	if (!handle || !handle_fd) {
+		pr_err("%s Invalid handle or fd\n", __func__);
+		return;
+	}
+#else /* OPLUS_ARCH_EXTENDS */
 	if (!handle) {
 		pr_err("%s Invalid handle\n", __func__);
 		return;
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	mutex_lock(&(msm_audio_ion_fd_list.list_mutex));
 	list_for_each_safe(ptr, next,
 			&msm_audio_ion_fd_list.fd_list) {
 		msm_audio_fd_data = list_entry(ptr, struct msm_audio_fd_data,
 					list);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+		if (msm_audio_fd_data->handle == handle
+				&& msm_audio_fd_data->fd == handle_fd) {
+			pr_debug("%s deleting handle %pK with fd = %d entry from list\n",
+				__func__, handle, handle_fd);
+#else /* OPLUS_ARCH_EXTENDS */
 		if (msm_audio_fd_data->handle == handle) {
 			pr_debug("%s deleting handle %pK entry from list\n",
 				__func__, handle);
+#endif /* OPLUS_ARCH_EXTENDS */
 			list_del(&(msm_audio_fd_data->list));
 			kfree(msm_audio_fd_data);
 			break;
@@ -743,9 +769,21 @@ static long msm_audio_ion_ioctl(struct file *file, unsigned int ioctl_num,
 		ret = msm_audio_ion_free(mem_handle, ion_data);
 		if (ret < 0) {
 			pr_err("%s Ion free failed %d\n", __func__, ret);
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+			if (ret == -ENOENT) {
+				msm_audio_delete_fd_entry(mem_handle, (int)ioctl_param);
+				return 0;
+			}
+#endif /* OPLUS_ARCH_EXTENDS */
 			return ret;
 		}
+#ifdef OPLUS_ARCH_EXTENDS
+/* Modify for update the logic to delete fd entry. Case 07532394 */
+		msm_audio_delete_fd_entry(mem_handle, (int)ioctl_param);
+#else /* OPLUS_ARCH_EXTENDS */
 		msm_audio_delete_fd_entry(mem_handle);
+#endif /* OPLUS_ARCH_EXTENDS */
 		break;
 	case IOCTL_MAP_HYP_ASSIGN:
 	    ret = msm_audio_get_phy_addr((int)ioctl_param, &paddr, &pa_len);

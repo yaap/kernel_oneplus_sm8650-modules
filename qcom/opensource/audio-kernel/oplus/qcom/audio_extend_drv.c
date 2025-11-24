@@ -14,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
+#include <linux/proc_fs.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/pcm.h>
@@ -34,6 +35,7 @@ enum {
 	CODEC_NAME,
 	CODEC_DAI_NAME,
 	CODEC_VENDOR,
+	CONFIG_PATH,
 	CODEC_PROP_END,
 	CODEC_PROP_MAX = CODEC_PROP_END,
 };
@@ -50,6 +52,7 @@ static const char *extend_speaker_prop[CODEC_PROP_MAX] = {
 	[CODEC_NAME] = "oplus,speaker-codec-name",
 	[CODEC_DAI_NAME] = "oplus,speaker-codec-dai-name",
 	[CODEC_VENDOR] = "oplus,speaker-vendor",
+	[CONFIG_PATH] = "oplus,config-path",
 };
 
 static const char *extend_dac_prop[CODEC_PROP_MAX] = {
@@ -65,6 +68,7 @@ struct codec_prop_info {
 	const char **codec_name;
 	const char **codec_dai_name;
 	const char *codec_vendor;
+	const char *config_path;
 };
 
 struct audio_extend_data {
@@ -95,7 +99,7 @@ static int ak4376_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_component *component = NULL;
 	struct snd_soc_dapm_context *dapm = NULL;
 	struct snd_soc_dai *codec_dai = NULL;
-	codec_dai =  asoc_rtd_to_codec(rtd, 0);
+	codec_dai = asoc_rtd_to_codec(rtd, 0);
 	component = codec_dai->component;
 
 	if (!component) {
@@ -117,6 +121,68 @@ static int ak4376_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static ssize_t audio_extend_proc_read(struct file *filep, char __user *buf, size_t size, loff_t *ppos)
+{
+	ssize_t ret = 0;
+	struct audio_extend_data *extend_data = NULL;
+
+	if (!size || !filep || !ppos || !buf || *ppos < 0) {
+		return -EINVAL;
+	}
+
+	extend_data = pde_data(file_inode(filep));
+	if (!extend_data) {
+		return -EINVAL;
+	}
+
+	if (!extend_data->spk_pa_info->config_path) {
+		return -EINVAL;
+	}
+
+	pr_info("%s: config_path: %s", __func__, extend_data->spk_pa_info->config_path);
+
+	ret = simple_read_from_buffer(buf, size, ppos, extend_data->spk_pa_info->config_path,
+		strlen(extend_data->spk_pa_info->config_path));
+
+	return ret;
+}
+
+static const struct proc_ops audio_extend_config_ops = {
+	.proc_read = audio_extend_proc_read,
+};
+
+static struct proc_dir_entry *config_path_proc_dir = NULL;
+static int audio_extend_proc_init(struct audio_extend_data *extend_data)
+{
+	const char *proc_path = "audio_config";
+	struct proc_dir_entry *config_path = NULL;
+	int ret = 0;
+
+	if (config_path_proc_dir) {
+		pr_info("%s: audio_config_path already register", __func__);
+		return 0;
+	}
+
+	config_path_proc_dir = proc_mkdir(proc_path, NULL);
+	if (IS_ERR(config_path_proc_dir)) {
+		ret = PTR_ERR(config_path_proc_dir);
+		config_path_proc_dir = NULL;
+		return ret;
+	}
+
+	config_path = proc_create_data("path",
+		S_IRUGO, config_path_proc_dir,
+		&audio_extend_config_ops, extend_data);
+	if (IS_ERR(config_path)) {
+		ret = PTR_ERR(config_path);
+		proc_remove(config_path_proc_dir);
+		config_path_proc_dir = NULL;
+		return ret;
+	}
+
+	return 0;
+}
+
 static int extend_codec_prop_parse(struct device *dev, const char *codec_prop[], struct codec_prop_info *codec_info)
 {
 	int ret = 0;
@@ -128,6 +194,14 @@ static int extend_codec_prop_parse(struct device *dev, const char *codec_prop[],
 		return -EINVAL;
 	} else {
 		pr_info("%s: codec vendor: %s\n", __func__, codec_info->codec_vendor);
+	}
+
+	ret = of_property_read_string(dev->of_node, codec_prop[CONFIG_PATH], &codec_info->config_path);
+	if (ret) {
+		pr_warn("%s: Looking up '%s' property in node %s failed\n",
+			__func__, codec_prop[CONFIG_PATH], dev->of_node->full_name);
+	} else {
+		pr_info("%s: config path: %s\n", __func__, codec_info->config_path);
 	}
 
 	ret = of_property_read_u32(dev->of_node, codec_prop[CODEC_I2S_ID], &codec_info->i2s_id);
@@ -302,6 +376,10 @@ static int audio_extend_probe(struct platform_device *pdev)
 	} else {
 		g_extend_pdata->use_extern_dac = false;
 		pr_warn("%s: kzalloc for hp dac info fail!\n", __func__);
+	}
+
+	if (g_extend_pdata->spk_pa_info && g_extend_pdata->spk_pa_info->config_path) {
+		audio_extend_proc_init(g_extend_pdata);
 	}
 
 	return 0;

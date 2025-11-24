@@ -684,6 +684,7 @@ struct sde_connector {
 	/* Used to indicate whether to update panel backlight in crtc_commit */
 	bool bl_need_sync;
 	bool osc_need_update;
+	atomic_t dsi_cmd_need_update;
 #endif /* OPLUS_FEATURE_DISPLAY */
 	bool misr_event_notify_enabled;
 	struct sde_misr_sign previous_misr_sign;

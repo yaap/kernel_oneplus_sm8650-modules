@@ -92,6 +92,8 @@ static int shutdown_flag = 0;
 static bool is_pd_with_guesture = false;
 static int panel_esd_check_failed = 0;
 static int tp_irq = 0;
+int dsi_cmd_set_type_status;
+
 /* use to send panel event notification, and you can user "panel->name" to judge primary/secondary panel */
 #define OPLUS_PANEL_EVENT_NOTIFY(tp_index, event_type, data) { \
 	int blank = data; \
@@ -537,7 +539,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		|| !strcmp(panel->oplus_priv.vendor_name, "A0004")
 		|| !strcmp(panel->oplus_priv.vendor_name, "AB781")
 		|| !strcmp(panel->oplus_priv.vendor_name, "AC223")
-		|| !strcmp(panel->oplus_priv.vendor_name, "A0020")) {
+		|| !strcmp(panel->oplus_priv.vendor_name, "A0020")
+		|| !strcmp(panel->oplus_priv.vendor_name, "A0014")) {
 		rc = 0;
 	} else {
 /*#ifdef OPLUS_FEATURE_TP_BASIC*/
@@ -636,7 +639,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		|| !strcmp(panel->oplus_priv.vendor_name, "A0004")
 		|| !strcmp(panel->oplus_priv.vendor_name, "AB781")
 		|| !strcmp(panel->oplus_priv.vendor_name, "AC223")
-		|| !strcmp(panel->oplus_priv.vendor_name, "A0020"))
+		|| !strcmp(panel->oplus_priv.vendor_name, "A0020")
+		|| !strcmp(panel->oplus_priv.vendor_name, "A0014"))
 		usleep_range(50*1000, (50*1000)+100);
 	else
 		usleep_range(2*1000, (2*1000)+100);
@@ -774,9 +778,8 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	enum dsi_cmd_set_state state;
 	struct dsi_display_mode *mode;
 
-	if (!panel || !panel->cur_mode) {
+	if (!panel || !panel->cur_mode)
 		return -EINVAL;
-	}
 
 	mode = panel->cur_mode;
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
@@ -793,14 +796,16 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 		}
 	}
 #endif
+
 #ifdef OPLUS_FEATURE_DISPLAY
-	OPLUS_LCD_TRACE_BEGIN(cmd_set_prop_map[type]);
+	SDE_ATRACE_BEGIN(cmd_set_prop_map[type]);
 	oplus_panel_cmd_switch(panel, &type);
 	if (panel->pwm_params.directional_onepulse_switch) {
 		if (oplus_panel_pwm_switch_cmdq_delay_handle(panel, type))
 			return rc;
 	}
 	oplus_panel_cmdq_pack_handle(panel, type, true);
+	oplus_panel_vid_cmdp_handle(panel, type);
 	oplus_panel_cmd_print(panel, type);
 #endif /* OPLUS_FEATURE_DISPLAY */
 
@@ -880,7 +885,7 @@ error:
 				panel->oplus_priv.vendor_name, cmd_set_prop_map[type], rc);
 		WARN_ON(rc);
 	}
-	OPLUS_LCD_TRACE_END(cmd_set_prop_map[type]);
+	SDE_ATRACE_END(cmd_set_prop_map[type]);
 #endif /* OPLUS_FEATURE_DISPLAY */
 	return rc;
 }
@@ -1650,7 +1655,30 @@ static int dsi_panel_parse_misc_host_config(struct dsi_host_common_cfg *host,
 		host->dma_sched_line = 0;
 	else
 		host->dma_sched_line = line_no;
+#ifdef OPLUS_FEATURE_DISPLAY
+	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-dma-schedule-line-60",
+				  &line_no);
+	if (rc)
+		host->dma_sched_line_60 = 0;
+	else
+		host->dma_sched_line_60 = line_no;
 
+	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-dma-schedule-line-90",
+				  &line_no);
+	if (rc)
+		host->dma_sched_line_90 = 0;
+	else
+		host->dma_sched_line_90 = line_no;
+
+	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-dma-schedule-line-120",
+				  &line_no);
+	if (rc)
+		host->dma_sched_line_120 = 0;
+	else
+		host->dma_sched_line_120 = line_no;
+	DSI_ERR("[%s] DMA scheduling parameters Line[60][%d], Line[90][%d], Line[120][%d]\n", name,
+			host->dma_sched_line_60, host->dma_sched_line_90, host->dma_sched_line_120);
+#endif
 	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-dma-schedule-window",
 				  &window);
 	if (rc)
@@ -2003,6 +2031,7 @@ static int dsi_panel_parse_dyn_clk_caps(struct dsi_panel *panel)
 static void dsi_panel_parse_dfps_porches(struct dsi_parser_utils *utils,
 	u32 **dfps_porch_list, const char *porch_type, u32 dfps_list_len) {
 	int rc = 0;
+	int i;
 
 	*dfps_porch_list = kcalloc(dfps_list_len, sizeof(u32), GFP_KERNEL);
 	if (!*dfps_porch_list) {
@@ -2018,7 +2047,7 @@ static void dsi_panel_parse_dfps_porches(struct dsi_parser_utils *utils,
 	}
 
 	DSI_INFO("[%s]: ", porch_type);
-	for (int i = 0; i < dfps_list_len; ++i)
+	for (i = 0; i < dfps_list_len; ++i)
 	{
 		DSI_INFO("[%d] ", (*dfps_porch_list)[i]);
 	}
@@ -2488,8 +2517,11 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm-off-command",
 	"qcom,mdss-dsi-hbm-off-60hz-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-command",
+	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-NT37707-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-command",
+	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-NT37707-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-on-command",
+	"qcom,mdss-dsi-lhbm-pressed-icon-pwm-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-off-command",
 	"qcom,mdss-dsi-lhbm-update-vdc-command",
 	"qcom,mdss-dsi-lhbm-dbv-alpha-command",
@@ -2557,13 +2589,17 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-cabc-still-image-command",
 	"qcom,mdss-dsi-cabc-video-command",
 	"qcom,mdss-dsi-esd-switch-page-command",
+	"qcom,mdss-dsi-esd-offset-location-command",
+	"qcom,mdss-dsi-esd-offset-location-two-command",
 	"qcom,dsi-panel-date-switch-command",
 	"qcom,mdss-dsi-panel-info-switch-page-command",
 	"qcom,mdss-dsi-panel-init-command",
 	"qcom,mdss-dsi-optimize-command",
 	"qcom,mdss-dsi-optimize-split-command",
 	"qcom,mdss-dsi-optimize-on-command",
+	"qcom,mdss-dsi-vid-144hz-switch-command",
 	"qcom,mdss-dsi-vid-120hz-switch-command",
+	"qcom,mdss-dsi-vid-90hz-switch-command",
 	"qcom,mdss-dsi-vid-60hz-switch-command",
 	"qcom,mdss-dsi-pwm-turbo-on-command",
 	"qcom,mdss-dsi-pwm-turbo-off-command",
@@ -2718,8 +2754,11 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm-off-command-state",
 	"qcom,mdss-dsi-hbm-off-60hz-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-command-state",
+	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-NT37707-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-command-state",
+	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-NT37707-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-on-command-state",
+	"qcom,mdss-dsi-lhbm-pressed-icon-pwm-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-off-command-state",
 	"qcom,mdss-dsi-lhbm-update-vdc-command-state",
 	"qcom,mdss-dsi-lhbm-dbv-alpha-command-state",
@@ -2787,13 +2826,17 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-cabc-still-image-command-state",
 	"qcom,mdss-dsi-cabc-video-command-state",
 	"qcom,mdss-dsi-esd-switch-page-command-state",
+	"qcom,mdss-dsi-esd-offset-location-command-state",
+	"qcom,mdss-dsi-esd-offset-location-two-command-state",
 	"qcom,dsi-panel-date-switch-command-state",
 	"qcom,mdss-dsi-panel-info-switch-page-command-state",
 	"qcom,mdss-dsi-panel-init-command-state",
 	"qcom,mdss-dsi-optimize-command-state",
 	"qcom,mdss-dsi-optimize-split-command-state",
 	"qcom,mdss-dsi-optimize-on-command-state",
+	"qcom,mdss-dsi-vid-144hz-switch-command-state",
 	"qcom,mdss-dsi-vid-120hz-switch-command-state",
+	"qcom,mdss-dsi-vid-90hz-switch-command-state",
 	"qcom,mdss-dsi-vid-60hz-switch-command-state",
 	"qcom,mdss-dsi-pwm-turbo-on-command-state",
 	"qcom,mdss-dsi-pwm-turbo-off-command-state",
@@ -3648,6 +3691,9 @@ static int dsi_panel_parse_phy_timing(struct dsi_display_mode *mode,
 				mode->timing.refresh_rate);
 		do_div(pixel_clk_khz, 1000);
 		mode->pixel_clk_khz = pixel_clk_khz;
+		DSI_INFO("h_total_dce=%llu, v_total=%u, refresh_rate=%u, pclk = %llu, h_total=%u \n",
+			dsi_h_total_dce(&mode->timing), DSI_V_TOTAL(&mode->timing),
+			mode->timing.refresh_rate, pixel_clk_khz, DSI_H_TOTAL(&mode->timing));
 	}
 
 	return rc;
@@ -5886,8 +5932,13 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 			|| !strcmp(panel->oplus_priv.vendor_name, "A0004")
 			|| !strcmp(panel->oplus_priv.vendor_name, "AB781")
 			|| !strcmp(panel->oplus_priv.vendor_name, "AC223")
-			|| !strcmp(panel->oplus_priv.vendor_name, "A0020")) {
-			usleep_range(2*1000, (2*1000)+100);
+			|| !strcmp(panel->oplus_priv.vendor_name, "A0020")
+			|| !strcmp(panel->oplus_priv.vendor_name, "A0014")) {
+			if (!strcmp(panel->oplus_priv.vendor_name, "A0014")) {
+				usleep_range(11*1000, (11*1000)+100);
+			} else {
+				usleep_range(2*1000, (2*1000)+100);
+			}
 			dsi_panel_reset(panel);
 		}
 #endif /* OPLUS_FEATURE_DISPLAY */
@@ -6644,4 +6695,48 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
+}
+
+int oplus_panel_vid_cmdp_handle(void *dsi_panel, enum dsi_cmd_set_type type)
+{
+	struct dsi_panel *panel = dsi_panel;
+	struct dsi_display_mode *mode;
+	struct dsi_cmd_desc *cmds;
+	int i = 0;
+	u32 count;
+
+	if (!panel || !panel->cur_mode) {
+		DSI_ERR("invalid panel param\n");
+		return -EINVAL;
+	}
+
+	if((panel->panel_mode != DSI_OP_VIDEO_MODE) || (!panel->oplus_priv.enable_dsi_cmd_package)) {
+		return 0;
+	}
+	mode = panel->cur_mode;
+	cmds = mode->priv_info->cmd_sets[type].cmds;
+	count = mode->priv_info->cmd_sets[type].count;
+
+	switch (type) {
+	case DSI_CMD_SET_ON:
+	case DSI_CMD_SET_OFF:
+	case DSI_CMD_ESD_SWITCH_PAGE:
+	case DSI_CMD_DEFAULT_SWITCH_PAGE:
+	case DSI_CMD_SET_PPS:
+		break;
+	default:
+		if (count > 0) {
+			dsi_cmd_set_type_status = (int)type;
+			panel->oplus_priv.dsi_cmd_need_to_package =  true;
+			DSI_INFO("Set dsi_cmd: %s to batch.\n", cmd_set_prop_map[type]);
+
+			for (i = 0; i < count; i++) {
+				cmds->msg.flags |= MIPI_DSI_MSG_BATCH_COMMAND;
+				cmds++;
+			}
+		}
+		break;
+	}
+
+	return 0;
 }

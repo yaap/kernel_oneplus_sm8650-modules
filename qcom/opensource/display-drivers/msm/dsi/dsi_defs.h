@@ -433,8 +433,11 @@ enum dsi_cmd_set_type {
 	DSI_CMD_HBM_OFF,
 	DSI_CMD_HBM_OFF_60HZ,
 	DSI_CMD_LHBM_PRESSED_ICON_GAMMA,
+	DSI_CMD_LHBM_PRESSED_ICON_GAMMA_NT37707,
 	DSI_CMD_LHBM_PRESSED_ICON_GRAYSCALE,
+	DSI_CMD_LHBM_PRESSED_ICON_GRAYSCALE_NT37707,
 	DSI_CMD_LHBM_PRESSED_ICON_ON,
+	DSI_CMD_LHBM_PRESSED_ICON_PWM,
 	DSI_CMD_LHBM_PRESSED_ICON_OFF,
 	DSI_CMD_LHBM_UPDATE_VDC,
 	DSI_CMD_LHBM_DBV_ALPHA,
@@ -502,13 +505,17 @@ enum dsi_cmd_set_type {
 	DSI_CMD_CABC_IMAGE,
 	DSI_CMD_CABC_VIDEO,
 	DSI_CMD_ESD_SWITCH_PAGE,
+	DSI_CMD_ESD_OFFSET_LOCATION,
+	DSI_CMD_ESD_OFFSET_LOCATION_TWO,
 	DSI_CMD_PANEL_DATE_SWITCH,
 	DSI_CMD_PANEL_INFO_SWITCH_PAGE,
 	DSI_CMD_PANEL_INIT,
 	DSI_OPTIMIZE_INIT_ON,
 	DSI_OPTIMIZE_INIT_SPLIT_ON,
 	DSI_CMD_SET_COMPATIBILITY_ON,
+	DSI_CMD_VID_144_SWITCH,
 	DSI_CMD_VID_120_SWITCH,
+	DSI_CMD_VID_90_SWITCH,
 	DSI_CMD_VID_60_SWITCH,
 	DSI_CMD_PWM_TURBO_ON,
 	DSI_CMD_PWM_TURBO_OFF,
@@ -787,6 +794,11 @@ struct dsi_host_common_cfg {
 	struct dsi_split_link_config split_link;
 	u32 byte_intf_clk_div;
 	u32 dma_sched_line;
+#ifdef OPLUS_FEATURE_DISPLAY
+	u32 dma_sched_line_60;
+	u32 dma_sched_line_90;
+	u32 dma_sched_line_120;
+#endif
 	u32 dma_sched_window;
 	u32 vpadding;
 	bool line_insertion_enable;
@@ -964,6 +976,7 @@ struct dsi_display_mode_priv_info {
 	unsigned int oplus_ofp_uiready_delay_frames;
 	unsigned int oplus_ofp_aod_off_insert_black_frame;
 	unsigned int oplus_ofp_aod_off_black_frame_total_time;
+	unsigned int oplus_ofp_aod_off_setbacklight_delay;
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 };
 
