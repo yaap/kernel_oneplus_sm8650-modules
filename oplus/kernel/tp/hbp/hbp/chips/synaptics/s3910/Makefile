@@ -13,4 +13,4 @@ oplus_bsp_tp_hbp_syna_s3910-y += tcm/synaptics_touchcom_func_touch.o
 oplus_bsp_tp_hbp_syna_s3910-y += tcm/synaptics_touchcom_func_reflash.o
 oplus_bsp_tp_hbp_syna_s3910-y += tcm/synaptics_touchcom_func_romboot.o
 
-obj-$(CONFIG_TOUCHSCREEN_HBP_SYNA_S3910) += oplus_bsp_tp_hbp_syna_s3910.o
+obj-m += oplus_bsp_tp_hbp_syna_s3910.o

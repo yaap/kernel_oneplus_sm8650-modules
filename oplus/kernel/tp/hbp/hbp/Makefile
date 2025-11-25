@@ -13,6 +13,6 @@ oplus_hbp_core-y += hbp_exception.o
 
 CFLAGS_hbp_core.o := -I$(src)
 
-obj-$(CONFIG_TOUCHSCREEN_HBP_CORE) += oplus_hbp_core.o
+obj-m += oplus_hbp_core.o
 
 obj-y += chips/
