@@ -300,7 +300,7 @@ void oplus_panel_switch_vid_mode_post(struct dsi_display *display, struct dsi_di
 	g_oplus_send_fps_code = true;
 
 	mutex_lock(&panel->panel_lock);
-	rc = dsi_panel_tx_cmd_set(panel, dsi_cmd_vid_switch);
+	rc = dsi_panel_tx_cmd_set(panel, dsi_cmd_vid_switch, false);
 	mutex_unlock(&panel->panel_lock);
 	if (rc) {
 		LCD_INFO("[%s] failed to send DSI_CMD_VID_SWITCH cmds, rc=%d\n",

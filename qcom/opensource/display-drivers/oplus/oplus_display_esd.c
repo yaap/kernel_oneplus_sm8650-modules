@@ -196,13 +196,13 @@ void oplus_display_esd_check_mode_switch(struct dsi_panel *panel, int cmd_index)
 			config->status_value[0] = 0x06;
 			config->status_value[1] = 0x00;
 			config->status_match_modes = 0x00000000;
-			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION);
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION, false);
 		} else if (esd_check_mode == 1) {
 			esd_check_mode = 0;
 			config->status_value[0] = 0x14;
 			config->status_value[1] = 0x14;
 			config->status_match_modes = 0x00000001;
-			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION_TWO);
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_ESD_OFFSET_LOCATION_TWO, false);
 		}
 	}
 }

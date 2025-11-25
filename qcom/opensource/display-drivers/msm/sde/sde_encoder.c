@@ -5677,7 +5677,7 @@ int oplus_sync_backlight_vid_thread(void *data)
 				dsi_cmd_set_type_status = 0;
 			} else if (display->panel->oplus_priv.dsi_cmd_need_to_package) {
 				mutex_lock(&display->panel->panel_lock);
-				ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+				ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE, false);
 				mutex_unlock(&display->panel->panel_lock);
 				dsi_cmd_set_type_status = 0;
 			}
@@ -5793,7 +5793,7 @@ int oplus_sync_panel_brightness_video(struct drm_encoder *drm_enc)
 				}
 			} else if (display->panel->oplus_priv.dsi_cmd_need_to_package) {
 					mutex_lock(&display->panel->panel_lock);
-					ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+					ret = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE, false);
 					mutex_unlock(&display->panel->panel_lock);
 					dsi_cmd_set_type_status = 0;
 			}
