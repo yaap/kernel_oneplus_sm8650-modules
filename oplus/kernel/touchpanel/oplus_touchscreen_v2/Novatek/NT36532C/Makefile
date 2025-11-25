@@ -12,5 +12,5 @@ subdir-ccflags-y += -I$(srctree)/drivers/spi/mediatek/mt6763/
 
 # Each configuration option enables a list of files.
 oplus_bsp_tp_nt36532c-y += nvt_drivers_nt36532c.o
-obj-$(CONFIG_TOUCHPANEL_NOVA_NT36532C) += oplus_bsp_tp_nt36532c.o
+obj-m += oplus_bsp_tp_nt36532c.o
 #endif
