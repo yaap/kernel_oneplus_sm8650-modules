@@ -193,7 +193,8 @@ wlan_hdd_set_mcc_fixed_quota(struct hdd_context *hdd_ctx,
 		return -EINVAL;
 	}
 
-	if (mcc_quota.op_mode != QDF_P2P_GO_MODE) {
+	if (mcc_quota.op_mode != QDF_P2P_GO_MODE &&
+	    mcc_quota.op_mode != QDF_P2P_CLIENT_MODE) {
 		hdd_debug("Support only P2P GO mode now");
 		return -EOPNOTSUPP;
 	}

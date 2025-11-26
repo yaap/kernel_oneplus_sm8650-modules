@@ -568,6 +568,7 @@ _fixed_srcs = [
     "core/hdd/src/wlan_hdd_ftm.c",
     "core/hdd/src/wlan_hdd_hostapd.c",
     "core/hdd/src/wlan_hdd_ioctl.c",
+    "core/hdd/src/wlan_oplus_smartmcc.c",
     "core/hdd/src/wlan_hdd_main.c",
     "core/hdd/src/wlan_hdd_ll_lt_sap.c",
     "core/hdd/src/wlan_hdd_object_manager.c",
@@ -2367,6 +2368,12 @@ def _define_module_for_target_variant_chipset(target, variant, chipset):
         out = out,
         kernel_build = "//msm-kernel:{}".format(tv),
         deps = deps,
+        local_defines = ["OPLUS_FEATURE_WIFI_BDF", "OPLUS_FEATURE_WIFI_MAC",\
+            "OPLUS_FEATURE_WIFI_FTM", "OPLUS_FEATURE_WIFI_DCS_SWITCH",\
+            "OPLUS_BUG_STABILITY", "OPLUS_FEATURE_WIFI_VENDOR_FT",\
+            "OPLUS_FEATURE_SOFTAP_DCS_SWITCH", "OPLUS_CNSS_POWER_DEBUG",\
+            "OPLUS_FEATURE_WIFI_SIGNAL", "OPLUS_FEATURE_CONN_POWER_MONITOR",\
+            "OPLUS_FEATURE_WIFI_OPLUSWFD_SMARTMCC"],
     )
 
 def define_dist(target, variant, chipsets):

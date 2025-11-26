@@ -7424,17 +7424,40 @@ static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 	struct hdd_station_ctx *sta_ctx;
 	int8_t snr;
 	mac_handle_t mac_handle;
-
 	mac_handle = hdd_adapter_get_mac_handle(link_info->adapter);
 	if (!mac_handle) {
 		hdd_err("mac ctx NULL");
 		return;
 	}
-
 	sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(link_info);
 	link_info->rssi = link_info->hdd_stats.summary_stat.rssi;
 	link_info->snr = link_info->hdd_stats.summary_stat.snr;
 	snr = link_info->snr;
+#ifdef OPLUS_FEATURE_WIFI_SIGNAL
+//Add for:Avoid upload invalid RSSI to upper layer when a new connection established.
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
+	{
+#define HW_VALID_RSSI_THRESHOLD (-90)
+		bool isValidRssi = true;
+		int i = 0;
+		if (link_info->rssi < HW_VALID_RSSI_THRESHOLD) {
+			for (i = 0; i < NUM_CHAINS_MAX; i++) {
+				if (link_info->hdd_stats.per_chain_rssi_stats.rssi[i] != WLAN_HDD_TGT_NOISE_FLOOR_DBM)
+					break;
+			}
+			if (i == NUM_CHAINS_MAX)
+				isValidRssi = false;
+		}
+
+		if (!isValidRssi) {
+			hdd_debug("get invalid RSSI from FW, use RSSI from scan result! HW combined RSSI=%d, Chain RSSI=%d.",
+				link_info->rssi, link_info->hdd_stats.per_chain_rssi_stats.rssi[0]);
+			link_info->rssi = 0;
+		}
+#undef HW_VALID_RSSI_THRESHOLD
+	}
+#endif
+#endif /* OPLUS_FEATURE_WIFI_SIGNAL */
 
 	/* for new connection there might be no valid previous RSSI */
 	if (!link_info->rssi) {
@@ -7443,12 +7466,21 @@ static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 					  &link_info->rssi, &snr);
 	}
 
+#ifndef OPLUS_FEATURE_WIFI_SIGNAL
+//Add for:Avoid upload RSSI 0dbm to upper layer shows as -128dbm of MLO link.
 	/* If RSSi is reported as positive then it is invalid */
 	if (link_info->rssi >= 0) {
 		hdd_debug_rl("Invalid RSSI %d, reset to -1", link_info->rssi);
 		link_info->rssi = -1;
 		link_info->hdd_stats.summary_stat.rssi = -1;
 	}
+#else
+	if (link_info->rssi >= 0) {
+		hdd_debug_rl("oplus RSSI invalid %d", link_info->rssi);
+		link_info->rssi = -1;
+		link_info->hdd_stats.summary_stat.rssi = -1;
+	}
+#endif /* OPLUS_FEATURE_WIFI_SIGNAL */
 
 	sinfo->signal = link_info->rssi;
 	hdd_debug("snr: %d, rssi: %d",
@@ -8738,7 +8770,9 @@ QDF_STATUS wlan_hdd_get_mib_stats(struct hdd_adapter *adapter)
 		return ret;
 	}
 
+#ifdef WLAN_DEBUGFS
 	hdd_debugfs_process_mib_stats(adapter, stats);
+#endif
 
 	wlan_cfg80211_mc_cp_stats_free_stats_event(stats);
 	return ret;

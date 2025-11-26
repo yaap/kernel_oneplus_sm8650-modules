@@ -70,6 +70,29 @@
 	CFG_VALUE_OR_DEFAULT, \
 	"11be is supported by target")
 
+//#ifdef OPLUS_BUG_STABILITY
+//modify for enable/disable EHT RSN check
+/*
+ * <ini>
+ * gEnableEhtRsnCheck - Flag to oplus check the rsn for eht
+ * @Min: 0
+ * @Max: 1
+ * @Default: 1
+ *
+ * Related: None
+ *
+ * Supported Feature: 11be
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_EHT_RSN_CHECK CFG_INI_BOOL( \
+	"gEnableEhtRsnCheck", \
+	1, \
+	"Enable/disable EHT RSN check")
+//#endif /* OPLUS_BUG_STABILITY */
+
 #ifdef WLAN_FEATURE_11BE
 /*
  * <ini>
@@ -127,11 +150,22 @@
 	0, 1, 0, \
 	CFG_VALUE_OR_DEFAULT, \
 	"MLO reconfig reassoc is supported by target")
-
+//#ifdef OPLUS_BUG_STABILITY
+//modify for enable/disable EHT RSN check
+/*
 #define CFG_CMN_MLME_ALL \
 	CFG(CFG_MLME_MAX_CHAN_SWITCH_IE_ENABLE) \
 	CFG(CFG_MLME_11BE_TARGET_CAPAB) \
 	CFG(CFG_MLME_MLO_RECONFIG_REASSOC_ENABLE) \
 	CFG_MLME_11BE_ALL
+*/
+//#else /* OPLUS_BUG_STABILITY */
+#define CFG_CMN_MLME_ALL \
+	CFG(CFG_MLME_MAX_CHAN_SWITCH_IE_ENABLE) \
+	CFG(CFG_MLME_11BE_TARGET_CAPAB) \
+	CFG(CFG_MLME_MLO_RECONFIG_REASSOC_ENABLE) \
+	CFG_MLME_11BE_ALL \
+	CFG(CFG_ENABLE_EHT_RSN_CHECK)
+//#endif /* OPLUS_BUG_STABILITY */
 
 #endif /* __CFG_CMN_MLME_H */

@@ -2588,11 +2588,12 @@ static int32_t wlan_crypto_rsn_suite_to_cipher(const uint8_t *sel)
 
 	return status;
 }
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
 /*
  * Convert an RSN key management/authentication algorithm
  * to an internal code.
  */
-static int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
+int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
 {
 	uint32_t w = LE_READ_4(sel);
 	int32_t status = -1;
@@ -2648,6 +2649,68 @@ static int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
 
 	return status;
 }
+#else
+/*
+ * Convert an RSN key management/authentication algorithm
+ * to an internal code.
+ */
+static int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
+{
+        uint32_t w = LE_READ_4(sel);
+        int32_t status = -1;
+
+        switch (w) {
+        case RSN_AUTH_KEY_MGMT_UNSPEC_802_1X:
+                return WLAN_CRYPTO_KEY_MGMT_IEEE8021X;
+        case RSN_AUTH_KEY_MGMT_PSK_OVER_802_1X:
+                return WLAN_CRYPTO_KEY_MGMT_PSK;
+        case RSN_AUTH_KEY_MGMT_FT_802_1X:
+                return WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X;
+        case RSN_AUTH_KEY_MGMT_FT_PSK:
+                return WLAN_CRYPTO_KEY_MGMT_FT_PSK;
+        case RSN_AUTH_KEY_MGMT_802_1X_SHA256:
+                return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SHA256;
+        case RSN_AUTH_KEY_MGMT_PSK_SHA256:
+                return WLAN_CRYPTO_KEY_MGMT_PSK_SHA256;
+        case RSN_AUTH_KEY_MGMT_SAE:
+                return WLAN_CRYPTO_KEY_MGMT_SAE;
+        case RSN_AUTH_KEY_MGMT_FT_SAE:
+                return WLAN_CRYPTO_KEY_MGMT_FT_SAE;
+        case RSN_AUTH_KEY_MGMT_802_1X_SUITE_B:
+                return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B;
+        case RSN_AUTH_KEY_MGMT_802_1X_SUITE_B_192:
+                return WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B_192;
+        case RSN_AUTH_KEY_MGMT_CCKM:
+                return WLAN_CRYPTO_KEY_MGMT_CCKM;
+        case RSN_AUTH_KEY_MGMT_OSEN:
+                return WLAN_CRYPTO_KEY_MGMT_OSEN;
+        case RSN_AUTH_KEY_MGMT_FILS_SHA256:
+                return WLAN_CRYPTO_KEY_MGMT_FILS_SHA256;
+        case RSN_AUTH_KEY_MGMT_FILS_SHA384:
+                return WLAN_CRYPTO_KEY_MGMT_FILS_SHA384;
+        case RSN_AUTH_KEY_MGMT_FT_FILS_SHA256:
+                return WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA256;
+        case RSN_AUTH_KEY_MGMT_FT_FILS_SHA384:
+                return WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA384;
+        case RSN_AUTH_KEY_MGMT_OWE:
+                return WLAN_CRYPTO_KEY_MGMT_OWE;
+        case RSN_AUTH_KEY_MGMT_DPP:
+                return WLAN_CRYPTO_KEY_MGMT_DPP;
+        case RSN_AUTH_KEY_MGMT_FT_802_1X_SUITE_B_384:
+                return WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384;
+        case RSN_AUTH_KEY_MGMT_FT_PSK_SHA384:
+                return WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384;
+        case RSN_AUTH_KEY_MGMT_PSK_SHA384:
+                return WLAN_CRYPTO_KEY_MGMT_PSK_SHA384;
+        case RSN_AUTH_KEY_MGMT_SAE_EXT_KEY:
+                return WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY;
+        case RSN_AUTH_KEY_MGMT_FT_SAE_EXT_KEY:
+                return WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY;
+        }
+
+        return status;
+}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 QDF_STATUS wlan_crypto_wpaie_check(struct wlan_crypto_params *crypto_params,
 				   const uint8_t *frm)

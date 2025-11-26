@@ -74,6 +74,12 @@
 #include <wlan_crypto_global_api.h>
 #include "cdp_txrx_host_stats.h"
 #include "target_if_cm_roam_event.h"
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+//add for  connectivity power monitor
+#include <linux/workqueue.h>
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 #include <wlan_mlo_mgr_cmn.h>
 #include "hif.h"
 #include "wlan_cmn_ieee80211.h"
@@ -98,7 +104,11 @@
 #define ADDBA_TXAGGR_SIZE_512 512
 #define ADDBA_TXAGGR_SIZE_BERYLLIUM 1024
 
+#ifndef OPLUS_FEATURE_CONN_POWER_MONITOR
 static bool is_wakeup_event_console_logs_enabled = false;
+#else
+static bool is_wakeup_event_console_logs_enabled = true;
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 
 void wma_set_wakeup_logs_to_console(bool value)
 {
@@ -2645,7 +2655,78 @@ static void wma_log_pkt_icmpv4(uint8_t *data, uint32_t length)
 	wma_debug("Pkt_len: %u, Seq_num: %u",
 		 qdf_cpu_to_be16(pkt_len), qdf_cpu_to_be16(seq_num));
 }
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+//add for  connectivity power monitor
+#define RET_ERR  1
+#define RET_OK  0
+#define INIT_FINISHED 1
 
+static struct miscdevice wlan_object;
+static struct work_struct mWork;
+static volatile unsigned char mUeventInit = 0;
+static volatile unsigned char mMiscDevInit = 0;
+static char mUevent[256] = {'\0'};
+
+static void oplusWorkHandler(struct work_struct *data)
+{
+	char *envp[2];
+
+	if (mUevent[0] == '\0')
+		return;
+
+	if ((mMiscDevInit == INIT_FINISHED) && (wlan_object.this_device != NULL)) {
+		envp[0] = mUevent;
+		envp[1] = NULL;
+		kobject_uevent_env(
+			&wlan_object.this_device->kobj,
+			KOBJ_CHANGE, envp);
+	}
+}
+
+int oplusLpmUeventInit(void)
+{
+	int ret = RET_OK;
+
+	INIT_WORK(&mWork, oplusWorkHandler);
+	mUeventInit = INIT_FINISHED;
+	wlan_object.name = "lpm";
+	wlan_object.minor = MISC_DYNAMIC_MINOR;
+	misc_register(&wlan_object);
+	if (wlan_object.this_device != NULL) {
+		ret = kobject_uevent(&wlan_object.this_device->kobj, KOBJ_ADD);
+		if (ret == RET_OK) {
+			mMiscDevInit = INIT_FINISHED;
+		}
+	}
+
+	return RET_OK;
+}
+
+void oplusConnUeventDeinit(void)
+{
+	if (mUeventInit == INIT_FINISHED) {
+		cancel_work_sync(&mWork);
+	}
+	if ((mMiscDevInit == INIT_FINISHED) && (wlan_object.this_device != NULL)) {
+		misc_deregister(&wlan_object);
+	}
+	mUeventInit = 0;
+}
+
+static int oplusLpmSendUevent(const char *src)
+{
+	if (src == NULL) {
+		return RET_ERR;
+	}
+
+	if (mUeventInit == INIT_FINISHED) {
+		strlcpy(mUevent, src, sizeof(mUevent));
+		schedule_work(&mWork);
+	}
+
+	return RET_OK;
+}
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 static void wma_log_pkt_icmpv6(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, seq_num;
@@ -2663,54 +2744,116 @@ static void wma_log_pkt_ipv4(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, src_port, dst_port;
 	char *ip_addr;
-
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	char event_msg[256] = {'\0'};
+	uint8_t *src_ip;
+	uint8_t *dst_ip;
+	uint8_t poto;
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 	if (length < WMA_IPV4_PKT_INFO_GET_MIN_LEN)
 		return;
 
 	pkt_len = *(uint16_t *)(data + IPV4_PKT_LEN_OFFSET);
 	ip_addr = (char *)(data + IPV4_SRC_ADDR_OFFSET);
+#ifndef OPLUS_CNSS_POWER_DEBUG
 	wma_nofl_debug("src addr %d:%d:%d:%d", ip_addr[0], ip_addr[1],
 		      ip_addr[2], ip_addr[3]);
+#else
+	wma_nofl_alert("src addr %d:%d:%d:%d", ip_addr[0], ip_addr[1],
+		      ip_addr[2], ip_addr[3]);
+#endif /* OPLUS_CNSS_POWER_DEBUG */
 	ip_addr = (char *)(data + IPV4_DST_ADDR_OFFSET);
+#ifndef OPLUS_CNSS_POWER_DEBUG
+	wma_nofl_debug("dst addr %d:%d:%d:%d", ip_addr[0], ip_addr[1],
+		      ip_addr[2], ip_addr[3]);
+#else
+	wma_nofl_alert("dst addr %d:%d:%d:%d", ip_addr[0], ip_addr[1],
+		      ip_addr[2], ip_addr[3]);
+#endif /* OPLUS_CNSS_POWER_DEBUG */
 	wma_nofl_debug("dst addr %d:%d:%d:%d", ip_addr[0], ip_addr[1],
 		      ip_addr[2], ip_addr[3]);
 	src_port = *(uint16_t *)(data + IPV4_SRC_PORT_OFFSET);
 	dst_port = *(uint16_t *)(data + IPV4_DST_PORT_OFFSET);
-	wma_debug("Pkt_len: %u, src_port: %u, dst_port: %u",
-		  qdf_cpu_to_be16(pkt_len),
-		  qdf_cpu_to_be16(src_port),
-		  qdf_cpu_to_be16(dst_port));
+	wma_info("Pkt_len: %u, src_port: %u, dst_port: %u",
+		qdf_cpu_to_be16(pkt_len),
+		qdf_cpu_to_be16(src_port),
+		qdf_cpu_to_be16(dst_port));
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	src_ip = (char *)(data + IPV4_SRC_ADDR_OFFSET);
+	dst_ip = (char *)(data + IPV4_DST_ADDR_OFFSET);
+	poto = qdf_nbuf_data_get_ipv4_proto(data);
+	snprintf(event_msg, sizeof(event_msg), "wakeup_reason=%d;%d.%d.%d.%d;%u;%d.%d.%d.%d;%u;", poto,
+		src_ip[0], src_ip[1], src_ip[2], src_ip[3], qdf_cpu_to_be16(src_port),
+		dst_ip[0], dst_ip[1], dst_ip[2], dst_ip[3], qdf_cpu_to_be16(dst_port));
+	oplusLpmSendUevent(event_msg);
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 }
 
 static void wma_log_pkt_ipv6(uint8_t *data, uint32_t length)
 {
 	uint16_t pkt_len, src_port, dst_port;
 	char *ip_addr;
-
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	char event_msg[256] = {'\0'};
+	uint8_t *src_ip;
+	uint8_t *dst_ip;
+	uint8_t poto;
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 	if (length < WMA_IPV6_PKT_INFO_GET_MIN_LEN)
 		return;
 
 	pkt_len = *(uint16_t *)(data + IPV6_PKT_LEN_OFFSET);
 	ip_addr = (char *)(data + IPV6_SRC_ADDR_OFFSET);
+#ifndef OPLUS_CNSS_POWER_DEBUG
 	wma_nofl_debug("src addr "IPV6_ADDR_STR, ip_addr[0],
 		 ip_addr[1], ip_addr[2], ip_addr[3], ip_addr[4],
 		 ip_addr[5], ip_addr[6], ip_addr[7], ip_addr[8],
 		 ip_addr[9], ip_addr[10], ip_addr[11],
 		 ip_addr[12], ip_addr[13], ip_addr[14],
 		 ip_addr[15]);
+#else
+	wma_nofl_alert("src addr "IPV6_ADDR_STR, ip_addr[0],
+		 ip_addr[1], ip_addr[2], ip_addr[3], ip_addr[4],
+		 ip_addr[5], ip_addr[6], ip_addr[7], ip_addr[8],
+		 ip_addr[9], ip_addr[10], ip_addr[11],
+		 ip_addr[12], ip_addr[13], ip_addr[14],
+		 ip_addr[15]);
+#endif /* OPLUS_CNSS_POWER_DEBUG */
 	ip_addr = (char *)(data + IPV6_DST_ADDR_OFFSET);
+#ifndef OPLUS_CNSS_POWER_DEBUG
 	wma_nofl_debug("dst addr "IPV6_ADDR_STR, ip_addr[0],
 		 ip_addr[1], ip_addr[2], ip_addr[3], ip_addr[4],
 		 ip_addr[5], ip_addr[6], ip_addr[7], ip_addr[8],
 		 ip_addr[9], ip_addr[10], ip_addr[11],
 		 ip_addr[12], ip_addr[13], ip_addr[14],
 		 ip_addr[15]);
+#else
+	wma_nofl_alert("dst addr "IPV6_ADDR_STR, ip_addr[0],
+		 ip_addr[1], ip_addr[2], ip_addr[3], ip_addr[4],
+		 ip_addr[5], ip_addr[6], ip_addr[7], ip_addr[8],
+		 ip_addr[9], ip_addr[10], ip_addr[11],
+		 ip_addr[12], ip_addr[13], ip_addr[14],
+		 ip_addr[15]);
+#endif /* OPLUS_CNSS_POWER_DEBUG */
 	src_port = *(uint16_t *)(data + IPV6_SRC_PORT_OFFSET);
 	dst_port = *(uint16_t *)(data + IPV6_DST_PORT_OFFSET);
 	wma_info("Pkt_len: %u, src_port: %u, dst_port: %u",
 		 qdf_cpu_to_be16(pkt_len),
 		 qdf_cpu_to_be16(src_port),
 		 qdf_cpu_to_be16(dst_port));
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	src_ip = (char *)(data + IPV6_SRC_ADDR_OFFSET);
+	dst_ip = (char *)(data + IPV6_DST_ADDR_OFFSET);
+	poto = qdf_nbuf_data_get_ipv6_proto(data);
+	snprintf(event_msg, sizeof(event_msg), "wakeup_reason=%d;%pI6;%u;%pI6;%u;", poto,
+		src_ip, qdf_cpu_to_be16(src_port),
+		dst_ip, qdf_cpu_to_be16(dst_port));
+	oplusLpmSendUevent(event_msg);
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 }
 
 static void wma_log_pkt_tcpv4(uint8_t *data, uint32_t length)
@@ -2773,6 +2916,11 @@ static void wma_wow_parse_data_pkt(t_wma_handle *wma,
 	uint8_t *dest_mac;
 	const char *proto_subtype_name;
 	enum qdf_proto_subtype proto_subtype;
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	char event_msg[256] = {'\0'};
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
+
 
 	wma_debug("packet length: %u", length);
 	if (length < QDF_NBUF_TRAC_IPV4_OFFSET)
@@ -2792,6 +2940,12 @@ static void wma_wow_parse_data_pkt(t_wma_handle *wma,
 	if (proto_subtype_name)
 		wma_conditional_log(is_wakeup_event_console_logs_enabled,
 				    "WOW Wakeup: %s rcvd", proto_subtype_name);
+
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+	//add for  connectivity power monitor
+	snprintf(event_msg, sizeof(event_msg), "wakeup_package=%s", proto_subtype_name);
+	oplusLpmSendUevent(event_msg);
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 
 	switch (proto_subtype) {
 	case QDF_PROTO_EAPOL_M1:

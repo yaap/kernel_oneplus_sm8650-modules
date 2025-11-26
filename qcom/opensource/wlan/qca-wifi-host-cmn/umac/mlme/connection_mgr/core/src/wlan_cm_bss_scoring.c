@@ -1515,6 +1515,19 @@ bool wlan_cm_is_eht_allowed_for_current_security(struct wlan_objmgr_psoc *psoc,
 	uint32_t oem_eht_cfg = 0x0;
 	bool mlie_present;
 
+	//#ifdef OPLUS_BUG_STABILITY
+	//modify for enable/disable EHT RSN check
+	if (psoc) {
+		bool check_rsn_for_eht = cfg_get(psoc, CFG_ENABLE_EHT_RSN_CHECK);
+		if (!check_rsn_for_eht) {
+			mlme_debug("oplus no need check the rsn for eht");
+			return true;
+		}
+	} else {
+		mlme_debug("oplus psoc is null");
+	}
+	//#endif /* OPLUS_BUG_STABILITY */
+
 	status = wlan_mlme_is_rf_test_mode_enabled(psoc, &rf_test_mode);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		mlme_err("Get rf test mode failed");

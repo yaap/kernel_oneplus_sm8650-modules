@@ -157,6 +157,11 @@ QDF_STATUS lim_send_set_max_tx_power_req(struct mac_context *mac,
 		int8_t txPower,
 		struct pe_session *pe_session);
 
+#ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
+//Add for softap connect fail monitor
+void hostapd_send_sae_uevent(struct sir_sae_msg *sae_msg);
+#endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
+
 /**
  * lim_get_num_pwr_levels() - Utility to get number of tx power levels
  * @is_psd: PSD power check
@@ -1829,6 +1834,21 @@ static inline bool lim_is_sta_eht_capable(tpDphHashNode sta_ds)
 	return sta_ds->mlmStaContext.eht_capable;
 }
 
+/**
+ * lim_get_punc_chan_bit_map() - get session eht puncture bitmap
+ * @session: pe session
+ *
+ * Return: puncture bitmap
+ */
+static inline uint16_t
+lim_get_punc_chan_bit_map(struct pe_session *session)
+{
+	if (session->eht_op.disabled_sub_chan_bitmap_present)
+		return *(uint16_t *)session->eht_op.disabled_sub_chan_bitmap;
+
+	return 0;
+}
+
 QDF_STATUS lim_strip_eht_op_ie(struct mac_context *mac_ctx,
 			       uint8_t *frame_ies,
 			       uint16_t *ie_buf_size,
@@ -2194,6 +2214,11 @@ static inline bool lim_is_session_eht_capable(struct pe_session *session)
 static inline bool lim_is_sta_eht_capable(tpDphHashNode sta_ds)
 {
 	return false;
+}
+
+static inline uint16_t lim_get_punc_chan_bit_map(struct pe_session *session)
+{
+	return 0;
 }
 
 static inline

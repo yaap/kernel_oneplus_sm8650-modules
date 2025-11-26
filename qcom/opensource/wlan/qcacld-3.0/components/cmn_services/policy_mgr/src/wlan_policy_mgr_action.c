@@ -3104,9 +3104,8 @@ policy_mgr_valid_sap_conc_channel_check(struct wlan_objmgr_psoc *psoc,
 			/* MCC not supported for non-DBS chip*/
 			ch_freq = 0;
 			if (con_mode == PM_SAP_MODE) {
-				policymgr_nofl_debug("MCC situation in non-dbs hw STA freq %d SAP freq %d not supported",
+				policymgr_nofl_debug("MCC situation in non-dbs hw STA freq %d SAP freq %d",
 						     *con_ch_freq, sap_ch_freq);
-				return QDF_STATUS_E_FAILURE;
 			} else {
 				policymgr_nofl_debug("MCC situation in non-dbs hw STA freq %d GO freq %d SCC not supported",
 						     *con_ch_freq, sap_ch_freq);

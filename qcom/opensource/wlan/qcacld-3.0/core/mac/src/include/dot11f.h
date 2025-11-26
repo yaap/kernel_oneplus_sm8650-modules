@@ -10636,6 +10636,38 @@ typedef struct sDot11fIEreduced_neighbor_report {
 	} tbtt_info;
 } tDot11fIEreduced_neighbor_report;
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+/* EID 221 (0xdd) {OUI 0x00, 0x0f, 0xe2, 0xc8, 0x04} */
+typedef struct sDot11fIEvendor_ft_ie {
+	uint8_t             present;
+	uint16_t            MDID;
+	uint8_t             overDSCap:1;
+	uint8_t             resourceReqCap:1;
+	uint8_t             reserved:6;
+} tDot11fIEvendor_ft_ie;
+
+#define DOT11F_EID_VENDOR_FT_IE (221)
+
+/* N.B. These #defines do *not* include the EID & length */
+#define DOT11F_IE_VENDOR_FT_IE_MIN_LEN (5)
+
+#define DOT11F_IE_VENDOR_FT_IE_MAX_LEN (105)
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* C++ */
+__must_check uint32_t dot11f_unpack_ie_vendor_ft_ie(
+	tpAniSirGlobal,
+	uint8_t *,
+	uint8_t,
+	tDot11fIEvendor_ft_ie*,
+	bool);
+
+#ifdef __cplusplus
+}; /* End extern "C". */
+#endif /* C++ */
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 #define DOT11F_EID_REDUCED_NEIGHBOR_REPORT (201)
 
 /* N.B. These #defines do *not* include the EID & length */
@@ -11222,6 +11254,9 @@ typedef struct sDot11fBeacon{
 	tDot11fIEMBO_IE                         MBO_IE;
 	tDot11fIEqcn_ie                         qcn_ie;
 	tDot11fIEreduced_neighbor_report        reduced_neighbor_report;
+	#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	tDot11fIEvendor_ft_ie                   vendor_ft_ie;
+	#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 } tDot11fBeacon;
 
 #define DOT11F_BEACON (6)
@@ -11426,6 +11461,9 @@ typedef struct sDot11fBeaconIEs{
 	tDot11fIEMBO_IE                         MBO_IE;
 	tDot11fIEqcn_ie                         qcn_ie;
 	tDot11fIEreduced_neighbor_report        reduced_neighbor_report;
+	#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	tDot11fIEvendor_ft_ie                   vendor_ft_ie;
+	#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 } tDot11fBeaconIEs;
 
 #define DOT11F_BEACONIES (9)
@@ -11860,6 +11898,9 @@ typedef struct sDot11fProbeResponse{
 	tDot11fIEMBO_IE                         MBO_IE;
 	tDot11fIEqcn_ie                         qcn_ie;
 	tDot11fIEreduced_neighbor_report        reduced_neighbor_report;
+	#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	tDot11fIEvendor_ft_ie                   vendor_ft_ie;
+	#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 } tDot11fProbeResponse;
 
 #define DOT11F_PROBERESPONSE (22)

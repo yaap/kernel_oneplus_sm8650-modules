@@ -46,28 +46,6 @@ else ifneq ($(LINUX_BUILD_TOP),)
 endif
 endif
 
-WLAN_PLATFORM_ROOT := $(WLAN_ROOT)/../platform
-
-ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
-CONFIG_QCA_CLD_WLAN_PROFILE=pineapple_gki_$(WLAN_PROFILE)
-
-include \
-	$(WLAN_PLATFORM_ROOT)/cnss2/pineapple_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_genl/pineapple_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_prealloc/pineapple_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_utils/pineapple_gki_defconfig
-endif
-
-ifeq ($(CONFIG_ARCH_SUN), y)
-CONFIG_QCA_CLD_WLAN_PROFILE=sun_gki_$(WLAN_PROFILE)
-
-include \
-	$(WLAN_PLATFORM_ROOT)/cnss2/sun_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_genl/sun_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_prealloc/sun_gki_defconfig \
-	$(WLAN_PLATFORM_ROOT)/cnss_utils/sun_gki_defconfig
-endif
-
 include $(WLAN_ROOT)/configs/$(CONFIG_QCA_CLD_WLAN_PROFILE)_defconfig
 
 # add configurations in WLAN_CFG_OVERRIDE
@@ -165,6 +143,11 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wmm.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wowl.o\
 		$(HDD_SRC_DIR)/wlan_hdd_ll_lt_sap.o\
+
+
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_OPLUSWFD_SMARTMCC
+HDD_OBJS +=	$(HDD_SRC_DIR)/wlan_oplus_smartmcc.o
+### End
 
 ifeq ($(CONFIG_UNIT_TEST), y)
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_unit_test.o
@@ -1298,7 +1281,7 @@ FTM_OBJS := $(FTM_DISP_SRC)/wlan_ftm_init_deinit.o \
 	    $(FTM_CORE_SRC)/wlan_ftm_svc.o \
 	    $(TARGET_IF_FTM_SRC)/target_if_ftm.o
 
-ifeq ($(CONFIG_QCA_WIFI_FTM_NL80211), y)
+ifeq ($(QCA_WIFI_FTM_NL80211), y)
 FTM_OBJS += $(OS_IF_FTM_SRC)/wlan_cfg80211_ftm.o
 endif
 
@@ -2228,12 +2211,12 @@ DP_OBJS += $(DP_SRC)/be/dp_be_tx.o
 DP_OBJS += $(DP_SRC)/be/dp_be_rx.o
 
 ifeq ($(CONFIG_WIFI_MONITOR_SUPPORT), y)
-ifeq ($(CONFIG_WLAN_TX_MON_2_0_Y_WLAN_DP_LOCAL_PKT_CAPTURE), y)
+ifeq ($(CONFIG_WLAN_TX_MON_2_0), y)
 DP_OBJS += $(DP_SRC)/monitor/2.0/dp_mon_2.0.o \
 		$(DP_SRC)/monitor/2.0/dp_mon_filter_2.0.o
 DP_OBJS += $(DP_SRC)/monitor/2.0/dp_tx_mon_2.0.o \
 		$(DP_SRC)/monitor/2.0/dp_tx_mon_status_2.0.o
-ccflags-$(CONFIG_WLAN_TX_MON_2_0_Y_WLAN_DP_LOCAL_PKT_CAPTURE) += -DWLAN_PKT_CAPTURE_TX_2_0
+ccflags-$(CONFIG_WLAN_TX_MON_2_0) += -DWLAN_PKT_CAPTURE_TX_2_0
 ccflags-y += -DWLAN_TX_PKT_CAPTURE_ENH_BE
 ccflags-y += -DQDF_FRAG_CACHE_SUPPORT
 endif
@@ -2530,10 +2513,6 @@ CP_STATS_OBJS := $(CP_MC_STATS_COMPONENT_SRC)/wlan_cp_stats_mc_tgt_api.o	\
 		 $(WLAN_COMMON_ROOT)/target_if/cp_stats/src/target_if_cp_stats.o	\
 		 $(CP_STATS_DISPATCHER_SRC)/wlan_cp_stats_ucfg_api.o
 
-ifeq ($(CONFIG_WLAN_CHIPSET_STATS), y)
-CP_STATS_OBJS += $(CP_STATS_CORE_SRC)/wlan_cp_stats_chipset_stats.o
-ccflags-y += -DWLAN_CHIPSET_STATS
-endif
 endif
 
 $(call add-wlan-objs,cp_stats,$(CP_STATS_OBJS))
@@ -2641,6 +2620,21 @@ WLAN_DP_COMP_OBJS := $(DP_COMP_CORE_DIR)/wlan_dp_main.o \
 		 $(DP_COMP_CORE_DIR)/wlan_dp_txrx.o \
 		 $(DP_COMP_TGT_DIR)/target_if_dp_comp.o
 
+#ifdef OPLUS_FEATURE_WIFI_MAC
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_MAC
+#endif /* OPLUS_FEATURE_WIFI_MAC */
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_CONN_POWER_MONITOR
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_DCS_SWITCH
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+#ifdef OPLUS_FEATURE_WIFI_SIGNAL
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_SIGNAL
+#endif /* OPLUS_FEATURE_WIFI_SIGNAL */
+#ifdef OPLUS_FEATURE_WIFI_SWITCH
+KBUILD_CPPFLAGS += -DOPLUS_CNSS_POWER_DEBUG
+#endif /* OPLUS_FEATURE_WIFI_SWITCH */
 ifeq ($(CONFIG_WLAN_LRO), y)
 WLAN_DP_COMP_OBJS += $(DP_COMP_OS_IF_DIR)/os_if_dp_lro.o
 endif
@@ -2660,11 +2654,11 @@ endif
 ifeq (y,$(filter y,$(CONFIG_LITHIUM) $(CONFIG_BERYLLIUM) $(CONFIG_RHINE)))
 WLAN_DP_COMP_OBJS += $(DP_COMP_CORE_DIR)/wlan_dp_prealloc.o
 
-ifeq ($(CONFIG_WLAN_TX_MON_2_0_Y_WLAN_DP_LOCAL_PKT_CAPTURE), y)
+ifeq ($(CONFIG_WLAN_TX_MON_2_0), y)
 ifeq ($(CONFIG_WLAN_DP_LOCAL_PKT_CAPTURE), y)
 WLAN_DP_COMP_OBJS += $(DP_COMP_OS_IF_DIR)/os_if_dp_local_pkt_capture.o
 endif #CONFIG_WLAN_DP_LOCAL_PKT_CAPTURE
-endif #CONFIG_WLAN_TX_MON_2_0_Y_WLAN_DP_LOCAL_PKT_CAPTURE
+endif #CONFIG_WLAN_TX_MON_2_0
 endif
 
 ifeq ($(CONFIG_WLAN_FEATURE_DP_RX_THREADS), y)
@@ -3368,9 +3362,6 @@ ccflags-y += $(INCS)
 ldflags-y += -mllvm -enable-ml-inliner=release
 
 ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h
-ccflags-y += -include $(WLAN_ROOT)/../../dataipa/config/dataipa_vendor.h
-
-ccflags-y += -D__ANDROID_COMMON_KERNEL__
 
 # CFG80211_MLO_KEY_OPERATION_SUPPORT
 # Used to indicate the Linux Kernel contains support for ML key operation
@@ -3844,9 +3835,9 @@ ccflags-$(CONFIG_DEBUG_RX_RING_BUFFER) += -DDEBUG_RX_RING_BUFFER
 
 ccflags-$(CONFIG_DESC_TIMESTAMP_DEBUG_INFO) += -DDESC_TIMESTAMP_DEBUG_INFO
 
-ccflags-$(CONFIG_PANIC_ON_BUG) += -DPANIC_ON_BUG
+ccflags-$(PANIC_ON_BUG) += -DPANIC_ON_BUG
 
-ccflags-$(CONFIG_WLAN_WARN_ON_ASSERT) += -DWLAN_WARN_ON_ASSERT
+ccflags-$(WLAN_WARN_ON_ASSERT) += -DWLAN_WARN_ON_ASSERT
 
 ccflags-$(CONFIG_POWER_MANAGEMENT_OFFLOAD) += -DWLAN_POWER_MANAGEMENT_OFFLOAD
 
@@ -3857,7 +3848,7 @@ ccflags-$(CONFIG_WLAN_LOG_INFO) += -DWLAN_LOG_INFO
 ccflags-$(CONFIG_WLAN_LOG_DEBUG) += -DWLAN_LOG_DEBUG
 ccflags-$(CONFIG_WLAN_LOG_ENTER) += -DWLAN_LOG_ENTER
 ccflags-$(CONFIG_WLAN_LOG_EXIT) += -DWLAN_LOG_EXIT
-ccflags-$(CONFIG_WLAN_OPEN_SOURCE) += -DWLAN_OPEN_SOURCE
+ccflags-$(WLAN_OPEN_SOURCE) += -DWLAN_OPEN_SOURCE
 ccflags-$(CONFIG_FEATURE_STATS_EXT) += -DWLAN_FEATURE_STATS_EXT
 ccflags-$(CONFIG_QCACLD_FEATURE_NAN) += -DWLAN_FEATURE_NAN
 ccflags-$(CONFIG_QCACLD_FEATURE_SON) += -DWLAN_FEATURE_SON
@@ -3904,7 +3895,7 @@ ccflags-$(CONFIG_REMOVE_PKT_LOG) += -DREMOVE_PKT_LOG
 ccflags-$(CONFIG_ATH_11AC_TXCOMPACT) += -DATH_11AC_TXCOMPACT
 
 #ENABLE HTT HTC tx completion
-ccflags-$(CONFIG_ENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST) += -DENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST
+ccflags-$(ENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST) += -DENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST
 
 #Enable PCI specific APIS (dma, etc)
 ccflags-$(CONFIG_HIF_PCI) += -DHIF_PCI
@@ -4033,7 +4024,6 @@ ifeq ($(CONFIG_IPA_OPT_WIFI_DP), y)
 ifeq ($(CONFIG_IPA_OFFLOAD), y)
 ccflags-$(CONFIG_IPA_OPT_WIFI_DP) += -DIPA_OPT_WIFI_DP
 endif
-ccflags-$(CONFIG_IPA_OPT_WIFI_DP_CTRL) += -DIPA_OPT_WIFI_DP_CTRL
 endif
 
 ccflags-$(CONFIG_WDI3_IPA_OVER_GSI) += -DIPA_WDI3_GSI
@@ -5052,8 +5042,8 @@ else
 endif
 
 # Android wifi state control interface
-ifneq ($(CONFIG_WLAN_CTRL_NAME),)
-ccflags-y += -DWLAN_CTRL_NAME=\"$(CONFIG_WLAN_CTRL_NAME)\"
+ifneq ($(WLAN_CTRL_NAME),)
+ccflags-y += -DWLAN_CTRL_NAME=\"$(WLAN_CTRL_NAME)\"
 endif
 
 # inject some build related information
@@ -5079,22 +5069,18 @@ ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
 ccflags-y += -gdwarf-4
 endif
 
-ccflags-$(CONFIG_CNSS_PEACH_V2) += -DQCA_WIFI_PEACH_V2
-ccflags-$(CONFIG_TX_NSS_STATS_SUPPORT) += -DTX_NSS_STATS_SUPPORT
-ccflags-$(CONFIG_FEATURE_ML_LOCAL_PKT_CAPTURE) += -DFEATURE_ML_LOCAL_PKT_CAPTURE
-ccflags-$(CONFIG_FEATURE_DIRECT_LINK) += -DFEATURE_DIRECT_LINK
-ccflags-$(CONFIG_WLAN_FEATURE_UL_JITTER) += -DWLAN_FEATURE_UL_JITTER
-ccflags-$(CONFIG_CFG80211_EXTERNAL_AUTH_MLO_SUPPORT) += -DCFG80211_EXTERNAL_AUTH_MLO_SUPPORT
-ccflags-$(CONFIG_CFG80211_EXT_FEATURE_SECURE_NAN) += -DCFG80211_EXT_FEATURE_SECURE_NAN
-ccflags-$(CONFIG_CFG80211_MLD_AP_STA_CONNECT_UPSTREAM_SUPPORT) += -DCFG80211_MLD_AP_STA_CONNECT_UPSTREAM_SUPPORT
-ccflags-$(CONFIG_WALT_GET_CPU_TAKEN_SUPPORT) += -DWALT_GET_CPU_TAKEN_SUPPORT
-ccflags-$(CONFIG_FEATURE_EPM) += -DFEATURE_EPM
-ccflags-$(CONFIG_WLAN_CHIPSET_LOG_MAX_SIZE) += -DWLAN_CHIPSET_LOG_MAX_SIZE=50
-
 #ifdef OPLUS_BUG_STABILITY
 #Modify for: enable macro OPLUS_BUG_STABILITY for some bug fix
 ccflags-y +=   -DOPLUS_BUG_STABILITY
 #endif
+
+#ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_SOFTAP_DCS_SWITCH
+#endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+KBUILD_CPPFLAGS += -DOPLUS_FEATURE_WIFI_VENDOR_FT
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 # Module information used by KBuild framework
 obj-$(CONFIG_QCA_CLD_WLAN) += $(MODNAME).o

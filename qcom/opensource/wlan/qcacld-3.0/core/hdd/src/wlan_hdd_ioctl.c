@@ -165,6 +165,15 @@ struct hdd_drv_cmd {
 #define WLAN_HDD_MAX_TCP_PORT            65535
 #endif
 
+extern bool check_private_miracast_cmd(uint8_t *sub_command, int *sta_quota);
+extern int handle_private_miracast_cmd(struct wlan_hdd_link_info *link_info,  int sta_quota);
+extern int drv_cmd_smartmcc_get_fw_update_quota(struct wlan_hdd_link_info *link_info,
+			    struct hdd_context *hdd_ctx,
+			    uint8_t *command,
+			    uint8_t command_len,
+			    struct hdd_priv_data *priv_data);
+// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
+
 /**
  * drv_cmd_validate() - Validates for space in hdd driver command
  * @command: pointer to input data (its a NULL terminated string)
@@ -4817,10 +4826,18 @@ static int drv_cmd_miracast(struct wlan_hdd_link_info *link_info,
 	uint8_t filter_type = 0;
 	uint8_t *value;
 
+	int sta_quota;
+	// end
+
 	if (wlan_hdd_validate_context(hdd_ctx))
 		return -EINVAL;
 
 	value = command + 9;
+
+	if (check_private_miracast_cmd(value, &sta_quota)) {
+	    return handle_private_miracast_cmd(link_info, sta_quota);
+	}
+	// OPLUS_FEATURE_WIFI_CAPCENTER_SMARTMCC end
 
 	/* Convert the value from ascii to integer */
 	ret = kstrtou8(value, 10, &filter_type);
@@ -7361,6 +7378,88 @@ static int drv_cmd_get_function_call_map(struct wlan_hdd_link_info *link_info,
 	return 0;
 }
 #endif
+//ifdef OPLUS_FEATURE_WIFI_ARCHITECHURE
+static int drv_cmd_set_11be_disabled(struct wlan_hdd_link_info *link_info,
+					 struct hdd_context *hdd_ctx,
+					 uint8_t *command,
+					 uint8_t command_len,
+					 struct hdd_priv_data *priv_data){
+	int errno;
+	uint8_t val = 0;
+	uint8_t *value = command;
+	value = value + 18; //command：SET-11BE-DISABLED 1
+	errno = kstrtou8(value, 10, &val);
+	if (errno < 0) {
+		/*
+		 * If the input value is greater than max value of datatype,
+		 * then also kstrtou8 fails
+		 */
+		hdd_err("kstrtou8 failed invalid input value");
+		return -EINVAL;
+	}
+	hdd_debug("command val %d,errno %d", val, errno);
+	if(val){
+		hdd_ctx->psoc->soc_nif.user_config.usr_disable_eht = true;
+	}
+	return 0;
+}
+//endif
+
+static int drv_cmd_set_burst_time(struct wlan_hdd_link_info *link_info,
+				  struct hdd_context *hdd_ctx,
+				  uint8_t *command,
+				  uint8_t command_len,
+				  struct hdd_priv_data *priv_data)
+{
+	uint8_t *value = command;
+	int  temp = 0;
+	uint32_t val = 0;
+	struct wlan_objmgr_psoc *psoc = hdd_ctx->psoc;
+	struct wlan_scan_obj *scan_obj;
+
+	if (!psoc) {
+		hdd_err("psoc is null");
+		return -EINVAL;
+	}
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	hdd_debug("command is %s", command);
+	if (!scan_obj)
+		return -EINVAL;;
+	if (strncmp(command, "SETBURSTTIME P2P", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.p2p_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME GO", 15) == 0) {
+		value = value + 16;
+		temp = kstrtou32(value, 10, &val);
+		hdd_debug("command is %s", command);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			hdd_debug("command err val is %d ", val);
+			return -EFAULT;
+		}
+		scan_obj->scan_def.go_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME STA", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.sta_scan_burst_duration = val;
+	} else if (strncmp(command, "SETBURSTTIME SAP", 16) == 0) {
+		value = value + 17;
+		temp = kstrtou32(value, 10, &val);
+		if (temp || !cfg_in_range(CFG_ACTIVE_MAX_CHANNEL_TIME, val)) {
+			return -EFAULT;
+		}
+		scan_obj->scan_def.ap_scan_burst_duration = val;
+	} else {
+		return -EFAULT;
+	}
+	return 0;
+}
 
 /*
  * The following table contains all supported WLAN HDD
@@ -7478,6 +7577,10 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"RXFILTER-STOP",             drv_cmd_dummy, false},
 	{"BTCOEXSCAN-START",          drv_cmd_dummy, false},
 	{"BTCOEXSCAN-STOP",           drv_cmd_dummy, false},
+	{"SET-11BE-DISABLED",   drv_cmd_set_11be_disabled, true},
+	{"GET-FW-UPDATE-MCC-QUOTA",   drv_cmd_smartmcc_get_fw_update_quota, false},
+	{"SETBURSTTIME", drv_cmd_set_burst_time, false},
+	// End
 	{"GET_SOFTAP_LINK_SPEED",     drv_cmd_get_sap_go_linkspeed, true},
 #ifdef CONFIG_BAND_6GHZ
 	{"GET_WIFI6E_CHANNELS",       drv_cmd_get_wifi6e_channels, true},

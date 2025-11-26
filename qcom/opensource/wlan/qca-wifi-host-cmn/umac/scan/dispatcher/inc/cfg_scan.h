@@ -1485,6 +1485,29 @@ enum scan_mode_6ghz {
 			30000, \
 			CFG_VALUE_OR_DEFAULT, \
 			"last scan ageout time")
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+/*
+ * <ini>
+ * gEnableVendorFt - Enable/Disable vendor ft
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to enable/disable vendor ft.
+ *
+ * Related: Scan
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_VENDOR_FT CFG_INI_BOOL(\
+		"gEnableVendorFt",\
+		false,\
+		"enable vendor ft")
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 #define CFG_SCAN_ALL \
 	CFG(CFG_DROP_BCN_ON_CHANNEL_MISMATCH) \
 	CFG(CFG_DROP_BCN_ON_INVALID_FREQ) \
@@ -1525,5 +1548,6 @@ enum scan_mode_6ghz {
 	CFG(CFG_SCAN_ALLOW_BSS_WITH_CORRUPTED_IE) \
 	CFG(CFG_SKIP_6GHZ_AND_INDOOR_FREQ_SCAN) \
 	CFG_SCAN_PNO \
-	CFG(CFG_LAST_SCAN_AGEOUT_TIME)
+	CFG(CFG_LAST_SCAN_AGEOUT_TIME) \
+	CFG(CFG_ENABLE_VENDOR_FT)
 #endif /* __CONFIG_SCAN_H */

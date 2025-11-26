@@ -961,7 +961,6 @@ int icnss_wlfw_wlan_mac_req_send_sync(struct icnss_priv *priv,
         int i;
         char revert_mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
 #endif /* OPLUS_FEATURE_WIFI_MAC */
-
 	if (!priv || !mac || mac_len != QMI_WLFW_MAC_ADDR_SIZE_V01)
 		return -EINVAL;
 
@@ -1098,16 +1097,12 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 #ifdef OPLUS_FEATURE_WIFI_BDF
 //Modify for: multi projects using different bdf
 static bool is_prj_support_region_id(void) {
-	int project_id = get_project();
-	icnss_pr_info("the project support region id is: %d\n", project_id);
-	if (project_id == 24211 || project_id == 24212) {
-		return true;
-	} else if (project_id == 24882 || project_id == 24881) {
-		return true;
-	} else if (project_id == 25861) {
-		return true;
-	}
-	return false;
+    int project_id = get_project();
+    icnss_pr_dbg("the project support region id is: %d\n", project_id);
+    if (project_id == 24211 || project_id == 24212) {
+        return true;
+    }
+    return false;
 }
 
 static bool is_prj_support_region_nv_id(void) {
@@ -1298,6 +1293,15 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 	temp = fw_entry->data;
 	remaining = fw_entry->size;
 
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	if (bdf_type == ICNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_SUCCESS, &priv->loadRegdbState);
+	} else if (bdf_type == ICNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_SUCCESS, &priv->loadBdfState);
+	}
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
 	icnss_pr_dbg("Downloading %s: %s, size: %u\n",
 		     icnss_bdf_type_to_str(bdf_type), filename, remaining);
 
@@ -1371,6 +1375,16 @@ int icnss_wlfw_bdf_dnld_send_sync(struct icnss_priv *priv, u32 bdf_type)
 err_send:
 	release_firmware(fw_entry);
 err_req_fw:
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	if (bdf_type == ICNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_FAIL, &priv->loadRegdbState);
+	} else if (bdf_type == ICNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_FAIL, &priv->loadBdfState);
+	}
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
 	if (bdf_type != ICNSS_BDF_REGDB)
 		ICNSS_QMI_ASSERT();
 	kfree(req);

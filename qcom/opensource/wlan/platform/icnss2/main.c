@@ -136,6 +136,10 @@ static const char * const icnss_pdr_cause[] = {
 	[ICNSS_ROOT_PD_SHUTDOWN] = "Root PD shutdown",
 	[ICNSS_HOST_ERROR] = "Host error",
 };
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
+static unsigned int cnssprobestate = 0;
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 static void icnss_set_plat_priv(struct icnss_priv *priv)
 {
@@ -2242,10 +2246,16 @@ static void icnss_driver_event_work(struct work_struct *work)
 								 event->data);
 			break;
 		case ICNSS_DRIVER_EVENT_IDLE_SHUTDOWN:
+			#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+			idle_shutdown = true;
+			#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 			ret = icnss_driver_event_idle_shutdown(priv,
 							       event->data);
 			break;
 		case ICNSS_DRIVER_EVENT_IDLE_RESTART:
+			#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+			idle_shutdown = false;
+			#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 			ret = icnss_driver_event_idle_restart(priv,
 							      event->data);
 			break;
@@ -5026,6 +5036,96 @@ static inline void icnss_runtime_pm_deinit(struct icnss_priv *priv)
 	pm_runtime_put_sync(&priv->pdev->dev);
 }
 
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
+static void icnss_create_fw_state_kobj(void);
+static void icnss_create_debug_kobj(void);
+extern ssize_t icnss_show_cnss_debug(struct device_driver *driver, char *buf);
+bool idle_shutdown = false;
+
+static ssize_t icnss_show_fw_ready(struct device_driver *driver, char *buf)
+{
+	bool firmware_ready = false;
+	bool bdfloadsuccess = false;
+	bool regdbloadsuccess = false;
+	bool cnssprobesuccess = false;
+	bool plat_env_null = false;
+	bool pcie_link_down = false;
+	bool pcie_bus_fail = false;
+	bool pcie_enumerate_fail = false;
+	bool pcie_l1_fail = false;
+
+	if (!penv) {
+		icnss_pr_err("icnss_show_fw_ready plat_env is NULL!\n");
+		plat_env_null = true;
+	} else {
+		firmware_ready = test_bit(ICNSS_FW_READY, &penv->state);
+		regdbloadsuccess = test_bit(CNSS_LOAD_REGDB_SUCCESS, &penv->loadRegdbState);
+		bdfloadsuccess = test_bit(CNSS_LOAD_BDF_SUCCESS, &penv->loadBdfState);
+		plat_env_null = false;
+		pcie_link_down = test_bit(CNSS_PCIE_LINK_DOWN,&penv->pcieLinkDown);
+		pcie_bus_fail = test_bit(CNSS_PCIEBUS_FAIL, &penv->pcieBusState);
+		pcie_enumerate_fail = test_bit(CNSS_PCIE_ENUM_FAIL, &penv->pcieEnumState);
+		pcie_l1_fail = test_bit(CNSS_PCIE_L1_FAIL,&penv->pcieL1Fail);
+	}
+	cnssprobesuccess = (cnssprobestate == CNSS_PROBE_SUCCESS);
+	return sprintf(buf, "%s:%s:%s:%s:%s:%s:%s:%s:%s",
+           (idle_shutdown ? "idle_shutdown" : (firmware_ready ? "fwstatus_ready" : "fwstatus_not_ready")),
+           (regdbloadsuccess ? "regdb_loadsuccess" : "regdb_loadfail"),
+           (bdfloadsuccess ? "bdf_loadsuccess" : "bdf_loadfail"),
+           (cnssprobesuccess ? "cnssprobe_success" : "cnssprobe_fail"),
+           (plat_env_null ? "platenv_fail" : "platenv_success"),
+           (pcie_link_down ? "pcie_link_down" : "pcie_link_up"),
+           (pcie_bus_fail ? "pcie_bus_fail" : "pcie_bus_success"),
+           (pcie_enumerate_fail ? "pcie_enumerate_fail" : "pcie_enumerate_success"),
+           (pcie_l1_fail ? "pcie_l1_fail" : "pcie_l1_success")
+           );
+}
+
+struct driver_attribute fw_ready_attr = {
+	.attr = {
+		.name = "firmware_ready",
+		.mode = S_IRUGO,
+	},
+	.show = icnss_show_fw_ready,
+	//read only so we don't need to impl store func
+};
+
+struct driver_attribute cnss_debug_attr = {
+	.attr = {
+		.name = "cnss_debug",
+		.mode = S_IRUGO,
+	},
+	.show = icnss_show_cnss_debug,
+};
+
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
+#ifdef OPLUS_FEATURE_WIFI_FTM
+//Add for QCOM WCN chip id
+static void icnss_create_device_id_kobj(void);
+
+static ssize_t icnss_show_device_id(struct device_driver *driver, char *buf)
+{
+    unsigned long device_id = 0;
+    if (!penv) {
+        icnss_pr_err("icnss_show_device_id penv is NULL!\n");
+    } else {
+        device_id = penv->device_id;
+    }
+    return sprintf(buf, "0x%lx", device_id);
+}
+
+struct driver_attribute device_id_attr = {
+	.attr = {
+		.name = "device_id",
+		.mode = S_IRUGO,
+	},
+	.show = icnss_show_device_id,
+	//read only so we don't need to impl store func
+};
+#endif /* OPLUS_FEATURE_WIFI_FTM */
+
 static inline bool icnss_use_nv_mac(struct icnss_priv *priv)
 {
 	return of_property_read_bool(priv->pdev->dev.of_node,
@@ -5140,7 +5240,15 @@ static int icnss_probe(struct platform_device *pdev)
 	icnss_initialize_mem_pool(priv->device_id);
 
 	icnss_init_control_params(priv);
-
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+	icnss_create_fw_state_kobj();
+	icnss_create_debug_kobj();
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+	#ifdef OPLUS_FEATURE_WIFI_FTM
+	//Add for QCOM WCN chip id
+	icnss_create_device_id_kobj();
+	#endif /* OPLUS_FEATURE_WIFI_FTM */
 	icnss_read_device_configs(priv);
 
 	ret = icnss_resource_parse(priv);
@@ -5249,6 +5357,11 @@ static int icnss_probe(struct platform_device *pdev)
 	icnss_register_ims_service(priv);
 	INIT_LIST_HEAD(&priv->icnss_tcdev_list);
 
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for: check fw status for switch issue
+	cnssprobestate = CNSS_PROBE_SUCCESS;
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
 	icnss_pr_info("Platform driver probed successfully\n");
 
 	return 0;
@@ -5266,6 +5379,11 @@ out_free_resources:
 out_reset_drvdata:
 	icnss_deinitialize_mem_pool();
 	dev_set_drvdata(dev, NULL);
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	cnssprobestate = CNSS_PROBE_FAIL;
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 	return ret;
 }
 
@@ -5643,6 +5761,32 @@ static bool icnss_has_valid_dt_node(void)
 	icnss_pr_info("No valid icnss2 dtsi entry\n");
 	return false;
 }
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
+static void icnss_create_fw_state_kobj(void) {
+	if (driver_create_file(&(icnss_driver.driver), &fw_ready_attr)) {
+		icnss_pr_info("failed to create %s", fw_ready_attr.attr.name);
+	}
+}
+
+static void icnss_create_debug_kobj(void)
+{
+    if (driver_create_file(&(icnss_driver.driver), &cnss_debug_attr)) {
+        icnss_pr_info("failed to create %s", cnss_debug_attr.attr.name);
+    }
+}
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
+#ifdef OPLUS_FEATURE_WIFI_FTM
+//Add for QCOM WCN chip id
+static void icnss_create_device_id_kobj(void)
+{
+    if (driver_create_file(&(icnss_driver.driver), &device_id_attr)) {
+        icnss_pr_info("failed to create %s", device_id_attr.attr.name);
+    }
+}
+#endif /* OPLUS_FEATURE_WIFI_FTM */
 
 static int __init icnss_initialize(void)
 {

@@ -1730,7 +1730,7 @@ cm_install_link_vdev_keys(struct wlan_objmgr_vdev *vdev)
 }
 
 #ifdef WLAN_CHIPSET_STATS
-static void cm_cp_stats_cstats_log_connect_event(struct wlan_objmgr_vdev *vdev,
+void cm_cp_stats_cstats_log_connect_event(struct wlan_objmgr_vdev *vdev,
 					  struct wlan_cm_connect_resp *rsp)
 {
 	struct vdev_mlme_obj *vdev_mlme;

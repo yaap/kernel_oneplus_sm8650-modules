@@ -4845,7 +4845,10 @@ QDF_STATUS wma_start(void)
 		goto end;
 	}
 	wma_register_spectral_cmds(wma_handle);
-
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+//add for  connectivity power monitor
+	oplusLpmUeventInit();
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 end:
 	wma_debug("Exit");
 	return qdf_status;
@@ -4888,7 +4891,10 @@ QDF_STATUS wma_stop(void)
 		qdf_mem_free(wma_handle->ack_work_ctx);
 		wma_handle->ack_work_ctx = NULL;
 	}
-
+#ifdef OPLUS_FEATURE_CONN_POWER_MONITOR
+//add for  connectivity power monitor
+	oplusConnUeventDeinit();
+#endif /* OPLUS_FEATURE_CONN_POWER_MONITOR */
 	/* Destroy the timer for log completion */
 	qdf_status = qdf_mc_timer_destroy(&wma_handle->log_completion_timer);
 	if (qdf_status != QDF_STATUS_SUCCESS)
@@ -6294,7 +6300,7 @@ static void wma_update_mlme_aux_dev_caps(struct wlan_objmgr_psoc *psoc,
 	struct wlan_mlme_aux_dev_caps
 		wlan_mlme_aux0_dev_caps[WLAN_MLME_HW_MODE_MAX] = {0};
 
-	if ((int32_t)WMI_HOST_HW_MODE_MAX != (int32_t)WLAN_MLME_HW_MODE_MAX)
+	if (WMI_HOST_HW_MODE_MAX != WLAN_MLME_HW_MODE_MAX)
 		wma_err("struct define mismatch, pls fix it.");
 
 	num_aux_dev_caps =

@@ -1339,6 +1339,226 @@ util_scan_parse_extn_ie(struct scan_cache_entry *scan_params,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+static QDF_STATUS
+util_scan_recreate_vendor_ft_rsn(uint8_t *vendor_ft_rsn, uint8_t *frm)
+{
+	uint8_t len = frm[1];
+	int32_t w;
+	int n, n_cnt;
+	uint32_t keymgmt = 0;
+	uint8_t *ori_pos = frm, *keymgmt_pos = frm;
+	uint8_t pos_len = frm[1];
+
+	/* Check the length once for fixed parts: OUI, type & version */
+	if (len < 2)
+		return QDF_STATUS_E_INVAL;
+
+	frm += 2;
+	/* NB: iswapoui already validated the OUI and type */
+	w = LE_READ_2(frm);
+	if (w != RSN_VERSION)
+		return QDF_STATUS_E_INVAL;
+
+	frm += 2, len -= 2;
+
+	if (!len) {
+		return QDF_STATUS_E_EMPTY;
+	} else if (len < 4) {
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* multicast/group cipher */
+	frm += 4, len -= 4;
+
+	if (!len) {
+		return QDF_STATUS_E_EMPTY;
+	} else if (len < 2) {
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* unicast ciphers */
+	n = LE_READ_2(frm);
+	frm += 2, len -= 2;
+	if (n) {
+		if (len < n * 4)
+			return QDF_STATUS_E_INVAL;
+
+		for (; n > 0; n--) {
+			frm += 4, len -= 4;
+		}
+	}
+
+	if (!len) {
+		/* default key mgmt 8021x */
+		return QDF_STATUS_E_EMPTY;
+	} else if (len < 2) {
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* key management algorithms */
+	n = LE_READ_2(frm);
+	frm += 2, len -= 2;
+	n_cnt = n + 1;
+
+	if (n && n == 1) {
+		if (len < n * 4)
+			return QDF_STATUS_E_INVAL;
+		pos_len -= len;
+		keymgmt_pos = frm;
+		for (; n > 0; n--) {
+			w = wlan_crypto_rsn_suite_to_keymgmt(frm);
+			if (w >= 0) {
+				keymgmt = keymgmt | (1 << w);
+			}
+
+			frm += 4, len -= 4;
+		}
+
+		if (keymgmt & (1 << WLAN_CRYPTO_KEY_MGMT_PSK) ||
+			keymgmt & (1 << WLAN_CRYPTO_KEY_MGMT_PSK_SHA256)) {
+			qdf_mem_copy(vendor_ft_rsn, ori_pos, pos_len);
+			*(vendor_ft_rsn + 1) = ori_pos[1] + 4;
+			wlan_crypto_put_le16(vendor_ft_rsn + pos_len, n_cnt);
+			pos_len += 2;
+			qdf_mem_copy(&vendor_ft_rsn[pos_len], keymgmt_pos, (n_cnt - 1) * 4);
+			pos_len += (n_cnt - 1) * 4;
+			wlan_crypto_put_le32(vendor_ft_rsn + pos_len, RSN_AUTH_KEY_MGMT_FT_PSK);
+			pos_len += 4;
+			qdf_mem_copy(&vendor_ft_rsn[pos_len], frm, len);
+			qdf_trace_hex_dump(QDF_MODULE_ID_SCAN, QDF_TRACE_LEVEL_DEBUG, vendor_ft_rsn,
+			   vendor_ft_rsn[1] + 2);
+
+			return QDF_STATUS_SUCCESS;
+		} else if (keymgmt & (1 << WLAN_CRYPTO_KEY_MGMT_IEEE8021X) ||
+			keymgmt & (1 << WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SHA256)) {
+			qdf_mem_copy(vendor_ft_rsn, ori_pos, pos_len);
+			*(vendor_ft_rsn + 1) = ori_pos[1] + 4;
+			wlan_crypto_put_le16(vendor_ft_rsn + pos_len, n_cnt);
+			pos_len += 2;
+			qdf_mem_copy(vendor_ft_rsn + pos_len, keymgmt_pos, (n_cnt - 1) * 4);
+			pos_len += (n_cnt - 1) * 4;
+			wlan_crypto_put_le32(vendor_ft_rsn + pos_len, RSN_AUTH_KEY_MGMT_FT_802_1X);
+			pos_len += 4;
+			qdf_mem_copy(vendor_ft_rsn + pos_len, frm, len);
+			qdf_trace_hex_dump(QDF_MODULE_ID_SCAN, QDF_TRACE_LEVEL_DEBUG, vendor_ft_rsn,
+			   vendor_ft_rsn[1] + 2);
+
+			return QDF_STATUS_SUCCESS;
+		}
+
+	}
+
+	return QDF_STATUS_E_INVAL;
+}
+
+static QDF_STATUS
+util_scan_parse_vendor_ft_ie(struct scan_cache_entry *scan_params,
+	struct ie_header *ie)
+{
+	uint8_t *pos_ie;
+
+	if (is_vendor_ft_oui((uint8_t *)ie)) {
+		scan_params->vendor_ft_adaptive = 1;
+		pos_ie = (uint8_t *)ie;
+		pos_ie +=8;
+		if (*pos_ie == WLAN_ELEMID_FT) {
+			pos_ie += *(pos_ie + 1) + 2;
+		}
+		if (*pos_ie == WLAN_ELEMID_MOBILITY_DOMAIN) {
+			qdf_mem_copy(scan_params->vendor_ft_mdie, pos_ie, WLAN_MOBILITY_DOMAIN_IE_MAX_LEN + 2);
+		}
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS
+util_scan_populate_vendor_ft_ie(struct wlan_objmgr_pdev *pdev,
+			       struct scan_cache_entry *scan_params)
+{
+	struct ie_header *ie;
+	uint32_t ie_len;
+	QDF_STATUS status;
+	struct wlan_scan_obj *scan_obj;
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+	if (!psoc) {
+		scm_err("psoc is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	if (!scan_obj) {
+		scm_err("scan_obj is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	ie_len = util_scan_entry_ie_len(scan_params);
+	ie = (struct ie_header *)
+		  util_scan_entry_ie_data(scan_params);
+
+	while (ie_len >= sizeof(struct ie_header)) {
+		ie_len -= sizeof(struct ie_header);
+
+		if (!ie->ie_len) {
+			ie += 1;
+			continue;
+		}
+
+		if (ie_len < ie->ie_len) {
+			if (scan_obj->allow_bss_with_incomplete_ie) {
+				scm_debug(QDF_MAC_ADDR_FMT": Scan allowed with incomplete corrupted IE:%x, ie_len: %d, ie->ie_len: %d, stop processing further",
+					  QDF_MAC_ADDR_REF(scan_params->bssid.bytes),
+					  ie->ie_id, ie_len, ie->ie_len);
+				break;
+			}
+			scm_debug(QDF_MAC_ADDR_FMT": Scan not allowed with incomplete corrupted IE:%x, ie_len: %d, ie->ie_len: %d, stop processing further",
+				  QDF_MAC_ADDR_REF(scan_params->bssid.bytes),
+				  ie->ie_id, ie_len, ie->ie_len);
+			return QDF_STATUS_E_INVAL;
+		}
+
+		switch (ie->ie_id) {
+		case WLAN_ELEMID_RSN:
+			if (ie->ie_len >= WLAN_RSN_IE_MIN_LEN) {
+				scan_params->vendor_ft_rsn_offset = util_scan_entry_frame_len(scan_params) -
+				                                        ie_len - sizeof(struct ie_header);
+			}
+			break;
+		case WLAN_ELEMID_VENDOR:
+			status = util_scan_parse_vendor_ft_ie(scan_params,
+							   ie);
+			if (QDF_IS_STATUS_ERROR(status))
+				goto err_status;
+			break;
+		default:
+			break;
+		}
+
+		/* Consume info element */
+		ie_len -= ie->ie_len;
+		/* Go to next IE */
+		ie = (struct ie_header *)
+			(((uint8_t *) ie) +
+			sizeof(struct ie_header) +
+			ie->ie_len);
+	}
+
+	return QDF_STATUS_SUCCESS;
+
+err_status:
+	scm_debug(QDF_MAC_ADDR_FMT ": failed to parse IE - id: %d, len: %d",
+		  QDF_MAC_ADDR_REF(scan_params->bssid.bytes),
+		  ie->ie_id, ie->ie_len);
+
+	return status;
+}
+
+
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 static QDF_STATUS
 util_scan_parse_vendor_ie(struct scan_cache_entry *scan_params,
 	struct ie_header *ie)
@@ -2465,6 +2685,47 @@ static inline void util_scan_update_ml_info(struct wlan_objmgr_pdev *pdev,
 }
 #endif
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+static QDF_STATUS
+util_scan_refill_vendor_ft_entry(uint8_t *realloc_frame, struct scan_cache_entry *scan_entry)
+{
+	uint32_t rsn_len;
+	uint8_t *pos_realloc, *pos_raw;
+	struct ie_header *rsn_header;
+
+	if (scan_entry->vendor_ft_rsn_offset == 0) {
+		scm_err("scan_entry rsn is NULL.");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	qdf_mem_copy(realloc_frame, scan_entry->raw_frame.ptr,
+	                scan_entry->vendor_ft_rsn_offset);
+
+	pos_realloc = realloc_frame + scan_entry->vendor_ft_rsn_offset;
+	pos_raw = scan_entry->raw_frame.ptr + scan_entry->vendor_ft_rsn_offset;
+	rsn_header = (struct ie_header *) pos_raw;
+
+	if (util_scan_recreate_vendor_ft_rsn(pos_realloc, pos_raw) != QDF_STATUS_SUCCESS) {
+		scm_err("scan_entry rsn parse failed.");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	if (rsn_header->ie_id != WLAN_ELEMID_RSN) {
+		scm_err("scan_entry rsn offset record error.");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	rsn_len = rsn_header->ie_len + sizeof(struct ie_header);
+	pos_realloc = pos_realloc + rsn_len + 4;
+	pos_raw = pos_raw + rsn_len;
+
+	qdf_mem_copy(pos_realloc, pos_raw,
+	                scan_entry->raw_frame.len - scan_entry->vendor_ft_rsn_offset - rsn_len);
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 static QDF_STATUS
 util_scan_gen_scan_entry(struct wlan_objmgr_pdev *pdev,
 			 uint8_t *frame, qdf_size_t frame_len,
@@ -2485,6 +2746,17 @@ util_scan_gen_scan_entry(struct wlan_objmgr_pdev *pdev,
 	bool is_6g_dup_bcon = false;
 	uint8_t band_mask;
 	qdf_freq_t recv_freq = 0;
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	uint8_t *realloc_frame;
+	struct wlan_objmgr_psoc *psoc = NULL;
+	int wlan_refill_vendor_ft_success = false;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+	if (!psoc) {
+		scm_debug_rl("psoc is null");
+		return false;
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 	scan_entry = qdf_mem_malloc_atomic(sizeof(*scan_entry));
 	if (!scan_entry) {
@@ -2564,6 +2836,28 @@ util_scan_gen_scan_entry(struct wlan_objmgr_pdev *pdev,
 	scan_entry->raw_frame.len = frame_len;
 	qdf_mem_copy(scan_entry->raw_frame.ptr,
 		frame, frame_len);
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	util_scan_populate_vendor_ft_ie(pdev, scan_entry);
+	if (ucfg_scan_is_vendor_ft_enabled(psoc) && scan_entry->vendor_ft_adaptive && scan_entry->vendor_ft_rsn_offset) {
+		realloc_frame =	qdf_mem_malloc_atomic(frame_len + 4);
+		if (!realloc_frame) {
+			scm_err("failed to allocate memory for realloc_frame");
+		} else {
+			if (util_scan_refill_vendor_ft_entry(realloc_frame, scan_entry) != QDF_STATUS_SUCCESS) {
+				scm_err("failed to refill vendor ft.");
+				qdf_mem_free(realloc_frame);
+			} else {
+				scm_debug("Success to refill vendor ft." QDF_MAC_ADDR_FMT, QDF_MAC_ADDR_REF(scan_entry->bssid.bytes));
+				qdf_mem_free(scan_entry->raw_frame.ptr);
+
+				scan_entry->raw_frame.len = frame_len + 4;
+				scan_entry->raw_frame.ptr = realloc_frame;
+				wlan_refill_vendor_ft_success = true;
+			}
+		}
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 	status = util_scan_populate_bcn_ie_list(pdev, scan_entry, &chan_freq,
 						band_mask);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -2571,6 +2865,13 @@ util_scan_gen_scan_entry(struct wlan_objmgr_pdev *pdev,
 		qdf_mem_free(scan_entry);
 		return QDF_STATUS_E_FAILURE;
 	}
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	if (ucfg_scan_is_vendor_ft_enabled(psoc) && scan_entry->vendor_ft_adaptive && scan_entry->vendor_ft_rsn_offset) {
+		if (wlan_refill_vendor_ft_success && scan_entry->ie_list.mdie == NULL) {
+			scan_entry->ie_list.mdie = scan_entry->vendor_ft_mdie;
+		}
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 	ssid = (struct ie_ssid *)
 		scan_entry->ie_list.ssid;

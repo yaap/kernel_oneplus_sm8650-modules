@@ -323,6 +323,10 @@ bool wlan_crypto_is_mmie_valid(struct wlan_objmgr_vdev *vdev,
 					uint8_t *frm,
 					uint8_t *efrm);
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel);
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 /**
  * wlan_crypto_wpaie_check() - called by mlme to check the wpaie
  * @crypto_params: crypto params

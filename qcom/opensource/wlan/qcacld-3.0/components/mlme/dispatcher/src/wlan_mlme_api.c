@@ -4869,7 +4869,13 @@ bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
 			       uint32_t ie_length)
 {
 	struct action_oui_search_attr search_attr;
-
+	//ifdef OPLUS_FEATURE_WIFI_ARCHITECHURE
+	bool usr_disable_eht = psoc->soc_nif.user_config.usr_disable_eht;
+	mlme_debug("usr_disable_eht %d", usr_disable_eht);
+	if (usr_disable_eht){
+		return false;
+	}
+	//endif
 	if (wlan_action_oui_is_empty(psoc, ACTION_OUI_11BE_OUI_ALLOW))
 		return true;
 

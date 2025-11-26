@@ -39,11 +39,21 @@ extern void *icnss_ipc_soc_wake_context;
 #define icnss_ipc_soc_wake_string(_x...)
 #endif
 
+#ifndef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
 #define icnss_pr_err(_fmt, ...) do {                                    \
 	printk("%s" pr_fmt(_fmt), KERN_ERR, ##__VA_ARGS__);             \
 	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",                     \
 			     ##__VA_ARGS__);                            \
 	} while (0)
+#else
+#define icnss_pr_err(_fmt, ...) do {                                    \
+	printk("%s" pr_fmt(_fmt), KERN_ERR, ##__VA_ARGS__);             \
+	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",                     \
+			     ##__VA_ARGS__);                            \
+	oplus_cnss_error_log_add(_fmt, ##__VA_ARGS__);			\
+	} while (0)
+#endif  /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 #define icnss_pr_warn(_fmt, ...) do {                                   \
 	printk("%s" pr_fmt(_fmt), KERN_WARNING, ##__VA_ARGS__);         \
@@ -105,4 +115,8 @@ void icnss_debug_init(void);
 void icnss_debug_deinit(void);
 int icnss_debugfs_create(struct icnss_priv *priv);
 void icnss_debugfs_destroy(struct icnss_priv *priv);
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for wifi switch monitor
+void oplus_cnss_error_log_add(char *fmt, ...);
+#endif  /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 #endif /* _ICNSS_DEBUG_H */

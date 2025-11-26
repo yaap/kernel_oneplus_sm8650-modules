@@ -595,6 +595,9 @@ struct wlan_scan_obj {
 	uint16_t duty_cycle_cnt_6ghz;
 	bool allow_bss_with_incomplete_ie;
 	bool aux_mac_support;
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	bool vendor_ft_enabled;
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 };
 
 #ifdef ENABLE_SCAN_PROFILE

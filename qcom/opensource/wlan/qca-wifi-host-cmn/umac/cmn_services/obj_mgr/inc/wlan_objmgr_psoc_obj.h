@@ -315,6 +315,9 @@ struct wlan_objmgr_psoc_user_config {
 	bool is_11h_support_enabled;
 	uint8_t dot11_mode;
 	uint8_t band_capability;
+	//ifdef OPLUS_FEATURE_WIFI_ARCHITECHURE
+  	bool usr_disable_eht;
+  	//endif
 };
 
 /**

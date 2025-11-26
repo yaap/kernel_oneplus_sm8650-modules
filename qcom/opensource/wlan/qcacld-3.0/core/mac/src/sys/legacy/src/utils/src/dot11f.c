@@ -11525,6 +11525,72 @@ uint32_t dot11f_unpack_ie_vendor_vht_ie(tpAniSirGlobal pCtx,
 
 #define SigIevendor_vht_ie (0x00a8)
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+uint32_t dot11f_unpack_ie_vendor_ft_ie(tpAniSirGlobal pCtx,
+					 uint8_t *pBuf,
+					 uint8_t ielen,
+					 tDot11fIEvendor_ft_ie *pDst,
+					 bool append_ie)
+{
+	uint32_t status = DOT11F_PARSE_SUCCESS;
+	uint8_t tmp56__, version, eid, ft_len, md_len;
+	(void) pBuf; (void)ielen; /* Shutup the compiler */
+	if (pDst->present)
+		return DOT11F_DUPLICATE_IE;
+	pDst->present = 1;
+	if (unlikely(ielen < 6)) {
+		pDst->present = 0;
+		return DOT11F_INCOMPLETE_IE;
+	}
+
+	version = *pBuf;
+	pBuf += 1;
+	ielen -= (uint8_t)1;
+
+	eid = *pBuf;
+	if (eid == DOT11F_EID_FTINFO) {
+		ft_len = *(pBuf + 1);
+		ft_len += (uint8_t)2;
+		if (unlikely(ielen < ft_len)) {
+			pDst->present = 0;
+			return DOT11F_INCOMPLETE_IE;
+		}
+		pBuf += ft_len;
+		ielen -= ft_len;
+	}
+
+	eid = *pBuf;
+	if (eid != DOT11F_EID_MOBILITYDOMAIN) {
+		return DOT11F_INCOMPLETE_IE;
+	} else {
+		md_len = *(pBuf + 1);
+		md_len += (uint8_t)2;
+		if (unlikely(ielen < md_len)) {
+			pDst->present = 0;
+			return DOT11F_INCOMPLETE_IE;
+		}
+		pBuf += 2;
+		ielen -= (uint8_t)2;
+	}
+
+	framesntohs(pCtx, &pDst->MDID, pBuf, 0);
+	pBuf += 2;
+	ielen -= (uint8_t)2;
+	if (unlikely(ielen < 1)) {
+		pDst->present = 0;
+		return DOT11F_INCOMPLETE_IE;
+	}
+
+	tmp56__ = *pBuf;
+	pDst->overDSCap = tmp56__ >> 0 & 0x1;
+	pDst->resourceReqCap = tmp56__ >> 1 & 0x1;
+	pDst->reserved = tmp56__ >> 2 & 0x3f;
+	(void)pCtx;
+	return status;
+} /* End dot11f_unpack_ie_vendor_ft_ie. */
+
+#define SigIeVendorFt_ie (0x00c0)
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 static const tFFDefn FFS_AddTSRequest[] = {
 	{ "Category", offsetof(tDot11fAddTSRequest, Category), SigFfCategory,
@@ -12339,6 +12405,11 @@ static const tIEDefn IES_Beacon[] = {
 	offsetof(tDot11fIEreduced_neighbor_report, present), 0,
 	"reduced_neighbor_report", 0, 7, 22, SigIereduced_neighbor_report,
 	{0, 0, 0, 0, 0}, 0, DOT11F_EID_REDUCED_NEIGHBOR_REPORT, 0, 0, },
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	{ offsetof(tDot11fBeacon, vendor_ft_ie), offsetof(tDot11fIEvendor_ft_ie,
+	present), 0, "vendor_ft_ie", 0, 7, 107, SigIeVendorFt_ie, {0, 15, 226, 200, 4},
+	5, DOT11F_EID_VENDOR_FT_IE, 0, 0, },
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 	{0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },};
 
 uint32_t dot11f_unpack_beacon(tpAniSirGlobal pCtx,
@@ -12352,6 +12423,16 @@ uint32_t dot11f_unpack_beacon(tpAniSirGlobal pCtx,
 		      (uint8_t *)pFrm, sizeof(*pFrm), append_ie);
 
 	(void)i;
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	if (pFrm->vendor_ft_ie.present) {
+		/* Vendor FT info */
+		qdf_mem_copy((uint8_t *) &(pFrm->MobilityDomain),
+			     (uint8_t *) &(pFrm->vendor_ft_ie),
+			     sizeof(tDot11fIEMobilityDomain));
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 	return status;
 
 } /* End dot11f_unpack_beacon. */
@@ -12854,6 +12935,11 @@ static const tIEDefn IES_BeaconIEs[] = {
 	offsetof(tDot11fIEreduced_neighbor_report, present), 0,
 	"reduced_neighbor_report", 0, 7, 22, SigIereduced_neighbor_report,
 	{0, 0, 0, 0, 0}, 0, DOT11F_EID_REDUCED_NEIGHBOR_REPORT, 0, 0, },
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	{ offsetof(tDot11fBeaconIEs, vendor_ft_ie), offsetof(tDot11fIEvendor_ft_ie,
+	present), 0, "vendor_ft_ie", 0, 7, 107, SigIeVendorFt_ie, {0, 15, 226, 200, 4},
+	5, DOT11F_EID_VENDOR_FT_IE, 0, 0, },
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 	{0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },};
 
 uint32_t dot11f_unpack_beacon_i_es(tpAniSirGlobal pCtx,
@@ -12867,6 +12953,16 @@ uint32_t dot11f_unpack_beacon_i_es(tpAniSirGlobal pCtx,
 		      (uint8_t *)pFrm, sizeof(*pFrm), append_ie);
 
 	(void)i;
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	if (pFrm->vendor_ft_ie.present) {
+		/* Vendor FT info */
+		qdf_mem_copy((uint8_t *) &(pFrm->MobilityDomain),
+			     (uint8_t *) &(pFrm->vendor_ft_ie),
+			     sizeof(tDot11fIEMobilityDomain));
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 	return status;
 
 } /* End dot11f_unpack_beacon_i_es. */
@@ -13539,6 +13635,11 @@ static const tIEDefn IES_ProbeResponse[] = {
 	offsetof(tDot11fIEreduced_neighbor_report, present), 0,
 	"reduced_neighbor_report", 0, 7, 22, SigIereduced_neighbor_report,
 	{0, 0, 0, 0, 0}, 0, DOT11F_EID_REDUCED_NEIGHBOR_REPORT, 0, 0, },
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	{ offsetof(tDot11fProbeResponse, vendor_ft_ie), offsetof(tDot11fIEvendor_ft_ie,
+	present), 0, "vendor_ft_ie", 0, 7, 107, SigIeVendorFt_ie, {0, 15, 226, 200, 4},
+	5, DOT11F_EID_VENDOR_FT_IE, 0, 0, },
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 	{0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },};
 
 uint32_t dot11f_unpack_probe_response(tpAniSirGlobal pCtx,
@@ -13552,6 +13653,16 @@ uint32_t dot11f_unpack_probe_response(tpAniSirGlobal pCtx,
 		      (uint8_t *)pFrm, sizeof(*pFrm), append_ie);
 
 	(void)i;
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	if (pFrm->vendor_ft_ie.present) {
+		/* Vendor FT info */
+		qdf_mem_copy((uint8_t *) &(pFrm->MobilityDomain),
+			     (uint8_t *) &(pFrm->vendor_ft_ie),
+			     sizeof(tDot11fIEMobilityDomain));
+	}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 	return status;
 
 } /* End dot11f_unpack_probe_response. */
@@ -17306,6 +17417,18 @@ static uint32_t unpack_core(tpAniSirGlobal pCtx,
 						    countOffset),
 						    append_ie);
 					break;
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+				case SigIeVendorFt_ie:
+					status |=
+						dot11f_unpack_ie_vendor_ft_ie(
+						    pCtx, pBufRemaining, len,
+						    (tDot11fIEvendor_ft_ie *)
+						    (pFrm + pIe->offset +
+						    sizeof(tDot11fIEvendor_ft_ie) *
+						    countOffset),
+						    append_ie);
+					break;
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 				default:
 					FRAMES_LOG1(pCtx, FRLOGE, FRFL("INTERNAL ERROR"
 						     ": I don't know about the IE signature %d"
@@ -34568,6 +34691,11 @@ static uint32_t pack_core(tpAniSirGlobal pCtx,
 				sizeof(tDot11fIEvendor_vht_ie) * i),
 				pBufRemaining, nBufRemaining, &len);
 			break;
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+			// no need for pack this ie, directly ignore it.
+			case SigIeVendorFt_ie:
+			break;
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 			default:
 				FRAMES_LOG1(pCtx, FRLOGE, FRFL("INTERNAL ERROR-- I don"
 				"'t know about the IE %d; this is most likely a b"

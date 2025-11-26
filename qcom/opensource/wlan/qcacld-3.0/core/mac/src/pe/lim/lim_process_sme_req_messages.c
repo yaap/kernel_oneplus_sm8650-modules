@@ -78,6 +78,23 @@
 #include <wlan_mlo_mgr_peer.h>
 #endif
 
+/*
+ * As per spec valid range is range –64 dBm to 63 dBm.
+ * Powers in range of 64 - 191 will be invalid.
+ */
+#define INVALID_TPE_POWER 100
+
+/* Table 9-276—Meaning of Local Maximum Transmit Power Count subfield
+ * if the Maximum Transmit Power Interpretation subfield is 0 or 2
+ */
+#define MAX_TX_PWR_COUNT_FOR_160MHZ 3
+
+/* Table 9-277—Meaning of Maximum Transmit Power Count subfield
+ * if Maximum Transmit Power Interpretation subfield is 1 or 3
+ */
+#define MAX_TX_PWR_COUNT_FOR_160MHZ_PSD 4
+#define MAX_NUM_TX_POWER_FOR_320MHZ 5
+
 /* SME REQ processing function templates */
 static bool __lim_process_sme_sys_ready_ind(struct mac_context *, uint32_t *);
 static bool __lim_process_sme_start_bss_req(struct mac_context *,
@@ -4835,7 +4852,7 @@ static void lim_prepare_and_send_disassoc(struct mac_context *mac_ctx,
 		disassoc_req.doNotSendOverTheAir = 1;
 		disassoc_req.reasonCode =
 					REASON_AUTHORIZED_ACCESS_LIMIT_REACHED;
-	} else if (req->req.source == CM_MLO_LINK_SWITCH_DISCONNECT) {
+	} else if (req->req.reason_code == CM_MLO_LINK_SWITCH_DISCONNECT) {
 		disassoc_req.doNotSendOverTheAir = 1;
 	}
 
@@ -5926,6 +5943,7 @@ void lim_parse_tpe_ie(struct mac_context *mac, struct pe_session *session,
 
 	if (psd_set) {
 		single_tpe = tpe_ies[psd_index];
+
 		if (single_tpe.max_tx_pwr_count >
 		    MAX_TX_PWR_COUNT_FOR_160MHZ_PSD) {
 			pe_debug("Invalid max tx pwr count psd: %d",

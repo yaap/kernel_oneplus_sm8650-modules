@@ -8,7 +8,6 @@
 #include <linux/soc/qcom/qmi.h>
 
 #include "bus.h"
-#include "cnss_utils.h"
 #include "debug.h"
 #include "main.h"
 #include "qmi.h"
@@ -908,9 +907,19 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 
 	temp = fw_entry->data;
 	remaining = fw_entry->size;
-
+	#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	//Add for wifi switch monitor
+	if (bdf_type == CNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_SUCCESS, &plat_priv->loadRegdbState);
+	} else if (bdf_type == CNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_SUCCESS, &plat_priv->loadBdfState);
+	}
+	cnss_pr_info("Downloading %s: %s, size: %u\n",
+		    cnss_bdf_type_to_str(bdf_type), filename, remaining);
+	#else
 	cnss_pr_dbg("Downloading %s: %s, size: %u\n",
 		    cnss_bdf_type_to_str(bdf_type), filename, remaining);
+	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 	while (remaining) {
 		req->valid = 1;
@@ -1350,7 +1359,6 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 	int i;
 	char revert_mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
 #endif /* OPLUS_FEATURE_WIFI_MAC */
-
 	if (!plat_priv || !mac || mac_len != QMI_WLFW_MAC_ADDR_SIZE_V01)
 		return -EINVAL;
 
@@ -1362,7 +1370,6 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 		ret = -EIO;
 		goto out;
 	}
-
 #ifdef OPLUS_FEATURE_WIFI_MAC
 	for (i = 0; i < QMI_WLFW_MAC_ADDR_SIZE_V01 ; i ++){
 		revert_mac[i] = mac[QMI_WLFW_MAC_ADDR_SIZE_V01 - i -1];
@@ -1375,6 +1382,7 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 			    mac, plat_priv->driver_state);
 	memcpy(req.mac_addr, mac, mac_len);
 #endif /* OPLUS_FEATURE_WIFI_MAC */
+
 	req.mac_addr_valid = 1;
 
 	ret = qmi_send_request(&plat_priv->qmi_wlfw, NULL, &txn,
@@ -3699,10 +3707,6 @@ int cnss_qmi_get_dms_mac(struct cnss_plat_data *plat_priv)
 	struct dms_get_mac_address_resp_msg_v01 resp;
 	struct qmi_txn txn;
 	int ret = 0;
-#ifdef OPLUS_FEATURE_WIFI_MAC
-	int i;
-	char revert_mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
-#endif /* OPLUS_FEATURE_WIFI_MAC */
 
 	if  (!test_bit(CNSS_QMI_DMS_CONNECTED, &plat_priv->driver_state)) {
 		cnss_pr_err("DMS QMI connection not established\n");
@@ -3749,20 +3753,8 @@ int cnss_qmi_get_dms_mac(struct cnss_plat_data *plat_priv)
 		goto out;
 	}
 	plat_priv->dms.mac_valid = true;
-#ifdef OPLUS_FEATURE_WIFI_MAC
-	for (i = 0; i < QMI_WLFW_MAC_ADDR_SIZE_V01; i++) {
-		revert_mac[i] = resp.mac_address[QMI_WLFW_MAC_ADDR_SIZE_V01 - i -1];
-	}
-	memcpy(plat_priv->dms.mac, revert_mac, QMI_WLFW_MAC_ADDR_SIZE_V01);
-#else
 	memcpy(plat_priv->dms.mac, resp.mac_address, QMI_WLFW_MAC_ADDR_SIZE_V01);
-#endif
 	cnss_pr_info("Received DMS MAC: [%pM]\n", plat_priv->dms.mac);
-	ret = cnss_utils_set_wlan_mac_address(plat_priv->dms.mac, QMI_WLFW_MAC_ADDR_SIZE_V01);
-	if (ret < 0) {
-		cnss_pr_err("Failed to set cnss utils wlan mac address (non-fatal), err: %d\n", ret);
-	}
-
 out:
 	return ret;
 }

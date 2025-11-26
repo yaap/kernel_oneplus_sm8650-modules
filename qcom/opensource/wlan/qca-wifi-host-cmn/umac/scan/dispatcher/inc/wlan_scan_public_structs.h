@@ -682,6 +682,11 @@ struct scan_cache_entry {
 	uint8_t mlo_max_recom_simult_links;
 #endif
 	enum wlan_phymode non_intersected_phymode;
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	bool vendor_ft_adaptive;
+	uint8_t vendor_ft_mdie[WLAN_MOBILITY_DOMAIN_IE_MAX_LEN + 2];
+	uint32_t vendor_ft_rsn_offset;
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 };
 
 #define MAX_FAVORED_BSSID 16

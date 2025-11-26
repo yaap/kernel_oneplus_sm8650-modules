@@ -831,6 +831,10 @@ wlan_scan_global_init(struct wlan_objmgr_psoc *psoc,
 		cfg_get(psoc, CFG_LAST_SCAN_AGEOUT_TIME);
 	scan_obj->aux_mac_support = false;
 
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+	scan_obj->vendor_ft_enabled = cfg_get(psoc, CFG_ENABLE_VENDOR_FT);
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
+
 	/* init scan id seed */
 	qdf_atomic_init(&scan_obj->scan_ids);
 
@@ -1583,6 +1587,21 @@ ucfg_scan_get_extscan_adaptive_dwell_mode(struct wlan_objmgr_psoc *psoc)
 
 	return scan_obj->scan_def.extscan_adaptive_dwell_mode;
 }
+
+#ifdef OPLUS_FEATURE_WIFI_VENDOR_FT
+bool ucfg_scan_is_vendor_ft_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_scan_obj *scan_obj;
+
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	if (!scan_obj) {
+		scm_err("Failed to get scan object");
+		return cfg_default(CFG_ENABLE_VENDOR_FT);
+	}
+
+	return scan_obj->vendor_ft_enabled;
+}
+#endif /* OPLUS_FEATURE_WIFI_VENDOR_FT */
 
 QDF_STATUS
 ucfg_scan_set_global_config(struct wlan_objmgr_psoc *psoc,
