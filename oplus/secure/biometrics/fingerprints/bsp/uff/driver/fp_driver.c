@@ -106,6 +106,9 @@
 #include "include/fp_fault_inject.h"
 #endif  // CONFIG_OPLUS_FEATURE_BSP_DRV_VND_INJECT_TEST || CONFIG_FP_INJECT_ENABLE
 
+#include <linux/cpu_boost.h>
+#include <soc/qcom/dcvs_boost.h>
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 #define FB_EARLY_EVENT_BLANK 0x10
 #endif
@@ -932,6 +935,8 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
 
             wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
             if (1 == tp_info->touch_state) {
+                cpu_boost_max(500);
+		qcom_dcvs_bus_boost_kick_max(500);
                 fp_enable_intr3(fp_dev);
                 pr_info("%s touch down touchdown\n", __func__);
                 msg = NETLINK_EVENT_TP_TOUCHDOWN;
