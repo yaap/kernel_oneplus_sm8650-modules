@@ -12,6 +12,7 @@
 #include <linux/io.h>
 #include <linux/ftrace.h>
 #include <linux/mm.h>
+#include <linux/jiffies.h>
 #include <linux/qcom_scm.h>
 #include <asm/cacheflush.h>
 #include <linux/qtee_shmbridge.h>
@@ -56,6 +57,9 @@ static DEFINE_SPINLOCK(tz_lock);
 static atomic_long_t suspend_time;
 static atomic_long_t suspend_start;
 static atomic_long_t acc_total, acc_relative_busy;
+
+static struct devfreq *adreno_devfreq_global = NULL;
+static unsigned long adreno_boost_expiration = 0;
 
 /*
  * Returns GPU suspend time in millisecond.
@@ -323,6 +327,17 @@ static int tz_init(struct device *dev, struct devfreq_msm_adreno_tz_data *priv,
 	return ret;
 }
 
+static void msm_adreno_tz_kick(int duration_ms)
+{
+	if (adreno_devfreq_global) {
+		adreno_boost_expiration = jiffies + msecs_to_jiffies(duration_ms);
+
+		mutex_lock(&adreno_devfreq_global->lock);
+		update_devfreq(adreno_devfreq_global);
+		mutex_unlock(&adreno_devfreq_global->lock);
+	}
+}
+
 static inline int devfreq_get_freq_level(struct devfreq *devfreq,
 	unsigned long freq)
 {
@@ -343,6 +358,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	int val, level = 0;
 	int context_count = 0;
 	u64 busy_time;
+	int multi = 1;
 
 	if (!priv)
 		return 0;
@@ -397,8 +413,11 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 			priv->bin.busy_time > CEILING) {
 		val = -1 * level;
 	} else {
+		if (time_before(jiffies, adreno_boost_expiration))
+			multi = 3;
+
 		val = __secure_tz_update_entry3(level, priv->bin.total_time,
-			priv->bin.busy_time, context_count, priv);
+			priv->bin.busy_time * multi, context_count, priv);
 	}
 
 	priv->bin.total_time = 0;
@@ -471,6 +490,9 @@ static int tz_start(struct devfreq *devfreq)
 	for (i = 0; adreno_tz_attr_list[i] != NULL; i++)
 		device_create_file(&devfreq->dev, adreno_tz_attr_list[i]);
 
+	adreno_devfreq_global = devfreq;
+	devfreq_register_gpu_kick(msm_adreno_tz_kick);
+
 	return 0;
 }
 
@@ -480,6 +502,9 @@ static int tz_stop(struct devfreq *devfreq)
 
 	for (i = 0; adreno_tz_attr_list[i] != NULL; i++)
 		device_remove_file(&devfreq->dev, adreno_tz_attr_list[i]);
+
+	devfreq_register_gpu_kick(NULL);
+	adreno_devfreq_global = NULL;
 
 	/* leaving the governor and cleaning the pointer to private data */
 	devfreq->data = NULL;

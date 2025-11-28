@@ -81,6 +81,7 @@
 
 #include <linux/cpu_boost.h>
 #include <soc/qcom/dcvs_boost.h>
+#include <linux/devfreq.h>
 
 /* defines for secure channel call */
 #define MEM_PROTECT_SD_CTRL_SWITCH 0x18
@@ -1253,10 +1254,12 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	case 3:
 		cpu_boost_kick(8);
 		qcom_dcvs_bus_boost_kick(8);
+		devfreq_gpu_kick(10);
 		break;
 	default:
 		cpu_boost_kick(6);
 		qcom_dcvs_bus_boost_kick(6);
+		devfreq_gpu_kick(8);
 		break;
        }
 
