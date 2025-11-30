@@ -697,6 +697,34 @@ static int oplus_ofp_set_aod_state(bool aod_state)
 	return 0;
 }
 
+/* aod unlocking value update */
+static int oplus_ofp_aod_unlocking_update(void)
+{
+	struct oplus_ofp_params *p_oplus_ofp_params = oplus_ofp_get_params(oplus_ofp_display_id);
+
+	OFP_DEBUG("start\n");
+
+	if (!p_oplus_ofp_params) {
+		OFP_ERR("Invalid params\n");
+		return -EINVAL;
+	}
+
+	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_aod_unlocking_update");
+
+	if (p_oplus_ofp_params->fp_press || p_oplus_ofp_params->doze_active) {
+		/* press icon layer is ready in aod mode */
+		p_oplus_ofp_params->aod_unlocking = true;
+		OFP_INFO("oplus_ofp_aod_unlocking:%d\n", p_oplus_ofp_params->aod_unlocking);
+		OPLUS_OFP_TRACE_INT("oplus_ofp_aod_unlocking", p_oplus_ofp_params->aod_unlocking);
+	}
+
+	OPLUS_OFP_TRACE_END("oplus_ofp_aod_unlocking_update");
+
+	OFP_DEBUG("end\n");
+
+	return 0;
+}
+
 /* update hbm_enable property value */
 int oplus_ofp_property_update(void *sde_connector, void *sde_connector_state, int prop_id, uint64_t prop_val)
 {
@@ -3656,6 +3684,19 @@ int oplus_ofp_aod_off_handle(void *dsi_display)
 	if (rc) {
 		OFP_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmds, rc=%d\n", display->name, rc);
 	}
+	if (!oplus_ofp_oled_capacitive_is_enabled()) {
+		/* update aod unlocking value */
+		oplus_ofp_aod_unlocking_update();
+	}
+	if (display->panel->cur_mode->priv_info->oplus_ofp_aod_off_setbacklight_delay > 0) {
+		if (p_oplus_ofp_params->aod_unlocking) {
+			p_oplus_ofp_params->need_to_filter_backlight_after_aod_off = true;
+			OFP_INFO("oplus_ofp_need_to_filter_backlight_after_aod_off:%d\n",
+					p_oplus_ofp_params->need_to_filter_backlight_after_aod_off);
+			OPLUS_OFP_TRACE_INT("oplus_ofp_need_to_filter_backlight_after_aod_off|%d",
+							p_oplus_ofp_params->need_to_filter_backlight_after_aod_off);
+		}
+	}
 	oplus_ofp_set_aod_state(false);
 
 	/* aod off cmds are sent to ddic */
@@ -4090,9 +4131,10 @@ static int oplus_ofp_aod_off_set(void)
 */
 int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned long action, void *data)
 {
-	//struct touchpanel_event *tp_event = (struct touchpanel_event *)data;
+	struct touchpanel_event *tp_event = (struct touchpanel_event *)data;
 	struct dsi_display *display = get_main_display();
 	struct sde_connector *sde_conn;
+	struct drm_event event;
 
 	if (!display || !display->panel) {
 		OFP_ERR("display is null\n");
@@ -4109,10 +4151,10 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 
 	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_touchpanel_event_notifier_call");
 
-#if 0
 	if (tp_event) {
 		if (action == EVENT_ACTION_FOR_FINGPRINT) {
 			OFP_DEBUG("EVENT_ACTION_FOR_FINGPRINT\n");
+
 			if (tp_event->touch_state == 1) {
 				OFP_INFO("tp touchdown\n");
 				if (oplus_ofp_video_mode_30hz_aod_is_enabled() && oplus_ofp_get_aod_state()) {
@@ -4128,7 +4170,6 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 			}
 		}
 	}
-#endif
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_touchpanel_event_notifier_call");
 
@@ -4947,7 +4988,6 @@ int oplus_ofp_notify_fp_press(void *buf)
 	OFP_INFO("oplus_ofp_fp_press:%d\n", p_oplus_ofp_params->fp_press);
 	OPLUS_OFP_TRACE_INT("oplus_ofp_fp_press", p_oplus_ofp_params->fp_press);
 
-#if 0
 	if (p_oplus_ofp_params->fp_press) {
 		/* send aod off cmds in doze mode to speed up fingerprint unlocking */
 		OFP_DEBUG("fp press is true\n");
@@ -4961,7 +5001,6 @@ int oplus_ofp_notify_fp_press(void *buf)
 			oplus_ofp_aod_off_set();
 		}
 	}
-#endif
 
 	/* local hbm unlocking acceleration */
 	oplus_ofp_lhbm_handle(display);

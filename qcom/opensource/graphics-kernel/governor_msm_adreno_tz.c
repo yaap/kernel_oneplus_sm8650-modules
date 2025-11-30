@@ -414,7 +414,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		val = -1 * level;
 	} else {
 		if (time_before(jiffies, adreno_boost_expiration))
-			multi = 3;
+			multi = 2;
 
 		val = __secure_tz_update_entry3(level, priv->bin.total_time,
 			priv->bin.busy_time * multi, context_count, priv);
