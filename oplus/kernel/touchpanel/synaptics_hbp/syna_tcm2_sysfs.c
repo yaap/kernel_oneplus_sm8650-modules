@@ -1502,11 +1502,12 @@ static int syna_cdev_ioctl_check_frame(struct syna_tcm *tcm,
 	timeout = syna_pal_le4_to_uint(&data[0]);
 	LOGD("Time out: %d\n", timeout);
 
+/*
 	if (tcm->use_short_frame_waiting != 0) {
 		timeout = MINIMUM_WAITING_TIME;
 		LOGE("Updated the frame waiting to %dms\n", timeout);
 	}
-
+*/
 	if (list_empty(&tcm->frame_fifo_queue)) {
 		LOGD("The queue is empty, wait for the frames\n");
 		result = wait_event_interruptible_timeout(tcm->wait_frame,
@@ -1636,11 +1637,12 @@ static int syna_cdev_ioctl_get_frame(struct syna_tcm *tcm,
 	timeout = syna_pal_le4_to_uint(&timeout_data[0]);
 	LOGD("Wait time: %dms\n", timeout);
 
+/*
 	if (tcm->use_short_frame_waiting != 0) {
 		timeout = MINIMUM_WAITING_TIME;
 		LOGE("Updated the frame waiting to %dms\n", timeout);
 	}
-
+*/
 	if (list_empty(&tcm->frame_fifo_queue)) {
 		LOGD("The queue is empty, wait for the frame\n");
 		retval = wait_event_interruptible_timeout(tcm->wait_frame,
