@@ -73,7 +73,6 @@
 static struct dsi_display *primary_display;
 static struct dsi_display *secondary_display;
 extern bool g_oplus_send_fps_code;
-extern int __oplus_vid_sync_backlight_thread_ctl(bool enable);
 extern int oplus_display_panel_get_id2(void);
 extern int lcd_closebl_flag;
 extern bool is_lhbm_panel;
@@ -1009,9 +1008,6 @@ static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
 			}
 		} else {
 #endif
-#ifdef OPLUS_FEATURE_DISPLAY
-		oplus_display_esd_check_mode_switch(panel, i);
-#endif /* OPLUS_FEATURE_DISPLAY */
 		rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds[i].ctrl_flags);
 		if (rc) {
 			DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
@@ -9573,7 +9569,6 @@ int dsi_display_enable(struct dsi_display *display)
 		DSI_DEBUG("cont splash enabled, display enable not required\n");
 		dsi_display_panel_id_notification(display);
 #ifdef OPLUS_FEATURE_DISPLAY
-		__oplus_vid_sync_backlight_thread_ctl(true);
 		oplus_display_update_current_display();
 		__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
