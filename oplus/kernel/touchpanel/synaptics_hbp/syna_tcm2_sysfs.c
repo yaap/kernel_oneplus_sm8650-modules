@@ -1062,30 +1062,26 @@ static ssize_t syna_sysfs_fingerprint_trigger_store(struct kobject *kobj,
 		return count;
 	}
 
-	syna_pal_mutex_lock(&tcm->extif_mutex);
-
-	if (sscanf(buf, "%d,%d,%d", &is_down, &x_pos, &y_pos)) {
-		if(is_down) {
-			tcm->fp_info.area_rate = 100;
-			tcm->fp_info.x = x_pos;
-			tcm->fp_info.y = y_pos;
-			tcm->fp_info.touch_state = 1;
-			tcm->is_fp_down = true;
-			touch_call_notifier_fp(tcm, &tcm->fp_info);
-			LOGE("screen on fingerprint down : (%d, %d)\n", tcm->fp_info.x, tcm->fp_info.y);
-			tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_on_fp_down");
-		} else {
-			tcm->fp_info.touch_state = 0;
-			tcm->is_fp_down = false;
-			touch_call_notifier_fp(tcm, &tcm->fp_info);
-			LOGE("screen on fingerprint up : (%d, %d)\n", tcm->fp_info.x, tcm->fp_info.y);
-			tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "screen_on_fp_up");
-		}
-	} else {
+	if (sscanf(buf, "%d,%d,%d", &is_down, &x_pos, &y_pos) != 3) {
 		LOGE("invalid content: '%s', length = %zd\n", buf, count);
+		return -EINVAL;
 	}
 
+	syna_pal_mutex_lock(&tcm->extif_mutex);
+	if(is_down) {
+		tcm->fp_info.area_rate = 100;
+		tcm->fp_info.x = x_pos;
+		tcm->fp_info.y = y_pos;
+		tcm->fp_info.touch_state = 1;
+		tcm->is_fp_down = true;
+	} else {
+		tcm->fp_info.touch_state = 0;
+		tcm->is_fp_down = false;
+	}
 	syna_pal_mutex_unlock(&tcm->extif_mutex);
+
+	touch_call_notifier_fp(tcm, &tcm->fp_info);
+
 	return count;
 }
 
