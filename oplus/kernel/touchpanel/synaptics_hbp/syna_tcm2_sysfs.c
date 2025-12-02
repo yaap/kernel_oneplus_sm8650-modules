@@ -717,6 +717,7 @@ static ssize_t syna_sysfs_gesture_coordinate_show(struct kobject *kobj,
 	struct Coordinate Point_2nd;
 	struct Coordinate Point_3rd;
 	struct Coordinate Point_4th;
+	struct Coordinate points_array[6] = {{0}};
 
 	p_kobj = g_sysfs_dir->parent;
 	p_dev = container_of(p_kobj, struct device, kobj);
@@ -725,12 +726,12 @@ static ssize_t syna_sysfs_gesture_coordinate_show(struct kobject *kobj,
 
 	syna_pal_mutex_lock(&tcm->extif_mutex);
 
-	memset(&Point_start, 0, sizeof(struct Coordinate));
-	memset(&Point_end, 0, sizeof(struct Coordinate));
-	memset(&Point_1st, 0, sizeof(struct Coordinate));
-	memset(&Point_2nd, 0, sizeof(struct Coordinate));
-	memset(&Point_3rd, 0, sizeof(struct Coordinate));
-	memset(&Point_4th, 0, sizeof(struct Coordinate));
+	Point_start = points_array[0];
+	Point_end = points_array[1];
+	Point_1st = points_array[2];
+	Point_2nd = points_array[3];
+	Point_3rd = points_array[4];
+	Point_4th = points_array[5];
 
 	switch (touch_data->gesture_id) {
 	case DTAP_DETECT:
