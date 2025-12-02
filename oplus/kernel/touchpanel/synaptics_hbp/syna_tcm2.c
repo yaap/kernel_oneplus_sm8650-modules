@@ -172,6 +172,16 @@ void touch_call_notifier_fp(struct syna_tcm *tcm, struct fp_underscreen_info *fp
 	ktime_t timer;
 	ktime_t delta_time;
 
+	static const struct {
+		unsigned long threshold;
+		const char *metric;
+	} timing_buckets[] = {
+		{10000, "fp_event_cost_time_over_10ms_cnt"},
+		{18000, "fp_event_cost_time_over_18ms_cnt"},
+		{26000, "fp_event_cost_time_over_26ms_cnt"},
+	};
+	int i;
+
 	if (!tcm) {
 		return;
 	}
@@ -199,12 +209,12 @@ void touch_call_notifier_fp(struct syna_tcm *tcm, struct fp_underscreen_info *fp
 			if (!tcm->fp_up_cnt) {
 				tcm->fp_up_time = timer;
 				delta_time = ktime_to_us(tcm->fp_up_time) - ktime_to_us(tcm->fp_down_time);
-				if (delta_time > 0 && delta_time <= FP_EVENT_COST_TIME_OVER_10MS) {
-					tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fp_event_cost_time_over_10ms_cnt");
-				} else if (delta_time > FP_EVENT_COST_TIME_OVER_10MS && delta_time <= FP_EVENT_COST_TIME_OVER_18MS) {
-					tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fp_event_cost_time_over_18ms_cnt");
-				} else if (delta_time > FP_EVENT_COST_TIME_OVER_18MS && delta_time <= FP_EVENT_COST_TIME_OVER_26MS) {
-					tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, "fp_event_cost_time_over_26ms_cnt");
+				for (i = 0; i < ARRAY_SIZE(timing_buckets); i++) {
+					if (delta_time <= timing_buckets[i].threshold) {
+						tp_healthinfo_report(&tcm->monitor_data, HEALTH_REPORT, 
+							timing_buckets[i].metric);
+						break;
+					}
 				}
 			}
 			tcm->fp_up_cnt++;
