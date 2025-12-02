@@ -738,6 +738,13 @@ struct syna_tcm {
 	bool fp_prevent;	/*sensor near and fp closed, exit active state and enter sleep*/
 	struct touch_film_info film_info;
 
+	struct workqueue_struct *fp_error_wq;
+	struct work_struct fp_error_work;
+	
+	unsigned char fp_error_code;
+	ktime_t fp_error_timestamp;
+	unsigned int fp_error_extra_info;
+
 	/* framebuffer callbacks notifier */
 #if IS_ENABLED(CONFIG_DRM_OPLUS_PANEL_NOTIFY)
 	struct drm_panel *active_panel;
