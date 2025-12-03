@@ -3649,7 +3649,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 	tcm->wait_for_ioctl_operation = 0;
 	tcm->waiting_frame = 0;
 	tcm->use_short_frame_waiting = 0;
-	tcm->primary_timestamp_enabled = 1;
+	tcm->primary_timestamp_enabled = 0;
 	tcm->differ_read_every_frame = false;
 
 	platform_set_drvdata(pdev, tcm);
