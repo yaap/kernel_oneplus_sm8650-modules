@@ -955,7 +955,7 @@ static ssize_t syna_sysfs_high_rate_show(struct device *device,
         if (retval < 0)
                 return scnprintf(buf, PAGE_SIZE, "0\n");
 
-        return scnprintf(buf, PAGE_SIZE, "%d\n", config == 3);
+        return scnprintf(buf, PAGE_SIZE, "%d\n", config == 1);
 }
 
 static ssize_t syna_sysfs_high_rate_write(struct device *device,
@@ -972,7 +972,7 @@ static ssize_t syna_sysfs_high_rate_write(struct device *device,
                 return -EINVAL;
 
         if (val == 1)
-                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 3, RESP_IN_ATTN);
+                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 1, RESP_IN_ATTN);
         else if (val == 0)
                 retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 2, RESP_IN_ATTN);
         else
