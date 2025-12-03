@@ -1499,6 +1499,21 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 		goto exit;
 	}
 
+	/* report input event only when receiving a touch report */
+	if (code == REPORT_TOUCH) {
+		/* parse touch report once received */
+		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
+				tcm->event_data.buf,
+				tcm->event_data.data_length,
+				&tcm->tp_data);
+		if (retval < 0) {
+			LOGE("Fail to parse touch report\n");
+			goto exit;
+		}
+		/* forward the touch event to system */
+		syna_dev_report_input_events(tcm);
+	}
+
 #ifdef ENABLE_EXTERNAL_FRAME_PROCESS
 	if (tcm->report_to_queue[code] == EFP_ENABLE) {
 		syna_tcm_buf_lock(&tcm->tcm_dev->external_buf);
@@ -1541,22 +1556,6 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 
 	if (code == REPORT_LOG) {
 		syna_get_report_log_data(tcm);
-	}
-
-	/* report input event only when receiving a touch report */
-
-	if (code == REPORT_TOUCH) {
-		/* parse touch report once received */
-		retval = syna_tcm_parse_touch_report(tcm->tcm_dev,
-				tcm->event_data.buf,
-				tcm->event_data.data_length,
-				&tcm->tp_data);
-		if (retval < 0) {
-			LOGE("Fail to parse touch report\n");
-			goto exit;
-		}
-		/* forward the touch event to system */
-		syna_dev_report_input_events(tcm);
 	}
 
 exit:
