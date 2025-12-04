@@ -1850,11 +1850,14 @@ retry:
 	}
 
 exit:
-	if(tcm->sub_pwr_state == SUB_PWR_SUSPEND_DONE) {
-		/* enable the report to queue */
+	if (tcm->sub_pwr_state == SUB_PWR_SUSPEND_DONE) {
+		/* enable the report to queue, but fingerprint usage only */
 		syna_cdev_clean_queue(tcm);
-		/*syna_pal_mem_set(tcm->report_to_queue, EFP_ENABLE, (STATUS_ERROR + 1));*/
-		LOGE("enable response to report_to_queue for touch_and_hold\n");
+		syna_pal_mem_set(tcm->report_to_queue, EFP_DISABLE, REPORT_TYPES);
+		tcm->report_to_queue[REPORT_HBP_ACTIVE_FRAME]   = EFP_ENABLE;
+		tcm->report_to_queue[REPORT_POWER_STATE_INFO]   = EFP_ENABLE;
+
+		LOGE("enable REPORT_HBP_ACTIVE_FRAME in report_to_queue for fod\\n");
 		tcm->hbp_enabled = true;
 	}
 	return retval;
@@ -1888,7 +1891,7 @@ static int syna_sysfs_set_fingerprint_post(struct syna_tcm *tcm)
 	} else if (tcm->sub_pwr_state == SUB_PWR_SUSPEND_DONE){
 		/* do not fill any report/response to queue */
 		LOGE("Disable all Report and response to report_to_queue\n");
-		/*syna_pal_mem_set(tcm->report_to_queue, EFP_DISABLE, REPORT_TYPES);*/
+		syna_pal_mem_set(tcm->report_to_queue, EFP_DISABLE, REPORT_TYPES);
 		tcm->hbp_enabled = false;
 
 		//screen off
@@ -2128,7 +2131,7 @@ retry:
      * queued if the user doesn't set the report/response types through
      * syna_cdev_ioctl_set_reports.
      */
-	if (delay_ms_resp != RESP_IN_ATTN) {
+	if ((delay_ms_resp != RESP_IN_ATTN) && tcm->hbp_enabled) {
 		if (tcm->report_to_queue[resp_code] == EFP_ENABLE) {
 			syna_cdev_update_report_queue(tcm, resp_code,
 				&resp_data_buf);
