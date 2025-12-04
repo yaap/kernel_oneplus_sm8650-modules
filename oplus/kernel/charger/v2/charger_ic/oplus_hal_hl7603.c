@@ -44,6 +44,7 @@ MODULE_PARM_DESC(hl7603_debug_track, "debug track");
 #define HL7603_FPWM_CFG_MASK		0x1
 #define HL7603_FPWM_CFG_FORCE_PWM	0x1
 #define HL7603_FPWM_CFG_AUTO_PFM	0x0
+#define HL7603_FPWM_CFG_AUTO_PFM_REG   0x68
 
 #define HL7603_VOUT_SEL_REG		0x02
 #define HL7603_ILIM_SET_REG		0x03
@@ -371,8 +372,8 @@ static int hl7603_hardware_init(struct chip_hl7603 *chip)
 	rc = hl7603_write(chip, HL7603_ILIM_SET_REG, hl7603_ilim_ma_to_reg(chip->ilim_ma));
 	rc = hl7603_read(chip, HL7603_CONFIG_1_REG, (unsigned int *)&buf[0]);
 
-	/* forced PWM mode. */
-	rc = hl7603_write(chip, HL7603_CONFIG_1_REG, (buf[0] | HL7603_FPWM_CFG_FORCE_PWM));
+	/* Auto PFM mode. */
+	rc = hl7603_write(chip, HL7603_CONFIG_1_REG, HL7603_FPWM_CFG_AUTO_PFM_REG);
 	rc = hl7603_read(chip, HL7603_CONFIG_1_REG, (unsigned int *)&buf[0]);
 	rc = hl7603_read(chip, HL7603_VOUT_SEL_REG, (unsigned int *)&buf[1]);
 	rc = hl7603_read(chip, HL7603_ILIM_SET_REG, (unsigned int *)&buf[2]);

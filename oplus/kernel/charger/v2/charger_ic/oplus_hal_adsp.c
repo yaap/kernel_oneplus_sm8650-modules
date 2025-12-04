@@ -1620,6 +1620,15 @@ static void oplus_sourcecap_done_work(struct work_struct *work)
 		oplus_chg_set_icl_by_vote(max_pdo_current, PD_PDO_ICL_VOTER);
 }
 
+static void oplus_pdo_update_work(struct work_struct *work)
+{
+	struct battery_chg_dev *bcdev = container_of(work,
+		struct battery_chg_dev, pdo_update_work.work);
+	int rc = 0;
+
+	rc = oplus_get_pps_info_from_adsp(bcdev->buck_ic, (u32 *)bcdev->pdo, PPS_PDO_MAX);
+}
+
 static void oplus_adsp_voocphy_status_func(struct work_struct *work)
 {
 	struct battery_chg_dev *bcdev = container_of(work,
@@ -2438,6 +2447,8 @@ static void oplus_adsp_crash_recover_func(struct work_struct *work)
 	int ufcs_notify_val = UFCS_NOTIFY_RESTART_FROM_CRASH;
 
 	chg_err("oplus_adsp_crash_recover_func");
+	if (bcdev->soccp_support)
+		schedule_delayed_work(&bcdev->update_common_charge_flag_work, 0);
 	if (oplus_chg_get_voocphy_support(bcdev) == ADSP_VOOCPHY) {
 		oplus_ap_init_adsp_gague(bcdev);
 	}
@@ -3213,6 +3224,7 @@ static void handle_notification(struct battery_chg_dev *bcdev, void *data,
 	struct battery_charger_notify_msg *notify_msg = data;
 	struct psy_state *pst = NULL;
 	int ret = 0;
+	int ufcs_notify_val = UFCS_NOTIFY_UFCS_RESET_NOTIRY;
 
 	if (len != sizeof(*notify_msg)) {
 		chg_err("Incorrect response length %zu\n", len);
@@ -3378,6 +3390,10 @@ static void handle_notification(struct battery_chg_dev *bcdev, void *data,
 		break;
 	case HMAC_UPDATE:
 		oplus_chg_ic_virq_trigger(bcdev->gauge_ic, OPLUS_IC_VIRQ_HMAC_UPDATE);
+		break;
+	case UFCS_EXIT_MODE_NOTIFY:
+		chg_info("ufcs reset notify\n");
+		plat_ufcs_send_state(UFCS_NOTIFY_EXIT_COMM, (void *)&ufcs_notify_val);
 		break;
 #endif
 	default:
@@ -7285,6 +7301,7 @@ static int oplus_chg_8350_output_suspend(struct oplus_chg_ic_dev *ic_dev, bool s
 	struct psy_state *pst = NULL;
 	int is_rf_ftm_mode;
 	int rc = 0;
+	bool en_change = false;
 
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
@@ -7302,6 +7319,8 @@ static int oplus_chg_8350_output_suspend(struct oplus_chg_ic_dev *ic_dev, bool s
 		else
 			rc = write_property_id(bcdev, pst, BATT_CHG_EN, 0);
 		mutex_lock(&bcdev->chg_en_lock);
+		if (bcdev->chg_en != false)
+			en_change = true;
 		bcdev->chg_en = false;
 		mutex_unlock(&bcdev->chg_en_lock);
 		chg_err("set suspend charging, rc=%d\n", rc);
@@ -7312,11 +7331,15 @@ static int oplus_chg_8350_output_suspend(struct oplus_chg_ic_dev *ic_dev, bool s
 			rc = write_property_id(bcdev, pst, BATT_CHG_EN,
 				       suspend ? 0 : 1);
 		mutex_lock(&bcdev->chg_en_lock);
+		if (bcdev->chg_en != !suspend)
+			en_change = true;
 		bcdev->chg_en = suspend ? 0 : 1;
 		mutex_unlock(&bcdev->chg_en_lock);
 		chg_err("set %s charging, rc=%d\n",
 				suspend ? "suspend" : "unsuspend", rc);
 	}
+	if (en_change)
+		mod_delayed_work(system_highpri_wq, &bcdev->ctrl_lcm_frequency, 0);
 
 	return rc;
 }
@@ -12957,7 +12980,8 @@ static int oplus_chg_adsp_ufcs_exit_ufcs_mode(struct oplus_chg_ic_dev *ic_dev)
 		rc = write_property_id(bcdev, pst, USB_SET_EXIT, exit);
 	if (rc < 0) {
 		chg_err("set ufcs config fail, rc= %d\n", rc);
-		return -1;
+		rc = -1;
+		goto exit;
 	}
 
 	if (bcdev->ufcs_run_check_support) {
@@ -12981,6 +13005,7 @@ static int oplus_chg_adsp_ufcs_exit_ufcs_mode(struct oplus_chg_ic_dev *ic_dev)
 		}
 	}
 
+exit:
 	bcdev->ufcs_power_ready = false;
 	bcdev->ufcs_handshake_ok = false;
 	bcdev->ufcs_pdo_ready = false;
@@ -13613,6 +13638,21 @@ static void oplus_chg_adsp_subscribe_plc_topic(struct oplus_mms *topic,
 }
 #endif /* OPLUS_FEATURE_CHG_BASIC */
 
+static void oplus_update_common_charge_flag_work(struct work_struct *work)
+{
+	struct battery_chg_dev *bcdev = container_of(work,
+		struct battery_chg_dev, update_common_charge_flag_work.work);
+	int rc = 0;
+
+	if (bcdev->soccp_support &&
+		!!(oplus_chg_get_nvid_support_flags() & BIT(COMMON_CHG_SUPPORT_REGION))) {
+		chg_info("update common charge flag\n");
+		rc = write_property_id(bcdev, &bcdev->oplus_psy, OPLUS_SET_COMMON_CHG, true);
+		if (rc)
+			chg_err("update common charge flag fail, rc=%d\n", rc);
+	}
+}
+
 static int battery_chg_probe(struct platform_device *pdev)
 {
 	struct battery_chg_dev *bcdev;
@@ -13740,12 +13780,14 @@ static int battery_chg_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&bcdev->publish_close_cp_item_work, oplus_publish_close_cp_item_work);
 	INIT_DELAYED_WORK(&bcdev->hboost_notify_work, oplus_hboost_notify_work);
 	INIT_DELAYED_WORK(&bcdev->sourcecap_done_work, oplus_sourcecap_done_work);
+	INIT_DELAYED_WORK(&bcdev->pdo_update_work, oplus_pdo_update_work);
 	INIT_DELAYED_WORK(&bcdev->sourcecap_suspend_recovery_work, oplus_sourcecap_suspend_recovery_work);
 	INIT_DELAYED_WORK(&bcdev->update_pd_svooc_work, oplus_update_pd_svooc_work);
 	INIT_DELAYED_WORK(&bcdev->iterm_timeout_work, oplus_iterm_timeout_work);
 	INIT_DELAYED_WORK(&bcdev->request_qos_work, oplus_request_qos_work);
 	INIT_DELAYED_WORK(&bcdev->release_qos_work, oplus_release_qos_work);
 	INIT_WORK(&bcdev->wired_otg_enable_work, oplus_wired_otg_enable_work);
+	INIT_DELAYED_WORK(&bcdev->update_common_charge_flag_work, oplus_update_common_charge_flag_work);
 #endif
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	INIT_DELAYED_WORK(&bcdev->vchg_trig_work, oplus_vchg_trig_work);
@@ -13883,6 +13925,8 @@ static int battery_chg_probe(struct platform_device *pdev)
 	if (bcdev->soccp_support) {
 		schedule_delayed_work(&bcdev->update_pd_svooc_work, 0);
 		schedule_delayed_work(&bcdev->plugin_irq_work, 0);
+		schedule_delayed_work(&bcdev->update_common_charge_flag_work, 0);
+		schedule_delayed_work(&bcdev->pdo_update_work, 0);
 	}
 
 	chg_info("battery_chg_probe end...\n");

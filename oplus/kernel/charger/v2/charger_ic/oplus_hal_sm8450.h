@@ -941,6 +941,7 @@ struct battery_chg_dev {
 	enum oplus_dpdm_switch_mode dpdm_switch_mode;
 	int read_by_reg;
 	bool ufcs_run_check_support;
+	int ext_gauge_fake_rbatt;
 #endif
 	int batt_full_para[CHARGING_TYPE_MAX][QBG_TEMP_MAX];
 	int batt_full_temp[QBG_TEMP_MAX];

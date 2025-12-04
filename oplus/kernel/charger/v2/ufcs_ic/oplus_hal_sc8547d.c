@@ -108,6 +108,7 @@ struct sc8547d_device {
 	bool otg_connected;
 	bool always_otg_en;
 	bool work_start;
+	bool chg_enabled;
 
 	struct work_struct ufcs_regdump_work;
 	struct work_struct cp_regdump_work;
@@ -616,8 +617,6 @@ static void sc8547_voocphy_update_data(struct oplus_voocphy_manager *chip)
 		chip->cp_vbat, chip->cp_vac, chip->interrupt_flag, chip->int_column[0],
 		chip->int_column[1], chip->int_column[2], chip->int_column[3]);
 
-	if (chip->voocphy_dual_cp_support)
-		sc8547_slave_update_data(chip);
 }
 
 static int sc8547_voocphy_get_cp_ichg(struct oplus_voocphy_manager *voocphy)
@@ -2113,6 +2112,11 @@ static void sc8547_slave_update_data(struct oplus_voocphy_manager *voocphy_mg)
 		return;
 	}
 
+	if (!voocphy_mg->slave_client) {
+		chg_err("voocphy_mg->slave_client is null\n");
+		return;
+	}
+
 	voocphy = i2c_get_clientdata(voocphy_mg->slave_client);
 	if (!voocphy) {
 		chg_err("voocphy is null exit\n");
@@ -2196,7 +2200,7 @@ static int sc8547_slave_set_chg_enable(struct oplus_voocphy_manager *voocphy_mg,
 		else
 			value = (SC8547_CHG_DISABLE << SC8547_CHG_EN_SHIFT) | SC8547_FSW_SET_550KHZ;
 	}
-
+	chip->chg_enabled = enable;
 	rc = sc8547_write_byte(voocphy_mg->slave_client, SC8547_REG_07, value);
 	chg_err(" enable  = %d, value = 0x%x!\n", enable, value);
 
@@ -2206,16 +2210,31 @@ static int sc8547_slave_set_chg_enable(struct oplus_voocphy_manager *voocphy_mg,
 static int sc8547_slave_get_ichg(struct oplus_voocphy_manager *voocphy_mg)
 {
 	struct oplus_voocphy_manager *voocphy;
+	struct sc8547d_device *chip;
 
 	if (!voocphy_mg) {
 		chg_err("voocphy_mg is null exit\n");
 		return -EINVAL;
 	}
 
-	if (oplus_chg_get_vooc_charging())
-		return voocphy_mg->slave_cp_ichg;
-
 	voocphy = i2c_get_clientdata(voocphy_mg->slave_client);
+	if (!voocphy) {
+		chg_err("voocphy is null exit\n");
+		return -EINVAL;
+	}
+	chip = voocphy->priv_data;
+	if (chip == NULL) {
+		chg_err("sc8547d chip is NULL\n");
+		return -ENODEV;
+	}
+
+	if (oplus_chg_get_vooc_charging()) {
+		if (chip->chg_enabled)
+			return voocphy_mg->slave_cp_ichg;
+		else
+			return 0;
+	}
+
 	return sc8547_voocphy_get_cp_ichg(voocphy);
 }
 
@@ -2416,7 +2435,12 @@ static int sc8547_slave_charger_choose(struct sc8547d_device *chip)
 		pr_err("0x07 = %d\n", ret);
 		if (ret < 0) {
 			pr_err("i2c communication fail");
-			return -EPROBE_DEFER;
+			if (oplus_voocphy_slave_chip_is_null()) {
+				return -EPROBE_DEFER;
+			} else {
+				chg_err("not use sc8547d slave");
+				return ret;
+			}
 		}
 		else
 			return 1;

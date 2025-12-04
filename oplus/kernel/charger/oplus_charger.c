@@ -13023,17 +13023,10 @@ static void oplus_chg_check_status_full(struct oplus_chg_chip *chip)
 
 		last_recharging_vol = recharging_vol;
 
-		if (chip->rechg_soc_en) {
-			if (chip->batt_volt < recharging_vol)
-				chip->full_data.clear_full_check_count++;
-			else
-				chip->full_data.clear_full_check_count = 0;
-		} else {
-			if (chip->batt_volt < (recharging_vol - CLEAR_FULL_VOLT_THD))
-				chip->full_data.clear_full_check_count++;
-			else
-				chip->full_data.clear_full_check_count = 0;
-		}
+		if (chip->batt_volt < (recharging_vol - CLEAR_FULL_VOLT_THD))
+			chip->full_data.clear_full_check_count++;
+		else
+			chip->full_data.clear_full_check_count = 0;
 
 		if (chip->full_data.clear_full_check_count > CLEAR_FULL_CNT) {
 			chg_err("soc %d %d %d vbat %d < %d clear full\n",

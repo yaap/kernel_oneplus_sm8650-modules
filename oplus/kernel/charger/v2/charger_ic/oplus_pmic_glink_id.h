@@ -131,6 +131,8 @@ enum {
     OPLUS_SET_PD_ENABLE,
     OPLUS_GET_SOC_CENTI,
     OPLUS_SET_TRUE_FCC,
+    OPLUS_USB_GET_POWER_ROLE,
+    OPLUS_SET_COMMON_CHG,
     OPLUS_PROPERTY_MAX,
 } oplus_property_type_e;
 #endif /*_USBPD_DPM_H_*/

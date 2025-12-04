@@ -411,6 +411,12 @@ static int sc6607_ufcs_enable(struct ufcs_dev *ufcs)
 		}
 	}
 	chip->ufcs_enable = true;
+	/* hardreset signal to 1900us ; ack timeout to 10ms + rx_FRAME_TIME */
+	rc = sc6607_write_byte(chip, SC6607_UFCS_OPTION2, 0x80);
+	if (rc < 0) {
+		chg_err("write UFCS_OPTION2 failed(%d)!\n", rc);
+		return rc;
+	}
 
 	return 0;
 }

@@ -63,6 +63,8 @@
 #define SINGAL_BATT_FACTOR	2
 #define RETRY_15S_COUNT		2
 #define DATA_WIDTH_V2		7
+#define FASTCHG_COMMU_ING	1
+#define FASTCHG_COMMU_NOT_ING	0
 
 #define SUBBOARD_TEMP_ABNORMAL_MAX_CURR		7300
 #define BTB_TEMP_OVER_MAX_INPUT_CUR		1000
@@ -541,6 +543,8 @@ static int oplus_vooc_afi_update_condition(struct oplus_mms *topic,
 					   union mms_msg_data *data);
 static void oplus_turn_off_fastchg(struct oplus_chg_vooc *chip);
 static int oplus_vooc_get_real_wired_type(struct oplus_chg_vooc *chip);
+static int oplus_voocphy_get_fastchg_commu_ing(struct oplus_mms *topic,
+					 union mms_msg_data *data);
 
 __maybe_unused static bool is_err_topic_available(struct oplus_chg_vooc *chip)
 {
@@ -1192,6 +1196,8 @@ static void oplus_fastchg_check_retry(struct oplus_chg_vooc *chip)
 	chip->bat_temp_region = temp_region;
 }
 
+static int oplus_vooc_get_temp_range(struct oplus_chg_vooc *chip,
+				     int vbat_temp_cur);
 static bool oplus_vooc_is_allow_fast_chg(struct oplus_chg_vooc *chip);
 static void
 oplus_vooc_fastchg_allow_or_enable_check(struct oplus_chg_vooc *chip)
@@ -1272,6 +1278,20 @@ enable_check:
 		    (chip->efficient_vooc_normal_high_temp - BATT_TEMP_HYST)) {
 			vote(chip->vooc_disable_votable, WARM_FULL_VOTER, false,
 			     0, false);
+		}
+	}
+
+	if (is_client_vote_enabled(chip->vooc_disable_votable,
+				   CHG_FULL_COOL_VOTER)) {
+		if (chip->temperature >= chip->efficient_vooc_cool_temp &&
+		    chip->temperature < spec->vooc_high_temp) {
+			oplus_vooc_get_temp_range(chip, chip->temperature);
+			if (chip->vooc_temp_cur_range > FASTCHG_TEMP_RANGE_COOL) {
+				chip->efficient_vooc_cool_temp = spec->vooc_cool_temp;
+				chip->efficient_vooc_cool_temp -= VOOC_TEMP_RANGE_THD;
+				vote(chip->vooc_disable_votable, CHG_FULL_COOL_VOTER, false,
+					0, false);
+			}
 		}
 	}
 
@@ -3254,6 +3274,12 @@ static void oplus_vooc_fastchg_work(struct work_struct *work)
 			oplus_vooc_reset_temp_range(chip);
 			oplus_set_fast_status(chip,
 					      CHARGER_STATUS_FAST_TO_WARM);
+		} else if (spec->vooc_cool_temp != -EINVAL &&
+		    chip->vooc_temp_cur_range == FASTCHG_TEMP_RANGE_COOL) {
+			vote(chip->vooc_disable_votable, CHG_FULL_COOL_VOTER, true,
+			     1, false);
+			oplus_set_fast_status(chip,
+					      CHARGER_STATUS_FAST_TO_NORMAL);
 		} else {
 			vote(chip->vooc_disable_votable, CHG_FULL_VOTER, true,
 			     1, false);
@@ -3920,6 +3946,8 @@ static void oplus_vooc_plugin_work(struct work_struct *work)
 		     false);
 		vote(chip->vooc_disable_votable, WARM_FULL_VOTER, false, 0,
 		     false);
+		vote(chip->vooc_disable_votable, CHG_FULL_COOL_VOTER, false, 0,
+		     false);
 		vote(chip->vooc_disable_votable, BAD_CONNECTED_VOTER, false, 0,
 		     false);
 		vote(chip->vooc_disable_votable, SWITCH_RANGE_VOTER, false, 0,
@@ -4384,10 +4412,9 @@ static void oplus_vooc_subscribe_gauge_topic(struct oplus_mms *topic,
 		chip->batt_auth = !!data.intval;
 	}
 
-	if (!chip->batt_hmac || !chip->batt_auth) {
-		vote(chip->vooc_disable_votable, NON_STANDARD_VOTER, true, 1,
-		     false);
-	}
+	chg_info("hmac=%d, authenticate=%d\n", chip->batt_hmac, chip->batt_auth);
+	vote(chip->vooc_disable_votable, NON_STANDARD_VOTER, !chip->batt_hmac || !chip->batt_auth, 0, false);
+
 	oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MAX, &data,
 				true);
 	chip->batt_volt = data.intval;
@@ -4787,6 +4814,7 @@ static void oplus_comm_charge_disable_work(struct work_struct *work)
 	vote(chip->vooc_disable_votable, TIMEOUT_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, CHG_FULL_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, WARM_FULL_VOTER, false, 0, false);
+	vote(chip->vooc_disable_votable, CHG_FULL_COOL_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, BATT_TEMP_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, CURR_LIMIT_VOTER, false, 0, false);
 
@@ -5203,6 +5231,26 @@ static struct mms_item oplus_vooc_item[] = {
 			.down_thr_enable = false,
 			.dead_thr_enable = false,
 			.update = oplus_normal_connect_count_level,
+		}
+	},
+	{
+		.desc = {
+			.item_id = VOOC_ITEM_OLD_ADAPTER_STATUS,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = NULL,
+		}
+	},
+	{
+		.desc = {
+			.item_id = VOOC_ITEM_FASTCHG_COMMU_ING,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = oplus_voocphy_get_fastchg_commu_ing,
 		}
 	},
 };
@@ -7305,6 +7353,40 @@ end:
 	if (data != NULL)
 		data->intval = bcc_temp_range;
 	return 0;
+}
+
+static int oplus_voocphy_get_fastchg_commu_ing(struct oplus_mms *topic,
+					 union mms_msg_data *data)
+{
+	struct oplus_chg_vooc *chip;
+	bool fastchg_commu_ing = false;
+	int ret = 0;
+
+	if (topic == NULL) {
+		chg_err("topic is NULL\n");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL\n");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(topic);
+	if (chip == NULL) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	ret = oplus_vooc_get_fastchg_commu_ing(chip->vooc_ic, &fastchg_commu_ing);
+	if (ret < 0)
+		fastchg_commu_ing = false;
+
+	if (data != NULL) {
+		if (fastchg_commu_ing)
+			data->intval = FASTCHG_COMMU_ING;
+		else
+			data->intval = FASTCHG_COMMU_NOT_ING;
+	}
+	return ret;
 }
 
 #define OPLUS_BCC_MAX_CURR_INIT 73

@@ -82,6 +82,11 @@ typedef struct fp_underscreen_info {
     uint8_t area_rate;
     uint16_t x;
     uint16_t y;
+    int touch_early_down_flag;
+    long is_touch_fp_area_cnt; // Record the bright screen with finger pressing
+    ktime_t touch_fp_area_time; // Press the power key to shut down the screen time point
+    ktime_t fp_down_time; // Time point of pressing fingerprint icon after shut down the screen
+    int tp_firmware_time;
 }fp_underscreen_info_t;
 
 typedef struct fp_tp_ai_film_info {

@@ -1718,6 +1718,11 @@ static int pd_manager_is_oplus_svid(struct oplus_chg_ic_dev *ic_dev, bool *oplus
 	}
 	chip = oplus_chg_ic_get_drvdata(ic_dev);
 
+	if (!chip) {
+		chg_err("chip is null\n");
+		return  -ENODEV;
+	}
+
 	*oplus_svid = chip->pd_svooc;
 
 	return 0;

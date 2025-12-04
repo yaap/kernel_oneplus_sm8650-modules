@@ -906,6 +906,42 @@ static int oplus_fb_notifier_call(struct notifier_block *nb, unsigned long val, 
 
     return NOTIFY_OK;
 }
+
+#define IS_STRUCT_TOUCHPANEL_EVENT_V2_COMPAT_WITH_FP_STRUCT         \
+    (sizeof(struct touchpanel_event) >=                             \
+        (offsetof(tp2fp_touchpanel_event_t, tp_firmware_time) +     \
+        sizeof(((tp2fp_touchpanel_event_t *)0)->tp_firmware_time)))
+
+static int cvt_tp_cb_data_to_info(fp_underscreen_info_t *tp_info, void *data)
+{
+    struct tp2fp_touchpanel_event _tp_event;
+    if (NULL == tp_info || NULL == data) {
+        return -1;
+    }
+
+    memset(&_tp_event, 0, sizeof(_tp_event));
+    memmove(&_tp_event, data, min(sizeof(tp2fp_touchpanel_event_t), sizeof(struct touchpanel_event)));
+
+    // struct touchpanel_event --- V1:
+    tp_info->touch_state = _tp_event.touch_state;
+    tp_info->x           = _tp_event.x;
+    tp_info->y           = _tp_event.y;
+
+    /* struct touchpanel_event --- V2:
+        new menber of struct touchpanel_event add in TP-Driver:
+        oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h
+    */
+    if (IS_STRUCT_TOUCHPANEL_EVENT_V2_COMPAT_WITH_FP_STRUCT) {
+        tp_info->touch_early_down_flag = _tp_event.touch_early_down_flag;
+        tp_info->is_touch_fp_area_cnt  = _tp_event.is_touch_fp_area_cnt;
+        tp_info->touch_fp_area_time    = _tp_event.touch_fp_area_time;
+        tp_info->fp_down_time          = _tp_event.fp_down_time;
+        tp_info->tp_firmware_time      = _tp_event.tp_firmware_time;
+    }
+
+    return 0;
+}
+
 #if defined(CONFIG_OPLUS_FINGERPRINT_GKI_ENABLE)
 static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, void *data) {
     struct fp_dev *fp_dev        = &fp_dev_data;
@@ -928,11 +964,9 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
                 return IRQ_HANDLED;
             }
 
-            tp_info->touch_state = tp_event->touch_state;
-            tp_info->x = tp_event->x;
-            tp_info->y = tp_event->y;
-            pr_info("tp_info->touch_state =%d, tp_info->x =%d, tp_info->y =%d,\n",
-                tp_info->touch_state, tp_info->x, tp_info->y);
+            (void)cvt_tp_cb_data_to_info(tp_info, data);
+            pr_info("tp_info->touch_state =%d, tp_info->x=%d, tp_info->y=%d, tp_firmware_time=%d\n",
+                tp_info->touch_state, tp_info->x, tp_info->y, tp_info->tp_firmware_time);
 
             wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
             if (1 == tp_info->touch_state) {

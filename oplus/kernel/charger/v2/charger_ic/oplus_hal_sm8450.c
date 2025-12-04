@@ -1935,10 +1935,14 @@ int qti_battery_charger_get_prop(const char *name,
 
 	switch (prop_id) {
 	case BATTERY_RESISTANCE:
-		pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
-		rc = read_property_id(bcdev, pst, BATT_RESISTANCE);
-		if (!rc)
-			*val = pst->prop[BATT_RESISTANCE];
+		if (bcdev->ext_gauge_fake_rbatt) {
+			*val = bcdev->ext_gauge_fake_rbatt;
+		} else {
+			pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
+			rc = read_property_id(bcdev, pst, BATT_RESISTANCE);
+			if (!rc)
+				*val = pst->prop[BATT_RESISTANCE];
+		}
 		break;
 	default:
 		break;
@@ -5482,7 +5486,7 @@ static int oplus_chg_set_input_current(struct battery_chg_dev *bcdev, int curren
 	struct oplus_mms *gauge_topic;
 	bool present;
 	int max_pdo_current;
-	int batt_volt;
+	int batt_volt = 0;
 	int type = 0;
 
 	prop_id = get_property_id(pst, POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT);
@@ -8861,6 +8865,12 @@ static int battery_chg_probe(struct platform_device *pdev)
 	if (rc < 0) {
 		chg_err("can't get oplus,batt_num, rc=%d\n", rc);
 		bcdev->batt_num = 1;
+	}
+
+	rc = of_property_read_u32(dev->of_node, "oplus,ext_gauge_fake_rbatt", &bcdev->ext_gauge_fake_rbatt);
+	if (rc < 0) {
+		chg_err("can't get oplus,ext_gauge_fake_rbatt, rc=%d\n", rc);
+		bcdev->ext_gauge_fake_rbatt = 0;
 	}
 
 	bcdev->voocphy_bidirect_cp_support = of_property_read_bool(dev->of_node,

@@ -723,6 +723,7 @@ struct chip_bq27541 {
 	unsigned long rst_ing;
 	int gauge_type;
 	int bq28z610_seal_flag;
+	bool sn_match;
 };
 
 struct gauge_track_info_reg {

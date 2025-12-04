@@ -4491,6 +4491,10 @@ static void oplus_mms_wired_plugin_handler_work(struct work_struct *work)
 		chip->bc12_completed = false;
 		chip->pd_completed = false;
 		chip->set_icl_done = false;
+		chip->smart_charge_user = SMART_CHARGE_USER_OTHER;
+		/* Ensure usbtemp cool_down set 0 when plug out */
+		if (is_cool_down_votable_available(chip))
+			vote(chip->cool_down_votable, USB_VOTER, false, 0, false);
 		/* need inform when quick attach/unattach */
 		if (present != chip->wired_present)
 			schedule_work(&chip->icl_done_handler_work);

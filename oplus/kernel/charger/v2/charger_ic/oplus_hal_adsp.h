@@ -45,7 +45,7 @@
 #define AP_OPCODE_WRITE_BUFFER    0x10008
 #define OEM_READ_WAIT_TIME_MS    500
 #define MAX_OEM_PROPERTY_DATA_SIZE 128
-#define AP_READ_WAIT_TIME_MS      500
+#define AP_READ_WAIT_TIME_MS      1000
 #define MAX_AP_PROPERTY_DATA_SIZE 512
 #define AP_UFCS_WAIT_TIME_MS      500
 #define MAX_UFCS_CAPS_ITEM        16
@@ -109,6 +109,8 @@
 #define REQUEST_QOS			0X7a
 #define RELEASE_QOS			0X7b
 #define HMAC_UPDATE			0X7c
+#define BC_POWER_ROLE_STATUS		0X7d
+#define UFCS_EXIT_MODE_NOTIFY		0X7e
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -711,12 +713,14 @@ struct battery_chg_dev {
 	struct delayed_work	oem_lcm_en_check_work;
 	struct delayed_work	ctrl_lcm_frequency;
 	struct delayed_work	sourcecap_done_work;
+	struct delayed_work	pdo_update_work;
 	struct delayed_work	sourcecap_suspend_recovery_work;
 	struct delayed_work	update_pd_svooc_work;
 	struct delayed_work	iterm_timeout_work;
 	struct delayed_work	request_qos_work;
 	struct delayed_work	release_qos_work;
 	struct work_struct	wired_otg_enable_work;
+	struct delayed_work	update_common_charge_flag_work;
 	bool			qos_status;
 	u32			oem_misc_ctl_data;
 	bool			oem_usb_online;
