@@ -208,6 +208,9 @@ static int g_sysfs_has_remove = 0;
 
 void syna_cdev_update_doze_state_report_queue(struct syna_tcm *tcm);
 
+/* Global wait queue for power state transitions. */
+static DECLARE_WAIT_QUEUE_HEAD(g_pwr_state_wq);
+
 /* a buffer to record the streaming report
  * considering touch report and another reports may be co-enabled
  * at the same time, give a little buffer here (3 sec x 300 fps)
@@ -222,6 +225,11 @@ void syna_cdev_update_doze_state_report_queue(struct syna_tcm *tcm);
 #define MINIMUM_WAITING_TIME			(10)
 
 #define SYNA_RETRY_CNT 60
+
+#define SUB_PWR_SUSPEND_WAIT_MS_DEFAULT   150
+#define SUB_PWR_SUSPEND_WAIT_MS_SHORT      60
+#define SUB_PWR_RESUME_WAIT_MS_DEFAULT    100
+#define SUB_PWR_RESUME_WAIT_MS_SHORT       40
 /* Define a data structure that contains a list_head */
 struct fifo_queue {
 	struct list_head next;
@@ -1780,7 +1788,8 @@ static int syna_sysfs_set_fingerprint_prepare(struct syna_tcm *tcm)
 {
 	int retval = 0;
 	struct syna_hw_interface *hw_if = tcm->hw_if;
-	int retryCnt = 0;
+	long timeout_jiffies;
+	unsigned int wait_ms;
 
 	/* update tcm->lpwg_enabled */
 	syna_dev_update_lpwg_status(tcm);
@@ -1788,20 +1797,19 @@ static int syna_sysfs_set_fingerprint_prepare(struct syna_tcm *tcm)
 	if((tcm->sub_pwr_state == SUB_PWR_RESUME_DONE) && (tcm->pwr_state == PWR_ON)) {
 		//screen on
 		goto exit;
-	}else if (tcm->sub_pwr_state >= SUB_PWR_EARLY_SUSPENDING) {
-		//screen off
-		if(tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) {
-			/* wait the early suspend and suspend */
-			retryCnt = SYNA_RETRY_CNT;
-retry:
-			syna_pal_sleep_ms(5);
-			retryCnt--;
-			if ((tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) && (retryCnt > 0))
-				goto retry;
+	} else if (tcm->sub_pwr_state >= SUB_PWR_EARLY_SUSPENDING) {
+		if (tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) {
+			if (tcm->use_short_frame_waiting)
+				wait_ms = SUB_PWR_SUSPEND_WAIT_MS_SHORT;
+			else
+				wait_ms = SUB_PWR_SUSPEND_WAIT_MS_DEFAULT;
 
-			if(retryCnt <= 0) {
-				LOGE("retryCnt is too small, Please Incress the retryCnt\n");
-				goto exit;
+			timeout_jiffies = msecs_to_jiffies(wait_ms);
+
+			if (!wait_event_timeout(g_pwr_state_wq,
+						tcm->sub_pwr_state >= SUB_PWR_SUSPEND_DONE,
+						timeout_jiffies)) {
+				LOGE("wait suspend done timed out\n");
 			}
 		}
 
@@ -1939,7 +1947,8 @@ static int syna_cdev_ioctl_send_message(struct syna_tcm *tcm,
 		unsigned int *msg_size)
 {
 	int retval = 0;
-	int retryCnt = 0;
+	long timeout_jiffies;
+	unsigned int wait_ms;
 	unsigned char *data = NULL;
 	unsigned char resp_code = 0;
 	unsigned int payload_length = 0;
@@ -1963,36 +1972,38 @@ static int syna_cdev_ioctl_send_message(struct syna_tcm *tcm,
 	}
 
 	if (tcm->sub_pwr_state >= SUB_PWR_EARLY_SUSPENDING) {
-		//screen off
-		if(tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) {
-			/* wait the early suspend and suspend */
-			retryCnt = SYNA_RETRY_CNT;
-retry:
-			syna_pal_sleep_ms(5);
-			retryCnt--;
-			if ((tcm->sub_pwr_state >= SUB_PWR_EARLY_SUSPENDING)
-					   && (tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) && (retryCnt > 0))
-				goto retry;
+		if (tcm->sub_pwr_state < SUB_PWR_SUSPEND_DONE) {
+			if (tcm->use_short_frame_waiting)
+				wait_ms = SUB_PWR_SUSPEND_WAIT_MS_SHORT;
+			else
+				wait_ms = SUB_PWR_SUSPEND_WAIT_MS_DEFAULT;
 
-			if(retryCnt <= 0) {
-				LOGE("retryCnt is too small, Please Incress the retryCnt\n");
+			timeout_jiffies = msecs_to_jiffies(wait_ms);
+
+			if (!wait_event_timeout(g_pwr_state_wq,
+						tcm->sub_pwr_state >= SUB_PWR_SUSPEND_DONE,
+						timeout_jiffies)) {
+				LOGE("wait suspend done timed out in send_message\n");
+				if (IS_REMOVE == tcm->driver_current_state) {
+					LOGE("%s:driver is remove!!\n", __func__);
+					return -EINVAL;
+				}
 			}
-			if (IS_REMOVE == tcm->driver_current_state) {
-				LOGE("%s:driver is remove!!\n", __func__);
-				return -EINVAL;
-			};
 		}
 	}
 
-	retryCnt = 0;
 	if ((tcm->is_fp_down == true) && (tcm->sub_pwr_state != SUB_PWR_RESUME_DONE)) {
-		while (tcm->sub_pwr_state != SUB_PWR_RESUME_DONE) {
-			syna_pal_sleep_ms(20);
-			retryCnt += 1;
-			if (retryCnt > 5) {
-				LOGE("%s:Wait resume time out..\n", __func__);
-				break;
-			}
+		if (tcm->use_short_frame_waiting)
+			wait_ms = SUB_PWR_RESUME_WAIT_MS_SHORT;
+		else
+			wait_ms = SUB_PWR_RESUME_WAIT_MS_DEFAULT;
+
+		timeout_jiffies = msecs_to_jiffies(wait_ms);
+
+		if (!wait_event_timeout(g_pwr_state_wq,
+					tcm->sub_pwr_state == SUB_PWR_RESUME_DONE,
+					timeout_jiffies)) {
+			LOGE("%s:Wait resume time out..\n", __func__);
 		}
 	}
 
@@ -3628,10 +3639,10 @@ void syna_cdev_update_power_state_report_queue(struct syna_tcm *tcm, bool wakeup
 		goto exit;
 	}
 
-	if(wakeup)
-	{
+	wake_up_all(&g_pwr_state_wq);
+
+	if (wakeup)
 		wake_up_interruptible(&(tcm->wait_frame));
-	}
 
 exit:
 	syna_pal_mem_free((void *)frame_buffer);
@@ -3696,6 +3707,8 @@ void syna_cdev_update_doze_state_report_queue(struct syna_tcm *tcm)
 		LOGE("Fail to insert the report data to fifo\n");
 		goto exit;
 	}
+
+	wake_up_all(&g_pwr_state_wq);
 	wake_up_interruptible(&(tcm->wait_frame));
 exit:
 	syna_pal_mem_free((void *)frame_buffer);
