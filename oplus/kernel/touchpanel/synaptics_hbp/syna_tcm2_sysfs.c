@@ -225,13 +225,13 @@ void syna_cdev_update_doze_state_report_queue(struct syna_tcm *tcm);
 /* Define a data structure that contains a list_head */
 struct fifo_queue {
 	struct list_head next;
-	unsigned char *fifo_data;
 	unsigned int data_length;
 #ifdef REPLACE_KTIME
 	struct timespec64 timestamp;
 #else
 	struct timeval timestamp;
 #endif
+	unsigned char fifo_data[];
 };
 
 /* Define a data structure for driver parameters configurations
@@ -1245,11 +1245,8 @@ static int syna_cdev_insert_fifo(struct syna_tcm *tcm,
 				tcm->fifo_remaining_frame);
 
 		pfifo_data_temp = list_first_entry(&tcm->frame_fifo_queue,
-						struct fifo_queue, next);
-
+						   struct fifo_queue, next);
 		list_del(&pfifo_data_temp->next);
-		kfree(pfifo_data_temp->fifo_data);
-		mb();/* memory barrier */
 		kfree(pfifo_data_temp);
 		pre_remaining_frames = tcm->fifo_remaining_frame;
 		tcm->fifo_remaining_frame--;
@@ -1262,17 +1259,12 @@ static int syna_cdev_insert_fifo(struct syna_tcm *tcm,
 		pre_remaining_frames = tcm->fifo_remaining_frame;
 	}
 
-	pfifo_data = kmalloc(sizeof(*pfifo_data), GFP_KERNEL);
+	pfifo_data = kmalloc(struct_size(pfifo_data, fifo_data, length),
+			     GFP_KERNEL);
 	if (!(pfifo_data)) {
 		LOGE("Failed to allocate memory\n");
-		LOGE("Allocation size = %zu\n", (sizeof(*pfifo_data)));
-		retval = -ENOMEM;
-		goto exit;
-	}
-
-	pfifo_data->fifo_data = kmalloc(length, GFP_KERNEL);
-	if (!(pfifo_data->fifo_data)) {
-		LOGE("Failed to allocate memory, size = %d\n", length);
+		LOGE("Allocation size = %zu\n",
+		     struct_size(pfifo_data, fifo_data, length));
 		retval = -ENOMEM;
 		goto exit;
 	}
@@ -1567,8 +1559,6 @@ static void syna_cdev_clean_queue(struct syna_tcm *tcm)
 			break;
 		}
 		list_del(&pfifo_data->next);
-		kfree(pfifo_data->fifo_data);
-		mb();/* memory barrier */
 		kfree(pfifo_data);
 		if (tcm->fifo_remaining_frame != 0)
 			tcm->fifo_remaining_frame--;
@@ -1699,8 +1689,6 @@ static int syna_cdev_ioctl_get_frame(struct syna_tcm *tcm,
 	if (retval >= 0)
 		retval = pfifo_data->data_length;
 
-	kfree(pfifo_data->fifo_data);
-	mb();/* memory barrier */
 	kfree(pfifo_data);
 	if (tcm->fifo_remaining_frame != 0)
 		tcm->fifo_remaining_frame--;
@@ -3499,11 +3487,12 @@ void syna_cdev_update_report_queue(struct syna_tcm *tcm,
 		unsigned char code, struct tcm_buffer *pevent_data)
 {
 	int retval;
-	unsigned char *frame_buffer = NULL;
 	unsigned int size = 0;
 	unsigned short val;
 	unsigned char *extrabytes = NULL;
 	unsigned char *extraptr = NULL;
+	unsigned char header[3];
+	unsigned char *frame_buffer = NULL;
 	const int header_size = 3;
 
 	if (pevent_data == NULL) {
@@ -3518,43 +3507,30 @@ void syna_cdev_update_report_queue(struct syna_tcm *tcm,
 	LOGD("Length of queuing data = %d\n", pevent_data->data_length);
 	LOGD("Total size = %d\n", size);
 
-	frame_buffer = (unsigned char *)syna_pal_mem_alloc(size,
-					sizeof(unsigned char));
-	if (!frame_buffer) {
-		LOGE("Fail to allocate buffer, size: %d, data_length: %d\n",
-			size, pevent_data->data_length);
-		return;
-	}
-
 	if (g_sysfs_extra_bytes_read > 0) {
 		extrabytes = (unsigned char *)syna_pal_mem_alloc(
 					g_sysfs_extra_bytes_read,
 					sizeof(unsigned char));
 		if (!extrabytes) {
-			syna_pal_mem_free((void *)frame_buffer);
-
 			LOGE("Fail to allocate extra buffer, size: %d\n",
 				g_sysfs_extra_bytes_read);
 			return;
 		}
 	}
 
-	frame_buffer[0] = code;
-	frame_buffer[1] = (unsigned char)pevent_data->data_length;
-	frame_buffer[2] = (unsigned char)(pevent_data->data_length >> 8);
+	header[0] = code;
+	header[1] = (unsigned char)pevent_data->data_length;
+	header[2] = (unsigned char)(pevent_data->data_length >> 8);
 
-	if (pevent_data->data_length > 0) {
-		retval = syna_pal_mem_cpy(&frame_buffer[header_size],
-				(size - header_size),
-				pevent_data->buf,
-				pevent_data->data_length,
-				pevent_data->data_length);
-		if (retval < 0) {
-			LOGE("Fail to copy data to buffer, size: %d\n",
-				pevent_data->data_length);
-			goto exit;
-		}
-	}
+	frame_buffer =
+		(unsigned char *)syna_pal_mem_alloc(size, sizeof(unsigned char));
+	if (!frame_buffer)
+		goto exit;
+
+	memcpy(frame_buffer, header, header_size);
+	if (pevent_data->data_length > 0)
+		memcpy(&frame_buffer[header_size], pevent_data->buf,
+		       pevent_data->data_length);
 
 	if (g_sysfs_extra_bytes_read >= TCM_MSG_CRC_LENGTH) {
 		val = syna_tcm_get_message_crc(tcm->tcm_dev);
@@ -3587,7 +3563,6 @@ void syna_cdev_update_report_queue(struct syna_tcm *tcm,
 
 exit:
 	syna_pal_mem_free((void *)extrabytes);
-
 	syna_pal_mem_free((void *)frame_buffer);
 }
 
