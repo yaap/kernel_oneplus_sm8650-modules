@@ -3360,6 +3360,7 @@ ccflags-y += $(INCS)
 
 # Utilize MLGO inliner for output size
 ldflags-y += -mllvm -enable-ml-inliner=release
+ldflags-y += -mllvm -ml-inliner-model-selector=arm64-mixed
 
 ccflags-y += -include $(WLAN_ROOT)/configs/default_config.h
 
