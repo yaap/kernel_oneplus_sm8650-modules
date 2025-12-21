@@ -108,6 +108,7 @@
 
 #include <linux/cpu_boost.h>
 #include <soc/qcom/dcvs_boost.h>
+#include <linux/devfreq.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 #define FB_EARLY_EVENT_BLANK 0x10
@@ -937,6 +938,7 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
             if (1 == tp_info->touch_state) {
                 cpu_boost_max(500);
 		qcom_dcvs_bus_boost_kick_max(500);
+		devfreq_gpu_kick(500);
                 fp_enable_intr3(fp_dev);
                 pr_info("%s touch down touchdown\n", __func__);
                 msg = NETLINK_EVENT_TP_TOUCHDOWN;
