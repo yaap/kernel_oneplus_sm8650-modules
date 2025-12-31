@@ -396,6 +396,7 @@ struct oplus_pps {
 	bool support_cp_ibus;
 	bool support_pps_status;
 	int pps_curr_ma_from_pps_status;
+	atomic_t cp_offline;
 
 	int ui_soc;
 	int shell_temp;
@@ -5156,14 +5157,16 @@ static void oplus_pps_cp_online_handler_work(struct work_struct *work)
 {
 	struct oplus_pps *chip =
 		container_of(work, struct oplus_pps, cp_online_handler_work);
-	vote(chip->pps_disable_votable, CP_OFFLINE_VOTER, false, false, false);
+	bool cp_offline = !!atomic_read(&chip->cp_offline);
+	vote(chip->pps_disable_votable, CP_OFFLINE_VOTER, cp_offline, cp_offline, false);
 }
 
 static void oplus_pps_cp_offline_handler_work(struct work_struct *work)
 {
 	struct oplus_pps *chip =
 		container_of(work, struct oplus_pps, cp_offline_handler_work);
-	vote(chip->pps_disable_votable, CP_OFFLINE_VOTER, true, true, false);
+	bool cp_offline = !!atomic_read(&chip->cp_offline);
+	vote(chip->pps_disable_votable, CP_OFFLINE_VOTER, cp_offline, cp_offline, false);
 }
 
 static void oplus_pps_cp_err_handler(struct oplus_chg_ic_dev *ic_dev, void *virq_data)
@@ -5178,6 +5181,7 @@ static void oplus_pps_cp_online_handler(struct oplus_chg_ic_dev *ic_dev, void *v
 	struct oplus_pps *chip = virq_data;
 
 	chg_info("%s online\n", ic_dev->manu_name);
+	atomic_set(&chip->cp_offline, 0);
 	schedule_work(&chip->cp_online_handler_work);
 }
 
@@ -5186,6 +5190,7 @@ static void oplus_pps_cp_offline_handler(struct oplus_chg_ic_dev *ic_dev, void *
 	struct oplus_pps *chip = virq_data;
 
 	chg_err("%s offline\n", ic_dev->manu_name);
+	atomic_set(&chip->cp_offline, 1);
 	schedule_work(&chip->cp_offline_handler_work);
 }
 
@@ -6062,6 +6067,7 @@ static int oplus_pps_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, chip);
 
 	oplus_pps_parse_dt(chip);
+	atomic_set(&chip->cp_offline, 0);
 	INIT_DELAYED_WORK(&chip->switch_check_work, oplus_pps_switch_check_work);
 	INIT_DELAYED_WORK(&chip->monitor_work, oplus_pps_monitor_work);
 	INIT_DELAYED_WORK(&chip->current_work, oplus_pps_current_work);

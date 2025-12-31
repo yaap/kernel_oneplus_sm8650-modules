@@ -1612,7 +1612,7 @@ static void oplus_common_power_check(struct oplus_chg_wired *chip)
 
 		if (temp_ui_soc >= COMMON_POWER_CHECK_MIN_SOC &&
 		    ((real_type == OPLUS_CHG_USB_TYPE_UNKNOWN && chg_type == OPLUS_CHG_USB_TYPE_UNKNOWN) ||
-		    (real_type == OPLUS_CHG_USB_TYPE_PD))) {
+		    (real_type == OPLUS_CHG_USB_TYPE_PD) || (real_type == OPLUS_CHG_USB_TYPE_PD_SDP))) {
 			chip->need_common_power_check = true;
 			vote(chip->icl_votable, COMMON_POWER_CHECK, true, 100, false);
 			cancel_delayed_work(&chip->common_power_check_recover_work);
@@ -1852,6 +1852,7 @@ static void oplus_wired_qc_check_work(struct work_struct *work)
 		chg_info("cpa protocol not qc, return\n");
 		return;
 	}
+	chip->chg_type = oplus_wired_get_chg_type();
 	if (chip->chg_type == OPLUS_CHG_USB_TYPE_QC2 ||
 	    chip->chg_type == OPLUS_CHG_USB_TYPE_QC3) {
 		chg_info("type is qc charging  not retry\n");
