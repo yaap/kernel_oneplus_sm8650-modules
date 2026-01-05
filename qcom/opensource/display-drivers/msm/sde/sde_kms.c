@@ -1251,12 +1251,11 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	case 1:
 		break;
 	case 3:
-		cpu_boost_kick(8);
-		qcom_dcvs_bus_boost_kick(8);
+		cpu_boost_kick(6);
+		qcom_dcvs_bus_boost_kick(6);
 		break;
 	default:
 		cpu_boost_kick(6);
-		qcom_dcvs_bus_boost_kick(6);
 		break;
        }
 
