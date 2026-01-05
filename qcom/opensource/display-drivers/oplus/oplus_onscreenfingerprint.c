@@ -756,6 +756,12 @@ int oplus_ofp_property_update(void *sde_connector, void *sde_connector_state, in
 	switch (prop_id) {
 	case CONNECTOR_PROP_HBM_ENABLE:
 		if (prop_val != p_oplus_ofp_params->hbm_enable) {
+			if (!prop_val && p_oplus_ofp_params->need_to_update_lhbm_pressed_icon_gamma_nt37707) {
+				OFP_INFO("HBM:%lu, notify fppress up\n", prop_val);
+				uint32_t fp_press = 0;
+				if (oplus_ofp_notify_fp_press(&fp_press))
+					OFP_INFO("failed to notify fp up event");
+			}
 			OFP_INFO("HBM_ENABLE:%lu,dim:%lu,fingerpress:%lu,icon:%lu,aod:%lu\n", prop_val, (prop_val & OPLUS_OFP_PROPERTY_DIM_LAYER),
 				(prop_val & OPLUS_OFP_PROPERTY_FINGERPRESS_LAYER), (prop_val & OPLUS_OFP_PROPERTY_ICON_LAYER),
 					(prop_val & OPLUS_OFP_PROPERTY_AOD_LAYER));
@@ -4268,6 +4274,7 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 	struct dsi_display *display = get_main_display();
 	struct sde_connector *sde_conn;
 	struct drm_event event;
+	struct oplus_ofp_params *p_oplus_ofp_params = oplus_ofp_get_params(oplus_ofp_display_id);
 
 	if (!display || !display->panel) {
 		OFP_ERR("display is null\n");
@@ -4290,6 +4297,10 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 
 			if (tp_event->touch_state == 1) {
 				OFP_INFO("tp touchdown\n");
+				if (p_oplus_ofp_params->need_to_update_lhbm_pressed_icon_gamma_nt37707) {
+					if (oplus_ofp_notify_fp_press(&tp_event->touch_state))
+						OFP_INFO("failed to notify fp down event");
+				}
 				if (oplus_ofp_video_mode_30hz_aod_is_enabled() && oplus_ofp_get_aod_state()) {
 					event.type = DRM_EVENT_TP_TOUCHDOWN;
 					event.length = sizeof(bool);
