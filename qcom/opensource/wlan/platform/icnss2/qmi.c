@@ -1097,12 +1097,16 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 #ifdef OPLUS_FEATURE_WIFI_BDF
 //Modify for: multi projects using different bdf
 static bool is_prj_support_region_id(void) {
-    int project_id = get_project();
-    icnss_pr_dbg("the project support region id is: %d\n", project_id);
-    if (project_id == 24211 || project_id == 24212) {
-        return true;
-    }
-    return false;
+	int project_id = get_project();
+	icnss_pr_info("the project support region id is: %d\n", project_id);
+	if (project_id == 24211 || project_id == 24212) {
+		return true;
+	} else if (project_id == 24882 || project_id == 24881) {
+		return true;
+	} else if (project_id == 25861 || project_id == 25863) {
+		return true;
+	}
+	return false;
 }
 
 static bool is_prj_support_region_nv_id(void) {
