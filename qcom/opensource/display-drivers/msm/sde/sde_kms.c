@@ -1255,7 +1255,6 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 		qcom_dcvs_bus_boost_kick(4);
 		break;
 	default:
-		cpu_boost_kick(2);
 		qcom_dcvs_bus_boost_kick(2);
 		break;
        }
