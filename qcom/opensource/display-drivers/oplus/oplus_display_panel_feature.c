@@ -693,6 +693,7 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 	oplus_last_backlight = bl_lvl;
 }
 
+#if 0
 void oplus_printf_backlight_log(struct dsi_display *display, u32 bl_lvl) {
 	struct timespec64 now;
 	struct tm broken_time;
@@ -732,4 +733,4 @@ void oplus_printf_backlight_log(struct dsi_display *display, u32 bl_lvl) {
 		pr_info("<%s> len:%d dsi_display_set_backlight %s\n", display->panel->oplus_priv.vendor_name, len, backlight_log_buf);
 	}
 }
-
+#endif

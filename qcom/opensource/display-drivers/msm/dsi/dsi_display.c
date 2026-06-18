@@ -308,8 +308,9 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	oplus_panel_post_on_backlight(dsi_display, panel, bl_lvl);
 
 	bl_lvl = oplus_panel_silence_backlight(panel, bl_lvl);
-
+#if 0
 	oplus_printf_backlight_log(dsi_display, bl_lvl);
+#endif
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 	panel->bl_config.bl_level = bl_lvl;

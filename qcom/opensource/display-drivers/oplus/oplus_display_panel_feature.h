@@ -43,7 +43,9 @@ int oplus_panel_post_on_backlight(void *display, struct dsi_panel *panel, u32 bl
 void oplus_panel_update_backlight(struct dsi_panel *panel,
 		struct mipi_dsi_device *dsi, u32 bl_lvl);
 u32 oplus_panel_silence_backlight(struct dsi_panel *panel, u32 bl_lvl);
+#if 0
 void oplus_printf_backlight_log(struct dsi_display *display, u32 bl_lvl);
+#endif
 void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display_mode *mode);
 void oplus_panel_switch_vid_mode_post(struct dsi_display *display, struct dsi_display_mode *mode);
 bool oplus_panel_switch_vid_mode_compenstate_post(struct dsi_panel *panel, struct drm_crtc *crtc, int refresh_rate);
