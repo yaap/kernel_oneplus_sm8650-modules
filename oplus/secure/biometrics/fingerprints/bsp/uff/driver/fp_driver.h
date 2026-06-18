@@ -259,6 +259,7 @@ struct fp_dev {
     struct drm_panel     *active_panel;
     void                 *notifier_cookie;
     bool                 is_panel_registered;
+    struct work_struct    panel_work;
 #endif
     signed                device_available;
     signed                fb_black;

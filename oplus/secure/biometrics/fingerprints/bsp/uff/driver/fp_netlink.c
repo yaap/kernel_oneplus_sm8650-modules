@@ -91,12 +91,12 @@ void fp_sendnlmsg(int module, int event, void *data, unsigned int size)
 {
     struct sk_buff *skb_1;
     struct nlmsghdr *nlh;
-    struct fingerprint_message_t g_fingerprint_msg;
+    struct fingerprint_message_t g_fingerprint_msg = {0};
     int len = NLMSG_SPACE(MAX_KERNEL_TO_USER_MSGSIZE);
     int ret = 0;
     int need_report = 0;
 
-    memset(&g_fingerprint_msg, 0, sizeof(g_fingerprint_msg));
+
     write_fingerprint_msg(&g_fingerprint_msg, module, event, data, size);
     need_report = 1; /* default for need_report */
 
@@ -129,7 +129,7 @@ void fp_sendnlmsg(int module, int event, void *data, unsigned int size)
 
     if (nlh != NULL) {
         pr_debug("%s, event_change:%d - %d, out_size:%d\n", __func__, event, g_fingerprint_msg.event, g_fingerprint_msg.out_size);
-        pr_info("%s, module:%d, event:%d\n", __func__, g_fingerprint_msg.module, g_fingerprint_msg.event);
+        pr_debug("%s, module:%d, event:%d\n", __func__, g_fingerprint_msg.module, g_fingerprint_msg.event);
         memcpy(NLMSG_DATA(nlh), &g_fingerprint_msg, sizeof(struct fingerprint_message_t));
     }
 

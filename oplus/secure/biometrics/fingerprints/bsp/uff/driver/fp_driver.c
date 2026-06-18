@@ -38,6 +38,7 @@
 #include <linux/timer.h>
 #include <linux/types.h>
 #include <linux/version.h>
+#include <linux/workqueue.h>
 #include <net/netlink.h>
 #include <net/sock.h>
 #else
@@ -76,6 +77,7 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/workqueue.h>
 
 #include <linux/version.h>
 
@@ -150,6 +152,8 @@ static struct wake_lock fp_wakelock;
 static struct wake_lock fp_cmd_wakelock;
 struct fp_dev           fp_dev_data;
 
+static struct workqueue_struct *fp_wq;
+
 #define MAX_MSGSIZE 32
 
 static int   pid            = -1;
@@ -176,6 +180,46 @@ static void send_fingerprint_msg_by_type(int module, int event, void *data,
     else {
         send_fingerprint_msg(module, event, data, size);
     }
+}
+
+struct fp_work_event {
+    struct work_struct work;
+    int module;
+    int event;
+    unsigned int size;
+    char data[MAX_MESSAGE_SIZE];
+};
+
+static void fp_event_work_handler(struct work_struct *work)
+{
+    struct fp_work_event *evt = container_of(work, struct fp_work_event, work);
+    send_fingerprint_msg_by_type(evt->module, evt->event,
+                                  evt->size ? evt->data : NULL, evt->size);
+    kfree(evt);
+}
+
+static void fp_queue_event(int module, int event, void *data, unsigned int size)
+{
+    struct fp_work_event *evt;
+
+    if (fp_wq) {
+        evt = kmalloc(sizeof(*evt), GFP_ATOMIC);
+        if (evt) {
+            INIT_WORK(&evt->work, fp_event_work_handler);
+            evt->module = module;
+            evt->event = event;
+            if (data && size) {
+                evt->size = min_t(unsigned int, size, MAX_MESSAGE_SIZE);
+                memcpy(evt->data, data, evt->size);
+            } else {
+                evt->size = 0;
+            }
+            queue_work(fp_wq, &evt->work);
+            return;
+        }
+    }
+
+    send_fingerprint_msg_by_type(module, event, data, size);
 }
 
 static int fp_panel_event_notifier_register(struct fp_dev *fp_dev)
@@ -229,6 +273,72 @@ static int fp_panel_event_notifier_register(struct fp_dev *fp_dev)
 #endif
 }
 
+#if (IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY) || IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER))
+static void fp_panel_register_work_handler(struct work_struct *work)
+{
+    struct fp_dev *fp_dev = container_of(work, struct fp_dev, panel_work);
+    fp_panel_event_notifier_register(fp_dev);
+}
+
+static void fp_panel_notifier_callback(enum panel_event_notifier_tag tag, struct panel_event_notification *notification, void *client_data)
+{
+    if (!notification) {
+        pr_err("%s display notification NULL!\n", __func__);
+        return;
+    }
+
+    switch ((int)notification->notif_type) {
+        case (int)DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_READY:
+            fp_queue_event(E_FP_LCD, 1, NULL, 0);
+            break;
+        case (int)DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_DISAPPEAR:
+            fp_queue_event(E_FP_LCD, 0, NULL, 0);
+            break;
+        default:
+            break;
+    }
+}
+
+static int fp_check_panel_dt(struct fp_dev *fp_dev)
+{
+    int index = 0;
+    int count = 0;
+    struct device_node *ref_node = NULL;
+    struct device_node *node     = NULL;
+    struct drm_panel *panel      = NULL;
+    const char *display_dev_node = "oplus,dsi-display-dev";
+    const char *panel_prop_nodes = "oplus,dsi-panel-primary";
+
+    ref_node = of_find_node_by_name(NULL, display_dev_node);
+    if (!ref_node) {
+        pr_err("DTS node %s missing (fp).\n", display_dev_node);
+        return 0;
+    } else {
+        pr_info("DTS node %s found (fp).\n", display_dev_node);
+    }
+
+    count = of_count_phandle_with_args(ref_node, panel_prop_nodes, NULL);
+    if (count <= 0) {
+        pr_err("%s, NOT config %s!\n", __func__, panel_prop_nodes);
+        return 0;
+    }
+
+    for (index = 0; index < count; index++) {
+        node  = of_parse_phandle(ref_node, panel_prop_nodes, index);
+        panel = of_drm_find_panel(node);
+        of_node_put(node);
+        if (!IS_ERR(panel)) {
+            pr_err("%s, active_panel = %p\n", __func__, panel);
+            fp_dev->active_panel = panel;
+            return 0;
+        }
+    }
+
+    pr_err("%s, NO active panel!\n", __func__);
+    return PTR_ERR(panel);
+}
+#endif /*CONFIG_DRM_PANEL_NOTIFY*/
+
 static void fp_kernel_key_input(struct fp_dev *fp_dev, struct fp_key *fp_key) {
     uint32_t key_input = 0;
     if (FP_KEY_HOME == fp_key->key) {
@@ -277,12 +387,12 @@ void fp_nl_data_ready(struct sk_buff *__skb) {
 
 static void fp_spi_clk_enable(struct fp_dev *fp_dev) {
     fp_spi_enable_master_clk(fp_dev->pdev);
-    pr_info("%s, mt_spi_enable_master_clk\n", __func__);
+    pr_debug("%s, mt_spi_enable_master_clk\n", __func__);
 }
 
 static void fp_spi_clk_disable(struct fp_dev *fp_dev) {
     fp_spi_disable_master_clk(fp_dev->pdev);
-    pr_info("%s, mt_spi_disable_master_clk\n", __func__);
+    pr_debug("%s, mt_spi_disable_master_clk\n", __func__);
 }
 
 static void fp_enable_irq(struct fp_dev *fp_dev) {
@@ -311,14 +421,14 @@ static int fp_read_irq_value(struct fp_dev *fp_dev) {
     }
 
     irq_value = gpio_get_value(fp_dev->irq_gpio);
-    pr_info("%s, irq_value = %d\n", __func__, irq_value);
+    pr_debug("%s, irq_value = %d\n", __func__, irq_value);
     return irq_value;
 }
 
 static irqreturn_t fp_irq_handler(int irq, void *handle) {
     char msg = NETLINK_EVENT_IRQ;
     wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
-    send_fingerprint_msg_by_type(E_FP_SENSOR, msg, NULL, 0);
+    fp_queue_event(E_FP_SENSOR, msg, NULL, 0);
     return IRQ_HANDLED;
 }
 
@@ -421,7 +531,7 @@ static int get_battery_temperature_dgr(void)
     } else {
         rc = power_supply_get_property(psy, POWER_SUPPLY_PROP_TEMP, &pval);
         if (rc < 0) {
-            pr_err("%s, can't get battery temp, rc = %d\n", __func__, rc);
+            pr_err("%s, can't get battery temp, rc = %d\n", __func__, batt_temp);
             batt_temp = BATT_INVALID_TEMP;
         } else {
             batt_temp = pval.intval / 10;
@@ -500,11 +610,6 @@ static long fp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 
     switch (cmd) {
         case FP_IOC_INIT:
-            // pr_info("%s FP_IOC_INIT\n", __func__);
-            // if (copy_to_user((void __user *)arg, (void *)&netlink_route, sizeof(u8))) {
-            //     retval = -EFAULT;
-            //     break;
-            // }
             break;
         case FP_IOC_EXIT:
             pr_info("%s FP_IOC_EXIT\n", __func__);
@@ -580,7 +685,7 @@ static long fp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
             }
             fp_cleanup_device(fp_dev);
             pr_info("%s FP_IOC_REMOVE\n", __func__);
-            send_fingerprint_msg_by_type(E_FP_HAL, 0, NULL, 0);
+            fp_queue_event(E_FP_HAL, 0, NULL, 0);
             break;
         case FP_IOC_WAKELOCK_TIMEOUT_ENABLE:
             pr_info("%s FP_IOC_WAKELOCK_TIMEOUT_ENABLE\n", __func__);
@@ -604,7 +709,7 @@ static long fp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
             break;
         case FP_IOC_STOP_WAIT_INTERRUPT_EVENT:
             pr_info("%s GF_IOC_STOP_WAIT_INTERRUPT_EVENT\n", __func__);
-            send_fingerprint_msg_by_type(E_FP_HAL, 0, NULL, 0);
+            fp_queue_event(E_FP_HAL, 0, NULL, 0);
             break;
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_OLC)
         case FP_IOC_REPORT_OLC_EVENT:
@@ -725,9 +830,9 @@ static int fp_open(struct inode *inode, struct file *filp) {
                     goto err_irq;
                 }
             }
-            status = fp_panel_event_notifier_register(fp_dev);
-            if (status) {
-                goto err_panel;
+            if (fp_wq) {
+                INIT_WORK(&fp_dev->panel_work, fp_panel_register_work_handler);
+                queue_work(fp_wq, &fp_dev->panel_work);
             }
         }
     } else {
@@ -737,11 +842,6 @@ static int fp_open(struct inode *inode, struct file *filp) {
     pr_info("fingerprint open success\n");
 
     return status;
-err_panel:
-    if (fp_dev->optical_irq_disable_flag == 0) {
-        irq_cleanup(fp_dev);
-        pr_info("panel_register fail\n");
-    }
 err_irq:
     fp_cleanup_device(fp_dev);
     fp_exception_report_drv(FP_SCENE_DRV_OPEN_FAIL);
@@ -810,99 +910,17 @@ static const struct file_operations fp_fops = {
     .read = fp_read,
 };
 
-#if (IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY) || IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER))
-static void fp_panel_notifier_callback(enum panel_event_notifier_tag tag, struct panel_event_notification *notification, void *client_data)
-{
-    if (!notification) {
-        pr_err("%s display notification NULL!\n", __func__);
-        return;
-    }
-
-    switch ((int)notification->notif_type) {
-        case (int)DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_READY:
-            pr_err("[%s] UI ready\n", __func__);
-            send_fingerprint_msg_by_type(E_FP_LCD, 1, NULL, 0);
-            break;
-        case (int)DRM_PANEL_EVENT_ONSCREENFINGERPRINT_UI_DISAPPEAR:
-            pr_err("[%s] UI disappear\n", __func__);
-            send_fingerprint_msg_by_type(E_FP_LCD, 0, NULL, 0);
-            break;
-        default:
-            break;
-    }
-}
-
-static int fp_check_panel_dt(struct fp_dev *fp_dev)
-{
-    int index = 0;
-    int count = 0;
-    struct device_node *ref_node = NULL;
-    struct device_node *node     = NULL;
-    struct drm_panel *panel      = NULL;
-    const char *display_dev_node = "oplus,dsi-display-dev";
-    const char *panel_prop_nodes = "oplus,dsi-panel-primary";
-
-    ref_node = of_find_node_by_name(NULL, display_dev_node);
-    if (!ref_node) {
-        pr_err("DTS node %s missing (fp).\n", display_dev_node);
-        return 0;
-    } else {
-        pr_info("DTS node %s found (fp).\n", display_dev_node);
-    }
-
-    count = of_count_phandle_with_args(ref_node, panel_prop_nodes, NULL);
-    if (count <= 0) {
-        pr_err("%s, NOT config %s!\n", __func__, panel_prop_nodes);
-        return 0;
-    }
-
-    for (index = 0; index < count; index++) {
-        node  = of_parse_phandle(ref_node, panel_prop_nodes, index);
-        panel = of_drm_find_panel(node);
-        of_node_put(node);
-        if (!IS_ERR(panel)) {
-            pr_err("%s, active_panel = %p\n", __func__, panel);
-            fp_dev->active_panel = panel;
-            return 0;
-        }
-    }
-
-    pr_err("%s, NO active panel!\n", __func__);
-    return PTR_ERR(panel);
-}
-#endif /*CONFIG_DRM_PANEL_NOTIFY*/
-
 static int oplus_fb_notifier_call(struct notifier_block *nb, unsigned long val, void *data) {
-    struct fb_event *evdata = data;
-    char             msg    = 0;
-
-    pr_info("[%s] val = %lu", __func__, val);
     if (val == ONSCREENFINGERPRINT_EVENT) {
         uint8_t op_mode = 0x0;
 
 #if defined(CONFIG_DRM_MEDIATEK_V2)
-        (void)evdata;
         op_mode = *(int *)data;
 #else
+        struct fb_event *evdata = data;
         op_mode = *(uint8_t *)evdata->data;
 #endif
-
-        switch (op_mode) {
-            case 0:
-                pr_info("[%s] UI disappear :%d\n", __func__, op_mode);
-                msg = NETLINK_EVENT_UI_DISAPPEAR;
-                break;
-            case 1:
-                pr_info("[%s] UI ready uiready:%d\n", __func__, op_mode);
-                msg = NETLINK_EVENT_UI_READY;
-                // fp_sendnlmsg(&msg);
-                break;
-            default:
-                pr_info("[%s] Unknown ONSCREENFINGERPRINT_EVENT data \n", __func__);
-                break;
-        }
-
-        send_fingerprint_msg_by_type(E_FP_LCD, (int)op_mode, NULL, 0);
+        fp_queue_event(E_FP_LCD, (int)op_mode, NULL, 0);
     }
 
     return NOTIFY_OK;
@@ -951,7 +969,7 @@ static int check_tp_info_irq_handled(fp_underscreen_info_t *tp_info)
         return is_irq_handled;
     }
 
-    pr_info("touch_early_down_flag = %d, is_touch_fp_area_cnt = %ld, fp_down_time %lld, touch_fp_area_time %lld\n",
+    pr_debug("touch_early_down_flag = %d, is_touch_fp_area_cnt = %ld, fp_down_time %lld, touch_fp_area_time %lld\n",
         tp_info->touch_early_down_flag, tp_info->is_touch_fp_area_cnt, tp_info->fp_down_time, tp_info->touch_fp_area_time);
 
     if (1 == tp_info->touch_state) {
@@ -976,10 +994,9 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
     struct fp_touch_under_water_info  *p_tp_under_water_info = NULL;
     fp_tp_ai_film_info_t tp_film_info = {0};
     fp_tp_under_water_info_t tp_under_water_info = {0};
-    char msg = 0;
     (void)nb;
 
-    pr_info("recv tp event:%d\n", (int)val);
+    pr_debug("recv tp event:%d\n", (int)val);
     switch (val) {
         case EVENT_ACTION_FOR_FINGPRINT:
             tp_event = (struct touchpanel_event *)data;
@@ -988,10 +1005,6 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
             }
 
             (void)cvt_tp_cb_data_to_info(tp_info, data);
-            pr_info("sizeof(struct touchpanel_event) =%lu, sizeof(tp2fp_touchpanel_event_t) =%lu, "
-                    "tp_info->touch_state =%d, tp_info->x=%d, tp_info->y=%d, tp_firmware_time=%d\n",
-                    sizeof(struct touchpanel_event), sizeof(tp2fp_touchpanel_event_t),
-                    tp_info->touch_state, tp_info->x, tp_info->y, tp_info->tp_firmware_time);
 
             if (check_tp_info_irq_handled(tp_info)) {
                 return IRQ_HANDLED;
@@ -1003,15 +1016,11 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
 		qcom_dcvs_bus_boost_kick_max(500);
 		devfreq_gpu_kick(500);
                 fp_enable_intr3(fp_dev);
-                pr_info("%s touch down touchdown\n", __func__);
-                msg = NETLINK_EVENT_TP_TOUCHDOWN;
                 lasttouchmode = tp_info->touch_state;
-                send_fingerprint_msg_by_type(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
+                fp_queue_event(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
             } else {
                 fp_disable_intr3(fp_dev);
-                pr_info("%s touch up touchup\n", __func__);
-                msg = NETLINK_EVENT_TP_TOUCHUP;
-                send_fingerprint_msg_by_type(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
+                fp_queue_event(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
                 lasttouchmode = tp_info->touch_state;
             }
             break;
@@ -1023,19 +1032,15 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
             tp_film_info.is_credible = p_tp_film_info->trusty;
 
             wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
-            pr_info("%s tp_film_info.is_filmed = %d \n", __func__, tp_film_info.is_filmed);
-            pr_info("%s tp_film_info.film_depth = %d \n", __func__, tp_film_info.film_depth);
-            pr_info("%s tp_film_info.is_credible = %d \n", __func__, tp_film_info.is_credible);
-            send_fingerprint_msg_by_type(E_TP_AIFILM, E_FP_EVENT_AIFILM_INFO,
-                                         (void *)&tp_film_info,
-                                         sizeof(fp_tp_ai_film_info_t));
+            fp_queue_event(E_TP_AIFILM, E_FP_EVENT_AIFILM_INFO,
+                           (void *)&tp_film_info,
+                           sizeof(fp_tp_ai_film_info_t));
             break;
 
         case EVENT_ACTION_FOR_FP_GIRP:
             tp_grip_info = (struct touch_fp_grip_info *)data;
-            pr_info("%s tp_grip_info.value = %d \n", __func__, tp_grip_info->value);
             wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
-            send_fingerprint_msg_by_type(E_FP_TP_GRIP, tp_grip_info->value, tp_grip_info, sizeof(struct touch_fp_grip_info));
+            fp_queue_event(E_FP_TP_GRIP, tp_grip_info->value, tp_grip_info, sizeof(struct touch_fp_grip_info));
             break;
 
         case EVENT_ACTION_UNDER_WATER:
@@ -1043,10 +1048,9 @@ static int oplus_tp_notifier_call(struct notifier_block *nb, unsigned long val, 
             tp_under_water_info.is_underwater = p_tp_under_water_info->is_underwater;
 
             wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
-            pr_info("%s tp_under_water_info.is_underwater = %d \n", __func__, tp_under_water_info.is_underwater);
-            send_fingerprint_msg_by_type(E_TP_AIFILM, E_FP_EVENT_UNDERWATER_INFO,
-                                         (void *)&tp_under_water_info,
-                                         sizeof(fp_tp_under_water_info_t));
+            fp_queue_event(E_TP_AIFILM, E_FP_EVENT_UNDERWATER_INFO,
+                           (void *)&tp_under_water_info,
+                           sizeof(fp_tp_under_water_info_t));
             break;
 
         default:
@@ -1067,7 +1071,6 @@ static struct notifier_block oplus_tp_notifier_block = {
 #endif
 int opticalfp_irq_handler_uff(struct fp_underscreen_info *tp_info) {
     struct fp_dev *fp_dev        = &fp_dev_data;
-    char msg     = 0;
     fp_touchinfo = *tp_info;
 
     if (g_fp_probe_statue == FINGERPRINT_PROBE_FAIL) {
@@ -1077,21 +1080,16 @@ int opticalfp_irq_handler_uff(struct fp_underscreen_info *tp_info) {
     if (tp_info->touch_state == lasttouchmode) {
         return IRQ_HANDLED;
     }
-    //return
-    //add for debug
-    pr_info("[%s] tp_info->touch_state =%d, tp_info->x =%d, tp_info->y =%d, \n", __func__, tp_info->touch_state, tp_info->x, tp_info->y);
+
+    pr_debug("[%s] tp_info->touch_state =%d, tp_info->x =%d, tp_info->y =%d\n", __func__, tp_info->touch_state, tp_info->x, tp_info->y);
     wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_IRQ_TIME));
     if (1 == tp_info->touch_state) {
         fp_enable_intr3(fp_dev);
-        pr_info("%s touch down \n", __func__);
-        msg = NETLINK_EVENT_TP_TOUCHDOWN;
         lasttouchmode = tp_info->touch_state;
-        send_fingerprint_msg_by_type(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
+        fp_queue_event(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
     } else {
         fp_disable_intr3(fp_dev);
-        pr_info("%s touch up \n", __func__);
-        msg = NETLINK_EVENT_TP_TOUCHUP;
-        send_fingerprint_msg_by_type(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
+        fp_queue_event(E_FP_TP, tp_info->touch_state, tp_info, sizeof(struct fp_underscreen_info));
         lasttouchmode = tp_info->touch_state;
     }
 
@@ -1188,6 +1186,11 @@ static int fp_probe(oplus_fp_device *pdev) {
     wake_lock_init(&fp_cmd_wakelock, WAKE_LOCK_SUSPEND, "fp_cmd_wakelock");
     g_fp_probe_statue = FINGERPRINT_PROBE_OK;
 
+    fp_wq = alloc_ordered_workqueue("fp_wq", WQ_MEM_RECLAIM | WQ_HIGHPRI);
+    if (!fp_wq) {
+        pr_warn("failed to create fp workqueue, using direct calls\n");
+    }
+
     pr_err("register oplus_fp end \n");
     return status;
 
@@ -1220,6 +1223,12 @@ static int fp_remove(oplus_fp_device *pdev) {
     g_fp_probe_statue = FINGERPRINT_PROBE_FAIL;
     wake_lock_destroy(&fp_wakelock);
     wake_lock_destroy(&fp_cmd_wakelock);
+
+    if (fp_wq) {
+        flush_workqueue(fp_wq);
+        destroy_workqueue(fp_wq);
+        fp_wq = NULL;
+    }
 
     fb_unregister_client(&fp_dev->notifier);
 #if defined(CONFIG_OPLUS_FINGERPRINT_GKI_ENABLE)

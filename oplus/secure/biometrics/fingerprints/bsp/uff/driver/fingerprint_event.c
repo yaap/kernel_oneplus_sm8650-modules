@@ -119,10 +119,11 @@ int send_fingerprint_msg(int module, int event, void *data,
     int ret = 0;
     int need_report = 0;
     if (get_fp_driver_evt_type() != FP_DRIVER_INTERRUPT) {
-        pr_info("%s, NETLINK is enable\n", __func__);
+        pr_debug("%s, NETLINK is enable\n", __func__);
         return 0;
     }
-    memset(&g_fingerprint_msg, 0, sizeof(g_fingerprint_msg));
+    g_fingerprint_msg.in_size = 0;
+    g_fingerprint_msg.out_size = 0;
     switch (module) {
     case E_FP_TP:
         g_fingerprint_msg.module = E_FP_TP;
@@ -169,7 +170,7 @@ int send_fingerprint_msg(int module, int event, void *data,
     fault_inject_fp_msg_hook(&g_fingerprint_msg, &need_report);
 #endif  // CONFIG_OPLUS_FEATURE_BSP_DRV_VND_INJECT_TEST || CONFIG_FP_INJECT_ENABLE
     pr_debug("%s, event_change:%d - %d, out_size:%d\n", __func__, event, g_fingerprint_msg.event, g_fingerprint_msg.out_size);
-    pr_info("%s, module:%d, event:%d\n", __func__, g_fingerprint_msg.module, g_fingerprint_msg.event);
+    pr_debug("%s, module:%d, event:%d\n", __func__, g_fingerprint_msg.module, g_fingerprint_msg.event);
     if (need_report) {
         ret = wake_up_fingerprint_event(0);
     }

@@ -680,7 +680,7 @@ int fp_irq_num(struct fp_dev *fp_dev) {
 int fp_enable_intr3(struct fp_dev *fp_dev)
 {
     if (fp_dev->gpio_intr3_available) {
-        pr_info("%s fp_enable_intr3. \n", __func__);
+        pr_debug("%s fp_enable_intr3. \n", __func__);
         gpio_set_value(fp_dev->gpio_intr3, 1);
     }
     return 0;
@@ -689,7 +689,7 @@ int fp_enable_intr3(struct fp_dev *fp_dev)
 int fp_disable_intr3(struct fp_dev *fp_dev)
 {
     if (fp_dev->gpio_intr3_available) {
-        pr_info("%s fp_disable_intr3. \n", __func__);
+        pr_debug("%s fp_disable_intr3. \n", __func__);
         gpio_set_value(fp_dev->gpio_intr3, 0);
     }
     return 0;
