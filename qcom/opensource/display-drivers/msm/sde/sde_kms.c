@@ -1247,8 +1247,17 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 		goto end;
 	}
 
-	if (kp_active_mode() == 3) {
+	switch (kp_active_mode()) {
+	case 1:
+		break;
+	case 3:
+		cpu_boost_kick(2);
 		qcom_dcvs_bus_boost_kick(2);
+		break;
+	default:
+		cpu_boost_kick(1);
+		qcom_dcvs_bus_boost_kick(1);
+		break;
        }
 
 	if (sde_kms->first_kickoff) {
