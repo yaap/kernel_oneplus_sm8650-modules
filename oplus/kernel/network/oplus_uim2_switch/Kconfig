@@ -1,0 +1,13 @@
+config OPLUS_UIM2_SWITCH
+	tristate "Oplus UIM2 eSIM/SIM2 switch driver"
+	depends on OEM_QMI
+	default n
+	help
+	  Provides sysfs control of the UIM2 mux GPIO to switch between
+	  eSIM and the second physical SIM slot on Oplus devices with
+	  shared UIM2 (e.g. waffle).
+
+	  Write 0 to uim2_state to enable eSIM (default).
+	  Write 1 to uim2_state to enable physical SIM2.
+
+	  Depends on the oem_qmi module for UIM QMI power control.
