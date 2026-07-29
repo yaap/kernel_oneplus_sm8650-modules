@@ -521,6 +521,7 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 	int ret = 0;
 	int retry_count = 0;
 
+	current->flags |= PF_NOFREEZE;
 	do {
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
 		if ((ret == -EBUSY) || (desc && (desc->ret[0] == -QSEE_RESULT_FAIL_APP_BUSY))) {
@@ -532,6 +533,9 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 			pr_warn("secure world has been busy for 1 second!\n");
 	} while (((ret == -EBUSY) || (desc && (desc->ret[0] == -QSEE_RESULT_FAIL_APP_BUSY))) &&
 			(retry_count++ < QSEECOM_SCM_EBUSY_MAX_RETRY));
+	current->flags &= ~PF_NOFREEZE;
+	try_to_freeze();
+
 	return ret;
 }
 
