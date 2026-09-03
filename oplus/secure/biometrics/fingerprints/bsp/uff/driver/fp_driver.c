@@ -202,6 +202,11 @@ static void fp_queue_event(int module, int event, void *data, unsigned int size)
 {
     struct fp_work_event *evt;
 
+    if (module == E_FP_TP || module == E_FP_LCD) {
+        send_fingerprint_msg_by_type(module, event, data, size);
+        return;
+    }
+
     if (fp_wq) {
         evt = kmalloc(sizeof(*evt), GFP_ATOMIC);
         if (evt) {
