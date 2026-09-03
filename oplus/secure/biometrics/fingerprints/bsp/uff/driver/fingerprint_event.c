@@ -17,46 +17,73 @@
 #include "include/fp_fault_inject.h"
 #endif  // CONFIG_OPLUS_FEATURE_BSP_DRV_VND_INJECT_TEST || CONFIG_FP_INJECT_ENABLE
 
+#include <linux/spinlock.h>
+
+#define FP_EVENT_QUEUE_DEPTH 16
+
 static struct fingerprint_message_t g_fingerprint_msg = {0};
+static struct fingerprint_message_t fp_event_queue[FP_EVENT_QUEUE_DEPTH];
+static unsigned int fp_q_head;
+static unsigned int fp_q_tail;
+static unsigned int fp_q_count;
+static DEFINE_SPINLOCK(fp_event_lock);
 int g_fp_driver_event_type = FP_DRIVER_INTERRUPT;
-int g_reporte_cond = 0;
 DECLARE_WAIT_QUEUE_HEAD(fp_wait_queue);
+
+static bool fp_event_has_data(void)
+{
+	/* Polled by wait_event(); queue itself is always touched under
+	 * fp_event_lock, wake_up() pairs with the dequeue lock. */
+	return fp_q_count > 0;
+}
 
 void reset_fingerprint_msg(void)
 {
-   g_reporte_cond = 0;
-   memset(&g_fingerprint_msg, 0, sizeof(g_fingerprint_msg));
-}
+	unsigned long flags;
 
-static void set_event_condition(int state)
-{
-    g_reporte_cond = state;
-}
-
-static int wake_up_fingerprint_event(int data) {
-    int ret = 0;
-    (void)data;
-    set_event_condition(SEND_FINGERPRINT_EVENT_ENABLE);
-    wake_up_interruptible(&fp_wait_queue);
-    return ret;
+	spin_lock_irqsave(&fp_event_lock, flags);
+	fp_q_head = 0;
+	fp_q_tail = 0;
+	fp_q_count = 0;
+	memset(&g_fingerprint_msg, 0, sizeof(g_fingerprint_msg));
+	memset(fp_event_queue, 0, sizeof(fp_event_queue));
+	spin_unlock_irqrestore(&fp_event_lock, flags);
 }
 
 int wait_fp_event(void *data, unsigned int size,
                            struct fingerprint_message_t **msg) {
-    int ret;
+    int ret = 0;
     struct fingerprint_message_t rev_msg = {0};
+    unsigned long flags;
+
     if (size == sizeof(rev_msg)) {
         memcpy(&rev_msg, data, size);
     }
 
-    if ((ret = wait_event_interruptible(fp_wait_queue, g_reporte_cond == 1)) !=
-        0) {
+    /* Dequeue oldest first; loop handles a second reader stealing the
+     * event between wake_up() and our spin_lock(). */
+    for (;;) {
+        ret = wait_event_interruptible(fp_wait_queue, fp_event_has_data());
+        if (ret)
+            break;
+
+        spin_lock_irqsave(&fp_event_lock, flags);
+        if (!fp_q_count) {
+            spin_unlock_irqrestore(&fp_event_lock, flags);
+            continue;
+        }
+        g_fingerprint_msg = fp_event_queue[fp_q_head];
+        fp_q_head = (fp_q_head + 1) % FP_EVENT_QUEUE_DEPTH;
+        fp_q_count--;
+        spin_unlock_irqrestore(&fp_event_lock, flags);
+        break;
+    }
+
+    if (ret) {
         pr_info("fp driver wait event fail, %d", ret);
     }
-    if (msg != NULL) {
-        *msg = &g_fingerprint_msg;
-    }
-    set_event_condition(SEND_FINGERPRINT_EVENT_DISABLE);
+    if (msg != NULL)
+        *msg = ret ? NULL : &g_fingerprint_msg;
     return ret;
 }
 
@@ -116,63 +143,81 @@ int get_fp_driver_evt_type(void)
 
 int send_fingerprint_msg(int module, int event, void *data,
                              unsigned int size) {
-    int ret = 0;
+    struct fingerprint_message_t tmp_msg = {0};
     int need_report = 0;
+    unsigned long flags;
+
     if (get_fp_driver_evt_type() != FP_DRIVER_INTERRUPT) {
         pr_debug("%s, NETLINK is enable\n", __func__);
         return 0;
     }
-    g_fingerprint_msg.in_size = 0;
-    g_fingerprint_msg.out_size = 0;
+    tmp_msg.in_size = 0;
+    tmp_msg.out_size = 0;
     switch (module) {
     case E_FP_TP:
-        g_fingerprint_msg.module = E_FP_TP;
-        g_fingerprint_msg.event = event == 1 ? E_FP_EVENT_TP_TOUCHDOWN : E_FP_EVENT_TP_TOUCHUP;
-        g_fingerprint_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
-        memcpy(g_fingerprint_msg.out_buf, data, g_fingerprint_msg.out_size);
+        tmp_msg.module = E_FP_TP;
+        tmp_msg.event = event == 1 ? E_FP_EVENT_TP_TOUCHDOWN : E_FP_EVENT_TP_TOUCHUP;
+        tmp_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
+        if (data && tmp_msg.out_size)
+            memcpy(tmp_msg.out_buf, data, tmp_msg.out_size);
         need_report = 1;
         break;
     case E_FP_LCD:
-        g_fingerprint_msg.module = E_FP_LCD;
-        g_fingerprint_msg.event =
+        tmp_msg.module = E_FP_LCD;
+        tmp_msg.event =
             event == 1 ? E_FP_EVENT_UI_READY : E_FP_EVENT_UI_DISAPPEAR;
         need_report = 1;
 
-        //pr_info("kernel module:%d event:%d - %d", g_fingerprint_msg.module, event, g_fingerprint_msg.event);
+        //pr_info("kernel module:%d event:%d - %d", tmp_msg.module, event, tmp_msg.event);
         break;
     case E_FP_HAL:
-        g_fingerprint_msg.module = E_FP_HAL;
-        g_fingerprint_msg.event = E_FP_EVENT_STOP_INTERRUPT;
+        tmp_msg.module = E_FP_HAL;
+        tmp_msg.event = E_FP_EVENT_STOP_INTERRUPT;
         need_report = 1;
         break;
     case E_TP_AIFILM:
-        g_fingerprint_msg.module = E_TP_AIFILM;
-        g_fingerprint_msg.event = event;
-        g_fingerprint_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
-        memcpy(g_fingerprint_msg.out_buf, data, g_fingerprint_msg.out_size);
+        tmp_msg.module = E_TP_AIFILM;
+        tmp_msg.event = event;
+        tmp_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
+        if (data && tmp_msg.out_size)
+            memcpy(tmp_msg.out_buf, data, tmp_msg.out_size);
         need_report = 1;
         break;
     case E_FP_TP_GRIP:
-        g_fingerprint_msg.module = E_FP_TP_GRIP;
-        g_fingerprint_msg.event = event == 1 ? E_FP_EVENT_MISTOUCH_CLASP : E_FP_EVENT_MISTOUCH_UNCLASP;
-        g_fingerprint_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
-        memcpy(g_fingerprint_msg.out_buf, data, g_fingerprint_msg.out_size);
+        tmp_msg.module = E_FP_TP_GRIP;
+        tmp_msg.event = event == 1 ? E_FP_EVENT_MISTOUCH_CLASP : E_FP_EVENT_MISTOUCH_UNCLASP;
+        tmp_msg.out_size = size <= MAX_MESSAGE_SIZE ? size : MAX_MESSAGE_SIZE;
+        if (data && tmp_msg.out_size)
+            memcpy(tmp_msg.out_buf, data, tmp_msg.out_size);
         need_report = 1;
         break;
     default:
-        g_fingerprint_msg.module = module;
-        g_fingerprint_msg.event = event;
+        tmp_msg.module = module;
+        tmp_msg.event = event;
         need_report = 1;
         pr_info("unknow module, ignored");
         break;
     }
 #if (IS_ENABLED(CONFIG_OPLUS_FEATURE_BSP_DRV_VND_INJECT_TEST) || IS_ENABLED(CONFIG_FP_INJECT_ENABLE))
-    fault_inject_fp_msg_hook(&g_fingerprint_msg, &need_report);
+    fault_inject_fp_msg_hook(&tmp_msg, &need_report);
 #endif  // CONFIG_OPLUS_FEATURE_BSP_DRV_VND_INJECT_TEST || CONFIG_FP_INJECT_ENABLE
-    pr_debug("%s, event_change:%d - %d, out_size:%d\n", __func__, event, g_fingerprint_msg.event, g_fingerprint_msg.out_size);
-    pr_debug("%s, module:%d, event:%d\n", __func__, g_fingerprint_msg.module, g_fingerprint_msg.event);
-    if (need_report) {
-        ret = wake_up_fingerprint_event(0);
+    pr_debug("%s, event_change:%d - %d, out_size:%d\n", __func__, event, tmp_msg.event, tmp_msg.out_size);
+    pr_debug("%s, module:%d, event:%d\n", __func__, tmp_msg.module, tmp_msg.event);
+    if (!need_report)
+        return 0;
+
+    spin_lock_irqsave(&fp_event_lock, flags);
+    if (fp_q_count >= FP_EVENT_QUEUE_DEPTH) {
+        /* Queue full: drop oldest so a burst of UI_READY/DOWN can never
+         * stall the unlock waiting on a freed slot. */
+        fp_q_head = (fp_q_head + 1) % FP_EVENT_QUEUE_DEPTH;
+        fp_q_count--;
     }
-    return ret;
+    fp_event_queue[fp_q_tail] = tmp_msg;
+    fp_q_tail = (fp_q_tail + 1) % FP_EVENT_QUEUE_DEPTH;
+    fp_q_count++;
+    spin_unlock_irqrestore(&fp_event_lock, flags);
+
+    wake_up_interruptible(&fp_wait_queue);
+    return 0;
 }
