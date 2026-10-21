@@ -297,7 +297,10 @@ bool inline is_ftm_boot_mode(struct syna_tcm *tcm)
  */
 void syna_dev_update_lpwg_status(struct syna_tcm *tcm)
 {
-	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold || (tcm->fp_active && !tcm->fp_prevent) || tcm->under_water_detect) ? true : false;
+	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold ||
+			(tcm->fp_active && !tcm->fp_prevent) ||
+			((tcm->fp_hal_mode & FP_HAL_ACTIVE) && !tcm->fp_prevent) ||
+			tcm->under_water_detect) ? true : false;
 	return;
 }
 
@@ -872,6 +875,51 @@ static void findGestId(struct syna_tcm *tcm)
 	touch_data->g_type = gesture_type;
 }
 
+/*
+ * Report screen-on fingerprint transitions from the normal touch path. The
+ * userspace HAL controls this through the fingerprint_hal proc node; the
+ * low-power path below keeps handling screen-off gestures.
+ */
+static void syna_dev_report_fp_screen_on(struct syna_tcm *tcm)
+{
+	unsigned int idx;
+	unsigned int x = 0;
+	unsigned int y = 0;
+	bool down = false;
+	struct fp_underscreen_info fp_info;
+
+	if (!(tcm->fp_hal_mode & FP_HAL_REPORT) || tcm->pwr_state != PWR_ON)
+		return;
+
+	for (idx = 0; idx < tcm->tcm_dev->max_objects; ++idx) {
+		const unsigned char status = tcm->tp_data.object_data[idx].status;
+
+		if (status == FINGER || status == GLOVED_OBJECT) {
+			x = tcm->tp_data.object_data[idx].x_pos;
+			y = tcm->tp_data.object_data[idx].y_pos;
+			down = true;
+			break;
+		}
+	}
+
+	if (down && !tcm->is_fp_down) {
+		memset(&fp_info, 0, sizeof(fp_info));
+		fp_info.touch_state = 1;
+		fp_info.area_rate = 100;
+		fp_info.x = (uint16_t)x;
+		fp_info.y = (uint16_t)y;
+		tcm->is_fp_down = true;
+		touch_call_notifier_fp(tcm, &fp_info);
+		LOGI("screen on fingerprint down(%u %u)\n", x, y);
+	} else if (!down && tcm->is_fp_down) {
+		memset(&fp_info, 0, sizeof(fp_info));
+		fp_info.touch_state = 0;
+		tcm->is_fp_down = false;
+		touch_call_notifier_fp(tcm, &fp_info);
+		LOGI("screen on fingerprint up\n");
+	}
+}
+
 /**
  * syna_dev_report_input_events()
  *
@@ -909,6 +957,8 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 
 	touch_data = &tcm->tp_data;
 	object_data = &tcm->tp_data.object_data[0];
+
+	syna_dev_report_fp_screen_on(tcm);
 
 #ifdef ENABLE_WAKEUP_GESTURE
 	if (tcm->pwr_state == LOW_PWR/* && tcm->irq_wake*/) {

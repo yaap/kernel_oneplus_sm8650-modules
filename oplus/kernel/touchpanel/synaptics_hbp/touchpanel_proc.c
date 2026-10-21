@@ -990,6 +990,81 @@ static ssize_t proc_fingerprint_active_write(struct file *file,
 
 DECLARE_PROC_OPS(proc_fingerprint_active_ops, simple_open, proc_fingerprint_active_read, proc_fingerprint_active_write, NULL);
 
+static ssize_t proc_fingerprint_hal_read(struct file *file, char __user *buffer,
+				      size_t count, loff_t *ppos)
+{
+	struct syna_tcm *tcm = PDE_DATA(file_inode(file));
+	uint8_t ret = 0;
+	char page[PAGESIZE] = {0};
+
+	if (!tcm) {
+		return count;
+	}
+
+	snprintf(page, PAGESIZE - 1, "%u", tcm->fp_hal_mode);
+	ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
+
+	return ret;
+}
+
+static ssize_t proc_fingerprint_hal_write(struct file *file,
+				       const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct syna_tcm *tcm = PDE_DATA(file_inode(file));
+	int tmp = 0;
+	unsigned int old_mode;
+	char buf[4] = {0};
+
+	if (!tcm) {
+		return count;
+	}
+
+	tp_copy_from_user(buf, sizeof(buf), buffer, count, 2);
+
+	if (kstrtoint(buf, 10, &tmp)) {
+		TPD_INFO("%s: kstrtoint error\n", __func__);
+		return count;
+	}
+
+	mutex_lock(&tcm->mutex);
+	old_mode = tcm->fp_hal_mode;
+	tcm->fp_hal_mode = (unsigned int)tmp & (FP_HAL_ACTIVE | FP_HAL_REPORT);
+
+	if ((old_mode & FP_HAL_REPORT) && !(tcm->fp_hal_mode & FP_HAL_REPORT)) {
+		memset(&tcm->fp_info, 0, sizeof(tcm->fp_info));
+		tcm->fp_info.touch_state = 0;
+		tcm->is_fp_down = false;
+		touch_call_notifier_fp(tcm, &tcm->fp_info);
+		TPD_INFO("%s: screen on fingerprint up\n", __func__);
+	}
+
+	if (!(old_mode & FP_HAL_REPORT) && (tcm->fp_hal_mode & FP_HAL_REPORT)) {
+		if (tcm->is_fp_down) {
+			/*
+			 * The low-power path may have reported this touch before
+			 * the operation armed screen-on reporting. Reset the
+			 * notifier's last state and replay the down so the HAL
+			 * sees the press that is already in progress.
+			 */
+			tcm->fp_info.touch_state = 0;
+			touch_call_notifier_fp(tcm, &tcm->fp_info);
+			tcm->fp_info.touch_state = 1;
+			touch_call_notifier_fp(tcm, &tcm->fp_info);
+			TPD_INFO("%s: replayed in-progress fingerprint down\n", __func__);
+		} else {
+			tcm->is_fp_down = false;
+		}
+	}
+
+	TPD_INFO("%s: fp_hal_mode = %u.\n", __func__, tcm->fp_hal_mode);
+	syna_dev_update_lpwg_mode(tcm);
+	mutex_unlock(&tcm->mutex);
+
+	return count;
+}
+
+DECLARE_PROC_OPS(proc_fingerprint_hal_ops, simple_open, proc_fingerprint_hal_read, proc_fingerprint_hal_write, NULL);
+
 
 static ssize_t proc_fingerprint_prevent_read(struct file *file, char __user *buffer,
 				     size_t count, loff_t *ppos)
@@ -1634,6 +1709,9 @@ int init_touchpanel_proc(struct syna_tcm *tcm,
 		},
 		{
 			"fingerprint_active", 0666, NULL, &proc_fingerprint_active_ops, tcm, false, true
+		},
+		{
+			"fingerprint_hal", 0666, NULL, &proc_fingerprint_hal_ops, tcm, false, true
 		},
 		{
 			"fingerprint_prevent", 0666, NULL, &proc_fingerprint_prevent_ops, tcm, false, true

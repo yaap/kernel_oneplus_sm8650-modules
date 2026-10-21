@@ -68,6 +68,10 @@
 #define SIG_UNDER_WATER 47
 #define SIG_FINGER_UP   48
 
+/* fingerprint_hal control bits */
+#define FP_HAL_ACTIVE (1U << 0)
+#define FP_HAL_REPORT (1U << 1)
+
 /*#define TP_NAME_SIZE_MAX 25*/
 /*
 #define MAX_FW_NAME_LENGTH        60
@@ -736,6 +740,7 @@ struct syna_tcm {
 	struct fp_underscreen_info fp_info;	/*tp info used for underscreen fingerprint*/
 	bool fp_active;	/*prepare for screen off fingerprint earlier*/
 	bool fp_prevent;	/*sensor near and fp closed, exit active state and enter sleep*/
+	unsigned int fp_hal_mode;	/*fingerprint_hal control bits*/
 	struct touch_film_info film_info;
 
 	struct workqueue_struct *fp_error_wq;
