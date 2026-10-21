@@ -66,7 +66,10 @@
 
 /* -------------------- parameters -------------------- */
 /* log level config */
-unsigned int oplus_ofp_log_level = OPLUS_OFP_LOG_LEVEL_DEBUG;
+/* The HBM/pressed-icon/UI-ready transitions are too chatty for production.
+ * Keep failures visible and raise this level when debugging the optical path.
+ */
+unsigned int oplus_ofp_log_level = OPLUS_OFP_LOG_LEVEL_WARN;
 EXPORT_SYMBOL(oplus_ofp_log_level);
 /* dual display id */
 unsigned int oplus_ofp_display_id = OPLUS_OFP_PRIMARY_DISPLAY;
