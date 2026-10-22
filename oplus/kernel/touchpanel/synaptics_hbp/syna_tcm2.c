@@ -549,7 +549,7 @@ static int syna_dev_set_fingerprint_enable(struct syna_tcm *tcm, unsigned short 
 
 	config = (config & 0xf0) | (value & 0x0f);
 
-	LOGI("HBP set touch_and_hold(0x%04x)\n", config);
+	LOGD("HBP set touch_and_hold(0x%04x)\n", config);
 
 	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev,
 			DC_TOUCH_AND_HOLD,

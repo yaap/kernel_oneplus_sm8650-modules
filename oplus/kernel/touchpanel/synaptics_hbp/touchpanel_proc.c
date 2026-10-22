@@ -1035,7 +1035,7 @@ static ssize_t proc_fingerprint_hal_write(struct file *file,
 		tcm->fp_info.touch_state = 0;
 		tcm->is_fp_down = false;
 		touch_call_notifier_fp(tcm, &tcm->fp_info);
-		TPD_INFO("%s: screen on fingerprint up\n", __func__);
+		TPD_DEBUG("%s: screen on fingerprint up\n", __func__);
 	}
 
 	if (!(old_mode & FP_HAL_REPORT) && (tcm->fp_hal_mode & FP_HAL_REPORT)) {
@@ -1050,13 +1050,13 @@ static ssize_t proc_fingerprint_hal_write(struct file *file,
 			touch_call_notifier_fp(tcm, &tcm->fp_info);
 			tcm->fp_info.touch_state = 1;
 			touch_call_notifier_fp(tcm, &tcm->fp_info);
-			TPD_INFO("%s: replayed in-progress fingerprint down\n", __func__);
+			TPD_DEBUG("%s: replayed in-progress fingerprint down\n", __func__);
 		} else {
 			tcm->is_fp_down = false;
 		}
 	}
 
-	TPD_INFO("%s: fp_hal_mode = %u.\n", __func__, tcm->fp_hal_mode);
+	TPD_DEBUG("%s: fp_hal_mode = %u.\n", __func__, tcm->fp_hal_mode);
 	syna_dev_update_lpwg_mode(tcm);
 	mutex_unlock(&tcm->mutex);
 
