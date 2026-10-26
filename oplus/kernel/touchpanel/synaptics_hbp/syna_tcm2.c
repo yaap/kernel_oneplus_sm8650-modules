@@ -191,6 +191,7 @@ static void syna_main_register(struct seq_file *s, void *chip_data);
 static void syna_reserve_read(struct seq_file *s, void *chip_data);
 static void syna_tp_data_record_write(void *chip_data, int count);
 static void syna_tcm_test_report(struct syna_tcm *tcm_info, u32 code);
+static int syna_dev_force_fw_grip(struct syna_tcm *tcm);
 
 #ifndef CONFIG_REMOVE_OPLUS_FUNCTION
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
@@ -1805,6 +1806,14 @@ static int syna_dev_set_up_app_fw(struct syna_tcm *tcm)
 		return -EIO;
 	}
 #endif
+
+	/*
+	 * Do not fail touch initialization because a grip command was rejected;
+	 * the panel is still usable and the failure is visible in the log.
+	 */
+	if (syna_dev_force_fw_grip(tcm) < 0)
+		LOGE("Failed to force HBP firmware grip suppression\n");
+
 	return retval;
 }
 
@@ -4037,6 +4046,87 @@ enum dynamic_config_id {
 	DC_GESTURE_MASK = 0xFE,
 	DC_LOW_TEMP_ENABLE = 0xFD,
 };
+
+/*
+ * The HBP kernel owns normal touch reporting, so it also needs to own the
+ * firmware grip policy. The stock userspace daemon used to send these through
+ * /dev/tcm_hbp0; doing it here guarantees that the policy is restored after
+ * every reset/resume before the first touch report.
+ *
+ * Keep the portrait corner-grip profile used by the legacy S3910 default edge
+ * path. HBP has no tpedge_limit_enable node, so there is no runtime orientation
+ * input to switch the profile.
+ */
+static int syna_dev_force_fw_grip(struct syna_tcm *tcm)
+{
+	struct tcm_dev *tcm_dev;
+	unsigned int resp_reading;
+	int retval;
+	int enable_failures = 0;
+
+	if (!tcm || !tcm->tcm_dev)
+		return -EINVAL;
+
+	tcm_dev = tcm->tcm_dev;
+
+	/*
+	 * The initial application-firmware setup runs before
+	 * syna_dev_request_irq(), so an attention-driven response would time out.
+	 * Poll during initial connect and use the normal attention path once the
+	 * driver is connected and the interrupt handler is active.
+	 */
+	resp_reading = tcm->is_connected ? RESP_IN_ATTN : RESP_IN_POLLING;
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_SUPPRESSION_ENABLED, 1, resp_reading);
+	if (retval < 0) {
+		LOGE("Failed to enable firmware grip suppression: %d\n", retval);
+		enable_failures++;
+	}
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_ENABLED, 1, resp_reading);
+	if (retval < 0) {
+		LOGE("Failed to enable firmware grip: %d\n", retval);
+		enable_failures++;
+	}
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_ROATE_TO_HORIZONTAL_LEVEL, 0, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip orientation: %d\n", retval);
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_ABS_DARK_SEL, 0x03, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip dark select: %d\n", retval);
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_ABS_DARK_X, 0x0A, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip dark X: %d\n", retval);
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_DARK_ZONE_ENABLE, 0x05, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip dark zone: %d\n", retval);
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_DARK_ZONE_X, 0x24, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip dark X zone: %d\n", retval);
+
+	retval = syna_tcm_set_dynamic_config(tcm_dev,
+			DC_GRIP_DARK_ZONE_Y, 0xF5, resp_reading);
+	if (retval < 0)
+		LOGW("Failed to set firmware grip dark Y zone: %d\n", retval);
+
+	if (enable_failures == 2)
+		return -EIO;
+
+	LOGI("Forced HBP firmware grip suppression on\n");
+	return 0;
+}
 
 static void syna_main_register(struct seq_file *s, void *chip_data)
 {
