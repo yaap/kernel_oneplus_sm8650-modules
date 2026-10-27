@@ -1039,6 +1039,77 @@ static ssize_t syna_sysfs_glove_mode_write(struct device *device,
 
 static DEVICE_ATTR(glove_mode, S_IRUGO | S_IWUSR, syna_sysfs_glove_mode_show, syna_sysfs_glove_mode_write);
 
+/*
+ * Grip level: 0 disables the firmware grip layer; 1..5 maps to
+ * DC_GRIP_ABS_DARK_X 0x0a..0x12. The selected level is stored so a resume
+ * re-applies it.
+ */
+static ssize_t syna_sysfs_grip_abs_dark_x_show(struct device *device,
+                struct device_attribute *attribute, char *buf)
+{
+        struct syna_tcm *tcm = dev_get_drvdata(device);
+        unsigned short config = 0;
+        unsigned char level;
+        unsigned char mapped_level;
+        int retval;
+
+        if (!tcm || !tcm->tcm_dev)
+                return -ENODEV;
+
+        mutex_lock(&tcm->mutex);
+        level = tcm->grip_abs_dark_x_level;
+        if (level != SYNA_GRIP_ABS_DARK_X_LEVEL_OFF &&
+            tcm->is_connected && tcm->pwr_state == PWR_ON) {
+                retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0xE1, &config,
+                                                     RESP_IN_POLLING);
+                if (retval >= 0) {
+                        mapped_level = syna_grip_abs_dark_x_level(config);
+                        if (mapped_level != 0)
+                                level = mapped_level;
+                }
+        }
+        mutex_unlock(&tcm->mutex);
+
+        return scnprintf(buf, PAGE_SIZE, "%u\n", (unsigned int)level);
+}
+
+static ssize_t syna_sysfs_grip_abs_dark_x_write(struct device *device,
+                struct device_attribute *attribute, const char *buf, size_t count)
+{
+        struct syna_tcm *tcm = dev_get_drvdata(device);
+        unsigned int level;
+        unsigned char old_level;
+        int retval = 0;
+
+        if (!tcm || !tcm->tcm_dev)
+                return -ENODEV;
+
+        if (kstrtouint(buf, 10, &level))
+                return -EINVAL;
+
+        if (level > SYNA_GRIP_ABS_DARK_X_LEVEL_MAX)
+                return -EINVAL;
+
+        mutex_lock(&tcm->mutex);
+        old_level = tcm->grip_abs_dark_x_level;
+        tcm->grip_abs_dark_x_level = (unsigned char)level;
+        if (tcm->is_connected && tcm->pwr_state == PWR_ON) {
+                retval = syna_tcm_apply_grip_level(tcm);
+                if (retval < 0) {
+                        tcm->grip_abs_dark_x_level = old_level;
+                        mutex_unlock(&tcm->mutex);
+                        return retval;
+                }
+        }
+        mutex_unlock(&tcm->mutex);
+
+        return count;
+}
+
+static DEVICE_ATTR(grip_abs_dark_x, S_IRUGO | S_IWUSR,
+                   syna_sysfs_grip_abs_dark_x_show,
+                   syna_sysfs_grip_abs_dark_x_write);
+
 /**
  * fingerprint_trigger()
  *
@@ -1161,6 +1232,9 @@ int syna_sysfs_create_dir(struct syna_tcm *tcm,
 		return -12;
 
 	if (device_create_file(&pdev->dev, &dev_attr_glove_mode))
+		return -12;
+
+	if (device_create_file(&pdev->dev, &dev_attr_grip_abs_dark_x))
 		return -12;
 
 #ifdef HAS_TESTING_FEATURE

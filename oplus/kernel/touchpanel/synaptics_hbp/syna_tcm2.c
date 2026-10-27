@@ -191,7 +191,6 @@ static void syna_main_register(struct seq_file *s, void *chip_data);
 static void syna_reserve_read(struct seq_file *s, void *chip_data);
 static void syna_tp_data_record_write(void *chip_data, int count);
 static void syna_tcm_test_report(struct syna_tcm *tcm_info, u32 code);
-static int syna_dev_force_fw_grip(struct syna_tcm *tcm);
 
 #ifndef CONFIG_REMOVE_OPLUS_FUNCTION
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
@@ -1811,8 +1810,8 @@ static int syna_dev_set_up_app_fw(struct syna_tcm *tcm)
 	 * Do not fail touch initialization because a grip command was rejected;
 	 * the panel is still usable and the failure is visible in the log.
 	 */
-	if (syna_dev_force_fw_grip(tcm) < 0)
-		LOGE("Failed to force HBP firmware grip suppression\n");
+	if (syna_tcm_apply_grip_level(tcm) < 0)
+		LOGE("Failed to apply HBP firmware grip level\n");
 
 	return retval;
 }
@@ -3690,6 +3689,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 
 	tcm->is_connected = false;
 	tcm->pwr_state = PWR_OFF;
+	tcm->grip_abs_dark_x_level = SYNA_GRIP_ABS_DARK_X_LEVEL_DEFAULT;
 
 	tcm->dev_connect = syna_dev_connect;
 	tcm->dev_disconnect = syna_dev_disconnect;
@@ -4053,21 +4053,24 @@ enum dynamic_config_id {
  * /dev/tcm_hbp0; doing it here guarantees that the policy is restored after
  * every reset/resume before the first touch report.
  *
- * Keep the portrait corner-grip profile used by the legacy S3910 default edge
- * path. HBP has no tpedge_limit_enable node, so there is no runtime orientation
- * input to switch the profile.
+ * Level 0 disables the firmware grip DCs. Levels 1..5 enable them and select
+ * the DARK X width. The portrait profile is kept because HBP has no runtime
+ * orientation input for this node.
  */
-static int syna_dev_force_fw_grip(struct syna_tcm *tcm)
+int syna_tcm_apply_grip_level(struct syna_tcm *tcm)
 {
 	struct tcm_dev *tcm_dev;
+	unsigned short abs_dark_x;
 	unsigned int resp_reading;
 	int retval;
 	int enable_failures = 0;
+	unsigned char level;
 
 	if (!tcm || !tcm->tcm_dev)
 		return -EINVAL;
 
 	tcm_dev = tcm->tcm_dev;
+	level = tcm->grip_abs_dark_x_level;
 
 	/*
 	 * The initial application-firmware setup runs before
@@ -4076,6 +4079,41 @@ static int syna_dev_force_fw_grip(struct syna_tcm *tcm)
 	 * driver is connected and the interrupt handler is active.
 	 */
 	resp_reading = tcm->is_connected ? RESP_IN_ATTN : RESP_IN_POLLING;
+
+	if (level == SYNA_GRIP_ABS_DARK_X_LEVEL_OFF) {
+		retval = syna_tcm_set_dynamic_config(tcm_dev,
+				DC_GRIP_SUPPRESSION_ENABLED, 0, resp_reading);
+		if (retval < 0) {
+			LOGE("Failed to disable firmware grip suppression: %d\n", retval);
+			enable_failures++;
+		}
+
+		retval = syna_tcm_set_dynamic_config(tcm_dev,
+				DC_GRIP_ENABLED, 0, resp_reading);
+		if (retval < 0) {
+			LOGE("Failed to disable firmware grip: %d\n", retval);
+			enable_failures++;
+		}
+
+		retval = syna_tcm_set_dynamic_config(tcm_dev,
+				DC_DARK_ZONE_ENABLE, 0, resp_reading);
+		if (retval < 0)
+			LOGW("Failed to disable firmware grip dark zone: %d\n", retval);
+
+		if (enable_failures == 2)
+			return -EIO;
+
+		LOGI("HBP firmware grip suppression disabled\n");
+		return 0;
+	}
+
+	if (level < SYNA_GRIP_ABS_DARK_X_LEVEL_MIN)
+		level = SYNA_GRIP_ABS_DARK_X_LEVEL_MIN;
+	else if (level > SYNA_GRIP_ABS_DARK_X_LEVEL_MAX)
+		level = SYNA_GRIP_ABS_DARK_X_LEVEL_MAX;
+	tcm->grip_abs_dark_x_level = level;
+
+	abs_dark_x = syna_grip_abs_dark_x_value(level);
 
 	retval = syna_tcm_set_dynamic_config(tcm_dev,
 			DC_GRIP_SUPPRESSION_ENABLED, 1, resp_reading);
@@ -4102,7 +4140,7 @@ static int syna_dev_force_fw_grip(struct syna_tcm *tcm)
 		LOGW("Failed to set firmware grip dark select: %d\n", retval);
 
 	retval = syna_tcm_set_dynamic_config(tcm_dev,
-			DC_GRIP_ABS_DARK_X, 0x0A, resp_reading);
+			DC_GRIP_ABS_DARK_X, abs_dark_x, resp_reading);
 	if (retval < 0)
 		LOGW("Failed to set firmware grip dark X: %d\n", retval);
 
@@ -4124,7 +4162,8 @@ static int syna_dev_force_fw_grip(struct syna_tcm *tcm)
 	if (enable_failures == 2)
 		return -EIO;
 
-	LOGI("Forced HBP firmware grip suppression on\n");
+	LOGI("Applied HBP firmware grip level %u (dark_x=0x%02x)\n",
+	     (unsigned int)level, (unsigned int)abs_dark_x);
 	return 0;
 }
 

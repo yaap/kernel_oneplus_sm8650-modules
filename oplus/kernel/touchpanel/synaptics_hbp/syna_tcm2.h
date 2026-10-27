@@ -112,6 +112,49 @@
 #define KEY_UNDER_WATER  0x2f8
 #define KEY_ON_WATER     0x2f9
 #define UNDER_WATER_BIT  2
+
+/*
+ * User-facing grip DARK X levels. Level 0 disables the firmware grip layer;
+ * levels 1..5 select the DARK X width. Level 3 is the stock profile.
+ */
+#define SYNA_GRIP_ABS_DARK_X_LEVEL_OFF 0
+#define SYNA_GRIP_ABS_DARK_X_LEVEL_MIN 1
+#define SYNA_GRIP_ABS_DARK_X_LEVEL_MAX 5
+#define SYNA_GRIP_ABS_DARK_X_LEVEL_DEFAULT 3
+#define SYNA_GRIP_ABS_DARK_X_VALUE_BASE 0x0A
+#define SYNA_GRIP_ABS_DARK_X_VALUE_STEP 2
+
+static inline unsigned short syna_grip_abs_dark_x_value(unsigned char level)
+{
+	if (level < SYNA_GRIP_ABS_DARK_X_LEVEL_MIN)
+		level = SYNA_GRIP_ABS_DARK_X_LEVEL_MIN;
+	else if (level > SYNA_GRIP_ABS_DARK_X_LEVEL_MAX)
+		level = SYNA_GRIP_ABS_DARK_X_LEVEL_MAX;
+
+	return SYNA_GRIP_ABS_DARK_X_VALUE_BASE +
+	       (level - SYNA_GRIP_ABS_DARK_X_LEVEL_MIN) *
+		       SYNA_GRIP_ABS_DARK_X_VALUE_STEP;
+}
+
+static inline unsigned char syna_grip_abs_dark_x_level(unsigned short value)
+{
+	unsigned short max_value =
+		SYNA_GRIP_ABS_DARK_X_VALUE_BASE +
+		(SYNA_GRIP_ABS_DARK_X_LEVEL_MAX -
+		 SYNA_GRIP_ABS_DARK_X_LEVEL_MIN) *
+			SYNA_GRIP_ABS_DARK_X_VALUE_STEP;
+
+	if (value < SYNA_GRIP_ABS_DARK_X_VALUE_BASE ||
+	    value > max_value ||
+	    (value - SYNA_GRIP_ABS_DARK_X_VALUE_BASE) %
+		    SYNA_GRIP_ABS_DARK_X_VALUE_STEP)
+		return 0;
+
+	return SYNA_GRIP_ABS_DARK_X_LEVEL_MIN +
+	       (value - SYNA_GRIP_ABS_DARK_X_VALUE_BASE) /
+		       SYNA_GRIP_ABS_DARK_X_VALUE_STEP;
+}
+
 /**
  * @section: Driver Configurations
  *
@@ -723,6 +766,7 @@ struct syna_tcm {
 	atomic_t fp_pressed;
 	unsigned short touch_rate;
 	unsigned short glove_mode;
+	unsigned char grip_abs_dark_x_level;
 
 	unsigned int waiting_frame;
 	unsigned int wait_for_ioctl_operation;
@@ -880,6 +924,12 @@ struct syna_tcm {
  *    on success, 0; otherwise, negative value on error.
  */
 int syna_dev_disable_hbp_mode(struct syna_tcm *tcm);
+
+/*
+ * Apply the stored firmware grip level. Level 0 disables the firmware grip
+ * DCs; levels 1..5 enable them and apply the selected DARK X width.
+ */
+int syna_tcm_apply_grip_level(struct syna_tcm *tcm);
 
 /**
  * syna_dev_update_lpwg_status()
